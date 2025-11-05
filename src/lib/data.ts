@@ -96,9 +96,9 @@ export const volunteers: Volunteer[] = [
 
 // Lista de puntos autorizados de ejemplo.
 export const branches: Branch[] = [
-    { id: 'BRH001', name: 'Oficina Central', address: '123 Main St, Cityville', manager: 'Ricardo Gomes' },
-    { id: 'BRH002', name: 'Punto Autorizado Norte', address: '456 North Ave, Townburg', manager: 'Helena Souza' },
-    { id: 'BRH003', name: 'Punto Autorizado Este', address: '789 East Blvd, Villatown', manager: 'Mario Vega' },
+    { id: 'BRH001', name: 'Oficina Central', address: 'San José, San José', manager: 'Ricardo Gomes' },
+    { id: 'BRH002', name: 'Punto Autorizado Heredia', address: 'Heredia, Heredia', manager: 'Helena Souza' },
+    { id: 'BRH003', name: 'Punto Autorizado Cartago', address: 'Cartago, El Tejar', manager: 'Mario Vega' },
 ];
 
 // Lista de casos de ejemplo.
@@ -115,7 +115,7 @@ export const notifications = [
     { id: 2, text: 'El estado del caso #CAS001 se actualizó a "Sentencia".', time: 'hace 1 hora', read: false },
     { id: 3, text: 'La voluntaria "Fernanda Lima" acaba de registrarse.', time: 'hace 3 horas', read: true },
     { id: 4, text: 'Se ha subido un documento para el caso #CAS002.', time: 'hace 1 día', read: true },
-    { id: 5, text: 'Documentos para caso #CAS004 listos para retirar en Punto Autorizado Norte.', time: 'hace 2 días', read: true },
+    { id: 5, text: 'Documentos para caso #CAS004 listos para retirar en Punto Autorizado Heredia.', time: 'hace 2 días', read: true },
 ];
 
 // Lista de mensajeros
@@ -126,9 +126,9 @@ export const couriers: Courier[] = [
 
 // Lista de recogidas pendientes
 export const pendingPickups: PendingPickup[] = [
-  { id: 'PICK01', caseId: 'CAS001', clientName: 'Ana Silva', branchId: 'BRH002', branchName: 'Punto Autorizado Norte', documentCount: 3, status: 'Pendiente de Retiro' },
-  { id: 'PICK02', caseId: 'CAS004', clientName: 'Bruno Costa', branchId: 'BRH003', branchName: 'Punto Autorizado Este', documentCount: 2, status: 'Pendiente de Retiro' },
-  { id: 'PICK03', caseId: 'CAS005', clientName: 'Otro Cliente', branchId: 'BRH002', branchName: 'Punto Autorizado Norte', documentCount: 1, status: 'Pendiente de Retiro' },
+  { id: 'PICK01', caseId: 'CAS001', clientName: 'Ana Silva', branchId: 'BRH002', branchName: 'Punto Autorizado Heredia', documentCount: 3, status: 'Pendiente de Retiro' },
+  { id: 'PICK02', caseId: 'CAS004', clientName: 'Bruno Costa', branchId: 'BRH003', branchName: 'Punto Autorizado Cartago', documentCount: 2, status: 'Pendiente de Retiro' },
+  { id: 'PICK03', caseId: 'CAS005', clientName: 'Otro Cliente', branchId: 'BRH002', branchName: 'Punto Autorizado Heredia', documentCount: 1, status: 'Pendiente de Retiro' },
 ];
 
 // Lista de rutas planificadas
@@ -143,14 +143,14 @@ export const routes: Route[] = [
     stops: [
       {
         branchId: 'BRH002',
-        branchName: 'Punto Autorizado Norte',
-        address: '456 North Ave, Townburg',
+        branchName: 'Punto Autorizado Heredia',
+        address: 'Heredia, Heredia',
         pickups: pendingPickups.filter(p => p.branchId === 'BRH002')
       },
       {
         branchId: 'BRH003',
-        branchName: 'Punto Autorizado Este',
-        address: '789 East Blvd, Villatown',
+        branchName: 'Punto Autorizado Cartago',
+        address: 'Cartago, El Tejar',
         pickups: pendingPickups.filter(p => p.branchId === 'BRH003')
       }
     ]
@@ -166,7 +166,7 @@ export const routes: Route[] = [
         {
             branchId: 'BRH001',
             branchName: 'Oficina Central',
-            address: '123 Main St, Cityville',
+            address: 'San José, San José',
             pickups: []
         }
     ]
