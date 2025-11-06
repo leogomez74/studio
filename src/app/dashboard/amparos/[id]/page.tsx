@@ -31,6 +31,14 @@ import { CaseChat } from "@/components/case-chat";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 // Datos de ejemplo para los archivos.
 const files = [
@@ -163,13 +171,19 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                             Abrir en Comunicaciones
                         </Link>
                     </Button>
-                  <Badge
-                    variant={
-                      caseItem.status === "Cerrado" ? "destructive" : "default"
-                    }
-                  >
-                    {caseItem.status}
-                  </Badge>
+                  <Select defaultValue={caseItem.status}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Cambiar estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Presentado">Presentado</SelectItem>
+                      <SelectItem value="Con curso">Con curso</SelectItem>
+                      <SelectItem value="Rechazo de plano">Rechazo de plano</SelectItem>
+                      <SelectItem value="Con lugar con costas">Con lugar con costas</SelectItem>
+                      <SelectItem value="Con lugar sin costas">Con lugar sin costas</SelectItem>
+                      <SelectItem value="Sentencia">Sentencia</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
