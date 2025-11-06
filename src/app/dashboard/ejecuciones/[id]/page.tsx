@@ -1,4 +1,6 @@
 // Importamos los componentes e íconos necesarios
+"use client";
+import React, { useState } from "react";
 import {
   ArrowLeft,
   Paperclip,
@@ -9,6 +11,8 @@ import {
   BookUser,
   Shield,
   MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -19,17 +23,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cases } from "@/lib/data";
 import { CaseChat } from "@/components/case-chat";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 // Datos de ejemplo para los archivos y mensajes.
@@ -56,6 +54,7 @@ export default function EjecucionDetailPage({
 }: {
   params: { id: string };
 }) {
+  const [isChatVisible, setIsChatVisible] = useState(true);
   // Buscamos la ejecución específica en nuestros datos usando el 'id' de la URL.
   const caseItem = cases.find(
     (c) => c.id.toLowerCase() === params.id.toLowerCase()
@@ -76,22 +75,37 @@ export default function EjecucionDetailPage({
   return (
     <div className="space-y-6">
       {/* Encabezado con botón para volver a la lista de ejecuciones */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/dashboard/ejecuciones">
-            <ArrowLeft className="h-4 w-4" />
-            <span className="sr-only">Volver a Ejecuciones</span>
-          </Link>
-        </Button>
-        <h1 className="text-2xl font-semibold">
-          Detalles de la Ejecución: {caseItem.id}
-        </h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" asChild>
+            <Link href="/dashboard/ejecuciones">
+                <ArrowLeft className="h-4 w-4" />
+                <span className="sr-only">Volver a Ejecuciones</span>
+            </Link>
+            </Button>
+            <h1 className="text-2xl font-semibold">
+            Detalles de la Ejecución: {caseItem.id}
+            </h1>
+        </div>
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={() => setIsChatVisible(!isChatVisible)}>
+                        {isChatVisible ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                        <span className="sr-only">Toggle Chat</span>
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{isChatVisible ? 'Ocultar Chat' : 'Mostrar Chat'}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Grid para organizar las tarjetas de información. */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Columna principal con detalles de la ejecución y pruebas */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className={isChatVisible ? "lg:col-span-3 space-y-6" : "lg:col-span-5 space-y-6"}>
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -103,20 +117,12 @@ export default function EjecucionDetailPage({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Sheet>
-                      <SheetTrigger asChild>
-                        <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href="/dashboard/comunicaciones">
                             <MessageSquare className="mr-2 h-4 w-4"/>
-                            Ver Chat
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent className="w-[400px] sm:w-[540px] p-0">
-                         <SheetHeader className="p-4 border-b">
-                            <SheetTitle>Chat del Caso: {caseItem.id}</SheetTitle>
-                         </SheetHeader>
-                         <CaseChat conversationId="CONV01" />
-                      </SheetContent>
-                    </Sheet>
+                            Abrir en Comunicaciones
+                        </Link>
+                    </Button>
                   <Badge
                     variant={
                       caseItem.status === "Cerrado" ? "destructive" : "default"
@@ -210,6 +216,17 @@ export default function EjecucionDetailPage({
             </CardFooter>
           </Card>
         </div>
+        
+        {isChatVisible && (
+            <div className="lg:col-span-2 space-y-6">
+                <Card className="h-[calc(100vh-12rem)]">
+                    <CardHeader>
+                        <CardTitle>Chat del Caso: {caseItem.id}</CardTitle>
+                    </CardHeader>
+                    <CaseChat conversationId="CONV01" />
+                </Card>
+            </div>
+        )}
       </div>
     </div>
   );
