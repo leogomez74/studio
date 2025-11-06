@@ -90,7 +90,7 @@ import {
   
         {/* Grid para organizar las tarjetas de información. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-          {/* Columna principal con detalles de la ejecución y pruebas */}
+          {/* Columna principal con detalles de la ejecución y pruebas (60%) */}
           <div className="space-y-6 lg:col-span-3">
             <Card>
               <CardHeader>
@@ -178,7 +178,7 @@ import {
             </Card>
           </div>
   
-          {/* Columna lateral para el módulo de Helpdesk (chat) */}
+          {/* Columna lateral para el módulo de Helpdesk (chat) (40%) */}
           <div className="lg:col-span-2">
             <Card className="flex flex-col h-full">
               <CardHeader>
