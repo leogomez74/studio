@@ -22,6 +22,8 @@ import {
   Gavel,
   Banknote,
   DollarSign,
+  UserCog,
+  Scale,
 } from 'lucide-react';
 
 const navItems = [
@@ -59,7 +61,7 @@ export function DashboardNav() {
             }
           >
             <Link href={item.href}>
-                {typeof item.icon === 'string' ? <span className="text-lg">{item.icon}</span> : <item.icon />}
+                <item.icon />
               {item.label}
             </Link>
           </SidebarMenuButton>
