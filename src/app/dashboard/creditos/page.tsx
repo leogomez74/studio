@@ -69,13 +69,13 @@ export default function CreditsPage() {
     if (!date?.from) return true;
     const creditDate = new Date(credit.creationDate);
     const from = new Date(date.from);
-    from.setHours(0,0,0,0);
-    
+    from.setHours(0, 0, 0, 0); // Start of the day
+
     if (!date.to) {
         return creditDate >= from;
     }
     const to = new Date(date.to);
-    to.setHours(23,59,59,999);
+    to.setHours(23, 59, 59, 999); // End of the day
     return creditDate >= from && creditDate <= to;
   })
 
