@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-// Importamos los datos de ejemplo para las oportunidades.
+// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo. En el futuro, esta información vendrá de la tabla de oportunidades en la base de datos.
 import { opportunities, Opportunity } from "@/lib/data";
 
 /**
@@ -58,6 +58,7 @@ export default function DealsPage() {
                 <CardTitle>Oportunidades</CardTitle>
                 <CardDescription>Gestiona las oportunidades de clientes potenciales.</CardDescription>
             </div>
+            {/* $$$ CONECTOR MYSQL: La acción de este botón creará un nuevo registro en la tabla de oportunidades. */}
             <Button size="sm" className="gap-1">
                 <PlusCircle className="h-4 w-4" />
                 Agregar Oportunidad
@@ -83,6 +84,7 @@ export default function DealsPage() {
           </TableHeader>
           {/* El cuerpo de la tabla se llena con los datos de las oportunidades. */}
           <TableBody>
+            {/* $$$ CONECTOR MYSQL: Se itera sobre la lista de oportunidades. Esto será una consulta a la base de datos (SELECT * FROM oportunidades). */}
             {opportunities.map((opportunity) => (
               <OpportunityTableRow key={opportunity.id} opportunity={opportunity} />
             ))}
@@ -113,6 +115,7 @@ const OpportunityTableRow = React.memo(function OpportunityTableRow({ opportunit
       <TableCell className="hidden md:table-cell">{opportunity.assignedTo}</TableCell>
       <TableCell>
         {/* Menú desplegable con acciones para cada oportunidad. */}
+        {/* $$$ CONECTOR MYSQL: Las acciones de este menú (convertir, editar, eliminar) afectarán los registros en la base de datos. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-haspopup="true" size="icon" variant="ghost">

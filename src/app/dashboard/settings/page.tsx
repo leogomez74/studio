@@ -24,6 +24,7 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Configuración de API</CardTitle>
           <CardDescription>
+            {/* $$$ CONECTOR ERP: Esta sección es clave para la integración. Aquí se gestionará la conexión con el sistema ERP de DSF. */}
             Gestiona la conexión con el sistema ERP de DSF.
           </CardDescription>
         </CardHeader>
@@ -49,6 +50,7 @@ export default function SettingsPage() {
               <Input id="api-secret" type="password" placeholder="Ingresa tu secreto de API" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
+                {/* $$$ CONECTOR ERP: Estos botones probarán y guardarán las credenciales para conectar con el ERP. */}
                 <Button variant="outline">Probar Conexión</Button>
                 <Button type="submit">Guardar Cambios</Button>
             </div>

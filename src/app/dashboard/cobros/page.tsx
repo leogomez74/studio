@@ -27,7 +27,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { credits, Credit } from '@/lib/data'; // Importamos los datos de créditos.
+// $$$ CONECTOR MYSQL: Se importan los datos de créditos. En el futuro, estos datos provendrán de una consulta a la base de datos.
+import { credits, Credit } from '@/lib/data'; 
 import Link from 'next/link';
 
 /**
@@ -52,6 +53,7 @@ const getStatusVariant = (status: Credit['status']) => {
  * @param {number | null} [daysEnd=null] - El fin del rango de días. Si es null, filtra desde daysStart en adelante.
  * @returns {Credit[]} Un array de créditos filtrados.
  */
+// $$$ CONECTOR MYSQL: Esta lógica de filtrado se traducirá en consultas SQL (ej: SELECT ... WHERE dias_en_mora BETWEEN 31 AND 60).
 const filterCreditsByArrears = (
   daysStart: number,
   daysEnd: number | null = null
@@ -66,7 +68,7 @@ const filterCreditsByArrears = (
   });
 };
 
-// Pre-filtramos las listas de créditos para cada pestaña para optimizar el rendimiento.
+// $$$ CONECTOR MYSQL: Estas listas pre-filtradas serán reemplazadas por consultas a la base de datos para mejorar el rendimiento.
 const alDiaCredits = credits.filter((c) => c.status === 'Al día');
 const mora30 = filterCreditsByArrears(1, 30);
 const mora60 = filterCreditsByArrears(31, 60);
@@ -89,6 +91,7 @@ export default function CobrosPage() {
       </CardHeader>
       <div className="px-6">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+          {/* $$$ CONECTOR MYSQL: Los contadores en cada pestaña serán el resultado de una consulta COUNT(*) en la base de datos. */}
           <TabsTrigger value="al-dia">Al día ({alDiaCredits.length})</TabsTrigger>
           <TabsTrigger value="30-dias">30 días ({mora30.length})</TabsTrigger>
           <TabsTrigger value="60-dias">60 días ({mora60.length})</TabsTrigger>
@@ -187,6 +190,7 @@ const CobrosTable = React.memo(function CobrosTable({ credits }: { credits: Cred
                 {credit.daysInArrears || 0}
               </TableCell>
               <TableCell>
+                {/* $$$ CONECTOR MYSQL/ERP: Las acciones de este menú (enviar recordatorio, registrar llamada, enviar a judicial) ejecutarán lógica de negocio y actualizarán la base de datos. */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button aria-haspopup="true" size="icon" variant="ghost">

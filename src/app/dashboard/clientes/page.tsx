@@ -27,7 +27,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { clients, Client } from '@/lib/data'; // Importamos los datos de clientes.
+// $$$ CONECTOR MYSQL: Se importan los datos de clientes. En el futuro, estos datos vendrán de la base de datos de clientes.
+import { clients, Client } from '@/lib/data'; 
 import Link from 'next/link';
 
 /**
@@ -62,6 +63,7 @@ export default function ClientesPage() {
               Gestiona los clientes existentes de Credipep.
             </CardDescription>
           </div>
+          {/* $$$ CONECTOR MYSQL: La acción de este botón creará un nuevo registro en la tabla de clientes de la base de datos. */}
           <Button size="sm" className="gap-1">
             <PlusCircle className="h-4 w-4" />
             Agregar Cliente
@@ -86,7 +88,7 @@ export default function ClientesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* Iteramos sobre la lista de clientes para crear una fila por cada uno. */}
+            {/* $$$ CONECTOR MYSQL: Se itera sobre la lista de clientes. Esta será una consulta a la tabla de clientes. */}
             {clients.map((client) => (
               <ClientTableRow key={client.id} client={client} getStatusVariant={getStatusVariant} />
             ))}
@@ -139,6 +141,7 @@ const ClientTableRow = React.memo(function ClientTableRow({ client, getStatusVar
               client.cedula
             )}`}
           >
+            {/* $$$ CONECTOR MYSQL: El número de créditos activos será el resultado de una consulta a la base de datos. */}
             <Badge variant="default">{client.activeCredits}</Badge>
           </Link>
         </Button>
@@ -156,6 +159,7 @@ const ClientTableRow = React.memo(function ClientTableRow({ client, getStatusVar
       </TableCell>
       <TableCell>
         {/* Menú de acciones rápidas para cada cliente. */}
+        {/* $$$ CONECTOR MYSQL: Las acciones de este menú (editar, eliminar) afectarán a la base de datos. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-haspopup="true" size="icon" variant="ghost">

@@ -30,7 +30,7 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion"
-// Importamos los datos de ejemplo que hemos creado.
+// $$$ CONECTOR ERP/MYSQL: Se importan datos de ejemplo. En el futuro, estos datos vendrán del ERP y la base de datos MySQL.
 import { pendingPickups, routes, couriers } from "@/lib/data";
 
 /**
@@ -64,7 +64,7 @@ export default function RutasPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {/* Iteramos sobre los datos de recogidas pendientes para crear una fila por cada una. */}
+                    {/* $$$ CONECTOR ERP: Se itera sobre recogidas pendientes. Esta información será consultada al ERP. */}
                     {pendingPickups.map((pickup) => (
                         <TableRow key={pickup.id}>
                             <TableCell>
@@ -93,6 +93,7 @@ export default function RutasPage() {
                     Gestiona y visualiza las rutas de los mensajeros.
                 </CardDescription>
             </div>
+          {/* $$$ CONECTOR ERP: La creación de una nueva ruta se registrará en el ERP. */}
           <Button size="sm" className="gap-1">
             <PlusCircle className="h-4 w-4" />
             Crear Nueva Ruta
@@ -101,7 +102,7 @@ export default function RutasPage() {
         <CardContent>
           {/* Usamos un Acordeón para mostrar cada ruta de forma colapsable. */}
           <Accordion type="single" collapsible className="w-full">
-            {/* Iteramos sobre las rutas existentes. */}
+            {/* $$$ CONECTOR ERP: Se itera sobre las rutas. Esta información provendrá del ERP. */}
             {routes.map((route) => (
               <AccordionItem value={route.id} key={route.id}>
                 <AccordionTrigger>
@@ -124,6 +125,7 @@ export default function RutasPage() {
                                 <span className="font-medium">Fecha:</span>
                                 <span>{route.date}</span>
                             </div>
+                            {/* $$$ CONECTOR ERP: Las acciones sobre la ruta (ver hoja, completar, cancelar) se comunicarán con el ERP. */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                 <Button size="sm" variant="outline" className="h-7 gap-1">

@@ -35,7 +35,7 @@ const navItems = [
   { href: '/dashboard/calculos', icon: Calculator, label: 'CÁLCULOS' },
   { href: '/dashboard/cobros', icon: Banknote, label: 'COBROS' },
   { href: '/dashboard/cobro-judicial', icon: Gavel, label: 'COBRO JUDICIAL' },
-  { href: '/dashboard/pagos', icon: '💸', label: 'PAGOS' }, // Using emoji as no direct icon
+  { href: '/dashboard/pagos', icon: Banknote, label: 'PAGOS' },
   { href: '/dashboard/rutas', icon: Route, label: 'RUTAS' },
   { href: '/dashboard/notificaciones', icon: Bell, label: 'NOTIFICACIONES' },
   { href: '/dashboard/tareas', icon: ClipboardCheck, label: 'TAREAS' },

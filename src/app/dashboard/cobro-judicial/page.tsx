@@ -27,7 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { credits, Credit } from '@/lib/data'; // Importamos los datos de créditos.
+// $$$ CONECTOR MYSQL: Se importan los datos de créditos. En el futuro, estos datos vendrán de la base de datos de créditos.
+import { credits, Credit } from '@/lib/data'; 
 import Link from 'next/link';
 
 /**
@@ -35,7 +36,7 @@ import Link from 'next/link';
  * Muestra una tabla con los créditos que han sido escalados a proceso judicial.
  */
 export default function CobroJudicialPage() {
-  // Filtramos los créditos para obtener solo aquellos con estado 'En cobro judicial'.
+  // $$$ CONECTOR MYSQL: Se filtran los créditos. Esto será una consulta a la base de datos (SELECT * FROM creditos WHERE estado = 'En cobro judicial').
   const judicialCredits = credits.filter(
     (c) => c.status === 'En cobro judicial'
   );
@@ -98,6 +99,7 @@ const JudicialCreditTableRow = React.memo(function JudicialCreditTableRow({ cred
       </TableCell>
       <TableCell>
         {/* Menú de acciones rápidas para cada caso judicial. */}
+        {/* $$$ CONECTOR ERP/MYSQL: Las acciones de este menú (ver expediente, registrar actuación) interactuarán con el sistema judicial y/o la base de datos. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-haspopup="true" size="icon" variant="ghost">

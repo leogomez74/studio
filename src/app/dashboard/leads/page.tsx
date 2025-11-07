@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// Importamos los datos de ejemplo para los leads.
+// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo. En el futuro, esta información vendrá de la tabla de leads en la base de datos.
 import { leads, Lead } from "@/lib/data";
 
 /**
@@ -43,6 +43,7 @@ export default function LeadsPage() {
                 <CardTitle>Leads</CardTitle>
                 <CardDescription>Gestiona los leads.</CardDescription>
             </div>
+            {/* $$$ CONECTOR MYSQL: La acción de este botón creará un nuevo registro en la tabla de leads. */}
             <Button size="sm" className="gap-1">
                 <PlusCircle className="h-4 w-4" />
                 Agregar Lead
@@ -67,6 +68,7 @@ export default function LeadsPage() {
           </TableHeader>
           {/* El cuerpo de la tabla se llena con los datos de los leads. */}
           <TableBody>
+            {/* $$$ CONECTOR MYSQL: Se itera sobre la lista de leads. Esto será una consulta a la base de datos (SELECT * FROM leads). */}
             {leads.map((lead) => (
               <LeadTableRow key={lead.id} lead={lead} />
             ))}
@@ -103,6 +105,7 @@ const LeadTableRow = React.memo(function LeadTableRow({ lead }: { lead: Lead }) 
       <TableCell className="hidden md:table-cell">{lead.registeredOn}</TableCell>
       <TableCell>
         {/* Menú desplegable con acciones para cada lead. */}
+        {/* $$$ CONECTOR MYSQL: Las acciones de este menú (convertir, editar, eliminar) afectarán los registros en la base de datos. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-haspopup="true" size="icon" variant="ghost">

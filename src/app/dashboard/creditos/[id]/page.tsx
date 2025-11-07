@@ -26,7 +26,8 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { credits, tasks, staff, Task } from '@/lib/data'; // Importación de datos de ejemplo.
+// $$$ CONECTOR MYSQL: Se importan datos de ejemplo. En una aplicación real, todos estos datos vendrían de la base de datos.
+import { credits, tasks, staff, Task } from '@/lib/data'; 
 import { CaseChat } from '@/components/case-chat';
 import {
   Tooltip,
@@ -44,7 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-// Datos de ejemplo para los archivos del crédito.
+// $$$ CONECTOR MYSQL/ERP: Los archivos del crédito se obtendrán de un sistema de gestión de documentos o de la base de datos.
 const files = [
   { name: 'Pagare_Firmado.pdf', type: 'pdf', size: '1.2 MB' },
   { name: 'Autorizacion_Deduccion.pdf', type: 'pdf', size: '800 KB' },
@@ -88,11 +89,12 @@ const getPriorityVariant = (priority: Task['priority']) => {
  * @param {{ creditId: string }} props - Propiedades, incluyendo el ID del crédito.
  */
 function CreditTasks({ creditId }: { creditId: string }) {
-  // Filtra las tareas para obtener solo las que corresponden a este crédito.
+  // $$$ CONECTOR MYSQL: Filtra las tareas. Esto será una consulta a la tabla de tareas (SELECT * FROM tareas WHERE id_credito = ...).
   const creditTasks = tasks.filter((task) => task.caseId === creditId);
 
   // Obtiene la URL del avatar del usuario asignado.
   const getAvatarUrl = (name: string) => {
+    // $$$ CONECTOR MYSQL: Esto buscará en la tabla de usuarios/personal.
     const user = staff.find((s) => s.name === name);
     return user ? user.avatarUrl : undefined;
   };
@@ -143,7 +145,7 @@ export default function CreditDetailPage({
 }) {
   // Estado para controlar la visibilidad del panel lateral.
   const [isPanelVisible, setIsPanelVisible] = useState(true);
-  // Busca el crédito en los datos usando el ID de la URL.
+  // $$$ CONECTOR MYSQL: Busca el crédito. Esto será una consulta a la base de datos (SELECT * FROM creditos WHERE id_operacion = ...).
   const credit = credits.find((c) => c.operationNumber === params.id);
 
   // Si no se encuentra el crédito, muestra un mensaje de error.
@@ -224,7 +226,7 @@ export default function CreditDetailPage({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Selector para cambiar el estado del crédito. */}
+                  {/* $$$ CONECTOR MYSQL: Al cambiar el valor de este selector, se debe ejecutar una actualización (UPDATE) en la base de datos. */}
                   <Select defaultValue={credit.status}>
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Cambiar estado" />
@@ -278,6 +280,7 @@ export default function CreditDetailPage({
               </div>
             </CardContent>
             <CardFooter>
+              {/* $$$ CONECTOR ERP: Este botón podría iniciar un proceso de pago o liquidación en el ERP. */}
               <Button>
                 Pago Anticipado
               </Button>
@@ -293,6 +296,7 @@ export default function CreditDetailPage({
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+              {/* $$$ CONECTOR ERP: La generación de estos documentos puede requerir datos del ERP o registrar la acción en él. */}
               <Button variant="outline">
                 <FileJson className="mr-2 h-4 w-4" />
                 Pagaré
@@ -371,9 +375,11 @@ export default function CreditDetailPage({
                   value="comunicaciones"
                   className="flex-1 overflow-y-auto"
                 >
+                  {/* El componente de chat cargará datos de la base de datos. */}
                   <CaseChat conversationId={credit.operationNumber} />
                 </TabsContent>
                 <TabsContent value="tareas" className="flex-1 overflow-y-auto">
+                  {/* El componente de tareas cargará datos de la base de datos. */}
                   <CreditTasks creditId={credit.operationNumber} />
                 </TabsContent>
               </Tabs>

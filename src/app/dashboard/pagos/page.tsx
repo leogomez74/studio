@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Upload, PlusCircle, Receipt, AlertTriangle } from 'lucide-react';
-import { payments, Payment } from '@/lib/data'; // Importamos los datos de ejemplo de pagos.
+// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo de pagos. En el futuro, estos datos provendrán de la tabla de pagos en la base de datos.
+import { payments, Payment } from '@/lib/data'; 
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 
@@ -51,10 +52,12 @@ export default function PagosPage() {
                 </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+                {/* $$$ CONECTOR ERP: La carga de planillas interactuará con el ERP para procesar pagos masivos y conciliar movimientos contables. */}
                 <Button variant="outline">
                     <Upload className="mr-2 h-4 w-4" />
                     Cargar Planilla
                 </Button>
+                {/* $$$ CONECTOR MYSQL: Este botón registrará un nuevo pago en la tabla de pagos de la base de datos. */}
                 <Button>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Registrar Pago
@@ -78,7 +81,7 @@ export default function PagosPage() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {/* Iteramos sobre la lista de pagos para crear una fila por cada uno. */}
+                {/* $$$ CONECTOR MYSQL: Se itera sobre la lista de pagos. Esto será una consulta a la tabla de pagos (SELECT * FROM pagos). */}
                 {payments.map((payment) => (
                     <PaymentTableRow key={payment.id} payment={payment} />
                 ))}
@@ -121,6 +124,7 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment }: { payme
             <Badge variant={getSourceVariant(payment.source)}>{payment.source}</Badge>
         </TableCell>
          <TableCell className="text-right">
+            {/* $$$ CONECTOR ERP: La visualización del recibo podría solicitar el documento al ERP. */}
             <Button variant="ghost" size="icon">
                 <Receipt className="h-4 w-4" />
                 <span className="sr-only">Ver Recibo</span>

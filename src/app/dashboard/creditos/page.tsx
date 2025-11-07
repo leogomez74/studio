@@ -28,7 +28,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { credits, Credit } from '@/lib/data'; // Importamos los datos de créditos.
+// $$$ CONECTOR MYSQL: Se importan los datos de créditos. En el futuro, estos datos provendrán de la base de datos.
+import { credits, Credit } from '@/lib/data'; 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation'; // Hook para leer parámetros de la URL.
 import { DateRange } from 'react-day-picker';
@@ -72,6 +73,7 @@ export default function CreditsPage() {
   const debtorId = searchParams.get('debtorId'); // Obtenemos el 'debtorId' de la URL si existe.
   const [date, setDate] = useState<DateRange | undefined>(undefined); // Estado para el rango de fechas del calendario.
 
+  // $$$ CONECTOR MYSQL: La lógica de filtrado se convertirá en cláusulas WHERE en una consulta SQL.
   // Filtramos los créditos base. Si hay un debtorId, filtramos por él; si no, usamos todos los créditos.
   const baseFilteredCredits = debtorId
     ? credits.filter((c) => c.debtorId === debtorId)
@@ -93,6 +95,7 @@ export default function CreditsPage() {
   })
 
   // Título y descripción dinámicos dependiendo si estamos filtrando por un deudor.
+  // $$$ CONECTOR MYSQL: El nombre del deudor vendrá de una consulta a la tabla de clientes.
   const pageTitle = debtorId ? `Créditos de ${filteredCredits[0]?.debtorName || ''}` : 'Todos los Créditos';
   const pageDescription = debtorId ? `Viendo todos los créditos para el cliente.` : 'Gestiona todos los créditos activos e históricos.';
   
@@ -100,6 +103,7 @@ export default function CreditsPage() {
    * Maneja la exportación de los datos de la tabla a un archivo PDF.
    * @param {Credit[]} data - Los datos de los créditos a exportar.
    */
+  // $$$ CONECTOR ERP: La generación de reportes podría ser un servicio del ERP o requerir datos consolidados por él.
   const handleExportPDF = (data: Credit[]) => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     
@@ -138,6 +142,7 @@ export default function CreditsPage() {
               <Link href="/dashboard/creditos">Ver todos los créditos</Link>
             </Button>
           )}
+          {/* $$$ CONECTOR MYSQL: Este botón iniciará un flujo para crear un nuevo registro en la tabla de créditos. */}
           <Button size="sm" className="gap-1">
             <PlusCircle className="h-4 w-4" />
             Agregar Crédito
@@ -199,6 +204,7 @@ export default function CreditsPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {/* $$$ CONECTOR MYSQL: La tabla se llenará con los resultados de la consulta a la base de datos, aplicando los filtros correspondientes. */}
             <CreditsTable credits={filteredCredits.filter(c => c.status !== 'Cancelado')} />
           </CardContent>
         </Card>
@@ -333,6 +339,7 @@ const CreditTableRow = React.memo(function CreditTableRow({ credit }: { credit: 
           {credit.dueDate}
         </TableCell>
         <TableCell>
+          {/* $$$ CONECTOR MYSQL: Las acciones de este menú (actualizar, eliminar) afectarán la base de datos. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button aria-haspopup="true" size="icon" variant="ghost">

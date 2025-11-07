@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// Importamos los datos de las tareas desde nuestro archivo de datos de ejemplo.
+// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo. En el futuro, estos datos vendrán de la base de datos.
 import { tasks, staff, Task } from "@/lib/data";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -72,6 +72,7 @@ export default function TareasPage() {
             <CardTitle>Gestión de Tareas</CardTitle>
             <CardDescription>Organiza y asigna las tareas pendientes de los casos.</CardDescription>
           </div>
+          {/* $$$ CONECTOR MYSQL: Este botón creará un nuevo registro en la tabla de tareas. */}
           <Button size="sm" className="gap-1">
             <PlusCircle className="h-4 w-4" />
             Agregar Tarea
@@ -79,6 +80,7 @@ export default function TareasPage() {
         </div>
       </CardHeader>
       <CardContent>
+        {/* $$$ CONECTOR MYSQL: La tabla se llenará con datos de la tabla de tareas en la base de datos. */}
         <TasksTable tasks={tasks} />
       </CardContent>
     </Card>
@@ -92,6 +94,7 @@ export default function TareasPage() {
 function TasksTable({ tasks }: { tasks: Task[] }) {
     // Helper para encontrar la URL del avatar de la persona asignada.
     const getAvatarUrl = (name: string) => {
+        // $$$ CONECTOR MYSQL: Se buscará el usuario en la tabla de personal/usuarios.
         const user = staff.find(s => s.name === name);
         return user ? user.avatarUrl : undefined;
     };
@@ -157,6 +160,7 @@ const TaskTableRow = React.memo(function TaskTableRow({ task, getAvatarUrl }: { 
               <Badge variant={getStatusVariant(task.status)}>{task.status}</Badge>
             </TableCell>
             <TableCell>
+            {/* $$$ CONECTOR MYSQL: Las acciones de este menú (actualizar, reasignar, eliminar) modificarán la base de datos. */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                 <Button aria-haspopup="true" size="icon" variant="ghost">

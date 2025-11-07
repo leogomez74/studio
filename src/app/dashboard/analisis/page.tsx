@@ -18,7 +18,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { leads, opportunities, Lead, Opportunity } from '@/lib/data'; // Importamos los datos de ejemplo.
+// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo. En el futuro, esta información vendrá de la base de datos.
+import { leads, opportunities, Lead, Opportunity } from '@/lib/data'; 
 import { AlertTriangle, ShieldCheck } from 'lucide-react';
 
 /**
@@ -74,9 +75,9 @@ export default function AnalisisPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* Iteramos sobre cada lead para crear una fila en la tabla. */}
+            {/* $$$ CONECTOR MYSQL: Se itera sobre los datos de leads. En el futuro, esta consulta se hará a la base de datos. */}
             {leads.map((lead) => {
-              // Buscamos si existe una oportunidad asociada a este lead por su cédula.
+              // $$$ CONECTOR MYSQL: Se busca la oportunidad asociada. Esto será una consulta relacionada en la base de datos.
               const opportunity = opportunities.find(op => op.leadCedula === lead.cedula);
               // Determinamos el estado: si hay oportunidad, usamos su estado; si no, 'Sin Iniciar'.
               const status = opportunity ? opportunity.status : 'Sin Iniciar';
