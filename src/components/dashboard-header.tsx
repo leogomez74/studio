@@ -1,10 +1,6 @@
-// La directiva "use client" indica que este componente se ejecutará en el navegador del usuario.
-// Esto es necesario para usar hooks de React como `usePathname` que dependen del estado del navegador.
-"use client";
-
-// Importamos componentes y utilidades necesarias.
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Bell,
   Home,
@@ -13,13 +9,9 @@ import {
   User as UserIcon,
   LogOut,
   Settings,
-} from "lucide-react";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,50 +19,50 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-// Importamos datos de ejemplo para las notificaciones.
-import { notifications } from "@/lib/data";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/popover';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { notifications } from '@/lib/data';
+import { cn } from '@/lib/utils';
 
-// El componente `Breadcrumbs` muestra la ruta de navegación actual (ej: Inicio > Dashboard > Usuarios).
 function Breadcrumbs() {
-  // `usePathname` es un hook de Next.js que nos da la ruta actual de la URL.
   const pathname = usePathname();
-  // Dividimos la ruta en segmentos para construir los breadcrumbs.
-  const segments = pathname.split("/").filter(Boolean);
+  const segments = pathname.split('/').filter(Boolean);
 
   return (
     <nav className="hidden items-center gap-2 text-sm font-medium md:flex">
-      {/* Si hay segmentos en la ruta, mostramos un enlace a la página de inicio del dashboard. */}
       {segments.length > 0 && (
-        <Link href="/dashboard" className="text-muted-foreground transition-colors hover:text-foreground">
+        <Link
+          href="/dashboard"
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
           <Home className="h-4 w-4" />
         </Link>
       )}
-      {/* Mapeamos cada segmento de la ruta para crear un enlace de breadcrumb. */}
       {segments.map((segment, index) => {
-        const href = "/" + segments.slice(0, index + 1).join("/");
+        const href = '/' + segments.slice(0, index + 1).join('/');
         const isLast = index === segments.length - 1;
+        // Decode URI component and replace dashes for display
+        const segmentDisplay = decodeURIComponent(segment).replace(/-/g, ' ');
+
         return (
           <div key={href} className="flex items-center gap-2">
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
             <Link
               href={href}
               className={cn(
-                "capitalize transition-colors",
+                'capitalize transition-colors',
                 isLast
-                  ? "text-foreground" // El último segmento es la página actual y tiene un color diferente.
-                  : "text-muted-foreground hover:text-foreground"
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              {segment.replace(/-/g, " ")}
+              {segmentDisplay}
             </Link>
           </div>
         );
@@ -79,32 +71,27 @@ function Breadcrumbs() {
   );
 }
 
-// El componente principal `DashboardHeader` que conforma toda la barra de encabezado.
 export function DashboardHeader() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm md:px-6">
       <div className="flex items-center gap-4">
-        {/* El `SidebarTrigger` es el botón para mostrar/ocultar la barra lateral en móviles. */}
         <SidebarTrigger className="md:hidden" />
         <Breadcrumbs />
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 md:gap-4">
-        {/* Campo de búsqueda */}
-        <div className="relative w-full max-w-sm ml-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative ml-auto w-full max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Buscar..." className="pl-9" />
         </div>
-        
-        {/* `Popover` para mostrar las notificaciones al hacer clic en el ícono de la campana. */}
+
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative shrink-0">
               <Bell className="h-5 w-5" />
-              {/* Este es el punto rojo que indica nuevas notificaciones. */}
-              <span className="absolute top-1 right-1 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive/75 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
+              <span className="absolute right-1 top-1 flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/75 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-accent"></span>
               </span>
               <span className="sr-only">Ver notificaciones</span>
             </Button>
@@ -112,28 +99,37 @@ export function DashboardHeader() {
           <PopoverContent className="w-80 p-0">
             <div className="p-4 font-medium">Notificaciones</div>
             <div className="border-t">
-              {/* Mostramos una lista de las primeras 4 notificaciones. */}
               {notifications.slice(0, 4).map((notif) => (
-                <div key={notif.id} className="border-b p-4 text-sm last:border-b-0 transition-colors hover:bg-accent">
+                <div
+                  key={notif.id}
+                  className="border-b p-4 text-sm last:border-b-0 transition-colors hover:bg-accent"
+                >
                   <p>{notif.text}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {notif.time}
+                  </p>
                 </div>
               ))}
             </div>
-             <div className="border-t bg-background/50 p-2 text-center">
-               <Button variant="link" size="sm" asChild>
-                <Link href="#">Ver todas las notificaciones</Link>
-               </Button>
-             </div>
+            <div className="border-t bg-background/50 p-2 text-center">
+              <Button variant="link" size="sm" asChild>
+                <Link href="/dashboard/notificaciones">
+                  Ver todas las notificaciones
+                </Link>
+              </Button>
+            </div>
           </PopoverContent>
         </Popover>
 
-        {/* `DropdownMenu` para el perfil del usuario. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
-                <AvatarImage src="https://picsum.photos/seed/admin-avatar/40/40" alt="Admin" data-ai-hint="professional person" />
+                <AvatarImage
+                  src="https://picsum.photos/seed/admin-avatar/40/40"
+                  alt="Admin"
+                  data-ai-hint="professional person"
+                />
                 <AvatarFallback>AD</AvatarFallback>
               </Avatar>
             </Button>
@@ -141,7 +137,9 @@ export function DashboardHeader() {
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel>
               <p>Usuario Admin</p>
-              <p className="text-xs font-normal text-muted-foreground">admin@dsf.com</p>
+              <p className="text-xs font-normal text-muted-foreground">
+                admin@crepipep.com
+              </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>
@@ -149,7 +147,7 @@ export function DashboardHeader() {
               <span>Perfil</span>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/settings">
+              <Link href="/dashboard/configuracion">
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Configuración</span>
               </Link>

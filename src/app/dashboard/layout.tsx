@@ -15,12 +15,6 @@ import {
   SidebarMenuButton,
   SidebarInset,
 } from "@/components/ui/sidebar";
-// Importamos el componente de Avatar para mostrar imágenes de perfil.
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
 // Importamos el icono de configuración.
 import {
   Settings
@@ -52,9 +46,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/settings">
+                <Link href="/dashboard/configuracion">
                   <Settings />
-                  Configuración
+                  CONFIGURACIÓN
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

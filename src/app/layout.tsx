@@ -8,8 +8,8 @@ import { Toaster } from "@/components/ui/toaster";
 // 'metadata' es un objeto especial que Next.js usa para configurar el <head> del HTML.
 // Aquí definimos el título y la descripción que aparecerán en la pestaña del navegador y en los resultados de búsqueda.
 export const metadata: Metadata = {
-  title: 'DSF - Panel de Administración',
-  description: 'Panel de administración para DSF',
+  title: 'Credipep - Panel de Administración',
+  description: 'Panel de administración para Credipep',
 };
 
 // Esta es la función principal del Layout raíz. Envuelve toda la aplicación.

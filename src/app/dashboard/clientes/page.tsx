@@ -1,21 +1,21 @@
-// Importamos iconos y componentes de la interfaz de usuario.
-import { MoreHorizontal, PlusCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+'use client';
+import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -23,57 +23,52 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// Importamos los datos de ejemplo para los usuarios.
-import { users } from "@/lib/data";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { users } from '@/lib/data';
+import Link from 'next/link';
 
-
-// Esta es la función principal que define la página de Clientes.
 export default function ClientesPage() {
-  const clientes = users.filter(u => u.status === 'Caso Creado');
+  const clientes = users.filter((u) => u.status === 'Cliente');
 
   const getStatusVariant = (status: 'Activo' | 'Suspendido') => {
-      return status === 'Activo' ? 'default' : 'destructive';
-  }
-  // La función devuelve una tarjeta (Card) que contiene la tabla de clientes.
+    return status === 'Activo' ? 'default' : 'destructive';
+  };
+
   return (
     <Card>
-      {/* El encabezado de la tarjeta con título, descripción y botón para agregar. */}
       <CardHeader>
         <div className="flex items-center justify-between">
-            <div>
-                <CardTitle>Clientes</CardTitle>
-                <CardDescription>Gestiona los clientes existentes.</CardDescription>
-            </div>
-            <Button size="sm" className="gap-1">
-                <PlusCircle className="h-4 w-4" />
-                Agregar Cliente
-            </Button>
+          <div>
+            <CardTitle>Clientes</CardTitle>
+            <CardDescription>
+              Gestiona los clientes existentes de Credipep.
+            </CardDescription>
+          </div>
+          <Button size="sm" className="gap-1">
+            <PlusCircle className="h-4 w-4" />
+            Agregar Cliente
+          </Button>
         </div>
       </CardHeader>
-      {/* El contenido de la tarjeta es la tabla con la lista de clientes. */}
       <CardContent>
         <Table>
-          {/* El encabezado de la tabla define las columnas. */}
           <TableHeader>
             <TableRow>
               <TableHead>Cliente</TableHead>
               <TableHead>Cédula</TableHead>
               <TableHead className="hidden md:table-cell">Contacto</TableHead>
-              <TableHead>Casos Activos</TableHead>
-              <TableHead>Estado del Cliente</TableHead>
-              <TableHead className="hidden md:table-cell">Registrado El</TableHead>
+              <TableHead>Créditos Activos</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="hidden md:table-cell">
+                Registrado El
+              </TableHead>
               <TableHead>
                 <span className="sr-only">Acciones</span>
               </TableHead>
             </TableRow>
           </TableHeader>
-          {/* El cuerpo de la tabla se llena con los datos de los usuarios. */}
           <TableBody>
-            {/* Usamos la función 'map' para crear una fila por cada usuario. */}
             {clientes.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>
@@ -87,32 +82,47 @@ export default function ClientesPage() {
                 </TableCell>
                 <TableCell>{user.cedula}</TableCell>
                 <TableCell className="hidden md:table-cell">
-                    <div className="text-sm text-muted-foreground">{user.email}</div>
-                    <div className="text-sm text-muted-foreground">{user.phone}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {user.email}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {user.phone}
+                  </div>
                 </TableCell>
                 <TableCell>
-                  <Button variant='link' asChild>
-                    <Link href={`/dashboard/cases?client=${encodeURIComponent(user.name)}`}>
-                        <Badge variant='default'>1</Badge>
+                  <Button variant="link" asChild>
+                    <Link
+                      href={`/dashboard/creditos?debtorId=${encodeURIComponent(
+                        user.cedula
+                      )}`}
+                    >
+                      <Badge variant="default">{user.activeCredits}</Badge>
                     </Link>
                   </Button>
                 </TableCell>
                 <TableCell>
-                    {user.clientStatus && (
-                        user.clientStatus === 'Suspendido' && user.unsignedCaseId ? (
-                            <Button variant='link' asChild className="p-0 h-auto">
-                                <Link href={`/dashboard/cases/${user.unsignedCaseId.toLowerCase()}`}>
-                                    <Badge variant={getStatusVariant(user.clientStatus)}>{user.clientStatus}</Badge>
-                                </Link>
-                            </Button>
-                        ) : (
-                             <Badge variant={getStatusVariant(user.clientStatus)}>{user.clientStatus}</Badge>
-                        )
-                    )}
+                  {user.clientStatus &&
+                    (user.clientStatus === 'Suspendido' &&
+                    user.unsignedCreditId ? (
+                      <Button variant="link" asChild className="h-auto p-0">
+                        <Link
+                          href={`/dashboard/creditos/${user.unsignedCreditId.toLowerCase()}`}
+                        >
+                          <Badge variant={getStatusVariant(user.clientStatus)}>
+                            {user.clientStatus}
+                          </Badge>
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Badge variant={getStatusVariant(user.clientStatus)}>
+                        {user.clientStatus}
+                      </Badge>
+                    ))}
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{user.registeredOn}</TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {user.registeredOn}
+                </TableCell>
                 <TableCell>
-                  {/* Menú desplegable con acciones para cada usuario. */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -123,9 +133,11 @@ export default function ClientesPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                       <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
-                      <DropdownMenuItem>Crear Caso</DropdownMenuItem>
+                      <DropdownMenuItem>Crear Crédito</DropdownMenuItem>
                       <DropdownMenuItem>Editar</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">
+                        Eliminar
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
