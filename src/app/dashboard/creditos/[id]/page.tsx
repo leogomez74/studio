@@ -6,7 +6,7 @@ import {
   Paperclip,
   FileText,
   FileJson,
-  BookUser,
+  FileSignature,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
@@ -297,23 +297,23 @@ export default function CreditDetailPage({
                 Crea los documentos y reportes necesarios para el crédito.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
               {/* $$$ CONECTOR ERP: La generación de estos documentos puede requerir datos del ERP o registrar la acción en él. */}
               <Button variant="outline">
                 <FileJson className="mr-2 h-4 w-4" />
                 Pagaré
               </Button>
               <Button variant="outline">
-                <BookUser className="mr-2 h-4 w-4" />
-                Autorización Deducción
+                <FileSignature className="mr-2 h-4 w-4" />
+                Autorización
               </Button>
               <Button variant="outline">
                 <Receipt className="mr-2 h-4 w-4" />
-                Estado de Cuenta
+                Balance
               </Button>
               <Button variant="outline">
                 <FileBadge className="mr-2 h-4 w-4" />
-                Certificación de Deuda
+                Certificación
               </Button>
               <Button variant="outline">
                 <Gavel className="mr-2 h-4 w-4" />
@@ -321,11 +321,11 @@ export default function CreditDetailPage({
               </Button>
                <Button variant="outline">
                 <UserCog className="mr-2 h-4 w-4" />
-                Cambio de Patrono
+                NUEVO TRABAJO
               </Button>
                <Button variant="outline">
                 <Scale className="mr-2 h-4 w-4" />
-                Solicitud de Embargo
+                Embargo
               </Button>
             </CardContent>
           </Card>
