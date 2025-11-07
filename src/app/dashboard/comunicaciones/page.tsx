@@ -1,4 +1,5 @@
 // Importamos los componentes e íconos necesarios para la página de comunicaciones.
+// 'use client' indica que es un Componente de Cliente, lo que permite usar estado y efectos.
 "use client";
 import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -32,27 +33,36 @@ import {
   ChatMessage,
   InternalNote,
   credits,
-} from "@/lib/data";
-import { cn } from "@/lib/utils";
+} from "@/lib/data"; // Importamos datos de ejemplo.
+import { cn } from "@/lib/utils"; // Utilidad para combinar clases de Tailwind.
 import Link from "next/link";
 
-// Esta es la función principal que define la página de Comunicaciones.
+/**
+ * Esta es la función principal que define la página de Comunicaciones.
+ * Presenta un diseño de tres columnas: cajas de entrada, lista de conversaciones y el chat activo.
+ */
 export default function CommunicationsPage() {
+  // Estado para mantener la conversación que está seleccionada actualmente.
   const [selectedConversation, setSelectedConversation] = React.useState(
     conversations[0]
   );
   
+  /**
+   * Función para obtener la ruta correcta al detalle de un crédito.
+   * @param {string} creditId - El ID de la operación del crédito.
+   * @returns {string} La URL a la página de detalle del crédito.
+   */
   const getCreditPath = (creditId: string) => {
     // La nueva lógica es más simple, solo enlaza al detalle del crédito.
     const credit = credits.find(c => c.operationNumber === creditId);
-    if (!credit) return '/dashboard/creditos'; // Fallback a la lista principal
+    if (!credit) return '/dashboard/creditos'; // Si no lo encuentra, va a la lista principal.
     return `/dashboard/creditos/${creditId}`;
   }
 
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-[260px_340px_1fr] h-[calc(100vh-8rem)] gap-2">
-      {/* Barra lateral de Inboxes */}
+      {/* Columna 1: Barra lateral de Cajas de Entrada (Inboxes) */}
       <Card className="hidden md:flex flex-col">
         <CardContent className="p-4 space-y-6">
           <div className="space-y-2">
@@ -92,7 +102,7 @@ export default function CommunicationsPage() {
         </CardContent>
       </Card>
 
-      {/* Lista de Conversaciones */}
+      {/* Columna 2: Lista de Conversaciones */}
       <Card className="flex flex-col">
         <div className="p-4 border-b">
           <div className="relative">
@@ -102,13 +112,14 @@ export default function CommunicationsPage() {
         </div>
         <CardContent className="p-0 flex-1 overflow-y-auto">
           <nav className="space-y-1">
+            {/* Iteramos sobre las conversaciones para mostrar cada una en la lista. */}
             {conversations.map((conv) => (
               <button
                 key={conv.id}
-                onClick={() => setSelectedConversation(conv)}
+                onClick={() => setSelectedConversation(conv)} // Al hacer clic, se actualiza la conversación seleccionada.
                 className={cn(
                   "w-full text-left p-3 hover:bg-muted/50 transition-colors flex items-start gap-3",
-                  selectedConversation.id === conv.id && "bg-muted"
+                  selectedConversation.id === conv.id && "bg-muted" // Resaltamos la conversación activa.
                 )}
               >
                 <Avatar className="h-10 w-10 border">
@@ -132,7 +143,7 @@ export default function CommunicationsPage() {
         </CardContent>
       </Card>
 
-      {/* Panel de Chat Activo */}
+      {/* Columna 3: Panel del Chat Activo */}
       <Card className="flex flex-col">
         <div className="p-4 border-b flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -180,19 +191,23 @@ export default function CommunicationsPage() {
                     Comentarios
                 </TabsTrigger>
             </TabsList>
+            {/* Pestaña para mostrar mensajes y notas combinados y ordenados. */}
             <TabsContent value="all" className="flex-1 p-4 space-y-4 overflow-y-auto">
                  <CombinedChatList 
                     messages={chatMessages.filter(msg => msg.conversationId === selectedConversation.id)} 
                     notes={internalNotes.filter(note => note.conversationId === selectedConversation.id)}
                  />
             </TabsContent>
+            {/* Pestaña para mostrar solo los mensajes del chat. */}
             <TabsContent value="messages" className="flex-1 p-4 space-y-4 overflow-y-auto">
                  <ChatMessagesList messages={chatMessages.filter(msg => msg.conversationId === selectedConversation.id)} />
             </TabsContent>
+            {/* Pestaña para mostrar solo las notas internas. */}
             <TabsContent value="comments" className="flex-1 p-4 space-y-4 overflow-y-auto">
                  <InternalNotesList notes={internalNotes.filter(note => note.conversationId === selectedConversation.id)} />
             </TabsContent>
         
+            {/* Área para escribir y enviar un nuevo mensaje. */}
             <div className="p-4 border-t bg-background">
               <div className="relative">
                 <Textarea
@@ -222,12 +237,16 @@ export default function CommunicationsPage() {
   );
 }
 
-
+/**
+ * Componente para renderizar la lista de mensajes de un chat.
+ * @param {{ messages: ChatMessage[] }} props - Los mensajes a renderizar.
+ */
 function ChatMessagesList({ messages }: { messages: ChatMessage[] }) {
     return (
         <div className="space-y-4">
             {messages.map((msg, index) => (
                 <div key={index} className={`flex items-start gap-3 ${msg.senderType === 'agent' ? 'justify-end' : ''}`}>
+                    {/* Muestra el avatar a la izquierda si el remitente es el cliente. */}
                     {msg.senderType === 'client' && (
                     <Avatar className="h-9 w-9 border">
                         <AvatarImage src={msg.avatarUrl} />
@@ -240,6 +259,7 @@ function ChatMessagesList({ messages }: { messages: ChatMessage[] }) {
                     </div>
                     <span className="text-xs text-muted-foreground mt-1">{msg.time}</span>
                     </div>
+                    {/* Muestra el avatar a la derecha si el remitente es el agente. */}
                     {msg.senderType === 'agent' && (
                     <Avatar className="h-9 w-9 border">
                         <AvatarImage src={msg.avatarUrl} />
@@ -252,6 +272,10 @@ function ChatMessagesList({ messages }: { messages: ChatMessage[] }) {
     );
 }
 
+/**
+ * Componente para renderizar la lista de notas internas de un chat.
+ * @param {{ notes: InternalNote[] }} props - Las notas a renderizar.
+ */
 function InternalNotesList({ notes }: { notes: InternalNote[] }) {
     return (
         <div className="space-y-4">
@@ -261,6 +285,7 @@ function InternalNotesList({ notes }: { notes: InternalNote[] }) {
                         <AvatarImage src={note.avatarUrl} />
                         <AvatarFallback>{note.senderName.charAt(0)}</AvatarFallback>
                     </Avatar>
+                    {/* Las notas internas tienen un fondo de color ámbar para distinguirlas. */}
                     <div className="flex-1 bg-amber-50 border border-amber-200 rounded-lg p-3">
                         <p className="text-sm font-semibold">{note.senderName}</p>
                         <p className="text-sm text-gray-700 mt-1">{note.text}</p>
@@ -272,8 +297,12 @@ function InternalNotesList({ notes }: { notes: InternalNote[] }) {
     );
 }
 
+/**
+ * Componente que combina mensajes de chat y notas internas, y los muestra en orden cronológico.
+ * @param {{ messages: ChatMessage[], notes: InternalNote[] }} props - Los mensajes y notas.
+ */
 function CombinedChatList({ messages, notes }: { messages: ChatMessage[], notes: InternalNote[] }) {
-    // Helper para convertir "10:15 AM" a un objeto Date
+    // Función auxiliar para convertir una cadena de tiempo (ej: "10:15 AM") en un objeto Date para poder ordenar.
     const parseTime = (timeStr: string) => {
         const today = new Date();
         const [time, modifier] = timeStr.split(' ');
@@ -288,16 +317,18 @@ function CombinedChatList({ messages, notes }: { messages: ChatMessage[], notes:
         return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
     };
 
+    // Combinamos los arrays de mensajes y notas, añadiendo un campo 'type' para distinguirlos.
     const combined = [
         ...messages.map(m => ({ ...m, type: 'message', date: parseTime(m.time) })),
         ...notes.map(n => ({ ...n, type: 'note', date: parseTime(n.time) }))
     ];
 
-    // Ordenar por fecha/hora
+    // Ordenamos el array combinado por fecha/hora.
     combined.sort((a, b) => a.date.getTime() - b.date.getTime());
     
     return (
         <div className="space-y-4">
+            {/* Iteramos sobre el array combinado y renderizamos cada item según su tipo. */}
             {combined.map((item, index) => {
                 if (item.type === 'message') {
                     const msg = item as ChatMessage & { date: Date };

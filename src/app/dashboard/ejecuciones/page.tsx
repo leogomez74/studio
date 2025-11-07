@@ -1,5 +1,6 @@
 // Importamos componentes e íconos necesarios para construir la página.
 import { MoreHorizontal, PlusCircle } from "lucide-react";
+import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +38,11 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 
-// Esta función determina el color de la insignia (Badge) según el estado del caso.
+/**
+ * Esta función determina el color de la insignia (Badge) según el estado del caso.
+ * @param {string} status - El estado actual del caso.
+ * @returns {'secondary' | 'default' | 'outline' | 'destructive'} La variante de color para el Badge.
+ */
 const getStatusVariant = (status: string) => {
     switch (status) {
         case 'Abierto': return 'secondary';
@@ -48,11 +53,13 @@ const getStatusVariant = (status: string) => {
     }
 }
 
-// Esta es la función principal que define la página de Ejecuciones.
+/**
+ * Esta es la función principal que define la página de listado de Ejecuciones de Sentencia.
+ */
 export default function EjecucionesPage() {
-  // Filtramos los datos para obtener solo las ejecuciones (identificadas por tener un amparoId).
+  // Filtramos los datos para obtener solo las ejecuciones (identificadas por tener un ID que termina en '-CA').
   const ejecuciones = cases.filter(c => c.id.endsWith('-CA'));
-  // La página utiliza un sistema de pestañas (Tabs), aunque aquí solo mostraremos todas las ejecuciones.
+
   return (
     <Tabs defaultValue="all">
         {/* Aquí se definen las pestañas y el botón para agregar una nueva ejecución. */}
@@ -82,9 +89,12 @@ export default function EjecucionesPage() {
   );
 }
 
-// Este es un componente reutilizable para mostrar la tabla de ejecuciones.
-// Recibe la lista de casos (ejecuciones) a mostrar como una propiedad (props).
-function ExecutionsTable({ cases }: { cases: Case[] }) {
+/**
+ * Este es un componente reutilizable para mostrar la tabla de ejecuciones.
+ * Recibe la lista de casos (ejecuciones) a mostrar como una propiedad (props).
+ * @param {{ cases: Case[] }} props - Las propiedades del componente, que incluyen la lista de casos.
+ */
+const ExecutionsTable = React.memo(function ExecutionsTable({ cases }: { cases: Case[] }) {
     return (
         <div className="relative w-full overflow-auto">
             <Table>
@@ -151,4 +161,4 @@ function ExecutionsTable({ cases }: { cases: Case[] }) {
             </Table>
         </div>
     );
-}
+});

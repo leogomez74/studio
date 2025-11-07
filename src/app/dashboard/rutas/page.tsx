@@ -1,4 +1,5 @@
 // Importamos los componentes e íconos necesarios para construir la página.
+import React from 'react';
 import { PlusCircle, MapPin, PackageCheck, User, Calendar, MoreHorizontal, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,12 +33,15 @@ import {
 // Importamos los datos de ejemplo que hemos creado.
 import { pendingPickups, routes, couriers } from "@/lib/data";
 
-// Esta es la función principal que define la página de Rutas.
+/**
+ * Esta es la función principal que define la página de Rutas.
+ * Muestra las recogidas de documentos pendientes y las rutas planificadas para los mensajeros.
+ */
 export default function RutasPage() {
   return (
     // Usamos un layout de rejilla (grid) para organizar las tarjetas de contenido.
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8">
-      {/* Primera tarjeta: Recogidas Pendientes */}
+      {/* Tarjeta 1: Recogidas Pendientes */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -77,7 +81,7 @@ export default function RutasPage() {
         </CardContent>
       </Card>
       
-      {/* Segunda tarjeta: Planificación y Rutas Activas */}
+      {/* Tarjeta 2: Planificación y Rutas Activas */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
             <div className="grid gap-2">

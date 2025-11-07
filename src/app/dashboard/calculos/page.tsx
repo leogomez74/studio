@@ -1,5 +1,7 @@
+// 'use client' indica que este es un Componente de Cliente, lo cual es necesario para usar hooks de React como 'useState'.
 'use client';
 
+// Importamos los hooks y componentes necesarios de React y de nuestra biblioteca de UI.
 import { useState } from 'react';
 import {
   Card,
@@ -19,28 +21,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calculator, Search, RefreshCw } from 'lucide-react';
-import { credits, Credit } from '@/lib/data';
+import { Calculator, Search, RefreshCw } from 'lucide-react'; // Íconos
+import { credits, Credit } from '@/lib/data'; // Datos de ejemplo
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
+/**
+ * Componente principal de la página de Cálculos.
+ * Contiene dos calculadoras: una para cuotas de nuevos créditos y otra para arreglos de pago.
+ */
 export default function CalculosPage() {
-  const [amount, setAmount] = useState('5000000');
-  const [rate, setRate] = useState('24');
-  const [term, setTerm] = useState('36');
-  const [monthlyPayment, setMonthlyPayment] = useState<number | null>(null);
+  // --- Estados para la Calculadora de Cuotas ---
+  const [amount, setAmount] = useState('5000000'); // Monto del préstamo
+  const [rate, setRate] = useState('24'); // Tasa de interés anual
+  const [term, setTerm] = useState('36'); // Plazo en meses
+  const [monthlyPayment, setMonthlyPayment] = useState<number | null>(null); // Cuota mensual calculada
 
-  // State for settlement calculator
-  const [operationNumber, setOperationNumber] = useState('');
-  const [foundCredit, setFoundCredit] = useState<Credit | null>(null);
-  const [newTerm, setNewTerm] = useState('12');
-  const [newMonthlyPayment, setNewMonthlyPayment] = useState<number | null>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  // --- Estados para la Calculadora de Arreglos de Pago ---
+  const [operationNumber, setOperationNumber] = useState(''); // Número de operación a buscar
+  const [foundCredit, setFoundCredit] = useState<Credit | null>(null); // Crédito encontrado
+  const [newTerm, setNewTerm] = useState('12'); // Nuevo plazo para el arreglo
+  const [newMonthlyPayment, setNewMonthlyPayment] = useState<number | null>(null); // Nueva cuota calculada
+  const [searchError, setSearchError] = useState<string | null>(null); // Mensaje de error si no se encuentra el crédito
 
+  /**
+   * Calcula la cuota mensual para un nuevo préstamo.
+   * Utiliza la fórmula del sistema de amortización francés.
+   */
   const handleCalculateFee = () => {
+    // Convertimos los valores de texto a números.
     const principal = parseFloat(amount);
     const annualInterestRate = parseFloat(rate) / 100;
     const numberOfMonths = parseInt(term, 10);
 
+    // Validamos que los datos sean números válidos y positivos.
     if (
       isNaN(principal) ||
       isNaN(annualInterestRate) ||
@@ -49,51 +62,63 @@ export default function CalculosPage() {
       annualInterestRate <= 0 ||
       numberOfMonths <= 0
     ) {
-      setMonthlyPayment(null);
+      setMonthlyPayment(null); // Si no son válidos, reseteamos el resultado.
       return;
     }
 
+    // Fórmula para calcular la cuota mensual.
     const monthlyInterestRate = annualInterestRate / 12;
     const power = Math.pow(1 + monthlyInterestRate, numberOfMonths);
     const payment =
       principal * ((monthlyInterestRate * power) / (power - 1));
 
-    setMonthlyPayment(payment);
+    setMonthlyPayment(payment); // Guardamos el resultado en el estado.
   };
 
+  /**
+   * Busca un crédito existente en los datos de ejemplo por su número de operación.
+   */
   const handleSearchCredit = () => {
-    setSearchError(null);
-    setNewMonthlyPayment(null);
+    setSearchError(null); // Limpiamos cualquier error previo.
+    setNewMonthlyPayment(null); // Limpiamos cualquier cálculo de arreglo previo.
+    // Buscamos el crédito ignorando mayúsculas/minúsculas.
     const credit = credits.find(c => c.operationNumber.toLowerCase() === operationNumber.toLowerCase());
     if (credit) {
-      setFoundCredit(credit);
+      setFoundCredit(credit); // Si lo encontramos, lo guardamos en el estado.
     } else {
-      setFoundCredit(null);
-      setSearchError(`No se encontró ningún crédito con el número de operación "${operationNumber}".`);
+      setFoundCredit(null); // Si no, reseteamos el crédito encontrado.
+      setSearchError(`No se encontró ningún crédito con el número de operación "${operationNumber}".`); // Y mostramos un error.
     }
   };
 
+  /**
+   * Calcula la nueva cuota para un arreglo de pago sobre un crédito existente.
+   */
   const handleCalculateSettlement = () => {
-      if (!foundCredit) return;
+      if (!foundCredit) return; // Si no hay un crédito cargado, no hacemos nada.
 
+      // Tomamos los datos del crédito encontrado y el nuevo plazo.
       const principal = foundCredit.balance;
       const annualInterestRate = foundCredit.rate / 100;
       const numberOfMonths = parseInt(newTerm, 10);
 
+      // Validamos los datos.
       if (isNaN(principal) || isNaN(annualInterestRate) || isNaN(numberOfMonths) || principal <= 0) {
         setNewMonthlyPayment(null);
         return;
       }
       
+      // Aplicamos la misma fórmula de cálculo de cuota.
       const monthlyInterestRate = annualInterestRate / 12;
       const power = Math.pow(1 + monthlyInterestRate, numberOfMonths);
       const payment = principal * ((monthlyInterestRate * power) / (power - 1));
       
-      setNewMonthlyPayment(payment);
+      setNewMonthlyPayment(payment); // Guardamos el resultado.
   };
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
+      {/* --- Tarjeta de Calculadora de Cuotas --- */}
       <Card>
         <CardHeader>
           <CardTitle>Calculadora de Cuotas</CardTitle>
@@ -146,12 +171,14 @@ export default function CalculosPage() {
             Calcular
           </Button>
 
+          {/* Mostramos el resultado del cálculo si existe. */}
           {monthlyPayment !== null && (
             <div className="rounded-lg border bg-muted p-4 text-center">
               <p className="text-sm text-muted-foreground">
                 Cuota Mensual Estimada
               </p>
               <p className="text-2xl font-bold text-primary">
+                {/* Formateamos el número a un estilo de moneda local. */}
                 ₡{monthlyPayment.toLocaleString('de-DE', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
@@ -161,6 +188,7 @@ export default function CalculosPage() {
           )}
         </CardContent>
       </Card>
+      {/* --- Tarjeta de Calculadora de Arreglos de Pago --- */}
       <Card>
         <CardHeader>
           <CardTitle>Calculadora de Arreglos de Pago</CardTitle>
@@ -185,6 +213,7 @@ export default function CalculosPage() {
             </Button>
           </div>
 
+          {/* Mostramos un mensaje de error si la búsqueda falló. */}
           {searchError && (
               <Alert variant="destructive">
                   <AlertTitle>Error</AlertTitle>
@@ -192,6 +221,7 @@ export default function CalculosPage() {
               </Alert>
           )}
 
+          {/* Si se encontró un crédito, mostramos sus detalles y el formulario para el arreglo. */}
           {foundCredit && (
               <div className="space-y-4 rounded-lg border bg-muted/50 p-4">
                   <div>
@@ -231,6 +261,7 @@ export default function CalculosPage() {
               </div>
           )}
 
+           {/* Mostramos el resultado del cálculo del arreglo si existe. */}
            {newMonthlyPayment !== null && (
             <div className="rounded-lg border bg-accent/20 p-4 text-center">
               <p className="text-sm text-muted-foreground">

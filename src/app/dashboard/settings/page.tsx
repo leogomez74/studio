@@ -1,4 +1,5 @@
 // Importamos los componentes de UI que necesitamos.
+// Este es un Componente de Servidor por defecto, ya que no necesita interactividad del lado del cliente.
 import {
   Card,
   CardContent,
@@ -10,7 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-// Esta es la función principal que define la página de Configuración.
+/**
+ * Esta es la función principal que define la página de Configuración.
+ * Actualmente, muestra un formulario para configurar la conexión con una API de un ERP.
+ */
 export default function SettingsPage() {
   // La función devuelve el contenido de la página.
   return (
@@ -32,7 +36,7 @@ export default function SettingsPage() {
                 id="api-url"
                 placeholder="https://erp.dsf.cr/api"
                 defaultValue="https://erp.dsf.cr"
-                disabled
+                disabled // Este campo está deshabilitado para no poder ser modificado.
               />
                <p className="text-xs text-muted-foreground">La URL base del ERP no se puede modificar.</p>
             </div>

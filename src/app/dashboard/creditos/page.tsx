@@ -1,5 +1,7 @@
+// 'use client' indica que es un Componente de Cliente, lo que permite usar hooks como useState y useSearchParams.
 'use client';
 
+import React, { useState } from 'react';
 import { MoreHorizontal, PlusCircle, Calendar as CalendarIcon, FileDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,23 +28,27 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { credits, Credit } from '@/lib/data';
+import { credits, Credit } from '@/lib/data'; // Importamos los datos de créditos.
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation'; // Hook para leer parámetros de la URL.
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import jsPDF from 'jspdf'; // Librería para generar PDFs.
+import 'jspdf-autotable'; // Extensión para crear tablas en jsPDF.
 
+// Definimos un tipo que extiende jsPDF para incluir el método autoTable.
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
 }
 
-
+/**
+ * Función para obtener la variante de color de la insignia según el estado del crédito.
+ * @param {Credit['status']} status - El estado del crédito.
+ * @returns {'secondary' | 'destructive' | 'outline' | 'default'} La variante de color para el Badge.
+ */
 const getStatusVariant = (status: Credit['status']) => {
   switch (status) {
     case 'Al día':
@@ -56,32 +62,44 @@ const getStatusVariant = (status: Credit['status']) => {
   }
 };
 
+/**
+ * Componente principal de la página de Créditos.
+ * Muestra una lista de créditos con pestañas para filtrarlos por tipo.
+ * Permite filtrar por cliente (via URL) y por rango de fechas.
+ */
 export default function CreditsPage() {
   const searchParams = useSearchParams();
-  const debtorId = searchParams.get('debtorId');
-  const [date, setDate] = useState<DateRange | undefined>(undefined);
+  const debtorId = searchParams.get('debtorId'); // Obtenemos el 'debtorId' de la URL si existe.
+  const [date, setDate] = useState<DateRange | undefined>(undefined); // Estado para el rango de fechas del calendario.
 
+  // Filtramos los créditos base. Si hay un debtorId, filtramos por él; si no, usamos todos los créditos.
   const baseFilteredCredits = debtorId
     ? credits.filter((c) => c.debtorId === debtorId)
     : credits;
 
+  // Aplicamos el filtro de fecha sobre los créditos ya filtrados por deudor (si aplica).
   const filteredCredits = baseFilteredCredits.filter(credit => {
-    if (!date?.from) return true;
+    if (!date?.from) return true; // Si no hay fecha de inicio, no filtramos.
     const creditDate = new Date(credit.creationDate);
     const from = new Date(date.from);
-    from.setHours(0, 0, 0, 0); // Start of the day
+    from.setHours(0, 0, 0, 0); // Ajustamos la hora a medianoche para incluir todo el día.
 
-    if (!date.to) {
+    if (!date.to) { // Si solo hay fecha de inicio, comparamos solo con esa.
         return creditDate >= from;
     }
     const to = new Date(date.to);
-    to.setHours(23, 59, 59, 999); // End of the day
+    to.setHours(23, 59, 59, 999); // Ajustamos la hora al final del día para incluir todo el día.
     return creditDate >= from && creditDate <= to;
   })
 
+  // Título y descripción dinámicos dependiendo si estamos filtrando por un deudor.
   const pageTitle = debtorId ? `Créditos de ${filteredCredits[0]?.debtorName || ''}` : 'Todos los Créditos';
   const pageDescription = debtorId ? `Viendo todos los créditos para el cliente.` : 'Gestiona todos los créditos activos e históricos.';
   
+  /**
+   * Maneja la exportación de los datos de la tabla a un archivo PDF.
+   * @param {Credit[]} data - Los datos de los créditos a exportar.
+   */
   const handleExportPDF = (data: Credit[]) => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     
@@ -93,17 +111,16 @@ export default function CreditsPage() {
         body: data.map(c => [
             c.operationNumber,
             c.debtorName,
-            c.amount.toLocaleString('de-DE'),
+            c.amount.toLocaleString('de-DE'), // Usamos el formato local sin el símbolo para evitar problemas.
             c.balance.toLocaleString('de-DE'),
             c.status,
             c.dueDate
         ]),
-        headStyles: { fillColor: [19, 85, 156] }, // #13559c
+        headStyles: { fillColor: [19, 85, 156] }, // Color de cabecera (azul primario).
     });
 
-    doc.save('creditos.pdf');
+    doc.save('creditos.pdf'); // Descarga el archivo.
   };
-
 
   return (
     <Tabs defaultValue="all">
@@ -115,6 +132,7 @@ export default function CreditsPage() {
           <TabsTrigger value="history">Historial</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
+           {/* Si estamos filtrando por un deudor, mostramos un botón para volver a ver todos los créditos. */}
            {debtorId && (
             <Button variant="outline" asChild>
               <Link href="/dashboard/creditos">Ver todos los créditos</Link>
@@ -135,6 +153,7 @@ export default function CreditsPage() {
                     <CardDescription>{pageDescription}</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Componente Popover que contiene el calendario para seleccionar el rango de fechas. */}
                     <Popover>
                         <PopoverTrigger asChild>
                         <Button
@@ -245,6 +264,10 @@ export default function CreditsPage() {
   );
 }
 
+/**
+ * Componente reutilizable que renderiza la tabla de créditos.
+ * @param {{ credits: Credit[] }} props - Las propiedades, que incluyen la lista de créditos a mostrar.
+ */
 function CreditsTable({ credits }: { credits: Credit[] }) {
   return (
     <div className="relative w-full overflow-auto">
@@ -265,61 +288,73 @@ function CreditsTable({ credits }: { credits: Credit[] }) {
         </TableHeader>
         <TableBody>
           {credits.map((credit) => (
-            <TableRow key={credit.operationNumber} className="hover:bg-muted/50">
-              <TableCell>
-                <Link
-                  href={`/dashboard/creditos/${credit.operationNumber}`}
-                  className="font-medium hover:underline"
-                >
-                  {credit.operationNumber}
-                </Link>
-              </TableCell>
-              <TableCell>
-                  <div className="font-medium">{credit.debtorName}</div>
-                  <div className="text-sm text-muted-foreground">{credit.debtorId}</div>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">{credit.type}</TableCell>
-              <TableCell className="text-right font-mono">
-                ₡{credit.amount.toLocaleString('de-DE')}
-              </TableCell>
-              <TableCell className="text-right font-mono font-semibold">
-                ₡{credit.balance.toLocaleString('de-DE')}
-              </TableCell>
-              <TableCell>
-                <Badge variant={getStatusVariant(credit.status)}>
-                  {credit.status}
-                </Badge>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                {credit.dueDate}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                      <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">Alternar menú</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/creditos/${credit.operationNumber}`}>
-                        Ver Detalles
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>Actualizar Estado</DropdownMenuItem>
-                    <DropdownMenuItem>Gestionar Documentos</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      Eliminar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
+            <CreditTableRow key={credit.operationNumber} credit={credit} />
           ))}
         </TableBody>
       </Table>
     </div>
   );
 }
+
+
+/**
+ * Componente que renderiza una única fila de la tabla de créditos.
+ * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no cambian.
+ * @param {{ credit: Credit }} props - Las propiedades del componente, que incluyen el objeto de crédito.
+ */
+const CreditTableRow = React.memo(function CreditTableRow({ credit }: { credit: Credit }) {
+  return (
+      <TableRow className="hover:bg-muted/50">
+        <TableCell>
+          <Link
+            href={`/dashboard/creditos/${credit.operationNumber}`}
+            className="font-medium hover:underline"
+          >
+            {credit.operationNumber}
+          </Link>
+        </TableCell>
+        <TableCell>
+            <div className="font-medium">{credit.debtorName}</div>
+            <div className="text-sm text-muted-foreground">{credit.debtorId}</div>
+        </TableCell>
+        <TableCell className="hidden md:table-cell">{credit.type}</TableCell>
+        <TableCell className="text-right font-mono">
+          ₡{credit.amount.toLocaleString('de-DE')}
+        </TableCell>
+        <TableCell className="text-right font-mono font-semibold">
+          ₡{credit.balance.toLocaleString('de-DE')}
+        </TableCell>
+        <TableCell>
+          <Badge variant={getStatusVariant(credit.status)}>
+            {credit.status}
+          </Badge>
+        </TableCell>
+        <TableCell className="hidden md:table-cell">
+          {credit.dueDate}
+        </TableCell>
+        <TableCell>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button aria-haspopup="true" size="icon" variant="ghost">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Alternar menú</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/creditos/${credit.operationNumber}`}>
+                  Ver Detalles
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem>Actualizar Estado</DropdownMenuItem>
+              <DropdownMenuItem>Gestionar Documentos</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive">
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      </TableRow>
+  );
+});

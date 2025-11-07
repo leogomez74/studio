@@ -1,4 +1,5 @@
-// Importamos los componentes e íconos necesarios
+// Importamos los componentes e íconos necesarios para construir la página de detalle.
+// 'use client' indica que este es un Componente de Cliente, lo que nos permite usar 'useState' para manejar el estado.
 "use client";
 import React, { useState } from "react";
 import {
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cases, tasks, staff, Task } from "@/lib/data";
+import { cases, tasks, staff, Task } from "@/lib/data"; // Importamos los datos de ejemplo.
 import { CaseChat } from "@/components/case-chat";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,14 +40,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Datos de ejemplo para los archivos y mensajes.
+// Datos de ejemplo para los archivos. En una aplicación real, esto vendría de una base de datos.
 const files = [
   { name: "Prueba_Contrato.pdf", type: "pdf", size: "2.3 MB" },
   { name: "Evidencia_Foto.jpg", type: "image", size: "1.1 MB" },
   { name: "Documentos_Adicionales.zip", type: "zip", size: "5.8 MB" },
 ];
 
-// Función para obtener el ícono correspondiente según el tipo de archivo.
+/**
+ * Función para obtener el ícono correspondiente según el tipo de archivo.
+ * @param {string} type - El tipo de archivo (ej: 'pdf', 'image').
+ * @returns {React.ReactNode} El componente de ícono correspondiente.
+ */
 const getFileIcon = (type: string) => {
   switch (type) {
     case "pdf":
@@ -58,6 +63,11 @@ const getFileIcon = (type: string) => {
   }
 };
 
+/**
+ * Función para obtener el estilo de la insignia (Badge) según la prioridad de la tarea.
+ * @param {Task['priority']} priority - La prioridad de la tarea ('Alta', 'Media', 'Baja').
+ * @returns {'destructive' | 'default' | 'secondary' | 'outline'} La variante de color para el Badge.
+ */
 const getPriorityVariant = (priority: Task['priority']) => {
     switch (priority) {
         case 'Alta': return 'destructive';
@@ -67,18 +77,26 @@ const getPriorityVariant = (priority: Task['priority']) => {
     }
 }
 
+/**
+ * Componente que muestra la lista de tareas asociadas a un caso específico.
+ * @param {{ caseId: string }} props - Propiedades del componente, incluyendo el ID del caso.
+ */
 function CaseTasks({ caseId }: { caseId: string }) {
+    // Filtramos las tareas para obtener solo las que pertenecen a este caso.
     const caseTasks = tasks.filter(task => task.caseId === caseId);
 
+    // Función para obtener la URL del avatar de un miembro del personal por su nombre.
     const getAvatarUrl = (name: string) => {
         const user = staff.find(s => s.name === name);
         return user ? user.avatarUrl : undefined;
     };
 
+    // Si no hay tareas, mostramos un mensaje.
     if (caseTasks.length === 0) {
         return <div className="text-center text-sm text-muted-foreground p-4">No hay tareas para este caso.</div>
     }
 
+    // Si hay tareas, las mostramos en una lista.
     return (
         <div className="space-y-3 p-2">
             {caseTasks.map(task => (
@@ -102,17 +120,24 @@ function CaseTasks({ caseId }: { caseId: string }) {
     )
 }
 
-// Esta es la página de detalle de un caso específico.
+/**
+ * Esta es la página de detalle de un caso de amparo específico del MEP.
+ * Se encarga de mostrar toda la información relevante de un amparo.
+ * @param {{ params: { id: string } }} props - Las propiedades que Next.js pasa a la página, incluyendo el 'id' del amparo desde la URL.
+ */
 export default function AmparoMepDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
+  // Estado para controlar la visibilidad del panel lateral de chat y tareas.
   const [isChatVisible, setIsChatVisible] = useState(true);
+  
   // Buscamos el caso específico en nuestros datos usando el 'id' de la URL.
+  // Convertimos el id a mayúsculas para asegurar la coincidencia.
   const caseItem = cases.find((c) => c.id === params.id.toUpperCase());
 
-  // Si no se encuentra el caso, mostramos un mensaje.
+  // Si no se encuentra el caso, mostramos un mensaje y un botón para volver.
   if (!caseItem) {
     return (
       <div className="text-center">
@@ -124,9 +149,10 @@ export default function AmparoMepDetailPage({
     );
   }
 
+  // Renderizamos la página de detalle del caso.
   return (
     <div className="space-y-6">
-      {/* Encabezado con botón para volver a la lista de casos */}
+      {/* Encabezado con botón para volver, título y botón para mostrar/ocultar el panel lateral. */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" asChild>
@@ -139,9 +165,11 @@ export default function AmparoMepDetailPage({
             Detalles del Amparo MEP: {caseItem.id}
             </h1>
         </div>
+        {/* El TooltipProvider es necesario para que los tooltips (mensajes emergentes) funcionen. */}
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
+                    {/* Este botón cambia el estado 'isChatVisible' para mostrar u ocultar el panel. */}
                     <Button variant="outline" size="icon" onClick={() => setIsChatVisible(!isChatVisible)}>
                         {isChatVisible ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                         <span className="sr-only">Toggle Chat</span>
@@ -152,13 +180,13 @@ export default function AmparoMepDetailPage({
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
-
       </div>
 
-      {/* Grid para organizar las tarjetas de información. */}
+      {/* Grid principal que organiza el contenido en columnas. */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Columna principal con detalles del caso y pruebas */}
+        {/* Columna principal con detalles, generador y pruebas. Su ancho cambia si el chat está visible. */}
         <div className={isChatVisible ? "lg:col-span-3 space-y-6" : "lg:col-span-5 space-y-6"}>
+          {/* Tarjeta con la información principal del caso. */}
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -175,6 +203,7 @@ export default function AmparoMepDetailPage({
                             Abrir en Comunicaciones
                         </Link>
                     </Button>
+                  {/* Selector para cambiar el estado del caso. */}
                   <Select defaultValue={caseItem.status}>
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Cambiar estado" />
@@ -207,6 +236,7 @@ export default function AmparoMepDetailPage({
             </CardContent>
           </Card>
 
+          {/* Tarjeta para el generador de documentos. */}
           <Card>
             <CardHeader>
               <CardTitle>Generador de Documentos</CardTitle>
@@ -230,6 +260,7 @@ export default function AmparoMepDetailPage({
             </CardContent>
           </Card>
 
+          {/* Tarjeta para mostrar los archivos adjuntos (pruebas). */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -272,6 +303,7 @@ export default function AmparoMepDetailPage({
           </Card>
         </div>
 
+        {/* Columna derecha para el chat y tareas. Solo se muestra si 'isChatVisible' es true. */}
         {isChatVisible && (
             <div className="lg:col-span-2 space-y-6">
                 <Card className="h-[calc(100vh-12rem)]">
@@ -287,9 +319,11 @@ export default function AmparoMepDetailPage({
                             </TabsTrigger>
                         </TabsList>
                         <TabsContent value="comunicaciones" className="flex-1 overflow-y-auto">
+                            {/* El componente CaseChat maneja la lógica del chat. */}
                             <CaseChat conversationId="CONV02" />
                         </TabsContent>
                          <TabsContent value="tareas" className="flex-1 overflow-y-auto">
+                            {/* El componente CaseTasks muestra las tareas del caso. */}
                             <CaseTasks caseId={caseItem.id} />
                         </TabsContent>
                     </Tabs>

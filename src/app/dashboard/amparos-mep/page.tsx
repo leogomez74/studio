@@ -1,5 +1,6 @@
 // Importamos componentes e íconos necesarios para construir la página.
 import { MoreHorizontal, PlusCircle } from "lucide-react";
+import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +38,11 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 
-// Esta función determina el color de la insignia (Badge) según el estado del caso.
+/**
+ * Esta función determina el color de la insignia (Badge) según el estado del caso.
+ * @param {string} status - El estado actual del caso.
+ * @returns {'secondary' | 'default' | 'outline' | 'destructive'} La variante de color para el Badge.
+ */
 const getStatusVariant = (status: string) => {
     switch (status) {
         case 'Abierto': return 'secondary';
@@ -48,9 +53,14 @@ const getStatusVariant = (status: string) => {
     }
 }
 
-// Esta es la función principal que define la página de Casos.
+/**
+ * Esta es la función principal que define la página de listado de Casos de Amparo del MEP.
+ * Utiliza un sistema de pestañas para filtrar los casos por categoría.
+ */
 export default function AmparosMepPage() {
+  // Filtramos los casos para obtener solo los que son amparos contra el MEP.
   const amparosMep = cases.filter(c => c.title && c.title.includes('MEP'));
+  
   // La página utiliza un sistema de pestañas (Tabs) para filtrar los casos.
   return (
     <Tabs defaultValue="all">
@@ -107,9 +117,13 @@ export default function AmparosMepPage() {
   );
 }
 
-// Este es un componente reutilizable para mostrar la tabla de casos.
-// Recibe la lista de casos a mostrar como una propiedad (props).
-function CasesTable({ cases }: { cases: Case[] }) {
+/**
+ * Este es un componente reutilizable para mostrar la tabla de casos.
+ * Recibe la lista de casos a mostrar como una propiedad (props).
+ * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no cambian.
+ * @param {{ cases: Case[] }} props - Las propiedades del componente, que incluyen la lista de casos.
+ */
+const CasesTable = React.memo(function CasesTable({ cases }: { cases: Case[] }) {
     return (
         <div className="relative w-full overflow-auto">
             <Table>
@@ -176,4 +190,4 @@ function CasesTable({ cases }: { cases: Case[] }) {
             </Table>
         </div>
     );
-}
+});

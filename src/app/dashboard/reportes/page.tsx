@@ -1,3 +1,4 @@
+// Importamos los componentes de tarjeta para la estructura de la página.
 import {
   Card,
   CardContent,
@@ -6,6 +7,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 
+/**
+ * Componente de la página de Reportes.
+ * Actualmente es un marcador de posición para la futura funcionalidad de generación de reportes.
+ */
 export default function ReportesPage() {
   return (
     <Card>

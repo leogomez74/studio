@@ -1,4 +1,5 @@
-// Importamos los componentes e íconos necesarios
+// Importamos los componentes e íconos necesarios para construir la página de detalle.
+// 'use client' indica que este es un Componente de Cliente, lo que nos permite usar 'useState' para manejar el estado.
 "use client";
 import React, { useState } from "react";
 import {
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cases, tasks, staff, Task } from "@/lib/data";
+import { cases, tasks, staff, Task } from "@/lib/data"; // Importamos los datos de ejemplo.
 import { CaseChat } from "@/components/case-chat";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,13 +41,17 @@ import {
 } from "@/components/ui/select";
 
 
-// Datos de ejemplo para los archivos y mensajes.
+// Datos de ejemplo para los archivos de la ejecución.
 const files = [
   { name: "Sentencia_Firme.pdf", type: "pdf", size: "1.5 MB" },
   { name: "Calculo_Intereses.xlsx", type: "zip", size: "350 KB" },
 ];
 
-// Función para obtener el ícono correspondiente según el tipo de archivo.
+/**
+ * Función para obtener el ícono correspondiente según el tipo de archivo.
+ * @param {string} type - El tipo de archivo (ej: 'pdf', 'image').
+ * @returns {React.ReactNode} El componente de ícono correspondiente.
+ */
 const getFileIcon = (type: string) => {
   switch (type) {
     case "pdf":
@@ -58,6 +63,11 @@ const getFileIcon = (type: string) => {
   }
 };
 
+/**
+ * Función para obtener el estilo de la insignia (Badge) según la prioridad de la tarea.
+ * @param {Task['priority']} priority - La prioridad de la tarea ('Alta', 'Media', 'Baja').
+ * @returns {'destructive' | 'default' | 'secondary' | 'outline'} La variante de color para el Badge.
+ */
 const getPriorityVariant = (priority: Task['priority']) => {
     switch (priority) {
         case 'Alta': return 'destructive';
@@ -67,18 +77,26 @@ const getPriorityVariant = (priority: Task['priority']) => {
     }
 }
 
+/**
+ * Componente que muestra la lista de tareas asociadas a un caso (ejecución) específico.
+ * @param {{ caseId: string }} props - Propiedades del componente, incluyendo el ID del caso.
+ */
 function CaseTasks({ caseId }: { caseId: string }) {
+    // Filtramos las tareas para obtener solo las que pertenecen a esta ejecución.
     const caseTasks = tasks.filter(task => task.caseId === caseId);
 
+    // Función para obtener la URL del avatar de un miembro del personal por su nombre.
     const getAvatarUrl = (name: string) => {
         const user = staff.find(s => s.name === name);
         return user ? user.avatarUrl : undefined;
     };
 
+    // Si no hay tareas, mostramos un mensaje.
     if (caseTasks.length === 0) {
         return <div className="text-center text-sm text-muted-foreground p-4">No hay tareas para este caso.</div>
     }
 
+    // Si hay tareas, las mostramos en una lista.
     return (
         <div className="space-y-3 p-2">
             {caseTasks.map(task => (
@@ -102,19 +120,24 @@ function CaseTasks({ caseId }: { caseId: string }) {
     )
 }
 
-// Esta es la página de detalle de una ejecución específica.
+/**
+ * Esta es la página de detalle de una ejecución de sentencia específica.
+ * @param {{ params: { id: string } }} props - Las propiedades que Next.js pasa a la página, incluyendo el 'id' de la ejecución desde la URL.
+ */
 export default function EjecucionDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
+  // Estado para controlar la visibilidad del panel lateral de chat y tareas.
   const [isChatVisible, setIsChatVisible] = useState(true);
+  
   // Buscamos la ejecución específica en nuestros datos usando el 'id' de la URL.
   const caseItem = cases.find(
     (c) => c.id.toLowerCase() === params.id.toLowerCase()
   );
 
-  // Si no se encuentra, mostramos un mensaje.
+  // Si no se encuentra la ejecución, mostramos un mensaje y un botón para volver.
   if (!caseItem) {
     return (
       <div className="text-center">
@@ -126,9 +149,10 @@ export default function EjecucionDetailPage({
     );
   }
 
+  // Renderizamos la página de detalle de la ejecución.
   return (
     <div className="space-y-6">
-      {/* Encabezado con botón para volver a la lista de ejecuciones */}
+      {/* Encabezado con botón para volver, título y botón para mostrar/ocultar el panel lateral. */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" asChild>
@@ -158,13 +182,12 @@ export default function EjecucionDetailPage({
 
       {/* Grid para organizar las tarjetas de información. */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Columna principal con detalles de la ejecución y pruebas */}
+        {/* Columna principal con detalles de la ejecución y pruebas. */}
         <div className={isChatVisible ? "lg:col-span-3 space-y-6" : "lg:col-span-5 space-y-6"}>
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  {/* Se muestra el ID del caso ya que no hay título */}
                   <CardTitle>Ejecución de Sentencia {caseItem.id}</CardTitle>
                   <CardDescription>
                     Cliente: {caseItem.clientName}
@@ -194,7 +217,7 @@ export default function EjecucionDetailPage({
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-              {/* Mostramos el ID del amparo original */}
+              {/* Mostramos el ID del amparo original si existe. */}
               {caseItem.amparoId && (
                 <div className="grid gap-1">
                   <h3 className="font-medium">Amparo Original</h3>
@@ -277,6 +300,7 @@ export default function EjecucionDetailPage({
           </Card>
         </div>
         
+        {/* Panel lateral derecho para chat y tareas, visible condicionalmente. */}
         {isChatVisible && (
             <div className="lg:col-span-2 space-y-6">
                 <Card className="h-[calc(100vh-12rem)]">

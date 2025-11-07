@@ -1,4 +1,7 @@
 // Importamos componentes e íconos necesarios.
+// 'use client' indica que es un componente de cliente para permitir interactividad (menús).
+'use client';
+import React from 'react';
 import { MoreHorizontal, AlertTriangle, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +32,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { judicialNotifications, undefinedNotifications, JudicialNotification, UndefinedNotification } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
-// Función para obtener la variante de la insignia según el estado.
+/**
+ * Función para obtener la variante de la insignia según el estado (leída/pendiente).
+ * @param {'Leída' | 'Pendiente'} status - El estado de la notificación.
+ * @returns {'secondary' | 'default'} La variante de color para el Badge.
+ */
 const getStatusVariant = (status: 'Leída' | 'Pendiente') => {
     switch (status) {
         case 'Leída': return 'secondary';
@@ -38,7 +45,11 @@ const getStatusVariant = (status: 'Leída' | 'Pendiente') => {
     }
 };
 
-// Función para obtener la variante del acto judicial.
+/**
+ * Función para obtener la variante de la insignia según el tipo de acto judicial.
+ * @param {JudicialNotification['acto']} acto - El tipo de acto judicial.
+ * @returns {'destructive' | 'default' | 'secondary' | 'outline'} La variante de color para el Badge.
+ */
 const getActoVariant = (acto: JudicialNotification['acto']) => {
     switch (acto) {
         case 'Prevención': return 'destructive';
@@ -48,7 +59,10 @@ const getActoVariant = (acto: JudicialNotification['acto']) => {
     }
 };
 
-// Página principal de Notificaciones.
+/**
+ * Página principal de Notificaciones.
+ * Organiza las notificaciones en dos pestañas: Judiciales e Indefinidas (correos sin clasificar).
+ */
 export default function NotificacionesPage() {
   return (
     <Tabs defaultValue="judiciales">
@@ -56,6 +70,7 @@ export default function NotificacionesPage() {
             <TabsTrigger value="judiciales">Notificaciones Judiciales</TabsTrigger>
             <TabsTrigger value="indefinidas">
                 Notificaciones Indefinidas
+                {/* Muestra un contador con las notificaciones indefinidas pendientes. */}
                 <Badge variant="destructive" className="ml-2">{undefinedNotifications.length}</Badge>
             </TabsTrigger>
         </TabsList>
@@ -89,8 +104,12 @@ export default function NotificacionesPage() {
   );
 }
 
-// Componente para la tabla de notificaciones judiciales.
-function NotificationsTable({ notifications }: { notifications: JudicialNotification[] }) {
+/**
+ * Componente para la tabla de notificaciones judiciales.
+ * Usamos React.memo para optimizar el rendimiento, evitando que se renderice si las props no cambian.
+ * @param {{ notifications: JudicialNotification[] }} props - Las notificaciones a mostrar.
+ */
+const NotificationsTable = React.memo(function NotificationsTable({ notifications }: { notifications: JudicialNotification[] }) {
     return (
         <div className="relative w-full overflow-auto">
             <Table>
@@ -112,6 +131,7 @@ function NotificationsTable({ notifications }: { notifications: JudicialNotifica
                     key={notification.id} 
                     className={cn(
                         "hover:bg-muted/50",
+                        // Resalta en rojo las filas que son una 'Prevención'.
                         notification.acto === 'Prevención' && "bg-destructive/10 hover:bg-destructive/20"
                     )}
                 >
@@ -149,10 +169,14 @@ function NotificationsTable({ notifications }: { notifications: JudicialNotifica
             </Table>
         </div>
     );
-}
+});
 
-// Componente para la tabla de notificaciones indefinidas
-function UndefinedNotificationsTable({ notifications }: { notifications: UndefinedNotification[] }) {
+/**
+ * Componente para la tabla de notificaciones indefinidas (correos).
+ * Usamos React.memo para optimizar el rendimiento.
+ * @param {{ notifications: UndefinedNotification[] }} props - Las notificaciones a mostrar.
+ */
+const UndefinedNotificationsTable = React.memo(function UndefinedNotificationsTable({ notifications }: { notifications: UndefinedNotification[] }) {
     return (
         <div className="relative w-full overflow-auto">
             <Table>
@@ -200,4 +224,4 @@ function UndefinedNotificationsTable({ notifications }: { notifications: Undefin
             </Table>
         </div>
     );
-}
+});

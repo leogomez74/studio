@@ -1,5 +1,6 @@
 // Importamos iconos y componentes de la interfaz de usuario.
 import { MoreHorizontal, PlusCircle } from "lucide-react";
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,9 +26,12 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Importamos los datos de ejemplo para los voluntarios.
-import { volunteers } from "@/lib/data";
+import { volunteers, Volunteer } from "@/lib/data";
 
-// Esta es la función principal que define la página de Voluntarios.
+/**
+ * Esta es la función principal que define la página de Voluntarios.
+ * Muestra una tabla con la lista de voluntarios registrados.
+ */
 export default function VolunteersPage() {
   // La función devuelve una tarjeta (Card) que contiene la tabla de voluntarios.
   return (
@@ -63,39 +67,7 @@ export default function VolunteersPage() {
           <TableBody>
             {/* Usamos la función 'map' para crear una fila por cada voluntario. */}
             {volunteers.map((volunteer) => (
-              <TableRow key={volunteer.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={volunteer.avatarUrl} alt={volunteer.name} />
-                      <AvatarFallback>{volunteer.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">{volunteer.name}</div>
-                      <div className="text-sm text-muted-foreground">{volunteer.email}</div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>{volunteer.expertise}</TableCell>
-                <TableCell className="hidden md:table-cell">{volunteer.availability}</TableCell>
-                <TableCell>
-                  {/* Menú desplegable con acciones para cada voluntario. */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
-                      <DropdownMenuItem>Editar</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
+              <VolunteerTableRow key={volunteer.id} volunteer={volunteer} />
             ))}
           </TableBody>
         </Table>
@@ -103,3 +75,46 @@ export default function VolunteersPage() {
     </Card>
   );
 }
+
+/**
+ * Componente que renderiza una única fila de la tabla de voluntarios.
+ * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no cambian.
+ * @param {{ volunteer: Volunteer }} props - Las propiedades del componente, que incluyen un objeto de voluntario.
+ */
+const VolunteerTableRow = React.memo(function VolunteerTableRow({ volunteer }: { volunteer: (typeof volunteers)[0] }) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-9 w-9">
+            <AvatarImage src={volunteer.avatarUrl} alt={volunteer.name} />
+            <AvatarFallback>{volunteer.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">{volunteer.name}</div>
+            <div className="text-sm text-muted-foreground">{volunteer.email}</div>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>{volunteer.expertise}</TableCell>
+      <TableCell className="hidden md:table-cell">{volunteer.availability}</TableCell>
+      <TableCell>
+        {/* Menú desplegable con acciones para cada voluntario. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button aria-haspopup="true" size="icon" variant="ghost">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Toggle menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
+            <DropdownMenuItem>Editar</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});

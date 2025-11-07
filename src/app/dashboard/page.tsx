@@ -1,4 +1,4 @@
-'use client';
+// Este es un Componente de Servidor, se renderiza en el servidor para mayor rendimiento.
 import {
   Bar,
   BarChart,
@@ -23,7 +23,7 @@ import {
   Activity,
   CircleDollarSign,
 } from 'lucide-react';
-import { credits, notifications, clients, opportunities } from '@/lib/data';
+import { credits, notifications, clients, opportunities } from '@/lib/data'; // Importamos los datos de ejemplo.
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ChartContainer,
@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
 
+// Preparación de los datos para el gráfico de barras.
+// Contamos la cantidad de créditos por cada estado.
 const chartData = [
   { status: 'Al día', count: credits.filter((c) => c.status === 'Al día').length },
   { status: 'En mora', count: credits.filter((c) => c.status === 'En mora').length },
@@ -42,6 +44,7 @@ const chartData = [
   },
 ];
 
+// Configuración del gráfico, define la etiqueta y el color para la serie de datos.
 const chartConfig = {
   count: {
     label: 'Créditos',
@@ -49,12 +52,19 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+/**
+ * Componente principal de la página del Dashboard (Panel Principal).
+ * Muestra tarjetas con métricas clave y gráficos de resumen.
+ */
 export default function DashboardPage() {
+  // Calculamos el saldo total de la cartera sumando los saldos de todos los créditos.
   const totalBalance = credits.reduce((sum, credit) => sum + credit.balance, 0);
 
   return (
     <div className="space-y-6">
+      {/* Sección de tarjetas de métricas clave. */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {/* Tarjeta 1: Saldo de Cartera */}
         <Link href="/dashboard/creditos">
             <Card className="transition-all hover:ring-2 hover:ring-primary/50">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -63,7 +73,8 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">
-                    ₡{totalBalance.toLocaleString('de-DE')}
+                      {/* Formateamos el número como moneda local. */}
+                      ₡{totalBalance.toLocaleString('de-DE')}
                     </div>
                     <p className="text-xs text-muted-foreground">
                     +2.5% desde el mes pasado
@@ -71,6 +82,7 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
         </Link>
+        {/* Tarjeta 2: Créditos Activos */}
         <Link href="/dashboard/creditos">
             <Card className="transition-all hover:ring-2 hover:ring-primary/50">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -79,12 +91,13 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">
-                    {credits.filter((c) => c.status !== 'Cancelado').length}
+                      {credits.filter((c) => c.status !== 'Cancelado').length}
                     </div>
                     <p className="text-xs text-muted-foreground">+5 nuevos esta semana</p>
                 </CardContent>
             </Card>
         </Link>
+        {/* Tarjeta 3: Nuevas Oportunidades */}
         <Link href="/dashboard/oportunidades">
             <Card className="transition-all hover:ring-2 hover:ring-primary/50">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -97,6 +110,7 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
         </Link>
+        {/* Tarjeta 4: Clientes Totales */}
         <Link href="/dashboard/clientes">
             <Card className="transition-all hover:ring-2 hover:ring-primary/50">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -105,7 +119,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">
-                    {clients.length}
+                      {clients.length}
                     </div>
                     <p className="text-xs text-muted-foreground">Total de clientes históricos</p>
                 </CardContent>
@@ -113,7 +127,9 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {/* Sección con el gráfico y la lista de actividad reciente. */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Tarjeta del Gráfico */}
         <Card>
           <CardHeader>
             <CardTitle>Resumen de Estado de Créditos</CardTitle>
@@ -122,6 +138,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Contenedor del gráfico que lo hace responsivo. */}
             <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
               <BarChart accessibilityLayer data={chartData}>
                 <CartesianGrid vertical={false} />
@@ -145,6 +162,7 @@ export default function DashboardPage() {
             </ChartContainer>
           </CardContent>
         </Card>
+        {/* Tarjeta de Actividad Reciente */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

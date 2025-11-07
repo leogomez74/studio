@@ -1,4 +1,6 @@
+// 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 'use client';
+import React from 'react';
 import { MoreHorizontal, Phone, MessageSquareWarning } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,9 +27,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { credits, Credit } from '@/lib/data';
+import { credits, Credit } from '@/lib/data'; // Importamos los datos de créditos.
 import Link from 'next/link';
 
+/**
+ * Función para obtener la variante de color de la insignia según el estado del crédito.
+ * @param {Credit['status']} status - El estado del crédito.
+ * @returns {'secondary' | 'destructive' | 'outline'} La variante de color para el Badge.
+ */
 const getStatusVariant = (status: Credit['status']) => {
   switch (status) {
     case 'Al día':
@@ -39,6 +46,12 @@ const getStatusVariant = (status: Credit['status']) => {
   }
 };
 
+/**
+ * Función que filtra los créditos por rango de días en mora.
+ * @param {number} daysStart - El inicio del rango de días.
+ * @param {number | null} [daysEnd=null] - El fin del rango de días. Si es null, filtra desde daysStart en adelante.
+ * @returns {Credit[]} Un array de créditos filtrados.
+ */
 const filterCreditsByArrears = (
   daysStart: number,
   daysEnd: number | null = null
@@ -53,6 +66,7 @@ const filterCreditsByArrears = (
   });
 };
 
+// Pre-filtramos las listas de créditos para cada pestaña para optimizar el rendimiento.
 const alDiaCredits = credits.filter((c) => c.status === 'Al día');
 const mora30 = filterCreditsByArrears(1, 30);
 const mora60 = filterCreditsByArrears(31, 60);
@@ -60,6 +74,10 @@ const mora90 = filterCreditsByArrears(61, 90);
 const mora180 = filterCreditsByArrears(91, 180);
 const mas180 = filterCreditsByArrears(181);
 
+/**
+ * Componente principal de la página de Gestión de Cobros.
+ * Utiliza un sistema de pestañas para organizar los créditos según su estado de morosidad.
+ */
 export default function CobrosPage() {
   return (
     <Tabs defaultValue="al-dia">
@@ -80,6 +98,7 @@ export default function CobrosPage() {
         </TabsList>
       </div>
 
+      {/* Cada TabsContent corresponde a una pestaña y muestra la tabla filtrada. */}
       <TabsContent value="al-dia">
         <Card>
           <CardContent className="pt-6">
@@ -126,7 +145,12 @@ export default function CobrosPage() {
   );
 }
 
-function CobrosTable({ credits }: { credits: Credit[] }) {
+/**
+ * Componente reutilizable que renderiza la tabla de créditos.
+ * Usamos React.memo para evitar que la tabla se vuelva a renderizar si la lista de créditos no ha cambiado.
+ * @param {{ credits: Credit[] }} props - Las propiedades del componente, que incluyen la lista de créditos a mostrar.
+ */
+const CobrosTable = React.memo(function CobrosTable({ credits }: { credits: Credit[] }) {
   return (
     <div className="relative w-full overflow-auto">
       <Table>
@@ -192,4 +216,4 @@ function CobrosTable({ credits }: { credits: Credit[] }) {
       </Table>
     </div>
   );
-}
+});

@@ -1,5 +1,6 @@
 // Importamos iconos y componentes de la interfaz de usuario.
 import { MoreHorizontal, PlusCircle } from "lucide-react";
+import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,11 @@ import {
 // Importamos los datos de ejemplo para las oportunidades.
 import { opportunities, Opportunity } from "@/lib/data";
 
+/**
+ * Función para obtener la variante de color de la insignia según el estado de la oportunidad.
+ * @param {Opportunity['status']} status - El estado de la oportunidad.
+ * @returns {'default' | 'secondary' | 'destructive' | 'outline'} La variante de color para el Badge.
+ */
 const getStatusVariant = (status: Opportunity['status']) => {
     switch (status) {
         case 'Convertido': return 'default';
@@ -38,7 +44,10 @@ const getStatusVariant = (status: Opportunity['status']) => {
 }
 
 
-// Esta es la función principal que define la página de Oportunidades.
+/**
+ * Esta es la función principal que define la página de Oportunidades.
+ * Muestra una lista de todas las oportunidades de crédito en una tabla.
+ */
 export default function DealsPage() {
   return (
     <Card>
@@ -75,36 +84,7 @@ export default function DealsPage() {
           {/* El cuerpo de la tabla se llena con los datos de las oportunidades. */}
           <TableBody>
             {opportunities.map((opportunity) => (
-              <TableRow key={opportunity.id}>
-                <TableCell className="font-medium">{opportunity.leadCedula}</TableCell>
-                <TableCell>
-                  ₡{opportunity.amount.toLocaleString('de-DE')}
-                </TableCell>
-                <TableCell>{opportunity.creditType}</TableCell>
-                <TableCell>
-                  <Badge variant={getStatusVariant(opportunity.status)}>{opportunity.status}</Badge>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">{opportunity.startDate}</TableCell>
-                <TableCell className="hidden md:table-cell">{opportunity.assignedTo}</TableCell>
-                <TableCell>
-                  {/* Menú desplegable con acciones para cada oportunidad. */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Alternar menú</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem>Ver Detalle</DropdownMenuItem>
-                      <DropdownMenuItem>Convertir a Crédito</DropdownMenuItem>
-                      <DropdownMenuItem>Editar</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
+              <OpportunityTableRow key={opportunity.id} opportunity={opportunity} />
             ))}
           </TableBody>
         </Table>
@@ -112,3 +92,43 @@ export default function DealsPage() {
     </Card>
   );
 }
+
+/**
+ * Componente que renderiza una única fila de la tabla de oportunidades.
+ * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no cambian.
+ * @param {{ opportunity: Opportunity }} props - Las propiedades del componente, que incluyen un objeto de oportunidad.
+ */
+const OpportunityTableRow = React.memo(function OpportunityTableRow({ opportunity }: { opportunity: Opportunity }) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{opportunity.leadCedula}</TableCell>
+      <TableCell>
+        ₡{opportunity.amount.toLocaleString('de-DE')}
+      </TableCell>
+      <TableCell>{opportunity.creditType}</TableCell>
+      <TableCell>
+        <Badge variant={getStatusVariant(opportunity.status)}>{opportunity.status}</Badge>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">{opportunity.startDate}</TableCell>
+      <TableCell className="hidden md:table-cell">{opportunity.assignedTo}</TableCell>
+      <TableCell>
+        {/* Menú desplegable con acciones para cada oportunidad. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button aria-haspopup="true" size="icon" variant="ghost">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Alternar menú</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem>Ver Detalle</DropdownMenuItem>
+            <DropdownMenuItem>Convertir a Crédito</DropdownMenuItem>
+            <DropdownMenuItem>Editar</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});

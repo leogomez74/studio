@@ -1,5 +1,6 @@
 // Importamos iconos y componentes de la interfaz de usuario.
 import { MoreHorizontal, PlusCircle } from "lucide-react";
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,9 +26,12 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Importamos los datos de ejemplo para los leads.
-import { leads } from "@/lib/data";
+import { leads, Lead } from "@/lib/data";
 
-// Esta es la función principal que define la página de Leads.
+/**
+ * Esta es la función principal que define la página de Leads.
+ * Muestra una lista de todos los leads o clientes potenciales en una tabla.
+ */
 export default function LeadsPage() {
   // La función devuelve una tarjeta (Card) que contiene la tabla de leads.
   return (
@@ -64,42 +68,7 @@ export default function LeadsPage() {
           {/* El cuerpo de la tabla se llena con los datos de los leads. */}
           <TableBody>
             {leads.map((lead) => (
-              <TableRow key={lead.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={lead.avatarUrl} alt={lead.name} />
-                      <AvatarFallback>{lead.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="font-medium">{lead.name}</div>
-                  </div>
-                </TableCell>
-                <TableCell>{lead.cedula}</TableCell>
-                <TableCell className="hidden md:table-cell">
-                    <div className="text-sm text-muted-foreground">{lead.email}</div>
-                    <div className="text-sm text-muted-foreground">{lead.phone}</div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">{lead.assignedTo}</TableCell>
-                <TableCell className="hidden md:table-cell">{lead.registeredOn}</TableCell>
-                <TableCell>
-                  {/* Menú desplegable con acciones para cada lead. */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Alternar menú</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
-                      <DropdownMenuItem>Convertir a Oportunidad</DropdownMenuItem>
-                      <DropdownMenuItem>Editar</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
+              <LeadTableRow key={lead.id} lead={lead} />
             ))}
           </TableBody>
         </Table>
@@ -107,3 +76,49 @@ export default function LeadsPage() {
     </Card>
   );
 }
+
+/**
+ * Componente que renderiza una única fila de la tabla de leads.
+ * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no cambian.
+ * @param {{ lead: Lead }} props - Las propiedades del componente, que incluyen un objeto de lead.
+ */
+const LeadTableRow = React.memo(function LeadTableRow({ lead }: { lead: Lead }) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-9 w-9">
+            <AvatarImage src={lead.avatarUrl} alt={lead.name} />
+            <AvatarFallback>{lead.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <div className="font-medium">{lead.name}</div>
+        </div>
+      </TableCell>
+      <TableCell>{lead.cedula}</TableCell>
+      <TableCell className="hidden md:table-cell">
+          <div className="text-sm text-muted-foreground">{lead.email}</div>
+          <div className="text-sm text-muted-foreground">{lead.phone}</div>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">{lead.assignedTo}</TableCell>
+      <TableCell className="hidden md:table-cell">{lead.registeredOn}</TableCell>
+      <TableCell>
+        {/* Menú desplegable con acciones para cada lead. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button aria-haspopup="true" size="icon" variant="ghost">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Alternar menú</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
+            <DropdownMenuItem>Convertir a Oportunidad</DropdownMenuItem>
+            <DropdownMenuItem>Editar</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});

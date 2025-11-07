@@ -1,3 +1,4 @@
+// 'use client' indica que es un Componente de Cliente, permitiendo el uso de estado y efectos.
 'use client';
 import React, { useState } from 'react';
 import {
@@ -25,7 +26,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { credits, tasks, staff, Task } from '@/lib/data';
+import { credits, tasks, staff, Task } from '@/lib/data'; // Importación de datos de ejemplo.
 import { CaseChat } from '@/components/case-chat';
 import {
   Tooltip,
@@ -43,12 +44,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+// Datos de ejemplo para los archivos del crédito.
 const files = [
   { name: 'Pagare_Firmado.pdf', type: 'pdf', size: '1.2 MB' },
   { name: 'Autorizacion_Deduccion.pdf', type: 'pdf', size: '800 KB' },
   { name: 'Cedula_Identidad.jpg', type: 'image', size: '1.5 MB' },
 ];
 
+/**
+ * Función para obtener el ícono de archivo según su tipo.
+ * @param {string} type - Tipo de archivo ('pdf', 'image', etc.).
+ * @returns {React.ReactNode} El componente de ícono.
+ */
 const getFileIcon = (type: string) => {
   switch (type) {
     case 'pdf':
@@ -58,6 +65,11 @@ const getFileIcon = (type: string) => {
   }
 };
 
+/**
+ * Función para obtener la variante de color de la insignia según la prioridad de la tarea.
+ * @param {Task['priority']} priority - Prioridad de la tarea.
+ * @returns {'destructive' | 'default' | 'secondary' | 'outline'} La variante de color.
+ */
 const getPriorityVariant = (priority: Task['priority']) => {
   switch (priority) {
     case 'Alta':
@@ -71,14 +83,21 @@ const getPriorityVariant = (priority: Task['priority']) => {
   }
 };
 
+/**
+ * Componente que muestra las tareas asociadas a un crédito específico.
+ * @param {{ creditId: string }} props - Propiedades, incluyendo el ID del crédito.
+ */
 function CreditTasks({ creditId }: { creditId: string }) {
+  // Filtra las tareas para obtener solo las que corresponden a este crédito.
   const creditTasks = tasks.filter((task) => task.caseId === creditId);
 
+  // Obtiene la URL del avatar del usuario asignado.
   const getAvatarUrl = (name: string) => {
     const user = staff.find((s) => s.name === name);
     return user ? user.avatarUrl : undefined;
   };
 
+  // Si no hay tareas, muestra un mensaje.
   if (creditTasks.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
@@ -87,6 +106,7 @@ function CreditTasks({ creditId }: { creditId: string }) {
     );
   }
 
+  // Muestra la lista de tareas.
   return (
     <div className="space-y-3 p-2">
       {creditTasks.map((task) => (
@@ -112,14 +132,21 @@ function CreditTasks({ creditId }: { creditId: string }) {
   );
 }
 
+/**
+ * Página principal de detalle de un crédito.
+ * @param {{ params: { id: string } }} props - Propiedades pasadas por Next.js, incluyendo el ID del crédito desde la URL.
+ */
 export default function CreditDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
+  // Estado para controlar la visibilidad del panel lateral.
   const [isPanelVisible, setIsPanelVisible] = useState(true);
+  // Busca el crédito en los datos usando el ID de la URL.
   const credit = credits.find((c) => c.operationNumber === params.id);
 
+  // Si no se encuentra el crédito, muestra un mensaje de error.
   if (!credit) {
     return (
       <div className="text-center">
@@ -133,6 +160,7 @@ export default function CreditDetailPage({
 
   return (
     <div className="space-y-6">
+      {/* Encabezado de la página con botón de volver y título. */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" asChild>
@@ -145,6 +173,7 @@ export default function CreditDetailPage({
             Detalle del Crédito: {credit.operationNumber}
           </h1>
         </div>
+        {/* Botón para mostrar/ocultar el panel lateral. */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -168,17 +197,21 @@ export default function CreditDetailPage({
         </TooltipProvider>
       </div>
 
+      {/* Grid principal que organiza el contenido en columnas. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {/* Columna principal que se expande si el panel lateral está oculto. */}
         <div
           className={
             isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'
           }
         >
+          {/* Tarjeta de información principal del crédito. */}
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle>
+                    {/* El nombre del deudor es un enlace a su perfil en la página de clientes. */}
                     <Link
                       href={`/dashboard/clientes?cedula=${credit.debtorId}`}
                       className="hover:underline"
@@ -191,6 +224,7 @@ export default function CreditDetailPage({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Selector para cambiar el estado del crédito. */}
                   <Select defaultValue={credit.status}>
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Cambiar estado" />
@@ -250,6 +284,7 @@ export default function CreditDetailPage({
             </CardFooter>
           </Card>
 
+          {/* Tarjeta para el generador de documentos. */}
           <Card>
             <CardHeader>
               <CardTitle>Generador de Documentos</CardTitle>
@@ -277,6 +312,7 @@ export default function CreditDetailPage({
             </CardContent>
           </Card>
 
+          {/* Tarjeta para los archivos del crédito. */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -316,6 +352,7 @@ export default function CreditDetailPage({
           </Card>
         </div>
 
+        {/* Panel lateral que se muestra si isPanelVisible es true. */}
         {isPanelVisible && (
           <div className="space-y-6 lg:col-span-2">
             <Card className="h-[calc(100vh-12rem)]">
