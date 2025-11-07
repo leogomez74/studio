@@ -22,8 +22,6 @@ import {
   Gavel,
   Banknote,
   DollarSign,
-  UserCog,
-  Scale,
   Wallet,
   PiggyBank,
 } from 'lucide-react';
