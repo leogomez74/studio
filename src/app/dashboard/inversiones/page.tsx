@@ -61,12 +61,15 @@ export default function InversionesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead># Inversión</TableHead>
               <TableHead>Inversionista</TableHead>
               <TableHead className="text-right">Monto</TableHead>
-              <TableHead>Moneda</TableHead>
+              <TableHead className="text-center">Interés (%)</TableHead>
+              <TableHead className="text-right">Monto Anual</TableHead>
+              <TableHead>Periodicidad</TableHead>
+              <TableHead className="text-right">Monto Mensual</TableHead>
+              <TableHead className="text-right">Retención (15%)</TableHead>
+              <TableHead className="text-right">Monto a Pagar</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead className="hidden md:table-cell">Fecha Final</TableHead>
               <TableHead>
                 <span className="sr-only">Acciones</span>
               </TableHead>
@@ -84,6 +87,28 @@ export default function InversionesPage() {
 }
 
 function InvestmentTableRow({ investment }: { investment: Investment }) {
+  const annualInterest = investment.amount * (investment.rate / 100);
+  const monthlyInterest = annualInterest / 12;
+  const retention = annualInterest * 0.15;
+  
+  let paymentAmount = 0;
+  switch (investment.interestFrequency) {
+    case 'Mensual':
+      paymentAmount = annualInterest / 12 - retention / 12;
+      break;
+    case 'Trimestral':
+      paymentAmount = annualInterest / 4 - retention / 4;
+      break;
+    case 'Semestral':
+      paymentAmount = annualInterest / 2 - retention / 2;
+      break;
+    case 'Anual':
+      paymentAmount = annualInterest - retention;
+      break;
+    default:
+      paymentAmount = 0;
+  }
+  
   return (
       <TableRow className="hover:bg-muted/50">
         <TableCell>
@@ -91,26 +116,31 @@ function InvestmentTableRow({ investment }: { investment: Investment }) {
             href={`/dashboard/inversiones/${investment.investmentNumber}`}
             className="font-medium hover:underline"
           >
-            {investment.investmentNumber}
+            {investment.investorName}
           </Link>
-        </TableCell>
-        <TableCell>
-            <div className="font-medium">{investment.investorName}</div>
-            <div className="text-sm text-muted-foreground">{investment.investorId}</div>
+          <div className="text-sm text-muted-foreground">{investment.investmentNumber}</div>
         </TableCell>
         <TableCell className="text-right font-mono">
-          {investment.amount.toLocaleString('de-DE')}
+          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: investment.currency }).format(investment.amount)}
         </TableCell>
-        <TableCell>
-          <Badge variant="outline">{investment.currency}</Badge>
+        <TableCell className="text-center font-mono">{investment.rate.toFixed(2)}%</TableCell>
+        <TableCell className="text-right font-mono">
+            {new Intl.NumberFormat('es-CR', { style: 'currency', currency: investment.currency }).format(annualInterest)}
+        </TableCell>
+        <TableCell>{investment.interestFrequency}</TableCell>
+        <TableCell className="text-right font-mono">
+            {new Intl.NumberFormat('es-CR', { style: 'currency', currency: investment.currency }).format(monthlyInterest)}
+        </TableCell>
+        <TableCell className="text-right font-mono text-destructive">
+            - {new Intl.NumberFormat('es-CR', { style: 'currency', currency: investment.currency }).format(retention)}
+        </TableCell>
+        <TableCell className="text-right font-mono font-semibold text-primary">
+            {new Intl.NumberFormat('es-CR', { style: 'currency', currency: investment.currency }).format(paymentAmount)}
         </TableCell>
         <TableCell>
           <Badge variant={getStatusVariant(investment.status)}>
             {investment.status}
           </Badge>
-        </TableCell>
-        <TableCell className="hidden md:table-cell">
-          {investment.endDate}
         </TableCell>
         <TableCell>
           <DropdownMenu>
