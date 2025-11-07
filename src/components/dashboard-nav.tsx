@@ -30,8 +30,7 @@ import {
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'REPORTES' },
   { href: '/dashboard/ventas', icon: DollarSign, label: 'VENTAS' },
-  { href: '/dashboard/leads', icon: Handshake, label: 'LEADS' },
-  { href: '/dashboard/oportunidades', icon: Users, label: 'OPORTUNIDADES' },
+  { href: '/dashboard/oportunidades', icon: Handshake, label: 'OPORTUNIDADES' },
   { href: '/dashboard/analisis', icon: FileSearch, label: 'ANÁLISIS' },
   { href: '/dashboard/clientes', icon: UserCheck, label: 'CLIENTES' },
   { href: '/dashboard/creditos', icon: Landmark, label: 'CRÉDITOS' },

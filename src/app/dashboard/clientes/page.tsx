@@ -1,4 +1,4 @@
-// 'use client' indica que este es un Componente de Cliente, necesario para interactividad como menús desplegables.
+// 'use client' indica que es un Componente de Cliente, necesario para interactividad.
 'use client';
 import React from 'react';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
@@ -27,50 +27,79 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-// $$$ CONECTOR MYSQL: Se importan los datos de clientes. En el futuro, estos datos vendrán de la base de datos de clientes.
-import { clients, Client } from '@/lib/data'; 
+// $$$ CONECTOR MYSQL: Se importan los datos. En el futuro, vendrán de la base de datos.
+import { clients, Client, leads, Lead } from '@/lib/data'; 
 import Link from 'next/link';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 
 /**
- * Componente principal de la página de Clientes.
- * Muestra una tabla con la lista de todos los clientes de Credipep.
+ * Componente principal de la página de Clientes y Leads.
+ * Muestra una vista con pestañas para gestionar clientes y leads.
  */
 export default function ClientesPage() {
-
-  /**
-   * Función para obtener la variante de color de la insignia según el estado del cliente.
-   * @param {Client['clientStatus']} status - El estado del cliente.
-   * @returns {'default' | 'destructive' | 'secondary' | 'outline'} La variante de color para el Badge.
-   */
-  const getStatusVariant = (status: Client['clientStatus']) => {
-    switch (status) {
-        case 'Activo': return 'default';
-        case 'Moroso': return 'destructive';
-        case 'En cobro': return 'destructive';
-        case 'Inactivo': return 'secondary';
-        case 'Fallecido': return 'outline';
-        default: return 'outline';
-    }
-  };
-
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+    <Tabs defaultValue="clientes">
+      <div className="flex items-center justify-between mb-4">
+        <TabsList>
+          <TabsTrigger value="clientes">Clientes</TabsTrigger>
+          <TabsTrigger value="leads">Leads</TabsTrigger>
+        </TabsList>
+        <div className="flex items-center gap-2">
+            {/* $$$ CONECTOR MYSQL: La acción de este botón creará un nuevo registro en la tabla de clientes o leads. */}
+            <Button size="sm" className="gap-1">
+                <PlusCircle className="h-4 w-4" />
+                Agregar
+            </Button>
+        </div>
+      </div>
+      <TabsContent value="clientes">
+        <Card>
+          <CardHeader>
             <CardTitle>Clientes</CardTitle>
             <CardDescription>
               Gestiona los clientes existentes de Credipep.
             </CardDescription>
-          </div>
-          {/* $$$ CONECTOR MYSQL: La acción de este botón creará un nuevo registro en la tabla de clientes de la base de datos. */}
-          <Button size="sm" className="gap-1">
-            <PlusCircle className="h-4 w-4" />
-            Agregar Cliente
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
+          </CardHeader>
+          <CardContent>
+            <ClientsTable />
+          </CardContent>
+        </Card>
+      </TabsContent>
+       <TabsContent value="leads">
+        <Card>
+          <CardHeader>
+            <CardTitle>Leads</CardTitle>
+            <CardDescription>
+                Gestiona los leads o clientes potenciales.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LeadsTable />
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+
+function ClientsTable() {
+    /**
+     * Función para obtener la variante de color de la insignia según el estado del cliente.
+     */
+    const getStatusVariant = (status: Client['clientStatus']) => {
+        switch (status) {
+            case 'Activo': return 'default';
+            case 'Moroso': return 'destructive';
+            case 'En cobro': return 'destructive';
+            case 'Inactivo': return 'secondary';
+            case 'Fallecido': return 'outline';
+            default: return 'outline';
+        }
+    };
+
+    return (
         <Table>
           <TableHeader>
             <TableRow>
@@ -94,10 +123,9 @@ export default function ClientesPage() {
             ))}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
-  );
+    )
 }
+
 
 /**
  * Props para el componente ClientTableRow.
@@ -109,8 +137,6 @@ interface ClientTableRowProps {
 
 /**
  * Componente que renderiza una única fila de la tabla de clientes.
- * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no han cambiado.
- * @param {ClientTableRowProps} props - Las propiedades del componente.
  */
 const ClientTableRow = React.memo(function ClientTableRow({ client, getStatusVariant }: ClientTableRowProps) {
   return (
@@ -134,20 +160,17 @@ const ClientTableRow = React.memo(function ClientTableRow({ client, getStatusVar
         </div>
       </TableCell>
       <TableCell>
-        {/* Este botón-enlace lleva a la página de créditos, filtrada por el ID del cliente. */}
         <Button variant="link" asChild>
           <Link
             href={`/dashboard/creditos?debtorId=${encodeURIComponent(
               client.cedula
             )}`}
           >
-            {/* $$$ CONECTOR MYSQL: El número de créditos activos será el resultado de una consulta a la base de datos. */}
             <Badge variant="default">{client.activeCredits}</Badge>
           </Link>
         </Button>
       </TableCell>
       <TableCell>
-        {/* Mostramos la insignia de estado si el cliente tiene uno. */}
         {client.clientStatus &&
             <Badge variant={getStatusVariant(client.clientStatus)}>
               {client.clientStatus}
@@ -158,8 +181,6 @@ const ClientTableRow = React.memo(function ClientTableRow({ client, getStatusVar
         {client.registeredOn}
       </TableCell>
       <TableCell>
-        {/* Menú de acciones rápidas para cada cliente. */}
-        {/* $$$ CONECTOR MYSQL: Las acciones de este menú (editar, eliminar) afectarán a la base de datos. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -175,6 +196,75 @@ const ClientTableRow = React.memo(function ClientTableRow({ client, getStatusVar
             <DropdownMenuItem className="text-destructive">
               Eliminar
             </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+
+function LeadsTable() {
+    return (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Lead</TableHead>
+              <TableHead>Cédula</TableHead>
+              <TableHead className="hidden md:table-cell">Contacto</TableHead>
+              <TableHead className="hidden md:table-cell">Asignado a</TableHead>
+              <TableHead className="hidden md:table-cell">Registrado El</TableHead>
+              <TableHead>
+                <span className="sr-only">Acciones</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {leads.map((lead) => (
+              <LeadTableRow key={lead.id} lead={lead} />
+            ))}
+          </TableBody>
+        </Table>
+    );
+}
+
+/**
+ * Componente que renderiza una única fila de la tabla de leads.
+ */
+const LeadTableRow = React.memo(function LeadTableRow({ lead }: { lead: Lead }) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-9 w-9">
+            <AvatarImage src={lead.avatarUrl} alt={lead.name} />
+            <AvatarFallback>{lead.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <div className="font-medium">{lead.name}</div>
+        </div>
+      </TableCell>
+      <TableCell>{lead.cedula}</TableCell>
+      <TableCell className="hidden md:table-cell">
+          <div className="text-sm text-muted-foreground">{lead.email}</div>
+          <div className="text-sm text-muted-foreground">{lead.phone}</div>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">{lead.assignedTo}</TableCell>
+      <TableCell className="hidden md:table-cell">{lead.registeredOn}</TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button aria-haspopup="true" size="icon" variant="ghost">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Alternar menú</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
+            <DropdownMenuItem>Convertir a Cliente</DropdownMenuItem>
+            <DropdownMenuItem>Crear Oportunidad</DropdownMenuItem>
+            <DropdownMenuItem>Editar</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
