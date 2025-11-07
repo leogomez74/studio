@@ -39,7 +39,7 @@ const navItems = [
   { href: '/dashboard/notificaciones', icon: Bell, label: 'NOTIFICACIONES' },
   { href: '/dashboard/tareas', icon: ClipboardCheck, label: 'TAREAS' },
   { href: '/dashboard/comunicaciones', icon: MessageSquare, label: 'COMUNICACIONES' },
-  { href: '/dashboard/colaboradores', icon: Briefcase, label: 'COLABORADORES' },
+  { href: '/dashboard/staff', icon: Briefcase, label: 'COLABORADORES' },
   { href: '/dashboard/reportes', icon: LineChart, label: 'REPORTES' },
 ];
 
