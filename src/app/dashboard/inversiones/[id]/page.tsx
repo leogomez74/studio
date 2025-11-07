@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { investments, Investment } from '@/lib/data';
+import { investments } from '@/lib/data';
 import {
   Select,
   SelectContent,
@@ -151,5 +151,3 @@ function InvestmentDetailClient({ id }: { id: string }) {
 export default function InvestmentDetailPage({ params }: { params: { id: string } }) {
   return <InvestmentDetailClient id={params.id} />
 }
-
-    
