@@ -211,19 +211,19 @@ export default function CreditDetailPage({
               <div className="grid gap-1">
                 <h3 className="font-medium">Monto Otorgado</h3>
                 <p className="text-muted-foreground">
-                  ₡{credit.amount.toLocaleString('es-CR')}
+                  ₡{credit.amount.toLocaleString('de-DE')}
                 </p>
               </div>
               <div className="grid gap-1">
                 <h3 className="font-medium">Saldo Actual</h3>
                 <p className="font-semibold text-primary">
-                  ₡{credit.balance.toLocaleString('es-CR')}
+                  ₡{credit.balance.toLocaleString('de-DE')}
                 </p>
               </div>
               <div className="grid gap-1">
                 <h3 className="font-medium">Cuota Mensual</h3>
                 <p className="text-muted-foreground">
-                  ₡{credit.fee.toLocaleString('es-CR')}
+                  ₡{credit.fee.toLocaleString('de-DE')}
                 </p>
               </div>
               <div className="grid gap-1">

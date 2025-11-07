@@ -152,7 +152,7 @@ function CobrosTable({ credits }: { credits: Credit[] }) {
               </TableCell>
               <TableCell>{credit.debtorName}</TableCell>
               <TableCell className="hidden md:table-cell">
-                ₡{credit.fee.toLocaleString('es-CR')}
+                ₡{credit.fee.toLocaleString('de-DE')}
               </TableCell>
               <TableCell>
                 <Badge variant={getStatusVariant(credit.status)}>

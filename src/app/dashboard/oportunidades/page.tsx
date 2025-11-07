@@ -67,7 +67,7 @@ export default function DealsPage() {
               <TableRow key={opportunity.id}>
                 <TableCell className="font-medium">{opportunity.leadCedula}</TableCell>
                 <TableCell>
-                  ₡{opportunity.amount.toLocaleString('es-CR')}
+                  ₡{opportunity.amount.toLocaleString('de-DE')}
                 </TableCell>
                 <TableCell>{opportunity.creditType}</TableCell>
                 <TableCell>

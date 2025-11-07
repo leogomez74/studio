@@ -63,7 +63,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">
-                    ₡{totalBalance.toLocaleString('es-CR')}
+                    ₡{totalBalance.toLocaleString('de-DE')}
                     </div>
                     <p className="text-xs text-muted-foreground">
                     +2.5% desde el mes pasado

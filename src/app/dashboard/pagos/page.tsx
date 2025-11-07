@@ -77,13 +77,13 @@ export default function PagosPage() {
                         </TableCell>
                         <TableCell>{payment.debtorName}</TableCell>
                         <TableCell className="text-right font-mono">
-                            ₡{payment.amount.toLocaleString('es-CR')}
+                            ₡{payment.amount.toLocaleString('de-DE')}
                         </TableCell>
                         <TableCell className="text-right font-mono">
                             {payment.difference ? (
                                 <div className="flex items-center justify-end gap-2 text-destructive">
                                     <AlertTriangle className="h-4 w-4" />
-                                   (₡{payment.difference.toLocaleString('es-CR')})
+                                   (₡{payment.difference.toLocaleString('de-DE')})
                                 </div>
                             ) : '-'}
                         </TableCell>

@@ -152,7 +152,7 @@ export default function CalculosPage() {
                 Cuota Mensual Estimada
               </p>
               <p className="text-2xl font-bold text-primary">
-                ₡{monthlyPayment.toLocaleString('es-CR', {
+                ₡{monthlyPayment.toLocaleString('de-DE', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
@@ -201,7 +201,7 @@ export default function CalculosPage() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                           <p className="text-muted-foreground">Saldo Actual</p>
-                          <p className="font-medium">₡{foundCredit.balance.toLocaleString('es-CR')}</p>
+                          <p className="font-medium">₡{foundCredit.balance.toLocaleString('de-DE')}</p>
                       </div>
                        <div>
                           <p className="text-muted-foreground">Tasa de Interés</p>
@@ -237,7 +237,7 @@ export default function CalculosPage() {
                 Nueva Cuota Mensual Estimada
               </p>
               <p className="text-2xl font-bold text-primary">
-                ₡{newMonthlyPayment.toLocaleString('es-CR', {
+                ₡{newMonthlyPayment.toLocaleString('de-DE', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}

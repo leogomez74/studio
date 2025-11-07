@@ -69,7 +69,7 @@ export default function CobroJudicialPage() {
                 <TableCell>{credit.expediente}</TableCell>
                 <TableCell>{credit.debtorName}</TableCell>
                 <TableCell className="text-right font-mono">
-                  ₡{credit.balance.toLocaleString('es-CR')}
+                  ₡{credit.balance.toLocaleString('de-DE')}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>

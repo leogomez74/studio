@@ -222,10 +222,10 @@ function CreditsTable({ credits }: { credits: Credit[] }) {
               </TableCell>
               <TableCell className="hidden md:table-cell">{credit.type}</TableCell>
               <TableCell className="text-right font-mono">
-                ₡{credit.amount.toLocaleString('es-CR')}
+                ₡{credit.amount.toLocaleString('de-DE')}
               </TableCell>
               <TableCell className="text-right font-mono font-semibold">
-                ₡{credit.balance.toLocaleString('es-CR')}
+                ₡{credit.balance.toLocaleString('de-DE')}
               </TableCell>
               <TableCell>
                 <Badge variant={getStatusVariant(credit.status)}>
