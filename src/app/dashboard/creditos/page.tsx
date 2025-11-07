@@ -1,6 +1,6 @@
 'use client';
 
-import { MoreHorizontal, PlusCircle, Calendar as CalendarIcon } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Calendar as CalendarIcon, FileDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +35,13 @@ import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+interface jsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: any) => jsPDF;
+}
+
 
 const getStatusVariant = (status: Credit['status']) => {
   switch (status) {
@@ -74,6 +81,29 @@ export default function CreditsPage() {
 
   const pageTitle = debtorId ? `Créditos de ${filteredCredits[0]?.debtorName || ''}` : 'Todos los Créditos';
   const pageDescription = debtorId ? `Viendo todos los créditos para el cliente.` : 'Gestiona todos los créditos activos e históricos.';
+  
+  const handleExportPDF = (data: Credit[]) => {
+    const doc = new jsPDF() as jsPDFWithAutoTable;
+    
+    doc.text(pageTitle, 14, 16);
+    
+    doc.autoTable({
+        startY: 22,
+        head: [['Operación', 'Deudor', 'Monto Otorgado', 'Saldo Actual', 'Estado', 'Vencimiento']],
+        body: data.map(c => [
+            c.operationNumber,
+            c.debtorName,
+            `₡${c.amount.toLocaleString('de-DE')}`,
+            `₡${c.balance.toLocaleString('de-DE')}`,
+            c.status,
+            c.dueDate
+        ]),
+        headStyles: { fillColor: [19, 85, 156] }, // #13559c
+    });
+
+    doc.save('creditos.pdf');
+  };
+
 
   return (
     <Tabs defaultValue="all">
@@ -142,6 +172,10 @@ export default function CreditsPage() {
                         </PopoverContent>
                     </Popover>
                     <Button variant="secondary" onClick={() => setDate(undefined)}>Limpiar</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.status !== 'Cancelado'))}>
+                        <FileDown className="mr-2 h-4 w-4"/>
+                        Exportar a PDF
+                    </Button>
                 </div>
             </div>
           </CardHeader>
@@ -153,8 +187,16 @@ export default function CreditsPage() {
        <TabsContent value="regular">
         <Card>
           <CardHeader>
-            <CardTitle>Créditos Regulares</CardTitle>
-            <CardDescription>Todos los créditos de tipo regular.</CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Créditos Regulares</CardTitle>
+                <CardDescription>Todos los créditos de tipo regular.</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.type === 'Regular' && c.status !== 'Cancelado'))}>
+                  <FileDown className="mr-2 h-4 w-4"/>
+                  Exportar a PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <CreditsTable credits={filteredCredits.filter(c => c.type === 'Regular' && c.status !== 'Cancelado')} />
@@ -164,8 +206,16 @@ export default function CreditsPage() {
       <TabsContent value="micro">
         <Card>
           <CardHeader>
-            <CardTitle>Micro-Créditos</CardTitle>
-            <CardDescription>Todos los créditos de tipo micro-crédito.</CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Micro-Créditos</CardTitle>
+                <CardDescription>Todos los créditos de tipo micro-crédito.</CardDescription>
+              </div>
+               <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.type === 'Micro-crédito' && c.status !== 'Cancelado'))}>
+                  <FileDown className="mr-2 h-4 w-4"/>
+                  Exportar a PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <CreditsTable credits={filteredCredits.filter(c => c.type === 'Micro-crédito' && c.status !== 'Cancelado')} />
@@ -175,8 +225,16 @@ export default function CreditsPage() {
       <TabsContent value="history">
         <Card>
           <CardHeader>
-            <CardTitle>Historial de Créditos</CardTitle>
-            <CardDescription>Créditos que ya han sido cancelados.</CardDescription>
+            <div className="flex justify-between items-center">
+                <div>
+                    <CardTitle>Historial de Créditos</CardTitle>
+                    <CardDescription>Créditos que ya han sido cancelados.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.status === 'Cancelado'))}>
+                    <FileDown className="mr-2 h-4 w-4"/>
+                    Exportar a PDF
+                </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <CreditsTable credits={filteredCredits.filter(c => c.status === 'Cancelado')} />
