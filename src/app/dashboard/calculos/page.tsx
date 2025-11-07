@@ -1,8 +1,8 @@
-// 'use client' indica que este es un Componente de Cliente, lo cual es necesario para usar hooks de React como 'useState'.
+// 'use client' indica que este es un Componente de Cliente, lo cual es necesario para usar hooks de React como 'useState' y 'useEffect'.
 'use client';
 
 // Importamos los hooks y componentes necesarios de React y de nuestra biblioteca de UI.
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -21,20 +21,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calculator, Search, RefreshCw } from 'lucide-react'; // Íconos
-import { credits, Credit } from '@/lib/data'; // Datos de ejemplo
+// Importamos los íconos que usaremos.
+import { Calculator, Search, RefreshCw, MessageSquare, Mail, CheckCircle } from 'lucide-react';
+// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo de créditos, leads y la configuración de créditos.
+// En el futuro, estos datos vendrán de la base de datos y del sistema de configuración.
+import { credits, Credit, leads, Lead, creditConfigs } from '@/lib/data';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from "@/hooks/use-toast";
+import { Separator } from '@/components/ui/separator';
 
 /**
  * Componente principal de la página de Cálculos.
  * Contiene dos calculadoras: una para cuotas de nuevos créditos y otra para arreglos de pago.
  */
 export default function CalculosPage() {
+  const { toast } = useToast();
+
   // --- Estados para la Calculadora de Cuotas ---
+  const [creditType, setCreditType] = useState<'regular' | 'micro'>('regular'); // Tipo de crédito seleccionado
   const [amount, setAmount] = useState('5000000'); // Monto del préstamo
-  const [rate, setRate] = useState('24'); // Tasa de interés anual
+  const [rate, setRate] = useState(creditConfigs.regular.interestRate.toString()); // Tasa de interés anual, inicializada con la de crédito regular
   const [term, setTerm] = useState('36'); // Plazo en meses
   const [monthlyPayment, setMonthlyPayment] = useState<number | null>(null); // Cuota mensual calculada
+  const [selectedLead, setSelectedLead] = useState<string | undefined>(undefined); // Lead seleccionado para enviarle la cotización
 
   // --- Estados para la Calculadora de Arreglos de Pago ---
   const [operationNumber, setOperationNumber] = useState(''); // Número de operación a buscar
@@ -42,6 +51,18 @@ export default function CalculosPage() {
   const [newTerm, setNewTerm] = useState('12'); // Nuevo plazo para el arreglo
   const [newMonthlyPayment, setNewMonthlyPayment] = useState<number | null>(null); // Nueva cuota calculada
   const [searchError, setSearchError] = useState<string | null>(null); // Mensaje de error si no se encuentra el crédito
+
+  /**
+   * Efecto que se ejecuta cuando el tipo de crédito cambia.
+   * Actualiza la tasa de interés en el formulario según la configuración del tipo de crédito seleccionado.
+   */
+  useEffect(() => {
+    if (creditType === 'regular') {
+      setRate(creditConfigs.regular.interestRate.toString());
+    } else {
+      setRate(creditConfigs.micro.interestRate.toString());
+    }
+  }, [creditType]);
 
   /**
    * Calcula la cuota mensual para un nuevo préstamo.
@@ -73,6 +94,7 @@ export default function CalculosPage() {
       principal * ((monthlyInterestRate * power) / (power - 1));
 
     setMonthlyPayment(payment); // Guardamos el resultado en el estado.
+    setSelectedLead(undefined); // Reseteamos el lead seleccionado al hacer un nuevo cálculo.
   };
 
   /**
@@ -81,6 +103,7 @@ export default function CalculosPage() {
   const handleSearchCredit = () => {
     setSearchError(null); // Limpiamos cualquier error previo.
     setNewMonthlyPayment(null); // Limpiamos cualquier cálculo de arreglo previo.
+    // $$$ CONECTOR MYSQL: En el futuro, esta búsqueda se hará directamente a la base de datos de créditos.
     // Buscamos el crédito ignorando mayúsculas/minúsculas.
     const credit = credits.find(c => c.operationNumber.toLowerCase() === operationNumber.toLowerCase());
     if (credit) {
@@ -116,6 +139,30 @@ export default function CalculosPage() {
       setNewMonthlyPayment(payment); // Guardamos el resultado.
   };
 
+  /**
+   * Simula el envío de la cotización a un lead y muestra una notificación.
+   * @param {'comunicaciones' | 'email'} method - El método de envío.
+   */
+  const handleSendQuote = (method: 'comunicaciones' | 'email') => {
+    const lead = leads.find(l => l.id === selectedLead);
+    if (!lead || !monthlyPayment) return;
+
+    // $$$ CONECTOR: Aquí se integraría la lógica para enviar el mensaje por el sistema de comunicaciones o por email.
+    console.log(`Enviando cotización a ${lead.name} via ${method}.`);
+    
+    // Muestra una notificación de éxito.
+    toast({
+      title: (
+        <div className="flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-green-500" />
+          <span className="font-semibold">Cotización Enviada</span>
+        </div>
+      ),
+      description: `La cotización ha sido enviada a ${lead.name} por ${method === 'email' ? 'correo electrónico' : 'el sistema de comunicaciones'}.`,
+      duration: 4000,
+    });
+  };
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
       {/* --- Tarjeta de Calculadora de Cuotas --- */}
@@ -126,7 +173,21 @@ export default function CalculosPage() {
             Estima la cuota mensual de un crédito.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
+           {/* Selector para el tipo de crédito */}
+          <div className="space-y-2">
+            <Label htmlFor="credit-type">Tipo de Crédito</Label>
+            <Select value={creditType} onValueChange={(value) => setCreditType(value as 'regular' | 'micro')}>
+              <SelectTrigger id="credit-type">
+                <SelectValue placeholder="Selecciona un tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="regular">Crédito Regular</SelectItem>
+                <SelectItem value="micro">Micro-crédito</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Campo para el monto del préstamo */}
           <div className="space-y-2">
             <Label htmlFor="amount">Monto del Préstamo (₡)</Label>
             <Input
@@ -137,6 +198,7 @@ export default function CalculosPage() {
               placeholder="Ej: 5000000"
             />
           </div>
+          {/* Campo para la tasa de interés */}
           <div className="space-y-2">
             <Label htmlFor="rate">Tasa de Interés Anual (%)</Label>
             <Input
@@ -147,6 +209,7 @@ export default function CalculosPage() {
               placeholder="Ej: 24"
             />
           </div>
+          {/* Selector para el plazo en meses */}
           <div className="space-y-2">
             <Label htmlFor="term">Plazo (meses)</Label>
             <Select value={term} onValueChange={setTerm}>
@@ -173,17 +236,54 @@ export default function CalculosPage() {
 
           {/* Mostramos el resultado del cálculo si existe. */}
           {monthlyPayment !== null && (
-            <div className="rounded-lg border bg-muted p-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                Cuota Mensual Estimada
-              </p>
-              <p className="text-2xl font-bold text-primary">
-                {/* Formateamos el número a un estilo de moneda local. */}
-                ₡{monthlyPayment.toLocaleString('de-DE', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
+            <div className="space-y-4">
+                <div className="rounded-lg border bg-muted p-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                        Cuota Mensual Estimada
+                    </p>
+                    <p className="text-2xl font-bold text-primary">
+                        {/* Formateamos el número a un estilo de moneda local. */}
+                        ₡{monthlyPayment.toLocaleString('de-DE', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                        })}
+                    </p>
+                </div>
+
+                 {/* Sección para enviar la cotización a un lead */}
+                <Separator />
+                <div className="space-y-3 pt-2">
+                    <h4 className="font-medium">Enviar Cotización a Lead</h4>
+                     <div className="space-y-2">
+                        <Label htmlFor="select-lead">Seleccionar Lead</Label>
+                        {/* $$$ CONECTOR MYSQL: La lista de leads vendrá de la base de datos. */}
+                        <Select value={selectedLead} onValueChange={setSelectedLead}>
+                            <SelectTrigger id="select-lead">
+                                <SelectValue placeholder="Selecciona un lead..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {leads.map(lead => (
+                                    <SelectItem key={lead.id} value={lead.id}>
+                                        {lead.name} ({lead.cedula})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     {/* Los botones de envío solo se muestran si se ha seleccionado un lead. */}
+                    {selectedLead && (
+                        <div className="flex gap-2">
+                            <Button variant="outline" className="flex-1" onClick={() => handleSendQuote('comunicaciones')}>
+                                <MessageSquare className="mr-2 h-4 w-4" />
+                                Enviar por Comunicaciones
+                            </Button>
+                            <Button variant="outline" className="flex-1" onClick={() => handleSendQuote('email')}>
+                                <Mail className="mr-2 h-4 w-4" />
+                                Enviar por Email
+                            </Button>
+                        </div>
+                    )}
+                </div>
             </div>
           )}
         </CardContent>

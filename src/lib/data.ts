@@ -1,4 +1,5 @@
 
+
 export type User = {
   id: string;
   name: string;
@@ -217,6 +218,24 @@ export type SalesGoal = {
   achievedAmount: number;
 };
 
+// $$$ CONECTOR: Este objeto simula la configuración de préstamos que vendría de la base de datos o un servicio de configuración.
+export const creditConfigs = {
+  regular: {
+    interestRate: 24,
+    minAmount: 500000,
+    maxAmount: 10000000,
+    minTerm: 12,
+    maxTerm: 72,
+  },
+  micro: {
+    interestRate: 36,
+    minAmount: 100000,
+    maxAmount: 1000000,
+    minTerm: 6,
+    maxTerm: 24,
+  },
+};
+
 
 export const users: User[] = [
     { id: 'STF001', name: 'Jorge Ortiz Solís', email: 'jorge@crepipep.com', avatarUrl: 'https://picsum.photos/seed/staff1/40/40' },
@@ -421,3 +440,4 @@ export const salesGoals: SalesGoal[] = [
   { id: 'GOAL01', salespersonId: 'STF001', salespersonName: 'Jorge Ortiz Solís', salespersonAvatar: 'https://picsum.photos/seed/staff1/40/40', month: 'Noviembre 2023', goalAmount: 50000000, achievedAmount: 22000000 },
   { id: 'GOAL02', salespersonId: 'STF002', salespersonName: 'Raizza Mildrey Arocena', salespersonAvatar: 'https://picsum.photos/seed/staff2/40/40', month: 'Noviembre 2023', goalAmount: 40000000, achievedAmount: 31000000 },
 ];
+
