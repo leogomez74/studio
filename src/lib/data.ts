@@ -243,7 +243,100 @@ export type SalesGoal = {
   achievedAmount: number;
 };
 
-// $$$ CONECTOR: Este objeto simula la configuración de préstamos que vendría de la base de datos o un servicio de configuración.
+// --- Project Plan Data ---
+
+type ProjectTask = {
+  id: string;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+};
+
+export type Milestone = {
+  id: string;
+  title: string;
+  description: string;
+  days: string;
+  tasks: ProjectTask[];
+};
+
+export const projectPlan: Milestone[] = [
+  {
+    id: 'HITO1',
+    title: 'Hito 1: Configuración, Autenticación y Modelos Base',
+    description: 'Establecer la base del proyecto y asegurar la autenticación de usuarios.',
+    days: 'Días 1-2',
+    tasks: [
+      { id: 'T1.1', title: 'Inicializar un nuevo proyecto de Laravel.', dueDate: 'lunes, 11 de nov', completed: false },
+      { id: 'T1.2', title: 'Configurar la conexión a la base de datos MySQL.', dueDate: 'lunes, 11 de nov', completed: false },
+      { id: 'T1.3', title: 'Implementar las migraciones de la base de datos para `users`, `clients`, `leads`, `investors`.', dueDate: 'lunes, 11 de nov', completed: false },
+      { id: 'T1.4', title: 'Crear los modelos Eloquent correspondientes.', dueDate: 'lunes, 11 de nov', completed: false },
+      { id: 'T2.1', title: 'Instalar y configurar Laravel Sanctum para la autenticación de SPA.', dueDate: 'martes, 12 de nov', completed: false },
+      { id: 'T2.2', title: 'Crear los endpoints para registro, login (`/login`) y logout (`/logout`).', dueDate: 'martes, 12 de nov', completed: false },
+      { id: 'T2.3', title: 'Crear un endpoint protegido para obtener los datos del usuario autenticado (`/api/user`).', dueDate: 'martes, 12 de nov', completed: false },
+    ]
+  },
+  {
+    id: 'HITO2',
+    title: 'Hito 2: Módulos de Clientes y Oportunidades',
+    description: 'Enfocado en la gestión de clientes, leads y oportunidades de negocio.',
+    days: 'Días 3-4',
+    tasks: [
+      { id: 'T3.1', title: 'Crear modelos y migraciones para `Opportunities`.', dueDate: 'miércoles, 13 de nov', completed: false },
+      { id: 'T3.2', title: 'Implementar los controladores y rutas de API (Resource Controllers) para el CRUD de `Leads` y `Clients`.', dueDate: 'miércoles, 13 de nov', completed: false },
+      { id: 'T3.3', title: 'Implementar un endpoint para convertir un `Lead` en `Client` (`POST /api/leads/{id}/convert`).', dueDate: 'miércoles, 13 de nov', completed: false },
+      { id: 'T4.1', title: 'Implementar el CRUD para `Opportunities`.', dueDate: 'jueves, 14 de nov', completed: false },
+      { id: 'T4.2', title: 'Implementar endpoint para la página de "Análisis" (`GET /api/credit-analysis`).', dueDate: 'jueves, 14 de nov', completed: false },
+    ]
+  },
+  {
+    id: 'HITO3',
+    title: 'Hito 3: Módulo Financiero - Créditos y Cobros',
+    description: 'Desarrollo de la lógica principal del negocio: créditos y su seguimiento.',
+    days: 'Días 5-6',
+    tasks: [
+        { id: 'T5.1', title: 'Crear modelo y migración para `Credits` y `CreditConfigs`.', dueDate: 'viernes, 15 de nov', completed: false },
+        { id: 'T5.2', title: 'Implementar el CRUD para `Credits`.', dueDate: 'viernes, 15 de nov', completed: false },
+        { id: 'T5.3', title: 'Crear endpoints para obtener y actualizar la configuración de los tipos de crédito (`GET /api/credit-configs`).', dueDate: 'viernes, 15 de nov', completed: false },
+        { id: 'T6.1', title: 'Crear modelo y migración para `Payments` (Abonos).', dueDate: 'lunes, 18 de nov', completed: false },
+        { id: 'T6.2', title: 'Implementar endpoint para la vista de "Gestión de Cobros" con filtro por días de mora.', dueDate: 'lunes, 18 de nov', completed: false },
+        { id: 'T6.3', title: 'Implementar el CRUD para `Payments` (Abonos), incluyendo la carga masiva desde CSV.', dueDate: 'lunes, 18 de nov', completed: false },
+    ]
+  },
+  {
+    id: 'HITO4',
+    title: 'Hito 4: Módulos Legales e Inversiones',
+    description: 'Implementación de la gestión de casos legales e inversiones.',
+    days: 'Días 7-8',
+    tasks: [
+        { id: 'T7.1', title: 'Crear modelos y migraciones para `Cases`, `CaseTasks`, `JudicialNotifications`.', dueDate: 'martes, 19 de nov', completed: false },
+        { id: 'T7.2', title: 'Implementar el CRUD para `Cases` filtrando por tipo.', dueDate: 'martes, 19 de nov', completed: false },
+        { id: 'T7.3', title: 'Implementar endpoints para las pestañas de "Cobro Judicial".', dueDate: 'martes, 19 de nov', completed: false },
+        { id: 'T8.1', title: 'Crear modelo y migración para `Investments` y `InterestPayments`.', dueDate: 'miércoles, 20 de nov', completed: false },
+        { id: 'T8.2', title: 'Implementar el CRUD para `Investors` e `Investments`.', dueDate: 'miércoles, 20 de nov', completed: false },
+        { id: 'T8.3', title: 'Implementar endpoints para las pestañas de "Inversiones".', dueDate: 'miércoles, 20 de nov', completed: false },
+    ]
+  },
+  {
+    id: 'HITO5',
+    title: 'Hito 5: Módulos Operativos y Despliegue',
+    description: 'Finalización de funcionalidades secundarias y preparación para producción.',
+    days: 'Días 9-10',
+    tasks: [
+        { id: 'T9.1', title: 'Crear modelos y migraciones para `Conversations`, `ChatMessages`, `InternalNotes`, `Branches`, `Volunteers` y `Routes`.', dueDate: 'jueves, 21 de nov', completed: false },
+        { id: 'T9.2', title: 'Implementar los endpoints para el CRUD de cada uno de estos módulos.', dueDate: 'jueves, 21 de nov', completed: false },
+        { id: 'T9.3', title: 'Implementar la lógica para el chat en el módulo de "Comunicaciones".', dueDate: 'jueves, 21 de nov', completed: false },
+        { id: 'T10.1', title: 'Realizar pruebas de integración de todos los endpoints.', dueDate: 'viernes, 22 de nov', completed: false },
+        { id: 'T10.2', title: 'Finalizar la documentación de la API (Colección de Postman).', dueDate: 'viernes, 22 de nov', completed: false },
+        { id: 'T10.3', title: 'Escribir un script de despliegue básico.', dueDate: 'viernes, 22 de nov', completed: false },
+        { id: 'T10.4', title: 'Configurar el entorno del servidor y realizar el primer despliegue.', dueDate: 'viernes, 22 de nov', completed: false },
+    ]
+  }
+];
+
+
+// --- Mock Data ---
+
 export const creditConfigs = {
   regular: {
     interestRate: 24,
