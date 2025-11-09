@@ -10,9 +10,17 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { type Milestone } from '@/lib/data';
+import { type Milestone, type ProjectTask } from '@/lib/data';
 import { CheckCircle, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 /**
  * Componente que representa un único hito (Milestone) en el plan del proyecto.
@@ -21,9 +29,11 @@ import { cn } from '@/lib/utils';
 const MilestoneCard = React.memo(function MilestoneCard({
   milestone,
   onTaskToggle,
+  onTaskSelect,
 }: {
   milestone: Milestone;
   onTaskToggle: (milestoneId: string, taskId: string) => void;
+  onTaskSelect: (task: ProjectTask) => void;
 }) {
   // Calculamos el progreso del hito basándonos en las tareas completadas.
   const completedTasks = useMemo(
@@ -60,28 +70,34 @@ const MilestoneCard = React.memo(function MilestoneCard({
         {/* Lista de tareas para el hito. */}
         <div className="space-y-3">
           {milestone.tasks.map((task) => (
-            <div
-              key={task.id}
-              className="flex items-start gap-3 rounded-lg border p-3"
-            >
-              <Checkbox
-                id={`task-${task.id}`}
-                checked={task.completed}
-                onCheckedChange={() => onTaskToggle(milestone.id, task.id)}
-                className="mt-1"
-              />
-              <div className="grid gap-1.5 leading-none">
-                <label
-                  htmlFor={`task-${task.id}`}
-                  className={cn('text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70', task.completed && 'text-muted-foreground line-through')}
+             <DialogTrigger key={task.id} asChild>
+                <div
+                    onClick={() => onTaskSelect(task)}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-all hover:bg-muted/50"
                 >
-                  {task.title}
-                </label>
-                <p className="text-sm text-muted-foreground">
-                  Entrega: {task.dueDate}
-                </p>
-              </div>
-            </div>
+                    <Checkbox
+                        id={`task-${task.id}`}
+                        checked={task.completed}
+                        onCheckedChange={(checked) => {
+                            // Evitamos que el click en el checkbox abra el modal
+                            event?.stopPropagation();
+                            onTaskToggle(milestone.id, task.id);
+                        }}
+                        className="mt-1"
+                    />
+                    <div className="grid gap-1.5 leading-none">
+                        <label
+                        htmlFor={`task-${task.id}`}
+                        className={cn('cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70', task.completed && 'text-muted-foreground line-through')}
+                        >
+                        {task.title}
+                        </label>
+                        <p className="text-sm text-muted-foreground">
+                        Entrega: {task.dueDate}
+                        </p>
+                    </div>
+                </div>
+            </DialogTrigger>
           ))}
         </div>
       </CardContent>
@@ -93,6 +109,7 @@ MilestoneCard.displayName = 'MilestoneCard';
 
 export function ProjectPlanClient({ initialPlan }: { initialPlan: Milestone[] }) {
     const [plan, setPlan] = useState(initialPlan);
+    const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
 
     /**
      * Maneja el cambio de estado de una tarea (completada/no completada).
@@ -118,15 +135,40 @@ export function ProjectPlanClient({ initialPlan }: { initialPlan: Milestone[] })
       );
     };
 
+    const handleSelectTask = (task: ProjectTask) => {
+        setSelectedTask(task);
+    }
+
+    const handleDialogClose = () => {
+        setSelectedTask(null);
+    }
+
     return (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-            {plan.map((milestone) => (
-            <MilestoneCard
-                key={milestone.id}
-                milestone={milestone}
-                onTaskToggle={handleTaskToggle}
-            />
-            ))}
-        </div>
+        <Dialog onOpenChange={(isOpen) => !isOpen && handleDialogClose()}>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                {plan.map((milestone) => (
+                <MilestoneCard
+                    key={milestone.id}
+                    milestone={milestone}
+                    onTaskToggle={handleTaskToggle}
+                    onTaskSelect={handleSelectTask}
+                />
+                ))}
+            </div>
+
+            {selectedTask && (
+                 <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>{selectedTask.title}</DialogTitle>
+                        <DialogDescription>
+                            Entrega: {selectedTask.dueDate}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedTask.details}</p>
+                    </div>
+                </DialogContent>
+            )}
+        </Dialog>
     )
 }

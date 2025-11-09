@@ -245,11 +245,12 @@ export type SalesGoal = {
 
 // --- Project Plan Data ---
 
-type ProjectTask = {
+export type ProjectTask = {
   id: string;
   title: string;
   dueDate: string;
   completed: boolean;
+  details: string;
 };
 
 export type Milestone = {
@@ -267,13 +268,13 @@ export const projectPlan: Milestone[] = [
     description: 'Establecer la base del proyecto y asegurar la autenticación de usuarios.',
     days: 'Días 1-2',
     tasks: [
-      { id: 'T1.1', title: 'Inicializar un nuevo proyecto de Laravel.', dueDate: 'lunes, 11 de nov', completed: false },
-      { id: 'T1.2', title: 'Configurar la conexión a la base de datos MySQL.', dueDate: 'lunes, 11 de nov', completed: false },
-      { id: 'T1.3', title: 'Implementar las migraciones de la base de datos para `users`, `clients`, `leads`, `investors`.', dueDate: 'lunes, 11 de nov', completed: false },
-      { id: 'T1.4', title: 'Crear los modelos Eloquent correspondientes.', dueDate: 'lunes, 11 de nov', completed: false },
-      { id: 'T2.1', title: 'Instalar y configurar Laravel Sanctum para la autenticación de SPA.', dueDate: 'martes, 12 de nov', completed: false },
-      { id: 'T2.2', title: 'Crear los endpoints para registro, login (`/login`) y logout (`/logout`).', dueDate: 'martes, 12 de nov', completed: false },
-      { id: 'T2.3', title: 'Crear un endpoint protegido para obtener los datos del usuario autenticado (`/api/user`).', dueDate: 'martes, 12 de nov', completed: false },
+      { id: 'T1.1', title: 'Inicializar un nuevo proyecto de Laravel.', dueDate: 'lunes, 11 de nov', completed: false, details: 'Crear un nuevo repositorio y clonar el esqueleto de Laravel. Ejecutar `composer install`.' },
+      { id: 'T1.2', title: 'Configurar la conexión a la base de datos MySQL.', dueDate: 'lunes, 11 de nov', completed: false, details: 'Actualizar el archivo `.env` con las credenciales de la base de datos de desarrollo (DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD).' },
+      { id: 'T1.3', title: 'Implementar las migraciones de la base de datos para `users`, `clients`, `leads`, `investors`.', dueDate: 'lunes, 11 de nov', completed: false, details: 'Crear los archivos de migración para cada tabla, definiendo los campos y tipos de datos especificados en el script SQL proporcionado. Incluir claves foráneas y relaciones.' },
+      { id: 'T1.4', title: 'Crear los modelos Eloquent correspondientes.', dueDate: 'lunes, 11 de nov', completed: false, details: 'Generar los modelos `User`, `Client`, `Lead`, e `Investor`. Definir las propiedades `fillable` y las relaciones (`hasMany`, `belongsTo`, etc.).' },
+      { id: 'T2.1', title: 'Instalar y configurar Laravel Sanctum para la autenticación de SPA.', dueDate: 'martes, 12 de nov', completed: false, details: 'Seguir la guía de instalación de Sanctum. Publicar la migración de Sanctum y ejecutar `php artisan migrate`. Añadir el middleware a `app/Http/Kernel.php`.' },
+      { id: 'T2.2', title: 'Crear los endpoints para registro, login (`/login`) y logout (`/logout`).', dueDate: 'martes, 12 de nov', completed: false, details: 'Implementar los controladores y rutas necesarios para manejar la autenticación. El login debe devolver un token de API o establecer una cookie de sesión.' },
+      { id: 'T2.3', title: 'Crear un endpoint protegido para obtener los datos del usuario autenticado (`/api/user`).', dueDate: 'martes, 12 de nov', completed: false, details: 'Asegurar que la ruta esté protegida con el middleware `auth:sanctum`. Devolver los datos del usuario logueado.' },
     ]
   },
   {
@@ -282,11 +283,11 @@ export const projectPlan: Milestone[] = [
     description: 'Enfocado en la gestión de clientes, leads y oportunidades de negocio.',
     days: 'Días 3-4',
     tasks: [
-      { id: 'T3.1', title: 'Crear modelos y migraciones para `Opportunities`.', dueDate: 'miércoles, 13 de nov', completed: false },
-      { id: 'T3.2', title: 'Implementar los controladores y rutas de API (Resource Controllers) para el CRUD de `Leads` y `Clients`.', dueDate: 'miércoles, 13 de nov', completed: false },
-      { id: 'T3.3', title: 'Implementar un endpoint para convertir un `Lead` en `Client` (`POST /api/leads/{id}/convert`).', dueDate: 'miércoles, 13 de nov', completed: false },
-      { id: 'T4.1', title: 'Implementar el CRUD para `Opportunities`.', dueDate: 'jueves, 14 de nov', completed: false },
-      { id: 'T4.2', title: 'Implementar endpoint para la página de "Análisis" (`GET /api/credit-analysis`).', dueDate: 'jueves, 14 de nov', completed: false },
+      { id: 'T3.1', title: 'Crear modelos y migraciones para `Opportunities`.', dueDate: 'miércoles, 13 de nov', completed: false, details: 'Definir la tabla de oportunidades con su relación con la tabla `leads`.' },
+      { id: 'T3.2', title: 'Implementar los controladores y rutas de API (Resource Controllers) para el CRUD de `Leads` y `Clients`.', dueDate: 'miércoles, 13 de nov', completed: false, details: 'Crear API resources para `Lead` y `Client` para estandarizar la salida JSON. Implementar los métodos index, show, store, update y destroy.' },
+      { id: 'T3.3', title: 'Implementar un endpoint para convertir un `Lead` en `Client` (`POST /api/leads/{id}/convert`).', dueDate: 'miércoles, 13 de nov', completed: false, details: 'La lógica debe crear un nuevo registro de `Client` con los datos del `Lead` y, opcionalmente, eliminar o marcar el lead como convertido.' },
+      { id: 'T4.1', title: 'Implementar el CRUD para `Opportunities`.', dueDate: 'jueves, 14 de nov', completed: false, details: 'Crear el Resource Controller y las rutas de API para gestionar las oportunidades.' },
+      { id: 'T4.2', title: 'Implementar endpoint para la página de "Análisis" (`GET /api/credit-analysis`).', dueDate: 'jueves, 14 de nov', completed: false, details: 'Este endpoint debe realizar un join entre `leads` y `opportunities` para devolver la información combinada que se muestra en la tabla de análisis.' },
     ]
   },
   {
@@ -295,12 +296,12 @@ export const projectPlan: Milestone[] = [
     description: 'Desarrollo de la lógica principal del negocio: créditos y su seguimiento.',
     days: 'Días 5-6',
     tasks: [
-        { id: 'T5.1', title: 'Crear modelo y migración para `Credits` y `CreditConfigs`.', dueDate: 'viernes, 15 de nov', completed: false },
-        { id: 'T5.2', title: 'Implementar el CRUD para `Credits`.', dueDate: 'viernes, 15 de nov', completed: false },
-        { id: 'T5.3', title: 'Crear endpoints para obtener y actualizar la configuración de los tipos de crédito (`GET /api/credit-configs`).', dueDate: 'viernes, 15 de nov', completed: false },
-        { id: 'T6.1', title: 'Crear modelo y migración para `Payments` (Abonos).', dueDate: 'lunes, 18 de nov', completed: false },
-        { id: 'T6.2', title: 'Implementar endpoint para la vista de "Gestión de Cobros" con filtro por días de mora.', dueDate: 'lunes, 18 de nov', completed: false },
-        { id: 'T6.3', title: 'Implementar el CRUD para `Payments` (Abonos), incluyendo la carga masiva desde CSV.', dueDate: 'lunes, 18 de nov', completed: false },
+        { id: 'T5.1', title: 'Crear modelo y migración para `Credits` y `CreditConfigs`.', dueDate: 'viernes, 15 de nov', completed: false, details: 'La tabla `credits` debe estar relacionada con `clients`. `credit_configs` puede ser una tabla simple o un archivo de configuración en Laravel.' },
+        { id: 'T5.2', title: 'Implementar el CRUD para `Credits`.', dueDate: 'viernes, 15 de nov', completed: false, details: 'Crear el Resource Controller y las rutas para los créditos. Incluir lógica de validación para los montos y plazos basados en `CreditConfigs`.' },
+        { id: 'T5.3', title: 'Crear endpoints para obtener y actualizar la configuración de los tipos de crédito (`GET /api/credit-configs`).', dueDate: 'viernes, 15 de nov', completed: false, details: 'Endpoint para que el frontend pueda leer y modificar las tasas de interés, montos mínimos/máximos, etc.' },
+        { id: 'T6.1', title: 'Crear modelo y migración para `Payments` (Abonos).', dueDate: 'lunes, 18 de nov', completed: false, details: 'La tabla `payments` debe estar relacionada con `credits`.' },
+        { id: 'T6.2', title: 'Implementar endpoint para la vista de "Gestión de Cobros" con filtro por días de mora.', dueDate: 'lunes, 18 de nov', completed: false, details: 'Crear un endpoint `GET /api/collections` que pueda recibir parámetros de consulta como `?arrears_start=31&arrears_end=60`.' },
+        { id: 'T6.3', title: 'Implementar el CRUD para `Payments` (Abonos), incluyendo la carga masiva desde CSV.', dueDate: 'lunes, 18 de nov', completed: false, details: 'Crear un endpoint `POST /api/payments/bulk-upload` que procese un archivo CSV y cree los registros de pago correspondientes.' },
     ]
   },
   {
@@ -309,12 +310,12 @@ export const projectPlan: Milestone[] = [
     description: 'Implementación de la gestión de casos legales e inversiones.',
     days: 'Días 7-8',
     tasks: [
-        { id: 'T7.1', title: 'Crear modelos y migraciones para `Cases`, `CaseTasks`, `JudicialNotifications`.', dueDate: 'martes, 19 de nov', completed: false },
-        { id: 'T7.2', title: 'Implementar el CRUD para `Cases` filtrando por tipo.', dueDate: 'martes, 19 de nov', completed: false },
-        { id: 'T7.3', title: 'Implementar endpoints para las pestañas de "Cobro Judicial".', dueDate: 'martes, 19 de nov', completed: false },
-        { id: 'T8.1', title: 'Crear modelo y migración para `Investments` y `InterestPayments`.', dueDate: 'miércoles, 20 de nov', completed: false },
-        { id: 'T8.2', title: 'Implementar el CRUD para `Investors` e `Investments`.', dueDate: 'miércoles, 20 de nov', completed: false },
-        { id: 'T8.3', title: 'Implementar endpoints para las pestañas de "Inversiones".', dueDate: 'miércoles, 20 de nov', completed: false },
+        { id: 'T7.1', title: 'Crear modelos y migraciones para `Cases`, `CaseTasks`, `JudicialNotifications`.', dueDate: 'martes, 19 de nov', completed: false, details: 'Definir las tablas y sus relaciones. `CaseTasks` debe relacionarse con `Cases` y `Users`.' },
+        { id: 'T7.2', title: 'Implementar el CRUD para `Cases` filtrando por tipo.', dueDate: 'martes, 19 de nov', completed: false, details: 'El endpoint `GET /api/cases` debe permitir filtrar por `type` (Amparo CCSS, Amparo MEP, Ejecución).' },
+        { id: 'T7.3', title: 'Implementar endpoints para las pestañas de "Cobro Judicial".', dueDate: 'martes, 19 de nov', completed: false, details: 'Crear endpoints separados para `GET /api/judicial-cases`, `GET /api/judicial-notifications` y `GET /api/undefined-notifications`.' },
+        { id: 'T8.1', title: 'Crear modelo y migración para `Investments` y `InterestPayments`.', dueDate: 'miércoles, 20 de nov', completed: false, details: '`Investments` se relaciona con `Investors`. `InterestPayments` (cupones) se relaciona con `Investments`.' },
+        { id: 'T8.2', title: 'Implementar el CRUD para `Investors` e `Investments`.', dueDate: 'miércoles, 20 de nov', completed: false, details: 'Crear los Resource Controllers y rutas de API correspondientes.' },
+        { id: 'T8.3', title: 'Implementar endpoints para las pestañas de "Inversiones".', dueDate: 'miércoles, 20 de nov', completed: false, details: 'Crear endpoints que devuelvan la información necesaria para cada una de las 4 pestañas (Inversionistas, Inversiones, Pagos, Retenciones).' },
     ]
   },
   {
@@ -323,13 +324,13 @@ export const projectPlan: Milestone[] = [
     description: 'Finalización de funcionalidades secundarias y preparación para producción.',
     days: 'Días 9-10',
     tasks: [
-        { id: 'T9.1', title: 'Crear modelos y migraciones para `Conversations`, `ChatMessages`, `InternalNotes`, `Branches`, `Volunteers` y `Routes`.', dueDate: 'jueves, 21 de nov', completed: false },
-        { id: 'T9.2', title: 'Implementar los endpoints para el CRUD de cada uno de estos módulos.', dueDate: 'jueves, 21 de nov', completed: false },
-        { id: 'T9.3', title: 'Implementar la lógica para el chat en el módulo de "Comunicaciones".', dueDate: 'jueves, 21 de nov', completed: false },
-        { id: 'T10.1', title: 'Realizar pruebas de integración de todos los endpoints.', dueDate: 'viernes, 22 de nov', completed: false },
-        { id: 'T10.2', title: 'Finalizar la documentación de la API (Colección de Postman).', dueDate: 'viernes, 22 de nov', completed: false },
-        { id: 'T10.3', title: 'Escribir un script de despliegue básico.', dueDate: 'viernes, 22 de nov', completed: false },
-        { id: 'T10.4', title: 'Configurar el entorno del servidor y realizar el primer despliegue.', dueDate: 'viernes, 22 de nov', completed: false },
+        { id: 'T9.1', title: 'Crear modelos y migraciones para `Conversations`, `ChatMessages`, `InternalNotes`, `Branches`, `Volunteers` y `Routes`.', dueDate: 'jueves, 21 de nov', completed: false, details: 'Definir las tablas finales para los módulos de soporte operativo.' },
+        { id: 'T9.2', title: 'Implementar los endpoints para el CRUD de cada uno de estos módulos.', dueDate: 'jueves, 21 de nov', completed: false, details: 'Crear Resource Controllers para `Branches`, `Volunteers` y `Staff`.' },
+        { id: 'T9.3', title: 'Implementar la lógica para el chat en el módulo de "Comunicaciones".', dueDate: 'jueves, 21 de nov', completed: false, details: 'Crear endpoints `GET /api/conversations/{id}/messages` y `POST /api/conversations/{id}/messages`. Considerar el uso de WebSockets con Laravel Reverb para chat en tiempo real.' },
+        { id: 'T10.1', title: 'Realizar pruebas de integración de todos los endpoints.', dueDate: 'viernes, 22 de nov', completed: false, details: 'Utilizar Pest o PHPUnit para escribir pruebas de API que verifiquen el funcionamiento, la protección de rutas y los códigos de estado de respuesta de todos los endpoints.' },
+        { id: 'T10.2', title: 'Finalizar la documentación de la API (Colección de Postman).', dueDate: 'viernes, 22 de nov', completed: false, details: 'Exportar una colección de Postman completa y actualizada con ejemplos para cada endpoint.' },
+        { id: 'T10.3', title: 'Escribir un script de despliegue básico.', dueDate: 'viernes, 22 de nov', completed: false, details: 'Crear un script `deploy.sh` que automatice los pasos: `git pull`, `composer install --no-dev`, `php artisan migrate --force`, `php artisan optimize:clear`.' },
+        { id: 'T10.4', title: 'Configurar el entorno del servidor y realizar el primer despliegue.', dueDate: 'viernes, 22 de nov', completed: false, details: 'Preparar el servidor de producción (DigitalOcean) e instalar dependencias (PHP, Composer, Nginx). Ejecutar el script de despliegue y verificar que la API responde correctamente.' },
     ]
   }
 ];
