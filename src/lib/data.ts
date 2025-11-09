@@ -1,6 +1,7 @@
 
 
 
+
 export type User = {
   id: string;
   name: string;
@@ -97,7 +98,6 @@ export type Investment = {
 export type Courier = {
   id: string;
   name: string;
-  phone: string;
   vehicle: 'Motocicleta' | 'Automóvil';
 };
 
@@ -265,6 +265,7 @@ export type Comment = {
 export type ProjectTask = {
   id: string;
   title: string;
+  startDate: string;
   dueDate: string;
   completed: boolean;
   details: string;
@@ -272,6 +273,7 @@ export type ProjectTask = {
   comments: Comment[];
   assignedTo: string;
   attachments?: Attachment[];
+  estimatedHours?: number;
 };
 
 
@@ -312,13 +314,13 @@ export const projects: Project[] = [
             description: 'Establecer la base del proyecto y asegurar la autenticación de usuarios.',
             days: 'Días 1-2',
             tasks: [
-              { id: 'T1.1', title: 'Inicializar un nuevo proyecto de Laravel.', dueDate: '2024-11-11', completed: true, details: 'Crear un nuevo repositorio y clonar el esqueleto de Laravel. Ejecutar `composer install`.', priority: 'Alta', comments: [], assignedTo: 'Jorge Ortiz Solís' },
-              { id: 'T1.2', title: 'Configurar la conexión a la base de datos MySQL.', dueDate: '2024-11-11', completed: true, details: 'Actualizar el archivo `.env` con las credenciales de la base de datos de desarrollo (DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD).', priority: 'Alta', comments: [], assignedTo: 'Jorge Ortiz Solís' },
-              { id: 'T1.3', title: 'Implementar las migraciones de la base de datos para `users`, `clients`, `leads`, `investors`.', dueDate: '2024-11-11', completed: false, details: 'Crear los archivos de migración para cada tabla, definiendo los campos y tipos de datos especificados en el script SQL proporcionado. Incluir claves foráneas y relaciones.', priority: 'Media', comments: [], assignedTo: 'Freddy Bravo Chacón' },
-              { id: 'T1.4', title: 'Crear los modelos Eloquent correspondientes.', dueDate: '2024-11-11', completed: false, details: 'Generar los modelos `User`, `Client`, `Lead`, e `Investor`. Definir las propiedades `fillable` y las relaciones (`hasMany`, `belongsTo`, etc.).', priority: 'Media', comments: [], assignedTo: 'Freddy Bravo Chacón' },
-              { id: 'T2.1', title: 'Instalar y configurar Laravel Sanctum para la autenticación de SPA.', dueDate: '2024-11-12', completed: false, details: 'Seguir la guía de instalación de Sanctum. Publicar la migración de Sanctum y ejecutar `php artisan migrate`. Añadir el middleware a `app/Http/Kernel.php`.', priority: 'Alta', comments: [], assignedTo: 'Richard Milán Vargas' },
-              { id: 'T2.2', title: 'Crear los endpoints para registro, login (`/login`) y logout (`/logout`).', dueDate: '2024-11-12', completed: false, details: 'Implementar los controladores y rutas necesarios para manejar la autenticación. El login debe devolver un token de API o establecer una cookie de sesión.', priority: 'Baja', comments: [], assignedTo: 'Richard Milán Vargas' },
-              { id: 'T2.3', title: 'Crear un endpoint protegido para obtener los datos del usuario autenticado (`/api/user`).', dueDate: '2024-11-12', completed: false, details: 'Asegurar que la ruta esté protegida con el middleware `auth:sanctum`. Devolver los datos del usuario logueado.', priority: 'Media', comments: [], assignedTo: 'Richard Milán Vargas' },
+              { id: 'T1.1', title: 'Inicializar un nuevo proyecto de Laravel.', startDate: '2024-11-11', dueDate: '2024-11-11', completed: true, details: 'Crear un nuevo repositorio y clonar el esqueleto de Laravel. Ejecutar `composer install`.', priority: 'Alta', comments: [], assignedTo: 'Jorge Ortiz Solís' },
+              { id: 'T1.2', title: 'Configurar la conexión a la base de datos MySQL.', startDate: '2024-11-11', dueDate: '2024-11-11', completed: true, details: 'Actualizar el archivo `.env` con las credenciales de la base de datos de desarrollo (DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD).', priority: 'Alta', comments: [], assignedTo: 'Jorge Ortiz Solís' },
+              { id: 'T1.3', title: 'Implementar las migraciones de la base de datos para `users`, `clients`, `leads`, `investors`.', startDate: '2024-11-11', dueDate: '2024-11-11', completed: false, details: 'Crear los archivos de migración para cada tabla, definiendo los campos y tipos de datos especificados en el script SQL proporcionado. Incluir claves foráneas y relaciones.', priority: 'Media', comments: [], assignedTo: 'Freddy Bravo Chacón' },
+              { id: 'T1.4', title: 'Crear los modelos Eloquent correspondientes.', startDate: '2024-11-11', dueDate: '2024-11-11', completed: false, details: 'Generar los modelos `User`, `Client`, `Lead`, e `Investor`. Definir las propiedades `fillable` y las relaciones (`hasMany`, `belongsTo`, etc.).', priority: 'Media', comments: [], assignedTo: 'Freddy Bravo Chacón' },
+              { id: 'T2.1', title: 'Instalar y configurar Laravel Sanctum para la autenticación de SPA.', startDate: '2024-11-12', dueDate: '2024-11-12', completed: false, details: 'Seguir la guía de instalación de Sanctum. Publicar la migración de Sanctum y ejecutar `php artisan migrate`. Añadir el middleware a `app/Http/Kernel.php`.', priority: 'Alta', comments: [], assignedTo: 'Richard Milán Vargas' },
+              { id: 'T2.2', title: 'Crear los endpoints para registro, login (`/login`) y logout (`/logout`).', startDate: '2024-11-12', dueDate: '2024-11-12', completed: false, details: 'Implementar los controladores y rutas necesarios para manejar la autenticación. El login debe devolver un token de API o establecer una cookie de sesión.', priority: 'Baja', comments: [], assignedTo: 'Richard Milán Vargas' },
+              { id: 'T2.3', title: 'Crear un endpoint protegido para obtener los datos del usuario autenticado (`/api/user`).', startDate: '2024-11-12', dueDate: '2024-11-12', completed: false, details: 'Asegurar que la ruta esté protegida con el middleware `auth:sanctum`. Devolver los datos del usuario logueado.', priority: 'Media', comments: [], assignedTo: 'Richard Milán Vargas' },
             ]
           },
           {
@@ -327,16 +329,16 @@ export const projects: Project[] = [
             description: 'Enfocado en la gestión de clientes, leads y oportunidades de negocio.',
             days: 'Días 3-4',
             tasks: [
-              { id: 'T3.1', title: 'Crear modelos y migraciones para `Opportunities`.', dueDate: '2024-11-13', completed: false, details: 'Definir la tabla de oportunidades con su relación con la tabla `leads`.', priority: 'Alta', comments: [], assignedTo: 'Freddy Bravo Chacón',
+              { id: 'T3.1', title: 'Crear modelos y migraciones para `Opportunities`.', startDate: '2024-11-13', dueDate: '2024-11-13', completed: false, details: 'Definir la tabla de oportunidades con su relación con la tabla `leads`.', priority: 'Alta', comments: [], assignedTo: 'Freddy Bravo Chacón',
                 attachments: [
                   { id: 'ATT01', name: 'diagrama_db.png', type: 'image', size: '128 KB', url: '#' },
                   { id: 'ATT02', name: 'especificacion.pdf', type: 'pdf', size: '512 KB', url: '#' },
                 ]
               },
-              { id: 'T3.2', title: 'Implementar los controladores y rutas de API (Resource Controllers) para el CRUD de `Leads` y `Clients`.', dueDate: '2024-11-13', completed: false, details: 'Crear API resources para `Lead` y `Client` para estandarizar la salida JSON. Implementar los métodos index, show, store, update y destroy.', priority: 'Media', comments: [], assignedTo: 'Freddy Bravo Chacón' },
-              { id: 'T3.3', title: 'Implementar un endpoint para convertir un `Lead` en `Client` (`POST /api/leads/{id}/convert`).', dueDate: '2024-11-13', completed: false, details: 'La lógica debe crear un nuevo registro de `Client` con los datos del `Lead` y, opcionalmente, eliminar o marcar el lead como convertido.', priority: 'Baja', comments: [], assignedTo: 'Jorge Ortiz Solís' },
-              { id: 'T4.1', title: 'Implementar el CRUD para `Opportunities`.', dueDate: '2024-11-14', completed: false, details: 'Crear el Resource Controller y las rutas de API para gestionar las oportunidades.', priority: 'Alta', comments: [], assignedTo: 'Raizza Mildrey Arocena' },
-              { id: 'T4.2', title: 'Implementar endpoint para la página de "Análisis" (`GET /api/credit-analysis`).', dueDate: '2024-11-14', completed: false, details: 'Este endpoint debe realizar un join entre `leads` y `opportunities` para devolver la información combinada que se muestra en la tabla de análisis.', priority: 'Media', comments: [], assignedTo: 'Raizza Mildrey Arocena' },
+              { id: 'T3.2', title: 'Implementar los controladores y rutas de API (Resource Controllers) para el CRUD de `Leads` y `Clients`.', startDate: '2024-11-13', dueDate: '2024-11-13', completed: false, details: 'Crear API resources para `Lead` y `Client` para estandarizar la salida JSON. Implementar los métodos index, show, store, update y destroy.', priority: 'Media', comments: [], assignedTo: 'Freddy Bravo Chacón' },
+              { id: 'T3.3', title: 'Implementar un endpoint para convertir un `Lead` en `Client` (`POST /api/leads/{id}/convert`).', startDate: '2024-11-13', dueDate: '2024-11-13', completed: false, details: 'La lógica debe crear un nuevo registro de `Client` con los datos del `Lead` y, opcionalmente, eliminar o marcar el lead como convertido.', priority: 'Baja', comments: [], assignedTo: 'Jorge Ortiz Solís' },
+              { id: 'T4.1', title: 'Implementar el CRUD para `Opportunities`.', startDate: '2024-11-14', dueDate: '2024-11-14', completed: false, details: 'Crear el Resource Controller y las rutas de API para gestionar las oportunidades.', priority: 'Alta', comments: [], assignedTo: 'Raizza Mildrey Arocena' },
+              { id: 'T4.2', title: 'Implementar endpoint para la página de "Análisis" (`GET /api/credit-analysis`).', startDate: '2024-11-14', dueDate: '2024-11-14', completed: false, details: 'Este endpoint debe realizar un join entre `leads` y `opportunities` para devolver la información combinada que se muestra en la tabla de análisis.', priority: 'Media', comments: [], assignedTo: 'Raizza Mildrey Arocena' },
             ]
           },
         ]
@@ -582,6 +584,7 @@ export const salesGoals: SalesGoal[] = [
 
 
     
+
 
 
 
