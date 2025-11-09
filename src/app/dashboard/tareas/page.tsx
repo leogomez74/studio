@@ -1,22 +1,24 @@
-// Importamos componentes e íconos necesarios para construir la página.
-import { MoreHorizontal, PlusCircle, AlertTriangle } from "lucide-react";
+'use client';
 import React from 'react';
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import Link from 'next/link';
+import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -24,159 +26,158 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo. En el futuro, estos datos vendrán de la base de datos.
-import { tasks, staff, Task } from "@/lib/data";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
+import { projects, type Project } from '@/lib/data';
 
 /**
- * Función para obtener el color de la insignia de prioridad.
- * @param {Task['priority']} priority - La prioridad de la tarea.
- * @returns {'destructive' | 'default' | 'secondary' | 'outline'} La variante de color para el Badge.
+ * Función para obtener la variante de color de la insignia según el estado del proyecto.
  */
-const getPriorityVariant = (priority: Task['priority']) => {
-    switch (priority) {
-        case 'Alta': return 'destructive';
-        case 'Media': return 'default';
-        case 'Baja': return 'secondary';
-        default: return 'outline';
-    }
+const getStatusVariant = (status: Project['status']) => {
+  switch (status) {
+    case 'Completado':
+      return 'secondary';
+    case 'En Progreso':
+      return 'default';
+    case 'Planificado':
+      return 'outline';
+    case 'En Riesgo':
+        return 'destructive'
+    default:
+      return 'outline';
+  }
+};
+
+/**
+ * Función para calcular el progreso general de un proyecto.
+ */
+const getProjectProgress = (project: Project) => {
+    const totalTasks = project.milestones.reduce((acc, m) => acc + m.tasks.length, 0);
+    if (totalTasks === 0) return 0;
+    const completedTasks = project.milestones.reduce((acc, m) => acc + m.tasks.filter(t => t.completed).length, 0);
+    return (completedTasks / totalTasks) * 100;
 }
 
 /**
- * Función para obtener el color de la insignia de estado.
- * @param {Task['status']} status - El estado de la tarea.
- * @returns {'secondary' | 'default' | 'outline'} La variante de color para el Badge.
+ * Componente principal de la página de Proyectos.
+ * Muestra una tabla con todos los proyectos, su estado, progreso y responsable.
  */
-const getStatusVariant = (status: Task['status']) => {
-    switch (status) {
-        case 'Completada': return 'secondary';
-        case 'En Progreso': return 'default';
-        case 'Pendiente': return 'outline';
-        default: return 'outline';
-    }
-}
-
-/**
- * Esta es la función principal que define la página de Tareas.
- * Muestra una tabla con todas las tareas, permitiendo su gestión.
- */
-export default function TareasPage() {
+export default function ProjectsPage() {
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Gestión de Tareas</CardTitle>
-            <CardDescription>Organiza y asigna las tareas pendientes de los casos.</CardDescription>
+            <CardTitle>Gestión de Proyectos</CardTitle>
+            <CardDescription>
+              Organiza, planifica y da seguimiento a los proyectos internos.
+            </CardDescription>
           </div>
-          {/* $$$ CONECTOR MYSQL: Este botón creará un nuevo registro en la tabla de tareas. */}
           <Button size="sm" className="gap-1">
             <PlusCircle className="h-4 w-4" />
-            Agregar Tarea
+            Agregar Proyecto
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        {/* $$$ CONECTOR MYSQL: La tabla se llenará con datos de la tabla de tareas en la base de datos. */}
-        <TasksTable tasks={tasks} />
+        <ProjectsTable projects={projects} />
       </CardContent>
     </Card>
   );
 }
 
 /**
- * Componente reutilizable para mostrar la tabla de tareas.
- * @param {{ tasks: Task[] }} props - Las propiedades del componente, que incluyen la lista de tareas.
+ * Componente reutilizable para mostrar la tabla de proyectos.
  */
-function TasksTable({ tasks }: { tasks: Task[] }) {
-    // Helper para encontrar la URL del avatar de la persona asignada.
-    const getAvatarUrl = (name: string) => {
-        // $$$ CONECTOR MYSQL: Se buscará el usuario en la tabla de personal/usuarios.
-        const user = staff.find(s => s.name === name);
-        return user ? user.avatarUrl : undefined;
-    };
-    
-    return (
-        <div className="relative w-full overflow-auto">
-            <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead>Tarea</TableHead>
-                <TableHead>Caso Asignado</TableHead>
-                <TableHead>Prioridad</TableHead>
-                <TableHead>Fecha Vencimiento</TableHead>
-                <TableHead>Asignada a</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>
-                    <span className="sr-only">Acciones</span>
-                </TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {tasks.map((task) => (
-                    <TaskTableRow key={task.id} task={task} getAvatarUrl={getAvatarUrl} />
-                ))}
-            </TableBody>
-            </Table>
-        </div>
-    );
+function ProjectsTable({ projects }: { projects: Project[] }) {
+  return (
+    <div className="relative w-full overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Proyecto</TableHead>
+            <TableHead>Líder del Proyecto</TableHead>
+            <TableHead className="hidden md:table-cell">Presupuesto</TableHead>
+            <TableHead className="hidden lg:table-cell">Fechas</TableHead>
+            <TableHead>Progreso</TableHead>
+            <TableHead>Estado</TableHead>
+            <TableHead>
+              <span className="sr-only">Acciones</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {projects.map((project) => (
+            <ProjectTableRow key={project.id} project={project} />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 }
 
 /**
- * Componente que renderiza una única fila de la tabla de tareas.
- * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no cambian.
- * @param {{ task: Task, getAvatarUrl: (name: string) => string | undefined }} props - Las propiedades del componente.
+ * Componente que renderiza una única fila de la tabla de proyectos.
  */
-const TaskTableRow = React.memo(function TaskTableRow({ task, getAvatarUrl }: { task: Task, getAvatarUrl: (name: string) => string | undefined }) {
-    return (
-        <TableRow className="hover:bg-muted/50">
-            <TableCell className="font-medium">{task.title}</TableCell>
-            <TableCell>
-                {/* Enlace al detalle del caso asociado a la tarea. */}
-                <Link href={`/dashboard/cases/${task.caseId.toLowerCase()}`} className="hover:underline">
-                    {task.caseId}
-                </Link>
-            </TableCell>
-            <TableCell>
-              <Badge variant={getPriorityVariant(task.priority)}>
-                {task.priority === 'Alta' && <AlertTriangle className="mr-1 h-3 w-3" />}
-                {task.priority}
-              </Badge>
-            </TableCell>
-            <TableCell>{task.dueDate}</TableCell>
-            <TableCell>
-                <div className="flex items-center gap-2">
-                     <Avatar className="h-7 w-7">
-                        <AvatarImage src={getAvatarUrl(task.assignedTo)} />
-                        <AvatarFallback>{task.assignedTo.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span>{task.assignedTo}</span>
-                </div>
-            </TableCell>
-            <TableCell>
-              <Badge variant={getStatusVariant(task.status)}>{task.status}</Badge>
-            </TableCell>
-            <TableCell>
-            {/* $$$ CONECTOR MYSQL: Las acciones de este menú (actualizar, reasignar, eliminar) modificarán la base de datos. */}
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                <Button aria-haspopup="true" size="icon" variant="ghost">
-                    <MoreHorizontal className="h-4 w-4" />
-                    <span className="sr-only">Alternar menú</span>
-                </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                <DropdownMenuItem>Ver Detalles</DropdownMenuItem>
-                <DropdownMenuItem>Actualizar Estado</DropdownMenuItem>
-                <DropdownMenuItem>Reasignar</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-            </TableCell>
-        </TableRow>
-    );
+const ProjectTableRow = React.memo(function ProjectTableRow({
+  project,
+}: {
+  project: Project;
+}) {
+  const progress = getProjectProgress(project);
+  return (
+    <TableRow className="hover:bg-muted/50">
+      <TableCell className="font-medium">
+        <Link href={`/dashboard/tareas/${project.id}`} className="hover:underline">
+          {project.name}
+        </Link>
+        <div className="text-sm text-muted-foreground">{project.id}</div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Avatar className="h-7 w-7">
+            <AvatarImage src={project.leaderAvatar} />
+            <AvatarFallback>{project.leader.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <span>{project.leader}</span>
+        </div>
+      </TableCell>
+      <TableCell className="hidden font-mono md:table-cell">
+        ${project.budget.toLocaleString('en-US')}
+      </TableCell>
+      <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
+        {project.startDate} - {project.endDate}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Progress value={progress} className="h-2 w-24" />
+          <span className="text-xs text-muted-foreground">{progress.toFixed(0)}%</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant={getStatusVariant(project.status)}>{project.status}</Badge>
+      </TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button aria-haspopup="true" size="icon" variant="ghost">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Alternar menú</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/tareas/${project.id}`}>Ver Detalles</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem>Editar Proyecto</DropdownMenuItem>
+            <DropdownMenuItem>Archivar</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
 });

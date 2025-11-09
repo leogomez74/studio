@@ -39,14 +39,13 @@ const navItems = [
   { href: '/dashboard/cobro-judicial', icon: Gavel, label: 'COBRO JUDICIAL' },
   { href: '/dashboard/inversiones', icon: PiggyBank, label: 'INVERSIONES' },
   { href: '/dashboard/rutas', icon: Route, label: 'RUTAS' },
-  { href: '/dashboard/tareas', icon: ClipboardCheck, label: 'TAREAS' },
+  { href: '/dashboard/tareas', icon: ClipboardCheck, label: 'PROYECTOS' },
   {
     href: '/dashboard/comunicaciones',
     icon: MessageSquare,
     label: 'COMUNICACIONES',
   },
   { href: '/dashboard/staff', icon: Briefcase, label: 'COLABORADORES' },
-  { href: '/dashboard/proyecto', icon: FileText, label: 'PROYECTO' },
 ];
 
 export function DashboardNav() {
