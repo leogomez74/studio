@@ -40,6 +40,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 const getPriorityVariant = (priority: ProjectTask['priority']) => {
   switch (priority) {
@@ -217,12 +218,10 @@ const MilestoneDetailView = React.memo(function MilestoneDetailView({
 
 
 /**
- * Componente principal para la página de detalle de un proyecto.
+ * Componente de cliente que maneja la lógica y el estado de la página de detalle del proyecto.
  */
-export default function ProjectDetailPage({ params }: { params: { id: string } }) {
-  const [project, setProject] = useState<Project | undefined>(
-    projects.find((p) => p.id === params.id)
-  );
+function ProjectDetailClient({ initialProject }: { initialProject: Project | undefined }) {
+  const [project, setProject] = useState<Project | undefined>(initialProject);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);
   const [newComment, setNewComment] = useState('');
@@ -482,4 +481,13 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     )}
     </Dialog>
   );
+}
+
+/**
+ * Componente principal para la página de detalle de un proyecto.
+ */
+export default function ProjectDetailPage({ params }: { params: { id: string } }) {
+  const project = projects.find((p) => p.id === params.id);
+
+  return <ProjectDetailClient initialProject={project} />;
 }
