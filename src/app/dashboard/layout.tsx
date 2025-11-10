@@ -1,6 +1,6 @@
 // Este archivo define la estructura principal del panel de control (dashboard).
 // 'ReactNode' es un tipo que representa cualquier cosa que React puede renderizar.
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 // 'Link' es un componente de Next.js para navegar entre páginas sin recargar la página completa.
 import Link from "next/link";
 // Importamos los componentes que forman la barra lateral (sidebar).
@@ -58,9 +58,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* 'SidebarInset' es el área principal de contenido que se ajusta al lado de la barra lateral. */}
       <SidebarInset>
         {/* Muestra el encabezado del dashboard. */}
-        <DashboardHeader />
-        {/* 'main' es donde se renderizará el contenido de cada página ('children'). */}
-        <main className="p-4 lg:p-6">{children}</main>
+          <DashboardHeader />
+          {/* 'main' es donde se renderizará el contenido de cada página ('children').
+              Envolvemos children en Suspense para permitir que componentes cliente
+              que usan hooks como useSearchParams se hidraten correctamente durante
+              el prerender y evitar el error de "missing suspense with csr bailout". */}
+          <main className="p-4 lg:p-6">
+            <React.Suspense fallback={<div />}>{children}</React.Suspense>
+          </main>
       </SidebarInset>
     </SidebarProvider>
   );

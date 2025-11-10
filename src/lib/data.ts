@@ -100,6 +100,7 @@ export type Courier = {
   id: string;
   name: string;
   vehicle: 'Motocicleta' | 'Automóvil';
+  phone?: string;
 };
 
 export type PendingPickup = {
@@ -403,6 +404,34 @@ export const users: User[] = [
 ];
 
 export const staff = users;
+
+export type Volunteer = {
+  id: string;
+  name: string;
+  email?: string;
+  avatarUrl?: string;
+  expertise?: string;
+  availability?: string;
+};
+
+export const volunteers: Volunteer[] = [
+  { id: 'VOL001', name: 'María Pérez', email: 'maria.perez@example.com', avatarUrl: 'https://picsum.photos/seed/vol1/40/40', expertise: 'Asesoría legal', availability: 'Lun a Vie' },
+  { id: 'VOL002', name: 'Carlos Mora', email: 'carlos.mora@example.com', avatarUrl: 'https://picsum.photos/seed/vol2/40/40', expertise: 'Trámites', availability: 'Sábados' },
+  { id: 'VOL003', name: 'Ana López', email: 'ana.lopez@example.com', avatarUrl: 'https://picsum.photos/seed/vol3/40/40', expertise: 'Atención al cliente', availability: 'Miércoles y Viernes' },
+];
+
+export type Branch = {
+  id: string;
+  name: string;
+  address?: string;
+  manager?: string;
+};
+
+export const branches: Branch[] = [
+  { id: 'BRH001', name: 'Oficina Central', address: 'San José, San José', manager: 'Jorge Ortiz Solís' },
+  { id: 'BRH002', name: 'Sucursal Alajuela', address: 'Alajuela, Alajuela', manager: 'Raizza Mildrey Arocena' },
+  { id: 'BRH003', name: 'Sucursal Cartago', address: 'Cartago, Cartago', manager: 'Freddy Bravo Chacón' },
+];
 
 export const leads: Lead[] = [
     { id: 'LEAD001', name: 'Carla Díaz Solano', cedula: '3-1111-2222', email: 'carla.dias@example.com', phone: '7555-4444', registeredOn: '2023-10-27', avatarUrl: 'https://picsum.photos/seed/avatar3/40/40', juicios: 1, manchas: 2, puesto: 'Interino', antiguedad: '2 años', salarioBase: 650000, salarioNeto: 520000, assignedTo: 'Oficina' },

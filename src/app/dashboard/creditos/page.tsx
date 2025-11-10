@@ -1,6 +1,8 @@
 // 'use client' indica que es un Componente de Cliente, lo que permite usar hooks como useState y useSearchParams.
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState } from 'react';
 import { MoreHorizontal, PlusCircle, Calendar as CalendarIcon, FileDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
