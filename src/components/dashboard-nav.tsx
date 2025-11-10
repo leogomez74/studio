@@ -25,6 +25,7 @@ import {
   PiggyBank,
   Receipt,
   FileText,
+  GraduationCap,
 } from 'lucide-react';
 
 const navItems = [
@@ -46,6 +47,7 @@ const navItems = [
     label: 'COMUNICACIONES',
   },
   { href: '/dashboard/staff', icon: Briefcase, label: 'COLABORADORES' },
+  { href: '/dashboard/entrenamiento', icon: GraduationCap, label: 'ENTRENAMIENTO' },
 ];
 
 export function DashboardNav() {
