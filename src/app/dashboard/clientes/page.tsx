@@ -51,6 +51,7 @@ export default function ClientesPage() {
   const [leadFormValues, setLeadFormValues] = useState(createEmptyLeadForm());
 
   // Filters
+  const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState("leads");
   const [activeFilter, setActiveFilter] = useState<string>("all"); // Active/Inactive
   const [searchQuery, setSearchQuery] = useState("");
@@ -194,6 +195,105 @@ export default function ClientesPage() {
     setLeadFormValues(createEmptyLeadForm());
   };
 
+  // Opportunity Dialog State
+  const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
+  const [leadForOpportunity, setLeadForOpportunity] = useState<Lead | null>(null);
+  const [opportunityAmount, setOpportunityAmount] = useState("");
+  const [opportunityType, setOpportunityType] = useState("regular");
+
+  const handleCreateOpportunity = async () => {
+      if (!leadForOpportunity || !leadForOpportunity.cedula) {
+          toast({ title: "Error", description: "El lead no tiene cédula válida.", variant: "destructive" });
+          return;
+      }
+      if (!opportunityAmount) {
+          toast({ title: "Error", description: "Ingresa un monto válido.", variant: "destructive" });
+          return;
+      }
+
+      try {
+          await api.post('/api/opportunities', {
+              lead_cedula: leadForOpportunity.cedula,
+              amount: parseFloat(opportunityAmount),
+              opportunity_type: opportunityType,
+              status: 'Abierta',
+              assigned_to_id: leadForOpportunity.assigned_to_id
+          });
+          toast({ title: "Oportunidad creada", description: "La oportunidad ha sido registrada exitosamente." });
+          setIsOpportunityDialogOpen(false);
+          setOpportunityAmount("");
+          setOpportunityType("regular");
+      } catch (error) {
+          console.error("Error creating opportunity:", error);
+          toast({ title: "Error", description: "No se pudo crear la oportunidad.", variant: "destructive" });
+      }
+  };
+
+  const handleLeadAction = (action: string, lead: Lead) => {
+      switch (action) {
+          case 'create_opportunity':
+              setLeadForOpportunity(lead);
+              setIsOpportunityDialogOpen(true);
+              break;
+          case 'edit':
+              setLeadFormValues({
+                  name: lead.name || "",
+                  apellido1: lead.apellido1 || "",
+                  apellido2: lead.apellido2 || "",
+                  email: lead.email || "",
+                  phone: lead.phone || "",
+                  cedula: lead.cedula || "",
+                  fechaNacimiento: lead.fecha_nacimiento || "",
+              });
+              setIsLeadDialogOpen(true);
+              break;
+          case 'view':
+              // For now, just show a toast or reuse edit dialog in read-only mode
+              // Let's reuse edit dialog for simplicity, maybe add a readOnly flag later
+              setLeadFormValues({
+                  name: lead.name || "",
+                  apellido1: lead.apellido1 || "",
+                  apellido2: lead.apellido2 || "",
+                  email: lead.email || "",
+                  phone: lead.phone || "",
+                  cedula: lead.cedula || "",
+                  fechaNacimiento: lead.fecha_nacimiento || "",
+              });
+              setIsLeadDialogOpen(true);
+              break;
+          case 'convert':
+              handleConvertLead(lead);
+              break;
+          case 'archive':
+              handleArchiveLead(lead);
+              break;
+      }
+  };
+
+  const handleConvertLead = async (lead: Lead) => {
+      if (!confirm(`¿Estás seguro de convertir a ${lead.name} en cliente?`)) return;
+      try {
+          await api.post(`/api/leads/${lead.id}/convert`);
+          toast({ title: "Lead convertido", description: `${lead.name} ahora es un cliente.` });
+          fetchData();
+      } catch (error) {
+          console.error("Error converting lead:", error);
+          toast({ title: "Error", description: "No se pudo convertir el lead.", variant: "destructive" });
+      }
+  };
+
+  const handleArchiveLead = async (lead: Lead) => {
+      if (!confirm(`¿Estás seguro de archivar a ${lead.name}?`)) return;
+      try {
+          await api.patch(`/api/leads/${lead.id}/toggle-active`);
+          toast({ title: "Lead archivado", description: `${lead.name} ha sido archivado.` });
+          fetchData();
+      } catch (error) {
+          console.error("Error archiving lead:", error);
+          toast({ title: "Error", description: "No se pudo archivar el lead.", variant: "destructive" });
+      }
+  };
+
   const handleLeadFieldChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setLeadFormValues((previous) => ({
@@ -264,6 +364,10 @@ export default function ClientesPage() {
             <TabsTrigger value="clientes">Clientes</TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowFilters(!showFilters)}>
+                    <Filter className="h-4 w-4" />
+                    Filtros
+                </Button>
                 <Button size="sm" className="gap-1" onClick={openLeadDialog}>
                     <PlusCircle className="h-4 w-4" />
                     Agregar
@@ -272,6 +376,7 @@ export default function ClientesPage() {
         </div>
 
         {/* Filter Bar */}
+        {showFilters && (
         <div className="flex flex-wrap items-center gap-2 p-2 bg-muted/20 rounded-lg border">
             <div className="relative w-full md:w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -359,6 +464,7 @@ export default function ClientesPage() {
                 Exportar PDF
             </Button>
         </div>
+        )}
       </div>
 
       <TabsContent value="leads">
@@ -368,7 +474,7 @@ export default function ClientesPage() {
             <CardDescription>Gestiona los leads o clientes potenciales.</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div> : <LeadsTable data={leadsData} />}
+            {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div> : <LeadsTable data={leadsData} onAction={handleLeadAction} />}
           </CardContent>
         </Card>
       </TabsContent>
@@ -462,6 +568,44 @@ export default function ClientesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isOpportunityDialogOpen} onOpenChange={setIsOpportunityDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear Oportunidad</DialogTitle>
+            <DialogDescription>Registrar una nueva oportunidad para {leadForOpportunity?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="opp-amount" className="text-right">Monto</Label>
+              <Input 
+                id="opp-amount" 
+                placeholder="0.00" 
+                className="col-span-3" 
+                type="number"
+                value={opportunityAmount}
+                onChange={(e) => setOpportunityAmount(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="opp-type" className="text-right">Tipo</Label>
+              <Select value={opportunityType} onValueChange={setOpportunityType}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Seleccionar tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Regular">Regular</SelectItem>
+                  <SelectItem value="Micro-crédito">Micro-crédito</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsOpportunityDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateOpportunity}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }
@@ -522,7 +666,7 @@ function ClientsTable({ data }: { data: Client[] }) {
     )
 }
 
-function LeadsTable({ data }: { data: Lead[] }) {
+function LeadsTable({ data, onAction }: { data: Lead[], onAction: (action: string, lead: Lead) => void }) {
     if (data.length === 0) return <div className="text-center p-4 text-muted-foreground">No hay leads registrados.</div>;
 
     return (
@@ -561,11 +705,15 @@ function LeadsTable({ data }: { data: Lead[] }) {
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                      <Button variant="ghost">Acciones</Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem>Convertir a Cliente</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onAction('create_opportunity', lead)}>Crear Oportunidad</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onAction('edit', lead)}>Editar Lead</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onAction('view', lead)}>Ver Lead</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onAction('convert', lead)}>Convertir a Cliente</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onAction('archive', lead)}>Archivar</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

@@ -32,6 +32,11 @@ export type Lead = {
   lead_status_id?: number;
   lead_status?: { id: number; name: string; color?: string };
   
+  // Extended fields
+  apellido1?: string;
+  apellido2?: string;
+  fecha_nacimiento?: string;
+
   // Legacy / Optional fields for UI compatibility
   registeredOn?: string;
   avatarUrl?: string;

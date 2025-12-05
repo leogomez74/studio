@@ -34,6 +34,7 @@ Route::get('/lead-statuses', function () {
 });
 
 // Leads
+Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
 Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::apiResource('leads', LeadController::class);
 

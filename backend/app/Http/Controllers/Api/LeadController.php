@@ -210,4 +210,16 @@ class LeadController extends Controller
 
         return true;
     }
+
+    public function convertToClient($id)
+    {
+        $lead = Lead::findOrFail($id);
+
+        // 1: Lead, 2: Client
+        $lead->person_type_id = 2;
+        $lead->status = 'Activo'; // Default client status
+        $lead->save();
+
+        return response()->json($lead);
+    }
 }
