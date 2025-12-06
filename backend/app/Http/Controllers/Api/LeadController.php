@@ -87,7 +87,7 @@ class LeadController extends Controller
         ]);
 
         $leadStatus = $this->resolveStatus($validated['lead_status_id'] ?? null);
-        $validated['lead_status_id'] = $leadStatus?->id;
+        $validated['lead_status_id'] = $leadStatus?->value;
         $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? 'Activo';
         $validated['is_active'] = $validated['is_active'] ?? true;
 

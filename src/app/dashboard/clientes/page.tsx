@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, PlusCircle, Loader2, AlertCircle, Filter, Search, Download } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Download, Sparkles, Pencil, Eye, UserCheck, Archive, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link';
 import jsPDF from "jspdf";
@@ -53,7 +54,6 @@ export default function ClientesPage() {
   // Filters
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState("leads");
-  const [activeFilter, setActiveFilter] = useState<string>("all"); // Active/Inactive
   const [searchQuery, setSearchQuery] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all"); // Shared state for specific status
@@ -87,7 +87,6 @@ export default function ClientesPage() {
       setLoading(true);
       
       const commonParams: any = {};
-      if (activeFilter !== "all") commonParams.is_active = activeFilter === "active" ? 1 : 0;
       if (searchQuery) commonParams.q = searchQuery;
       if (agentFilter !== "all") commonParams.assigned_to_id = agentFilter;
       if (dateFrom) commonParams.date_from = dateFrom;
@@ -101,7 +100,14 @@ export default function ClientesPage() {
           if (activeTab === "leads") {
               leadParams.lead_status_id = statusFilter;
           } else {
-              clientParams.status = statusFilter;
+              // Logic for Clients: Map "Activo"/"Inactivo" to is_active, others to status
+              if (statusFilter === "Activo") {
+                  clientParams.is_active = 1;
+              } else if (statusFilter === "Inactivo") {
+                  clientParams.is_active = 0;
+              } else {
+                  clientParams.status = statusFilter;
+              }
           }
       }
 
@@ -134,7 +140,7 @@ export default function ClientesPage() {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [activeFilter, searchQuery, agentFilter, statusFilter, activeTab, dateFrom, dateTo]);
+  }, [searchQuery, agentFilter, statusFilter, activeTab, dateFrom, dateTo]);
 
   // Reset specific status filter when switching tabs
   const handleTabChange = (value: string) => {
@@ -177,7 +183,6 @@ export default function ClientesPage() {
 
   const handleClearFilters = () => {
       setSearchQuery("");
-      setActiveFilter("all");
       setAgentFilter("all");
       setStatusFilter("all");
       setDateFrom("");
@@ -271,10 +276,13 @@ export default function ClientesPage() {
   };
 
   const handleConvertLead = async (lead: Lead) => {
-      if (!confirm(`¿Estás seguro de convertir a ${lead.name} en cliente?`)) return;
       try {
           await api.post(`/api/leads/${lead.id}/convert`);
-          toast({ title: "Lead convertido", description: `${lead.name} ahora es un cliente.` });
+          toast({ 
+              title: "¡Éxito! Lead convertido", 
+              description: `${lead.name} ahora es un cliente activo.`,
+              className: "bg-green-600 text-white border-none shadow-lg"
+          });
           fetchData();
       } catch (error) {
           console.error("Error converting lead:", error);
@@ -356,140 +364,143 @@ export default function ClientesPage() {
   if (error) return <div className="p-8 text-center text-destructive">{error}</div>;
 
   return (
-    <Tabs value={activeTab} onValueChange={handleTabChange}>
-      <div className="flex flex-col gap-4 mb-4">
-        <div className="flex items-center justify-between">
-            <TabsList>
-            <TabsTrigger value="leads">Leads</TabsTrigger>
-            <TabsTrigger value="clientes">Clientes</TabsTrigger>
-            </TabsList>
-            <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowFilters(!showFilters)}>
-                    <Filter className="h-4 w-4" />
-                    Filtros
+    <>
+      <div className="space-y-6">
+        <Card>
+          <Collapsible open={showFilters} onOpenChange={setShowFilters} className="space-y-0">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>CRM</CardTitle>
+                <CardDescription>Gestiona leads y clientes desde un solo panel.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" className="gap-2" onClick={openLeadDialog}>
+                  <PlusCircle className="h-4 w-4" />
+                  Nuevo lead
                 </Button>
-                <Button size="sm" className="gap-1" onClick={openLeadDialog}>
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar
-                </Button>
-            </div>
-        </div>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className="gap-2 hover:bg-gray-200/50">
+                    {showFilters ? "Ocultar filtros" : "Mostrar filtros"}
+                    {showFilters ? (
+                      <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <CollapsibleContent className="space-y-4 rounded-md border border-dashed border-muted-foreground/30 p-4">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
+                        <Input
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                          className="h-10 w-36"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
+                        <Input
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                          className="h-10 w-36"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <Button variant="outline" onClick={handleClearFilters} className="hover:bg-gray-200/50">
+                        Limpiar filtros
+                      </Button>
+                      <Button variant="secondary" onClick={handleExportPDF} className="gap-2 hover:bg-gray-200/50">
+                        <Download className="h-4 w-4" />
+                        Exportar
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Buscar
+                      </Label>
+                      <Input
+                        placeholder="Cédula, nombre o correo"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
+                      {activeTab === "leads" ? (
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todos los estados" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los estados</SelectItem>
+                            {leadStatuses.map(status => (
+                              <SelectItem key={status.id} value={String(status.id)}>{status.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todos los estados" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los estados</SelectItem>
+                            <SelectItem value="Activo">Activo</SelectItem>
+                            <SelectItem value="Inactivo">Inactivo</SelectItem>
+                            <SelectItem value="Cliente Premium">Cliente Premium</SelectItem>
+                            <SelectItem value="Prospecto">Prospecto</SelectItem>
+                            <SelectItem value="Descartado">Descartado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agente</Label>
+                      <Select value={agentFilter} onValueChange={setAgentFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Todos los agentes" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos los agentes</SelectItem>
+                          {agents.map(agent => (
+                            <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CollapsibleContent>
 
-        {/* Filter Bar */}
-        {showFilters && (
-        <div className="flex flex-wrap items-center gap-2 p-2 bg-muted/20 rounded-lg border">
-            <div className="relative w-full md:w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input 
-                    placeholder="Buscar por nombre, cédula..." 
-                    className="pl-8" 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-            </div>
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+                  <TabsList className="grid grid-cols-2 w-[400px]">
+                    <TabsTrigger value="leads" className="hover:bg-gray-200/50">Leads</TabsTrigger>
+                    <TabsTrigger value="clientes" className="hover:bg-gray-200/50">Clientes</TabsTrigger>
+                  </TabsList>
 
-            <Select value={activeFilter} onValueChange={setActiveFilter}>
-                <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Estado Global" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">Todos (Act/Inact)</SelectItem>
-                    <SelectItem value="active">Activos</SelectItem>
-                    <SelectItem value="inactive">Inactivos</SelectItem>
-                </SelectContent>
-            </Select>
+                  <TabsContent value="leads" className="space-y-4">
+                    {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div> : <LeadsTable data={leadsData} onAction={handleLeadAction} />}
+                  </TabsContent>
 
-            <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Agente Asignado" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">Todos los Agentes</SelectItem>
-                    {agents.map(agent => (
-                        <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-
-            <div className="flex items-center gap-2">
-                <Input 
-                    type="date" 
-                    value={dateFrom} 
-                    onChange={(e) => setDateFrom(e.target.value)} 
-                    className="w-[140px]"
-                    placeholder="Desde"
-                />
-                <Input 
-                    type="date" 
-                    value={dateTo} 
-                    onChange={(e) => setDateTo(e.target.value)} 
-                    className="w-[140px]"
-                    placeholder="Hasta"
-                />
-            </div>
-
-            {activeTab === "leads" ? (
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="Estado del Lead" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todos los Estados</SelectItem>
-                        {leadStatuses.map(status => (
-                            <SelectItem key={status.id} value={String(status.id)}>{status.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            ) : (
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="Estado del Cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todos los Estados</SelectItem>
-                        <SelectItem value="Activo">Activo</SelectItem>
-                        <SelectItem value="Inactivo">Inactivo</SelectItem>
-                        <SelectItem value="Cliente Premium">Cliente Premium</SelectItem>
-                        <SelectItem value="Prospecto">Prospecto</SelectItem>
-                        <SelectItem value="Descartado">Descartado</SelectItem>
-                    </SelectContent>
-                </Select>
-            )}
-
-            <Button variant="outline" onClick={handleClearFilters}>
-                Limpiar filtros
-            </Button>
-            <Button variant="secondary" onClick={handleExportPDF} className="gap-2">
-                <Download className="h-4 w-4" />
-                Exportar PDF
-            </Button>
-        </div>
-        )}
+                  <TabsContent value="clientes" className="space-y-4">
+                    {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div> : <ClientsTable data={clientsData} />}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </CardContent>
+          </Collapsible>
+        </Card>
       </div>
-
-      <TabsContent value="leads">
-        <Card>
-          <CardHeader>
-            <CardTitle>Leads ({leadsData.length})</CardTitle>
-            <CardDescription>Gestiona los leads o clientes potenciales.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div> : <LeadsTable data={leadsData} onAction={handleLeadAction} />}
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="clientes">
-        <Card>
-          <CardHeader>
-            <CardTitle>Clientes ({clientsData.length})</CardTitle>
-            <CardDescription>Gestiona los clientes existentes.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div> : <ClientsTable data={clientsData} />}
-          </CardContent>
-        </Card>
-      </TabsContent>
 
       <Dialog open={isLeadDialogOpen} onOpenChange={setIsLeadDialogOpen}>
         <DialogContent>
@@ -606,7 +617,7 @@ export default function ClientesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Tabs>
+    </>
   );
 }
 
@@ -651,11 +662,11 @@ function ClientsTable({ data }: { data: Client[] }) {
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="hover:bg-gray-200/50"><MoreHorizontal className="h-4 w-4" /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
+                      <DropdownMenuItem className="hover:bg-gray-200/50">Ver Perfil</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -677,7 +688,7 @@ function LeadsTable({ data, onAction }: { data: Lead[], onAction: (action: strin
               <TableHead>Cédula</TableHead>
               <TableHead className="hidden md:table-cell">Contacto</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead><span className="sr-only">Acciones</span></TableHead>
+              <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -703,19 +714,53 @@ function LeadsTable({ data, onAction }: { data: Lead[], onAction: (action: strin
                     </Badge>
                 </TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost">Acciones</Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => onAction('create_opportunity', lead)}>Crear Oportunidad</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onAction('edit', lead)}>Editar Lead</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onAction('view', lead)}>Ver Lead</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onAction('convert', lead)}>Convertir a Cliente</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onAction('archive', lead)}>Archivar</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="flex items-center gap-2">
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100 hover:text-yellow-700" 
+                        onClick={() => onAction('create_opportunity', lead)} 
+                        title="Crear Oportunidad"
+                      >
+                          <Sparkles className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 hover:text-blue-700" 
+                        onClick={() => onAction('edit', lead)} 
+                        title="Editar Lead"
+                      >
+                          <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-700" 
+                        onClick={() => onAction('view', lead)} 
+                        title="Ver Lead"
+                      >
+                          <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 bg-green-50 border-green-200 text-green-600 hover:bg-green-100 hover:text-green-700" 
+                        onClick={() => onAction('convert', lead)} 
+                        title="Convertir a Cliente"
+                      >
+                          <UserCheck className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:text-red-700" 
+                        onClick={() => onAction('archive', lead)} 
+                        title="Archivar"
+                      >
+                          <Archive className="h-4 w-4" />
+                      </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
