@@ -5,52 +5,82 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Opportunity;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class OpportunityController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Opportunity::with(['lead', 'staff'])->latest()->paginate(20), 200);
+        $query = Opportunity::with(['lead', 'user']);
+
+        // Filter by Status
+        if ($request->has('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Filter by Lead Cedula
+        if ($request->has('lead_cedula')) {
+            $query->where('lead_cedula', $request->input('lead_cedula'));
+        }
+
+        // Filter by Assigned User
+        if ($request->has('assigned_to_id')) {
+            $query->where('assigned_to_id', $request->input('assigned_to_id'));
+        }
+
+        $opportunities = $query->latest()->paginate(20);
+
+        return response()->json($opportunities, 200);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'lead_cedula' => 'required|string|exists:persons,cedula',
-            'credit_type' => 'required|string',
+            'opportunity_type' => 'nullable|string',
+            'vertical' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
             'status' => 'required|string',
-            'start_date' => 'required|date',
-            'assigned_to_id' => 'required|exists:users,id',
+            'expected_close_date' => 'nullable|date',
+            'comments' => 'nullable|string',
+            'assigned_to_id' => 'nullable|exists:users,id',
         ]);
 
-        $data = $validated;
-        // ID manual porque el modelo no es auto-incremental
-        $data['id'] = Str::random(20);
-
-        $opportunity = Opportunity::create($data);
+        $opportunity = Opportunity::create($validated);
 
         return response()->json($opportunity, 201);
     }
 
-    public function show($id)
+    public function show(string $id)
     {
-        $opportunity = Opportunity::with(['lead', 'staff'])->findOrFail($id);
+        $opportunity = Opportunity::with(['lead', 'user'])->findOrFail($id);
         return response()->json($opportunity, 200);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $opportunity = Opportunity::findOrFail($id);
-        $opportunity->update($request->all());
+
+        $validated = $request->validate([
+            'lead_cedula' => 'sometimes|required|string|exists:persons,cedula',
+            'opportunity_type' => 'sometimes|nullable|string',
+            'vertical' => 'sometimes|nullable|string',
+            'amount' => 'sometimes|required|numeric|min:0',
+            'status' => 'sometimes|required|string',
+            'expected_close_date' => 'sometimes|nullable|date',
+            'comments' => 'sometimes|nullable|string',
+            'assigned_to_id' => 'sometimes|nullable|exists:users,id',
+        ]);
+
+        $opportunity->update($validated);
+
         return response()->json($opportunity, 200);
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $opportunity = Opportunity::findOrFail($id);
         $opportunity->delete();
-        return response()->json(['message' => 'Opportunity deleted'], 200);
+
+        return response()->json(['message' => 'Opportunity deleted successfully'], 200);
     }
 }
