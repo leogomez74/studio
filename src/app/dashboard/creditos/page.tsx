@@ -4,7 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -52,7 +53,7 @@ interface LeadOption {
 }
 
 interface OpportunityOption {
-  id: number;
+  id: string;
   title: string;
   lead_id: number;
   credit?: {
@@ -84,9 +85,9 @@ interface CreditItem {
   opened_at: string | null;
   description: string | null;
   lead_id: number;
-  opportunity_id: number | null;
+  opportunity_id: string | null;
   lead?: LeadOption | null;
-  opportunity?: { id: number; title: string | null } | null;
+  opportunity?: { id: string; title: string | null } | null;
   created_at?: string | null;
   updated_at?: string | null;
   documents?: CreditDocument[];
@@ -105,8 +106,50 @@ interface CreditFormValues {
   description: string;
 }
 
-const CREDIT_STATUS_OPTIONS = ["Abierto", "En Progreso", "En Espera", "Cerrado", "Al día", "En mora", "Cancelado", "En cobro judicial"] as const;
+const CREDIT_STATUS_OPTIONS = [
+  "Para redactar",
+  "Presentados",
+  "Auto de curso",
+  "CLCC",
+  "CLSC",
+  "Otros",
+  "Abierto",
+  "En Progreso",
+  "En Espera",
+  "Cerrado",
+  "Al día",
+  "En mora",
+  "Cancelado",
+  "En cobro judicial"
+] as const;
 const CREDIT_CATEGORY_OPTIONS = ["Regular", "Micro-crédito", "Hipotecario", "Personal"] as const;
+
+const CREDIT_STATUS_TAB_CONFIG = [
+  { value: "all", label: "Todos" },
+  { value: "para-redactar", label: "Para redactar" },
+  { value: "presentados", label: "Presentados" },
+  { value: "auto-de-curso", label: "Auto de curso" },
+  { value: "clcc", label: "CLCC" },
+  { value: "clsc", label: "CLSC" },
+  { value: "otros", label: "Otros" },
+] as const;
+
+const TAB_STATUS_FILTERS: Record<string, string[]> = {
+  "para-redactar": ["para redactar"],
+  "presentados": ["presentados"],
+  "auto-de-curso": ["auto de curso"],
+  "clcc": ["clcc"],
+  "clsc": ["clsc"],
+  "otros": ["otros"],
+};
+
+const TRACKED_STATUS_SET = new Set(
+  Object.values(TAB_STATUS_FILTERS)
+      .flat()
+      .map((status) => status.toLowerCase())
+);
+
+const normalizeStatus = (status?: string | null): string => (status ?? "").trim().toLowerCase();
 
 function formatDate(dateString?: string | null): string {
   if (!dateString) return "-";
@@ -142,6 +185,7 @@ export default function CreditsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingLeads, setIsLoadingLeads] = useState(true);
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
+  const [tabValue, setTabValue] = useState("all");
   
   const [dialogState, setDialogState] = useState<"create" | "edit" | null>(null);
   const [dialogCredit, setDialogCredit] = useState<CreditItem | null>(null);
@@ -203,7 +247,11 @@ export default function CreditsPage() {
       setIsLoadingOpportunities(true);
       const response = await api.get('/api/opportunities');
       const data = response.data.data || response.data;
-      setOpportunities(data.map((o: any) => ({ id: o.id, title: o.title, lead_id: o.lead_id })));
+      setOpportunities(data.map((o: any) => ({ 
+        id: o.id, 
+        title: `${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`, 
+        lead_id: o.lead?.id 
+      })));
     } catch (error) {
       console.error("Error fetching opportunities:", error);
     } finally {
@@ -216,6 +264,26 @@ export default function CreditsPage() {
     fetchLeads();
     fetchOpportunities();
   }, [fetchCredits, fetchLeads, fetchOpportunities]);
+
+  const getCreditsForTab = useCallback(
+    (value: string): CreditItem[] => {
+        if (value === "all") {
+            return credits;
+        }
+        if (value === "otros") {
+            return credits.filter((item) => {
+                const normalized = normalizeStatus(item.status);
+                return normalized.length > 0 && !TRACKED_STATUS_SET.has(normalized);
+            });
+        }
+        const statuses = TAB_STATUS_FILTERS[value];
+        if (!statuses) {
+            return credits;
+        }
+        return credits.filter((item) => statuses.includes(normalizeStatus(item.status)));
+    },
+    [credits]
+  );
 
   const handleCreate = () => {
     setFormValues({
@@ -262,7 +330,7 @@ export default function CreditsPage() {
         category: formValues.category,
         progress: parseInt(formValues.progress) || 0,
         lead_id: parseInt(formValues.leadId),
-        opportunity_id: formValues.opportunityId ? parseInt(formValues.opportunityId) : null,
+        opportunity_id: formValues.opportunityId || null,
         assigned_to: formValues.assignedTo,
         opened_at: formValues.openedAt,
         description: formValues.description,
@@ -316,63 +384,97 @@ export default function CreditsPage() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Listado de Créditos</CardTitle>
-          <CardDescription>Total: {credits.length} registros.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Referencia</TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead>Lead</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Progreso</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {credits.map((credit) => (
-                <TableRow key={credit.id}>
-                  <TableCell className="font-medium">{credit.reference}</TableCell>
-                  <TableCell>{credit.title}</TableCell>
-                  <TableCell>
-                    {credit.lead ? (
-                        <div className="flex flex-col">
-                            <span>{credit.lead.name}</span>
-                            <span className="text-xs text-muted-foreground">{credit.lead.email}</span>
-                        </div>
-                    ) : "-"}
-                  </TableCell>
-                  <TableCell><Badge variant="secondary">{credit.status}</Badge></TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                        <Progress value={credit.progress} className="w-[60px]" />
-                        <span className="text-xs text-muted-foreground">{credit.progress}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => { setDetailCredit(credit); setIsDetailOpen(true); }}>Ver detalle</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => { setStatusCredit(credit); setStatusForm({ status: credit.status || "Abierto", progress: String(credit.progress) }); setIsStatusOpen(true); }}>Actualizar estado</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>Gestionar documentos</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(credit)}>Editar</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Tabs value={tabValue} onValueChange={setTabValue}>
+        <TabsList className="flex flex-wrap gap-2">
+            {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="capitalize">
+                    {tab.label}
+                </TabsTrigger>
+            ))}
+        </TabsList>
+
+        {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+            <TabsContent key={tab.value} value={tab.value}>
+                <Card>
+                    <CardHeader>
+                    <CardTitle>Listado de Créditos</CardTitle>
+                    <CardDescription>Total: {getCreditsForTab(tab.value).length} registros.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                    <Table>
+                        <TableHeader>
+                        <TableRow>
+                            <TableHead>Oportunidad</TableHead>
+                            <TableHead>Referencia</TableHead>
+                            <TableHead>Título</TableHead>
+                            <TableHead>Lead</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Progreso</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {getCreditsForTab(tab.value).map((credit) => (
+                            <TableRow key={credit.id}>
+                            <TableCell>{credit.opportunity?.id || "-"}</TableCell>
+                            <TableCell className="font-medium">{credit.reference}</TableCell>
+                            <TableCell>{credit.title}</TableCell>
+                            <TableCell>
+                                {credit.lead ? (
+                                    <div className="flex flex-col">
+                                        <span>{credit.lead.name}</span>
+                                        <span className="text-xs text-muted-foreground">{credit.lead.email}</span>
+                                    </div>
+                                ) : "-"}
+                            </TableCell>
+                            <TableCell><Badge variant="secondary">{credit.status}</Badge></TableCell>
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                    <Progress value={credit.progress} className="w-[60px]" />
+                                    <span className="text-xs text-muted-foreground">{credit.progress}%</span>
+                                </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        onClick={() => { setDetailCredit(credit); setIsDetailOpen(true); }} 
+                                        title="Ver detalle"
+                                        className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        onClick={() => { setStatusCredit(credit); setStatusForm({ status: credit.status || "Abierto", progress: String(credit.progress) }); setIsStatusOpen(true); }} 
+                                        title="Actualizar estado"
+                                        className="border-blue-500 text-blue-500 hover:bg-blue-50 hover:text-blue-600"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                        <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>Gestionar documentos</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleEdit(credit)}>Editar</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                    </CardContent>
+                </Card>
+            </TabsContent>
+        ))}
+      </Tabs>
 
       {/* Create/Edit Dialog */}
       <Dialog open={!!dialogState} onOpenChange={(open) => !open && setDialogState(null)}>

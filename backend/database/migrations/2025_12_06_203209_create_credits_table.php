@@ -22,7 +22,8 @@ return new class extends Migration
             $table->timestamp('opened_at')->nullable();
             $table->text('description')->nullable();
             $table->foreignId('lead_id')->constrained('persons')->onDelete('cascade');
-            $table->foreignId('opportunity_id')->nullable()->constrained('opportunities')->onDelete('set null');
+            $table->string('opportunity_id')->nullable();
+            $table->foreign('opportunity_id')->references('id')->on('opportunities')->onDelete('set null');
             $table->timestamps();
         });
     }
