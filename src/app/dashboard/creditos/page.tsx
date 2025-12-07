@@ -109,18 +109,11 @@ interface CreditFormValues {
 const CREDIT_STATUS_OPTIONS = [
   "Para redactar",
   "Presentados",
-  "Auto de curso",
-  "CLCC",
-  "CLSC",
-  "Otros",
-  "Abierto",
-  "En Progreso",
-  "En Espera",
-  "Cerrado",
-  "Al día",
-  "En mora",
-  "Cancelado",
-  "En cobro judicial"
+  "Con curso",
+  "Rechazo de plano",
+  "Con lugar con costas",
+  "Con lugar sin costas",
+  "Sentencia"
 ] as const;
 const CREDIT_CATEGORY_OPTIONS = ["Regular", "Micro-crédito", "Hipotecario", "Personal"] as const;
 
@@ -213,6 +206,19 @@ export default function CreditsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [detailCredit, setDetailCredit] = useState<CreditItem | null>(null);
 
+  const currentLead = useMemo(() => {
+    return formValues.leadId ? leads.find((lead) => lead.id === Number.parseInt(formValues.leadId, 10)) : null;
+  }, [formValues.leadId, leads]);
+
+  const availableOpportunities = useMemo(() => {
+    return opportunities.filter((opportunity) => {
+      const belongsToLead = formValues.leadId ? opportunity.lead_id === Number.parseInt(formValues.leadId, 10) : true;
+      const canSelectExistingCredit = dialogCredit?.opportunity_id === opportunity.id;
+      const isFree = !opportunity.credit;
+      return belongsToLead && (canSelectExistingCredit || isFree);
+    });
+  }, [opportunities, formValues.leadId, dialogCredit]);
+
   // Mock permission for now
   const canDownloadDocuments = true;
 
@@ -289,8 +295,8 @@ export default function CreditsPage() {
     setFormValues({
       reference: "",
       title: "",
-      status: "Abierto",
-      category: "Regular",
+      status: CREDIT_STATUS_OPTIONS[0],
+      category: CREDIT_CATEGORY_OPTIONS[0],
       progress: "0",
       leadId: "",
       opportunityId: "",
@@ -306,8 +312,8 @@ export default function CreditsPage() {
     setFormValues({
       reference: credit.reference,
       title: credit.title,
-      status: credit.status || "Abierto",
-      category: credit.category || "Regular",
+      status: credit.status || CREDIT_STATUS_OPTIONS[0],
+      category: credit.category || CREDIT_CATEGORY_OPTIONS[0],
       progress: String(credit.progress),
       leadId: String(credit.lead_id),
       opportunityId: credit.opportunity_id ? String(credit.opportunity_id) : "",
@@ -396,12 +402,8 @@ export default function CreditsPage() {
         {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
             <TabsContent key={tab.value} value={tab.value}>
                 <Card>
-                    <CardHeader>
-                    <CardTitle>Listado de Créditos</CardTitle>
-                    <CardDescription>Total: {getCreditsForTab(tab.value).length} registros.</CardDescription>
-                    </CardHeader>
                     <CardContent>
-                    <Table>
+                    <Table className="p-4">
                         <TableHeader>
                         <TableRow>
                             <TableHead>Oportunidad</TableHead>
@@ -483,67 +485,126 @@ export default function CreditsPage() {
                 <DialogTitle>{dialogState === 'create' ? 'Nuevo Crédito' : 'Editar Crédito'}</DialogTitle>
                 <DialogDescription>Completa la información del crédito.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                        <Label>Referencia</Label>
-                        <Input value={formValues.reference} onChange={e => setFormValues({...formValues, reference: e.target.value})} required />
+                        <Label htmlFor="reference">Referencia</Label>
+                        <Input 
+                            id="reference"
+                            placeholder="Ej: CRED-ABC12345"
+                            value={formValues.reference} 
+                            onChange={e => setFormValues({...formValues, reference: e.target.value})} 
+                            required 
+                        />
                     </div>
                     <div className="space-y-2">
-                        <Label>Título</Label>
-                        <Input value={formValues.title} onChange={e => setFormValues({...formValues, title: e.target.value})} required />
+                        <Label htmlFor="title">Título</Label>
+                        <Input 
+                            id="title"
+                            placeholder="Crédito Hipotecario..."
+                            value={formValues.title} 
+                            onChange={e => setFormValues({...formValues, title: e.target.value})} 
+                            required 
+                        />
                     </div>
                     <div className="space-y-2">
-                        <Label>Estado</Label>
+                        <Label htmlFor="status">Estado</Label>
                         <Select value={formValues.status} onValueChange={v => setFormValues({...formValues, status: v})}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
                             <SelectContent>
                                 {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label>Categoría</Label>
+                        <Label htmlFor="category">Categoría</Label>
                         <Select value={formValues.category} onValueChange={v => setFormValues({...formValues, category: v})}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
                             <SelectContent>
                                 {CREDIT_CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label>Lead</Label>
+                        <Label htmlFor="progress">Progreso (%)</Label>
+                        <Input 
+                            id="progress"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={formValues.progress} 
+                            onChange={e => setFormValues({...formValues, progress: e.target.value})} 
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="lead">Lead</Label>
                         <Select value={formValues.leadId} onValueChange={v => setFormValues({...formValues, leadId: v})}>
-                            <SelectTrigger><SelectValue placeholder="Selecciona un lead" /></SelectTrigger>
+                            <SelectTrigger id="lead"><SelectValue placeholder="Selecciona un lead" /></SelectTrigger>
                             <SelectContent>
                                 {leads.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label>Oportunidad (Opcional)</Label>
+                        <Label htmlFor="opportunity">Oportunidad (Opcional)</Label>
                         <Select value={formValues.opportunityId} onValueChange={v => setFormValues({...formValues, opportunityId: v})}>
-                            <SelectTrigger><SelectValue placeholder="Selecciona una oportunidad" /></SelectTrigger>
+                            <SelectTrigger id="opportunity"><SelectValue placeholder="Selecciona una oportunidad" /></SelectTrigger>
                             <SelectContent>
-                                {opportunities.filter(o => !formValues.leadId || o.lead_id === parseInt(formValues.leadId)).map(o => (
+                                {availableOpportunities.map(o => (
                                     <SelectItem key={o.id} value={String(o.id)}>{o.title}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label>Responsable</Label>
-                        <Input value={formValues.assignedTo} onChange={e => setFormValues({...formValues, assignedTo: e.target.value})} />
+                        <Label htmlFor="assignedTo">Responsable</Label>
+                        <Input 
+                            id="assignedTo"
+                            placeholder="Nombre del responsable"
+                            value={formValues.assignedTo} 
+                            onChange={e => setFormValues({...formValues, assignedTo: e.target.value})} 
+                        />
                     </div>
                     <div className="space-y-2">
-                        <Label>Fecha Apertura</Label>
-                        <Input type="date" value={formValues.openedAt} onChange={e => setFormValues({...formValues, openedAt: e.target.value})} />
+                        <Label htmlFor="openedAt">Fecha Apertura</Label>
+                        <Input 
+                            id="openedAt"
+                            type="date" 
+                            value={formValues.openedAt} 
+                            onChange={e => setFormValues({...formValues, openedAt: e.target.value})} 
+                        />
                     </div>
-                    <div className="col-span-2 space-y-2">
-                        <Label>Descripción</Label>
-                        <Textarea value={formValues.description} onChange={e => setFormValues({...formValues, description: e.target.value})} />
+                    <div className="sm:col-span-2 space-y-2">
+                        <Label htmlFor="description">Descripción</Label>
+                        <Textarea 
+                            id="description"
+                            className="min-h-[120px]"
+                            placeholder="Describe el contexto del crédito..."
+                            value={formValues.description} 
+                            onChange={e => setFormValues({...formValues, description: e.target.value})} 
+                        />
                     </div>
                 </div>
+
+                {currentLead ? (
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base">Información del lead</CardTitle>
+                            <CardDescription>Resumen del lead relacionado con este crédito.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-sm">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                <div>
+                                    <span className="font-medium">Nombre:</span> {currentLead.name}
+                                </div>
+                                <div>
+                                    <span className="font-medium">Correo:</span> {currentLead.email ?? "-"}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : null}
+
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setDialogState(null)}>Cancelar</Button>
                     <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
