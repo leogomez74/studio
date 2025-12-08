@@ -7,71 +7,94 @@
 
 
 export type User = {
-  id: string | number;
+  id: string;
   name: string;
   email: string;
   avatarUrl?: string;
 };
 
 export type Lead = {
-  id: string | number;
+  id: string;
   name: string;
   cedula: string;
   email: string;
   phone: string;
-  whatsapp?: string;
-  province?: string;
-  canton?: string;
-  distrito?: string;
-  direccion1?: string;
-  direccion2?: string;
-  assigned_to_id?: number;
-  assigned_agent?: User;
-  is_active?: boolean | number;
-  created_at?: string;
-  lead_status_id?: number;
-  lead_status?: { id: number; name: string; color?: string };
-  
-  // Extended fields
-  apellido1?: string;
-  apellido2?: string;
-  fecha_nacimiento?: string;
-
-  // Legacy / Optional fields for UI compatibility
   registeredOn?: string;
   avatarUrl?: string;
   juicios?: number;
   manchas?: number;
+  lead_status_id?: number;
   puesto?: 'Interino' | 'En Propiedad';
   antiguedad?: string;
   salarioBase?: number;
   salarioNeto?: number;
   assignedTo?: string;
+  created_at?: string;
+  lead_status?: { id: number; name: string; color?: string } | string;
+  apellido1?: string;
+  apellido2?: string;
+  fecha_nacimiento?: string;
+  estado_civil?: string;
+  whatsapp?: string;
+  tel_casa?: string;
+  tel_amigo?: string;
+  province?: string;
+  canton?: string;
+  distrito?: string;
+  direccion1?: string;
+  direccion2?: string;
+  ocupacion?: string;
+  status?: string;
+  source?: string;
+  relacionado_a?: string;
+  tipo_relacion?: string;
+  notes?: string;
+  assigned_to_id?: number;
+  person_type_id?: number;
+  is_active?: boolean;
 };
 
 export type Client = {
-    id: string | number;
+    id: string;
     name: string;
     cedula: string;
     email: string;
     phone: string;
+    clientStatus?: 'Activo' | 'Moroso' | 'En cobro' | 'Fallecido' | 'Inactivo';
+    activeCredits?: number;
+    registeredOn?: string;
+    avatarUrl?: string;
+    status?: string;
+    is_active?: boolean;
+    created_at?: string;
+    apellido1?: string;
+    apellido2?: string;
     whatsapp?: string;
+    tel_casa?: string;
+    tel_amigo?: string;
     province?: string;
     canton?: string;
     distrito?: string;
     direccion1?: string;
     direccion2?: string;
+    ocupacion?: string;
+    estado_civil?: string;
+    fecha_nacimiento?: string;
+    relacionado_a?: string;
+    tipo_relacion?: string;
+    notes?: string;
+    source?: string;
+    genero?: string;
+    nacionalidad?: string;
+    telefono2?: string;
+    telefono3?: string;
+    institucion_labora?: string;
+    departamento_cargo?: string;
+    deductora_id?: string | number;
+    lead_status_id?: number;
     assigned_to_id?: number;
-    assigned_agent?: User;
-    is_active?: boolean | number;
-    status?: string; // Added to match backend
-    created_at?: string;
-
-    // Legacy / Optional fields
-    clientStatus?: 'Activo' | 'Moroso' | 'En cobro' | 'Fallecido' | 'Inactivo';
-    activeCredits?: number;
-    registeredOn?: string;
-    avatarUrl?: string;
+    person_type_id?: number;
+    opportunities?: Opportunity[];
 };
 
 export type Investor = {
@@ -81,14 +104,16 @@ export type Investor = {
   email: string;
   phone: string;
   status: 'Activo' | 'Inactivo';
-  activeInvestments: number;
-  registeredOn: string;
-  avatarUrl: string;
+  activeInvestments?: number;
+  registeredOn?: string;
+  avatarUrl?: string;
+  investment_balance?: number;
+  joined_at?: string;
 };
 
 export type Opportunity = {
-  id: string | number;
-  lead_cedula: string;
+  id: string;
+  lead_cedula?: string;
   opportunity_type?: string;
   vertical?: string;
   amount: number;
@@ -96,11 +121,13 @@ export type Opportunity = {
   expected_close_date?: string;
   comments?: string;
   assigned_to_id?: number;
-  lead?: Lead;
-  user?: User;
   created_at?: string;
-
-  // Legacy fields
+  updated_at?: string;
+  lead?: Lead;
+  amparo_id?: string;
+  tags?: string[];
+  
+  // Legacy / UI fields
   leadCedula?: string;
   creditType?: 'Regular' | 'Micro-crédito';
   startDate?: string;
@@ -108,23 +135,58 @@ export type Opportunity = {
 };
 
 export type Credit = {
-  operationNumber: string;
-  debtorName: string;
-  debtorId: string;
-  employer: string;
-  type: 'Regular' | 'Micro-crédito';
-  amount: number;
-  balance: number;
-  fee: number;
-  rate: number;
-  term: number;
-  status: 'Al día' | 'En mora' | 'Cancelado' | 'En cobro judicial';
-  overdueFees: number;
+  id?: number;
+  reference?: string;
+  title?: string;
+  status: string;
+  category?: string;
+  progress?: number;
+  lead_id?: number;
+  opportunity_id?: string;
+  assigned_to?: number;
+  opened_at?: string;
+  description?: string;
+  tipo_credito?: string;
+  numero_operacion?: string;
+  monto_credito?: number;
+  cuota?: number;
+  fecha_ultimo_pago?: string;
+  garantia?: string;
+  fecha_culminacion_credito?: string;
+  tasa_anual?: number;
+  plazo?: number;
+  cuotas_atrasadas?: number;
+  deductora_id?: number;
+
+  // Legacy / UI fields
+  operationNumber?: string;
+  debtorName?: string;
+  debtorId?: string;
+  employer?: string;
+  type?: 'Regular' | 'Micro-crédito';
+  amount?: number;
+  balance?: number;
+  fee?: number;
+  rate?: number;
+  term?: number;
+  overdueFees?: number;
   daysInArrears?: number;
-  deductingEntity: string;
-  creationDate: string;
-  dueDate: string;
+  deductingEntity?: string;
+  creationDate?: string;
+  dueDate?: string;
   expediente?: string;
+};
+
+export type Deductora = {
+    id?: number | string;
+    nombre?: string;
+    fecha_reporte_pago?: string;
+    comision?: number;
+
+    // Legacy / Mock
+    name?: string;
+    paymentDate?: string;
+    commission?: number;
 };
 
 export type Investment = {
@@ -267,12 +329,7 @@ export type Patrono = {
   paymentDate: string;
 };
 
-export type Deductora = {
-  id: string;
-  name: string;
-  paymentDate: string;
-  commission: number;
-};
+
 
 export type SalesVisit = {
   id: string;
@@ -522,10 +579,10 @@ export const investors: Investor[] = [
 ];
 
 export const opportunities: Opportunity[] = [
-    { id: 'OPP001', lead_cedula: '2-0987-6543', leadCedula: '2-0987-6543', creditType: 'Regular', amount: 5000000, status: 'En proceso', startDate: '2023-11-01', assignedTo: 'Wilmer Marquez' },
-    { id: 'OPP002', lead_cedula: '5-3333-4444', leadCedula: '5-3333-4444', creditType: 'Micro-crédito', amount: 500000, status: 'Convertido', startDate: '2023-11-02', assignedTo: 'Carlos Mendez' },
-    { id: 'OPP003', lead_cedula: '3-1111-2222', leadCedula: '3-1111-2222', creditType: 'Regular', amount: 2000000, status: 'Rechazada', startDate: '2023-11-03', assignedTo: 'Wilmer Marquez' },
-    { id: 'OPP004', lead_cedula: '4-2222-3333', leadCedula: '4-2222-3333', creditType: 'Regular', amount: 7000000, status: 'Aceptada', startDate: '2023-11-04', assignedTo: 'Carlos Mendez' },
+    { id: 'OPP001', leadCedula: '2-0987-6543', creditType: 'Regular', amount: 5000000, status: 'En proceso', startDate: '2023-11-01', assignedTo: 'Wilmer Marquez' },
+    { id: 'OPP002', leadCedula: '5-3333-4444', creditType: 'Micro-crédito', amount: 500000, status: 'Convertido', startDate: '2023-11-02', assignedTo: 'Carlos Mendez' },
+    { id: 'OPP003', leadCedula: '3-1111-2222', creditType: 'Regular', amount: 2000000, status: 'Rechazada', startDate: '2023-11-03', assignedTo: 'Wilmer Marquez' },
+    { id: 'OPP004', leadCedula: '4-2222-3333', creditType: 'Regular', amount: 7000000, status: 'Aceptada', startDate: '2023-11-04', assignedTo: 'Carlos Mendez' },
 ];
 
 export const credits: Credit[] = [
@@ -592,6 +649,8 @@ export const routes: Route[] = [
     ]
   },
 ];
+
+export const OPPORTUNITY_STATUSES = ["Abierta", "En seguimiento", "Ganada", "Perdida"] as const;
 
 export const conversations: Conversation[] = [
   { id: 'CONV01', name: 'Ana Silva Rojas', avatarUrl: 'https://picsum.photos/seed/avatar1/40/40', caseId: 'CR-002', lastMessage: 'Entendido, ¿qué necesito para ponerme al día?', time: '10:15 AM', status: 'Abierto' },

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, FormEvent, ChangeEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Archive,
   ArrowDown,
@@ -119,6 +120,7 @@ type LeadStatus = {
 
 export default function ClientesPage() {
   const { toast } = useToast();
+  const router = useRouter();
   
   // Data State (Preserved from original)
   const [clientsData, setClientsData] = useState<Client[]>([]);
@@ -496,34 +498,10 @@ export default function ClientesPage() {
               setIsOpportunityDialogOpen(true);
               break;
           case 'edit':
-              setLeadFormValues({
-                  name: lead.name || "",
-                  apellido1: (lead as any).apellido1 || "",
-                  apellido2: (lead as any).apellido2 || "",
-                  email: lead.email || "",
-                  phone: lead.phone || "",
-                  cedula: lead.cedula || "",
-                  fechaNacimiento: (lead as any).fecha_nacimiento || "",
-              });
-              setEditingId(lead.id);
-              setEditingType('lead');
-              setIsViewOnly(false);
-              setIsLeadDialogOpen(true);
+              router.push(`/dashboard/leads/${lead.id}?mode=edit`);
               break;
           case 'view':
-              setLeadFormValues({
-                  name: lead.name || "",
-                  apellido1: (lead as any).apellido1 || "",
-                  apellido2: (lead as any).apellido2 || "",
-                  email: lead.email || "",
-                  phone: lead.phone || "",
-                  cedula: lead.cedula || "",
-                  fechaNacimiento: (lead as any).fecha_nacimiento || "",
-              });
-              setEditingId(lead.id); // Just to fill form
-              setEditingType('lead');
-              setIsViewOnly(true);
-              setIsLeadDialogOpen(true);
+              router.push(`/dashboard/leads/${lead.id}?mode=view`);
               break;
           case 'convert':
               handleConvertLead(lead);
@@ -568,19 +546,7 @@ export default function ClientesPage() {
   };
 
   const handleEditClient = (client: Client) => {
-      setLeadFormValues({
-          name: client.name || "",
-          apellido1: "", 
-          apellido2: "",
-          email: client.email || "",
-          phone: client.phone || "",
-          cedula: client.cedula || "",
-          fechaNacimiento: "", 
-      });
-      setEditingId(client.id);
-      setEditingType('client');
-      setIsViewOnly(false);
-      setIsLeadDialogOpen(true);
+      router.push(`/dashboard/clientes/${client.id}?mode=edit`);
   };
 
   const confirmDeleteClient = (client: Client) => {
@@ -1020,7 +986,7 @@ function LeadsTable({ data, onAction }: { data: Lead[], onAction: (action: strin
           <TableBody>
             {data.map((lead) => {
                 const displayName = getLeadDisplayName(lead);
-                const statusLabel = lead.lead_status?.name || lead.lead_status_id?.toString() || 'Nuevo';
+                const statusLabel = (typeof lead.lead_status === 'object' ? lead.lead_status?.name : lead.lead_status) || 'Nuevo';
                 const badgeClassName = getStatusBadgeClassName(statusLabel);
                 
                 return (
@@ -1125,7 +1091,7 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
                           <AvatarFallback>{getLeadInitials(client)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <Link href={`/dashboard/leads/${client.id}`} className="font-medium leading-none text-primary hover:underline">
+                          <Link href={`/dashboard/clientes/${client.id}`} className="font-medium leading-none text-primary hover:underline">
                             {displayName}
                           </Link>
                           <p className="text-xs text-muted-foreground">{client.email || "Sin correo"}</p>

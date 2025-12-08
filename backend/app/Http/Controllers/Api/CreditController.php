@@ -35,6 +35,17 @@ class CreditController extends Controller
             'assigned_to' => 'nullable|string',
             'opened_at' => 'nullable|date',
             'description' => 'nullable|string',
+            'tipo_credito' => 'nullable|string',
+            'numero_operacion' => 'nullable|string|unique:credits,numero_operacion',
+            'monto_credito' => 'nullable|numeric',
+            'cuota' => 'nullable|numeric',
+            'fecha_ultimo_pago' => 'nullable|date',
+            'garantia' => 'nullable|string',
+            'fecha_culminacion_credito' => 'nullable|date',
+            'tasa_anual' => 'nullable|numeric',
+            'plazo' => 'nullable|integer',
+            'cuotas_atrasadas' => 'nullable|integer',
+            'deductora_id' => 'nullable|exists:deductoras,id',
         ]);
 
         $credit = Credit::create($validated);
@@ -63,6 +74,17 @@ class CreditController extends Controller
             'assigned_to' => 'nullable|string',
             'opened_at' => 'nullable|date',
             'description' => 'nullable|string',
+            'tipo_credito' => 'nullable|string',
+            'numero_operacion' => 'nullable|string|unique:credits,numero_operacion,' . $id,
+            'monto_credito' => 'nullable|numeric',
+            'cuota' => 'nullable|numeric',
+            'fecha_ultimo_pago' => 'nullable|date',
+            'garantia' => 'nullable|string',
+            'fecha_culminacion_credito' => 'nullable|date',
+            'tasa_anual' => 'nullable|numeric',
+            'plazo' => 'nullable|integer',
+            'cuotas_atrasadas' => 'nullable|integer',
+            'deductora_id' => 'nullable|exists:deductoras,id',
         ]);
 
         $credit->update($validated);

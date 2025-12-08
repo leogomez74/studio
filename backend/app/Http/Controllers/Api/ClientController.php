@@ -96,6 +96,13 @@ class ClientController extends Controller
             'estado_civil' => 'nullable|string|max:255',
             'fecha_nacimiento' => 'nullable|date',
             'is_active' => 'sometimes|boolean',
+            'genero' => 'nullable|string|max:50',
+            'nacionalidad' => 'nullable|string|max:100',
+            'telefono2' => 'nullable|string|max:20',
+            'telefono3' => 'nullable|string|max:20',
+            'institucion_labora' => 'nullable|string|max:255',
+            'departamento_cargo' => 'nullable|string|max:255',
+            'deductora_id' => 'nullable|exists:deductoras,id',
         ]);
 
         $validated['is_active'] = $validated['is_active'] ?? true;
@@ -135,6 +142,13 @@ class ClientController extends Controller
             'estado_civil' => 'sometimes|nullable|string|max:255',
             'fecha_nacimiento' => 'sometimes|nullable|date',
             'is_active' => 'sometimes|boolean',
+            'genero' => 'sometimes|nullable|string|max:50',
+            'nacionalidad' => 'sometimes|nullable|string|max:100',
+            'telefono2' => 'sometimes|nullable|string|max:20',
+            'telefono3' => 'sometimes|nullable|string|max:20',
+            'institucion_labora' => 'sometimes|nullable|string|max:255',
+            'departamento_cargo' => 'sometimes|nullable|string|max:255',
+            'deductora_id' => 'sometimes|nullable|exists:deductoras,id',
         ]);
 
         $client->update($validated);

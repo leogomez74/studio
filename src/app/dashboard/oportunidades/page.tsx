@@ -56,11 +56,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
-import { type Opportunity, type Lead } from "@/lib/data";
+import { type Opportunity, type Lead, OPPORTUNITY_STATUSES } from "@/lib/data";
 
 // --- Constants & Helpers (Inlined from dsf3/lib) ---
 
-const OPPORTUNITY_STATUSES = ["Abierta", "En seguimiento", "Ganada", "Perdida"] as const;
 const VERTICAL_OPTIONS = ["CCSS", "MEP"] as const;
 const CASE_STATUS_OPTIONS = ["Abierto", "En Progreso", "En Espera", "Cerrado"] as const;
 const CASE_CATEGORY_OPTIONS = ["Contenciosa", "No Contenciosa"] as const;
@@ -777,7 +776,9 @@ export default function DealsPage() {
                   <TableRow key={opportunity.id}>
                     <TableCell className="font-mono text-sm">
                         <div className="flex flex-col">
-                            <span className="font-semibold text-primary">#{opportunity.id}</span>
+                            <Link href={`/dashboard/oportunidades/${opportunity.id}`} className="font-semibold text-primary hover:underline">
+                                #{opportunity.id}
+                            </Link>
                             <span className="text-xs text-muted-foreground">{opportunity.opportunity_type || "Sin tipo"}</span>
                         </div>
                     </TableCell>
@@ -787,7 +788,7 @@ export default function DealsPage() {
                             <span className="text-xs text-muted-foreground">{opportunity.lead?.email || "-"}</span>
                         </div>
                     </TableCell>
-                    <TableCell><Badge variant={badgeVariant}>{opportunity.status || "Abierta"}</Badge></TableCell>
+                    <TableCell><Badge variant="default" className="bg-slate-900 hover:bg-slate-800">{opportunity.status || "Abierta"}</Badge></TableCell>
                     <TableCell>{opportunity.opportunity_type || "-"}</TableCell>
                     <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
                     <TableCell className="hidden md:table-cell">{formatDate(opportunity.expected_close_date)}</TableCell>

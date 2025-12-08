@@ -20,12 +20,39 @@ class Credit extends Model
         'assigned_to',
         'opened_at',
         'description',
+        // New fields
+        'tipo_credito',
+        'numero_operacion',
+        'monto_credito',
+        'cuota',
+        'fecha_ultimo_pago',
+        'garantia',
+        'fecha_culminacion_credito',
+        'tasa_anual',
+        'plazo',
+        'cuotas_atrasadas',
+        'deductora_id'
     ];
 
     protected $casts = [
         'progress' => 'integer',
         'opened_at' => 'date',
+        'fecha_ultimo_pago' => 'date',
+        'fecha_culminacion_credito' => 'date',
+        'monto_credito' => 'decimal:2',
+        'cuota' => 'decimal:2',
+        'tasa_anual' => 'decimal:2',
     ];
+
+    public function deductora()
+    {
+        return $this->belongsTo(Deductora::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(CreditPayment::class);
+    }
 
     public function lead()
     {

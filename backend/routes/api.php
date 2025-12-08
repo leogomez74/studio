@@ -50,6 +50,12 @@ Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController
 Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
 Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
 
+// Deductoras
+Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class);
+
+// Pagos de Crédito
+Route::apiResource('credit-payments', \App\Http\Controllers\Api\CreditPaymentController::class);
+
 
 // --- Rutas Protegidas (Requieren Sanctum) ---
 Route::middleware(['auth:sanctum'])->group(function () {

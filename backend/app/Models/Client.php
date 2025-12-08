@@ -38,7 +38,14 @@ class Client extends Model
         'tipo_relacion',
         'is_active',
         'notes',
-        'source'
+        'source',
+        'genero',
+        'nacionalidad',
+        'telefono2',
+        'telefono3',
+        'institucion_labora',
+        'departamento_cargo',
+        'deductora_id'
     ];
 
     protected $casts = [
@@ -48,13 +55,18 @@ class Client extends Model
 
     protected static function booted()
     {
-        static::addGlobalScope('is_client', function (Builder $builder) {
+        static::addGlobalScope('client', function (Builder $builder) {
             $builder->where('person_type_id', 2);
         });
 
         static::creating(function ($model) {
             $model->person_type_id = 2;
         });
+    }
+
+    public function deductora()
+    {
+        return $this->belongsTo(Deductora::class);
     }
 
     public function assignedAgent()
