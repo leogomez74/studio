@@ -32,6 +32,25 @@ class LeadController extends Controller
             $query->where('assigned_to_id', $request->input('assigned_to_id'));
         }
 
+        // Filter by Contact Info
+        if ($request->has('has_contact') && $request->input('has_contact') !== 'all') {
+            $hasContact = $request->input('has_contact');
+            if ($hasContact === 'con-contacto') {
+                $query->where(function ($q) {
+                    $q->whereNotNull('email')->where('email', '!=', '')
+                      ->orWhereNotNull('phone')->where('phone', '!=', '');
+                });
+            } elseif ($hasContact === 'sin-contacto') {
+                $query->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->whereNull('email')->orWhere('email', '');
+                    })->where(function ($sub) {
+                        $sub->whereNull('phone')->orWhere('phone', '');
+                    });
+                });
+            }
+        }
+
         // Search by Name, Cedula, Email, Phone
         if ($request->has('q') && !empty($request->input('q'))) {
             $search = $request->input('q');

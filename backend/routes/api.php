@@ -44,6 +44,12 @@ Route::apiResource('clients', ClientController::class);
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
 
+// Créditos
+Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
+Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
+Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
+Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
+
 
 // --- Rutas Protegidas (Requieren Sanctum) ---
 Route::middleware(['auth:sanctum'])->group(function () {

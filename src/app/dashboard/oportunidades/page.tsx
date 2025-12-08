@@ -1,7 +1,22 @@
-'use client';
+"use client";
 
-import { MoreHorizontal, PlusCircle, Loader2, Filter } from "lucide-react";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, FormEvent, ChangeEvent } from "react";
+import Link from "next/link";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Download,
+  MoreHorizontal,
+  PlusCircle,
+  Loader2,
+  Search,
+  Filter,
+  Calendar
+} from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,20 +27,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -33,157 +50,915 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
-import { type Opportunity } from "@/lib/data";
+import { type Opportunity, type Lead } from "@/lib/data";
 
-const getStatusVariant = (status: string) => {
-    switch (status) {
-        case 'Convertido': return 'default';
-        case 'Aceptada': return 'default';
-        case 'En proceso': return 'secondary';
-        case 'Rechazada': return 'destructive';
-        default: return 'outline';
-    }
+// --- Constants & Helpers (Inlined from dsf3/lib) ---
+
+const OPPORTUNITY_STATUSES = ["Abierta", "En seguimiento", "Ganada", "Perdida"] as const;
+const VERTICAL_OPTIONS = ["CCSS", "MEP"] as const;
+const CASE_STATUS_OPTIONS = ["Abierto", "En Progreso", "En Espera", "Cerrado"] as const;
+const CASE_CATEGORY_OPTIONS = ["Contenciosa", "No Contenciosa"] as const;
+
+const OPPORTUNITY_TYPE_OPTIONS: Record<string, string[]> = {
+  CCSS: ["Regular", "Micro-crédito", "Refundición"],
+  MEP: ["Regular", "Compra de Saldo"],
+};
+
+type SortableColumn =
+  | "reference"
+  | "lead"
+  | "status"
+  | "type"
+  | "amount"
+  | "expected_close_date"
+  | "created_at";
+
+interface OpportunityTableFilters {
+  search: string;
+  status: string;
+  vertical: string;
+  createdFrom: string;
+  createdTo: string;
 }
 
+interface OpportunityFormValues {
+  leadId: string;
+  vertical: string;
+  opportunityType: string;
+  status: string;
+  amount: string;
+  expectedCloseDate: string;
+  comments: string;
+}
+
+interface ConvertCaseFormValues {
+  reference: string;
+  status: string;
+  category: string;
+  progress: string;
+  assignedTo: string;
+  openedAt: string;
+  description: string;
+}
+
+const resolveDefaultOpportunityType = (vertical: string) => {
+  return OPPORTUNITY_TYPE_OPTIONS[vertical]?.[0] || "Regular";
+};
+
+const normalizeOpportunityVertical = (vertical?: string | null) => {
+  if (!vertical) return VERTICAL_OPTIONS[0];
+  const found = VERTICAL_OPTIONS.find(v => v.toLowerCase() === vertical.toLowerCase());
+  return found || VERTICAL_OPTIONS[0];
+};
+
+const formatOpportunityReference = (ref: string | number | null | undefined) => {
+  if (!ref) return "-";
+  return String(ref).padStart(6, '0'); // Example formatting
+};
+
+const resolveEstimatedOpportunityAmount = (amount: any): number | null => {
+  if (typeof amount === 'number') return amount;
+  if (typeof amount === 'string') return parseFloat(amount);
+  return null;
+};
+
+const formatAmount = (value: number | null | undefined): string => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+  return new Intl.NumberFormat("es-CR", {
+    style: "currency",
+    currency: "CRC",
+    minimumFractionDigits: 2,
+  }).format(value);
+};
+
+const formatAmountForExport = (amount: number | null | undefined): string => {
+  const resolved = resolveEstimatedOpportunityAmount(amount);
+  if (resolved == null) return "-";
+  return new Intl.NumberFormat("es-CR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(resolved);
+};
+
+const formatDate = (dateString?: string | null): string => {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("es-CR", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  }).format(date);
+};
+
+const generateAmparoReference = () => {
+    const year = new Date().getFullYear().toString().slice(-2);
+    const random = Math.floor(Math.random() * 10000).toString().padStart(5, '0');
+    return `${year}-000000-${random}-CO`; // Placeholder format
+};
+
+// --- Main Component ---
+
 export default function DealsPage() {
-  const [data, setData] = useState<Opportunity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { toast } = useToast();
+  
+  // Data State
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+
+  // Dialog States
+  const [dialogState, setDialogState] = useState<"create" | "edit" | null>(null);
+  const [dialogOpportunity, setDialogOpportunity] = useState<Opportunity | null>(null);
+  const [formValues, setFormValues] = useState<OpportunityFormValues>({
+    leadId: "",
+    vertical: VERTICAL_OPTIONS[0],
+    opportunityType: resolveDefaultOpportunityType(VERTICAL_OPTIONS[0]),
+    status: OPPORTUNITY_STATUSES[0],
+    amount: "",
+    expectedCloseDate: "",
+    comments: "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [opportunityToDelete, setOpportunityToDelete] = useState<Opportunity | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailOpportunity, setDetailOpportunity] = useState<Opportunity | null>(null);
+
+  const [isConvertCaseOpen, setIsConvertCaseOpen] = useState(false);
+  const [convertCaseOpportunity, setConvertCaseOpportunity] = useState<Opportunity | null>(null);
+  const [convertCaseValues, setConvertCaseValues] = useState<ConvertCaseFormValues>({
+    reference: "",
+    status: CASE_STATUS_OPTIONS[0],
+    category: CASE_CATEGORY_OPTIONS[0],
+    progress: "0",
+    assignedTo: "",
+    openedAt: "",
+    description: "",
+  });
+  const [isConvertingCase, setIsConvertingCase] = useState(false);
+
+  // Filters & Sort
+  const [filters, setFilters] = useState<OpportunityTableFilters>({
+    search: "",
+    status: "todos",
+    vertical: "todos",
+    createdFrom: "",
+    createdTo: "",
+  });
+  const [sortConfig, setSortConfig] = useState<{ column: SortableColumn; direction: "asc" | "desc" }>(
+    () => ({ column: "created_at", direction: "desc" })
+  );
+
+  const defaultStatus = useMemo(() => OPPORTUNITY_STATUSES[0], []);
+
+  // --- Fetching ---
+
+  const fetchOpportunities = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.get('/api/opportunities');
+      const data = response.data.data || response.data;
+      
+      setOpportunities(Array.isArray(data) ? data.map((item: any) => ({
+          ...item,
+          vertical: normalizeOpportunityVertical(item.vertical),
+          opportunity_type: item.opportunity_type || resolveDefaultOpportunityType(item.vertical),
+          amount: resolveEstimatedOpportunityAmount(item.amount),
+      })) : []);
+    } catch (error) {
+      console.error("Error fetching opportunities:", error);
+      toast({ title: "Error", description: "No se pudieron cargar las oportunidades.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const fetchLeads = useCallback(async () => {
+    try {
+      setIsLoadingLeads(true);
+      const response = await api.get('/api/leads'); // Assuming this endpoint exists and returns all leads
+      const data = response.data.data || response.data;
+      setLeads(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching leads:", error);
+    } finally {
+      setIsLoadingLeads(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
+    fetchOpportunities();
+    fetchLeads();
+  }, [fetchOpportunities, fetchLeads]);
+
+  // --- Form Logic ---
+
+  useEffect(() => {
+    if (dialogState === "create" && formValues.leadId === "" && leads.length > 0) {
+      setFormValues((prev) => ({
+        ...prev,
+        leadId: String(leads[0].id),
+      }));
+    }
+  }, [dialogState, formValues.leadId, leads]);
+
+  const resetForm = useCallback((opportunity?: Opportunity | null) => {
+    const derivedVertical = opportunity ? normalizeOpportunityVertical(opportunity.vertical) : VERTICAL_OPTIONS[0];
+    setFormValues({
+      leadId: opportunity?.lead?.id ? String(opportunity.lead.id) : "",
+      vertical: derivedVertical,
+      opportunityType: opportunity?.opportunity_type || resolveDefaultOpportunityType(derivedVertical),
+      status: opportunity?.status ?? defaultStatus,
+      amount: opportunity?.amount != null ? String(opportunity.amount) : "",
+      expectedCloseDate: opportunity?.expected_close_date ?? "",
+      comments: opportunity?.comments ?? "",
+    });
+  }, [defaultStatus]);
+
+  const resetConvertCaseForm = useCallback(() => {
+    setConvertCaseValues({
+      reference: "",
+      status: CASE_STATUS_OPTIONS[0],
+      category: CASE_CATEGORY_OPTIONS[0],
+      progress: "0",
+      assignedTo: "",
+      openedAt: "",
+      description: "",
+    });
+  }, []);
+
+  const closeDialog = useCallback(() => {
+    setDialogState(null);
+    setDialogOpportunity(null);
+    resetForm();
+  }, [resetForm]);
+
+  const openCreateDialog = useCallback(() => {
+    setDialogOpportunity(null);
+    resetForm();
+    setDialogState("create");
+  }, [resetForm]);
+
+  const openEditDialog = useCallback((opportunity: Opportunity) => {
+    setDialogOpportunity(opportunity);
+    resetForm(opportunity);
+    setDialogState("edit");
+  }, [resetForm]);
+
+  const handleFormField = useCallback(
+    (field: keyof OpportunityFormValues) =>
+      (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const value = event.target.value;
+        setFormValues((prev) => ({ ...prev, [field]: value }));
+      },
+    []
+  );
+
+  const handleSaveOpportunity = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setIsSaving(true);
+
       try {
-        setLoading(true);
-        const params: any = {};
-        if (statusFilter && statusFilter !== "all") {
-            params.status = statusFilter;
+        const selectedLead = leads.find(l => String(l.id) === formValues.leadId);
+        if (!selectedLead) {
+            toast({ title: "Error", description: "Lead no válido.", variant: "destructive" });
+            setIsSaving(false);
+            return;
         }
 
-        const response = await api.get('/api/opportunities', { params });
-        const opportunities = response.data.data || response.data;
-        setData(Array.isArray(opportunities) ? opportunities : []);
-      } catch (error) {
-        console.error("Error fetching opportunities:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+        const body: any = {
+            lead_cedula: selectedLead.cedula, // Using cedula as per studio requirement
+            vertical: formValues.vertical,
+            opportunity_type: formValues.opportunityType,
+            status: formValues.status,
+            amount: parseFloat(formValues.amount) || 0,
+            expected_close_date: formValues.expectedCloseDate || null,
+            comments: formValues.comments,
+            assigned_to_id: selectedLead.assigned_to_id // Inherit assignment
+        };
 
-    fetchData();
-  }, [statusFilter]);
+        if (dialogState === "edit" && dialogOpportunity) {
+            await api.put(`/api/opportunities/${dialogOpportunity.id}`, body);
+            toast({ title: "Actualizado", description: "Oportunidad actualizada correctamente." });
+        } else {
+            await api.post('/api/opportunities', body);
+            toast({ title: "Creado", description: "Oportunidad creada correctamente." });
+        }
+
+        closeDialog();
+        fetchOpportunities();
+      } catch (error) {
+          console.error("Error saving:", error);
+          toast({ title: "Error", description: "No se pudo guardar la oportunidad.", variant: "destructive" });
+      } finally {
+          setIsSaving(false);
+      }
+  }, [dialogState, dialogOpportunity, formValues, leads, closeDialog, fetchOpportunities, toast]);
+
+  // --- Delete Logic ---
+
+  const openDeleteDialog = useCallback((opportunity: Opportunity) => {
+    setOpportunityToDelete(opportunity);
+    setIsDeleteOpen(true);
+  }, []);
+
+  const closeDeleteDialog = useCallback(() => {
+    setIsDeleteOpen(false);
+    setOpportunityToDelete(null);
+  }, []);
+
+  const handleDeleteOpportunity = useCallback(async () => {
+      if (!opportunityToDelete) return;
+      setIsDeleting(true);
+      try {
+          await api.delete(`/api/opportunities/${opportunityToDelete.id}`);
+          toast({ title: "Eliminado", description: "Oportunidad eliminada." });
+          closeDeleteDialog();
+          fetchOpportunities();
+      } catch (error) {
+          toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" });
+      } finally {
+          setIsDeleting(false);
+      }
+  }, [opportunityToDelete, closeDeleteDialog, fetchOpportunities, toast]);
+
+  // --- Detail Logic ---
+
+  const openDetailDialog = useCallback((opportunity: Opportunity) => {
+    setDetailOpportunity(opportunity);
+    setIsDetailOpen(true);
+  }, []);
+
+  const closeDetailDialog = useCallback(() => {
+    setIsDetailOpen(false);
+    setDetailOpportunity(null);
+  }, []);
+
+  // --- Convert Case Logic ---
+
+  const openConvertCaseDialog = useCallback((opportunity: Opportunity) => {
+    setConvertCaseOpportunity(opportunity);
+    setConvertCaseValues({
+      reference: generateAmparoReference(),
+      status: CASE_STATUS_OPTIONS[0],
+      category: CASE_CATEGORY_OPTIONS[0],
+      progress: "0",
+      assignedTo: "",
+      openedAt: new Date().toISOString().slice(0, 10),
+      description: opportunity.comments ?? "",
+    });
+    setIsConvertCaseOpen(true);
+  }, []);
+
+  const closeConvertCaseDialog = useCallback(() => {
+    setIsConvertCaseOpen(false);
+    setConvertCaseOpportunity(null);
+    setIsConvertingCase(false);
+    resetConvertCaseForm();
+  }, [resetConvertCaseForm]);
+
+  const handleConvertCaseField = useCallback(
+    (field: keyof ConvertCaseFormValues) =>
+      (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const value = event.target.value;
+        setConvertCaseValues((prev) => ({ ...prev, [field]: value }));
+      },
+    []
+  );
+
+  const handleConvertCaseSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!convertCaseOpportunity) return;
+      setIsConvertingCase(true);
+
+      try {
+          // Placeholder for case creation logic - adapting to what might be expected
+          const body = {
+              reference: convertCaseValues.reference,
+              status: convertCaseValues.status,
+              category: convertCaseValues.category,
+              progress: parseInt(convertCaseValues.progress),
+              opened_at: convertCaseValues.openedAt,
+              description: convertCaseValues.description,
+              assigned_to: convertCaseValues.assignedTo,
+              opportunity_id: convertCaseOpportunity.id
+          };
+
+          await api.post(`/api/opportunities/${convertCaseOpportunity.id}/cases`, body);
+          toast({ title: "Caso creado", description: "Oportunidad convertida a caso." });
+          closeConvertCaseDialog();
+          fetchOpportunities();
+      } catch (error) {
+          console.error("Error converting:", error);
+          toast({ title: "Error", description: "No se pudo convertir a caso.", variant: "destructive" });
+      } finally {
+          setIsConvertingCase(false);
+      }
+  }, [convertCaseOpportunity, convertCaseValues, closeConvertCaseDialog, fetchOpportunities, toast]);
+
+
+  // --- Table Logic ---
+
+  const handleFilterChange = useCallback(
+    <K extends keyof OpportunityTableFilters>(field: K, value: OpportunityTableFilters[K]) => {
+      setFilters((previous) => ({ ...previous, [field]: value }));
+    },
+    []
+  );
+
+  const handleClearFilters = useCallback(() => {
+    setFilters({ search: "", status: "todos", vertical: "todos", createdFrom: "", createdTo: "" });
+  }, []);
+
+  const handleSort = useCallback((column: SortableColumn) => {
+    setSortConfig((previous) => {
+      if (previous.column === column) {
+        return { column, direction: previous.direction === "asc" ? "desc" : "asc" };
+      }
+      return { column, direction: "asc" };
+    });
+  }, []);
+
+  const getSortableValue = useCallback((opportunity: Opportunity, column: SortableColumn): number | string => {
+    switch (column) {
+      case "reference": return opportunity.id ?? 0;
+      case "lead": return (opportunity.lead?.name || opportunity.lead?.email || "").toString().toLowerCase();
+      case "status": return (opportunity.status ?? "Abierta").toLowerCase();
+      case "type": return (opportunity.opportunity_type ?? "").toLowerCase();
+      case "amount": return resolveEstimatedOpportunityAmount(opportunity.amount) ?? 0;
+      case "expected_close_date": return opportunity.expected_close_date ? new Date(opportunity.expected_close_date).getTime() : 0;
+      case "created_at": return opportunity.created_at ? new Date(opportunity.created_at).getTime() : 0;
+      default: return "";
+    }
+  }, []);
+
+  const visibleOpportunities = useMemo(() => {
+    const searchTerm = filters.search.trim().toLowerCase();
+    const statusFilter = filters.status.toLowerCase();
+    const verticalFilter = filters.vertical.toLowerCase();
+    const createdFromTime = filters.createdFrom ? new Date(filters.createdFrom).getTime() : null;
+    const createdToTime = filters.createdTo ? new Date(filters.createdTo).getTime() : null;
+
+    const filtered = opportunities.filter((opportunity) => {
+      const referenceValue = String(opportunity.id).toLowerCase();
+      const leadName = opportunity.lead?.name?.toLowerCase() ?? "";
+      const leadEmail = opportunity.lead?.email?.toLowerCase() ?? "";
+
+      const matchesSearch = searchTerm
+        ? [referenceValue, leadName, leadEmail].some((value) => value.includes(searchTerm))
+        : true;
+
+      if (!matchesSearch) return false;
+
+      const normalizedStatus = (opportunity.status ?? "Abierta").toLowerCase();
+      if (statusFilter !== "todos" && normalizedStatus !== statusFilter) return false;
+
+      const normalizedVertical = opportunity.vertical?.toLowerCase() || "";
+      if (verticalFilter !== "todos" && normalizedVertical !== verticalFilter) return false;
+
+      const createdAtTime = opportunity.created_at ? new Date(opportunity.created_at).getTime() : null;
+      if (createdFromTime && (!createdAtTime || createdAtTime < createdFromTime)) return false;
+      if (createdToTime && (!createdAtTime || createdAtTime > createdToTime)) return false;
+
+      return true;
+    });
+
+    return filtered.sort((a, b) => {
+      const aValue = getSortableValue(a, sortConfig.column);
+      const bValue = getSortableValue(b, sortConfig.column);
+      const multiplier = sortConfig.direction === "asc" ? 1 : -1;
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return (aValue - bValue) * multiplier;
+      }
+      return String(aValue ?? "").localeCompare(String(bValue ?? "")) * multiplier;
+    });
+  }, [filters, getSortableValue, opportunities, sortConfig]);
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.search.trim().length > 0 ||
+      filters.status !== "todos" ||
+      filters.vertical !== "todos" ||
+      filters.createdFrom.length > 0 ||
+      filters.createdTo.length > 0
+    );
+  }, [filters]);
+
+  const getAriaSort = useCallback(
+    (column: SortableColumn): "ascending" | "descending" | "none" => {
+      if (sortConfig.column !== column) return "none";
+      return sortConfig.direction === "asc" ? "ascending" : "descending";
+    },
+    [sortConfig]
+  );
+
+  const renderSortIcon = useCallback(
+    (column: SortableColumn) => {
+      if (sortConfig.column !== column) {
+        return <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground" aria-hidden="true" />;
+      }
+      return sortConfig.direction === "asc" ? (
+        <ArrowUp className="ml-1 h-4 w-4 text-primary" aria-hidden="true" />
+      ) : (
+        <ArrowDown className="ml-1 h-4 w-4 text-primary" aria-hidden="true" />
+      );
+    },
+    [sortConfig]
+  );
+
+  // --- Export ---
+
+  const handleExportCSV = useCallback(() => {
+    if (visibleOpportunities.length === 0) {
+      toast({ title: "Sin datos", description: "No hay datos para exportar.", variant: "destructive" });
+      return;
+    }
+    const headers = ["Referencia", "Lead", "Correo", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"];
+    const rows = visibleOpportunities.map((opportunity) => [
+      formatOpportunityReference(opportunity.id),
+      opportunity.lead?.name ?? "Lead desconocido",
+      opportunity.lead?.email ?? "Sin correo",
+      opportunity.status ?? "Abierta",
+      opportunity.opportunity_type ?? "Sin tipo",
+      formatAmountForExport(opportunity.amount),
+      opportunity.expected_close_date ?? "",
+      opportunity.created_at ?? "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
+      .join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `oportunidades_${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [toast, visibleOpportunities]);
+
+  const handleExportPDF = useCallback(() => {
+    if (visibleOpportunities.length === 0) {
+      toast({ title: "Sin datos", description: "No hay datos para exportar.", variant: "destructive" });
+      return;
+    }
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(12);
+    doc.text("Reporte de oportunidades", 14, 16);
+
+    autoTable(doc, {
+      startY: 22,
+      head: [["Referencia", "Lead", "Correo", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"]],
+      body: visibleOpportunities.map((opportunity) => [
+        formatOpportunityReference(opportunity.id),
+        opportunity.lead?.name ?? "Lead desconocido",
+        opportunity.lead?.email ?? "Sin correo",
+        opportunity.status ?? "Abierta",
+        opportunity.opportunity_type ?? "Sin tipo",
+        formatAmountForExport(opportunity.amount),
+        formatDate(opportunity.expected_close_date),
+        formatDate(opportunity.created_at),
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [220, 53, 69] },
+    });
+    doc.save(`oportunidades_${Date.now()}.pdf`);
+  }, [toast, visibleOpportunities]);
+
+  // --- Render ---
+
+  const dialogTitle = dialogState === "edit" ? "Editar oportunidad" : "Crear oportunidad";
+  const dialogDescription = dialogState === "edit" ? "Actualiza la información de la oportunidad." : "Registra una nueva oportunidad.";
+
+  const availableLeadOptions = useMemo(() => {
+    return leads.map((lead) => ({
+      value: String(lead.id),
+      label: `${lead.name}${lead.email ? ` · ${lead.email}` : ""}`,
+    }));
+  }, [leads]);
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-            <div>
-                <CardTitle>Oportunidades</CardTitle>
-                <CardDescription>Gestiona las oportunidades de clientes potenciales.</CardDescription>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <CardTitle>Oportunidades</CardTitle>
+            <CardDescription>Gestiona las oportunidades asociadas a tus leads.</CardDescription>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
+                <Input type="date" value={filters.createdFrom} onChange={(e) => handleFilterChange("createdFrom", e.target.value)} className="h-10 w-36" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
+                <Input type="date" value={filters.createdTo} onChange={(e) => handleFilterChange("createdTo", e.target.value)} className="h-10 w-36" />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <Filter className="w-4 h-4 mr-2" />
-                        <SelectValue placeholder="Filtrar por estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todos los estados</SelectItem>
-                        <SelectItem value="Abierta">Abierta</SelectItem>
-                        <SelectItem value="En proceso">En proceso</SelectItem>
-                        <SelectItem value="Aceptada">Aceptada</SelectItem>
-                        <SelectItem value="Rechazada">Rechazada</SelectItem>
-                        <SelectItem value="Convertido">Convertido</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Button size="sm" className="gap-1">
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar
+            <Button variant="outline" onClick={handleClearFilters} disabled={!hasActiveFilters}>Limpiar filtros</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Exportar
                 </Button>
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>Descargar CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>Descargar PDF</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" className="gap-1" onClick={openCreateDialog}>
+              <PlusCircle className="h-4 w-4" />
+              Agregar oportunidad
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {loading ? (
-            <div className="flex justify-center p-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <CardContent className="space-y-6">
+        <div className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
+                <Input placeholder="Referencia, lead o título" value={filters.search} onChange={(e) => handleFilterChange("search", e.target.value)} />
             </div>
-        ) : (
-            <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead>Cédula del Lead</TableHead>
-                <TableHead>Monto Solicitado</TableHead>
-                <TableHead>Tipo de Crédito</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="hidden md:table-cell">Fecha de Inicio</TableHead>
-                <TableHead className="hidden md:table-cell">Asignado a</TableHead>
-                <TableHead>
-                    <span className="sr-only">Acciones</span>
-                </TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {data.length === 0 ? (
-                    <TableRow>
-                        <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
-                            No se encontraron oportunidades.
-                        </TableCell>
-                    </TableRow>
-                ) : (
-                    data.map((opportunity) => (
-                    <OpportunityTableRow key={opportunity.id} opportunity={opportunity} />
-                    ))
-                )}
-            </TableBody>
-            </Table>
-        )}
+            <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
+                <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value)}>
+                    <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="todos">Todos los estados</SelectItem>
+                        {OPPORTUNITY_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status.toLowerCase()}>{status}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vertical</Label>
+                <Select value={filters.vertical} onValueChange={(value) => handleFilterChange("vertical", value)}>
+                    <SelectTrigger><SelectValue placeholder="Todas las verticales" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="todos">Todas las verticales</SelectItem>
+                        {VERTICAL_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+        </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead aria-sort={getAriaSort("reference")}>
+                <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("reference")}>
+                  Número {renderSortIcon("reference")}
+                </button>
+              </TableHead>
+              <TableHead aria-sort={getAriaSort("lead")}>
+                <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("lead")}>
+                  Lead {renderSortIcon("lead")}
+                </button>
+              </TableHead>
+              <TableHead aria-sort={getAriaSort("status")}>
+                <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("status")}>
+                  Estado {renderSortIcon("status")}
+                </button>
+              </TableHead>
+              <TableHead aria-sort={getAriaSort("type")}>
+                <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("type")}>
+                  Tipo {renderSortIcon("type")}
+                </button>
+              </TableHead>
+              <TableHead aria-sort={getAriaSort("amount")}>
+                <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("amount")}>
+                  Monto {renderSortIcon("amount")}
+                </button>
+              </TableHead>
+              <TableHead className="hidden md:table-cell" aria-sort={getAriaSort("expected_close_date")}>
+                <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("expected_close_date")}>
+                  Cierre {renderSortIcon("expected_close_date")}
+                </button>
+              </TableHead>
+              <TableHead className="hidden md:table-cell" aria-sort={getAriaSort("created_at")}>
+                <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("created_at")}>
+                  Creado {renderSortIcon("created_at")}
+                </button>
+              </TableHead>
+              <TableHead><span className="sr-only">Acciones</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+            ) : visibleOpportunities.length === 0 ? (
+              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No hay oportunidades.</TableCell></TableRow>
+            ) : (
+              visibleOpportunities.map((opportunity) => {
+                const badgeVariant = opportunity.status?.toLowerCase() === "ganada" ? "default" : "secondary";
+                return (
+                  <TableRow key={opportunity.id}>
+                    <TableCell className="font-mono text-sm">
+                        <div className="flex flex-col">
+                            <span className="font-semibold text-primary">#{opportunity.id}</span>
+                            <span className="text-xs text-muted-foreground">{opportunity.opportunity_type || "Sin tipo"}</span>
+                        </div>
+                    </TableCell>
+                    <TableCell>
+                        <div className="flex flex-col">
+                            <span>{opportunity.lead?.name || "Desconocido"}</span>
+                            <span className="text-xs text-muted-foreground">{opportunity.lead?.email || "-"}</span>
+                        </div>
+                    </TableCell>
+                    <TableCell><Badge variant={badgeVariant}>{opportunity.status || "Abierta"}</Badge></TableCell>
+                    <TableCell>{opportunity.opportunity_type || "-"}</TableCell>
+                    <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
+                    <TableCell className="hidden md:table-cell">{formatDate(opportunity.expected_close_date)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{formatDate(opportunity.created_at)}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openDetailDialog(opportunity)}>Ver detalle</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(opportunity)}>Editar</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openConvertCaseDialog(opportunity)}>Convertir a Caso</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openDeleteDialog(opportunity)} className="text-destructive">Eliminar</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
       </CardContent>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={dialogState !== null} onOpenChange={(open) => !open && closeDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleSaveOpportunity}>
+            <div className="space-y-2">
+              <Label>Lead asociado</Label>
+              <Select value={formValues.leadId} onValueChange={(val) => setFormValues(prev => ({ ...prev, leadId: val }))} disabled={isLoadingLeads}>
+                <SelectTrigger><SelectValue placeholder={isLoadingLeads ? "Cargando..." : "Selecciona un lead"} /></SelectTrigger>
+                <SelectContent>
+                    {availableLeadOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+                <Label>Vertical</Label>
+                <div className="flex gap-2">
+                    {VERTICAL_OPTIONS.map(opt => (
+                        <Button key={opt} type="button" variant={formValues.vertical === opt ? "default" : "outline"} onClick={() => setFormValues(prev => ({ ...prev, vertical: opt, opportunityType: resolveDefaultOpportunityType(opt) }))}>
+                            {opt}
+                        </Button>
+                    ))}
+                </div>
+            </div>
+            <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={formValues.opportunityType} onValueChange={(val) => setFormValues(prev => ({ ...prev, opportunityType: val }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        {(OPPORTUNITY_TYPE_OPTIONS[formValues.vertical] || []).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                    <Label>Estado</Label>
+                    <Select value={formValues.status} onValueChange={(val) => setFormValues(prev => ({ ...prev, status: val }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {OPPORTUNITY_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label>Monto</Label>
+                    <Input type="number" value={formValues.amount} onChange={handleFormField("amount")} placeholder="0.00" />
+                </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                    <Label>Cierre esperado</Label>
+                    <Input type="date" value={formValues.expectedCloseDate} onChange={handleFormField("expectedCloseDate")} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                    <Label>Comentarios</Label>
+                    <Textarea value={formValues.comments} onChange={handleFormField("comments")} rows={3} />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDialog}>Cancelar</Button>
+                <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Detalle de Oportunidad</DialogTitle>
+                <DialogDescription>Información completa del registro.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 text-sm">
+                <div className="grid grid-cols-2 gap-4">
+                    <div><p className="font-medium text-muted-foreground">ID</p><p>#{detailOpportunity?.id}</p></div>
+                    <div><p className="font-medium text-muted-foreground">Lead</p><p>{detailOpportunity?.lead?.name}</p></div>
+                    <div><p className="font-medium text-muted-foreground">Estado</p><p>{detailOpportunity?.status}</p></div>
+                    <div><p className="font-medium text-muted-foreground">Monto</p><p>{formatAmount(resolveEstimatedOpportunityAmount(detailOpportunity?.amount))}</p></div>
+                    <div><p className="font-medium text-muted-foreground">Vertical</p><p>{detailOpportunity?.vertical}</p></div>
+                    <div><p className="font-medium text-muted-foreground">Tipo</p><p>{detailOpportunity?.opportunity_type}</p></div>
+                    <div className="col-span-2"><p className="font-medium text-muted-foreground">Comentarios</p><p>{detailOpportunity?.comments || "Sin comentarios"}</p></div>
+                </div>
+            </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Convert Case Dialog */}
+      <Dialog open={isConvertCaseOpen} onOpenChange={(open) => !open && closeConvertCaseDialog()}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Convertir a Caso</DialogTitle>
+                <DialogDescription>Crea un nuevo caso legal a partir de esta oportunidad.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleConvertCaseSubmit} className="space-y-4">
+                <div className="space-y-2">
+                    <Label>Referencia</Label>
+                    <Input value={convertCaseValues.reference} onChange={handleConvertCaseField("reference")} required />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label>Estado</Label>
+                        <Select value={convertCaseValues.status} onValueChange={(val) => setConvertCaseValues(prev => ({ ...prev, status: val }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>{CASE_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Categoría</Label>
+                        <Select value={convertCaseValues.category} onValueChange={(val) => setConvertCaseValues(prev => ({ ...prev, category: val }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>{CASE_CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label>Descripción</Label>
+                    <Textarea value={convertCaseValues.description} onChange={handleConvertCaseField("description")} />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={closeConvertCaseDialog}>Cancelar</Button>
+                    <Button type="submit" disabled={isConvertingCase}>{isConvertingCase ? "Creando..." : "Crear Caso"}</Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Alert */}
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar oportunidad?</AlertDialogTitle>
+                <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteOpportunity} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {isDeleting ? "Eliminando..." : "Eliminar"}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
-
-const OpportunityTableRow = React.memo(function OpportunityTableRow({ opportunity }: { opportunity: Opportunity }) {
-  // Fallback for legacy vs new API fields
-  const leadCedula = opportunity.lead_cedula || opportunity.leadCedula || 'N/A';
-  const amount = opportunity.amount;
-  const type = opportunity.opportunity_type || opportunity.creditType || 'N/A';
-  const status = opportunity.status;
-  const date = opportunity.created_at ? new Date(opportunity.created_at).toLocaleDateString() : (opportunity.startDate || 'N/A');
-  const assignedTo = opportunity.user?.name || opportunity.assignedTo || 'Sin asignar';
-
-  return (
-    <TableRow>
-      <TableCell className="font-medium">{leadCedula}</TableCell>
-      <TableCell>
-        ₡{amount?.toLocaleString('de-DE') || 0}
-      </TableCell>
-      <TableCell>{type}</TableCell>
-      <TableCell>
-        <Badge variant={getStatusVariant(status)}>{status}</Badge>
-      </TableCell>
-      <TableCell className="hidden md:table-cell">{date}</TableCell>
-      <TableCell className="hidden md:table-cell">{assignedTo}</TableCell>
-      <TableCell>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button aria-haspopup="true" size="icon" variant="ghost">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Alternar menú</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-            <DropdownMenuItem>Ver Detalle</DropdownMenuItem>
-            <DropdownMenuItem>Convertir a Crédito</DropdownMenuItem>
-            <DropdownMenuItem>Editar</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
-    </TableRow>
-  );
-});
-
-

@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('opportunities', function (Blueprint $table) {
-            $table->id(); // Auto-increment ID
+            $table->string('id')->primary(); // Custom String ID (e.g., 25-00004-OP)
 
             // Relationship to Lead/Client via Cedula (as requested)
             $table->string('lead_cedula', 20)->index();

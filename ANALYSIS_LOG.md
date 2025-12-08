@@ -376,3 +376,32 @@ Se extendió el análisis de "pruebas imaginarias" a los controladores y modelos
 
 **Estado Actual:**
 - Los controladores ahora son robustos y consistentes con los modelos. El backend está listo para integración frontend.
+
+---
+
+## Implementación del Módulo de Créditos
+
+- Fecha: 2025-12-06 16:00
+- Rol: `Desarrollador Fullstack`
+- Autor: `GitHub Copilot`
+- Resumen: Se implementó el módulo de Créditos basándose en la funcionalidad de "Casos" del proyecto de referencia (`dsf3`). Se creó la estructura completa en el backend (Laravel) y la interfaz en el frontend (Next.js).
+- Acciones tomadas:
+  - **Backend**:
+    - Creada migración `create_credits_table` para la tabla `credits`.
+    - Creada migración `create_credit_documents_table` para la tabla `credit_documents`.
+    - Creados modelos `Credit` y `CreditDocument`.
+    - Creado `CreditController` con métodos CRUD y gestión de documentos.
+    - Registradas rutas API en `routes/api.php`.
+  - **Frontend**:
+    - Creada página `src/app/dashboard/creditos/page.tsx` adaptando la lógica de "Casos".
+    - Integrado con `axios` (`@/lib/axios`) para las peticiones API.
+    - Implementado UI con componentes de Shadcn UI (Dialogs, Tables, Forms).
+    - Añadida funcionalidad de subida y gestión de documentos.
+- Archivos modificados:
+  - `backend/database/migrations/2025_12_06_203209_create_credits_table.php`
+  - `backend/database/migrations/2025_12_06_203705_create_credit_documents_table.php`
+  - `backend/app/Models/Credit.php`
+  - `backend/app/Models/CreditDocument.php`
+  - `backend/app/Http/Controllers/Api/CreditController.php`
+  - `backend/routes/api.php`
+  - `src/app/dashboard/creditos/page.tsx`

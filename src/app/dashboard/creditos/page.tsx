@@ -1,369 +1,772 @@
-// 'use client' indica que es un Componente de Cliente, lo que permite usar hooks como useState y useSearchParams.
-'use client';
+"use client";
 
-export const dynamic = 'force-dynamic';
+import type { ChangeEvent, FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil } from "lucide-react";
 
-import React, { useState } from 'react';
-import { MoreHorizontal, PlusCircle, Calendar as CalendarIcon, FileDown } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-// $$$ CONECTOR MYSQL: Se importan los datos de créditos. En el futuro, estos datos provendrán de la base de datos.
-import { credits, Credit } from '@/lib/data'; 
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation'; // Hook para leer parámetros de la URL.
-import { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
-import jsPDF from 'jspdf'; // Librería para generar PDFs.
-import 'jspdf-autotable'; // Extensión para crear tablas en jsPDF.
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import api from "@/lib/axios";
 
-// Definimos un tipo que extiende jsPDF para incluir el método autoTable.
-interface jsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: any) => jsPDF;
+interface LeadOption {
+  id: number;
+  name: string;
+  email: string | null;
 }
 
-/**
- * Función para obtener la variante de color de la insignia según el estado del crédito.
- * @param {Credit['status']} status - El estado del crédito.
- * @returns {'secondary' | 'destructive' | 'outline' | 'default'} La variante de color para el Badge.
- */
-const getStatusVariant = (status: Credit['status']) => {
-  switch (status) {
-    case 'Al día':
-      return 'secondary';
-    case 'En mora':
-      return 'destructive';
-    case 'Cancelado':
-      return 'outline';
-    default:
-      return 'default';
-  }
+interface OpportunityOption {
+  id: string;
+  title: string;
+  lead_id: number;
+  credit?: {
+    id: number;
+  } | null;
+}
+
+interface CreditDocument {
+  id: number;
+  credit_id: number;
+  name: string;
+  notes: string | null;
+  url?: string | null;
+  path?: string | null;
+  mime_type?: string | null;
+  size?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreditItem {
+  id: number;
+  reference: string;
+  title: string;
+  status: string | null;
+  category: string | null;
+  assigned_to: string | null;
+  progress: number;
+  opened_at: string | null;
+  description: string | null;
+  lead_id: number;
+  opportunity_id: string | null;
+  lead?: LeadOption | null;
+  opportunity?: { id: string; title: string | null } | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  documents?: CreditDocument[];
+}
+
+interface CreditFormValues {
+  reference: string;
+  title: string;
+  status: string;
+  category: string;
+  progress: string;
+  leadId: string;
+  opportunityId: string;
+  assignedTo: string;
+  openedAt: string;
+  description: string;
+}
+
+const CREDIT_STATUS_OPTIONS = [
+  "Para redactar",
+  "Presentados",
+  "Con curso",
+  "Rechazo de plano",
+  "Con lugar con costas",
+  "Con lugar sin costas",
+  "Sentencia"
+] as const;
+const CREDIT_CATEGORY_OPTIONS = ["Regular", "Micro-crédito", "Hipotecario", "Personal"] as const;
+
+const CREDIT_STATUS_TAB_CONFIG = [
+  { value: "all", label: "Todos" },
+  { value: "para-redactar", label: "Para redactar" },
+  { value: "presentados", label: "Presentados" },
+  { value: "auto-de-curso", label: "Auto de curso" },
+  { value: "clcc", label: "CLCC" },
+  { value: "clsc", label: "CLSC" },
+  { value: "otros", label: "Otros" },
+] as const;
+
+const TAB_STATUS_FILTERS: Record<string, string[]> = {
+  "para-redactar": ["para redactar"],
+  "presentados": ["presentados"],
+  "auto-de-curso": ["auto de curso"],
+  "clcc": ["clcc"],
+  "clsc": ["clsc"],
+  "otros": ["otros"],
 };
 
-/**
- * Componente principal de la página de Créditos.
- * Muestra una lista de créditos con pestañas para filtrarlos por tipo.
- * Permite filtrar por cliente (via URL) y por rango de fechas.
- */
+const TRACKED_STATUS_SET = new Set(
+  Object.values(TAB_STATUS_FILTERS)
+      .flat()
+      .map((status) => status.toLowerCase())
+);
+
+const normalizeStatus = (status?: string | null): string => (status ?? "").trim().toLowerCase();
+
+function formatDate(dateString?: string | null): string {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("es-CR", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function formatDateTime(dateString?: string | null): string {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("es-CR", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export default function CreditsPage() {
-  const searchParams = useSearchParams();
-  const debtorId = searchParams.get('debtorId'); // Obtenemos el 'debtorId' de la URL si existe.
-  const [date, setDate] = useState<DateRange | undefined>(undefined); // Estado para el rango de fechas del calendario.
+  const { toast } = useToast();
 
-  // $$$ CONECTOR MYSQL: La lógica de filtrado se convertirá en cláusulas WHERE en una consulta SQL.
-  // Filtramos los créditos base. Si hay un debtorId, filtramos por él; si no, usamos todos los créditos.
-  const baseFilteredCredits = debtorId
-    ? credits.filter((c) => c.debtorId === debtorId)
-    : credits;
-
-  // Aplicamos el filtro de fecha sobre los créditos ya filtrados por deudor (si aplica).
-  const filteredCredits = baseFilteredCredits.filter(credit => {
-    if (!date?.from) return true; // Si no hay fecha de inicio, no filtramos.
-    const creditDate = new Date(credit.creationDate);
-    const from = new Date(date.from);
-    from.setHours(0, 0, 0, 0); // Ajustamos la hora a medianoche para incluir todo el día.
-
-    if (!date.to) { // Si solo hay fecha de inicio, comparamos solo con esa.
-        return creditDate >= from;
-    }
-    const to = new Date(date.to);
-    to.setHours(23, 59, 59, 999); // Ajustamos la hora al final del día para incluir todo el día.
-    return creditDate >= from && creditDate <= to;
-  })
-
-  // Título y descripción dinámicos dependiendo si estamos filtrando por un deudor.
-  // $$$ CONECTOR MYSQL: El nombre del deudor vendrá de una consulta a la tabla de clientes.
-  const pageTitle = debtorId ? `Créditos de ${filteredCredits[0]?.debtorName || ''}` : 'Todos los Créditos';
-  const pageDescription = debtorId ? `Viendo todos los créditos para el cliente.` : 'Gestiona todos los créditos activos e históricos.';
+  const [credits, setCredits] = useState<CreditItem[]>([]);
+  const [leads, setLeads] = useState<LeadOption[]>([]);
+  const [opportunities, setOpportunities] = useState<OpportunityOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingLeads, setIsLoadingLeads] = useState(true);
+  const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
+  const [tabValue, setTabValue] = useState("all");
   
-  /**
-   * Maneja la exportación de los datos de la tabla a un archivo PDF.
-   * @param {Credit[]} data - Los datos de los créditos a exportar.
-   */
-  // $$$ CONECTOR ERP: La generación de reportes podría ser un servicio del ERP o requerir datos consolidados por él.
-  const handleExportPDF = (data: Credit[]) => {
-    const doc = new jsPDF() as jsPDFWithAutoTable;
-    
-    doc.text(pageTitle, 14, 16);
-    
-    doc.autoTable({
-        startY: 22,
-        head: [['Operación', 'Deudor', 'Monto Otorgado', 'Saldo Actual', 'Estado', 'Vencimiento']],
-        body: data.map(c => [
-            c.operationNumber,
-            c.debtorName,
-            c.amount.toLocaleString('de-DE'), // Usamos el formato local sin el símbolo para evitar problemas.
-            c.balance.toLocaleString('de-DE'),
-            c.status,
-            c.dueDate
-        ]),
-        headStyles: { fillColor: [19, 85, 156] }, // Color de cabecera (azul primario).
-    });
+  const [dialogState, setDialogState] = useState<"create" | "edit" | null>(null);
+  const [dialogCredit, setDialogCredit] = useState<CreditItem | null>(null);
+  const [formValues, setFormValues] = useState<CreditFormValues>({
+    reference: "",
+    title: "",
+    status: CREDIT_STATUS_OPTIONS[0],
+    category: CREDIT_CATEGORY_OPTIONS[0],
+    progress: "0",
+    leadId: "",
+    opportunityId: "",
+    assignedTo: "",
+    openedAt: "",
+    description: "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
 
-    doc.save('creditos.pdf'); // Descarga el archivo.
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [statusCredit, setStatusCredit] = useState<CreditItem | null>(null);
+  const [statusForm, setStatusForm] = useState({ status: CREDIT_STATUS_OPTIONS[0] as string, progress: "0" });
+  
+  const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
+  const [documentsCredit, setDocumentsCredit] = useState<CreditItem | null>(null);
+
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailCredit, setDetailCredit] = useState<CreditItem | null>(null);
+
+  const currentLead = useMemo(() => {
+    return formValues.leadId ? leads.find((lead) => lead.id === Number.parseInt(formValues.leadId, 10)) : null;
+  }, [formValues.leadId, leads]);
+
+  const availableOpportunities = useMemo(() => {
+    return opportunities.filter((opportunity) => {
+      const belongsToLead = formValues.leadId ? opportunity.lead_id === Number.parseInt(formValues.leadId, 10) : true;
+      const canSelectExistingCredit = dialogCredit?.opportunity_id === opportunity.id;
+      const isFree = !opportunity.credit;
+      return belongsToLead && (canSelectExistingCredit || isFree);
+    });
+  }, [opportunities, formValues.leadId, dialogCredit]);
+
+  // Mock permission for now
+  const canDownloadDocuments = true;
+
+  const fetchCredits = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.get('/api/credits');
+      setCredits(response.data);
+    } catch (error) {
+      console.error("Error fetching credits:", error);
+      toast({ title: "Error", description: "No se pudieron cargar los créditos.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const fetchLeads = useCallback(async () => {
+    try {
+      setIsLoadingLeads(true);
+      const response = await api.get('/api/leads');
+      const data = response.data.data || response.data;
+      setLeads(data.map((l: any) => ({ id: l.id, name: l.name, email: l.email })));
+    } catch (error) {
+      console.error("Error fetching leads:", error);
+    } finally {
+      setIsLoadingLeads(false);
+    }
+  }, []);
+
+  const fetchOpportunities = useCallback(async () => {
+    try {
+      setIsLoadingOpportunities(true);
+      const response = await api.get('/api/opportunities');
+      const data = response.data.data || response.data;
+      setOpportunities(data.map((o: any) => ({ 
+        id: o.id, 
+        title: `${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`, 
+        lead_id: o.lead?.id 
+      })));
+    } catch (error) {
+      console.error("Error fetching opportunities:", error);
+    } finally {
+      setIsLoadingOpportunities(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCredits();
+    fetchLeads();
+    fetchOpportunities();
+  }, [fetchCredits, fetchLeads, fetchOpportunities]);
+
+  const getCreditsForTab = useCallback(
+    (value: string): CreditItem[] => {
+        if (value === "all") {
+            return credits;
+        }
+        if (value === "otros") {
+            return credits.filter((item) => {
+                const normalized = normalizeStatus(item.status);
+                return normalized.length > 0 && !TRACKED_STATUS_SET.has(normalized);
+            });
+        }
+        const statuses = TAB_STATUS_FILTERS[value];
+        if (!statuses) {
+            return credits;
+        }
+        return credits.filter((item) => statuses.includes(normalizeStatus(item.status)));
+    },
+    [credits]
+  );
+
+  const handleCreate = () => {
+    setFormValues({
+      reference: "",
+      title: "",
+      status: CREDIT_STATUS_OPTIONS[0],
+      category: CREDIT_CATEGORY_OPTIONS[0],
+      progress: "0",
+      leadId: "",
+      opportunityId: "",
+      assignedTo: "",
+      openedAt: new Date().toISOString().split('T')[0],
+      description: "",
+    });
+    setDialogCredit(null);
+    setDialogState("create");
+  };
+
+  const handleEdit = (credit: CreditItem) => {
+    setFormValues({
+      reference: credit.reference,
+      title: credit.title,
+      status: credit.status || CREDIT_STATUS_OPTIONS[0],
+      category: credit.category || CREDIT_CATEGORY_OPTIONS[0],
+      progress: String(credit.progress),
+      leadId: String(credit.lead_id),
+      opportunityId: credit.opportunity_id ? String(credit.opportunity_id) : "",
+      assignedTo: credit.assigned_to || "",
+      openedAt: credit.opened_at ? credit.opened_at.split('T')[0] : "",
+      description: credit.description || "",
+    });
+    setDialogCredit(credit);
+    setDialogState("edit");
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const body = {
+        reference: formValues.reference,
+        title: formValues.title,
+        status: formValues.status,
+        category: formValues.category,
+        progress: parseInt(formValues.progress) || 0,
+        lead_id: parseInt(formValues.leadId),
+        opportunity_id: formValues.opportunityId || null,
+        assigned_to: formValues.assignedTo,
+        opened_at: formValues.openedAt,
+        description: formValues.description,
+      };
+
+      if (dialogState === "create") {
+        await api.post('/api/credits', body);
+      } else {
+        await api.put(`/api/credits/${dialogCredit?.id}`, body);
+      }
+
+      toast({ title: "Éxito", description: "Crédito guardado correctamente." });
+      setDialogState(null);
+      fetchCredits();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleStatusUpdate = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!statusCredit) return;
+    setIsSaving(true);
+    try {
+        await api.put(`/api/credits/${statusCredit.id}`, {
+            status: statusForm.status,
+            progress: parseInt(statusForm.progress) || 0
+        });
+        toast({ title: "Éxito", description: "Estado actualizado." });
+        setIsStatusOpen(false);
+        fetchCredits();
+    } catch (error: any) {
+        toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   return (
-    <Tabs defaultValue="all">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <TabsList>
-          <TabsTrigger value="all">Todos</TabsTrigger>
-          <TabsTrigger value="regular">Crédito Regular</TabsTrigger>
-          <TabsTrigger value="micro">Micro-Crédito</TabsTrigger>
-          <TabsTrigger value="history">Historial</TabsTrigger>
-        </TabsList>
-        <div className="flex items-center gap-2">
-           {/* Si estamos filtrando por un deudor, mostramos un botón para volver a ver todos los créditos. */}
-           {debtorId && (
-            <Button variant="outline" asChild>
-              <Link href="/dashboard/creditos">Ver todos los créditos</Link>
-            </Button>
-          )}
-          {/* $$$ CONECTOR MYSQL: Este botón iniciará un flujo para crear un nuevo registro en la tabla de créditos. */}
-          <Button size="sm" className="gap-1">
-            <PlusCircle className="h-4 w-4" />
-            Agregar Crédito
-          </Button>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
+          <p className="text-muted-foreground">Gestiona los créditos y sus documentos.</p>
         </div>
+        <Button onClick={handleCreate}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nuevo Crédito
+        </Button>
       </div>
-      <TabsContent value="all">
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <CardTitle>{pageTitle}</CardTitle>
-                    <CardDescription>{pageDescription}</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                    {/* Componente Popover que contiene el calendario para seleccionar el rango de fechas. */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                        <Button
-                            id="date"
-                            variant={"outline"}
-                            className={cn(
-                            "w-[300px] justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date?.from ? (
-                            date.to ? (
-                                <>
-                                {format(date.from, "LLL dd, y")} -{" "}
-                                {format(date.to, "LLL dd, y")}
-                                </>
-                            ) : (
-                                format(date.from, "LLL dd, y")
-                            )
-                            ) : (
-                            <span>Seleccionar rango de fechas</span>
-                            )}
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar
-                            initialFocus
-                            mode="range"
-                            defaultMonth={date?.from}
-                            selected={date}
-                            onSelect={setDate}
-                            numberOfMonths={2}
-                        />
-                        </PopoverContent>
-                    </Popover>
-                    <Button variant="secondary" onClick={() => setDate(undefined)}>Limpiar</Button>
-                    <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.status !== 'Cancelado'))}>
-                        <FileDown className="mr-2 h-4 w-4"/>
-                        Exportar a PDF
-                    </Button>
-                </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* $$$ CONECTOR MYSQL: La tabla se llenará con los resultados de la consulta a la base de datos, aplicando los filtros correspondientes. */}
-            <CreditsTable credits={filteredCredits.filter(c => c.status !== 'Cancelado')} />
-          </CardContent>
-        </Card>
-      </TabsContent>
-       <TabsContent value="regular">
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Créditos Regulares</CardTitle>
-                <CardDescription>Todos los créditos de tipo regular.</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.type === 'Regular' && c.status !== 'Cancelado'))}>
-                  <FileDown className="mr-2 h-4 w-4"/>
-                  Exportar a PDF
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CreditsTable credits={filteredCredits.filter(c => c.type === 'Regular' && c.status !== 'Cancelado')} />
-          </CardContent>
-        </Card>
-      </TabsContent>
-      <TabsContent value="micro">
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Micro-Créditos</CardTitle>
-                <CardDescription>Todos los créditos de tipo micro-crédito.</CardDescription>
-              </div>
-               <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.type === 'Micro-crédito' && c.status !== 'Cancelado'))}>
-                  <FileDown className="mr-2 h-4 w-4"/>
-                  Exportar a PDF
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CreditsTable credits={filteredCredits.filter(c => c.type === 'Micro-crédito' && c.status !== 'Cancelado')} />
-          </CardContent>
-        </Card>
-      </TabsContent>
-      <TabsContent value="history">
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-                <div>
-                    <CardTitle>Historial de Créditos</CardTitle>
-                    <CardDescription>Créditos que ya han sido cancelados.</CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => handleExportPDF(filteredCredits.filter(c => c.status === 'Cancelado'))}>
-                    <FileDown className="mr-2 h-4 w-4"/>
-                    Exportar a PDF
-                </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CreditsTable credits={filteredCredits.filter(c => c.status === 'Cancelado')} />
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
-  );
-}
 
-/**
- * Componente reutilizable que renderiza la tabla de créditos.
- * @param {{ credits: Credit[] }} props - Las propiedades, que incluyen la lista de créditos a mostrar.
- */
-function CreditsTable({ credits }: { credits: Credit[] }) {
-  return (
-    <div className="relative w-full overflow-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Operación</TableHead>
-            <TableHead>Deudor</TableHead>
-            <TableHead className="hidden md:table-cell">Tipo</TableHead>
-            <TableHead className="text-right">Monto Otorgado</TableHead>
-            <TableHead className="text-right">Saldo Actual</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="hidden md:table-cell">Vencimiento</TableHead>
-            <TableHead>
-              <span className="sr-only">Acciones</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {credits.map((credit) => (
-            <CreditTableRow key={credit.operationNumber} credit={credit} />
-          ))}
-        </TableBody>
-      </Table>
+      <Tabs value={tabValue} onValueChange={setTabValue}>
+        <TabsList className="flex flex-wrap gap-2">
+            {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="capitalize">
+                    {tab.label}
+                </TabsTrigger>
+            ))}
+        </TabsList>
+
+        {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+            <TabsContent key={tab.value} value={tab.value}>
+                <Card>
+                    <CardContent>
+                    <Table className="p-4">
+                        <TableHeader>
+                        <TableRow>
+                            <TableHead>Oportunidad</TableHead>
+                            <TableHead>Referencia</TableHead>
+                            <TableHead>Título</TableHead>
+                            <TableHead>Lead</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Progreso</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {getCreditsForTab(tab.value).map((credit) => (
+                            <TableRow key={credit.id}>
+                            <TableCell>{credit.opportunity?.id || "-"}</TableCell>
+                            <TableCell className="font-medium">{credit.reference}</TableCell>
+                            <TableCell>{credit.title}</TableCell>
+                            <TableCell>
+                                {credit.lead ? (
+                                    <div className="flex flex-col">
+                                        <span>{credit.lead.name}</span>
+                                        <span className="text-xs text-muted-foreground">{credit.lead.email}</span>
+                                    </div>
+                                ) : "-"}
+                            </TableCell>
+                            <TableCell><Badge variant="secondary">{credit.status}</Badge></TableCell>
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                    <Progress value={credit.progress} className="w-[60px]" />
+                                    <span className="text-xs text-muted-foreground">{credit.progress}%</span>
+                                </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        onClick={() => { setDetailCredit(credit); setIsDetailOpen(true); }} 
+                                        title="Ver detalle"
+                                        className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        onClick={() => { setStatusCredit(credit); setStatusForm({ status: credit.status || "Abierto", progress: String(credit.progress) }); setIsStatusOpen(true); }} 
+                                        title="Actualizar estado"
+                                        className="border-blue-500 text-blue-500 hover:bg-blue-50 hover:text-blue-600"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                        <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>Gestionar documentos</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleEdit(credit)}>Editar</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                    </CardContent>
+                </Card>
+            </TabsContent>
+        ))}
+      </Tabs>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={!!dialogState} onOpenChange={(open) => !open && setDialogState(null)}>
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>{dialogState === 'create' ? 'Nuevo Crédito' : 'Editar Crédito'}</DialogTitle>
+                <DialogDescription>Completa la información del crédito.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="reference">Referencia</Label>
+                        <Input 
+                            id="reference"
+                            placeholder="Ej: CRED-ABC12345"
+                            value={formValues.reference} 
+                            onChange={e => setFormValues({...formValues, reference: e.target.value})} 
+                            required 
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="title">Título</Label>
+                        <Input 
+                            id="title"
+                            placeholder="Crédito Hipotecario..."
+                            value={formValues.title} 
+                            onChange={e => setFormValues({...formValues, title: e.target.value})} 
+                            required 
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="status">Estado</Label>
+                        <Select value={formValues.status} onValueChange={v => setFormValues({...formValues, status: v})}>
+                            <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
+                            <SelectContent>
+                                {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="category">Categoría</Label>
+                        <Select value={formValues.category} onValueChange={v => setFormValues({...formValues, category: v})}>
+                            <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
+                            <SelectContent>
+                                {CREDIT_CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="progress">Progreso (%)</Label>
+                        <Input 
+                            id="progress"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={formValues.progress} 
+                            onChange={e => setFormValues({...formValues, progress: e.target.value})} 
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="lead">Lead</Label>
+                        <Select value={formValues.leadId} onValueChange={v => setFormValues({...formValues, leadId: v})}>
+                            <SelectTrigger id="lead"><SelectValue placeholder="Selecciona un lead" /></SelectTrigger>
+                            <SelectContent>
+                                {leads.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="opportunity">Oportunidad (Opcional)</Label>
+                        <Select value={formValues.opportunityId} onValueChange={v => setFormValues({...formValues, opportunityId: v})}>
+                            <SelectTrigger id="opportunity"><SelectValue placeholder="Selecciona una oportunidad" /></SelectTrigger>
+                            <SelectContent>
+                                {availableOpportunities.map(o => (
+                                    <SelectItem key={o.id} value={String(o.id)}>{o.title}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="assignedTo">Responsable</Label>
+                        <Input 
+                            id="assignedTo"
+                            placeholder="Nombre del responsable"
+                            value={formValues.assignedTo} 
+                            onChange={e => setFormValues({...formValues, assignedTo: e.target.value})} 
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="openedAt">Fecha Apertura</Label>
+                        <Input 
+                            id="openedAt"
+                            type="date" 
+                            value={formValues.openedAt} 
+                            onChange={e => setFormValues({...formValues, openedAt: e.target.value})} 
+                        />
+                    </div>
+                    <div className="sm:col-span-2 space-y-2">
+                        <Label htmlFor="description">Descripción</Label>
+                        <Textarea 
+                            id="description"
+                            className="min-h-[120px]"
+                            placeholder="Describe el contexto del crédito..."
+                            value={formValues.description} 
+                            onChange={e => setFormValues({...formValues, description: e.target.value})} 
+                        />
+                    </div>
+                </div>
+
+                {currentLead ? (
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base">Información del lead</CardTitle>
+                            <CardDescription>Resumen del lead relacionado con este crédito.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-sm">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                <div>
+                                    <span className="font-medium">Nombre:</span> {currentLead.name}
+                                </div>
+                                <div>
+                                    <span className="font-medium">Correo:</span> {currentLead.email ?? "-"}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : null}
+
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setDialogState(null)}>Cancelar</Button>
+                    <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Dialog */}
+      <Dialog open={isStatusOpen} onOpenChange={setIsStatusOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Actualizar Estado</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleStatusUpdate} className="space-y-4">
+                <div className="space-y-2">
+                    <Label>Estado</Label>
+                    <Select value={statusForm.status} onValueChange={v => setStatusForm({...statusForm, status: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label>Progreso (%)</Label>
+                    <Input type="number" min="0" max="100" value={statusForm.progress} onChange={e => setStatusForm({...statusForm, progress: e.target.value})} />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsStatusOpen(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={isSaving}>Actualizar</Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Documents Dialog */}
+      <CreditDocumentsDialog 
+        isOpen={isDocumentsOpen} 
+        credit={documentsCredit} 
+        onClose={() => setIsDocumentsOpen(false)} 
+        canDownloadDocuments={canDownloadDocuments}
+      />
+
+      {/* Detail Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>Detalle del Crédito</DialogTitle>
+            </DialogHeader>
+            {detailCredit && (
+                <div className="grid grid-cols-2 gap-4">
+                    <div><Label className="text-muted-foreground">Referencia</Label><p>{detailCredit.reference}</p></div>
+                    <div><Label className="text-muted-foreground">Título</Label><p>{detailCredit.title}</p></div>
+                    <div><Label className="text-muted-foreground">Estado</Label><p>{detailCredit.status}</p></div>
+                    <div><Label className="text-muted-foreground">Categoría</Label><p>{detailCredit.category}</p></div>
+                    <div><Label className="text-muted-foreground">Lead</Label><p>{detailCredit.lead?.name}</p></div>
+                    <div><Label className="text-muted-foreground">Responsable</Label><p>{detailCredit.assigned_to}</p></div>
+                    <div className="col-span-2"><Label className="text-muted-foreground">Descripción</Label><p>{detailCredit.description}</p></div>
+                </div>
+            )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
+function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }: any) {
+    const { toast } = useToast();
+    const [documents, setDocuments] = useState<CreditDocument[]>([]);
+    const [file, setFile] = useState<File | null>(null);
+    const [name, setName] = useState("");
+    const [notes, setNotes] = useState("");
+    const [isUploading, setIsUploading] = useState(false);
 
-/**
- * Componente que renderiza una única fila de la tabla de créditos.
- * Usamos React.memo para optimizar el rendimiento, evitando que se vuelva a renderizar si sus props no cambian.
- * @param {{ credit: Credit }} props - Las propiedades del componente, que incluyen el objeto de crédito.
- */
-const CreditTableRow = React.memo(function CreditTableRow({ credit }: { credit: Credit }) {
-  return (
-      <TableRow className="hover:bg-muted/50">
-        <TableCell>
-          <Link
-            href={`/dashboard/creditos/${credit.operationNumber}`}
-            className="font-medium hover:underline"
-          >
-            {credit.operationNumber}
-          </Link>
-        </TableCell>
-        <TableCell>
-            <div className="font-medium">{credit.debtorName}</div>
-            <div className="text-sm text-muted-foreground">{credit.debtorId}</div>
-        </TableCell>
-        <TableCell className="hidden md:table-cell">{credit.type}</TableCell>
-        <TableCell className="text-right font-mono">
-          ₡{credit.amount.toLocaleString('de-DE')}
-        </TableCell>
-        <TableCell className="text-right font-mono font-semibold">
-          ₡{credit.balance.toLocaleString('de-DE')}
-        </TableCell>
-        <TableCell>
-          <Badge variant={getStatusVariant(credit.status)}>
-            {credit.status}
-          </Badge>
-        </TableCell>
-        <TableCell className="hidden md:table-cell">
-          {credit.dueDate}
-        </TableCell>
-        <TableCell>
-          {/* $$$ CONECTOR MYSQL: Las acciones de este menú (actualizar, eliminar) afectarán la base de datos. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button aria-haspopup="true" size="icon" variant="ghost">
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">Alternar menú</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/creditos/${credit.operationNumber}`}>
-                  Ver Detalles
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem>Actualizar Estado</DropdownMenuItem>
-              <DropdownMenuItem>Gestionar Documentos</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </TableCell>
-      </TableRow>
-  );
-});
+    const fetchDocuments = useCallback(async () => {
+        if (!credit) return;
+        try {
+            const res = await api.get(`/api/credits/${credit.id}/documents`);
+            setDocuments(res.data);
+        } catch (e) { console.error(e); }
+    }, [credit]);
+
+    useEffect(() => {
+        if (isOpen) fetchDocuments();
+    }, [isOpen, fetchDocuments]);
+
+    const handleUpload = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!credit || !file) return;
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("name", name);
+            formData.append("notes", notes);
+
+            await api.post(`/api/credits/${credit.id}/documents`, formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+            
+            toast({ title: "Documento subido" });
+            setName(""); setNotes(""); setFile(null);
+            fetchDocuments();
+        } catch (e) {
+            toast({ title: "Error", variant: "destructive" });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleDelete = async (docId: number) => {
+        if (!credit) return;
+        try {
+            await api.delete(`/api/credits/${credit.id}/documents/${docId}`);
+            fetchDocuments();
+        } catch (e) { console.error(e); }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader><DialogTitle>Documentos</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                    <form onSubmit={handleUpload} className="space-y-4 border p-4 rounded">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Nombre</Label>
+                                <Input value={name} onChange={e => setName(e.target.value)} required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Archivo</Label>
+                                <Input type="file" onChange={e => setFile(e.target.files?.[0] || null)} required />
+                            </div>
+                            <div className="col-span-2 space-y-2">
+                                <Label>Notas</Label>
+                                <Input value={notes} onChange={e => setNotes(e.target.value)} />
+                            </div>
+                        </div>
+                        <Button type="submit" disabled={isUploading}>{isUploading ? "Subiendo..." : "Subir Documento"}</Button>
+                    </form>
+
+                    <Table>
+                        <TableHeader>
+                            <TableRow><TableHead>Nombre</TableHead><TableHead>Notas</TableHead><TableHead>Acciones</TableHead></TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {documents.map(doc => (
+                                <TableRow key={doc.id}>
+                                    <TableCell>
+                                        {doc.url ? <a href={doc.url} target="_blank" className="text-primary hover:underline">{doc.name}</a> : doc.name}
+                                    </TableCell>
+                                    <TableCell>{doc.notes}</TableCell>
+                                    <TableCell>
+                                        <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} className="text-destructive">Eliminar</Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
