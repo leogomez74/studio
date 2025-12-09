@@ -16,6 +16,7 @@ class CrmSeeder extends Seeder
     {
         // 1. Seed Users (Staff)
         $usersData = [
+            ['name' => 'Administrador', 'email' => 'admin@example.cr'],
             ['name' => 'Carlos Mendez', 'email' => 'carlosm@pep.cr'],
             ['name' => 'Wilmer Marquez', 'email' => 'coder@gomez.cr'],
             ['name' => 'Ahixel Rojas', 'email' => 'ahixel@pep.cr'],

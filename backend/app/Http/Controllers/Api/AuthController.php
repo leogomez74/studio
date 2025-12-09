@@ -46,7 +46,15 @@ class AuthController extends Controller
             $request->session()->regenerate();
         }
 
-        return response()->json(['message' => 'Usuario logueado exitosamente','user'=> Auth::user()], 200);
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Usuario logueado exitosamente',
+            'user' => $user,
+            'token' => $token
+        ], 200);
     }
 
     public function logout(Request $request)

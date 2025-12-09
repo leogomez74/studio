@@ -23,6 +23,7 @@ import {
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Logo } from "@/components/logo";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { AuthGuard } from "@/components/auth-guard";
 
 // Esta es la función principal del layout del dashboard.
 // Recibe 'children', que es el contenido específico de cada página del dashboard.
@@ -68,5 +69,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
       </SidebarInset>
     </SidebarProvider>
+    //</AuthGuard>
   );
 }
