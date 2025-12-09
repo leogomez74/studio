@@ -1,6 +1,6 @@
 // 'use client' indica que es un Componente de Cliente, permitiendo el uso de estado y efectos.
 'use client';
-import React, { useState } from 'react';
+import React, { useState, use } from 'react';
 import {
   ArrowLeft,
   Paperclip,
@@ -236,19 +236,19 @@ function CreditDetailClient({ credit }: { credit: Credit | undefined }) {
               <div className="grid gap-1">
                 <h3 className="font-medium">Monto Otorgado</h3>
                 <p className="text-muted-foreground">
-                  ₡{credit.amount.toLocaleString('de-DE')}
+                  ₡{(credit.amount ?? 0).toLocaleString('de-DE')}
                 </p>
               </div>
               <div className="grid gap-1">
                 <h3 className="font-medium">Saldo Actual</h3>
                 <p className="font-semibold text-primary">
-                  ₡{credit.balance.toLocaleString('de-DE')}
+                  ₡{credit.balance!.toLocaleString('de-DE')}
                 </p>
               </div>
               <div className="grid gap-1">
                 <h3 className="font-medium">Cuota Mensual</h3>
                 <p className="text-muted-foreground">
-                  ₡{credit.fee.toLocaleString('de-DE')}
+                  ₡{credit.fee?.toLocaleString('de-DE') || '0'}
                 </p>
               </div>
               <div className="grid gap-1">
@@ -369,11 +369,11 @@ function CreditDetailClient({ credit }: { credit: Credit | undefined }) {
                   className="flex-1 overflow-y-auto"
                 >
                   {/* El componente de chat cargará datos de la base de datos. */}
-                  <CaseChat conversationId={credit.operationNumber} />
+                  <CaseChat conversationId={credit.operationNumber!} />
                 </TabsContent>
                 <TabsContent value="tareas" className="flex-1 overflow-y-auto">
                   {/* El componente de tareas cargará datos de la base de datos. */}
-                  <CreditTasks creditId={credit.operationNumber} />
+                  <CreditTasks creditId={credit.operationNumber!} />
                 </TabsContent>
               </Tabs>
             </Card>
@@ -391,8 +391,9 @@ function CreditDetailClient({ credit }: { credit: Credit | undefined }) {
 export default function CreditDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const credit = credits.find((c) => c.operationNumber === params.id);
+  const { id } = use(params);
+  const credit = credits.find((c) => String(c.id) === id || c.operationNumber === id || c.numero_operacion === id);
   return <CreditDetailClient credit={credit} />
 }

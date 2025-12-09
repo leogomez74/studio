@@ -143,20 +143,31 @@ export type Credit = {
   progress?: number;
   lead_id?: number;
   opportunity_id?: string;
-  assigned_to?: number;
+  assigned_to?: number | string | null;
   opened_at?: string;
   description?: string;
-  tipo_credito?: string;
-  numero_operacion?: string;
-  monto_credito?: number;
-  cuota?: number;
-  fecha_ultimo_pago?: string;
-  garantia?: string;
-  fecha_culminacion_credito?: string;
-  tasa_anual?: number;
-  plazo?: number;
-  cuotas_atrasadas?: number;
+  
+  // New fields
+  tipo_credito?: string | null;
+  numero_operacion?: string | null;
+  monto_credito?: number | null;
+  cuota?: number | null;
+  fecha_ultimo_pago?: string | null;
+  garantia?: string | null;
+  fecha_culminacion_credito?: string | null;
+  tasa_anual?: number | null;
+  plazo?: number | null;
+  cuotas_atrasadas?: number | null;
+  deductora?: { id: number; nombre: string } | null;
   deductora_id?: number;
+  divisa?: string | null;
+  linea?: string | null;
+  primera_deduccion?: string | null;
+  saldo?: number | null;
+  proceso?: string | null;
+  documento_id?: string | null;
+  lead?: { id: number; name: string; email: string | null } | null;
+  opportunity?: { id: string; title: string | null } | null;
 
   // Legacy / UI fields
   operationNumber?: string;
@@ -586,27 +597,187 @@ export const opportunities: Opportunity[] = [
 ];
 
 export const credits: Credit[] = [
-    { operationNumber: 'CR-001', debtorName: 'John Doe', debtorId: '6-4444-5555', employer: 'Ministerio de Educación Pública', type: 'Regular', amount: 3000000, balance: 2500000, fee: 150000, rate: 18, term: 24, status: 'Al día', overdueFees: 0, creationDate: '2023-01-15', dueDate: '2025-01-15', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'CR-002', debtorName: 'Ana Silva Rojas', debtorId: '1-1234-5678', employer: 'Caja Costarricense de Seguro Social', type: 'Regular', amount: 800000, balance: 450000, fee: 75000, rate: 24, term: 12, status: 'En mora', overdueFees: 1, daysInArrears: 25, creationDate: '2023-06-20', dueDate: '2024-06-20', deductingEntity: 'CS Magisterio' },
-    { operationNumber: 'CR-003', debtorName: 'Jane Smith', debtorId: '7-5555-6666', employer: 'Poder Judicial', type: 'Regular', amount: 7000000, balance: 0, fee: 350000, rate: 20, term: 36, status: 'Cancelado', overdueFees: 0, creationDate: '2021-02-10', dueDate: '2024-02-10', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'CR-004', debtorName: 'Ana Silva Rojas', debtorId: '1-1234-5678', employer: 'Instituto Costarricense de Electricidad', type: 'Regular', amount: 1000000, balance: 100000, fee: 100000, rate: 22, term: 12, status: 'En cobro judicial', overdueFees: 3, daysInArrears: 85, expediente: '21-001234-1027-CA', creationDate: '2023-03-01', dueDate: '2024-03-01', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'CR-005', debtorName: 'Lucía Méndez', debtorId: '9-7777-8888', employer: 'Ministerio de Hacienda', type: 'Regular', amount: 4500000, balance: 4000000, fee: 200000, rate: 19, term: 36, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-02-11', dueDate: '2026-02-11', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'CR-006', debtorName: 'Carlos Fernández', debtorId: '1-8888-9999', employer: 'Ministerio de Educación Pública', type: 'Regular', amount: 1200000, balance: 800000, fee: 60000, rate: 20, term: 24, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-03-12', dueDate: '2025-03-12', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'CR-007', debtorName: 'Sofía Hernández', debtorId: '2-9999-0000', employer: 'Caja Costarricense de Seguro Social', type: 'Regular', amount: 2500000, balance: 2400000, fee: 125000, rate: 21, term: 24, status: 'En mora', overdueFees: 2, daysInArrears: 45, creationDate: '2023-04-13', dueDate: '2025-04-13', deductingEntity: 'CS Magisterio' },
-    { operationNumber: 'CR-008', debtorName: 'Miguel González', debtorId: '3-0000-1111', employer: 'Poder Judicial', type: 'Regular', amount: 3800000, balance: 3500000, fee: 180000, rate: 18.5, term: 36, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-05-14', dueDate: '2026-05-14', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'CR-009', debtorName: 'Valentina Rossi', debtorId: '4-1111-2222', employer: 'Ministerio de Educación Pública', type: 'Regular', amount: 5000000, balance: 4800000, fee: 250000, rate: 22, term: 48, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-06-15', dueDate: '2027-06-15', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'CR-010', debtorName: 'Javier Rodríguez', debtorId: '5-2222-3333', employer: 'Caja Costarricense de Seguro Social', type: 'Regular', amount: 1800000, balance: 1500000, fee: 90000, rate: 20, term: 24, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-07-16', dueDate: '2025-07-16', deductingEntity: 'CS Magisterio' },
-    { operationNumber: 'CR-011', debtorName: 'Gabriela Vargas', debtorId: '1-7777-8888', employer: 'Poder Judicial', type: 'Regular', amount: 2000000, balance: 1500000, fee: 120000, rate: 23, term: 24, status: 'En cobro judicial', overdueFees: 5, daysInArrears: 130, expediente: '22-004567-1027-CA', creationDate: '2022-05-21', dueDate: '2024-05-21', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'CR-012', debtorName: 'Sebastián Soto', debtorId: '9-6666-7777', employer: 'Poder Judicial', type: 'Regular', amount: 2500000, balance: 2000000, fee: 150000, rate: 25, term: 24, status: 'En cobro judicial', overdueFees: 6, daysInArrears: 190, expediente: '22-008899-1027-CA', creationDate: '2022-04-01', dueDate: '2024-04-01', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'CR-013', debtorName: 'Valentina Rossi', debtorId: '4-1111-2222', employer: 'Ministerio de Hacienda', type: 'Regular', amount: 3000000, balance: 2800000, fee: 180000, rate: 26, term: 36, status: 'En cobro judicial', overdueFees: 7, daysInArrears: 220, expediente: '22-009911-1027-CA', creationDate: '2022-02-15', dueDate: '2025-02-15', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'CR-014', debtorName: 'John Doe', debtorId: '6-4444-5555', employer: 'Ministerio de Hacienda', type: 'Regular', amount: 4000000, balance: 3500000, fee: 200000, rate: 21, term: 36, status: 'En cobro judicial', overdueFees: 4, daysInArrears: 110, expediente: '23-001122-1027-CA', creationDate: '2023-01-05', dueDate: '2026-01-05', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'CR-015', debtorName: 'Jane Smith', debtorId: '7-5555-6666', employer: 'Ministerio de Educación Pública', type: 'Regular', amount: 1500000, balance: 1300000, fee: 80000, rate: 22, term: 24, status: 'En cobro judicial', overdueFees: 5, daysInArrears: 140, expediente: '23-003344-1027-CA', creationDate: '2022-11-20', dueDate: '2024-11-20', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'MC-001', debtorName: 'Camila Gómez', debtorId: '6-3333-4444', employer: 'Ministerio de Educación Pública', type: 'Micro-crédito', amount: 500000, balance: 300000, fee: 50000, rate: 24, term: 12, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-08-17', dueDate: '2024-08-17', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'MC-002', debtorName: 'Mateo Díaz', debtorId: '7-4444-5555', employer: 'Caja Costarricense de Seguro Social', type: 'Micro-crédito', amount: 650000, balance: 200000, fee: 65000, rate: 25, term: 12, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-09-18', dueDate: '2024-09-18', deductingEntity: 'CS Magisterio' },
-    { operationNumber: 'MC-003', debtorName: 'Sebastián Soto', debtorId: '9-6666-7777', employer: 'Poder Judicial', type: 'Micro-crédito', amount: 400000, balance: 400000, fee: 45000, rate: 26, term: 12, status: 'En mora', overdueFees: 1, daysInArrears: 30, creationDate: '2023-10-20', dueDate: '2024-10-20', deductingEntity: 'CoopeJudicial' },
-    { operationNumber: 'MC-004', debtorName: 'Bruno Costa Marin', debtorId: '2-0987-6543', employer: 'Ministerio de Educación Pública', type: 'Micro-crédito', amount: 690000, balance: 690000, fee: 70000, rate: 24, term: 12, status: 'Al día', overdueFees: 0, daysInArrears: 0, creationDate: '2023-11-02', dueDate: '2024-11-02', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'MC-005', debtorName: 'Peter Jones', debtorId: '8-6666-7777', employer: 'Ministerio de Educación Pública', type: 'Micro-crédito', amount: 300000, balance: 0, fee: 30000, rate: 24, term: 12, status: 'Cancelado', overdueFees: 0, creationDate: '2021-05-10', dueDate: '2022-05-10', deductingEntity: 'CoopeAnde' },
-    { operationNumber: 'MC-006', debtorName: 'Ana Silva Rojas', debtorId: '1-1234-5678', employer: 'Caja Costarricense de Seguro Social', type: 'Micro-crédito', amount: 550000, balance: 50000, fee: 55000, rate: 25, term: 12, status: 'En mora', overdueFees: 3, daysInArrears: 70, creationDate: '2023-02-01', dueDate: '2024-02-01', deductingEntity: 'CS Magisterio' },
+    {
+        id: 1,
+        numero_operacion: 'CR-2024-001',
+        tipo_credito: 'personal',
+        status: 'activo',
+        monto_credito: 5000000,
+        saldo: 4500000,
+        cuota: 150000,
+        plazo: 48,
+        tasa_anual: 18.5,
+        divisa: 'CRC',
+        fecha_ultimo_pago: '2024-01-15',
+        primera_deduccion: '2024-02-15',
+        garantia: 'Fiduciaria',
+        fecha_culminacion_credito: '2028-01-15',
+        cuotas_atrasadas: 0,
+        deductora: { id: 1, nombre: 'CoopeAnde' },
+        lead: { id: 1, name: 'Juan Perez', email: 'juan.perez@example.com' },
+        operationNumber: 'CR-2024-001', // Legacy
+        debtorName: 'Juan Perez', // Legacy
+        amount: 5000000, // Legacy
+        balance: 4500000, // Legacy
+    },
+    {
+        id: 2,
+        numero_operacion: 'CR-2023-055',
+        tipo_credito: 'hipotecario',
+        status: 'mora',
+        monto_credito: 150000,
+        saldo: 145000,
+        cuota: 1200,
+        plazo: 240,
+        tasa_anual: 7.5,
+        divisa: 'USD',
+        fecha_ultimo_pago: '2023-11-01',
+        primera_deduccion: '2023-06-01',
+        garantia: 'Hipoteca 1er Grado',
+        fecha_culminacion_credito: '2043-06-01',
+        cuotas_atrasadas: 2,
+        deductora: { id: 2, nombre: 'Banco Nacional' },
+        lead: { id: 2, name: 'Maria Rodriguez', email: 'maria.rod@example.com' },
+        operationNumber: 'CR-2023-055',
+        debtorName: 'Maria Rodriguez',
+        amount: 150000,
+        balance: 145000,
+    },
+    {
+        id: 3,
+        numero_operacion: 'CR-2022-102',
+        tipo_credito: 'prendario',
+        status: 'cerrado',
+        monto_credito: 8000000,
+        saldo: 0,
+        cuota: 250000,
+        plazo: 36,
+        tasa_anual: 15.0,
+        divisa: 'CRC',
+        fecha_ultimo_pago: '2024-02-28',
+        primera_deduccion: '2022-11-01',
+        garantia: 'Vehículo 2020',
+        fecha_culminacion_credito: '2025-10-01',
+        cuotas_atrasadas: 0,
+        deductora: { id: 3, nombre: 'BAC Credomatic' },
+        lead: { id: 3, name: 'Carlos Sanchez', email: 'carlos.s@example.com' },
+        operationNumber: 'CR-2022-102',
+        debtorName: 'Carlos Sanchez',
+        amount: 8000000,
+        balance: 0,
+    },
+    {
+        id: 4,
+        numero_operacion: 'CR-2024-010',
+        tipo_credito: 'personal',
+        status: 'legal',
+        monto_credito: 10000,
+        saldo: 9800,
+        cuota: 500,
+        plazo: 24,
+        tasa_anual: 12.0,
+        divisa: 'EUR',
+        fecha_ultimo_pago: '2023-12-15',
+        primera_deduccion: '2024-01-15',
+        garantia: 'Pagaré',
+        fecha_culminacion_credito: '2026-01-15',
+        cuotas_atrasadas: 4,
+        deductora: { id: 1, nombre: 'CoopeAnde' },
+        lead: { id: 4, name: 'Ana White', email: 'ana.white@example.com' },
+        operationNumber: 'CR-2024-010',
+        debtorName: 'Ana White',
+        amount: 10000,
+        balance: 9800,
+    },
+    {
+        id: 5,
+        numero_operacion: 'CR-2024-088',
+        tipo_credito: 'personal',
+        status: 'activo',
+        monto_credito: 5000,
+        saldo: 4800,
+        cuota: 200,
+        plazo: 36,
+        tasa_anual: 10.0,
+        divisa: 'GBP',
+        fecha_ultimo_pago: '2024-03-01',
+        primera_deduccion: '2024-03-01',
+        garantia: 'Fiduciaria',
+        fecha_culminacion_credito: '2027-03-01',
+        cuotas_atrasadas: 0,
+        deductora: { id: 4, nombre: 'Davivienda' },
+        lead: { id: 5, name: 'James Bond', email: 'j.bond@example.com' },
+        operationNumber: 'CR-2024-088',
+        debtorName: 'James Bond',
+        amount: 5000,
+        balance: 4800,
+    },
+    {
+        id: 6,
+        numero_operacion: 'CR-2023-200',
+        tipo_credito: 'hipotecario',
+        status: 'activo',
+        monto_credito: 75000000,
+        saldo: 70000000,
+        cuota: 650000,
+        plazo: 300,
+        tasa_anual: 8.5,
+        divisa: 'CRC',
+        fecha_ultimo_pago: '2024-03-05',
+        garantia: 'Hipoteca',
+        fecha_culminacion_credito: '2048-05-20',
+        cuotas_atrasadas: 0,
+        deductora: { id: 2, nombre: 'Banco Nacional' },
+        lead: { id: 6, name: 'Elena Torres', email: 'elena.t@example.com' },
+        operationNumber: 'CR-2023-200',
+        debtorName: 'Elena Torres',
+        amount: 75000000,
+        balance: 70000000,
+    },
+    {
+        id: 7,
+        numero_operacion: 'CR-2021-005',
+        tipo_credito: 'personal',
+        status: 'legal',
+        monto_credito: 2000000,
+        saldo: 1800000,
+        cuota: 85000,
+        plazo: 36,
+        tasa_anual: 22.0,
+        divisa: 'CRC',
+        fecha_ultimo_pago: '2023-06-10',
+        garantia: 'Pagaré',
+        fecha_culminacion_credito: '2024-06-10',
+        cuotas_atrasadas: 8,
+        deductora: { id: 5, nombre: 'CoopeServidores' },
+        lead: { id: 7, name: 'Mario Jimenez', email: 'mario.j@example.com' },
+        operationNumber: 'CR-2021-005',
+        debtorName: 'Mario Jimenez',
+        amount: 2000000,
+        balance: 1800000,
+    },
+    {
+        id: 8,
+        numero_operacion: 'CR-2024-012',
+        tipo_credito: 'prendario',
+        status: 'activo',
+        monto_credito: 25000,
+        saldo: 24000,
+        cuota: 600,
+        plazo: 60,
+        tasa_anual: 9.0,
+        divisa: 'USD',
+        fecha_ultimo_pago: '2024-02-20',
+        garantia: 'Vehículo 2023',
+        fecha_culminacion_credito: '2029-02-20',
+        cuotas_atrasadas: 0,
+        deductora: { id: 3, nombre: 'BAC Credomatic' },
+        lead: { id: 8, name: 'Sofia Castro', email: 'sofia.c@example.com' },
+        operationNumber: 'CR-2024-012',
+        debtorName: 'Sofia Castro',
+        amount: 25000,
+        balance: 24000,
+    }
 ];
 
 export const investments: Investment[] = [

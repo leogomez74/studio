@@ -45,6 +45,7 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/axios";
+import { credits as mockCredits } from "@/lib/data";
 
 interface LeadOption {
   id: number;
@@ -91,6 +92,24 @@ interface CreditItem {
   created_at?: string | null;
   updated_at?: string | null;
   documents?: CreditDocument[];
+  // New fields
+  tipo_credito?: string | null;
+  numero_operacion?: string | null;
+  monto_credito?: number | null;
+  cuota?: number | null;
+  fecha_ultimo_pago?: string | null;
+  garantia?: string | null;
+  fecha_culminacion_credito?: string | null;
+  tasa_anual?: number | null;
+  plazo?: number | null;
+  cuotas_atrasadas?: number | null;
+  deductora?: { id: number; nombre: string } | null;
+  divisa?: string | null;
+  linea?: string | null;
+  primera_deduccion?: string | null;
+  saldo?: number | null;
+  proceso?: string | null;
+  documento_id?: string | null;
 }
 
 interface CreditFormValues {
@@ -104,36 +123,36 @@ interface CreditFormValues {
   assignedTo: string;
   openedAt: string;
   description: string;
+  divisa: string;
 }
 
 const CREDIT_STATUS_OPTIONS = [
-  "Para redactar",
-  "Presentados",
-  "Con curso",
-  "Rechazo de plano",
-  "Con lugar con costas",
-  "Con lugar sin costas",
-  "Sentencia"
+  "Activo",
+  "Mora",
+  "Cerrado",
+  "Legal"
 ] as const;
 const CREDIT_CATEGORY_OPTIONS = ["Regular", "Micro-crédito", "Hipotecario", "Personal"] as const;
+const CURRENCY_OPTIONS = [
+  { value: "CRC", label: "Colón Costarricense (CRC)" },
+  { value: "USD", label: "Dólar Estadounidense (USD)" },
+  { value: "EUR", label: "Euro (EUR)" },
+  { value: "GBP", label: "Libra Esterlina (GBP)" },
+] as const;
 
 const CREDIT_STATUS_TAB_CONFIG = [
   { value: "all", label: "Todos" },
-  { value: "para-redactar", label: "Para redactar" },
-  { value: "presentados", label: "Presentados" },
-  { value: "auto-de-curso", label: "Auto de curso" },
-  { value: "clcc", label: "CLCC" },
-  { value: "clsc", label: "CLSC" },
-  { value: "otros", label: "Otros" },
+  { value: "activo", label: "Activo" },
+  { value: "mora", label: "En Mora" },
+  { value: "cerrado", label: "Cerrado" },
+  { value: "legal", label: "Cobro Judicial" },
 ] as const;
 
 const TAB_STATUS_FILTERS: Record<string, string[]> = {
-  "para-redactar": ["para redactar"],
-  "presentados": ["presentados"],
-  "auto-de-curso": ["auto de curso"],
-  "clcc": ["clcc"],
-  "clsc": ["clsc"],
-  "otros": ["otros"],
+  "activo": ["activo", "al día"],
+  "mora": ["mora", "en mora"],
+  "cerrado": ["cerrado", "cancelado"],
+  "legal": ["legal", "en cobro judicial"],
 };
 
 const TRACKED_STATUS_SET = new Set(
@@ -193,6 +212,7 @@ export default function CreditsPage() {
     assignedTo: "",
     openedAt: "",
     description: "",
+    divisa: "CRC",
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -226,10 +246,36 @@ export default function CreditsPage() {
     try {
       setIsLoading(true);
       const response = await api.get('/api/credits');
-      setCredits(response.data);
+      
+      // Combine API data with mock data for testing
+      const apiData = response.data;
+      const apiIds = new Set(apiData.map((c: any) => c.id));
+      
+      const formattedMockCredits = mockCredits
+        .filter(c => !c.id || !apiIds.has(c.id))
+        .map(c => ({
+          ...c,
+          id: c.id || Math.floor(Math.random() * 10000) + 10000, // Ensure no collision if id is missing
+          assigned_to: c.assigned_to ? String(c.assigned_to) : null,
+          lead: c.lead ? { ...c.lead, email: c.lead.email || null } : null,
+          opportunity: c.opportunity ? { ...c.opportunity, title: c.opportunity.title || null } : null
+        })) as unknown as CreditItem[];
+
+      setCredits([...apiData, ...formattedMockCredits]);
     } catch (error) {
       console.error("Error fetching credits:", error);
-      toast({ title: "Error", description: "No se pudieron cargar los créditos.", variant: "destructive" });
+      
+      // Fallback to mock data
+      const formattedMockCredits = mockCredits.map(c => ({
+        ...c,
+        id: c.id || Math.floor(Math.random() * 10000),
+        assigned_to: c.assigned_to ? String(c.assigned_to) : null,
+        lead: c.lead ? { ...c.lead, email: c.lead.email || null } : null,
+        opportunity: c.opportunity ? { ...c.opportunity, title: c.opportunity.title || null } : null
+      })) as unknown as CreditItem[];
+      
+      setCredits(formattedMockCredits);
+      toast({ title: "Info", description: "Mostrando datos de prueba.", variant: "default" });
     } finally {
       setIsLoading(false);
     }
@@ -303,6 +349,7 @@ export default function CreditsPage() {
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
       description: "",
+      divisa: "CRC",
     });
     setDialogCredit(null);
     setDialogState("create");
@@ -320,6 +367,7 @@ export default function CreditsPage() {
       assignedTo: credit.assigned_to || "",
       openedAt: credit.opened_at ? credit.opened_at.split('T')[0] : "",
       description: credit.description || "",
+      divisa: credit.divisa || "CRC",
     });
     setDialogCredit(credit);
     setDialogState("edit");
@@ -340,6 +388,7 @@ export default function CreditsPage() {
         assigned_to: formValues.assignedTo,
         opened_at: formValues.openedAt,
         description: formValues.description,
+        divisa: formValues.divisa,
       };
 
       if (dialogState === "create") {
@@ -406,46 +455,56 @@ export default function CreditsPage() {
                     <Table className="p-4">
                         <TableHeader>
                         <TableRow>
-                            <TableHead>Oportunidad</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead>Título</TableHead>
-                            <TableHead>Lead</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Progreso</TableHead>
+                            <TableHead>Divisa</TableHead>
+                            <TableHead>No. Operación</TableHead>
+                            <TableHead>Línea</TableHead>
+                            <TableHead>1ª Deducción</TableHead>
+                            <TableHead>Monto</TableHead>
+                            <TableHead>Saldo</TableHead>
+                            <TableHead>Cuota</TableHead>
+                            <TableHead>Garantía</TableHead>
+                            <TableHead>Vencimiento</TableHead>
+                            <TableHead>Proceso</TableHead>
+                            <TableHead>ID Documento</TableHead>
+                            <TableHead>Tasa</TableHead>
+                            <TableHead>Plazo</TableHead>
+                            <TableHead>Cuotas Atrasadas</TableHead>
+                            <TableHead>Deductora</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                         </TableHeader>
                         <TableBody>
                         {getCreditsForTab(tab.value).map((credit) => (
                             <TableRow key={credit.id}>
-                            <TableCell>{credit.opportunity?.id || "-"}</TableCell>
-                            <TableCell className="font-medium">{credit.reference}</TableCell>
-                            <TableCell>{credit.title}</TableCell>
-                            <TableCell>
-                                {credit.lead ? (
-                                    <div className="flex flex-col">
-                                        <span>{credit.lead.name}</span>
-                                        <span className="text-xs text-muted-foreground">{credit.lead.email}</span>
-                                    </div>
-                                ) : "-"}
-                            </TableCell>
                             <TableCell><Badge variant="secondary">{credit.status}</Badge></TableCell>
-                            <TableCell>
-                                <div className="flex items-center gap-2">
-                                    <Progress value={credit.progress} className="w-[60px]" />
-                                    <span className="text-xs text-muted-foreground">{credit.progress}%</span>
-                                </div>
-                            </TableCell>
+                            <TableCell>{credit.divisa || "CRC"}</TableCell>
+                            <TableCell className="font-medium">{credit.numero_operacion || credit.reference || "-"}</TableCell>
+                            <TableCell>{credit.linea || "-"}</TableCell>
+                            <TableCell>{formatDate(credit.primera_deduccion)}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
+                            <TableCell>{credit.garantia || "-"}</TableCell>
+                            <TableCell>{formatDate(credit.fecha_culminacion_credito)}</TableCell>
+                            <TableCell>{credit.proceso || "-"}</TableCell>
+                            <TableCell>{credit.documento_id || "-"}</TableCell>
+                            <TableCell>{credit.tasa_anual ? `${credit.tasa_anual}%` : "-"}</TableCell>
+                            <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
+                            <TableCell>{credit.cuotas_atrasadas || 0}</TableCell>
+                            <TableCell>{credit.deductora?.nombre || "-"}</TableCell>
                             <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
                                     <Button 
                                         variant="outline" 
                                         size="icon" 
-                                        onClick={() => { setDetailCredit(credit); setIsDetailOpen(true); }} 
+                                        asChild
                                         title="Ver detalle"
                                         className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
                                     >
-                                        <Eye className="h-4 w-4" />
+                                        <Link href={`/dashboard/creditos/${credit.id}`}>
+                                            <Eye className="h-4 w-4" />
+                                        </Link>
                                     </Button>
                                     <Button 
                                         variant="outline" 
@@ -463,7 +522,9 @@ export default function CreditsPage() {
                                     <DropdownMenuContent align="end">
                                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                         <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>Gestionar documentos</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleEdit(credit)}>Editar</DropdownMenuItem>
+                                        <DropdownMenuItem asChild>
+                                            <Link href={`/dashboard/creditos/${credit.id}`}>Editar</Link>
+                                        </DropdownMenuItem>
                                     </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
@@ -522,6 +583,15 @@ export default function CreditsPage() {
                             <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
                             <SelectContent>
                                 {CREDIT_CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="divisa">Divisa</Label>
+                        <Select value={formValues.divisa} onValueChange={v => setFormValues({...formValues, divisa: v})}>
+                            <SelectTrigger id="divisa"><SelectValue placeholder="Selecciona la divisa" /></SelectTrigger>
+                            <SelectContent>
+                                {CURRENCY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>

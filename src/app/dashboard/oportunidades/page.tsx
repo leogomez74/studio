@@ -307,13 +307,7 @@ export default function DealsPage() {
     setDialogOpportunity(null);
     resetForm();
   }, [resetForm]);
-
-  const openCreateDialog = useCallback(() => {
-    setDialogOpportunity(null);
-    resetForm();
-    setDialogState("create");
-  }, [resetForm]);
-
+  
   const openEditDialog = useCallback((opportunity: Opportunity) => {
     setDialogOpportunity(opportunity);
     resetForm(opportunity);
@@ -721,10 +715,6 @@ export default function DealsPage() {
                 <DropdownMenuItem onClick={handleExportPDF}>Descargar PDF</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" className="gap-1" onClick={openCreateDialog}>
-              <PlusCircle className="h-4 w-4" />
-              Agregar oportunidad
-            </Button>
           </div>
         </div>
       </CardHeader>
