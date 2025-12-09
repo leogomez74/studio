@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, PlusCircle, MoreHorizontal } from 'lucide-react';
+import { CheckCircle, PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -29,10 +29,111 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { patronos, Patrono, deductoras, Deductora, creditConfigs } from '@/lib/data';
+import { API_BASE_URL } from '@/lib/env';
+import { useAuth } from '@/components/auth-guard';
 
 export default function ConfiguracionPage() {
   const { toast } = useToast();
+  const { token } = useAuth();
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+  });
+
+  useEffect(() => {
+    if (token) {
+      fetchUsers();
+    }
+  }, [token]);
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/users`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      } else {
+        console.error('Failed to fetch users');
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newUser.password !== newUser.password_confirmation) {
+      toast({
+        title: "Error de validación",
+        description: "Las contraseñas no coinciden.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(newUser),
+      });
+
+      if (res.ok) {
+        toast({
+          title: "Usuario Creado",
+          description: "El usuario ha sido registrado exitosamente.",
+        });
+        setIsCreateUserOpen(false);
+        setNewUser({ name: '', email: '', password: '', password_confirmation: '' });
+        fetchUsers();
+      } else {
+        const errorData = await res.json();
+        toast({
+          title: "Error al crear usuario",
+          description: errorData.message || "Ocurrió un error inesperado.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error creating user:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
 
   // Estado para el Crédito Regular
   const [regularConfig, setRegularConfig] = useState({
@@ -64,12 +165,7 @@ export default function ConfiguracionPage() {
 
   const handleSave = (creditType: 'Crédito Regular' | 'Micro-crédito') => {
     toast({
-      title: (
-        <div className="flex items-center gap-2">
-          <CheckCircle className="h-5 w-5 text-green-500" />
-          <span className="font-semibold">Parámetros Guardados</span>
-        </div>
-      ),
+      title: "Parámetros Guardados",
       description: `La configuración para ${creditType} ha sido actualizada.`,
       duration: 3000,
     });
@@ -79,6 +175,7 @@ export default function ConfiguracionPage() {
     <Tabs defaultValue="prestamos">
       <TabsList className="mb-4">
         <TabsTrigger value="prestamos">Préstamos</TabsTrigger>
+        <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
         <TabsTrigger value="patronos">Patronos</TabsTrigger>
         <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
         <TabsTrigger value="api">API ERP</TabsTrigger>
@@ -226,6 +323,132 @@ export default function ConfiguracionPage() {
           </Card>
         </div>
       </TabsContent>
+      <TabsContent value="usuarios">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Usuarios del Sistema</CardTitle>
+                <CardDescription>
+                  Administra los usuarios que tienen acceso al panel.
+                </CardDescription>
+              </div>
+              <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1">
+                    <PlusCircle className="h-4 w-4" />
+                    Agregar Usuario
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Agregar Nuevo Usuario</DialogTitle>
+                    <DialogDescription>
+                      Ingresa los datos del nuevo usuario. Todos los campos son obligatorios.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateUser} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Nombre Completo</Label>
+                      <Input
+                        id="name"
+                        value={newUser.name}
+                        onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Correo Electrónico</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Contraseña</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password_confirmation">Confirmar Contraseña</Label>
+                      <Input
+                        id="password_confirmation"
+                        type="password"
+                        value={newUser.password_confirmation}
+                        onChange={(e) => setNewUser({ ...newUser, password_confirmation: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={creatingUser}>
+                        {creatingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Crear Usuario
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingUsers ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Fecha Creación</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menú</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                            <DropdownMenuItem>Editar</DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600">Eliminar</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {users.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No hay usuarios registrados.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
       <TabsContent value="patronos">
         <Card>
           <CardHeader>
@@ -321,7 +544,7 @@ export default function ConfiguracionPage() {
                   <TableRow key={deductora.id}>
                     <TableCell className="font-medium">{deductora.name}</TableCell>
                     <TableCell>{deductora.paymentDate}</TableCell>
-                    <TableCell className="text-right font-mono">{deductora.commission.toFixed(2)}%</TableCell>
+                    <TableCell className="text-right font-mono">{(deductora.commission || 0).toFixed(2)}%</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
