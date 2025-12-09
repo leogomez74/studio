@@ -255,8 +255,8 @@ export default function CreditsPage() {
       const data = response.data.data || response.data;
       setOpportunities(data.map((o: any) => ({ 
         id: o.id, 
-        title: `${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`, 
-        lead_id: o.lead?.id 
+        title: `${o.id} - ${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`,
+        lead_id: o.lead?.id
       })));
     } catch (error) {
       console.error("Error fetching opportunities:", error);

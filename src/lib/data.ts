@@ -676,7 +676,7 @@ export const VERTICAL_OPTIONS = [
   "MUSEO NACIONAL", "UCR UNIVERSIDAD DE COSTA RICA"
 ] as const;
 
-export const OPPORTUNITY_TYPES = ["Personal (Diferentes usos)", "Refundición (Pagar deudas actuales)","Microcrédito (Hasta ₡690.000)"] as const;
+export const OPPORTUNITY_TYPES = ["Personal (Diferentes usos)", "Refundición (Pagar deudas actuales)","Microcrédito (Hasta ₡690.000)","Descuento de facturas"] as const;
 
 export const conversations: Conversation[] = [
   { id: 'CONV01', name: 'Ana Silva Rojas', avatarUrl: 'https://picsum.photos/seed/avatar1/40/40', caseId: 'CR-002', lastMessage: 'Entendido, ¿qué necesito para ponerme al día?', time: '10:15 AM', status: 'Abierto' },
