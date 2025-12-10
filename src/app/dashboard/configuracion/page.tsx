@@ -48,6 +48,7 @@ import {
 import { patronos, Patrono, deductoras, Deductora, creditConfigs } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/env';
 import { useAuth } from '@/components/auth-guard';
+import api from '@/lib/axios';
 
 export default function ConfiguracionPage() {
   const { toast } = useToast();
@@ -65,9 +66,22 @@ export default function ConfiguracionPage() {
     status: 'Activo',
   });
 
+  // Deductoras state
+  const [deductorasList, setDeductorasList] = useState<Deductora[]>([]);
+  const [loadingDeductoras, setLoadingDeductoras] = useState(false);
+  const [isDeductoraDialogOpen, setIsDeductoraDialogOpen] = useState(false);
+  const [editingDeductora, setEditingDeductora] = useState<Deductora | null>(null);
+  const [savingDeductora, setSavingDeductora] = useState(false);
+  const [deductoraForm, setDeductoraForm] = useState({
+    nombre: '',
+    fecha_reporte_pago: '',
+    comision: 0,
+  });
+
   useEffect(() => {
     if (token) {
       fetchUsers();
+      fetchDeductoras();
     }
   }, [token]);
 
@@ -90,6 +104,126 @@ export default function ConfiguracionPage() {
       console.error('Error fetching users:', error);
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const fetchDeductoras = async () => {
+    setLoadingDeductoras(true);
+    try {
+      const response = await api.get('/api/deductoras');
+      setDeductorasList(response.data);
+    } catch (error) {
+      console.error('Error fetching deductoras from API, using static data:', error);
+      // Fall back to static data from data.ts
+      setDeductorasList(deductoras);
+      toast({
+        title: "Usando datos locales",
+        description: "No se pudo conectar con el servidor, mostrando datos de ejemplo.",
+        variant: "default",
+      });
+    } finally {
+      setLoadingDeductoras(false);
+    }
+  };
+
+  const handleDeductoraInputChange = (field: keyof typeof deductoraForm, value: any) => {
+    setDeductoraForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const openCreateDeductoraDialog = () => {
+    setEditingDeductora(null);
+    setDeductoraForm({
+      nombre: '',
+      fecha_reporte_pago: '',
+      comision: 0,
+    });
+    setIsDeductoraDialogOpen(true);
+  };
+
+  const openEditDeductoraDialog = (deductora: Deductora) => {
+    setEditingDeductora(deductora);
+    setDeductoraForm({
+      nombre: deductora.nombre || '',
+      fecha_reporte_pago: deductora.fecha_reporte_pago || '',
+      comision: deductora.comision || 0,
+    });
+    setIsDeductoraDialogOpen(true);
+  };
+
+  const closeDeductoraDialog = () => {
+    setIsDeductoraDialogOpen(false);
+    setEditingDeductora(null);
+    setDeductoraForm({
+      nombre: '',
+      fecha_reporte_pago: '',
+      comision: 0,
+    });
+  };
+
+  const handleDeductoraSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deductoraForm.nombre?.trim()) {
+      toast({
+        title: "Error",
+        description: "El nombre es obligatorio.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSavingDeductora(true);
+      const payload = {
+        nombre: deductoraForm.nombre.trim(),
+        fecha_reporte_pago: deductoraForm.fecha_reporte_pago || null,
+        comision: deductoraForm.comision || null,
+      };
+
+      if (editingDeductora) {
+        await api.put(`/api/deductoras/${editingDeductora.id}`, payload);
+        toast({
+          title: "Actualizado",
+          description: "Deductora actualizada correctamente.",
+        });
+      } else {
+        await api.post('/api/deductoras', payload);
+        toast({
+          title: "Creado",
+          description: "Deductora creada correctamente.",
+        });
+      }
+
+      closeDeductoraDialog();
+      fetchDeductoras();
+    } catch (error: any) {
+      console.error('Error saving deductora:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la deductora.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingDeductora(false);
+    }
+  };
+
+  const handleDeleteDeductora = async (deductora: Deductora) => {
+    if (!confirm(`¿Eliminar la deductora "${deductora.nombre}"?`)) return;
+
+    try {
+      await api.delete(`/api/deductoras/${deductora.id}`);
+      toast({
+        title: "Eliminado",
+        description: "Deductora eliminada correctamente.",
+      });
+      fetchDeductoras();
+    } catch (error) {
+      console.error('Error deleting deductora:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la deductora.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -508,6 +642,66 @@ export default function ConfiguracionPage() {
           </CardContent>
         </Card>
       </TabsContent>
+
+      <Dialog open={isDeductoraDialogOpen} onOpenChange={setIsDeductoraDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingDeductora ? "Editar Deductora" : "Crear Deductora"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingDeductora
+                ? "Modifica los datos de la deductora."
+                : "Ingresa los datos de la nueva deductora."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleDeductoraSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="deductora-nombre">Nombre</Label>
+                <Input
+                  id="deductora-nombre"
+                  value={deductoraForm.nombre}
+                  onChange={(e) => handleDeductoraInputChange("nombre", e.target.value)}
+                  required
+                  disabled={savingDeductora}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="deductora-fecha">Fecha Reporte Pago</Label>
+                <Input
+                  id="deductora-fecha"
+                  type="date"
+                  value={deductoraForm.fecha_reporte_pago}
+                  onChange={(e) => handleDeductoraInputChange("fecha_reporte_pago", e.target.value)}
+                  disabled={savingDeductora}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="deductora-comision">Comisión (%)</Label>
+                <Input
+                  id="deductora-comision"
+                  type="number"
+                  step="0.01"
+                  value={deductoraForm.comision}
+                  onChange={(e) => handleDeductoraInputChange("comision", parseFloat(e.target.value) || 0)}
+                  disabled={savingDeductora}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeDeductoraDialog} disabled={savingDeductora}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={savingDeductora}>
+                {savingDeductora && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingDeductora ? "Actualizar" : "Crear"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <TabsContent value="patronos">
         <Card>
           <CardHeader>
@@ -580,13 +774,18 @@ export default function ConfiguracionPage() {
                     Gestiona las cooperativas y entidades que procesan las deducciones.
                   </CardDescription>
               </div>
-               <Button size="sm" className="gap-1">
+               <Button size="sm" className="gap-1" onClick={openCreateDeductoraDialog}>
                     <PlusCircle className="h-4 w-4" />
                     Agregar Deductora
                 </Button>
             </div>
           </CardHeader>
           <CardContent>
+            {loadingDeductoras ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="animate-spin" />
+              </div>
+            ) : (
              <Table>
               <TableHeader>
                 <TableRow>
@@ -599,36 +798,45 @@ export default function ConfiguracionPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deductoras.map((deductora) => (
-                  <TableRow key={deductora.id}>
-                    <TableCell className="font-medium">{deductora.name}</TableCell>
-                    <TableCell>{deductora.paymentDate}</TableCell>
-                    <TableCell className="text-right font-mono">{(deductora.commission || 0).toFixed(2)}%</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            aria-haspopup="true"
-                            size="icon"
-                            variant="ghost"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Alternar menú</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                          <DropdownMenuItem>Editar</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                {deductorasList.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      No hay deductoras registradas.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  deductorasList.map((deductora) => (
+                    <TableRow key={deductora.id}>
+                      <TableCell className="font-medium">{deductora.nombre}</TableCell>
+                      <TableCell>{deductora.fecha_reporte_pago ? new Date(deductora.fecha_reporte_pago).toLocaleDateString('es-CR') : '-'}</TableCell>
+                      <TableCell className="text-right font-mono">{(parseFloat(deductora.comision?.toString() || '0')).toFixed(2)}%</TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              aria-haspopup="true"
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Alternar menú</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEditDeductoraDialog(deductora)}>Editar</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteDeductora(deductora)}>
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       </TabsContent>

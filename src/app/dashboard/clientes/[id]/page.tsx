@@ -43,6 +43,7 @@ export default function ClientDetailPage() {
   const [isOpportunitiesOpen, setIsOpportunitiesOpen] = useState(true);
   const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
   const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
+  const [deductoras, setDeductoras] = useState<{id: string, nombre: string}[]>([]);
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -67,9 +68,19 @@ export default function ClientDetailPage() {
         }
     };
 
+    const fetchDeductoras = async () => {
+        try {
+            const response = await api.get('/api/deductoras');
+            setDeductoras(response.data);
+        } catch (error) {
+            console.error("Error fetching deductoras:", error);
+        }
+    };
+
     if (id) {
       fetchClient();
       fetchAgents();
+      fetchDeductoras();
     }
   }, [id, toast]);
 
@@ -615,11 +626,28 @@ export default function ClientDetailPage() {
               </div>
                <div className="space-y-2">
                 <Label>Deductora</Label>
-                <Input 
-                  value={(formData as any).deductora_id || ""} 
-                  disabled 
-                  placeholder="Auto-asignado"
-                />
+                {isEditMode ? (
+                  <Select 
+                    value={(formData as any).deductora_id || ""} 
+                    onValueChange={(value) => handleInputChange("deductora_id" as keyof Client, value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar deductora" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deductoras.map((deductora) => (
+                        <SelectItem key={deductora.id} value={deductora.id}>
+                          {deductora.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input 
+                    value={deductoras.find(d => d.id === (formData as any).deductora_id)?.nombre || ""} 
+                    disabled 
+                  />
+                )}
               </div>
                <div className="col-span-3 space-y-2">
                 <Label>Dirección de la Institución</Label>

@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CrmSeeder::class,
             CreditSeeder::class,
+            DeductoraSeeder::class,
         ]);
     }
 }
