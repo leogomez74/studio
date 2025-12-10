@@ -285,6 +285,12 @@ export default function CreditsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [detailCredit, setDetailCredit] = useState<CreditItem | null>(null);
 
+  // Drag scroll state
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const tableRef = useRef<HTMLDivElement>(null);
+
   const currentLead = useMemo(() => {
     return formValues.leadId ? leads.find((lead) => lead.id === formValues.leadId) : null;
   }, [formValues.leadId, leads]);
@@ -297,6 +303,38 @@ export default function CreditsPage() {
       return belongsToLead && (canSelectExistingCredit || isFree);
     });
   }, [opportunities, formValues.leadId, dialogCredit]);
+
+  // Drag scroll handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!tableRef.current) return;
+    
+    setIsDragging(true);
+    setStartX(e.pageX);
+    setScrollLeft(tableRef.current.scrollLeft);
+    
+    // Add document listeners for smooth dragging
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleMouseLeave = () => {
+    // Don't stop dragging on mouse leave - let document handle it
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging || !tableRef.current) return;
+    
+    e.preventDefault();
+    const x = e.pageX;
+    const walk = (x - startX) * 2; // Scroll speed multiplier
+    tableRef.current.scrollLeft = scrollLeft - walk;
+  };
 
   // Mock permission for now
   const canDownloadDocuments = true;
@@ -375,6 +413,14 @@ export default function CreditsPage() {
     fetchLeads();
     fetchOpportunities();
   }, [fetchCredits, fetchLeads, fetchOpportunities]);
+
+  // Cleanup drag event listeners on unmount
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   const getCreditsForTab = useCallback(
     (value: string): CreditItem[] => {
@@ -700,28 +746,34 @@ export default function CreditsPage() {
             <TabsContent key={tab.value} value={tab.value}>
                 <Card>
                     <CardContent>
-                    <Table className="p-4">
-                        <TableHeader>
-                        <TableRow>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Divisa</TableHead>
-                            <TableHead>No. Operación</TableHead>
-                            <TableHead>Línea</TableHead>
-                            <TableHead>1ª Deducción</TableHead>
-                            <TableHead>Monto</TableHead>
-                            <TableHead>Saldo</TableHead>
-                            <TableHead>Cuota</TableHead>
-                            <TableHead>Garantía</TableHead>
-                            <TableHead>Vencimiento</TableHead>
-                            <TableHead>Proceso</TableHead>
-                            <TableHead>ID Documento</TableHead>
-                            <TableHead>Tasa</TableHead>
-                            <TableHead>Plazo</TableHead>
-                            <TableHead>Cuotas Atrasadas</TableHead>
-                            <TableHead>Deductora</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                        </TableHeader>
+                        <div 
+                            ref={tableRef}
+                            className={`overflow-x-auto cursor-grab select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                            onMouseDown={handleMouseDown}
+                            style={{ scrollbarWidth: 'thin' }}
+                        >
+                            <Table className="min-w-max">
+                                <TableHeader>
+                                <TableRow>
+                                    <TableHead>Estado</TableHead>
+                                    <TableHead>Divisa</TableHead>
+                                    <TableHead>No. Operación</TableHead>
+                                    <TableHead>Línea</TableHead>
+                                    <TableHead>1ª Deducción</TableHead>
+                                    <TableHead>Monto</TableHead>
+                                    <TableHead>Saldo</TableHead>
+                                    <TableHead>Cuota</TableHead>
+                                    <TableHead>Garantía</TableHead>
+                                    <TableHead>Vencimiento</TableHead>
+                                    <TableHead>Proceso</TableHead>
+                                    <TableHead>ID Documento</TableHead>
+                                    <TableHead>Tasa</TableHead>
+                                    <TableHead>Plazo</TableHead>
+                                    <TableHead>Cuotas Atrasadas</TableHead>
+                                    <TableHead>Deductora</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
+                                </TableRow>
+                                </TableHeader>
                         <TableBody>
                         {getCreditsForTab(tab.value).map((credit) => (
                             <TableRow key={credit.id}>
@@ -791,6 +843,7 @@ export default function CreditsPage() {
                         ))}
                         </TableBody>
                     </Table>
+                        </div>
                     </CardContent>
                 </Card>
             </TabsContent>

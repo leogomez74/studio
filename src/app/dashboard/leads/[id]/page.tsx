@@ -41,6 +41,7 @@ export default function LeadDetailPage() {
     const [isPanelVisible, setIsPanelVisible] = useState(true);
     const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
     const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
+    const [deductoras, setDeductoras] = useState<{id: string, nombre: string}[]>([]);
 
     useEffect(() => {
         const fetchLead = async () => {
@@ -65,9 +66,19 @@ export default function LeadDetailPage() {
             }
         };
 
+        const fetchDeductoras = async () => {
+            try {
+                const response = await api.get('/api/deductoras');
+                setDeductoras(response.data);
+            } catch (error) {
+                console.error("Error fetching deductoras:", error);
+            }
+        };
+
         if (id) {
             fetchLead();
             fetchAgents();
+            fetchDeductoras();
         }
     }, [id, toast]);
 
@@ -604,11 +615,28 @@ export default function LeadDetailPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Deductora</Label>
-                                        <Input 
-                                            value={(formData as any).deductora_id || ""} 
-                                            disabled 
-                                            placeholder="Auto-asignado"
-                                        />
+                                        {isEditMode ? (
+                                            <Select 
+                                                value={(formData as any).deductora_id || ""} 
+                                                onValueChange={(value) => handleInputChange("deductora_id" as keyof Lead, value)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar deductora" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {deductoras.map((deductora) => (
+                                                        <SelectItem key={deductora.id} value={deductora.id}>
+                                                            {deductora.nombre}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <Input 
+                                                value={deductoras.find(d => d.id === (formData as any).deductora_id)?.nombre || ""} 
+                                                disabled 
+                                            />
+                                        )}
                                     </div>
                                     <div className="col-span-3 space-y-2">
                                         <Label>Dirección de la Institución</Label>

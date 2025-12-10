@@ -1001,11 +1001,21 @@ export const patronos: Patrono[] = [
 ];
 
 export const deductoras: Deductora[] = [
-  { id: 'DED001', name: 'CoopeNacional', paymentDate: 'Mensual (día 20)', commission: 1.5 },
-  { id: 'DED002', name: 'Coope San Gabriel', paymentDate: 'Quincenal (10 y 25)', commission: 1.75 },
-  { id: 'DED003', name: 'Coope Ande #5', paymentDate: 'Quincenal (14 y 29)', commission: 1.25 },
-  { id: 'DED004', name: 'CS Magisterio', paymentDate: 'Quincenal (12 y 27)', commission: 2.0 },
-  { id: 'DED005', name: 'CoopeJudicial', paymentDate: 'Mensual (día 22)', commission: 1.0 },
+  { id: 1, nombre: 'Banco Nacional de Costa Rica', fecha_reporte_pago: '2025-01-15', comision: 1.50 },
+  { id: 2, nombre: 'Banco de Costa Rica', fecha_reporte_pago: '2025-01-20', comision: 1.75 },
+  { id: 3, nombre: 'BAC Credomatic', fecha_reporte_pago: '2025-01-10', comision: 2.00 },
+  { id: 4, nombre: 'Banco Popular', fecha_reporte_pago: '2025-01-25', comision: 1.25 },
+  { id: 5, nombre: 'Scotiabank Costa Rica', fecha_reporte_pago: '2025-01-18', comision: 1.80 },
+  { id: 6, nombre: 'Davivienda Costa Rica', fecha_reporte_pago: '2025-01-12', comision: 1.60 },
+  { id: 7, nombre: 'CoopeAnde', fecha_reporte_pago: '2025-01-22', comision: 1.00 },
+  { id: 8, nombre: 'CoopeAhorro', fecha_reporte_pago: '2025-01-28', comision: 0.75 },
+  { id: 9, nombre: 'CoopeSoliDar R.L.', fecha_reporte_pago: '2025-01-14', comision: 1.20 },
+  { id: 10, nombre: 'CoopeAlajuela R.L.', fecha_reporte_pago: '2025-01-16', comision: 1.10 },
+  { id: 11, nombre: 'CoopeGranada R.L.', fecha_reporte_pago: '2025-01-30', comision: 0.90 },
+  { id: 12, nombre: 'CoopeMepe R.L.', fecha_reporte_pago: '2025-01-08', comision: 1.30 },
+  { id: 13, nombre: 'CoopeSur R.L.', fecha_reporte_pago: '2025-01-24', comision: 1.15 },
+  { id: 14, nombre: 'CoopeCoco R.L.', fecha_reporte_pago: '2025-01-26', comision: 1.05 },
+  { id: 15, nombre: 'Banco BCT', fecha_reporte_pago: '2025-01-19', comision: 1.85 },
 ];
 
 export const salesVisits: SalesVisit[] = [
