@@ -7,6 +7,15 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\OpportunityController;
 
+// Rewards Controllers
+use App\Http\Controllers\Api\Rewards\RewardController;
+use App\Http\Controllers\Api\Rewards\BadgeController;
+use App\Http\Controllers\Api\Rewards\LeaderboardController;
+use App\Http\Controllers\Api\Rewards\ChallengeController;
+use App\Http\Controllers\Api\Rewards\CatalogController;
+use App\Http\Controllers\Api\Rewards\RedemptionController;
+use App\Http\Controllers\Api\Rewards\Admin\GamificationConfigController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -66,4 +75,45 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
+
+    // --- Rewards / Gamificación ---
+    Route::prefix('rewards')->group(function () {
+        // Perfil y balance
+        Route::get('/profile', [RewardController::class, 'profile']);
+        Route::get('/balance', [RewardController::class, 'balance']);
+        Route::get('/history', [RewardController::class, 'history']);
+        Route::get('/dashboard', [RewardController::class, 'dashboard']);
+
+        // Badges
+        Route::get('/badges', [BadgeController::class, 'index']);
+        Route::get('/badges/available', [BadgeController::class, 'available']);
+        Route::get('/badges/progress', [BadgeController::class, 'progress']);
+        Route::get('/badges/{id}', [BadgeController::class, 'show']);
+
+        // Leaderboard
+        Route::get('/leaderboard', [LeaderboardController::class, 'index']);
+        Route::get('/leaderboard/position', [LeaderboardController::class, 'myPosition']);
+        Route::get('/leaderboard/stats', [LeaderboardController::class, 'stats']);
+
+        // Challenges
+        Route::get('/challenges', [ChallengeController::class, 'index']);
+        Route::get('/challenges/{id}', [ChallengeController::class, 'show']);
+        Route::post('/challenges/{id}/join', [ChallengeController::class, 'join']);
+        Route::get('/challenges/{id}/progress', [ChallengeController::class, 'progress']);
+
+        // Catálogo
+        Route::get('/catalog', [CatalogController::class, 'index']);
+        Route::get('/catalog/{id}', [CatalogController::class, 'show']);
+        Route::post('/catalog/{id}/redeem', [CatalogController::class, 'redeem']);
+
+        // Redenciones
+        Route::get('/redemptions', [RedemptionController::class, 'index']);
+    });
+
+    // --- Admin Gamificación ---
+    Route::prefix('admin/gamification')->group(function () {
+        Route::get('/config', [GamificationConfigController::class, 'index']);
+        Route::put('/config', [GamificationConfigController::class, 'update']);
+        Route::get('/stats', [GamificationConfigController::class, 'stats']);
+    });
 });
