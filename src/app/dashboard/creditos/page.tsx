@@ -4,7 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Check, ChevronsUpDown } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -851,6 +851,27 @@ export default function CreditsPage() {
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
+
+                              {/* Export visible button with dropdown (CSV / PDF) */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0">
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleExportCSV(credit)}>
+                                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                    Exportar CSV
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleExportPDF(credit)}>
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Exportar PDF
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+
+                              {/* Remaining More menu (only Gestionar documentos) */}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -859,17 +880,6 @@ export default function CreditsPage() {
                                   <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                   <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
                                     Gestionar documentos
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/dashboard/creditos/${credit.id}`}>Editar</Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleExportCSV(credit)}>
-                                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                                    Exportar CSV
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleExportPDF(credit)}>
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    Exportar PDF
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
