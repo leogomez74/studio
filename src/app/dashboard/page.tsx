@@ -157,7 +157,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Sección de tarjetas de métricas clave. */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         {/* Tarjeta 1: Saldo de Cartera */}
         <Link href="/dashboard/creditos" className="lg:col-span-2">
             <Card className="transition-all hover:ring-2 hover:ring-primary/50 h-full">
