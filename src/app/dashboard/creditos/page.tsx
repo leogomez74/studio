@@ -864,7 +864,11 @@ export default function CreditsPage() {
                           <TableCell><Badge variant="secondary">{credit.status}</Badge></TableCell>
                           <TableCell>{credit.documento_id || "-"}</TableCell>
                           <TableCell>{credit.client?.name || credit.lead?.name || "-"}</TableCell>
-                          <TableCell className="font-medium">{credit.numero_operacion || credit.reference || "-"}</TableCell>
+                          <TableCell className="font-medium">
+                            <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                              {credit.numero_operacion || credit.reference || "-"}
+                            </Link>
+                          </TableCell>
                           <TableCell>{credit.divisa || "CRC"}</TableCell>
                           <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
                           <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
