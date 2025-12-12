@@ -164,7 +164,7 @@ class CreditController extends Controller
             'name' => $request->name,
             'notes' => $request->notes,
             'path' => $path,
-            'url' => Storage::url($path),
+            'url' => asset(Storage::url($path)),
             'mime_type' => $file->getClientMimeType(),
             'size' => $file->getSize(),
         ]);

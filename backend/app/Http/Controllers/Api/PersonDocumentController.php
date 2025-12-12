@@ -23,7 +23,7 @@ class PersonDocumentController extends Controller
             'person_id' => $request->person_id,
             'name' => $file->getClientOriginalName(),
             'path' => $path,
-            'url' => Storage::url($path),
+            'url' => asset(Storage::url($path)),
             'mime_type' => $file->getMimeType(),
             'size' => $file->getSize(),
         ]);

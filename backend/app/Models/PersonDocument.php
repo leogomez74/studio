@@ -21,4 +21,12 @@ class PersonDocument extends Model
     {
         return $this->belongsTo(Person::class);
     }
+
+    public function getUrlAttribute($value)
+    {
+        if ($value && !str_starts_with($value, 'http')) {
+            return asset($value);
+        }
+        return $value;
+    }
 }

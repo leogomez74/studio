@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, Paperclip, Trash, Upload, Loader2 } from 'lucide-react';
+import { FileText, Paperclip, Trash, Upload, Loader2, File, Image as ImageIcon, FileSpreadsheet, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,12 +9,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 interface Document {
   id: number;
   name: string;
   created_at: string;
   url?: string | null;
+  mime_type?: string | null;
 }
 
 interface DocumentManagerProps {
@@ -77,13 +79,45 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     }).format(date);
   }
 
+  const getFullUrl = (url: string) => {
+    // If the URL is already absolute (e.g. from Laravel asset()), use it directly.
+    if (url.startsWith('http')) return url;
+
+    // Otherwise, construct the URL using the environment variable.
+    // In production, ensure NEXT_PUBLIC_API_BASE_URL is set to your production API URL.
+    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+    const baseUrl = backendUrl.replace(/\/api\/?$/, '');
+    const path = url.startsWith('/') ? url : `/${url}`;
+    return `${baseUrl}${path}`;
+  };
+
+  const getFileTypeInfo = (mimeType?: string | null, fileName?: string) => {
+    const type = mimeType || '';
+    const name = fileName?.toLowerCase() || '';
+
+    if (type.includes('image') || name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+        return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600' };
+    }
+    if (type.includes('pdf') || name.endsWith('.pdf')) {
+        return { icon: FileText, label: 'PDF', color: 'text-red-600' };
+    }
+    if (type.includes('spreadsheet') || type.includes('excel') || name.match(/\.(xls|xlsx|csv)$/)) {
+        return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600' };
+    }
+    if (type.includes('word') || name.match(/\.(doc|docx)$/)) {
+        return { icon: FileText, label: 'Word', color: 'text-blue-600' };
+    }
+    
+    return { icon: File, label: 'Archivo', color: 'text-slate-600' };
+  };
+
   return (
     <div className="space-y-4">
       {!readonly && (
         <div className="flex items-center gap-4">
-          <div className="grid w-full max-w-sm items-center gap-1.5">
+          <div className="grid w-full max-w-sm items-center gap-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
             <Label htmlFor="document-upload">Subir Documento</Label>
-            <Input id="document-upload" type="file" onChange={handleFileUpload} disabled={uploading} />
+            <Input className='cursor-pointer' id="document-upload" type="file" onChange={handleFileUpload} disabled={uploading} />
           </div>
           {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
         </div>
@@ -95,21 +129,28 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
             No hay archivos adjuntos.
           </div>
         ) : (
-          documents.map((doc) => (
+          documents.map((doc) => {
+            const { icon: FileIcon, label, color } = getFileTypeInfo(doc.mime_type, doc.name);
+            return (
             <div
               key={doc.id}
-              className="flex items-center justify-between rounded-md border p-3"
+              className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <Checkbox id={`doc-${doc.id}`} />
                 <div className="grid gap-1.5 leading-none">
-                    <label
-                        htmlFor={`doc-${doc.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                        {doc.name}
-                    </label>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                        <label
+                            htmlFor={`doc-${doc.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                            {doc.name}
+                        </label>
+                        <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-normal ${color} border-current opacity-80`}>
+                            {label}
+                        </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
                         {formatDate(doc.created_at)}
                     </p>
                 </div>
@@ -117,8 +158,8 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
               <div className="flex items-center gap-2">
                 {doc.url && (
                   <Button variant="ghost" size="sm" asChild>
-                    <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                      <FileText className="h-4 w-4" />
+                    <a href={getFullUrl(doc.url)} target="_blank" rel="noopener noreferrer">
+                      <FileIcon className={`h-4 w-4 ${color}`} />
                       <span className="sr-only">Ver</span>
                     </a>
                   </Button>
@@ -131,7 +172,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                 )}
               </div>
             </div>
-          ))
+          )})
         )}
       </div>
     </div>

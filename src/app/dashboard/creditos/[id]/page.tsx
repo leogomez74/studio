@@ -354,7 +354,7 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Paperclip className="h-5 w-5" />
-                        Archivos del Crédito (Compartidos con Cliente)
+                        Archivos del Crédito
                       </CardTitle>
                     </CardHeader>
                     <CardContent>

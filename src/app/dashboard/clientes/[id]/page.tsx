@@ -211,9 +211,6 @@ export default function ClientDetailPage() {
           <span>volver al CRM</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIsOpportunityDialogOpen(true)}>
-            Crear oportunidad
-          </Button>
           {isEditMode && (
             <>
               <Button variant="ghost" onClick={() => router.push(`/dashboard/clientes/${id}?mode=view`)}>Cancelar</Button>
@@ -901,9 +898,9 @@ export default function ClientDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                   <DocumentManager 
-                      personId={client.id} 
-                      initialDocuments={(client as any).documents || []} 
+                   <DocumentManager
+                      personId={parseInt(client.id)}
+                      initialDocuments={(client as any).documents || []}
                    />
                 </CardContent>
               </Card>
