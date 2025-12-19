@@ -231,7 +231,7 @@ function CreditDetailClient({ id }: { id: string }) {
   const [credit, setCredit] = useState<CreditItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPanelVisible, setIsPanelVisible] = useState(true);
-  
+
   // Edit State
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<CreditItem>>({});
@@ -274,8 +274,30 @@ function CreditDetailClient({ id }: { id: string }) {
   const fetchCredit = async () => {
     try {
       const response = await api.get(`/api/credits/${id}`);
-      setCredit(response.data);
-      setFormData(response.data);
+      let data = response.data;
+      // Buscar el último pago de tipo normal (asumimos que payments o plan_de_pagos existe)
+      let lastPaymentDate = null;
+      if (Array.isArray(data.payments) && data.payments.length > 0) {
+        // Filtrar pagos de tipo normal si hay un campo tipo, si no, tomar todos
+        const normalPayments = data.payments.filter((p: any) => !p.tipo || p.tipo === 'normal');
+        if (normalPayments.length > 0) {
+          // Ordenar por fecha_pago descendente
+          normalPayments.sort((a: any, b: any) => new Date(b.fecha_pago || b.fecha_corte || 0).getTime() - new Date(a.fecha_pago || a.fecha_corte || 0).getTime());
+          lastPaymentDate = normalPayments[0].fecha_pago || normalPayments[0].fecha_corte;
+        }
+      } else if (Array.isArray(data.plan_de_pagos) && data.plan_de_pagos.length > 0) {
+        // Fallback a plan_de_pagos si no hay payments
+        const normalPayments = data.plan_de_pagos.filter((p: any) => !p.tipo || p.tipo === 'normal');
+        if (normalPayments.length > 0) {
+          normalPayments.sort((a: any, b: any) => new Date(b.fecha_pago || b.fecha_corte || 0).getTime() - new Date(a.fecha_pago || a.fecha_corte || 0).getTime());
+          lastPaymentDate = normalPayments[0].fecha_pago || normalPayments[0].fecha_corte;
+        }
+      }
+      if (lastPaymentDate) {
+        data.fecha_ultimo_pago = lastPaymentDate;
+      }
+      setCredit(data);
+      setFormData(data);
     } catch (error) {
       console.error("Error fetching credit:", error);
       toast({ title: "Error", description: "No se pudo cargar el crédito", variant: "destructive" });
@@ -751,19 +773,22 @@ function CreditDetailClient({ id }: { id: string }) {
                           <div className="space-y-2">
                             <Label>Responsable</Label>
                             {isEditMode ? (
-                              <Select value={String(formData.lead?.assigned_to_id ?? "")} onValueChange={(value) => handleInputChange("assigned_to_id" as any, value === "" ? "" : parseInt(value, 10))}>
+                              <Select
+                                value={String(formData.lead?.assigned_to_id ?? "")}
+                                onValueChange={value => handleInputChange('lead', { ...formData.lead, assigned_to_id: parseInt(value) }) }
+                              >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Seleccionar responsable" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {users.map(user => (
-                                    <SelectItem key={user.id} value={String(user.name)}>{user.name}</SelectItem>
+                                    <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {agents.find(a => a.id === (formData as any).assigned_to_id)?.name} 
+                                {agents.find(a => a.id === (formData as any).assigned_to_id)?.name || "-"}
                               </p>
                             )}
                           </div>

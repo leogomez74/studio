@@ -18,7 +18,8 @@ import {
   Sparkles,
   UserCheck,
   Loader2,
-  Trash
+  Trash,
+  Upload
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -166,17 +167,18 @@ export default function ClientesPage() {
   // --- Effects ---
 
   // Fetch Lists (Statuses) once
-  useEffect(() => {
+    useEffect(() => {
     const fetchLists = async () => {
-        try {
-            const resStatuses = await api.get('/api/lead-statuses');
-            setLeadStatuses(resStatuses.data);
-        } catch (err) {
-            console.error("Error loading lists:", err);
-        }
+      try {
+        const resStatuses = await api.get('/api/lead-statuses');
+        setLeadStatuses(Array.isArray(resStatuses.data) ? resStatuses.data : []);
+      } catch (err) {
+        setLeadStatuses([]);
+        console.error("Error loading lists:", err);
+      }
     };
     fetchLists();
-  }, []);
+    }, []);
 
   // Fetch Data Logic (Preserved)
   const fetchData = useCallback(async () => {
@@ -686,9 +688,11 @@ export default function ClientesPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all" className="focus:bg-[lightgray]/48 cursor-pointer">Todos los estados</SelectItem>
-                            {leadStatuses.map(status => (
-                              <SelectItem key={status.id} value={String(status.id)} className="focus:bg-[lightgray]/48 cursor-pointer">{status.name}</SelectItem>
-                            ))}
+                            {Array.isArray(leadStatuses) && leadStatuses.length > 0
+                              ? leadStatuses.map(status => (
+                                  <SelectItem key={status.id} value={String(status.id)} className="focus:bg-[lightgray]/48 cursor-pointer">{status.name}</SelectItem>
+                                ))
+                              : null}
                           </SelectContent>
                         </Select>
                       ) : (
@@ -902,101 +906,232 @@ export default function ClientesPage() {
   );
 }
 
-// --- Table Components (Updated with new UI styles) ---
 
-function LeadsTable({ data, onAction }: { data: Lead[], onAction: (action: string, lead: Lead) => void }) {
-    if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
 
-    return (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[11rem]">Cédula</TableHead>
-              <TableHead>Lead</TableHead>
-              <TableHead className="w-[7.5rem]">Estado</TableHead>
-              <TableHead className="w-[10.5rem]">Contacto</TableHead>
-              <TableHead className="text-right">Registrado</TableHead>
-              <TableHead className="w-[20rem] text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((lead) => {
-                const displayName = getLeadDisplayName(lead);
-                const statusLabel = (typeof lead.lead_status === 'object' ? lead.lead_status?.name : lead.lead_status) || 'Nuevo';
-                const badgeClassName = getStatusBadgeClassName(statusLabel);
-                
-                return (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-mono text-sm">
-                        {lead.cedula ? (
-                            <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="text-primary hover:underline">
-                                {lead.cedula}
-                            </Link>
-                        ) : <span className="text-muted-foreground">-</span>}
-                    </TableCell>
-                    <TableCell>
-                        <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
-                            {displayName}
-                        </Link>
-                    </TableCell>
-                    <TableCell>
-                        <Badge className={badgeClassName}>{statusLabel}</Badge>
-                    </TableCell>
-                    <TableCell>
-                        <div className="text-sm text-muted-foreground">{lead.email || "Sin correo"}</div>
-                        <div className="text-sm text-muted-foreground">{lead.phone || "Sin teléfono"}</div>
-                    </TableCell>
-                    <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" className="bg-sky-100 text-sky-700 hover:bg-sky-200" onClick={() => onAction('edit', lead)}>
-                                <Pencil className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Editar</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" className="bg-rose-100 text-rose-700 hover:bg-rose-200" onClick={() => onAction('view', lead)}>
-                                <Eye className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Ver detalle</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" onClick={() => onAction('create_opportunity', lead)}>
-                                <Sparkles className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Crear oportunidad</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => onAction('convert', lead)}>
-                                <UserCheck className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Convertir a cliente</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
-                                <Archive className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Archivar</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-            })}
-          </TableBody>
-        </Table>
+
+type LeadsTableProps = {
+  data: Lead[];
+  onAction: (action: string, lead: Lead) => void;
+};
+
+function LeadsTable({ data, onAction }: LeadsTableProps) {
+  const { toast } = useToast();
+  const [uploadDialogOpen, setUploadDialogOpen] = useState<string | null>(null);
+  const [constanciaFile, setConstanciaFile] = useState<File | null>(null);
+  const [multiFiles, setMultiFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const handleOpenUploadDialog = (leadId: string) => {
+    setUploadDialogOpen(leadId);
+    setConstanciaFile(null);
+    setMultiFiles([]);
+  };
+
+  const handleConstanciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['application/pdf', 'text/html'].includes(file.type) && !file.name.endsWith('.pdf') && !file.name.endsWith('.html')) {
+      toast({ title: "Archivo inválido", description: "Solo se permiten archivos PDF o HTML.", variant: "destructive" });
+      return;
+    }
+    setConstanciaFile(file);
+  };
+
+  const handleMultiFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(file =>
+      (['application/pdf', 'text/html'].includes(file.type) || file.name.endsWith('.pdf') || file.name.endsWith('.html'))
     );
+    if (validFiles.length !== files.length) {
+      toast({ title: "Algunos archivos no son válidos", description: "Solo se permiten archivos PDF o HTML.", variant: "destructive" });
+    }
+    setMultiFiles(validFiles);
+  };
+
+  const handleUpload = async () => {
+    if (!uploadDialogOpen) return;
+    setUploading(true);
+    try {
+      const uploadedFilePaths: string[] = [];
+      if (constanciaFile) {
+        const formData = new FormData();
+        formData.append('file', constanciaFile);
+        const res = await api.post(`/api/leads/${uploadDialogOpen}/documents`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        if (res.data && res.data.path) uploadedFilePaths.push(res.data.path);
+      }
+      if (multiFiles.length > 0) {
+        for (const file of multiFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          const res = await api.post(`/api/leads/${uploadDialogOpen}/documents`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          if (res.data && res.data.path) uploadedFilePaths.push(res.data.path);
+        }
+      }
+
+      // Fetch the lead to get the cedula
+      let cedula = null;
+      try {
+        const leadRes = await api.get(`/api/leads/${uploadDialogOpen}`);
+        cedula = leadRes.data?.cedula;
+      } catch (e) { /* ignore */ }
+
+      // Call backend to create folder with cedula and move/copy files
+      if (cedula && uploadedFilePaths.length > 0) {
+        try {
+          await api.post('/api/leads/create-cedula-folder', {
+            cedula,
+            files: uploadedFilePaths,
+          });
+        } catch (e) {
+          toast({ title: "Advertencia", description: "No se pudo crear la carpeta por cédula.", variant: "destructive" });
+        }
+      }
+
+      toast({ title: "Archivos subidos", description: "Los archivos se subieron correctamente." });
+      setUploadDialogOpen(null);
+    } catch (err) {
+      toast({ title: "Error al subir", description: "No se pudo subir uno o más archivos.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
+
+  return (
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[11rem]">Cédula</TableHead>
+            <TableHead>Lead</TableHead>
+            <TableHead className="w-[7.5rem]">Estado</TableHead>
+            <TableHead className="w-[10.5rem]">Contacto</TableHead>
+            <TableHead className="text-right">Registrado</TableHead>
+            <TableHead className="w-[20rem] text-right">Acciones</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((lead) => {
+            const displayName = getLeadDisplayName(lead);
+            const statusLabel = (typeof lead.lead_status === 'object' ? lead.lead_status?.name : lead.lead_status) || 'Nuevo';
+            const badgeClassName = getStatusBadgeClassName(statusLabel);
+            return (
+              <TableRow key={lead.id}>
+                <TableCell className="font-mono text-sm">
+                  {lead.cedula ? (
+                    <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="text-primary hover:underline">
+                      {lead.cedula}
+                    </Link>
+                  ) : <span className="text-muted-foreground">-</span>}
+                </TableCell>
+                <TableCell>
+                  <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
+                    {displayName}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <Badge className={badgeClassName}>{statusLabel}</Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm text-muted-foreground">{lead.email || "Sin correo"}</div>
+                  <div className="text-sm text-muted-foreground">{lead.phone || "Sin teléfono"}</div>
+                </TableCell>
+                <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" onClick={() => handleOpenUploadDialog(String(lead.id))}>
+                          <Upload className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Subir Archivos Obligatorios</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" onClick={() => onAction('create_opportunity', lead)}>
+                          <Sparkles className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Crear oportunidad</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => onAction('convert', lead)}>
+                          <UserCheck className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Convertir a cliente</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Archivar</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {/* Upload Dialog */}
+      <Dialog open={!!uploadDialogOpen} onOpenChange={open => { if (!open) setUploadDialogOpen(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Subir Archivos</DialogTitle>
+            <DialogDescription>
+              Adjunta la constancia y otros archivos obligatorios para el lead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block font-medium mb-1">Constancia (PDF o HTML)</label>
+              <input
+                type="file"
+                accept=".pdf,.html,application/pdf,text/html"
+                onChange={handleConstanciaChange}
+                disabled={uploading}
+              />
+              {constanciaFile && <div className="text-xs mt-1 text-muted-foreground">{constanciaFile.name}</div>}
+            </div>
+            <div>
+              <label className="block font-medium mb-1">Archivos adicionales (PDF o HTML, múltiples)</label>
+              <input
+                type="file"
+                accept=".pdf,.html,application/pdf,text/html"
+                multiple
+                onChange={handleMultiFilesChange}
+                disabled={uploading}
+              />
+              {multiFiles.length > 0 && (
+                <ul className="mt-2 text-xs text-muted-foreground list-disc pl-4">
+                  {multiFiles.map((file, idx) => (
+                    <li key={idx}>{file.name}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUploadDialogOpen(null)} disabled={uploading}>Cancelar</Button>
+            <Button onClick={handleUpload} disabled={uploading || (!constanciaFile && multiFiles.length === 0)}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Subir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (client: Client) => void, onDelete: (client: Client) => void }) {
