@@ -157,7 +157,7 @@ class CreditPaymentController extends Controller
                 PlanDePago::where('credit_id', $credit->id)
                     ->where('numero_cuota', '>=', $numeroCuotaInicio)
                     ->delete();
-                $credit->estado = 'Finalizado';
+                $credit->status = 'Finalizado';
                 $credit->save();
             }
 
@@ -329,9 +329,10 @@ class CreditPaymentController extends Controller
         $carryAmort = 0.0;
         $cuotasArr = $cuotas->all();
         $cuotasCount = count($cuotasArr);
-        // Calculate saldoLeft as monto_credito minus sum of all payments
-        $totalPagos = CreditPayment::where('credit_id', $credit->id)->sum('monto');
-        $saldoLeft = $credit->monto_credito - $totalPagos;
+
+        // --- CORRECCIÓN: Variable para acumular solo lo amortizado HOY ---
+        $capitalAmortizadoHoy = 0.0;
+
         foreach ($cuotasArr as $i => $cuota) {
             if ($dineroDisponible <= 0.005) break;
 
@@ -370,13 +371,12 @@ class CreditPaymentController extends Controller
                 $pagoPrincipal = min($dineroDisponible, $pendientePrincipal);
                 $cuota->movimiento_principal += $pagoPrincipal;
                 $dineroDisponible -= $pagoPrincipal;
+
+                // ACUMULAR PARA EL DESCUENTO DE SALDO
+                $capitalAmortizadoHoy += $pagoPrincipal;
             }
 
-            // Update saldo_left after payment for this cuota
-            $saldoLeft = max(0.0, $saldoLeft - $cuota->movimiento_principal);
-            $cuota->movimiento_principal = $saldoLeft;
-
-            // Calculate carry-over for next cuota (only for interes_corriente and amortizacion)
+            // Calculate carry-over for next cuota
             $leftInteres = $pendienteInteres - $pagoInteres;
             $leftAmort = $pendientePrincipal - $pagoPrincipal;
             // Only carry to next cuota, not last
@@ -407,10 +407,9 @@ class CreditPaymentController extends Controller
             $cuota->save();
         }
 
-        // Actualizar Saldo Global (restando lo amortizado en esta txn)
-        // Nota: para el pago regular recalculamos sumando movimientos porque es incremental
-        $totalAmortizadoHistorico = $credit->planDePagos()->sum('movimiento_principal');
-        $credit->saldo = max(0.0, $credit->monto_credito - $totalAmortizadoHistorico);
+        // --- CORRECCIÓN: Actualizar Saldo de forma INCREMENTAL ---
+        // Restamos lo que se amortizó HOY al saldo que tenía el crédito ANTES de la transacción
+        $credit->saldo = max(0.0, $credit->saldo - $capitalAmortizadoHoy);
         $credit->save();
 
         // Recibo

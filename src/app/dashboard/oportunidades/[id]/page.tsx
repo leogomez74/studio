@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
 import { Opportunity, chatMessages, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
+import { DocumentManager } from "@/components/document-manager";
 
 export default function OpportunityDetailPage() {
   const params = useParams();
@@ -139,25 +140,16 @@ export default function OpportunityDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Main Content - Left Column */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Main Content - Left Column (Refactored with Archivos as main tab) */}
+        <div className="lg:col-span-3 space-y-6">
           <Tabs defaultValue="resumen" className="w-full">
-            <TabsList className="w-full justify-start bg-transparent p-0 border-b rounded-none h-auto">
-              <TabsTrigger 
-                value="resumen" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
-              >
-                Resumen
-              </TabsTrigger>
-              <TabsTrigger 
-                value="tareas" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
-              >
-                Tareas
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="resumen">Resumen</TabsTrigger>
+              <TabsTrigger value="tareas">Tareas</TabsTrigger>
+              <TabsTrigger value="archivos">Archivos</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="resumen" className="mt-6">
+            <TabsContent value="resumen">
               <Card className="border shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 border-b">
                   <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
@@ -181,28 +173,24 @@ export default function OpportunityDetailPage() {
                 </CardHeader>
                 <CardContent className="pt-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
-                    
                     {/* Left Column of Details */}
                     <div className="space-y-6">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CÉDULA</p>
                         <p className="text-sm font-medium text-slate-900">{opportunity.lead_cedula}</p>
                       </div>
-                      
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">VERTICAL</p>
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-0">
                           {opportunity.vertical}
                         </Badge>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">NOMBRE COMPLETO</p>
                         <p className="text-sm font-medium text-slate-900">
                           {opportunity.lead ? `${opportunity.lead.name} ${opportunity.lead.apellido1}` : 'N/A'}
                         </p>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">TIPO</p>
                         <div className="flex flex-wrap gap-2">
@@ -223,36 +211,31 @@ export default function OpportunityDetailPage() {
                           ))}
                         </div>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">MONTO ESTIMADO</p>
                         <p className="text-sm font-medium text-slate-900">{formatCurrency(opportunity.amount)}</p>
                       </div>
                     </div>
-
                     {/* Right Column of Details */}
                     <div className="space-y-6">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CIERRE ESPERADO</p>
                         <p className="text-sm font-medium text-slate-900">{formatDate(opportunity.expected_close_date)}</p>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CREADA</p>
                         <p className="text-sm font-medium text-slate-900">{formatDateTime(opportunity.created_at)}</p>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">ACTUALIZADA</p>
                         <p className="text-sm font-medium text-slate-900">{formatDateTime(opportunity.updated_at)}</p>
                       </div>
                     </div>
-
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="tareas">
               <Card>
                 <CardContent className="p-6 text-center text-muted-foreground">
@@ -260,75 +243,74 @@ export default function OpportunityDetailPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="archivos">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Paperclip className="h-5 w-5" />
+                    Archivos de la Oportunidad
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* Use DocumentManager as in leads */}
+                  <DocumentManager 
+                    personId={opportunity.lead ? Number(opportunity.lead.id) : 0}
+                    initialDocuments={(opportunity.lead && (opportunity.lead as any).documents) ? (opportunity.lead as any).documents : []}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
 
-        {/* Side Panel - Right Column */}
-        <div className="lg:col-span-1 space-y-6">
-          <Tabs defaultValue="comunicaciones" className="w-full">
-            <TabsList className="w-full grid grid-cols-2 bg-white p-1 border rounded-lg h-auto">
-              <TabsTrigger value="comunicaciones" className="data-[state=active]:bg-slate-100">Comunicaciones</TabsTrigger>
-              <TabsTrigger value="archivos" className="data-[state=active]:bg-slate-100">Archivos</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="comunicaciones" className="mt-4">
-              <Card className="border shadow-sm h-[600px] flex flex-col">
-                <div className="p-3 border-b">
-                  <div className="flex gap-2 bg-slate-100 p-1 rounded-md w-fit">
-                    <Button variant="ghost" size="sm" className="h-7 px-3 bg-white shadow-sm text-xs font-medium">
-                      <List className="h-3 w-3 mr-1.5" />
-                      Todo
+        {/* Side Panel - Right Column: Only comunicaciones */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border shadow-sm h-[600px] flex flex-col">
+            <div className="p-3 border-b">
+              <div className="flex gap-2 bg-slate-100 p-1 rounded-md w-fit">
+                <Button variant="ghost" size="sm" className="h-7 px-3 bg-white shadow-sm text-xs font-medium">
+                  <List className="h-3 w-3 mr-1.5" />
+                  Todo
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 px-3 text-muted-foreground text-xs font-medium hover:bg-white/50">
+                  <MessageSquare className="h-3 w-3 mr-1.5" />
+                  Mensajes
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 px-3 text-muted-foreground text-xs font-medium hover:bg-white/50">
+                  <MessageCircle className="h-3 w-3 mr-1.5" />
+                  Comentarios
+                </Button>
+              </div>
+            </div>
+            <div className="p-4 border-b bg-slate-50/30">
+              <div className="relative rounded-lg border bg-white shadow-sm focus-within:ring-1 focus-within:ring-primary">
+                <Input 
+                  className="border-0 focus-visible:ring-0 px-4 py-3 h-auto text-sm" 
+                  placeholder="Escribe tu mensaje..." 
+                />
+                <div className="flex items-center justify-between px-2 pb-2 pt-1">
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                      <Paperclip className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-3 text-muted-foreground text-xs font-medium hover:bg-white/50">
-                      <MessageSquare className="h-3 w-3 mr-1.5" />
-                      Mensajes
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-3 text-muted-foreground text-xs font-medium hover:bg-white/50">
-                      <MessageCircle className="h-3 w-3 mr-1.5" />
-                      Comentarios
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                      <Smile className="h-4 w-4" />
                     </Button>
                   </div>
+                  <Button size="icon" className="h-8 w-8 bg-slate-400 hover:bg-slate-500">
+                    <Send className="h-4 w-4 text-white" />
+                  </Button>
                 </div>
-
-                <div className="p-4 border-b bg-slate-50/30">
-                  <div className="relative rounded-lg border bg-white shadow-sm focus-within:ring-1 focus-within:ring-primary">
-                    <Input 
-                      className="border-0 focus-visible:ring-0 px-4 py-3 h-auto text-sm" 
-                      placeholder="Escribe tu mensaje..." 
-                    />
-                    <div className="flex items-center justify-between px-2 pb-2 pt-1">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                          <Paperclip className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                          <Smile className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <Button size="icon" className="h-8 w-8 bg-slate-400 hover:bg-slate-500">
-                        <Send className="h-4 w-4 text-white" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/30">
-                   {/* Placeholder for empty state or messages */}
-                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm">
-                      <p>No hay comunicaciones recientes</p>
-                   </div>
-                </div>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="archivos" className="mt-4">
-               <Card className="border shadow-sm h-[600px]">
-                 <CardContent className="p-6 text-center text-muted-foreground">
-                   No hay archivos adjuntos.
-                 </CardContent>
-               </Card>
-            </TabsContent>
-          </Tabs>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/30">
+               {/* Placeholder for empty state or messages */}
+               <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm">
+                  <p>No hay comunicaciones recientes</p>
+               </div>
+            </div>
+          </Card>
         </div>
       </div>
     </div>
