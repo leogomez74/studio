@@ -2,7 +2,7 @@
 'use client';
 
 // Importamos los hooks y componentes necesarios de React y de nuestra biblioteca de UI.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -30,6 +30,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import api from '@/lib/axios';
+import { type Opportunity } from '@/lib/data';
 
 /**
  * Componente principal de la página de Cálculos.
@@ -52,6 +54,38 @@ export default function CalculosPage() {
   const [newTerm, setNewTerm] = useState('12'); // Nuevo plazo para el arreglo
   const [newMonthlyPayment, setNewMonthlyPayment] = useState<number | null>(null); // Nueva cuota calculada
   const [searchError, setSearchError] = useState<string | null>(null); // Mensaje de error si no se encuentra el crédito
+
+  // --- Opportunity Search State ---
+  const [opportunitySearch, setOpportunitySearch] = useState('');
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState('');
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(false);
+
+  useEffect(() => {
+    const fetchOpportunities = async () => {
+      setIsLoadingOpportunities(true);
+      try {
+        const response = await api.get('/api/opportunities');
+        const data = response.data.data || response.data;
+        setOpportunities(Array.isArray(data) ? data : []);
+      } catch (error) {
+        // Optionally handle error
+      } finally {
+        setIsLoadingOpportunities(false);
+      }
+    };
+    fetchOpportunities();
+  }, []);
+
+  const filteredOpportunities = useMemo(() =>
+    opportunities.filter(o => {
+      const ref = o.id ? String(o.id) : '';
+      const type = o.opportunity_type || '';
+      return ref.toLowerCase().includes(opportunitySearch.toLowerCase()) ||
+        type.toLowerCase().includes(opportunitySearch.toLowerCase());
+    }),
+    [opportunitySearch, opportunities]
+  );
 
   /**
    * Efecto que se ejecuta cuando el tipo de crédito cambia.
@@ -165,6 +199,27 @@ export default function CalculosPage() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
+      {/* --- Opportunity Search Input --- */}
+      <div className="col-span-2 mb-4 flex gap-4 items-center">
+        <Input
+          placeholder="Buscar oportunidad..."
+          value={opportunitySearch}
+          onChange={e => setOpportunitySearch(e.target.value)}
+          className="max-w-xs"
+        />
+        <Select value={selectedOpportunityId} onValueChange={setSelectedOpportunityId}>
+          <SelectTrigger className="max-w-xs">
+            <SelectValue placeholder={isLoadingOpportunities ? 'Cargando...' : 'Selecciona una oportunidad'} />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredOpportunities.map(o => (
+              <SelectItem key={o.id} value={String(o.id)}>
+                #{o.id} - {o.opportunity_type || 'Sin tipo'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       {/* --- Tarjeta de Calculadora de Cuotas --- */}
       <Card>
         <CardHeader>
