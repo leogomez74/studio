@@ -12,7 +12,7 @@ class EnterpriseRequirement extends Model
     use HasFactory;
 
     protected $fillable = [
-        'enterprise_employee_document_id',
+        'enterprise_id',
         'file_extension',
         'binary',
         'upload_date',
@@ -24,7 +24,7 @@ class EnterpriseRequirement extends Model
         'last_updated' => 'date',
     ];
 
-    public function document()
+    public function enterprise()
     {
         return $this->belongsTo(Enterprise::class);
     }
