@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('enterprise_employee_document_requirements', function (Blueprint $table) {
+        Schema::create('enterprise_requirements', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('enterprise_employee_document_id')->constrained()->onDelete('cascade');
+            $table->foreignId('document_id')->constrained()->onDelete('cascade');
             $table->string('file_extension', 50);
             $table->binary('binary');
             $table->date('upload_date');
@@ -22,6 +22,6 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::dropIfExists('enterprise_employee_document_requirements');
+        Schema::dropIfExists('enterprise_requirements');
     }
 };
