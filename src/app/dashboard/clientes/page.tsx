@@ -1172,22 +1172,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                       </TooltipTrigger>
                       <TooltipContent>Crear oportunidad</TooltipContent>
                     </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon" className="bg-sky-100 text-sky-700 hover:bg-sky-200" onClick={() => onAction('edit', lead)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Editar</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon" variant="outline" onClick={() => onAction('view', lead)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Ver detalle</TooltipContent>
-                    </Tooltip>
+                    
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button size="icon" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => onAction('convert', lead)}>

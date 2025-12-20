@@ -104,7 +104,7 @@ class OpportunityController extends Controller
      * @param int $opportunityId
      * @return array
      */
-    private function moveFilesToOpportunityFolder(string $cedula, int $opportunityId): array
+    private function moveFilesToOpportunityFolder(string $cedula, string $opportunityId): array
     {
         $cedula = preg_replace('/[^0-9]/', '', $cedula);
 

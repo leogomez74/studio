@@ -541,6 +541,37 @@ export default function DealsPage() {
     }
   };
 
+  // Analisis State for Button
+  const ANALISIS_STATES = ["preAnalisis", "Analisis", "postAnalisis"] as const;
+  type AnalisisState = typeof ANALISIS_STATES[number];
+
+  const [changeState, setChangeState] = useState<AnalisisState>("preAnalisis");
+
+  const getAnalisisButtonProps = (state: AnalisisState) => {
+    switch (state) {
+      case "preAnalisis":
+        return { label: "Iniciar Pre-Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" /> };
+      case "Analisis":
+        return { label: "Realizar Análisis", color: "bg-blue-600", icon: <Check className="h-4 w-4" /> };
+      case "postAnalisis":
+        return { label: "Finalizar y Crear Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" /> };
+      default:
+        return { label: "Iniciar Pre-Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />  };
+    }
+  };
+
+  const handleAnalisisButtonClick = (opportunity: Opportunity) => {
+    if (changeState === "preAnalisis") {
+      setChangeState("Analisis");
+    } else if (changeState === "Analisis") {
+      setChangeState("postAnalisis");
+    } else if (changeState === "postAnalisis") {
+      // Aquí se llamaría a AnalisisController::create (solo lógica, no implementación)
+      // Por ejemplo: createAnalisis(opportunity)
+      setChangeState("preAnalisis"); // Reset or keep as needed
+    }
+  };
+
   // --- Table Logic ---
 
   const handleFilterChange = useCallback(
@@ -979,11 +1010,15 @@ export default function DealsPage() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button size="icon" className="h-9 w-9 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 border-0" onClick={() => handleOpenAnalisisDialog(opportunity)}>
-                                <PlusCircle className="h-4 w-4" />
+                              <Button
+                                size="icon"
+                                className={`h-9 w-9 rounded-md text-white border-0 ${getAnalisisButtonProps(changeState).color}`}
+                                onClick={() => handleAnalisisButtonClick(opportunity)}
+                              >
+                                {getAnalisisButtonProps(changeState).icon}
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Crear Análisis</TooltipContent>
+                            <TooltipContent>{getAnalisisButtonProps(changeState).label}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>
