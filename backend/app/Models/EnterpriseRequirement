@@ -1,24 +1,31 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class EnterpriseEmployeeDocument extends Model
+class EnterpriseRequirement extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'name',
-        'extension',
+        'enterprise_employee_document_id',
+        'file_extension',
+        'binary',
         'upload_date',
         'last_updated',
-        'assigned_to_enterprise_name',
     ];
 
     protected $casts = [
         'upload_date' => 'date',
         'last_updated' => 'date',
     ];
+
+    public function document()
+    {
+        return $this->belongsTo(Enterprise::class);
+    }
 }
