@@ -81,7 +81,7 @@ function EnterpriseCreateForm() {
     try {
       const now = new Date().toISOString();
       const extensiones = ['pdf', 'html'];
-      
+
       const requirements = tipos.flatMap(tipo =>
         extensiones.map(ext => ({
           file_extension: ext,
@@ -130,10 +130,10 @@ function EnterpriseCreateForm() {
             o usar Checkboxes. Aquí simulo la selección simple por compatibilidad, 
             o agrega lógica acumulativa si tu componente lo soporta. */}
         <Select
-          value={tipos.length > 0 ? tipos[0] : ''} 
+          value={tipos.length > 0 ? tipos[0] : ''}
           onValueChange={(val) => {
-             // Lógica simple: Reemplaza. Si quieres múltiple, cambia a checkboxes o MultiSelect component.
-             setTipos([val]); 
+            // Lógica simple: Reemplaza. Si quieres múltiple, cambia a checkboxes o MultiSelect component.
+            setTipos([val]);
           }}
         >
           <SelectTrigger id="enterprise-tipos">
@@ -483,10 +483,10 @@ export default function ConfiguracionPage() {
         });
         setIsCreateUserOpen(false);
         setEditingUser(null);
-        setNewUser({ 
-          name: '', 
-          email: '', 
-          password: '', 
+        setNewUser({
+          name: '',
+          email: '',
+          password: '',
           password_confirmation: '',
           role: 'Sin Rol Asignado',
           status: 'Activo'
@@ -953,9 +953,8 @@ export default function ConfiguracionPage() {
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{user.role || 'Sin Rol Asignado'}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          user.status === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${user.status === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
                           {user.status || 'Activo'}
                         </span>
                       </TableCell>
@@ -1055,19 +1054,19 @@ export default function ConfiguracionPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                  <CardTitle>Patronos</CardTitle>
-                  <CardDescription>
-                    Gestiona la lista de instituciones y patronos para deducción de planilla.
-                  </CardDescription>
+                <CardTitle>Patronos</CardTitle>
+                <CardDescription>
+                  Gestiona la lista de instituciones y patronos para deducción de planilla.
+                </CardDescription>
               </div>
-               <Button size="sm" className="gap-1">
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar Patrono
-                </Button>
+              <Button size="sm" className="gap-1">
+                <PlusCircle className="h-4 w-4" />
+                Agregar Patrono
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
-             <Table>
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre del Patrono</TableHead>
@@ -1113,20 +1112,20 @@ export default function ConfiguracionPage() {
         </Card>
       </TabsContent>
 
-       <TabsContent value="deductoras">
+      <TabsContent value="deductoras">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                  <CardTitle>Entidades Deductoras</CardTitle>
-                  <CardDescription>
-                    Gestiona las cooperativas y entidades que procesan las deducciones.
-                  </CardDescription>
+                <CardTitle>Entidades Deductoras</CardTitle>
+                <CardDescription>
+                  Gestiona las cooperativas y entidades que procesan las deducciones.
+                </CardDescription>
               </div>
-               <Button size="sm" className="gap-1" onClick={openCreateDeductoraDialog}>
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar Deductora
-                </Button>
+              <Button size="sm" className="gap-1" onClick={openCreateDeductoraDialog}>
+                <PlusCircle className="h-4 w-4" />
+                Agregar Deductora
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -1135,56 +1134,56 @@ export default function ConfiguracionPage() {
                 <Loader2 className="animate-spin" />
               </div>
             ) : (
-             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre de la Deductora</TableHead>
-                  <TableHead>Fecha de Cobro</TableHead>
-                  <TableHead className="text-right">Comisión (%)</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Acciones</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {deductorasList.length === 0 ? (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      No hay deductoras registradas.
-                    </TableCell>
+                    <TableHead>Nombre de la Deductora</TableHead>
+                    <TableHead>Fecha de Cobro</TableHead>
+                    <TableHead className="text-right">Comisión (%)</TableHead>
+                    <TableHead>
+                      <span className="sr-only">Acciones</span>
+                    </TableHead>
                   </TableRow>
-                ) : (
-                  deductorasList.map((deductora) => (
-                    <TableRow key={deductora.id}>
-                      <TableCell className="font-medium">{deductora.nombre}</TableCell>
-                      <TableCell>{deductora.fecha_reporte_pago ? new Date(deductora.fecha_reporte_pago).toLocaleDateString('es-CR') : '-'}</TableCell>
-                      <TableCell className="text-right font-mono">{(parseFloat(deductora.comision?.toString() || '0')).toFixed(2)}%</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              aria-haspopup="true"
-                              size="icon"
-                              variant="ghost"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Alternar menú</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => openEditDeductoraDialog(deductora)}>Editar</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteDeductora(deductora)}>
-                              Eliminar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                </TableHeader>
+                <TableBody>
+                  {deductorasList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No hay deductoras registradas.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    deductorasList.map((deductora) => (
+                      <TableRow key={deductora.id}>
+                        <TableCell className="font-medium">{deductora.nombre}</TableCell>
+                        <TableCell>{deductora.fecha_reporte_pago ? new Date(deductora.fecha_reporte_pago).toLocaleDateString('es-CR') : '-'}</TableCell>
+                        <TableCell className="text-right font-mono">{(parseFloat(deductora.comision?.toString() || '0')).toFixed(2)}%</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                aria-haspopup="true"
+                                size="icon"
+                                variant="ghost"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Alternar menú</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => openEditDeductoraDialog(deductora)}>Editar</DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteDeductora(deductora)}>
+                                Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
