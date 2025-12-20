@@ -228,7 +228,7 @@ const EmpresasTable: React.FC = () => {
                         <ul className="list-disc pl-4">
                           {empresa.requirements.map((req: any, idx: number) => (
                             <li key={idx}>
-                              {req}
+                              {req.name}
                             </li>
                           ))}
                         </ul>
