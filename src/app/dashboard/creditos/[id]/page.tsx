@@ -197,6 +197,7 @@ interface CreditItem {
   saldo?: number | null;
   // saldo_a_favor removed
   proceso?: string | null;
+  poliza?: boolean | null;
 }
 
 // --- Helpers ---
