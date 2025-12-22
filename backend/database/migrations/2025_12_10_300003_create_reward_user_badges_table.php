@@ -11,7 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('reward_user_badges');
+        Schema::enableForeignKeyConstraints();
         Schema::create('reward_user_badges', function (Blueprint $table) {
             $table->id();
             $table->foreignId('reward_user_id')->constrained('reward_users')->onDelete('cascade');

@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('enterprises_requirements');
+        Schema::enableForeignKeyConstraints();
         Schema::create('enterprises_requirements', function (Blueprint $table) {
             $table->id();
             $table->foreignId('enterprise_id')->constrained('enterprises')->onDelete('cascade');
@@ -19,12 +21,6 @@ return new class extends Migration {
             $table->date('last_updated')->nullable();
             $table->timestamps();
         });
-        // Si la columna 'binary' existía, la eliminamos
-        if (Schema::hasColumn('enterprises_requirements', 'binary')) {
-            Schema::table('enterprises_requirements', function (Blueprint $table) {
-                $table->dropColumn('binary');
-            });
-        }
     }
 
     public function down(): void

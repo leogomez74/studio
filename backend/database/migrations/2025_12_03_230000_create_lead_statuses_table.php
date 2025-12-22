@@ -11,7 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('lead_statuses');
+        Schema::enableForeignKeyConstraints();
         Schema::create('lead_statuses', function (Blueprint $table) {
             $table->id();
             $table->string('name', 150)->unique();
