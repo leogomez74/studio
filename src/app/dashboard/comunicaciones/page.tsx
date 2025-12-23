@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils"; // Utilidad para combinar clases de Tailwind.
 import Link from "next/link";
 import api from "@/lib/axios";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthUser } from "@/lib/auth";
+
 // Tipo para representar una conversación
 type Conversation = {
   id: string;
@@ -55,13 +55,11 @@ type Conversation = {
  */
 export default function CommunicationsPage() {
   const { toast } = useToast();
-  const currentUser = getAuthUser();
 
   // Estados para las conversaciones
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [loadingConversations, setLoadingConversations] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'me' | 'important' | 'pending' | 'closed'>('all');
 
   // Estados para los mensajes
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -72,55 +70,45 @@ export default function CommunicationsPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
 
   // Cargar conversaciones (leads) desde la API
-  const fetchConversations = React.useCallback(async () => {
-    setLoadingConversations(true);
-    try {
-      const params: any = {};
-      if (activeFilter === 'me' && currentUser?.id) {
-        params.assigned_to_id = currentUser.id;
-      }
-      
-      const response = await api.get('/api/leads', { params });
-      const leadsList = Array.isArray(response.data) ? response.data : response.data.data || [];
+  useEffect(() => {
+    const fetchConversations = async () => {
+      setLoadingConversations(true);
+      try {
+        const response = await api.get('/api/leads');
+        const leadsList = Array.isArray(response.data) ? response.data : response.data.data || [];
 
-      // Convertir leads a conversaciones
-      const conversationsFromLeads: Conversation[] = leadsList.map((lead: Lead) => ({
-        id: String(lead.id),
-        name: lead.name || 'Sin nombre',
-        avatarUrl: '',
-        caseId: String(lead.id),
-        lastMessage: lead.status || 'Conversación con lead',
-        time: lead.created_at ? new Date(lead.created_at).toLocaleDateString() : 'Ahora',
-        status: 'Abierto' as const,
-        email: lead.email,
-      }));
+        // Convertir leads a conversaciones
+        const conversationsFromLeads: Conversation[] = leadsList.map((lead: Lead) => ({
+          id: String(lead.id),
+          name: lead.name || 'Sin nombre',
+          avatarUrl: '',
+          caseId: String(lead.id),
+          lastMessage: 'Conversación con lead',
+          time: 'Ahora',
+          status: 'Abierto' as const,
+          email: lead.email,
+        }));
 
-      setConversations(conversationsFromLeads);
+        setConversations(conversationsFromLeads);
 
-      // Seleccionar la primera conversación por defecto si es necesario
-      if (conversationsFromLeads.length > 0) {
-        const stillInList = conversationsFromLeads.find(c => c.id === selectedConversation?.id);
-        if (!selectedConversation || !stillInList) {
+        // Seleccionar la primera conversación por defecto
+        if (conversationsFromLeads.length > 0 && !selectedConversation) {
           setSelectedConversation(conversationsFromLeads[0]);
         }
-      } else {
-        setSelectedConversation(null);
+      } catch (error) {
+        console.error('Error cargando conversaciones:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las conversaciones.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingConversations(false);
       }
-    } catch (error) {
-      console.error('Error cargando conversaciones:', error);
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar las conversaciones.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingConversations(false);
-    }
-  }, [activeFilter, currentUser?.id, selectedConversation?.id, toast]);
+    };
 
-  useEffect(() => {
     fetchConversations();
-  }, [fetchConversations]);
+  }, []);
 
   // Cargar mensajes cuando se selecciona una conversación
   useEffect(() => {
@@ -167,33 +155,27 @@ export default function CommunicationsPage() {
       const response = await api.post('/api/chat-messages', {
         conversation_id: selectedConversation.id,
         sender_type: 'agent',
-        sender_name: currentUser?.name || 'Agente',
+        sender_name: 'Agente', // TODO: Obtener del usuario actual
         text: newMessage,
         message_type: 'text',
       });
 
       if (response.data.success) {
-        // Recargar mensajes para sincronizar
-        const res = await api.get('/api/chat-messages', {
-          params: { conversation_id: selectedConversation.id }
-        });
-        
-        if (res.data.success && Array.isArray(res.data.data)) {
-            const mappedMessages: ChatMessage[] = res.data.data.map((msg: any) => ({
-              id: String(msg.id),
-              conversationId: msg.conversation_id,
-              senderType: msg.sender_type,
-              senderName: msg.sender_name || 'Sistema',
-              avatarUrl: '',
-              text: msg.text,
-              time: new Date(msg.created_at).toLocaleTimeString('es-ES', {
-                hour: '2-digit',
-                minute: '2-digit'
-              }),
-            }));
-            setMessages(mappedMessages);
-        }
-        
+        // Agregar el mensaje a la lista
+        const newMsg: ChatMessage = {
+          id: String(response.data.data.id),
+          conversationId: selectedConversation.id,
+          senderType: 'agent',
+          senderName: 'Agente',
+          avatarUrl: '',
+          text: newMessage,
+          time: new Date().toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+        };
+
+        setMessages([...messages, newMsg]);
         setNewMessage('');
 
         toast({
@@ -230,27 +212,15 @@ export default function CommunicationsPage() {
             <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
               <Inbox className="h-4 w-4" /> Cajas de Entrada
             </h3>
-            <Button 
-              variant="ghost" 
-              className={cn("w-full justify-start", activeFilter === 'all' && "bg-muted")}
-              onClick={() => setActiveFilter('all')}
-            >
+            <Button variant="ghost" className="w-full justify-start">
               <MessageSquare className="mr-2 h-4 w-4" />
               Todas las conversaciones
             </Button>
-            <Button 
-              variant="ghost" 
-              className={cn("w-full justify-start", activeFilter === 'me' && "bg-muted")}
-              onClick={() => setActiveFilter('me')}
-            >
+            <Button variant="ghost" className="w-full justify-start">
               <Users className="mr-2 h-4 w-4" />
               Asignadas a mí
             </Button>
-            <Button 
-              variant="ghost" 
-              className={cn("w-full justify-start", activeFilter === 'important' && "bg-muted")}
-              onClick={() => setActiveFilter('important')}
-            >
+            <Button variant="ghost" className="w-full justify-start">
               <Star className="mr-2 h-4 w-4" />
               Importantes
             </Button>
@@ -259,19 +229,11 @@ export default function CommunicationsPage() {
             <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
               <Archive className="h-4 w-4" /> Archivo
             </h3>
-            <Button 
-              variant="ghost" 
-              className={cn("w-full justify-start", activeFilter === 'pending' && "bg-muted")}
-              onClick={() => setActiveFilter('pending')}
-            >
+            <Button variant="ghost" className="w-full justify-start">
               <Clock className="mr-2 h-4 w-4" />
               Pendientes
             </Button>
-            <Button 
-              variant="ghost" 
-              className={cn("w-full justify-start", activeFilter === 'closed' && "bg-muted")}
-              onClick={() => setActiveFilter('closed')}
-            >
+            <Button variant="ghost" className="w-full justify-start">
               <FileText className="mr-2 h-4 w-4" />
               Cerradas
             </Button>
