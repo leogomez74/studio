@@ -53,7 +53,7 @@ class CreditController extends Controller
             'garantia' => 'nullable|string',
 
             // Campos Financieros
-            'monto_credito' => 'required|numeric|min:1',
+            'monto_credito' => 'required|numeric|min:2',
             'plazo' => 'required|integer|min:1',
             'tasa_anual' => 'nullable|numeric',
             'fecha_primera_cuota' => 'nullable|date',
