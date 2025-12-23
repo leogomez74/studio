@@ -424,7 +424,7 @@ export default function CobrosPage() {
                           </Select>
                           
                           {selectedCredit && selectedCredit.status !== 'Formalizado' && (
-                            <div className="mt-3 p-4 text-[14px] leading-tight bg-amber-50 border border-amber-200 text-amber-700 rounded-md flex items-start gap-2">
+                            <div className="mt-3 p-4 text-[14px] leading-tight bg-amber-50 border border-amber-200 text-red-700 rounded-md flex items-start gap-2">
                               <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                               <span>Este crédito no está <strong>Formalizado</strong> (Estado: {selectedCredit.status}). No se pueden registrar abonos manuales hasta que el crédito sea formalizado y tenga un plan de pagos.</span>
                             </div>
