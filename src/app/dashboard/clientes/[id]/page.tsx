@@ -1046,9 +1046,8 @@ export default function ClientDetailPage() {
       <CreateOpportunityDialog 
         open={isOpportunityDialogOpen} 
         onOpenChange={setIsOpportunityDialogOpen}
-        leads={client ? [client] : []}
+        leads={client ? [client as unknown as Lead] : []}
         defaultLeadId={client ? String(client.id) : undefined}
-        contextType="client"
         onSuccess={() => {
             // Refresh client data to show new opportunity
             window.location.reload();
