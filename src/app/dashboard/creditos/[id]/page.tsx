@@ -935,33 +935,47 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardDescription>Detalle de cuotas y movimientos históricos</CardDescription>
                   </div>
                   {credit.status === 'Formalizado' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        if (!confirm('¿Estás seguro de que deseas regenerar el plan de pagos? Esto eliminará las cuotas pendientes y creará un nuevo plan.')) return;
-                        try {
-                          setLoading(true);
-                          await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
-                          toast({
-                            title: 'Plan de pagos regenerado',
-                            description: 'El plan de pagos se ha regenerado correctamente.',
-                          });
-                          await fetchCredit();
-                        } catch (error) {
-                          console.error('Error regenerando plan de pagos:', error);
-                          toast({
-                            title: 'Error',
-                            description: 'No se pudo regenerar el plan de pagos.',
-                            variant: 'destructive',
-                          });
-                        } finally {
-                          setLoading(false);
-                        }
-                      }}
-                    >
-                      Regenerar Plan
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={credit.plan_de_pagos?.some(p => p.estado === 'Pagado')}
+                              onClick={async () => {
+                                if (!confirm('¿Estás seguro de que deseas regenerar el plan de pagos? Esto eliminará las cuotas pendientes y creará un nuevo plan.')) return;
+                                try {
+                                  setLoading(true);
+                                  await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
+                                  toast({
+                                    title: 'Plan de pagos regenerado',
+                                    description: 'El plan de pagos se ha regenerado correctamente.',
+                                  });
+                                  await fetchCredit();
+                                } catch (error) {
+                                  console.error('Error regenerando plan de pagos:', error);
+                                  toast({
+                                    title: 'Error',
+                                    description: 'No se pudo regenerar el plan de pagos.',
+                                    variant: 'destructive',
+                                  });
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }}
+                            >
+                              Regenerar Plan
+                            </Button>
+                          </div>
+                        </TooltipTrigger>
+                        {credit.plan_de_pagos?.some(p => p.estado === 'Pagado') && (
+                          <TooltipContent>
+                            <p>No se puede regenerar el plan porque existen cuotas pagadas.</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
