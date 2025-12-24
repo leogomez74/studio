@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,6 +72,17 @@ const createOpportunitySchema = z.object({
 
 type CreateOpportunityFormValues = z.infer<typeof createOpportunitySchema>;
 
+type CreateOpportunityPayload = {
+  lead_cedula: string;
+  vertical: (typeof VERTICAL_OPTIONS)[number];
+  opportunity_type: (typeof OPPORTUNITY_TYPES)[number];
+  status: (typeof OPPORTUNITY_STATUSES)[number];
+  amount: number;
+  expected_close_date: string | null;
+  comments?: string;
+  assigned_to_id?: number;
+};
+
 export function CreateOpportunityDialog({
   open,
   onOpenChange,
@@ -81,7 +92,7 @@ export function CreateOpportunityDialog({
 }: CreateOpportunityDialogProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [hasDocuments, setHasDocuments] = useState<boolean | null>(null);
+  const [hasDocuments, setHasDocuments] = useState(false);
   const [checkingDocs, setCheckingDocs] = useState(false);
 
   // Combobox state
@@ -102,7 +113,7 @@ export function CreateOpportunityDialog({
   });
 
   // Detectar si es lead o cliente por props
-  const isLeadContext = leads && leads.length > 0;
+  const isLeadSelectionDisabled = !!defaultLeadId;
 
   // Reset form cuando se abre el diálogo
   useEffect(() => {
@@ -121,34 +132,34 @@ export function CreateOpportunityDialog({
 
   const currentLeadId = form.watch("leadId");
 
-  // Verificar documentos al cambiar leadId
-  useEffect(() => {
-    const checkDocs = async () => {
-      setCheckingDocs(true);
-      setHasDocuments(null);
-      let cedula = "";
-      if (isLeadContext) {
-        const selectedLead = leads.find(l => String(l.id) === currentLeadId);
-        cedula = selectedLead?.cedula || "";
-      }
-      if (!cedula) {
-        setHasDocuments(false);
-        setCheckingDocs(false);
-        return;
-      }
-      try {
+  const checkDocs = useCallback(async () => {
+    if (!currentLeadId) {
+      setHasDocuments(false);
+      return;
+    }
+
+    setCheckingDocs(true);
+    try {
+      const selectedLead = leads.find(l => String(l.id) === currentLeadId);
+      const cedula = selectedLead?.cedula || "";
+      if (cedula) {
         const url = `/api/person-documents/check-cedula-folder?cedula=${cedula}`;
         const res = await api.get(url);
         setHasDocuments(!!res.data.exists);
-      } catch (e) {
+      } else {
         setHasDocuments(false);
-      } finally {
-        setCheckingDocs(false);
       }
-    };
-    if (currentLeadId) checkDocs();
-    else setHasDocuments(false);
-  }, [currentLeadId, leads, isLeadContext]);
+    } catch (e) {
+      setHasDocuments(false);
+    } finally {
+      setCheckingDocs(false);
+    }
+  }, [currentLeadId, leads]);
+
+  // Verificar documentos al cambiar leadId
+  useEffect(() => {
+    checkDocs();
+  }, [checkDocs]);
 
   const onSubmit = async (values: CreateOpportunityFormValues) => {
       setIsSaving(true);
@@ -161,7 +172,7 @@ export function CreateOpportunityDialog({
             return;
         }
 
-        const body: any = {
+        const body: CreateOpportunityPayload = {
             lead_cedula: selectedLead.cedula,
             vertical: values.vertical,
             opportunity_type: values.opportunityType,
@@ -177,9 +188,10 @@ export function CreateOpportunityDialog({
 
         onOpenChange(false);
         if (onSuccess) onSuccess();
-      } catch (error) {
+      } catch (error: any) {
           console.error("Error saving:", error);
-          toast({ title: "Error", description: "No se pudo guardar la oportunidad.", variant: "destructive" });
+          const errorMessage = error.response?.data?.message || "No se pudo guardar la oportunidad.";
+          toast({ title: "Error", description: errorMessage, variant: "destructive" });
       } finally {
           setIsSaving(false);
       }
@@ -215,7 +227,7 @@ export function CreateOpportunityDialog({
                     <Select 
                       value={field.value} 
                       onValueChange={field.onChange} 
-                      disabled={!!defaultLeadId}
+                      disabled={isLeadSelectionDisabled}
                     >
                       <FormControl>
                         <SelectTrigger>
