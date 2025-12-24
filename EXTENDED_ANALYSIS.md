@@ -592,6 +592,56 @@ The codebase is evolving healthily. The team demonstrates:
 
 ---
 
+## 11. CORRECCIÓN IMPLEMENTADA (Dec 24, 2025)
+
+### 11.1 Validación de Cédula en PersonDocumentController
+
+**Problema Identificado:** CRÍTICO
+- El método `store()` no validaba que la persona tuviera cédula antes de crear documentos
+- Los archivos se guardaban en `documents/` sin organización por cédula
+- Inconsistencia con `OpportunityController` que espera archivos organizados
+
+**Solución Implementada:**
+
+```php
+// Validación agregada
+if (empty($person->cedula)) {
+    return response()->json([
+        'error' => 'La persona debe tener una cédula asignada para subir documentos.',
+        'code' => 'PERSON_WITHOUT_CEDULA'
+    ], 422);
+}
+
+// Organización por cédula
+$strippedCedula = preg_replace('/[^0-9]/', '', $person->cedula);
+$path = $file->storeAs("documents/{$strippedCedula}", $fileName, 'public');
+```
+
+**Mejoras Adicionales:**
+- ✅ Manejo de colisiones de nombres con timestamp
+- ✅ Creación automática de carpetas por cédula
+- ✅ Logging completo de uploads exitosos y rechazados
+- ✅ Normalización de cédulas (acepta múltiples formatos)
+
+**Testing:**
+- ✅ Suite completa de 9 tests creada
+- ✅ PersonFactory implementado para testing
+- ✅ Cobertura de casos edge (sin cédula, colisiones, formatos)
+
+**Archivos Modificados:**
+- `backend/app/Http/Controllers/Api/PersonDocumentController.php`
+- `backend/database/factories/PersonFactory.php` (nuevo)
+- `backend/tests/Feature/PersonDocumentControllerTest.php` (nuevo)
+
+**Documentación:**
+- `VALIDATION_IMPLEMENTATION_SUMMARY.md` (completo)
+- `PERSON_DOCUMENT_VALIDATION_ANALYSIS.md` (análisis del problema)
+
+**Estado:** ✅ IMPLEMENTADO - Pendiente: ejecutar tests y actualizar frontend
+
+---
+
 **Analysis Completed By:** Claude Sonnet 4.5
 **Methodology:** Comparative git diff analysis + code archaeology + architectural pattern recognition
 **Files Analyzed:** 25 commits, 15+ source files, 2 documentation files
+**Updated:** 2025-12-24 - Added validation implementation
