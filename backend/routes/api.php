@@ -88,6 +88,18 @@ Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::c
 // Analisis CRUD
 Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
 
+// KPIs
+Route::prefix('kpis')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\KpiController::class, 'all']);
+    Route::get('/leads', [\App\Http\Controllers\Api\KpiController::class, 'leads']);
+    Route::get('/opportunities', [\App\Http\Controllers\Api\KpiController::class, 'opportunities']);
+    Route::get('/credits', [\App\Http\Controllers\Api\KpiController::class, 'credits']);
+    Route::get('/collections', [\App\Http\Controllers\Api\KpiController::class, 'collections']);
+    Route::get('/agents', [\App\Http\Controllers\Api\KpiController::class, 'agents']);
+    Route::get('/gamification', [\App\Http\Controllers\Api\KpiController::class, 'gamification']);
+    Route::get('/business', [\App\Http\Controllers\Api\KpiController::class, 'business']);
+});
+
 // Enterprises CRUD
 // GET /api/enterprises?business_name=NombreEmpresa para filtrar por empresa
 Route::apiResource('enterprises', \App\Http\Controllers\Api\EnterpriseEmployeeDocumentController::class);

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import {
   Users,
   Target,
@@ -34,6 +36,8 @@ import {
   Trophy,
   Medal,
   Flame,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
@@ -52,6 +56,8 @@ interface LeadKPIs {
   leadAging: KPIData;
   leadsPerAgent: { agentName: string; count: number }[];
   leadSourcePerformance: { source: string; conversion: number; count: number }[];
+  totalLeads?: number;
+  totalClients?: number;
 }
 
 interface OpportunityKPIs {
@@ -69,6 +75,8 @@ interface CreditKPIs {
   nonPerformingLoans: KPIData;
   approvalRate: KPIData;
   timeToDisbursement: KPIData;
+  totalCredits?: number;
+  totalPortfolio?: number;
 }
 
 interface CollectionKPIs {
@@ -104,6 +112,16 @@ interface BusinessHealthKPIs {
   clv: KPIData;
   cac: KPIData;
   portfolioGrowth: KPIData;
+}
+
+interface AllKPIs {
+  leads: LeadKPIs;
+  opportunities: OpportunityKPIs;
+  credits: CreditKPIs;
+  collections: CollectionKPIs;
+  agents: AgentKPIs;
+  gamification: GamificationKPIs;
+  business: BusinessHealthKPIs;
 }
 
 // ============ COMPONENTS ============
@@ -245,15 +263,23 @@ function KPITable({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
-                <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                  {row.map((cell, j) => (
-                    <td key={j} className="py-2 px-2">
-                      {cell}
-                    </td>
-                  ))}
+              {rows.length > 0 ? (
+                rows.map((row, i) => (
+                  <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
+                    {row.map((cell, j) => (
+                      <td key={j} className="py-2 px-2">
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={headers.length} className="py-4 text-center text-muted-foreground">
+                    No hay datos disponibles
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -385,105 +411,47 @@ function LevelDistributionChart({
 // ============ MAIN PAGE ============
 export default function KPIsPage() {
   const [activeTab, setActiveTab] = useState("leads");
+  const [period, setPeriod] = useState("month");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Mock data - In production, this would come from API calls
-  const [leadKPIs] = useState<LeadKPIs>({
-    conversionRate: { value: 23.5, change: 5.2, target: 30, unit: "%" },
-    responseTime: { value: 2.4, change: -12, unit: "hrs" },
-    leadAging: { value: 45, change: 8, unit: "leads" },
-    leadsPerAgent: [
-      { agentName: "María García", count: 78 },
-      { agentName: "Carlos López", count: 65 },
-      { agentName: "Ana Martínez", count: 52 },
-      { agentName: "Juan Rodríguez", count: 48 },
-      { agentName: "Laura Sánchez", count: 41 },
-    ],
-    leadSourcePerformance: [
-      { source: "Referidos", conversion: 42, count: 120 },
-      { source: "Web", conversion: 28, count: 350 },
-      { source: "Redes Sociales", conversion: 18, count: 200 },
-      { source: "Llamadas", conversion: 35, count: 80 },
-      { source: "Eventos", conversion: 50, count: 45 },
-    ],
-  });
+  // KPI State
+  const [leadKPIs, setLeadKPIs] = useState<LeadKPIs | null>(null);
+  const [opportunityKPIs, setOpportunityKPIs] = useState<OpportunityKPIs | null>(null);
+  const [creditKPIs, setCreditKPIs] = useState<CreditKPIs | null>(null);
+  const [collectionKPIs, setCollectionKPIs] = useState<CollectionKPIs | null>(null);
+  const [agentKPIs, setAgentKPIs] = useState<AgentKPIs | null>(null);
+  const [gamificationKPIs, setGamificationKPIs] = useState<GamificationKPIs | null>(null);
+  const [businessHealthKPIs, setBusinessHealthKPIs] = useState<BusinessHealthKPIs | null>(null);
 
-  const [opportunityKPIs] = useState<OpportunityKPIs>({
-    winRate: { value: 34.2, change: 3.1, target: 40, unit: "%" },
-    pipelineValue: { value: 125000000, change: 15.4, unit: "₡" },
-    avgSalesCycle: { value: 28, change: -5, unit: "días" },
-    velocity: { value: 12.5, change: 8.3 },
-    stageConversion: [
-      { stage: "Prospecto → Calificado", conversion: 75 },
-      { stage: "Calificado → Propuesta", conversion: 55 },
-      { stage: "Propuesta → Negociación", conversion: 48 },
-      { stage: "Negociación → Cerrado", conversion: 65 },
-    ],
-  });
+  const fetchKPIs = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
 
-  const [creditKPIs] = useState<CreditKPIs>({
-    disbursementVolume: { value: 850000000, change: 12.3, unit: "₡" },
-    avgLoanSize: { value: 4250000, change: 2.1, unit: "₡" },
-    portfolioAtRisk: { value: 4.2, change: -0.8, target: 5, unit: "%" },
-    nonPerformingLoans: { value: 18, change: -2 },
-    approvalRate: { value: 72, change: 5.5, target: 75, unit: "%" },
-    timeToDisbursement: { value: 5.2, change: -15, unit: "días" },
-  });
+    try {
+      const response = await api.get(`/api/kpis?period=${period}`);
+      const data = response.data as AllKPIs;
 
-  const [collectionKPIs] = useState<CollectionKPIs>({
-    collectionRate: { value: 94.5, change: 1.2, target: 98, unit: "%" },
-    dso: { value: 32, change: -8, unit: "días" },
-    delinquencyRate: { value: 6.8, change: -1.5, target: 5, unit: "%" },
-    recoveryRate: { value: 45, change: 12, unit: "%" },
-    paymentTimeliness: { value: 87, change: 3.2, target: 95, unit: "%" },
-    deductoraEfficiency: [
-      { name: "MEP", rate: 98.2 },
-      { name: "CCSS", rate: 95.5 },
-      { name: "Judicial", rate: 92.1 },
-      { name: "Municipalidad", rate: 88.7 },
-    ],
-  });
-
-  const [agentKPIs] = useState<AgentKPIs>({
-    topAgents: [
-      { name: "María García", leadsHandled: 78, conversionRate: 32, creditsOriginated: 25, avgDealSize: 5200000 },
-      { name: "Carlos López", leadsHandled: 65, conversionRate: 28, creditsOriginated: 18, avgDealSize: 4800000 },
-      { name: "Ana Martínez", leadsHandled: 52, conversionRate: 35, creditsOriginated: 18, avgDealSize: 4500000 },
-      { name: "Juan Rodríguez", leadsHandled: 48, conversionRate: 25, creditsOriginated: 12, avgDealSize: 5500000 },
-      { name: "Laura Sánchez", leadsHandled: 41, conversionRate: 30, creditsOriginated: 12, avgDealSize: 4200000 },
-    ],
-  });
-
-  const [gamificationKPIs] = useState<GamificationKPIs>({
-    engagementRate: { value: 78, change: 12, target: 85, unit: "%" },
-    pointsVelocity: { value: 2450, change: 18, unit: "pts/día" },
-    badgeCompletion: { value: 42, change: 8, unit: "%" },
-    challengeParticipation: { value: 156, change: 25 },
-    redemptionRate: { value: 35, change: 5, unit: "%" },
-    streakRetention: { value: 62, change: 10, unit: "%" },
-    levelDistribution: [
-      { level: 1, count: 45 },
-      { level: 2, count: 38 },
-      { level: 3, count: 28 },
-      { level: 4, count: 18 },
-      { level: 5, count: 12 },
-      { level: 6, count: 8 },
-      { level: 7, count: 5 },
-      { level: 8, count: 3 },
-    ],
-  });
-
-  const [businessHealthKPIs] = useState<BusinessHealthKPIs>({
-    clv: { value: 12500000, change: 8.5, unit: "₡" },
-    cac: { value: 125000, change: -12, unit: "₡" },
-    portfolioGrowth: { value: 18.5, change: 3.2, target: 20, unit: "%" },
-  });
+      setLeadKPIs(data.leads);
+      setOpportunityKPIs(data.opportunities);
+      setCreditKPIs(data.credits);
+      setCollectionKPIs(data.collections);
+      setAgentKPIs(data.agents);
+      setGamificationKPIs(data.gamification);
+      setBusinessHealthKPIs(data.business);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Error fetching KPIs:', err);
+      setError('Error al cargar los KPIs. Por favor, intente de nuevo.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [period]);
 
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchKPIs();
+  }, [fetchKPIs]);
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000000) {
@@ -498,20 +466,74 @@ export default function KPIsPage() {
     return `₡${value}`;
   };
 
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Error state
+  if (error && !isLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard de KPIs</h1>
+            <p className="text-muted-foreground">
+              Indicadores clave de rendimiento del negocio
+            </p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-8">
+            <div className="text-center text-muted-foreground">
+              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+              <p className="font-medium text-destructive">{error}</p>
+              <Button
+                onClick={fetchKPIs}
+                variant="outline"
+                className="mt-4"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Intentar de nuevo
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold">Dashboard de KPIs</h1>
           <p className="text-muted-foreground">
             Indicadores clave de rendimiento del negocio
           </p>
         </div>
-        <Badge variant="outline" className="text-sm">
-          <Activity className="h-3 w-3 mr-1" />
-          Actualizado hace 5 min
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">Última semana</SelectItem>
+              <SelectItem value="month">Último mes</SelectItem>
+              <SelectItem value="quarter">Último trimestre</SelectItem>
+              <SelectItem value="year">Último año</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" onClick={fetchKPIs} disabled={isLoading}>
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+          </Button>
+          {lastUpdated && (
+            <Badge variant="outline" className="text-sm">
+              <Activity className="h-3 w-3 mr-1" />
+              {formatTime(lastUpdated)}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Tabs Navigation */}
@@ -552,19 +574,19 @@ export default function KPIsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <StatCard
               title="Tasa de Conversión"
-              value={leadKPIs.conversionRate.value}
-              unit={leadKPIs.conversionRate.unit}
-              change={leadKPIs.conversionRate.change}
-              target={leadKPIs.conversionRate.target}
+              value={leadKPIs?.conversionRate?.value ?? 0}
+              unit={leadKPIs?.conversionRate?.unit}
+              change={leadKPIs?.conversionRate?.change}
+              target={leadKPIs?.conversionRate?.target}
               icon={TrendingUp}
               colorClass="text-green-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Tiempo de Respuesta"
-              value={leadKPIs.responseTime.value}
-              unit={leadKPIs.responseTime.unit}
-              change={leadKPIs.responseTime.change}
+              value={leadKPIs?.responseTime?.value ?? 0}
+              unit={leadKPIs?.responseTime?.unit}
+              change={leadKPIs?.responseTime?.change}
               icon={Clock}
               description="Tiempo promedio hasta primer contacto"
               colorClass="text-blue-500"
@@ -572,9 +594,9 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Leads Envejecidos (+7 días)"
-              value={leadKPIs.leadAging.value}
-              unit={leadKPIs.leadAging.unit}
-              change={leadKPIs.leadAging.change}
+              value={leadKPIs?.leadAging?.value ?? 0}
+              unit={leadKPIs?.leadAging?.unit}
+              change={leadKPIs?.leadAging?.change}
               icon={AlertTriangle}
               description="Leads pendientes por más de 7 días"
               colorClass="text-amber-500"
@@ -587,8 +609,8 @@ export default function KPIsPage() {
               description="Distribución de leads asignados"
               icon={Users}
               headers={["Agente", "Leads", "% del Total"]}
-              rows={leadKPIs.leadsPerAgent.map(agent => {
-                const total = leadKPIs.leadsPerAgent.reduce((sum, a) => sum + a.count, 0);
+              rows={(leadKPIs?.leadsPerAgent ?? []).map(agent => {
+                const total = (leadKPIs?.leadsPerAgent ?? []).reduce((sum, a) => sum + a.count, 0) || 1;
                 return [
                   agent.agentName,
                   agent.count,
@@ -602,7 +624,7 @@ export default function KPIsPage() {
               description="Conversión por canal de adquisición"
               icon={BarChart3}
               headers={["Fuente", "Leads", "Conversión"]}
-              rows={leadKPIs.leadSourcePerformance.map(source => [
+              rows={(leadKPIs?.leadSourcePerformance ?? []).map(source => [
                 source.source,
                 source.count,
                 <Badge
@@ -626,18 +648,18 @@ export default function KPIsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <StatCard
               title="Win Rate"
-              value={opportunityKPIs.winRate.value}
-              unit={opportunityKPIs.winRate.unit}
-              change={opportunityKPIs.winRate.change}
-              target={opportunityKPIs.winRate.target}
+              value={opportunityKPIs?.winRate?.value ?? 0}
+              unit={opportunityKPIs?.winRate?.unit}
+              change={opportunityKPIs?.winRate?.change}
+              target={opportunityKPIs?.winRate?.target}
               icon={CheckCircle}
               colorClass="text-green-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Pipeline Value"
-              value={formatCurrency(opportunityKPIs.pipelineValue.value as number)}
-              change={opportunityKPIs.pipelineValue.change}
+              value={formatCurrency(Number(opportunityKPIs?.pipelineValue?.value) || 0)}
+              change={opportunityKPIs?.pipelineValue?.change}
               icon={DollarSign}
               description="Valor total de oportunidades abiertas"
               colorClass="text-emerald-500"
@@ -645,24 +667,24 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Ciclo de Venta Promedio"
-              value={opportunityKPIs.avgSalesCycle.value}
-              unit={opportunityKPIs.avgSalesCycle.unit}
-              change={opportunityKPIs.avgSalesCycle.change}
+              value={opportunityKPIs?.avgSalesCycle?.value ?? 0}
+              unit={opportunityKPIs?.avgSalesCycle?.unit}
+              change={opportunityKPIs?.avgSalesCycle?.change}
               icon={Timer}
               colorClass="text-blue-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Velocidad de Pipeline"
-              value={opportunityKPIs.velocity.value}
-              change={opportunityKPIs.velocity.change}
+              value={opportunityKPIs?.velocity?.value ?? 0}
+              change={opportunityKPIs?.velocity?.change}
               icon={Zap}
               description="Oportunidades movidas por período"
               colorClass="text-purple-500"
               isLoading={isLoading}
             />
           </div>
-          <StageConversionFunnel stages={opportunityKPIs.stageConversion} isLoading={isLoading} />
+          <StageConversionFunnel stages={opportunityKPIs?.stageConversion ?? []} isLoading={isLoading} />
         </TabsContent>
 
         {/* Credit/Loan KPIs */}
@@ -670,34 +692,34 @@ export default function KPIsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <StatCard
               title="Volumen de Desembolso"
-              value={formatCurrency(creditKPIs.disbursementVolume.value as number)}
-              change={creditKPIs.disbursementVolume.change}
+              value={formatCurrency(Number(creditKPIs?.disbursementVolume?.value) || 0)}
+              change={creditKPIs?.disbursementVolume?.change}
               icon={DollarSign}
               colorClass="text-green-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Tamaño Promedio de Crédito"
-              value={formatCurrency(creditKPIs.avgLoanSize.value as number)}
-              change={creditKPIs.avgLoanSize.change}
+              value={formatCurrency(Number(creditKPIs?.avgLoanSize?.value) || 0)}
+              change={creditKPIs?.avgLoanSize?.change}
               icon={CreditCard}
               colorClass="text-blue-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Cartera en Riesgo (PAR)"
-              value={creditKPIs.portfolioAtRisk.value}
-              unit={creditKPIs.portfolioAtRisk.unit}
-              change={creditKPIs.portfolioAtRisk.change}
-              target={creditKPIs.portfolioAtRisk.target}
+              value={creditKPIs?.portfolioAtRisk?.value ?? 0}
+              unit={creditKPIs?.portfolioAtRisk?.unit}
+              change={creditKPIs?.portfolioAtRisk?.change}
+              target={creditKPIs?.portfolioAtRisk?.target}
               icon={AlertTriangle}
               colorClass="text-amber-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Créditos Morosos (+90 días)"
-              value={creditKPIs.nonPerformingLoans.value}
-              change={creditKPIs.nonPerformingLoans.change}
+              value={creditKPIs?.nonPerformingLoans?.value ?? 0}
+              change={creditKPIs?.nonPerformingLoans?.change}
               icon={TrendingDown}
               description="NPL - Non Performing Loans"
               colorClass="text-red-500"
@@ -705,19 +727,19 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Tasa de Aprobación"
-              value={creditKPIs.approvalRate.value}
-              unit={creditKPIs.approvalRate.unit}
-              change={creditKPIs.approvalRate.change}
-              target={creditKPIs.approvalRate.target}
+              value={creditKPIs?.approvalRate?.value ?? 0}
+              unit={creditKPIs?.approvalRate?.unit}
+              change={creditKPIs?.approvalRate?.change}
+              target={creditKPIs?.approvalRate?.target}
               icon={CheckCircle}
               colorClass="text-green-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Tiempo de Desembolso"
-              value={creditKPIs.timeToDisbursement.value}
-              unit={creditKPIs.timeToDisbursement.unit}
-              change={creditKPIs.timeToDisbursement.change}
+              value={creditKPIs?.timeToDisbursement?.value ?? 0}
+              unit={creditKPIs?.timeToDisbursement?.unit}
+              change={creditKPIs?.timeToDisbursement?.change}
               icon={Clock}
               description="Promedio desde solicitud"
               colorClass="text-blue-500"
@@ -731,19 +753,19 @@ export default function KPIsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <StatCard
               title="Tasa de Cobro"
-              value={collectionKPIs.collectionRate.value}
-              unit={collectionKPIs.collectionRate.unit}
-              change={collectionKPIs.collectionRate.change}
-              target={collectionKPIs.collectionRate.target}
+              value={collectionKPIs?.collectionRate?.value ?? 0}
+              unit={collectionKPIs?.collectionRate?.unit}
+              change={collectionKPIs?.collectionRate?.change}
+              target={collectionKPIs?.collectionRate?.target}
               icon={Percent}
               colorClass="text-green-500"
               isLoading={isLoading}
             />
             <StatCard
               title="DSO (Days Sales Outstanding)"
-              value={collectionKPIs.dso.value}
-              unit={collectionKPIs.dso.unit}
-              change={collectionKPIs.dso.change}
+              value={collectionKPIs?.dso?.value ?? 0}
+              unit={collectionKPIs?.dso?.unit}
+              change={collectionKPIs?.dso?.change}
               icon={Timer}
               description="Días promedio para cobrar"
               colorClass="text-blue-500"
@@ -751,19 +773,19 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Tasa de Morosidad"
-              value={collectionKPIs.delinquencyRate.value}
-              unit={collectionKPIs.delinquencyRate.unit}
-              change={collectionKPIs.delinquencyRate.change}
-              target={collectionKPIs.delinquencyRate.target}
+              value={collectionKPIs?.delinquencyRate?.value ?? 0}
+              unit={collectionKPIs?.delinquencyRate?.unit}
+              change={collectionKPIs?.delinquencyRate?.change}
+              target={collectionKPIs?.delinquencyRate?.target}
               icon={AlertTriangle}
               colorClass="text-red-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Tasa de Recuperación"
-              value={collectionKPIs.recoveryRate.value}
-              unit={collectionKPIs.recoveryRate.unit}
-              change={collectionKPIs.recoveryRate.change}
+              value={collectionKPIs?.recoveryRate?.value ?? 0}
+              unit={collectionKPIs?.recoveryRate?.unit}
+              change={collectionKPIs?.recoveryRate?.change}
               icon={TrendingUp}
               description="% recuperado de cuentas morosas"
               colorClass="text-emerald-500"
@@ -771,10 +793,10 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Puntualidad de Pagos"
-              value={collectionKPIs.paymentTimeliness.value}
-              unit={collectionKPIs.paymentTimeliness.unit}
-              change={collectionKPIs.paymentTimeliness.change}
-              target={collectionKPIs.paymentTimeliness.target}
+              value={collectionKPIs?.paymentTimeliness?.value ?? 0}
+              unit={collectionKPIs?.paymentTimeliness?.unit}
+              change={collectionKPIs?.paymentTimeliness?.change}
+              target={collectionKPIs?.paymentTimeliness?.target}
               icon={CheckCircle}
               description="% de pagos a tiempo"
               colorClass="text-green-500"
@@ -786,7 +808,7 @@ export default function KPIsPage() {
             description="Tasa de cobro por entidad de deducción"
             icon={Building2}
             headers={["Deductora", "Tasa de Cobro", "Estado"]}
-            rows={collectionKPIs.deductoraEfficiency.map(d => [
+            rows={(collectionKPIs?.deductoraEfficiency ?? []).map(d => [
               d.name,
               `${d.rate}%`,
               <Badge
@@ -810,10 +832,10 @@ export default function KPIsPage() {
             description="Métricas de desempeño individual"
             icon={UserCheck}
             headers={["Agente", "Leads", "Conversión", "Créditos", "Monto Promedio"]}
-            rows={agentKPIs.topAgents.map(agent => [
+            rows={(agentKPIs?.topAgents ?? []).map(agent => [
               <div key={agent.name} className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                  {agent.name.split(" ").map(n => n[0]).join("")}
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+                  {agent.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                 </div>
                 <span className="font-medium">{agent.name}</span>
               </div>,
@@ -837,19 +859,19 @@ export default function KPIsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <StatCard
               title="Tasa de Engagement"
-              value={gamificationKPIs.engagementRate.value}
-              unit={gamificationKPIs.engagementRate.unit}
-              change={gamificationKPIs.engagementRate.change}
-              target={gamificationKPIs.engagementRate.target}
+              value={gamificationKPIs?.engagementRate?.value ?? 0}
+              unit={gamificationKPIs?.engagementRate?.unit}
+              change={gamificationKPIs?.engagementRate?.change}
+              target={gamificationKPIs?.engagementRate?.target}
               icon={Activity}
               colorClass="text-purple-500"
               isLoading={isLoading}
             />
             <StatCard
               title="Velocidad de Puntos"
-              value={gamificationKPIs.pointsVelocity.value}
-              unit={gamificationKPIs.pointsVelocity.unit}
-              change={gamificationKPIs.pointsVelocity.change}
+              value={gamificationKPIs?.pointsVelocity?.value ?? 0}
+              unit={gamificationKPIs?.pointsVelocity?.unit}
+              change={gamificationKPIs?.pointsVelocity?.change}
               icon={Star}
               description="Puntos generados por día"
               colorClass="text-amber-500"
@@ -857,9 +879,9 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Badges Completados"
-              value={gamificationKPIs.badgeCompletion.value}
-              unit={gamificationKPIs.badgeCompletion.unit}
-              change={gamificationKPIs.badgeCompletion.change}
+              value={gamificationKPIs?.badgeCompletion?.value ?? 0}
+              unit={gamificationKPIs?.badgeCompletion?.unit}
+              change={gamificationKPIs?.badgeCompletion?.change}
               icon={Medal}
               description="% de badges disponibles ganados"
               colorClass="text-blue-500"
@@ -867,8 +889,8 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Participación en Challenges"
-              value={gamificationKPIs.challengeParticipation.value}
-              change={gamificationKPIs.challengeParticipation.change}
+              value={gamificationKPIs?.challengeParticipation?.value ?? 0}
+              change={gamificationKPIs?.challengeParticipation?.change}
               icon={Target}
               description="Usuarios activos en challenges"
               colorClass="text-green-500"
@@ -876,9 +898,9 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Tasa de Canje"
-              value={gamificationKPIs.redemptionRate.value}
-              unit={gamificationKPIs.redemptionRate.unit}
-              change={gamificationKPIs.redemptionRate.change}
+              value={gamificationKPIs?.redemptionRate?.value ?? 0}
+              unit={gamificationKPIs?.redemptionRate?.unit}
+              change={gamificationKPIs?.redemptionRate?.change}
               icon={Award}
               description="Puntos canjeados vs ganados"
               colorClass="text-pink-500"
@@ -886,16 +908,16 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Retención de Rachas"
-              value={gamificationKPIs.streakRetention.value}
-              unit={gamificationKPIs.streakRetention.unit}
-              change={gamificationKPIs.streakRetention.change}
+              value={gamificationKPIs?.streakRetention?.value ?? 0}
+              unit={gamificationKPIs?.streakRetention?.unit}
+              change={gamificationKPIs?.streakRetention?.change}
               icon={Flame}
               description="Usuarios manteniendo rachas"
               colorClass="text-orange-500"
               isLoading={isLoading}
             />
           </div>
-          <LevelDistributionChart levels={gamificationKPIs.levelDistribution} isLoading={isLoading} />
+          <LevelDistributionChart levels={gamificationKPIs?.levelDistribution ?? []} isLoading={isLoading} />
         </TabsContent>
 
         {/* Business Health KPIs */}
@@ -903,8 +925,8 @@ export default function KPIsPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <StatCard
               title="Customer Lifetime Value (CLV)"
-              value={formatCurrency(businessHealthKPIs.clv.value as number)}
-              change={businessHealthKPIs.clv.change}
+              value={formatCurrency(Number(businessHealthKPIs?.clv?.value) || 0)}
+              change={businessHealthKPIs?.clv?.change}
               icon={DollarSign}
               description="Valor total por cliente"
               colorClass="text-green-500"
@@ -912,8 +934,8 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Customer Acquisition Cost (CAC)"
-              value={formatCurrency(businessHealthKPIs.cac.value as number)}
-              change={businessHealthKPIs.cac.change}
+              value={formatCurrency(Number(businessHealthKPIs?.cac?.value) || 0)}
+              change={businessHealthKPIs?.cac?.change}
               icon={TrendingDown}
               description="Costo por cliente adquirido"
               colorClass="text-blue-500"
@@ -921,45 +943,47 @@ export default function KPIsPage() {
             />
             <StatCard
               title="Crecimiento de Cartera"
-              value={businessHealthKPIs.portfolioGrowth.value}
-              unit={businessHealthKPIs.portfolioGrowth.unit}
-              change={businessHealthKPIs.portfolioGrowth.change}
-              target={businessHealthKPIs.portfolioGrowth.target}
+              value={businessHealthKPIs?.portfolioGrowth?.value ?? 0}
+              unit={businessHealthKPIs?.portfolioGrowth?.unit}
+              change={businessHealthKPIs?.portfolioGrowth?.change}
+              target={businessHealthKPIs?.portfolioGrowth?.target}
               icon={TrendingUp}
               description="Crecimiento mes a mes"
               colorClass="text-emerald-500"
               isLoading={isLoading}
             />
           </div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
-                Ratio CLV:CAC
-              </CardTitle>
-              <CardDescription>
-                Relación entre el valor del cliente y el costo de adquisición
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-6">
-                <div className="text-4xl font-bold text-green-500">
-                  {((businessHealthKPIs.clv.value as number) / (businessHealthKPIs.cac.value as number)).toFixed(1)}:1
+          {businessHealthKPIs && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5" />
+                  Ratio CLV:CAC
+                </CardTitle>
+                <CardDescription>
+                  Relación entre el valor del cliente y el costo de adquisición
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-6">
+                  <div className="text-4xl font-bold text-green-500">
+                    {((Number(businessHealthKPIs.clv?.value) || 1) / (Number(businessHealthKPIs.cac?.value) || 1)).toFixed(1)}:1
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground">
+                      Por cada ₡1 invertido en adquisición, se genera ₡
+                      {((Number(businessHealthKPIs.clv?.value) || 1) / (Number(businessHealthKPIs.cac?.value) || 1)).toFixed(0)}
+                      {" "}en valor de cliente.
+                    </p>
+                    <Badge variant="default" className="mt-2 bg-green-500">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Saludable (Meta: &gt;3:1)
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">
-                    Por cada ₡1 invertido en adquisición, se genera ₡
-                    {((businessHealthKPIs.clv.value as number) / (businessHealthKPIs.cac.value as number)).toFixed(0)}
-                    {" "}en valor de cliente.
-                  </p>
-                  <Badge variant="default" className="mt-2 bg-green-500">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Saludable (Meta: &gt;3:1)
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
