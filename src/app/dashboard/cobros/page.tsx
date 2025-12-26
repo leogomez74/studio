@@ -114,7 +114,7 @@ const CobrosTable = React.memo(function CobrosTable({ credits }: { credits: Cred
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                     <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
                     <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Enviar a Cobro Judicial</DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive">Enviar a Cobro</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
