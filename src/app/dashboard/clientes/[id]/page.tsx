@@ -192,6 +192,25 @@ export default function ClientDetailPage() {
     }
   };
 
+  const handleArchive = async () => {
+    if (!client) return;
+    if (!confirm(`¿Archivar a ${client.name}?`)) return;
+    try {
+      await api.patch(`/api/clients/${id}/toggle-active`);
+      toast({ title: "Archivado", description: "Cliente archivado correctamente." });
+      router.push('/dashboard/clientes');
+    } catch (error) {
+      console.error("Error archiving client:", error);
+      toast({ title: "Error", description: "No se pudo archivar el cliente.", variant: "destructive" });
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState("datos");
+
+  const handleViewExpediente = () => {
+    setActiveTab("archivos");
+  };
+
   if (loading) {
     return <div className="flex h-full items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -246,7 +265,7 @@ export default function ClientDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className={isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'}>
-          <Tabs defaultValue="datos" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="datos">Datos</TabsTrigger>
               <TabsTrigger value="archivos">Archivos</TabsTrigger>
@@ -303,7 +322,11 @@ export default function ClientDetailPage() {
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button size="icon" className="h-9 w-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 border-0">
+                                        <Button
+                                            size="icon"
+                                            className="h-9 w-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 border-0"
+                                            onClick={handleViewExpediente}
+                                        >
                                             <FileText className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
@@ -314,7 +337,11 @@ export default function ClientDetailPage() {
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button size="icon" className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0">
+                                        <Button
+                                            size="icon"
+                                            className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0"
+                                            onClick={handleArchive}
+                                        >
                                             <Archive className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
