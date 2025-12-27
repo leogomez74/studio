@@ -74,6 +74,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, VERTICAL_OPTIONS, OPPORTUNITY_TYPES } from "@/lib/data";
 
@@ -267,6 +268,14 @@ export default function DealsPage() {
     createdFrom: "",
     createdTo: "",
   });
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 300);
+
+  useEffect(() => {
+    handleFilterChange("search", debouncedSearch);
+  }, [debouncedSearch]);
+
+
   const [sortConfig, setSortConfig] = useState<{ column: SortableColumn; direction: "asc" | "desc" }>(
     () => ({ column: "created_at", direction: "desc" })
   );
@@ -834,7 +843,7 @@ export default function DealsPage() {
         <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-                <Input placeholder="Referencia, lead o título" value={filters.search} onChange={(e) => handleFilterChange("search", e.target.value)} />
+                <Input placeholder="Referencia, lead o título" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
