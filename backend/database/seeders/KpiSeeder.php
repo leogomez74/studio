@@ -272,11 +272,10 @@ class KpiSeeder extends Seeder
                 'progress' => min(100, intval($daysSinceCreation / 3)),
                 'lead_id' => $opportunity->lead->id,
                 'opportunity_id' => $opportunity->id,
-                'assigned_to' => $this->users[array_rand($this->users)]->id,
+                'assigned_to' => $this->users[array_rand($this->users)]->name,
                 'opened_at' => $createdAt->toDateString(),
                 'description' => 'Crédito generado desde oportunidad',
                 'monto_credito' => $monto,
-                'saldo' => max(0, $monto - ($cuota * min($daysSinceCreation / 30, $plazo))),
                 'cuota' => $cuota,
                 'plazo' => $plazo,
                 'tasa_anual' => $tasaAnual,
@@ -424,6 +423,11 @@ class KpiSeeder extends Seeder
 
     private function createRewardTransactions(User $user): void
     {
+        $rewardUser = RewardUser::where('user_id', $user->id)->first();
+        if (!$rewardUser) {
+            return;
+        }
+
         $now = Carbon::now();
 
         for ($monthsAgo = 11; $monthsAgo >= 0; $monthsAgo--) {
@@ -437,9 +441,9 @@ class KpiSeeder extends Seeder
                 $createdAt = $this->randomDateBetween($monthStart, $monthEnd);
 
                 RewardTransaction::create([
-                    'user_id' => $user->id,
-                    'points' => rand(10, 200),
-                    'type' => ['credit_created', 'payment_received', 'lead_converted', 'daily_login'][array_rand(['credit_created', 'payment_received', 'lead_converted', 'daily_login'])],
+                    'reward_user_id' => $rewardUser->id,
+                    'amount' => rand(10, 200),
+                    'type' => 'earn',
                     'description' => 'Puntos ganados por actividad',
                     'reference_type' => null,
                     'reference_id' => null,
@@ -453,32 +457,35 @@ class KpiSeeder extends Seeder
     private function createBadgesAndUserBadges(): void
     {
         $badges = [
-            ['name' => 'Primer Crédito', 'description' => 'Creó su primer crédito', 'points_required' => 100],
-            ['name' => 'Top Vendedor', 'description' => '10 créditos en un mes', 'points_required' => 500],
-            ['name' => 'Streak Master', 'description' => '30 días consecutivos', 'points_required' => 300],
-            ['name' => 'Cobrador Estrella', 'description' => '95% de cobro', 'points_required' => 400],
-            ['name' => 'Líder del Mes', 'description' => 'Primer lugar en el leaderboard', 'points_required' => 1000],
+            ['name' => 'Primer Crédito', 'description' => 'Creó su primer crédito', 'points_reward' => 100],
+            ['name' => 'Top Vendedor', 'description' => '10 créditos en un mes', 'points_reward' => 500],
+            ['name' => 'Streak Master', 'description' => '30 días consecutivos', 'points_reward' => 300],
+            ['name' => 'Cobrador Estrella', 'description' => '95% de cobro', 'points_reward' => 400],
+            ['name' => 'Líder del Mes', 'description' => 'Primer lugar en el leaderboard', 'points_reward' => 1000],
         ];
+
+        $rewardUsers = RewardUser::all();
 
         foreach ($badges as $badgeData) {
             $badge = RewardBadge::firstOrCreate(
-                ['name' => $badgeData['name']],
+                ['slug' => Str::slug($badgeData['name'])],
                 [
+                    'name' => $badgeData['name'],
                     'description' => $badgeData['description'],
-                    'points_required' => $badgeData['points_required'],
+                    'points_reward' => $badgeData['points_reward'],
                     'icon' => 'trophy',
+                    'criteria_type' => 'manual',
                     'is_active' => true,
                 ]
             );
 
             // Assign to random users
-            $usersToAssign = array_rand($this->users, rand(2, count($this->users)));
-            if (!is_array($usersToAssign)) $usersToAssign = [$usersToAssign];
+            $usersToAssign = $rewardUsers->random(rand(2, $rewardUsers->count()));
 
-            foreach ($usersToAssign as $userIndex) {
+            foreach ($usersToAssign as $rewardUser) {
                 RewardUserBadge::firstOrCreate([
-                    'user_id' => $this->users[$userIndex]->id,
-                    'badge_id' => $badge->id,
+                    'reward_user_id' => $rewardUser->id,
+                    'reward_badge_id' => $badge->id,
                 ], [
                     'earned_at' => now()->subDays(rand(1, 180)),
                 ]);
@@ -494,12 +501,16 @@ class KpiSeeder extends Seeder
             ['name' => 'Cobro Perfecto', 'description' => '100% de cobro por 7 días', 'points_reward' => 750],
         ];
 
+        $rewardUsers = RewardUser::all();
+
         foreach ($challenges as $challengeData) {
             $challenge = RewardChallenge::firstOrCreate(
-                ['name' => $challengeData['name']],
+                ['slug' => Str::slug($challengeData['name'])],
                 [
+                    'name' => $challengeData['name'],
                     'description' => $challengeData['description'],
-                    'points_reward' => $challengeData['points_reward'],
+                    'rewards' => json_encode(['points' => $challengeData['points_reward']]),
+                    'objectives' => json_encode(['count' => 5]),
                     'start_date' => now()->subDays(rand(30, 90)),
                     'end_date' => now()->addDays(rand(7, 30)),
                     'is_active' => true,
@@ -507,15 +518,16 @@ class KpiSeeder extends Seeder
             );
 
             // Create participations
-            foreach ($this->users as $user) {
+            foreach ($rewardUsers as $rewardUser) {
                 if (rand(1, 100) <= 60) { // 60% participation
+                    $completed = rand(1, 100) <= 40;
                     RewardChallengeParticipation::firstOrCreate([
-                        'user_id' => $user->id,
+                        'reward_user_id' => $rewardUser->id,
                         'challenge_id' => $challenge->id,
                     ], [
-                        'progress' => rand(0, 100),
-                        'completed' => rand(1, 100) <= 40,
-                        'created_at' => now()->subDays(rand(1, 60)),
+                        'progress' => json_encode(['value' => rand(0, 100)]),
+                        'completed_at' => $completed ? now()->subDays(rand(1, 10)) : null,
+                        'joined_at' => now()->subDays(rand(11, 60)),
                     ]);
                 }
             }
@@ -524,14 +536,29 @@ class KpiSeeder extends Seeder
 
     private function createRedemptions(): void
     {
-        foreach ($this->users as $user) {
+        $rewardUsers = RewardUser::all();
+
+        // Create a dummy catalog item since the seeder doesn't create any
+        $catalogItem = \App\Models\Rewards\RewardCatalogItem::firstOrCreate(
+            ['slug' => 'tarjeta-de-regalo-5000'],
+            [
+                'name' => 'Tarjeta de Regalo ₡5,000',
+                'description' => 'Una tarjeta de regalo para usar en cualquier comercio.',
+                'category' => 'digital',
+                'cost' => 5000,
+                'stock' => -1, // Unlimited
+                'is_active' => true,
+            ]
+        );
+
+        foreach ($rewardUsers as $rewardUser) {
             // 30% chance of redemption
             if (rand(1, 100) <= 30) {
                 RewardRedemption::create([
-                    'user_id' => $user->id,
-                    'catalog_item_id' => null,
-                    'points_spent' => rand(100, 1000),
-                    'status' => ['pending', 'completed'][array_rand(['pending', 'completed'])],
+                    'reward_user_id' => $rewardUser->id,
+                    'catalog_item_id' => $catalogItem->id,
+                    'points_spent' => $catalogItem->cost,
+                    'status' => ['pending', 'approved', 'delivered'][array_rand(['pending', 'approved', 'delivered'])],
                     'created_at' => now()->subDays(rand(1, 90)),
                 ]);
             }
