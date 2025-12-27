@@ -14,7 +14,12 @@ class ClientController extends Controller
         $activeFilter = $this->resolveActiveFilter($request);
 
         $query = Client::query()
-            ->with('assignedAgent');
+            ->select([
+                'id', 'name', 'apellido1', 'apellido2', 'cedula',
+                'email', 'phone', 'status', 'is_active', 'assigned_to_id',
+                'created_at', 'updated_at'
+            ])
+            ->with('assignedAgent:id,name');
 
         // Filter by Active Status (Boolean)
         if ($activeFilter !== null) {

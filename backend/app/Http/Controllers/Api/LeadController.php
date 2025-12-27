@@ -15,7 +15,15 @@ class LeadController extends Controller
         $activeFilter = $this->resolveActiveFilter($request);
 
         $query = Lead::query()
-            ->with(['assignedAgent', 'leadStatus']);
+            ->select([
+                'id', 'name', 'apellido1', 'apellido2', 'cedula',
+                'email', 'phone', 'lead_status_id', 'is_active',
+                'assigned_to_id', 'created_at', 'updated_at'
+            ])
+            ->with([
+                'assignedAgent:id,name',
+                'leadStatus:id,name,slug'
+            ]);
 
         // Filter by Active Status
         if ($activeFilter !== null) {

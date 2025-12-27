@@ -12,9 +12,18 @@ class OpportunityController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Opportunity::with(['lead', 'user']);
+        $query = Opportunity::query()
+            ->select([
+                'id', 'lead_cedula', 'opportunity_type', 'vertical',
+                'amount', 'status', 'expected_close_date', 'comments',
+                'assigned_to_id', 'created_at', 'updated_at'
+            ])
+            ->with([
+                'lead:id,cedula,name,email,phone',
+                'user:id,name'
+            ]);
 
-        if ($request->has('status')) {
+        if ($request->has('status') && $request->input('status') !== 'todos') {
             $query->where('status', $request->input('status'));
         }
 
