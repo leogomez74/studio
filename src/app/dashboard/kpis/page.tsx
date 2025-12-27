@@ -627,14 +627,14 @@ export default function KPIsPage() {
   const fetchTrends = useCallback(async () => {
     setTrendsLoading(true);
     try {
-      const response = await api.get('/api/kpis/trends?months=6');
+      const response = await api.get(`/api/kpis/trends?period=${period}`);
       setTrendData(response.data as TrendData);
     } catch (err) {
       console.error('Error fetching trends:', err);
     } finally {
       setTrendsLoading(false);
     }
-  }, []);
+  }, [period]);
 
   useEffect(() => {
     fetchKPIs();
