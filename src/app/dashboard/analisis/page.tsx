@@ -116,7 +116,7 @@ export default function AnalisisPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Listado de Análisis</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Listado de Analizados</h1>
       </div>
 
       <div className="overflow-x-auto bg-white shadow-md rounded-lg border border-gray-200">

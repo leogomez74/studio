@@ -36,7 +36,7 @@ The `persons` table uses a single-table inheritance pattern with `person_type_id
 ### Key Relationships
 - `Lead`/`Client` -> `Opportunity` (via `cedula` field, **not** standard FK).
 - `Credit` -> `Lead`, `Opportunity`, `Deductora`, `PlanDePago`, `CreditPayment`.
-- `User` -> Assigned Leads, Opportunities, Credits.
+- `User` -> Assigned Leads, Opportunities, Credidts.
 
 ### Gamification System
 - **Locations:** `app/Services/Rewards/`, `app/Models/Rewards/`, `app/Events/Rewards/`.

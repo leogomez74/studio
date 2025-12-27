@@ -990,7 +990,7 @@ export default function DealsPage() {
                                 </Button>
                               </Link>
                             </TooltipTrigger>
-                            <TooltipContent>Ver detalle</TooltipContent>
+                            <TooltipContent>Ver detalles</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
 

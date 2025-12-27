@@ -186,6 +186,32 @@ export default function LeadDetailPage() {
         }
     };
 
+    const handleConvertToClient = async () => {
+        if (!lead) return;
+        if (!confirm(`¿Convertir a ${lead.name} en cliente?`)) return;
+        try {
+            await api.post(`/api/leads/${id}/convert`);
+            toast({ title: "Convertido", description: `${lead.name} ahora es cliente.`, className: "bg-green-600 text-white" });
+            router.push('/dashboard/clientes');
+        } catch (error) {
+            console.error("Error converting lead:", error);
+            toast({ title: "Error", description: "No se pudo convertir el lead.", variant: "destructive" });
+        }
+    };
+
+    const handleArchive = async () => {
+        if (!lead) return;
+        if (!confirm(`¿Archivar a ${lead.name}?`)) return;
+        try {
+            await api.patch(`/api/leads/${id}/toggle-active`);
+            toast({ title: "Archivado", description: "Lead archivado correctamente." });
+            router.push('/dashboard/clientes');
+        } catch (error) {
+            console.error("Error archiving lead:", error);
+            toast({ title: "Error", description: "No se pudo archivar el lead.", variant: "destructive" });
+        }
+    };
+
     if (loading) {
         return <div className="flex h-full items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
     }
@@ -297,7 +323,11 @@ export default function LeadDetailPage() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button size="icon" className="h-9 w-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 border-0">
+                                                    <Button
+                                                        size="icon"
+                                                        className="h-9 w-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 border-0"
+                                                        onClick={handleConvertToClient}
+                                                    >
                                                         <UserCheck className="h-4 w-4" />
                                                     </Button>
                                                 </TooltipTrigger>
@@ -308,7 +338,11 @@ export default function LeadDetailPage() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button size="icon" className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0">
+                                                    <Button
+                                                        size="icon"
+                                                        className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0"
+                                                        onClick={handleArchive}
+                                                    >
                                                         <Archive className="h-4 w-4" />
                                                     </Button>
                                                 </TooltipTrigger>

@@ -62,14 +62,40 @@ import { CreateOpportunityDialog } from "@/components/opportunities/create-oppor
 
 const normalizeCedulaInput = (value: string): string => value.replace(/[^0-9]/g, "");
 
+const normalizePhoneInput = (value: string): string => value.replace(/[^0-9]/g, "");
+
+const formatCedula = (value: string): string => {
+  const numericValue = value.replace(/[^0-9]/g, "");
+  if (numericValue.length <= 1) {
+    return numericValue;
+  }
+  if (numericValue.length <= 5) {
+    return `${numericValue.slice(0, 1)}-${numericValue.slice(1)}`;
+  }
+  return `${numericValue.slice(0, 1)}-${numericValue.slice(1, 5)}-${numericValue.slice(5, 9)}`;
+};
+
 const leadSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
-  apellido1: z.string().optional(),
-  apellido2: z.string().optional(),
-  cedula: z.string().optional(),
-  email: z.string().email("Correo inválido"),
-  phone: z.string().optional(),
-  fechaNacimiento: z.string().optional(),
+  apellido1: z.string().min(1, "El primer apellido es requerido"),
+  apellido2: z.string().min(1, "El segundo apellido es requerido"),
+  cedula: z.string().min(11, "La cédula debe tener 9 dígitos").refine((cedula) => {
+    if (!cedula) return false;
+    return /^\d{1}-\d{4}-\d{4}$/.test(cedula);
+  }, "El formato de la cédula debe ser X-XXXX-XXXX"),
+  email: z.string().email("Correo inválido").optional(),
+  phone: z.string().refine((phone) => {
+    if (!phone) return false;
+    return /^\d{8}$/.test(phone);
+  }, "El número de teléfono debe tener 8 dígitos"),
+  fechaNacimiento: z.string().refine((date) => {
+    if (!date) return false;
+    const today = new Date();
+    const [day, month, year] = date.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    today.setHours(0, 0, 0, 0);
+    return /^\d{2}-\d{2}-\d{4}$/.test(date) && dateObj <= today;
+  }, "La fecha de nacimiento no puede ser en el futuro y debe tener el formato DD-MM-AAAA"),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
@@ -409,7 +435,7 @@ export default function ClientesPage() {
     async (cedulaInput: string): Promise<void> => {
       const trimmed = cedulaInput.trim();
       const normalizedCedulaValue = normalizeCedulaInput(trimmed);
-      if (!normalizedCedulaValue || normalizedCedulaValue === lastTseCedula) {
+      if (!normalizedCedulaValue || normalizedCedulaValue.length < 9 || normalizedCedulaValue === lastTseCedula) {
         return;
       }
 
@@ -430,8 +456,8 @@ export default function ClientesPage() {
         form.setValue("name", normalizedName);
         form.setValue("apellido1", normalizedApellido1);
         form.setValue("apellido2", normalizedApellido2);
-        form.setValue("cedula", normalizedCedula);
-        form.setValue("fechaNacimiento", rawDate);
+        form.setValue("cedula", formatCedula(normalizedCedula));
+        form.setValue("fechaNacimiento", formatDateForInput(rawDate));
 
         setLastTseCedula(normalizeCedulaInput(normalizedCedula || normalizedCedulaValue));
         toast({ title: "Datos cargados", description: "Información completada desde el TSE." });
@@ -447,7 +473,7 @@ export default function ClientesPage() {
   const cedulaValue = form.watch("cedula");
 
   useEffect(() => {
-    const sanitized = normalizeCedulaInput((cedulaValue || "").trim());
+    const sanitized = (cedulaValue || "").trim();
     if (!sanitized || sanitized.length < 9 || sanitized === lastTseCedula || isFetchingTse) {
       return;
     }
@@ -462,9 +488,9 @@ export default function ClientesPage() {
     if (value.length > 8) value = value.slice(0, 8);
 
     let formattedValue = '';
-    if (value.length > 4) {
+    if (value.length >= 5) {
       formattedValue = `${value.slice(0, 2)}-${value.slice(2, 4)}-${value.slice(4)}`;
-    } else if (value.length > 2) {
+    } else if (value.length >= 3) {
       formattedValue = `${value.slice(0, 2)}-${value.slice(2)}`;
     } else {
       formattedValue = value;
@@ -487,9 +513,9 @@ export default function ClientesPage() {
 
       const body = {
         name: values.name.trim(),
-        email: values.email.trim(),
-        cedula: normalizeCedulaInput(values.cedula || "") || null,
-        phone: values.phone?.trim() || null,
+        email: values.email?.trim() || null,
+        cedula: values.cedula || null,
+        phone: values.phone || null,
         apellido1: values.apellido1?.trim() || null,
         apellido2: values.apellido2?.trim() || null,
         ...(editingId ? {} : { status: "Nuevo" }),
@@ -874,8 +900,13 @@ export default function ClientesPage() {
                       <FormControl>
                         <Input
                           placeholder="0-0000-0000"
+                          required
                           disabled={isViewOnly}
                           {...field}
+                          onChange={(e) => {
+                            const formattedValue = formatCedula(e.target.value);
+                            field.onChange(formattedValue);
+                          }}
                         />
                       </FormControl>
                       {!isViewOnly && <p className="text-xs text-muted-foreground">Al ingresar la cédula completaremos los datos desde el TSE.</p>}
@@ -905,7 +936,7 @@ export default function ClientesPage() {
                     <FormItem>
                       <FormLabel>Primer apellido</FormLabel>
                       <FormControl>
-                        <Input disabled={isViewOnly} {...field} />
+                        <Input required disabled={isViewOnly} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -918,7 +949,7 @@ export default function ClientesPage() {
                     <FormItem>
                       <FormLabel>Segundo apellido</FormLabel>
                       <FormControl>
-                        <Input disabled={isViewOnly} {...field} />
+                        <Input required disabled={isViewOnly} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -933,7 +964,7 @@ export default function ClientesPage() {
                     <FormItem>
                       <FormLabel>Correo</FormLabel>
                       <FormControl>
-                        <Input type="email" required disabled={isViewOnly} {...field} />
+                        <Input type="email" disabled={isViewOnly} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -946,7 +977,16 @@ export default function ClientesPage() {
                     <FormItem>
                       <FormLabel>Teléfono</FormLabel>
                       <FormControl>
-                        <Input disabled={isViewOnly} {...field} />
+                        <Input
+                          required
+                          disabled={isViewOnly}
+                          maxLength={8}
+                          {...field}
+                          onChange={(e) => {
+                            const formattedValue = normalizePhoneInput(e.target.value);
+                            field.onChange(formattedValue);
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -963,6 +1003,7 @@ export default function ClientesPage() {
                           type="text"
                           inputMode="numeric"
                           placeholder="DD-MM-AAAA"
+                          required
                           disabled={isViewOnly}
                           maxLength={10}
                           {...field}
