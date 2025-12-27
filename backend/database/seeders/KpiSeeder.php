@@ -399,7 +399,6 @@ class KpiSeeder extends Seeder
                 ['user_id' => $user->id],
                 [
                     'total_points' => rand(100, 5000),
-                    'available_points' => rand(50, 2000),
                     'level' => rand(1, 5),
                     'current_streak' => rand(0, 30),
                     'longest_streak' => rand(10, 60),
