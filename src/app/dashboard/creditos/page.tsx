@@ -75,7 +75,7 @@ const creditSchema = z.object({
   status: z.string(),
   category: z.string(),
   monto_credito: z.coerce.number().min(0, "El monto debe ser positivo"),
-  leadId: z.string().min(1, "Debes seleccionar un lead"),
+  clientId: z.string().min(1, "Debes seleccionar un cliente"),
   opportunityId: z.string().optional(),
   assignedTo: z.string().optional(),
   openedAt: z.string(),
@@ -287,11 +287,11 @@ export default function CreditsPage() {
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
 
   const [credits, setCredits] = useState<CreditItem[]>([]);
-  const [leads, setLeads] = useState<ClientOption[]>([]);
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityOption[]>([]);
   const [users, setUsers] = useState<{ id: number, name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingLeads, setIsLoadingLeads] = useState(true);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [tabValue, setTabValue] = useState("all");
@@ -318,7 +318,7 @@ export default function CreditsPage() {
       status: CREDIT_STATUS_OPTIONS[0],
       category: CREDIT_CATEGORY_OPTIONS[0],
       monto_credito: 0,
-      leadId: "",
+      clientId: "",
       opportunityId: "",
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
@@ -343,28 +343,28 @@ export default function CreditsPage() {
 
   // Drag scroll state 
 
-  const currentLeadId = form.watch("leadId");
-  const currentLead = useMemo(() => {
-    return currentLeadId ? leads.find((lead) => String(lead.id) === currentLeadId) : null;
-  }, [currentLeadId, leads]);
+  const currentClientId = form.watch("clientId");
+  const currentClient = useMemo(() => {
+    return currentClientId ? clients.find((client) => String(client.id) === currentClientId) : null;
+  }, [currentClientId, clients]);
 
-  const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads;
+  const filteredClients = useMemo(() => {
+    if (!searchQuery) return clients;
     const lowerQuery = searchQuery.toLowerCase();
-    return leads.filter(lead =>
-      lead.name.toLowerCase().includes(lowerQuery) ||
-      (lead.cedula && lead.cedula.includes(lowerQuery))
+    return clients.filter(client =>
+      client.name.toLowerCase().includes(lowerQuery) ||
+      (client.cedula && client.cedula.includes(lowerQuery))
     );
-  }, [leads, searchQuery]);
+  }, [clients, searchQuery]);
 
   const availableOpportunities = useMemo(() => {
     return opportunities.filter((opportunity) => {
-      const belongsToLead = currentLeadId ? opportunity.lead_id === parseInt(currentLeadId, 10) : true;
+      const belongsToClient = currentClientId ? opportunity.lead_id === parseInt(currentClientId, 10) : true;
       const canSelectExistingCredit = dialogCredit?.opportunity_id === opportunity.id;
       const isFree = !opportunity.credit;
-      return belongsToLead && (canSelectExistingCredit || isFree);
+      return belongsToClient && (canSelectExistingCredit || isFree);
     });
-  }, [opportunities, currentLeadId, dialogCredit]);
+  }, [opportunities, currentClientId, dialogCredit]);
 
   // Mock permission for now
   const canDownloadDocuments = true;
@@ -426,16 +426,16 @@ export default function CreditsPage() {
     }
   }, [toast]);
 
-  const fetchLeads = useCallback(async () => {
+  const fetchClients = useCallback(async () => {
     try {
-      setIsLoadingLeads(true);
-      const response = await api.get('/api/leads');
+      setIsLoadingClients(true);
+      const response = await api.get('/api/clients');
       const data = response.data.data || response.data;
-      setLeads(data.map((l: any) => ({ id: l.id, name: l.name, email: l.email, cedula: l.cedula, deductora_id: l.deductora_id })));
+      setClients(data.map((c: any) => ({ id: c.id, name: c.name, email: c.email, cedula: c.cedula, deductora_id: c.deductora_id })));
     } catch (error) {
-      console.error("Error fetching leads:", error);
+      console.error("Error fetching clients:", error);
     } finally {
-      setIsLoadingLeads(false);
+      setIsLoadingClients(false);
     }
   }, []);
 
@@ -470,19 +470,19 @@ export default function CreditsPage() {
 
   useEffect(() => {
     fetchCredits();
-    fetchLeads();
+    fetchClients();
     fetchOpportunities();
     fetchUsers();
     fetchDeductoras();
-  }, [fetchCredits, fetchLeads, fetchOpportunities, fetchUsers, fetchDeductoras]);
+  }, [fetchCredits, fetchClients, fetchOpportunities, fetchUsers, fetchDeductoras]);
 
-  // Populate lead objects on credits based on lead_id
+  // Populate client objects on credits based on lead_id
   useEffect(() => {
     setCredits(prevCredits => prevCredits.map(credit => ({
       ...credit,
-      lead: leads.find(l => String(l.id) === String(credit.lead_id)) || credit.lead
+      lead: clients.find(c => String(c.id) === String(credit.lead_id)) || credit.lead
     })));
-  }, [leads]);
+  }, [clients]);
 
   const getCreditsForTab = useCallback(
     (value: string): CreditItem[] => {
@@ -533,7 +533,7 @@ export default function CreditsPage() {
       status: CREDIT_STATUS_OPTIONS[0],
       category: CREDIT_CATEGORY_OPTIONS[0],
       monto_credito: 0,
-      leadId: "",
+      clientId: "",
       opportunityId: "",
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
@@ -553,7 +553,7 @@ export default function CreditsPage() {
       status: credit.status || CREDIT_STATUS_OPTIONS[0],
       category: credit.category || CREDIT_CATEGORY_OPTIONS[0],
       monto_credito: credit.monto_credito || 0,
-      leadId: String(credit.lead_id),
+      clientId: String(credit.lead_id),
       opportunityId: credit.opportunity_id ? String(credit.opportunity_id) : "",
       assignedTo: credit.assigned_to || "",
       openedAt: credit.opened_at ? credit.opened_at.split('T')[0] : "",
@@ -575,7 +575,7 @@ export default function CreditsPage() {
         status: values.status,
         category: values.category,
         monto_credito: values.monto_credito,
-        lead_id: parseInt(values.leadId),
+        lead_id: parseInt(values.clientId),
         opportunity_id: values.opportunityId || null,
         assigned_to: values.assignedTo,
         opened_at: values.openedAt,
@@ -852,9 +852,9 @@ export default function CreditsPage() {
                     />
                   </div>
                   <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-lead">Lead</Label>
+                    <Label htmlFor="filter-client">Cliente</Label>
                     <Input
-                      id="filter-lead"
+                      id="filter-client"
                       className="col-span-2 h-8"
                       value={filters.leadName}
                       onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
@@ -1111,10 +1111,10 @@ export default function CreditsPage() {
                       />
                       <FormField
                         control={form.control}
-                        name="leadId"
+                        name="clientId"
                         render={({ field }) => (
                           <FormItem className="flex flex-col">
-                            <FormLabel>Lead / Cliente</FormLabel>
+                            <FormLabel>Cliente</FormLabel>
                             <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                               <PopoverTrigger asChild>
                                 <FormControl>
@@ -1125,8 +1125,8 @@ export default function CreditsPage() {
                                     className="justify-between font-normal w-full"
                                   >
                                     {field.value
-                                      ? leads.find((lead) => String(lead.id) === field.value)?.name
-                                      : "Selecciona un lead..."}
+                                      ? clients.find((client) => String(client.id) === field.value)?.name
+                                      : "Selecciona un cliente..."}
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                   </Button>
                                 </FormControl>
@@ -1141,25 +1141,25 @@ export default function CreditsPage() {
                                   />
                                 </div>
                                 <div className="max-h-[200px] overflow-y-auto p-1">
-                                  {filteredLeads.length === 0 ? (
-                                    <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron leads.</div>
+                                  {filteredClients.length === 0 ? (
+                                    <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron clientes.</div>
                                   ) : (
-                                    filteredLeads.map((lead) => (
+                                    filteredClients.map((client) => (
                                       <div
-                                        key={lead.id}
-                                        className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(lead.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
+                                        key={client.id}
+                                        className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(client.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
                                         onClick={() => {
-                                          form.setValue("leadId", String(lead.id));
+                                          form.setValue("clientId", String(client.id));
                                           setOpenCombobox(false);
                                         }}
                                       >
                                         <Check
-                                          className={`mr-2 h-4 w-4 ${String(lead.id) === field.value ? "opacity-100" : "opacity-0"
+                                          className={`mr-2 h-4 w-4 ${String(client.id) === field.value ? "opacity-100" : "opacity-0"
                                             }`}
                                         />
                                         <div className="flex flex-col">
-                                          <span>{lead.name}</span>
-                                          {lead.cedula && <span className="text-xs text-muted-foreground">{lead.cedula}</span>}
+                                          <span>{client.name}</span>
+                                          {client.cedula && <span className="text-xs text-muted-foreground">{client.cedula}</span>}
                                         </div>
                                       </div>
                                     ))
@@ -1371,19 +1371,19 @@ export default function CreditsPage() {
                     </div>
                   </div>
 
-                  {currentLead ? (
+                  {currentClient ? (
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Información del lead</CardTitle>
-                        <CardDescription>Resumen del lead relacionado con este crédito.</CardDescription>
+                        <CardTitle className="text-base">Información del cliente</CardTitle>
+                        <CardDescription>Resumen del cliente relacionado con este crédito.</CardDescription>
                       </CardHeader>
                       <CardContent className="text-sm">
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div>
-                            <span className="font-medium">Nombre:</span> {currentLead.name}
+                            <span className="font-medium">Nombre:</span> {currentClient.name}
                           </div>
                           <div>
-                            <span className="font-medium">Correo:</span> {currentLead.email ?? "-"}
+                            <span className="font-medium">Correo:</span> {currentClient.email ?? "-"}
                           </div>
                         </div>
                       </CardContent>
@@ -1446,7 +1446,7 @@ export default function CreditsPage() {
               <div><Label className="text-muted-foreground">Título</Label><p>{detailCredit.title}</p></div>
               <div><Label className="text-muted-foreground">Estado</Label><p>{detailCredit.status}</p></div>
               <div><Label className="text-muted-foreground">Categoría</Label><p>{detailCredit.category}</p></div>
-              <div><Label className="text-muted-foreground">Lead</Label><p>{detailCredit.client?.name}</p></div>
+              <div><Label className="text-muted-foreground">Cliente</Label><p>{detailCredit.client?.name}</p></div>
               <div><Label className="text-muted-foreground">Responsable</Label><p>{detailCredit.assigned_to}</p></div>
               <div className="col-span-2"><Label className="text-muted-foreground">Descripción</Label><p>{detailCredit.description}</p></div>
             </div>
