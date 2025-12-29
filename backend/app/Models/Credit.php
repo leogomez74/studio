@@ -99,7 +99,8 @@ class Credit extends Model
 
     public function lead()
     {
-        return $this->belongsTo(Lead::class, 'lead_id');
+        // Use Person instead of Lead to support both Leads and Clients
+        return $this->belongsTo(Person::class, 'lead_id');
     }
 
     public function opportunity()
