@@ -510,10 +510,9 @@ class KpiSeeder extends Seeder
                     'name' => $challengeData['name'],
                     'description' => $challengeData['description'],
                     'type' => $challengeData['type'],
-                    'rewards' => json_encode($challengeData['rewards']),
                     'objectives' => json_encode(['count' => 5]),
-                    'start_date' => now()->subDays(rand(30, 90)),
-                    'end_date' => now()->addDays(rand(7, 30)),
+                    'starts_at' => now()->subDays(rand(30, 90)),
+                    'ends_at' => now()->addDays(rand(7, 30)),
                     'is_active' => true,
                 ]
             );
