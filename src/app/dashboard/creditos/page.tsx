@@ -237,6 +237,7 @@ const CURRENCY_OPTIONS = [
 const CREDIT_STATUS_TAB_CONFIG = [
   { value: "all", label: "Todos" },
   { value: "activo", label: "Activo" },
+  { value: "formalizado", label: "Formalizado" },
   { value: "mora", label: "En Mora" },
   { value: "cerrado", label: "Cerrado" },
   { value: "legal", label: "Cobro Judicial" },
@@ -244,6 +245,7 @@ const CREDIT_STATUS_TAB_CONFIG = [
 
 const TAB_STATUS_FILTERS: Record<string, string[]> = {
   "activo": ["activo", "al día"],
+  "formalizado": ["formalizado"],
   "mora": ["mora", "en mora"],
   "cerrado": ["cerrado", "cancelado"],
   "legal": ["legal", "en cobro judicial"],
@@ -256,6 +258,30 @@ const TRACKED_STATUS_SET = new Set(
 );
 
 const normalizeStatus = (status?: string | null): string => (status ?? "").trim().toLowerCase();
+
+const getStatusBadgeStyle = (status?: string | null): { variant: "default" | "secondary" | "destructive" | "outline"; className?: string } => {
+  const normalized = normalizeStatus(status);
+  switch (normalized) {
+    case "formalizado":
+      return { variant: "default", className: "bg-emerald-600 hover:bg-emerald-700 text-white" };
+    case "activo":
+    case "al día":
+      return { variant: "default", className: "bg-blue-600 hover:bg-blue-700 text-white" };
+    case "mora":
+    case "en mora":
+      return { variant: "destructive" };
+    case "cerrado":
+    case "cancelado":
+      return { variant: "secondary" };
+    case "legal":
+    case "en cobro judicial":
+      return { variant: "destructive", className: "bg-red-800 hover:bg-red-900" };
+    case "aprobado":
+      return { variant: "default", className: "bg-green-500 hover:bg-green-600 text-white" };
+    default:
+      return { variant: "secondary" };
+  }
+};
 
 function formatDate(dateString?: string | null): string {
   if (!dateString) return "-";
@@ -950,7 +976,14 @@ export default function CreditsPage() {
                         return (
                           <TableRow key={credit.id}>
                             <TableCell>
-                              <Badge variant="secondary">{credit.status}</Badge>
+                              {(() => {
+                                const badgeStyle = getStatusBadgeStyle(credit.status);
+                                return (
+                                  <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
+                                    {credit.status}
+                                  </Badge>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell>{credit.client?.name || credit.lead?.name || "-"}</TableCell>
                             <TableCell className="font-medium">
