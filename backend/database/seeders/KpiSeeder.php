@@ -36,14 +36,14 @@ class KpiSeeder extends Seeder
         $this->command->info('🚀 Starting KPI Seeder...');
 
         // Seed base data first
-        $this->seedUsers();
-        $this->seedDeductoras();
-        $this->seedLeadStatuses();
+        $this->seedUsers(); // Keep - needed for $this->users array
+        // $this->seedDeductoras();
+        // $this->seedLeadStatuses();
 
         // Seed main data distributed over the past 12 months
-        $this->seedLeadsAndClients();
-        $this->seedOpportunities();
-        $this->seedCreditsWithPayments();
+        // $this->seedLeadsAndClients();
+        // $this->seedOpportunities();
+        // $this->seedCreditsWithPayments();
         $this->seedGamificationData();
 
         $this->command->info('✅ KPI Seeder completed successfully!');
@@ -548,7 +548,7 @@ class KpiSeeder extends Seeder
                 'name' => 'Tarjeta de Regalo ₡5,000',
                 'description' => 'Una tarjeta de regalo para usar en cualquier comercio.',
                 'category' => 'digital',
-                'cost' => 5000,
+                'points_cost' => 5000,
                 'stock' => -1, // Unlimited
                 'is_active' => true,
             ]
@@ -560,7 +560,7 @@ class KpiSeeder extends Seeder
                 RewardRedemption::create([
                     'reward_user_id' => $rewardUser->id,
                     'catalog_item_id' => $catalogItem->id,
-                    'points_spent' => $catalogItem->cost,
+                    'points_spent' => $catalogItem->points_cost,
                     'status' => ['pending', 'approved', 'delivered'][array_rand(['pending', 'approved', 'delivered'])],
                     'created_at' => now()->subDays(rand(1, 90)),
                 ]);
