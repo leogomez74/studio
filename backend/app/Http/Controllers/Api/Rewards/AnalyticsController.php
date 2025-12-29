@@ -174,8 +174,8 @@ class AnalyticsController extends Controller
         $now = now();
 
         $activeChallenges = RewardChallenge::where('is_active', true)
-            ->where('start_date', '<=', $now)
-            ->where('end_date', '>=', $now)
+            ->where('starts_at', '<=', $now)
+            ->where('ends_at', '>=', $now)
             ->count();
 
         $completedParticipations = RewardChallengeParticipation::whereNotNull('completed_at')->count();
