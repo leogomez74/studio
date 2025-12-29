@@ -504,10 +504,14 @@ export default function CreditsPage() {
 
   // Populate client objects on credits based on lead_id
   useEffect(() => {
-    setCredits(prevCredits => prevCredits.map(credit => ({
-      ...credit,
-      lead: clients.find(c => String(c.id) === String(credit.lead_id)) || credit.lead
-    })));
+    setCredits(prevCredits => prevCredits.map(credit => {
+      const matchedClient = clients.find(c => String(c.id) === String(credit.lead_id));
+      return {
+        ...credit,
+        client: matchedClient || credit.client,
+        lead: matchedClient || credit.lead
+      };
+    }));
   }, [clients]);
 
   const getCreditsForTab = useCallback(
