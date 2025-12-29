@@ -445,8 +445,6 @@ class KpiSeeder extends Seeder
                     'amount' => rand(10, 200),
                     'type' => 'earn',
                     'description' => 'Puntos ganados por actividad',
-                    'source_type' => null,
-                    'source_id' => null,
                     'created_at' => $createdAt,
                     'updated_at' => $createdAt,
                 ]);
@@ -545,7 +543,7 @@ class KpiSeeder extends Seeder
                 'name' => 'Tarjeta de Regalo ₡5,000',
                 'description' => 'Una tarjeta de regalo para usar en cualquier comercio.',
                 'category' => 'digital',
-                'points_cost' => 5000,
+                'cost' => 5000,
                 'stock' => -1, // Unlimited
                 'is_active' => true,
             ]
@@ -557,8 +555,8 @@ class KpiSeeder extends Seeder
                 RewardRedemption::create([
                     'reward_user_id' => $rewardUser->id,
                     'catalog_item_id' => $catalogItem->id,
-                    'points_spent' => $catalogItem->points_cost,
-                    'status' => ['pending', 'approved', 'fulfilled'][array_rand(['pending', 'approved', 'fulfilled'])],
+                    'points_spent' => $catalogItem->cost,
+                    'status' => ['pending', 'approved', 'delivered'][array_rand(['pending', 'approved', 'delivered'])],
                     'created_at' => now()->subDays(rand(1, 90)),
                 ]);
             }

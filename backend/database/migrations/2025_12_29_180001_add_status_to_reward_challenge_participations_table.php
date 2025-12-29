@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        if (!Schema::hasColumn('reward_challenge_participations', 'status')) {
+            Schema::table('reward_challenge_participations', function (Blueprint $table) {
+                $table->string('status')->default('active')->after('progress');
+            });
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        if (Schema::hasColumn('reward_challenge_participations', 'status')) {
+            Schema::table('reward_challenge_participations', function (Blueprint $table) {
+                $table->dropColumn('status');
+            });
+        }
+    }
+};
