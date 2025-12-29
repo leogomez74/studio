@@ -238,7 +238,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchKPIs = async () => {
       try {
-        const response = await api.get('/kpis?period=month');
+        const response = await api.get('/api/kpis?period=month');
         setKpiData(response.data);
       } catch (error) {
         console.error('Error fetching KPIs:', error);
