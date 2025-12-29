@@ -496,9 +496,9 @@ class KpiSeeder extends Seeder
     private function createChallengesAndParticipation(): void
     {
         $challenges = [
-            ['name' => 'Reto Semanal', 'description' => 'Crea 5 créditos esta semana', 'type' => 'individual', 'rewards' => ['points' => 500]],
-            ['name' => 'Meta Mensual', 'description' => 'Alcanza el 100% de tu meta', 'type' => 'individual', 'rewards' => ['points' => 1000]],
-            ['name' => 'Cobro Perfecto', 'description' => '100% de cobro por 7 días', 'type' => 'individual', 'rewards' => ['points' => 750]],
+            ['name' => 'Reto Semanal', 'description' => 'Crea 5 créditos esta semana', 'type' => 'individual'],
+            ['name' => 'Meta Mensual', 'description' => 'Alcanza el 100% de tu meta', 'type' => 'individual'],
+            ['name' => 'Cobro Perfecto', 'description' => '100% de cobro por 7 días', 'type' => 'individual'],
         ];
 
         $rewardUsers = RewardUser::all();

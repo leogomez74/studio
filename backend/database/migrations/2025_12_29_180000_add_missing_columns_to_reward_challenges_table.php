@@ -38,6 +38,13 @@ return new class extends Migration
             }
         });
 
+        // Make 'rewards' column nullable (it exists in original migration but model uses points_reward/xp_reward instead)
+        if (Schema::hasColumn('reward_challenges', 'rewards')) {
+            Schema::table('reward_challenges', function (Blueprint $table) {
+                $table->json('rewards')->nullable()->change();
+            });
+        }
+
         // Rename date columns to match model expectations
         if (Schema::hasColumn('reward_challenges', 'start_date') && !Schema::hasColumn('reward_challenges', 'starts_at')) {
             Schema::table('reward_challenges', function (Blueprint $table) {
