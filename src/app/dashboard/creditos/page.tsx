@@ -989,7 +989,7 @@ export default function CreditsPage() {
                                 );
                               })()}
                             </TableCell>
-                            <TableCell>{credit.client?.name || credit.lead?.name || "-"}</TableCell>
+                            <TableCell>{credit.client?.name}</TableCell>
                             <TableCell className="font-medium">
                               <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
                                 {credit.numero_operacion || credit.reference || "-"}
