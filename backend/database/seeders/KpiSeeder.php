@@ -37,13 +37,13 @@ class KpiSeeder extends Seeder
 
         // Seed base data first
         $this->seedUsers(); // Keep - needed for $this->users array
-        // $this->seedDeductoras();
-        // $this->seedLeadStatuses();
+        $this->seedDeductoras();
+        $this->seedLeadStatuses();
 
         // Seed main data distributed over the past 12 months
-        // $this->seedLeadsAndClients();
-        // $this->seedOpportunities();
-        // $this->seedCreditsWithPayments();
+        $this->seedLeadsAndClients();
+        $this->seedOpportunities();
+        $this->seedCreditsWithPayments();
         $this->seedGamificationData();
 
         $this->command->info('✅ KPI Seeder completed successfully!');
