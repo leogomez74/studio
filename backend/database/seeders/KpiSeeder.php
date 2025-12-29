@@ -238,14 +238,27 @@ class KpiSeeder extends Seeder
 
         $wonOpportunities = Opportunity::where('status', 'Ganada')
             ->whereNotIn('id', $existingOpportunityIds)
-            ->with('lead')
+            ->whereNotNull('lead_cedula')
             ->get();
 
         $creditCount = 0;
         $paymentCount = 0;
 
         foreach ($wonOpportunities as $opportunity) {
-            if (!$opportunity->lead) continue;
+            // Find the client by cedula (credits are now created for clients, not leads)
+            $client = Client::where('cedula', $opportunity->lead_cedula)->first();
+
+            // If no client exists, convert the lead to client (simulates won opportunity conversion)
+            if (!$client) {
+                $lead = Lead::where('cedula', $opportunity->lead_cedula)->first();
+                if (!$lead) continue;
+
+                // Convert lead to client by changing person_type_id
+                $lead->update(['person_type_id' => 2]);
+                $client = Client::where('cedula', $opportunity->lead_cedula)->first();
+            }
+
+            if (!$client) continue;
 
             $deductora = $this->deductoras[array_rand($this->deductoras)];
             $monto = $opportunity->amount ?? rand(5, 50) * 100000;
@@ -270,7 +283,7 @@ class KpiSeeder extends Seeder
                 'status' => 'Activo',
                 'category' => 'Regular',
                 'progress' => min(100, intval($daysSinceCreation / 3)),
-                'lead_id' => $opportunity->lead->id,
+                'lead_id' => $client->id,
                 'opportunity_id' => $opportunity->id,
                 'assigned_to' => $this->users[array_rand($this->users)]->name,
                 'opened_at' => $createdAt->toDateString(),
