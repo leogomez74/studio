@@ -508,7 +508,10 @@ class KpiSeeder extends Seeder
                     'name' => $challengeData['name'],
                     'description' => $challengeData['description'],
                     'type' => $challengeData['type'],
+                    'difficulty' => ['easy', 'medium', 'hard'][array_rand(['easy', 'medium', 'hard'])],
                     'objectives' => json_encode(['count' => 5]),
+                    'points_reward' => rand(100, 500),
+                    'xp_reward' => rand(50, 200),
                     'starts_at' => now()->subDays(rand(30, 90)),
                     'ends_at' => now()->addDays(rand(7, 30)),
                     'is_active' => true,
@@ -519,11 +522,13 @@ class KpiSeeder extends Seeder
             foreach ($rewardUsers as $rewardUser) {
                 if (rand(1, 100) <= 60) { // 60% participation
                     $completed = rand(1, 100) <= 40;
+                    $status = $completed ? 'completed' : (['active', 'abandoned'][array_rand(['active', 'abandoned'])]);
                     RewardChallengeParticipation::firstOrCreate([
                         'reward_user_id' => $rewardUser->id,
                         'challenge_id' => $challenge->id,
                     ], [
                         'progress' => json_encode(['value' => rand(0, 100)]),
+                        'status' => $status,
                         'completed_at' => $completed ? now()->subDays(rand(1, 10)) : null,
                         'joined_at' => now()->subDays(rand(11, 60)),
                     ]);
