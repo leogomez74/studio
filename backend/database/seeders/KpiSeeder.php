@@ -14,10 +14,13 @@ use App\Models\LeadStatus;
 use App\Models\Rewards\RewardUser;
 use App\Models\Rewards\RewardTransaction;
 use App\Models\Rewards\RewardBadge;
+use App\Models\Rewards\RewardBadgeCategory;
 use App\Models\Rewards\RewardUserBadge;
 use App\Models\Rewards\RewardChallenge;
 use App\Models\Rewards\RewardChallengeParticipation;
 use App\Models\Rewards\RewardRedemption;
+use App\Models\Rewards\RewardLeaderboard;
+use App\Models\Rewards\RewardLeaderboardEntry;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -422,6 +425,9 @@ class KpiSeeder extends Seeder
             $this->createRewardTransactions($user);
         }
 
+        // Create badge categories first
+        $this->createBadgeCategories();
+
         // Create badges
         $this->createBadgesAndUserBadges();
 
@@ -430,6 +436,9 @@ class KpiSeeder extends Seeder
 
         // Create redemptions
         $this->createRedemptions();
+
+        // Create leaderboards and entries
+        $this->createLeaderboards();
 
         $this->command->info('   Gamification data created');
     }
@@ -577,6 +586,121 @@ class KpiSeeder extends Seeder
                     'status' => ['pending', 'approved', 'delivered'][array_rand(['pending', 'approved', 'delivered'])],
                     'created_at' => now()->subDays(rand(1, 90)),
                 ]);
+            }
+        }
+    }
+
+    private function createBadgeCategories(): void
+    {
+        $categories = [
+            ['name' => 'Rendimiento', 'slug' => 'rendimiento', 'description' => 'Badges por logros de rendimiento', 'icon' => 'trophy', 'color' => '#FFD700'],
+            ['name' => 'Consistencia', 'slug' => 'consistencia', 'description' => 'Badges por mantener rachas', 'icon' => 'flame', 'color' => '#FF6B35'],
+            ['name' => 'Colaboración', 'slug' => 'colaboracion', 'description' => 'Badges por trabajo en equipo', 'icon' => 'users', 'color' => '#4ECDC4'],
+            ['name' => 'Especiales', 'slug' => 'especiales', 'description' => 'Badges por eventos especiales', 'icon' => 'star', 'color' => '#9B59B6'],
+        ];
+
+        foreach ($categories as $index => $categoryData) {
+            RewardBadgeCategory::firstOrCreate(
+                ['slug' => $categoryData['slug']],
+                [
+                    'name' => $categoryData['name'],
+                    'description' => $categoryData['description'],
+                    'icon' => $categoryData['icon'],
+                    'color' => $categoryData['color'],
+                    'sort_order' => $index + 1,
+                    'is_active' => true,
+                ]
+            );
+        }
+    }
+
+    private function createLeaderboards(): void
+    {
+        $rewardUsers = RewardUser::all();
+
+        // Create leaderboard configurations
+        $leaderboards = [
+            [
+                'name' => 'Top Puntos Semanal',
+                'slug' => 'puntos-semanal',
+                'description' => 'Ranking semanal por puntos acumulados',
+                'metric' => 'points',
+                'period' => 'weekly',
+            ],
+            [
+                'name' => 'Top Puntos Mensual',
+                'slug' => 'puntos-mensual',
+                'description' => 'Ranking mensual por puntos acumulados',
+                'metric' => 'points',
+                'period' => 'monthly',
+            ],
+            [
+                'name' => 'Top Nivel',
+                'slug' => 'nivel-general',
+                'description' => 'Ranking por nivel alcanzado',
+                'metric' => 'level',
+                'period' => 'all_time',
+            ],
+            [
+                'name' => 'Top Rachas',
+                'slug' => 'rachas-activas',
+                'description' => 'Ranking por días consecutivos activos',
+                'metric' => 'streak',
+                'period' => 'all_time',
+            ],
+        ];
+
+        foreach ($leaderboards as $leaderboardData) {
+            $leaderboard = RewardLeaderboard::firstOrCreate(
+                ['slug' => $leaderboardData['slug']],
+                [
+                    'name' => $leaderboardData['name'],
+                    'description' => $leaderboardData['description'],
+                    'metric' => $leaderboardData['metric'],
+                    'period' => $leaderboardData['period'],
+                    'is_active' => true,
+                    'starts_at' => $leaderboardData['period'] === 'weekly' ? now()->startOfWeek() : ($leaderboardData['period'] === 'monthly' ? now()->startOfMonth() : null),
+                    'ends_at' => $leaderboardData['period'] === 'weekly' ? now()->endOfWeek() : ($leaderboardData['period'] === 'monthly' ? now()->endOfMonth() : null),
+                ]
+            );
+
+            // Create entries for each user based on metric
+            $sortedUsers = $rewardUsers->sortByDesc(function ($user) use ($leaderboardData) {
+                switch ($leaderboardData['metric']) {
+                    case 'points':
+                        return $user->total_points;
+                    case 'level':
+                        return $user->level;
+                    case 'streak':
+                        return $user->current_streak;
+                    default:
+                        return $user->total_points;
+                }
+            })->values();
+
+            foreach ($sortedUsers as $rank => $rewardUser) {
+                $score = match ($leaderboardData['metric']) {
+                    'points' => $rewardUser->total_points,
+                    'level' => $rewardUser->level,
+                    'streak' => $rewardUser->current_streak,
+                    default => $rewardUser->total_points,
+                };
+
+                RewardLeaderboardEntry::firstOrCreate(
+                    [
+                        'leaderboard_id' => $leaderboard->id,
+                        'reward_user_id' => $rewardUser->id,
+                    ],
+                    [
+                        'rank' => $rank + 1,
+                        'score' => $score,
+                        'previous_rank' => rand(1, 100) <= 70 ? $rank + rand(-2, 3) : null,
+                        'snapshot_data' => [
+                            'user_name' => $rewardUser->user->name ?? 'Usuario',
+                            'recorded_at' => now()->toISOString(),
+                        ],
+                    ]
+                );
             }
         }
     }

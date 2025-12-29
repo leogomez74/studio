@@ -31,12 +31,12 @@ class ChallengeService
         switch ($status) {
             case 'active':
                 $query->where('is_active', true)
-                    ->where('start_date', '<=', now())
-                    ->where('end_date', '>=', now());
+                    ->where('starts_at', '<=', now())
+                    ->where('ends_at', '>=', now());
                 break;
             case 'upcoming':
                 $query->where('is_active', true)
-                    ->where('start_date', '>', now());
+                    ->where('starts_at', '>', now());
                 break;
             case 'completed':
                 $challengeIds = RewardChallengeParticipation::where('reward_user_id', $user->id)
@@ -51,7 +51,7 @@ class ChallengeService
                 break;
         }
 
-        return $query->orderBy('end_date')->get()->map(function ($challenge) use ($user) {
+        return $query->orderBy('ends_at')->get()->map(function ($challenge) use ($user) {
             $participation = $this->getParticipation($user, $challenge);
 
             return [
@@ -60,17 +60,48 @@ class ChallengeService
                 'name' => $challenge->name,
                 'description' => $challenge->description,
                 'type' => $challenge->type,
+                'difficulty' => $challenge->difficulty,
                 'objectives' => $challenge->objectives,
-                'rewards' => $challenge->rewards,
-                'start_date' => $challenge->start_date,
-                'end_date' => $challenge->end_date,
-                'is_joined' => $participation !== null,
-                'is_completed' => $participation?->completed_at !== null,
-                'progress' => $participation?->progress,
-                'participants_count' => $challenge->participations()->count(),
-                'max_participants' => $challenge->max_participants,
+                'rewards' => [
+                    'points' => $challenge->points_reward,
+                    'xp' => $challenge->xp_reward,
+                ],
+                'startDate' => $challenge->starts_at,
+                'endDate' => $challenge->ends_at,
+                'isActive' => $challenge->is_active,
+                'isJoined' => $participation !== null,
+                'isCompleted' => $participation?->completed_at !== null,
+                'progress' => $participation ? [
+                    'overallProgress' => $this->calculateOverallProgress($participation->progress ?? []),
+                    'completedAt' => $participation->completed_at,
+                    'joinedAt' => $participation->joined_at,
+                ] : null,
+                'participantsCount' => $challenge->participations()->count(),
+                'maxParticipants' => $challenge->max_participants,
             ];
         })->toArray();
+    }
+
+    /**
+     * Calcula el progreso general de un challenge.
+     */
+    protected function calculateOverallProgress(array $progress): float
+    {
+        if (empty($progress)) {
+            return 0.0;
+        }
+
+        $total = 0;
+        $count = 0;
+
+        foreach ($progress as $obj) {
+            if (isset($obj['current']) && isset($obj['target']) && $obj['target'] > 0) {
+                $total += min(1, $obj['current'] / $obj['target']);
+                $count++;
+            }
+        }
+
+        return $count > 0 ? $total / $count : 0.0;
     }
 
     /**
@@ -100,10 +131,10 @@ class ChallengeService
 
         // Verificar fechas
         $now = now();
-        if ($now < $challenge->start_date) {
+        if ($challenge->starts_at && $now < $challenge->starts_at) {
             throw new \Exception('Este desafío aún no ha comenzado.');
         }
-        if ($now > $challenge->end_date) {
+        if ($challenge->ends_at && $now > $challenge->ends_at) {
             throw new \Exception('Este desafío ya ha terminado.');
         }
 
@@ -227,7 +258,7 @@ class ChallengeService
             ->whereNull('completed_at')
             ->whereHas('challenge', function ($q) {
                 $q->where('is_active', true)
-                    ->where('end_date', '>=', now());
+                    ->where('ends_at', '>=', now());
             })
             ->with('challenge')
             ->get();
@@ -292,31 +323,30 @@ class ChallengeService
 
             $challenge = $participation->challenge;
             $user = $participation->rewardUser;
-            $rewards = $challenge->rewards;
 
             $claimedRewards = [];
 
             // Otorgar puntos
-            if (isset($rewards['points']) && $rewards['points'] > 0) {
+            if ($challenge->points_reward > 0) {
                 RewardTransaction::create([
                     'reward_user_id' => $user->id,
                     'type' => 'challenge_reward',
-                    'amount' => $rewards['points'],
+                    'amount' => $challenge->points_reward,
                     'currency' => 'points',
                     'description' => "Desafío completado: {$challenge->name}",
                     'reference_type' => 'challenge',
                     'reference_id' => $challenge->id,
-                    'balance_after' => $user->total_points + $rewards['points'],
+                    'balance_after' => $user->total_points + $challenge->points_reward,
                 ]);
-                $user->increment('total_points', $rewards['points']);
-                $user->increment('lifetime_points', $rewards['points']);
-                $claimedRewards['points'] = $rewards['points'];
+                $user->increment('total_points', $challenge->points_reward);
+                $user->increment('lifetime_points', $challenge->points_reward);
+                $claimedRewards['points'] = $challenge->points_reward;
             }
 
             // Otorgar XP
-            if (isset($rewards['xp']) && $rewards['xp'] > 0) {
-                $user->increment('experience_points', $rewards['xp']);
-                $claimedRewards['xp'] = $rewards['xp'];
+            if ($challenge->xp_reward > 0) {
+                $user->increment('experience_points', $challenge->xp_reward);
+                $claimedRewards['xp'] = $challenge->xp_reward;
             }
 
             $participation->update([
