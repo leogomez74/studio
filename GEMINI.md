@@ -65,6 +65,8 @@ All API controllers are in `app/Http/Controllers/Api/`:
 
 ### Key Relationships
 
+
+
 - Lead/Client -> Opportunity (via `cedula` field, not standard FK)
 - Credit -> Lead, Opportunity, Deductora, PlanDePago, CreditPayment
 - User -> assigned Leads, Opportunities, Credits

@@ -75,7 +75,7 @@ const creditSchema = z.object({
   status: z.string(),
   category: z.string(),
   monto_credito: z.coerce.number().min(0, "El monto debe ser positivo"),
-  leadId: z.string().min(1, "Debes seleccionar un lead"),
+  clientId: z.string().min(1, "Debes seleccionar un cliente"),
   opportunityId: z.string().optional(),
   assignedTo: z.string().optional(),
   openedAt: z.string(),
@@ -287,11 +287,11 @@ export default function CreditsPage() {
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
 
   const [credits, setCredits] = useState<CreditItem[]>([]);
-  const [leads, setLeads] = useState<ClientOption[]>([]);
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityOption[]>([]);
   const [users, setUsers] = useState<{ id: number, name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingLeads, setIsLoadingLeads] = useState(true);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [tabValue, setTabValue] = useState("all");
@@ -318,7 +318,7 @@ export default function CreditsPage() {
       status: CREDIT_STATUS_OPTIONS[0],
       category: CREDIT_CATEGORY_OPTIONS[0],
       monto_credito: 0,
-      leadId: "",
+      clientId: "",
       opportunityId: "",
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
@@ -343,28 +343,28 @@ export default function CreditsPage() {
 
   // Drag scroll state 
 
-  const currentLeadId = form.watch("leadId");
-  const currentLead = useMemo(() => {
-    return currentLeadId ? leads.find((lead) => String(lead.id) === currentLeadId) : null;
-  }, [currentLeadId, leads]);
+  const currentClientId = form.watch("clientId");
+  const currentClient = useMemo(() => {
+    return currentClientId ? clients.find((client) => String(client.id) === currentClientId) : null;
+  }, [currentClientId, clients]);
 
-  const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads;
+  const filteredClients = useMemo(() => {
+    if (!searchQuery) return clients;
     const lowerQuery = searchQuery.toLowerCase();
-    return leads.filter(lead =>
-      lead.name.toLowerCase().includes(lowerQuery) ||
-      (lead.cedula && lead.cedula.includes(lowerQuery))
+    return clients.filter(client =>
+      client.name.toLowerCase().includes(lowerQuery) ||
+      (client.cedula && client.cedula.includes(lowerQuery))
     );
-  }, [leads, searchQuery]);
+  }, [clients, searchQuery]);
 
   const availableOpportunities = useMemo(() => {
     return opportunities.filter((opportunity) => {
-      const belongsToLead = currentLeadId ? opportunity.lead_id === parseInt(currentLeadId, 10) : true;
+      const belongsToClient = currentClientId ? opportunity.lead_id === parseInt(currentClientId, 10) : true;
       const canSelectExistingCredit = dialogCredit?.opportunity_id === opportunity.id;
       const isFree = !opportunity.credit;
-      return belongsToLead && (canSelectExistingCredit || isFree);
+      return belongsToClient && (canSelectExistingCredit || isFree);
     });
-  }, [opportunities, currentLeadId, dialogCredit]);
+  }, [opportunities, currentClientId, dialogCredit]);
 
   // Mock permission for now
   const canDownloadDocuments = true;
@@ -426,16 +426,16 @@ export default function CreditsPage() {
     }
   }, [toast]);
 
-  const fetchLeads = useCallback(async () => {
+  const fetchClients = useCallback(async () => {
     try {
-      setIsLoadingLeads(true);
-      const response = await api.get('/api/leads');
+      setIsLoadingClients(true);
+      const response = await api.get('/api/clients');
       const data = response.data.data || response.data;
-      setLeads(data.map((l: any) => ({ id: l.id, name: l.name, email: l.email, cedula: l.cedula, deductora_id: l.deductora_id })));
+      setClients(data.map((c: any) => ({ id: c.id, name: c.name, email: c.email, cedula: c.cedula, deductora_id: c.deductora_id })));
     } catch (error) {
-      console.error("Error fetching leads:", error);
+      console.error("Error fetching clients:", error);
     } finally {
-      setIsLoadingLeads(false);
+      setIsLoadingClients(false);
     }
   }, []);
 
@@ -470,19 +470,19 @@ export default function CreditsPage() {
 
   useEffect(() => {
     fetchCredits();
-    fetchLeads();
+    fetchClients();
     fetchOpportunities();
     fetchUsers();
     fetchDeductoras();
-  }, [fetchCredits, fetchLeads, fetchOpportunities, fetchUsers, fetchDeductoras]);
+  }, [fetchCredits, fetchClients, fetchOpportunities, fetchUsers, fetchDeductoras]);
 
-  // Populate lead objects on credits based on lead_id
+  // Populate client objects on credits based on lead_id
   useEffect(() => {
     setCredits(prevCredits => prevCredits.map(credit => ({
       ...credit,
-      lead: leads.find(l => String(l.id) === String(credit.lead_id)) || credit.lead
+      lead: clients.find(c => String(c.id) === String(credit.lead_id)) || credit.lead
     })));
-  }, [leads]);
+  }, [clients]);
 
   const getCreditsForTab = useCallback(
     (value: string): CreditItem[] => {
@@ -533,7 +533,7 @@ export default function CreditsPage() {
       status: CREDIT_STATUS_OPTIONS[0],
       category: CREDIT_CATEGORY_OPTIONS[0],
       monto_credito: 0,
-      leadId: "",
+      clientId: "",
       opportunityId: "",
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
@@ -553,7 +553,7 @@ export default function CreditsPage() {
       status: credit.status || CREDIT_STATUS_OPTIONS[0],
       category: credit.category || CREDIT_CATEGORY_OPTIONS[0],
       monto_credito: credit.monto_credito || 0,
-      leadId: String(credit.lead_id),
+      clientId: String(credit.lead_id),
       opportunityId: credit.opportunity_id ? String(credit.opportunity_id) : "",
       assignedTo: credit.assigned_to || "",
       openedAt: credit.opened_at ? credit.opened_at.split('T')[0] : "",
@@ -575,7 +575,7 @@ export default function CreditsPage() {
         status: values.status,
         category: values.category,
         monto_credito: values.monto_credito,
-        lead_id: parseInt(values.leadId),
+        lead_id: parseInt(values.clientId),
         opportunity_id: values.opportunityId || null,
         assigned_to: values.assignedTo,
         opened_at: values.openedAt,
@@ -852,9 +852,9 @@ export default function CreditsPage() {
                     />
                   </div>
                   <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-lead">Lead</Label>
+                    <Label htmlFor="filter-client">Cliente</Label>
                     <Input
-                      id="filter-lead"
+                      id="filter-client"
                       className="col-span-2 h-8"
                       value={filters.leadName}
                       onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
@@ -1111,10 +1111,10 @@ export default function CreditsPage() {
                       />
                       <FormField
                         control={form.control}
-                        name="leadId"
+                        name="clientId"
                         render={({ field }) => (
                           <FormItem className="flex flex-col">
-                            <FormLabel>Lead / Cliente</FormLabel>
+                            <FormLabel>Cliente</FormLabel>
                             <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                               <PopoverTrigger asChild>
                                 <FormControl>
@@ -1125,8 +1125,8 @@ export default function CreditsPage() {
                                     className="justify-between font-normal w-full"
                                   >
                                     {field.value
-                                      ? leads.find((lead) => String(lead.id) === field.value)?.name
-                                      : "Selecciona un lead..."}
+                                      ? clients.find((client) => String(client.id) === field.value)?.name
+                                      : "Selecciona un cliente..."}
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                   </Button>
                                 </FormControl>
@@ -1141,25 +1141,25 @@ export default function CreditsPage() {
                                   />
                                 </div>
                                 <div className="max-h-[200px] overflow-y-auto p-1">
-                                  {filteredLeads.length === 0 ? (
-                                    <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron leads.</div>
+                                  {filteredClients.length === 0 ? (
+                                    <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron clientes.</div>
                                   ) : (
-                                    filteredLeads.map((lead) => (
+                                    filteredClients.map((client) => (
                                       <div
-                                        key={lead.id}
-                                        className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(lead.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
+                                        key={client.id}
+                                        className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(client.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
                                         onClick={() => {
-                                          form.setValue("leadId", String(lead.id));
+                                          form.setValue("clientId", String(client.id));
                                           setOpenCombobox(false);
                                         }}
                                       >
                                         <Check
-                                          className={`mr-2 h-4 w-4 ${String(lead.id) === field.value ? "opacity-100" : "opacity-0"
+                                          className={`mr-2 h-4 w-4 ${String(client.id) === field.value ? "opacity-100" : "opacity-0"
                                             }`}
                                         />
                                         <div className="flex flex-col">
-                                          <span>{lead.name}</span>
-                                          {lead.cedula && <span className="text-xs text-muted-foreground">{lead.cedula}</span>}
+                                          <span>{client.name}</span>
+                                          {client.cedula && <span className="text-xs text-muted-foreground">{client.cedula}</span>}
                                         </div>
                                       </div>
                                     ))
@@ -1371,19 +1371,19 @@ export default function CreditsPage() {
                     </div>
                   </div>
 
-                  {currentLead ? (
+                  {currentClient ? (
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Información del lead</CardTitle>
-                        <CardDescription>Resumen del lead relacionado con este crédito.</CardDescription>
+                        <CardTitle className="text-base">Información del cliente</CardTitle>
+                        <CardDescription>Resumen del cliente relacionado con este crédito.</CardDescription>
                       </CardHeader>
                       <CardContent className="text-sm">
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div>
-                            <span className="font-medium">Nombre:</span> {currentLead.name}
+                            <span className="font-medium">Nombre:</span> {currentClient.name}
                           </div>
                           <div>
-                            <span className="font-medium">Correo:</span> {currentLead.email ?? "-"}
+                            <span className="font-medium">Correo:</span> {currentClient.email ?? "-"}
                           </div>
                         </div>
                       </CardContent>
@@ -1446,7 +1446,7 @@ export default function CreditsPage() {
               <div><Label className="text-muted-foreground">Título</Label><p>{detailCredit.title}</p></div>
               <div><Label className="text-muted-foreground">Estado</Label><p>{detailCredit.status}</p></div>
               <div><Label className="text-muted-foreground">Categoría</Label><p>{detailCredit.category}</p></div>
-              <div><Label className="text-muted-foreground">Lead</Label><p>{detailCredit.client?.name}</p></div>
+              <div><Label className="text-muted-foreground">Cliente</Label><p>{detailCredit.client?.name}</p></div>
               <div><Label className="text-muted-foreground">Responsable</Label><p>{detailCredit.assigned_to}</p></div>
               <div className="col-span-2"><Label className="text-muted-foreground">Descripción</Label><p>{detailCredit.description}</p></div>
             </div>
@@ -1465,26 +1465,54 @@ interface CreditDocumentsDialogProps {
   deductoras: DeductoraOption[];
 }
 
-function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments, deductoras }: CreditDocumentsDialogProps) {
+function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }: CreditDocumentsDialogProps) {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<CreditDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Create state
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
+  // Edit state
+  const [editingDoc, setEditingDoc] = useState<CreditDocument | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Delete state
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fetchDocuments = useCallback(async () => {
     if (!credit) return;
+    setIsLoading(true);
     try {
       const res = await api.get(`/api/credits/${credit.id}/documents`);
       setDocuments(res.data);
-    } catch (e) { console.error(e); }
-  }, [credit]);
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Error", description: "No se pudieron cargar los documentos.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [credit, toast]);
 
   useEffect(() => {
-    if (isOpen) fetchDocuments();
+    if (isOpen) {
+      fetchDocuments();
+      // Reset form state
+      setFile(null);
+      setName("");
+      setNotes("");
+      setEditingDoc(null);
+      setDeletingDocId(null);
+    }
   }, [isOpen, fetchDocuments]);
 
+  // CREATE - Upload new document
   const handleUpload = async (e: FormEvent) => {
     e.preventDefault();
     if (!credit || !file) return;
@@ -1492,84 +1520,306 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments, 
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("name", name);
+      formData.append("name", name || file.name);
       formData.append("notes", notes);
 
       await api.post(`/api/credits/${credit.id}/documents`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      toast({ title: "Documento subido" });
-      setName(""); setNotes(""); setFile(null);
+      toast({ title: "Documento subido", description: "El documento se ha subido correctamente." });
+      setName("");
+      setNotes("");
+      setFile(null);
+      // Reset file input
+      const fileInput = document.getElementById('doc-file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
       fetchDocuments();
-    } catch (e) {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.response?.data?.message || "No se pudo subir el documento.", variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleDelete = async (docId: number) => {
-    if (!credit) return;
+  // READ - Download document
+  const handleDownload = async (doc: CreditDocument) => {
+    if (!credit || !canDownloadDocuments) return;
     try {
-      await api.delete(`/api/credits/${credit.id}/documents/${docId}`);
+      const response = await api.get(`/api/credits/${credit.id}/documents/${doc.id}/download`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', doc.name || `documento-${doc.id}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast({ title: "Error", description: "No se pudo descargar el documento.", variant: "destructive" });
+    }
+  };
+
+  // UPDATE - Edit document
+  const handleStartEdit = (doc: CreditDocument) => {
+    setEditingDoc(doc);
+    setEditName(doc.name);
+    setEditNotes(doc.notes || "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDoc(null);
+    setEditName("");
+    setEditNotes("");
+  };
+
+  const handleUpdate = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!credit || !editingDoc) return;
+    setIsUpdating(true);
+    try {
+      await api.put(`/api/credits/${credit.id}/documents/${editingDoc.id}`, {
+        name: editName,
+        notes: editNotes
+      });
+
+      toast({ title: "Documento actualizado", description: "Los cambios se han guardado correctamente." });
+      handleCancelEdit();
       fetchDocuments();
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.response?.data?.message || "No se pudo actualizar el documento.", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // DELETE - Remove document
+  const handleConfirmDelete = async () => {
+    if (!credit || !deletingDocId) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/api/credits/${credit.id}/documents/${deletingDocId}`);
+      toast({ title: "Documento eliminado", description: "El documento se ha eliminado correctamente." });
+      setDeletingDocId(null);
+      fetchDocuments();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.response?.data?.message || "No se pudo eliminar el documento.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const formatFileSize = (bytes?: number | null) => {
+    if (!bytes) return "-";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>Documentos</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <form onSubmit={handleUpload} className="space-y-4 border p-4 rounded">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Nombre</Label>
-                <Input value={name} onChange={e => setName(e.target.value)} required />
+    <>
+      <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Gestionar Documentos</DialogTitle>
+            <DialogDescription>
+              {credit ? `Documentos del crédito ${credit.reference || credit.numero_operacion || credit.id}` : "Documentos del crédito"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-6">
+            {/* Upload Form */}
+            <form onSubmit={handleUpload} className="space-y-4 border p-4 rounded-lg bg-muted/30">
+              <h4 className="font-medium text-sm">Subir nuevo documento</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="doc-name">Nombre del documento</Label>
+                  <Input
+                    id="doc-name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Ej: Contrato firmado"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="doc-file-input">Archivo</Label>
+                  <Input
+                    id="doc-file-input"
+                    type="file"
+                    onChange={e => setFile(e.target.files?.[0] || null)}
+                    required
+                  />
+                </div>
+                <div className="sm:col-span-2 space-y-2">
+                  <Label htmlFor="doc-notes">Notas (opcional)</Label>
+                  <Input
+                    id="doc-notes"
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Observaciones sobre el documento..."
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Archivo</Label>
-                <Input type="file" onChange={e => setFile(e.target.files?.[0] || null)} required />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label>Notas</Label>
-                <Input value={notes} onChange={e => setNotes(e.target.value)} />
-              </div>
+              <Button type="submit" disabled={isUploading || !file} size="sm">
+                {isUploading ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Subiendo...
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Subir Documento
+                  </>
+                )}
+              </Button>
+            </form>
+
+            {/* Documents List */}
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Documentos ({documents.length})</h4>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : documents.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay documentos adjuntos a este crédito.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Notas</TableHead>
+                      <TableHead>Tamaño</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.map(doc => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            {doc.name}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                          {doc.notes || "-"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatFileSize(doc.size)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatDate(doc.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {canDownloadDocuments && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDownload(doc)}
+                                title="Descargar"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleStartEdit(doc)}
+                              title="Editar"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingDocId(doc.id)}
+                              className="text-destructive hover:text-destructive"
+                              title="Eliminar"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                              </svg>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
-            <Button type="submit" disabled={isUploading}>{isUploading ? "Subiendo..." : "Subir Documento"}</Button>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingDoc} onOpenChange={open => !open && handleCancelEdit()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Documento</DialogTitle>
+            <DialogDescription>Modifica los datos del documento.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Nombre</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notas</Label>
+              <Textarea
+                id="edit-notes"
+                value={editNotes}
+                onChange={e => setEditNotes(e.target.value)}
+                placeholder="Observaciones sobre el documento..."
+                rows={3}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCancelEdit}>Cancelar</Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
 
-          <Table>
-            <TableHeader>
-              <TableRow><TableHead>Nombre</TableHead><TableHead>Notas</TableHead><TableHead>Acciones</TableHead></TableRow>
-            </TableHeader>
-            <TableBody>
-              {documents.map(doc => (
-                <TableRow key={doc.id}>
-                  <TableCell>
-                    {(() => {
-                      // 1. AGREGA ESTA LÍNEA: Si credit es null, retorna guion y no ejecutes lo demás
-                      if (!credit) return "-";
-
-                      // 2. Ahora TypeScript sabe que credit existe, pero mantén los '?' por seguridad en lead/client
-                      const dedId = credit.lead?.deductora_id || credit.client?.deductora_id || credit.deductora_id;
-
-                      if (!dedId) return "-";
-
-                      const found = deductoras.find(d => String(d.id) === String(dedId));
-                      return found ? found.nombre : dedId;
-                    })()}
-                  </TableCell>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} className="text-destructive">Eliminar</Button>
-
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </DialogContent>
-    </Dialog>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deletingDocId} onOpenChange={open => !open && setDeletingDocId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar Documento</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingDocId(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+              {isDeleting ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

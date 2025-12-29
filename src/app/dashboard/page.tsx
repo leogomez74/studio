@@ -1,5 +1,6 @@
 // Este es un Componente de Servidor, se renderiza en el servidor para mayor rendimiento.
 'use client';
+import { useState, useEffect } from 'react';
 import {
   Bar,
   BarChart,
@@ -29,7 +30,18 @@ import {
   Receipt,
   FilePlus,
   Briefcase,
+  BarChart3,
+  Target,
+  Percent,
+  AlertTriangle,
+  CheckCircle,
+  ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react';
+import api from '@/lib/axios';
+import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { credits, notifications, clients, opportunities, payments, projects, type Project } from '@/lib/data'; // Importamos los datos de ejemplo.
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -140,11 +152,103 @@ function ProjectProgressChart() {
     );
 }
 
+// --- KPI Widget Component ---
+interface KPIWidgetProps {
+  title: string;
+  value: number | string;
+  unit?: string;
+  change?: number;
+  target?: number;
+  icon: React.ElementType;
+  colorClass: string;
+  isLoading?: boolean;
+  isInverse?: boolean; // For metrics where lower is better (e.g., delinquency)
+}
+
+function KPIWidget({ title, value, unit, change, target, icon: Icon, colorClass, isLoading, isInverse }: KPIWidgetProps) {
+  if (isLoading) {
+    return (
+      <Card className="relative overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-8 w-8 rounded-full" />
+          </div>
+          <Skeleton className="h-8 w-20 mt-2" />
+          <Skeleton className="h-2 w-full mt-3" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isPositive = isInverse ? (change ?? 0) < 0 : (change ?? 0) > 0;
+  const progressValue = target ? Math.min((Number(value) / target) * 100, 100) : 0;
+
+  return (
+    <Card className="relative overflow-hidden group hover:shadow-md transition-shadow">
+      <div className={cn("absolute inset-0 opacity-5", colorClass.replace('text-', 'bg-'))} />
+      <CardContent className="p-4 relative">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{title}</span>
+          <div className={cn("p-2 rounded-full bg-background shadow-sm", colorClass)}>
+            <Icon className="h-4 w-4" />
+          </div>
+        </div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <span className="text-2xl font-bold">{value}</span>
+          {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
+        </div>
+        {target && (
+          <div className="mt-2">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>Meta: {target}{unit}</span>
+              <span>{progressValue.toFixed(0)}%</span>
+            </div>
+            <Progress value={progressValue} className="h-1.5" />
+          </div>
+        )}
+        {change !== undefined && (
+          <div className={cn(
+            "mt-2 flex items-center gap-1 text-xs font-medium",
+            isPositive ? "text-green-600" : "text-red-600"
+          )}>
+            {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+            <span>{Math.abs(change)}% vs período anterior</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /**
  * Componente principal de la página del Dashboard (Panel Principal).
  * Muestra tarjetas con métricas clave y gráficos de resumen.
  */
 export default function DashboardPage() {
+  // KPI State
+  const [kpiData, setKpiData] = useState<{
+    leads?: { conversionRate?: { value: number; change?: number; target?: number } };
+    opportunities?: { winRate?: { value: number; change?: number; target?: number } };
+    credits?: { portfolioAtRisk?: { value: number; change?: number; target?: number } };
+    collections?: { collectionRate?: { value: number; change?: number; target?: number }; delinquencyRate?: { value: number; change?: number; target?: number } };
+  } | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchKPIs = async () => {
+      try {
+        const response = await api.get('/kpis?period=month');
+        setKpiData(response.data);
+      } catch (error) {
+        console.error('Error fetching KPIs:', error);
+      } finally {
+        setKpiLoading(false);
+      }
+    };
+    fetchKPIs();
+  }, []);
+
   // Calculamos el saldo total de la cartera sumando los saldos de todos los créditos.
   const totalBalance = credits.reduce((sum, credit) => sum + (credit.monto_credito ?? 0), 0);
   const totalArrears = credits.filter(c => c.status === 'En mora').reduce((sum, credit) => sum + (credit.monto_credito ?? 0), 0);
@@ -254,6 +358,80 @@ export default function DashboardPage() {
             </CardContent>
         </Card>
       </div>
+
+      {/* KPI Summary Widgets */}
+      <Card className="border-dashed">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">KPIs Clave</CardTitle>
+            </div>
+            <Link href="/dashboard/kpis">
+              <Button variant="ghost" size="sm" className="text-xs">
+                Ver todos los KPIs →
+              </Button>
+            </Link>
+          </div>
+          <CardDescription>Métricas de rendimiento del último mes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <KPIWidget
+              title="Conversión Leads"
+              value={kpiData?.leads?.conversionRate?.value ?? 0}
+              unit="%"
+              change={kpiData?.leads?.conversionRate?.change}
+              target={kpiData?.leads?.conversionRate?.target ?? 30}
+              icon={Target}
+              colorClass="text-blue-500"
+              isLoading={kpiLoading}
+            />
+            <KPIWidget
+              title="Win Rate"
+              value={kpiData?.opportunities?.winRate?.value ?? 0}
+              unit="%"
+              change={kpiData?.opportunities?.winRate?.change}
+              target={kpiData?.opportunities?.winRate?.target ?? 40}
+              icon={CheckCircle}
+              colorClass="text-green-500"
+              isLoading={kpiLoading}
+            />
+            <KPIWidget
+              title="Tasa de Cobro"
+              value={kpiData?.collections?.collectionRate?.value ?? 0}
+              unit="%"
+              change={kpiData?.collections?.collectionRate?.change}
+              target={kpiData?.collections?.collectionRate?.target ?? 98}
+              icon={Percent}
+              colorClass="text-emerald-500"
+              isLoading={kpiLoading}
+            />
+            <KPIWidget
+              title="Cartera en Riesgo"
+              value={kpiData?.credits?.portfolioAtRisk?.value ?? 0}
+              unit="%"
+              change={kpiData?.credits?.portfolioAtRisk?.change}
+              target={kpiData?.credits?.portfolioAtRisk?.target ?? 5}
+              icon={AlertTriangle}
+              colorClass="text-amber-500"
+              isLoading={kpiLoading}
+              isInverse
+            />
+            <KPIWidget
+              title="Morosidad"
+              value={kpiData?.collections?.delinquencyRate?.value ?? 0}
+              unit="%"
+              change={kpiData?.collections?.delinquencyRate?.change}
+              target={kpiData?.collections?.delinquencyRate?.target ?? 5}
+              icon={TrendingDown}
+              colorClass="text-red-500"
+              isLoading={kpiLoading}
+              isInverse
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Tarjeta Nuevos Créditos */}

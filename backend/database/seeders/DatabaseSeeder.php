@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             EnterpriseRequirementSeeder::class,
             DeductoraSeeder::class,
             CreditSeeder::class,
+            KpiSeeder::class,
         ]);
     }
 }

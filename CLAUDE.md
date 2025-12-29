@@ -1,77 +1,95 @@
-# CLAUDE.md
+# PRIMARY DIRECTIVE: HYBRID AGENTIC WORKFLOW
 
-## 🚨 PRIMARY DIRECTIVE: AGENTIC WORKFLOW & CONTEXT
-**Role:** You are an Expert Code Editor & Generator with access to terminal tools.
-**Constraint:** You must NOT use your own context window to read/analyze large sets of files directly if they exceed standard limits.
-**Capabilities:** You HAVE permission to execute terminal commands.
+Role: You are an Expert Code Editor & Generator with access to terminal tools. Constraint (Crucial):
 
-**Workflow:**
-1. **Analyze Request:** Identify if the request requires analyzing multiple files, entire directories, or broad architecture.
-2. **AUTONOMOUS ANALYSIS (Crucial):**
-   - Do NOT ask the user to run commands.
-   - **EXECUTE** the `gemini -p "..."` command yourself to gather the necessary context.
-   - *Example Action:* Run `gemini -p "@app/Models/ @database/ Explain the relationship between X and Y"` in the terminal.
-3. **Synthesize:** Use the output provided by the Gemini CLI as your context to perform the requested coding task.
+For Discovery & Context: You must NOT use your context window to read large sets of files or entire folders. Delegate "understanding the system" to gemini.
 
----
+For Editing: Once you have identified the specific file(s) that need changes via Gemini's analysis, you MUST read those specific files into your context to ensure precise, syntax-correct edits.
 
-## Project Overview & Architecture
+Capabilities: You HAVE permission to execute terminal commands.
 
-**Stack:** Laravel 12 (API), PHP 8.2+, MySQL, Next.js (Frontend), Laravel Sanctum (Auth).
-**Testing:** SQLite (in-memory).
+Workflow:
 
-### Domain Model (Single Table Inheritance)
-The `persons` table uses a single-table inheritance pattern with `person_type_id`:
-- **Lead** (`person_type_id = 1`): Potential customer.
-- **Client** (`person_type_id = 2`): Converted customer.
-*Both models inherit from `Person` and use Global Scopes to filter automatically.*
+Analyze Request: Identify if the request requires finding where something is, understanding how it works, or fixing a known file.
 
-### Core Business Entities
-- **Opportunity:** Linked to Lead via `lead_cedula` (Not a standard FK). Uses custom string IDs `YY-XXXXX-OP` (e.g., `25-00001-OP`).
-- **Credit:** The loan record. Linked to Lead and Opportunity. Auto-creates an initial `PlanDePago` upon creation.
-- **PlanDePago:** Amortization schedule entries.
-- **CreditPayment:** Individual payment records.
-- **Deductora:** Payroll deduction entity.
+AUTONOMOUS DISCOVERY (Gemini):
 
-### Key Relationships
-- `Lead`/`Client` -> `Opportunity` (via `cedula` field, **not** standard FK).
-- `Credit` -> `Lead`, `Opportunity`, `Deductora`, `PlanDePago`, `CreditPayment`.
-- `User` -> Assigned Leads, Opportunities, Credits.
+If the request is broad (e.g., "fix the auth bug", "how does credit calculation work?"):
 
-### Gamification System
-- **Locations:** `app/Services/Rewards/`, `app/Models/Rewards/`, `app/Events/Rewards/`.
-- **Config:** `config/gamification.php`.
-- **Pattern:** Event-driven architecture (Events/Listeners).
+EXECUTE gemini -p "..." to locate the relevant logic and understand the flow.
 
-### API Structure
-- **Controllers:** `app/Http/Controllers/Api/`.
-- **Routes:** Most are public (`routes/api.php`), protected ones use `auth:sanctum`.
-- **Rewards:** Endpoints grouped under `/api/rewards`.
+Example: gemini -p "@app/Http/Controllers/ @routes/ Find the controller handling credit creation"
 
----
+SURGICAL ACTION (Claude):
 
-## Gemini CLI Execution Protocols
+Once Gemini confirms the logic is in CreditController.php:
 
-Use these patterns to fetch context BEFORE writing code. **Execute these commands directly.**
+READ CreditController.php (using your native tool) to see the exact code.
 
-**🔎 Architecture & Structure:**
-`gemini -p "@./folder_name Explain the structure and data flow"`
+EDIT the file based on the context gained from Gemini + the raw code.
 
-**✅ Implementation Verification:**
-`gemini -p "@src/ @tests/ Is [feature] implemented? List files and functions"`
+Project Overview & Architecture
+Stack: Laravel 12 (API), PHP 8.2+, MySQL, Next.js (Frontend), Laravel Sanctum (Auth). Testing: SQLite (in-memory).
 
-**🐛 Debugging:**
-`gemini -p "@app/Http/Controllers/ @routes/ Analyze why [error] might occur"`
+Domain Model (Single Table Inheritance)
+The persons table uses a single-table inheritance pattern with person_type_id:
 
-**🧪 Test Generation:**
-`gemini -p "@app/Models/Credit.php @tests/Feature/ Analyze the model and suggest test cases"`
+Lead (person_type_id = 1): Potential customer.
 
----
+Client (person_type_id = 2): Converted customer. Both models inherit from Person and use Global Scopes to filter automatically.
 
-## Coding Standards (After Analysis)
+Core Business Entities
+Opportunity: Linked to Lead via lead_cedula (Not a standard FK). Uses custom string IDs YY-XXXXX-OP (e.g., 25-00001-OP).
 
-Once you have the context from Gemini:
-1. **Strict Typing:** Use PHP types for all method arguments and return values.
-2. **Laravel Best Practices:** Use Eloquent scopes, FormRequests for validation, and API Resources.
-3. **Tests:** Suggest test updates if logic changes.
-4. **Action:** Apply the changes directly to the files.
+Credit: The loan record. Linked to Lead and Opportunity. Auto-creates an initial PlanDePago upon creation.
+
+PlanDePago: Amortization schedule entries.
+
+CreditPayment: Individual payment records.
+
+Deductora: Payroll deduction entity.
+
+Key Relationships
+Lead/Client -> Opportunity (via cedula field, not standard FK).
+
+Credit -> Lead, Opportunity, Deductora, PlanDePago, CreditPayment.
+
+User -> Assigned Leads, Opportunities, Credits.
+
+Gamification System
+Locations: app/Services/Rewards/, app/Models/Rewards/, app/Events/Rewards/.
+
+Config: config/gamification.php.
+
+Pattern: Event-driven architecture (Events/Listeners).
+
+API Structure
+Controllers: app/Http/Controllers/Api/.
+
+Routes: Most are public (routes/api.php), protected ones use auth:sanctum.
+
+Rewards: Endpoints grouped under /api/rewards.
+
+Gemini CLI Execution Protocols
+Use these patterns to fetch context BEFORE writing code. Execute these commands directly.
+
+🔎 File/Files Analysis (Understanding Logic) gemini -p "@src/file.php Explain the logic of the calculateTotal function"
+
+🔎 Architecture & Structure (Broad View) gemini -p "@./folder_name Explain the structure and data flow"
+
+✅ Implementation Verification gemini -p "@src/ @tests/ Is [feature] implemented? List files and functions"
+
+🐛 Debugging (Tracing) gemini -p "@app/Http/Controllers/ @routes/ Analyze why [error] might occur"
+
+🧪 Test Generation gemini -p "@app/Models/Credit.php @tests/Feature/ Analyze the model and suggest test cases"
+
+Coding Standards (After Analysis)
+Once you have the context from Gemini AND have read the target file:
+
+Strict Typing: Use PHP types for all method arguments and return values.
+
+Laravel Best Practices: Use Eloquent scopes, FormRequests for validation, and API Resources.
+
+Tests: Suggest test updates if logic changes.
+
+Action: Apply the changes directly to the files.

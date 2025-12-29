@@ -74,6 +74,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, VERTICAL_OPTIONS, OPPORTUNITY_TYPES } from "@/lib/data";
 
@@ -267,6 +268,14 @@ export default function DealsPage() {
     createdFrom: "",
     createdTo: "",
   });
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 300);
+
+  useEffect(() => {
+    handleFilterChange("search", debouncedSearch);
+  }, [debouncedSearch]);
+
+
   const [sortConfig, setSortConfig] = useState<{ column: SortableColumn; direction: "asc" | "desc" }>(
     () => ({ column: "created_at", direction: "desc" })
   );
@@ -276,7 +285,12 @@ export default function DealsPage() {
   const fetchOpportunities = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await api.get('/api/opportunities');
+      const params: any = {};
+      if (filters.createdFrom) params.date_from = filters.createdFrom;
+      if (filters.createdTo) params.date_to = filters.createdTo;
+      if (filters.status !== 'todos') params.status = filters.status;
+
+      const response = await api.get('/api/opportunities', { params });
       const data = response.data.data || response.data;
       
       setOpportunities(Array.isArray(data) ? data.map((item: any) => ({
@@ -291,7 +305,7 @@ export default function DealsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, filters.createdFrom, filters.createdTo, filters.status]);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -320,7 +334,7 @@ export default function DealsPage() {
     fetchOpportunities();
     fetchLeads();
     fetchUsers(); // <--- AGREGADO
-  }, [fetchOpportunities, fetchLeads, fetchUsers]);
+  }, [fetchOpportunities, fetchLeads, fetchUsers, filters]);
 
   // --- Form Logic ---
 
@@ -806,6 +820,9 @@ export default function DealsPage() {
           <div>
             <CardTitle>Oportunidades</CardTitle>
             <CardDescription>Gestiona las oportunidades asociadas a tus leads.</CardDescription>
+            <p className="text-sm text-muted-foreground mt-1">
+                {visibleOpportunities.length} {visibleOpportunities.length === 1 ? "oportunidad" : "oportunidades"}
+            </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-wrap items-end gap-3">
@@ -826,7 +843,7 @@ export default function DealsPage() {
         <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-                <Input placeholder="Referencia, lead o título" value={filters.search} onChange={(e) => handleFilterChange("search", e.target.value)} />
+                <Input placeholder="Referencia, lead o título" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
@@ -990,7 +1007,7 @@ export default function DealsPage() {
                                 </Button>
                               </Link>
                             </TooltipTrigger>
-                            <TooltipContent>Ver detalle</TooltipContent>
+                            <TooltipContent>Ver detalles</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
 

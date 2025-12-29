@@ -27,10 +27,12 @@ import {
   FileText,
   GraduationCap,
   Trophy,
+  BarChart3,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'REPORTES' },
+  { href: '/dashboard/kpis', icon: BarChart3, label: 'KPIs' },
   { href: '/dashboard/ventas', icon: DollarSign, label: 'VENTAS' },
   { href: '/dashboard/oportunidades', icon: Handshake, label: 'OPORTUNIDADES' },
   { href: '/dashboard/analisis', icon: FileSearch, label: 'ANALIZADOS' },
