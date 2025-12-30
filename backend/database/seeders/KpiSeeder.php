@@ -238,6 +238,22 @@ class KpiSeeder extends Seeder
         $opportunitiesData = [];
         $processed = 0;
 
+        // Get the last opportunity sequence number for this year
+        $year = date('y');
+        $prefix = $year . '-';
+        $suffix = '-OP';
+        $lastOpportunity = Opportunity::where('id', 'like', $prefix . '%' . $suffix)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        $sequence = 1;
+        if ($lastOpportunity) {
+            $parts = explode('-', $lastOpportunity->id);
+            if (count($parts) === 3) {
+                $sequence = intval($parts[1]) + 1;
+            }
+        }
+
         foreach ($persons as $person) {
             $processed++;
             $progressBar->setProgress($processed);
@@ -265,7 +281,12 @@ class KpiSeeder extends Seeder
 
             $amount = rand(5, 100) * 100000;
 
+            // Generate opportunity ID manually (format: YY-XXXXX-OP)
+            $opportunityId = $prefix . str_pad($sequence, 5, '0', STR_PAD_LEFT) . $suffix;
+            $sequence++;
+
             $opportunitiesData[] = [
+                'id' => $opportunityId,
                 'lead_cedula' => $person->cedula,
                 'opportunity_type' => $types[array_rand($types)],
                 'amount' => $amount,
