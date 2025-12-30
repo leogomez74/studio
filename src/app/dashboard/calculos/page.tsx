@@ -90,6 +90,38 @@ export default function CalculosPage() {
   );
 
   /**
+   * Efecto que carga los datos de la oportunidad seleccionada en el formulario de cálculo.
+   */
+  useEffect(() => {
+    if (!selectedOpportunityId) return;
+
+    const selectedOpportunity = opportunities.find(o => String(o.id) === selectedOpportunityId);
+    if (!selectedOpportunity) return;
+
+    // Cargar el monto de la oportunidad
+    if (selectedOpportunity.amount) {
+      setAmount(String(selectedOpportunity.amount));
+    }
+
+    // Determinar el tipo de crédito basado en opportunity_type
+    const oppType = selectedOpportunity.opportunity_type?.toLowerCase() || '';
+    if (oppType.includes('micro')) {
+      setCreditType('micro');
+    } else {
+      setCreditType('regular');
+    }
+
+    // Resetear el cálculo previo
+    setMonthlyPayment(null);
+    setSelectedLead(undefined);
+
+    toast({
+      title: "Oportunidad cargada",
+      description: `Datos de la oportunidad #${selectedOpportunity.id} cargados en la calculadora.`,
+    });
+  }, [selectedOpportunityId, opportunities, toast]);
+
+  /**
    * Efecto que carga los leads desde la API al montar el componente.
    */
   useEffect(() => {
@@ -306,26 +338,48 @@ export default function CalculosPage() {
   return (
     <div className="grid gap-6 md:grid-cols-2">
       {/* --- Opportunity Search Input --- */}
-      <div className="col-span-2 mb-4 flex gap-4 items-center">
-        <Input
-          placeholder="Buscar oportunidad..."
-          value={opportunitySearch}
-          onChange={e => setOpportunitySearch(e.target.value)}
-          className="max-w-xs"
-        />
-        <Select value={selectedOpportunityId} onValueChange={setSelectedOpportunityId}>
-          <SelectTrigger className="max-w-xs">
-            <SelectValue placeholder={isLoadingOpportunities ? 'Cargando...' : 'Selecciona una oportunidad'} />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredOpportunities.map(o => (
-              <SelectItem key={o.id} value={String(o.id)}>
-                #{o.id} - {o.opportunity_type || 'Sin tipo'}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Card className="col-span-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Cargar desde Oportunidad</CardTitle>
+          <CardDescription>Selecciona una oportunidad para cargar sus datos en la calculadora</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 items-center">
+            <Input
+              placeholder="Buscar por ID o tipo..."
+              value={opportunitySearch}
+              onChange={e => setOpportunitySearch(e.target.value)}
+              className="max-w-xs"
+            />
+            <Select value={selectedOpportunityId} onValueChange={setSelectedOpportunityId}>
+              <SelectTrigger className="w-[350px]">
+                <SelectValue placeholder={isLoadingOpportunities ? 'Cargando...' : 'Selecciona una oportunidad'} />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredOpportunities.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground text-center">
+                    {isLoadingOpportunities ? "Cargando..." : "No hay oportunidades disponibles"}
+                  </div>
+                ) : (
+                  filteredOpportunities.map(o => (
+                    <SelectItem key={o.id} value={String(o.id)}>
+                      <span className="font-medium">#{o.id}</span>
+                      <span className="mx-2 text-muted-foreground">|</span>
+                      <span>{o.opportunity_type || 'Sin tipo'}</span>
+                      {o.amount && (
+                        <>
+                          <span className="mx-2 text-muted-foreground">|</span>
+                          <span className="text-green-600">₡{Number(o.amount).toLocaleString('de-DE')}</span>
+                        </>
+                      )}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
       {/* --- Tarjeta de Calculadora de Cuotas --- */}
       <Card>
         <CardHeader>
