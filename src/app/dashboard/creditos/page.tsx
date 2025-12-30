@@ -214,7 +214,8 @@ interface CreditItem {
   proceso?: string | null;
   documento_id?: string | null;
   poliza?: boolean | null;
-  tasa_anual?: number | null; // Agregado
+  tasa_anual?: number | null;
+  primera_deduccion?: string | null;
 }
 
 const CREDIT_STATUS_OPTIONS = [
@@ -627,22 +628,33 @@ export default function CreditsPage() {
   };
 
   const handleExportCSV = (credit: CreditItem) => {
+    // Helper function to escape CSV values
+    const escapeCSV = (value: string | number | null | undefined): string => {
+      if (value === null || value === undefined) return "";
+      const str = String(value);
+      // If value contains comma, quote, or newline, wrap in quotes and escape existing quotes
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const headers = [
-      "Referencia", "Título", "Estado", "Categoría", "Lead", "Monto", "Saldo", "Cuota", "Divisa"
+      "Referencia", "Título", "Estado", "Categoría", "Cliente", "Monto", "Saldo", "Cuota", "Divisa"
     ];
     const row = [
-      credit.reference,
-      credit.title,
-      credit.status,
-      credit.category,
-      credit.client?.name || "",
-      credit.monto_credito,
-      credit.saldo,
-      credit.cuota,
-      credit.divisa
+      escapeCSV(credit.reference),
+      escapeCSV(credit.title),
+      escapeCSV(credit.status),
+      escapeCSV(credit.category),
+      escapeCSV(credit.client?.name || credit.lead?.name || ""),
+      escapeCSV(credit.monto_credito),
+      escapeCSV(credit.saldo),
+      escapeCSV(credit.cuota),
+      escapeCSV(credit.divisa)
     ];
 
-    const csvContent = "data:text/csv;charset=utf-8,"
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
       + headers.join(",") + "\n"
       + row.join(",");
 
@@ -750,6 +762,7 @@ export default function CreditsPage() {
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
       "0.00", // Morosidad
+      credit.primera_deduccion || "-", // PRI.DED (Primera Deducción)
       new Date().toISOString().split('T')[0], // Ult Mov
       credit.fecha_culminacion_credito || "2032-01-01",
       credit.status || "NORMAL"
