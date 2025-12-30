@@ -599,6 +599,7 @@ export default function KPIsPage() {
   const [businessHealthKPIs, setBusinessHealthKPIs] = useState<BusinessHealthKPIs | null>(null);
   const [trendData, setTrendData] = useState<TrendData | null>(null);
   const [trendsLoading, setTrendsLoading] = useState(true);
+  const [trendsError, setTrendsError] = useState<string | null>(null);
 
   const fetchKPIs = useCallback(async () => {
     setIsLoading(true);
@@ -626,11 +627,14 @@ export default function KPIsPage() {
 
   const fetchTrends = useCallback(async () => {
     setTrendsLoading(true);
+    setTrendsError(null);
     try {
       const response = await api.get(`/api/kpis/trends?period=${period}`);
       setTrendData(response.data as TrendData);
     } catch (err) {
       console.error('Error fetching trends:', err);
+      setTrendsError('Error al cargar las tendencias. Los gráficos no están disponibles.');
+      setTrendData(null);
     } finally {
       setTrendsLoading(false);
     }
@@ -1265,6 +1269,11 @@ export default function KPIsPage() {
 
         {/* Trends */}
         <TabsContent value="trends" className="space-y-6">
+          {trendsError && (
+            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              {trendsError}
+            </div>
+          )}
           <div className="grid gap-6 md:grid-cols-2">
             <TrendChart
               title="Tasa de Conversión"

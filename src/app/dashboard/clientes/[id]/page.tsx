@@ -54,6 +54,10 @@ export default function ClientDetailPage() {
   const [loadingCredits, setLoadingCredits] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
 
+  // Refresh key to trigger data re-fetch without full page reload
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshData = React.useCallback(() => setRefreshKey(k => k + 1), []);
+
   useEffect(() => {
     const fetchClient = async () => {
       try {
@@ -112,13 +116,12 @@ export default function ClientDetailPage() {
     const fetchPayments = async () => {
         setLoadingPayments(true);
         try {
-            const response = await api.get('/api/credit-payments');
-            // Filter payments for this client's credits
-            const allPayments = response.data || [];
-            const clientPayments = allPayments.filter((p: any) =>
-                p.credit?.lead_id === parseInt(id) || p.credit?.lead?.id === parseInt(id)
-            );
-            setPayments(clientPayments);
+            // Use server-side filtering by passing client_id parameter
+            const response = await api.get('/api/credit-payments', {
+                params: { client_id: id }
+            });
+            const paymentsData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+            setPayments(paymentsData);
         } catch (error) {
             console.error("Error fetching payments:", error);
             setPayments([]);
@@ -135,7 +138,7 @@ export default function ClientDetailPage() {
       fetchCredits();
       fetchPayments();
     }
-  }, [id, toast]);
+  }, [id, toast, refreshKey]);
 
   const leadName = React.useMemo(() => {
       if (!client || leads.length === 0) return null;
@@ -1380,14 +1383,14 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      <CreateOpportunityDialog 
-        open={isOpportunityDialogOpen} 
+      <CreateOpportunityDialog
+        open={isOpportunityDialogOpen}
         onOpenChange={setIsOpportunityDialogOpen}
         leads={client ? [client as unknown as Lead] : []}
         defaultLeadId={client ? String(client.id) : undefined}
         onSuccess={() => {
             // Refresh client data to show new opportunity
-            window.location.reload();
+            refreshData();
         }}
       />
     </div>

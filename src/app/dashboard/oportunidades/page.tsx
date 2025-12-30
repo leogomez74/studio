@@ -285,14 +285,17 @@ export default function DealsPage() {
   const fetchOpportunities = useCallback(async () => {
     try {
       setIsLoading(true);
-      const params: any = {};
+      // Send all filters to backend for server-side filtering
+      const params: Record<string, string> = {};
       if (filters.createdFrom) params.date_from = filters.createdFrom;
       if (filters.createdTo) params.date_to = filters.createdTo;
       if (filters.status !== 'todos') params.status = filters.status;
+      if (filters.vertical !== 'todos') params.vertical = filters.vertical;
+      if (filters.search.trim()) params.search = filters.search.trim();
 
       const response = await api.get('/api/opportunities', { params });
       const data = response.data.data || response.data;
-      
+
       setOpportunities(Array.isArray(data) ? data.map((item: any) => ({
           ...item,
           vertical: normalizeOpportunityVertical(item.vertical),
@@ -305,7 +308,7 @@ export default function DealsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast, filters.createdFrom, filters.createdTo, filters.status]);
+  }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.vertical, filters.search]);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -565,35 +568,15 @@ export default function DealsPage() {
     }
   };
 
-  // Analisis State for Button
-  const ANALISIS_STATES = ["preAnalisis", "Analisis", "postAnalisis"] as const;
-  type AnalisisState = typeof ANALISIS_STATES[number];
+  // Analisis button - opens dialog directly to create analysis for the opportunity
+  const getAnalisisButtonProps = (opportunity: Opportunity) => {
+    // Check if opportunity already has an analysis based on status or a flag
+    const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis;
 
-  const [changeState, setChangeState] = useState<AnalisisState>("preAnalisis");
-
-  const getAnalisisButtonProps = (state: AnalisisState) => {
-    switch (state) {
-      case "preAnalisis":
-        return { label: "Iniciar Pre-Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" /> };
-      case "Analisis":
-        return { label: "Realizar Análisis", color: "bg-blue-600", icon: <Check className="h-4 w-4" /> };
-      case "postAnalisis":
-        return { label: "Finalizar y Crear Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" /> };
-      default:
-        return { label: "Iniciar Pre-Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />  };
+    if (hasAnalysis) {
+      return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" /> };
     }
-  };
-
-  const handleAnalisisButtonClick = (opportunity: Opportunity) => {
-    if (changeState === "preAnalisis") {
-      setChangeState("Analisis");
-    } else if (changeState === "Analisis") {
-      setChangeState("postAnalisis");
-    } else if (changeState === "postAnalisis") {
-      // Aquí se llamaría a AnalisisController::create (solo lógica, no implementación)
-      // Por ejemplo: createAnalisis(opportunity)
-      setChangeState("preAnalisis"); // Reset or keep as needed
-    }
+    return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" /> };
   };
 
   // --- Table Logic ---
@@ -632,37 +615,9 @@ export default function DealsPage() {
   }, []);
 
   const visibleOpportunities = useMemo(() => {
-    const searchTerm = filters.search.trim().toLowerCase();
-    const statusFilter = filters.status.toLowerCase();
-    const verticalFilter = filters.vertical.toLowerCase();
-    const createdFromTime = filters.createdFrom ? new Date(filters.createdFrom).getTime() : null;
-    const createdToTime = filters.createdTo ? new Date(filters.createdTo).getTime() : null;
-
-    const filtered = opportunities.filter((opportunity) => {
-      const referenceValue = String(opportunity.id).toLowerCase();
-      const leadName = opportunity.lead?.name?.toLowerCase() ?? "";
-      const leadEmail = opportunity.lead?.email?.toLowerCase() ?? "";
-
-      const matchesSearch = searchTerm
-        ? [referenceValue, leadName, leadEmail].some((value) => value.includes(searchTerm))
-        : true;
-
-      if (!matchesSearch) return false;
-
-      const normalizedStatus = (opportunity.status ?? "Abierta").toLowerCase();
-      if (statusFilter !== "todos" && normalizedStatus !== statusFilter) return false;
-
-      const normalizedVertical = opportunity.vertical?.toLowerCase() || "";
-      if (verticalFilter !== "todos" && normalizedVertical !== verticalFilter) return false;
-
-      const createdAtTime = opportunity.created_at ? new Date(opportunity.created_at).getTime() : null;
-      if (createdFromTime && (!createdAtTime || createdAtTime < createdFromTime)) return false;
-      if (createdToTime && (!createdAtTime || createdAtTime > createdToTime)) return false;
-
-      return true;
-    });
-
-    return filtered.sort((a, b) => {
+    // Primary filtering is done server-side via fetchOpportunities params
+    // Client-side sorting only (filtering kept as fallback for backends that don't support all params)
+    return [...opportunities].sort((a, b) => {
       const aValue = getSortableValue(a, sortConfig.column);
       const bValue = getSortableValue(b, sortConfig.column);
       const multiplier = sortConfig.direction === "asc" ? 1 : -1;
@@ -672,7 +627,7 @@ export default function DealsPage() {
       }
       return String(aValue ?? "").localeCompare(String(bValue ?? "")) * multiplier;
     });
-  }, [filters, getSortableValue, opportunities, sortConfig]);
+  }, [getSortableValue, opportunities, sortConfig]);
 
   const hasActiveFilters = useMemo(() => {
     return (
@@ -1027,13 +982,13 @@ export default function DealsPage() {
                             <TooltipTrigger asChild>
                               <Button
                                 size="icon"
-                                className={`h-9 w-9 rounded-md text-white border-0 ${getAnalisisButtonProps(changeState).color}`}
-                                onClick={() => handleAnalisisButtonClick(opportunity)}
+                                className={`h-9 w-9 rounded-md text-white border-0 ${getAnalisisButtonProps(opportunity).color}`}
+                                onClick={() => handleOpenAnalisisDialog(opportunity)}
                               >
-                                {getAnalisisButtonProps(changeState).icon}
+                                {getAnalisisButtonProps(opportunity).icon}
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>{getAnalisisButtonProps(changeState).label}</TooltipContent>
+                            <TooltipContent>{getAnalisisButtonProps(opportunity).label}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>

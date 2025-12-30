@@ -1006,6 +1006,7 @@ export default function CreditsPage() {
                                 <Button
                                   variant="outline"
                                   size="icon"
+                                  
                                   asChild
                                   title="Editar crédito"
                                   className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"

@@ -71,13 +71,19 @@ export default function CalculosPage() {
         const data = response.data.data || response.data;
         setOpportunities(Array.isArray(data) ? data : []);
       } catch (error) {
-        // Optionally handle error
+        console.error('Error fetching opportunities:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las oportunidades.",
+          variant: "destructive",
+        });
+        setOpportunities([]);
       } finally {
         setIsLoadingOpportunities(false);
       }
     };
     fetchOpportunities();
-  }, []);
+  }, [toast]);
 
   const filteredOpportunities = useMemo(() =>
     opportunities.filter(o => {

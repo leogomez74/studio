@@ -276,28 +276,19 @@ function CreditDetailClient({ id }: { id: string }) {
   const fetchCredit = async () => {
     try {
       const response = await api.get(`/api/credits/${id}`);
-      let data = response.data;
-      // Buscar el último pago de tipo normal (asumimos que payments o plan_de_pagos existe)
-      let lastPaymentDate = null;
-      if (Array.isArray(data.payments) && data.payments.length > 0) {
-        // Filtrar pagos de tipo normal si hay un campo tipo, si no, tomar todos
-        const normalPayments = data.payments.filter((p: any) => !p.tipo || p.tipo === 'normal');
-        if (normalPayments.length > 0) {
-          // Ordenar por fecha_pago descendente
-          normalPayments.sort((a: any, b: any) => new Date(b.fecha_pago || b.fecha_corte || 0).getTime() - new Date(a.fecha_pago || a.fecha_corte || 0).getTime());
-          lastPaymentDate = normalPayments[0].fecha_pago || normalPayments[0].fecha_corte;
-        }
-      } else if (Array.isArray(data.plan_de_pagos) && data.plan_de_pagos.length > 0) {
-        // Fallback a plan_de_pagos si no hay payments
-        const normalPayments = data.plan_de_pagos.filter((p: any) => !p.tipo || p.tipo === 'normal');
-        if (normalPayments.length > 0) {
-          normalPayments.sort((a: any, b: any) => new Date(b.fecha_pago || b.fecha_corte || 0).getTime() - new Date(a.fecha_pago || a.fecha_corte || 0).getTime());
-          lastPaymentDate = normalPayments[0].fecha_pago || normalPayments[0].fecha_corte;
+      const data = response.data;
+
+      // Use backend-provided fecha_ultimo_pago if available
+      // Note: This computation should ideally be done on the backend for consistency
+      if (!data.fecha_ultimo_pago && Array.isArray(data.payments) && data.payments.length > 0) {
+        const paidPayments = data.payments
+          .filter((p: any) => p.fecha_pago)
+          .sort((a: any, b: any) => new Date(b.fecha_pago).getTime() - new Date(a.fecha_pago).getTime());
+        if (paidPayments.length > 0) {
+          data.fecha_ultimo_pago = paidPayments[0].fecha_pago;
         }
       }
-      if (lastPaymentDate) {
-        data.fecha_ultimo_pago = lastPaymentDate;
-      }
+
       setCredit(data);
       setFormData(data);
     } catch (error) {
@@ -816,7 +807,7 @@ function CreditDetailClient({ id }: { id: string }) {
                             {isEditMode ? (
                               <Select
                                 value={String(formData.lead?.assigned_to_id ?? "")}
-                                onValueChange={value => handleInputChange('lead', { ...formData.lead, assigned_to_id: parseInt(value) }) }
+                                onValueChange={value => handleInputChange('lead', { ...(formData.lead || {}), assigned_to_id: parseInt(value) }) }
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Seleccionar responsable" />

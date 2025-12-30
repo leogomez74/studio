@@ -483,21 +483,6 @@ export default function ClientesPage() {
     return () => clearTimeout(handler);
   }, [handleTseLookup, isFetchingTse, lastTseCedula, cedulaValue]);
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '');
-    if (value.length > 8) value = value.slice(0, 8);
-
-    let formattedValue = '';
-    if (value.length >= 5) {
-      formattedValue = `${value.slice(0, 2)}-${value.slice(2, 4)}-${value.slice(4)}`;
-    } else if (value.length >= 3) {
-      formattedValue = `${value.slice(0, 2)}-${value.slice(2)}`;
-    } else {
-      formattedValue = value;
-    }
-
-    return formattedValue;
-  };
 
   const onSubmit = async (values: LeadFormValues) => {
     setIsSavingLead(true);
@@ -1000,17 +985,11 @@ export default function ClientesPage() {
                       <FormLabel>Fecha de nacimiento</FormLabel>
                       <FormControl>
                         <Input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="DD-MM-AAAA"
+                          type="date"
                           required
                           disabled={isViewOnly}
-                          maxLength={10}
+                          max={new Date().toISOString().split('T')[0]}
                           {...field}
-                          onChange={(e) => {
-                            const formattedValue = handleDateChange(e);
-                            field.onChange(formattedValue);
-                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -1173,19 +1152,33 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
       setUploadDialogOpen(null);
       setCurrentLeadCedula(null);
     } catch (err: any) {
-      // Manejar error 409 del backend
-      if (err.response?.status === 409) {
+      // Map HTTP error codes to user-friendly messages
+      const errorStatus = err.response?.status;
+      let userMessage = "Error al subir los archivos. Intente nuevamente.";
+
+      if (errorStatus === 409) {
         toast({
-          title: "Ya existen archivos", 
-          description: err.response?.data?.message || "No se permiten duplicados para esta cédula.", 
+          title: "Ya existen archivos",
+          description: err.response?.data?.message || "No se permiten duplicados para esta cédula.",
           variant: "destructive"
         });
         setUploadDialogOpen(null);
         setCurrentLeadCedula(null);
         return;
+      } else if (errorStatus === 413) {
+        userMessage = "El archivo es demasiado grande. El tamaño máximo permitido es 10MB.";
+      } else if (errorStatus === 415) {
+        userMessage = "Tipo de archivo no permitido. Solo se aceptan PDF y HTML.";
+      } else if (errorStatus === 401 || errorStatus === 403) {
+        userMessage = "No tiene permisos para subir archivos.";
+      } else if (errorStatus === 500) {
+        userMessage = "Error en el servidor. Contacte al administrador.";
+      } else if (!navigator.onLine) {
+        userMessage = "Sin conexión a internet. Verifique su conexión.";
       }
-      toast({ title: "Error", description: (err instanceof Error ? ` ${err.message}` : ""), variant: "destructive" });
-      console.log(err);
+
+      toast({ title: "Error", description: userMessage, variant: "destructive" });
+      console.error("Upload error:", err);
     } finally {
       setUploading(false);
     }
