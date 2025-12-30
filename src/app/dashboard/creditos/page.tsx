@@ -419,7 +419,8 @@ export default function CreditsPage() {
       const response = await api.get('/api/credits');
 
       // Combine API data with mock data for testing
-      const apiData = response.data;
+      // Handle both paginated response { data: [...] } and direct array response
+      const apiData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
       const apiIds = new Set(apiData.map((c: any) => c.id));
 
       const formattedMockCredits = mockCredits
