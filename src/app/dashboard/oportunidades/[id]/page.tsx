@@ -59,18 +59,22 @@ export default function OpportunityDetailPage() {
 
   const handleStatusChange = async (newStatus: string) => {
     if (!opportunity) return;
-    
+
+    const previousStatus = opportunity.status; // Save previous value for rollback
+
     try {
       setUpdatingStatus(true);
       // Optimistic update
       setOpportunity(prev => prev ? { ...prev, status: newStatus } : null);
-      
+
       // API call
       await api.put(`/api/opportunities/${opportunity.id}`, { status: newStatus });
-      
+
       toast({ title: "Estado actualizado", description: `La oportunidad ahora está ${newStatus}.` });
     } catch (error) {
       console.error("Error updating status:", error);
+      // Revert optimistic update on failure
+      setOpportunity(prev => prev ? { ...prev, status: previousStatus } : null);
       toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
     } finally {
       setUpdatingStatus(false);
@@ -79,18 +83,22 @@ export default function OpportunityDetailPage() {
 
   const handleTypeChange = async (newType: string) => {
     if (!opportunity) return;
-    
+
+    const previousType = opportunity.opportunity_type; // Save previous value for rollback
+
     try {
       setUpdatingType(true);
       // Optimistic update
       setOpportunity(prev => prev ? { ...prev, opportunity_type: newType } : null);
-      
+
       // API call
       await api.put(`/api/opportunities/${opportunity.id}`, { opportunity_type: newType });
-      
+
       toast({ title: "Tipo actualizado", description: `La oportunidad ahora es de tipo ${newType}.` });
     } catch (error) {
       console.error("Error updating type:", error);
+      // Revert optimistic update on failure
+      setOpportunity(prev => prev ? { ...prev, opportunity_type: previousType } : null);
       toast({ title: "Error", description: "No se pudo actualizar el tipo.", variant: "destructive" });
     } finally {
       setUpdatingType(false);

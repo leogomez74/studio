@@ -67,7 +67,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
-import { credits as mockCredits } from "@/lib/data";
 
 const creditSchema = z.object({
   reference: z.string().min(1, "La referencia es requerida"),
@@ -418,36 +417,13 @@ export default function CreditsPage() {
       setIsLoading(true);
       const response = await api.get('/api/credits');
 
-      // Combine API data with mock data for testing
       // Handle both paginated response { data: [...] } and direct array response
       const apiData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-      const apiIds = new Set(apiData.map((c: any) => c.id));
-
-      const formattedMockCredits = mockCredits
-        .filter(c => !c.id || !apiIds.has(c.id))
-        .map(c => ({
-          ...c,
-          id: c.id || Math.floor(Math.random() * 10000) + 10000, // Ensure no collision if id is missing
-          assigned_to: c.assigned_to ? String(c.assigned_to) : null,
-          lead: c.lead ? { ...c.lead, email: c.lead.email || null } : null,
-          opportunity: c.opportunity ? { ...c.opportunity, title: c.opportunity.title || null } : null
-        })) as unknown as CreditItem[];
-
-      setCredits([...apiData, ...formattedMockCredits]);
+      setCredits(apiData);
     } catch (error) {
       console.error("Error fetching credits:", error);
-
-      // Fallback to mock data
-      const formattedMockCredits = mockCredits.map(c => ({
-        ...c,
-        id: c.id || Math.floor(Math.random() * 10000),
-        assigned_to: c.assigned_to ? String(c.assigned_to) : null,
-        lead: c.lead ? { ...c.lead, email: c.lead.email || null } : null,
-        opportunity: c.opportunity ? { ...c.opportunity, title: c.opportunity.title || null } : null
-      })) as unknown as CreditItem[];
-
-      setCredits(formattedMockCredits);
-      toast({ title: "Info", description: "Mostrando datos de prueba.", variant: "default" });
+      toast({ title: "Error", description: "No se pudieron cargar los créditos. Intente nuevamente.", variant: "destructive" });
+      setCredits([]);
     } finally {
       setIsLoading(false);
     }

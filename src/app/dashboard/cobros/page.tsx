@@ -32,8 +32,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
-import { credits as mockCredits, Credit, Payment } from '@/lib/data';
+import { Credit, Payment } from '@/lib/data';
 import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 
 // Interfaz extendida para el objeto de pago que viene del backend
 interface PaymentWithRelations extends Payment {
@@ -58,21 +59,24 @@ const getStatusVariantCobros = (status: Credit['status']) => {
   }
 };
 
-const filterCreditsByArrears = (daysStart: number, daysEnd: number | null = null) => {
-  return mockCredits.filter(c => {
-    if (c.status !== 'En mora') return false;
-    return true; 
-  });
+// Helper function to calculate days in arrears from last payment date
+const calculateDaysInArrears = (credit: Credit): number => {
+  if (!credit.fecha_ultimo_pago) return 0;
+  const lastPayment = new Date(credit.fecha_ultimo_pago);
+  const today = new Date();
+  const diffTime = today.getTime() - lastPayment.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays - 30); // Assuming 30-day payment cycle
 };
 
-const alDiaCredits = mockCredits.filter((c) => c.status === 'Al día');
-const mora30 = filterCreditsByArrears(1, 30);
-const mora60 = filterCreditsByArrears(31, 60);
-const mora90 = filterCreditsByArrears(61, 90);
-const mora180 = filterCreditsByArrears(91, 180);
-const mas180 = filterCreditsByArrears(181);
-
-const CobrosTable = React.memo(function CobrosTable({ credits }: { credits: Credit[] }) {
+const CobrosTable = React.memo(function CobrosTable({ credits, isLoading }: { credits: Credit[], isLoading?: boolean }) {
+  if (isLoading) {
+    return (
+      <div className="p-8 flex justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
   if (credits.length === 0) {
     return <div className="p-4 text-center text-sm text-muted-foreground">No hay créditos en esta categoría.</div>
   }
@@ -90,36 +94,45 @@ const CobrosTable = React.memo(function CobrosTable({ credits }: { credits: Cred
           </TableRow>
         </TableHeader>
         <TableBody>
-          {credits.map((credit) => (
-            <TableRow key={credit.id} className="hover:bg-muted/50">
-              <TableCell className="font-medium">
-                <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline">
-                  {credit.id}
-                </Link>
-              </TableCell>
+          {credits.map((credit) => {
+            const diasAtraso = calculateDaysInArrears(credit);
+            return (
+              <TableRow key={credit.id} className="hover:bg-muted/50">
+                <TableCell className="font-medium">
+                  <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                    {credit.reference || credit.numero_operacion || credit.id}
+                  </Link>
+                </TableCell>
                 <TableCell>{credit.lead?.name || "-"}</TableCell>
-              <TableCell className="hidden md:table-cell">
-                ₡{credit.cuota ? credit.cuota.toLocaleString('de-DE') : '0'}
-              </TableCell>
-              <TableCell>
-                <Badge variant={getStatusVariantCobros(credit.status)}>{credit.status}</Badge>
-              </TableCell>
-              <TableCell className="hidden font-medium md:table-cell">{credit.fecha_ultimo_pago || 0}</TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                    <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
-                    <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Enviar a Cobro</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))}
+                <TableCell className="hidden md:table-cell">
+                  ₡{credit.cuota ? Number(credit.cuota).toLocaleString('de-DE') : '0'}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getStatusVariantCobros(credit.status)}>{credit.status}</Badge>
+                </TableCell>
+                <TableCell className="hidden font-medium md:table-cell">
+                  {diasAtraso > 0 ? (
+                    <span className="text-destructive">{diasAtraso} días</span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                      <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
+                      <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">Enviar a Cobro</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -218,20 +231,49 @@ export default function CobrosPage() {
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
   const [paymentsState, setPaymentsState] = useState<PaymentWithRelations[]>([]);
   const [creditsList, setCreditsList] = useState<Credit[]>([]);
+  const [isLoadingCredits, setIsLoadingCredits] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoadingCredits(true);
       try {
         const paymentsRes = await api.get('/api/credit-payments');
         setPaymentsState(paymentsRes.data);
         const creditsRes = await api.get('/api/credits');
-        setCreditsList(creditsRes.data);
+        const creditsData = Array.isArray(creditsRes.data) ? creditsRes.data : creditsRes.data?.data || [];
+        setCreditsList(creditsData);
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching cobros data:', err);
+        toast({ title: 'Error', description: 'No se pudieron cargar los datos de cobros.', variant: 'destructive' });
+      } finally {
+        setIsLoadingCredits(false);
       }
     };
     fetchData();
-  }, [planRefreshKey]);
+  }, [planRefreshKey, toast]);
+
+  // Dynamic filtering of credits by arrears - using live API data
+  const filterCreditsByArrearsRange = useCallback((credits: Credit[], daysStart: number, daysEnd: number | null = null) => {
+    return credits.filter(credit => {
+      if (credit.status !== 'En mora') return false;
+      const diasAtraso = calculateDaysInArrears(credit);
+      if (daysEnd === null) {
+        return diasAtraso >= daysStart;
+      }
+      return diasAtraso >= daysStart && diasAtraso <= daysEnd;
+    });
+  }, []);
+
+  // Filtered credit lists using live data
+  const alDiaCredits = useMemo(() =>
+    creditsList.filter(c => c.status === 'Al día' || c.status === 'Formalizado'),
+    [creditsList]
+  );
+  const mora30 = useMemo(() => filterCreditsByArrearsRange(creditsList, 1, 30), [creditsList, filterCreditsByArrearsRange]);
+  const mora60 = useMemo(() => filterCreditsByArrearsRange(creditsList, 31, 60), [creditsList, filterCreditsByArrearsRange]);
+  const mora90 = useMemo(() => filterCreditsByArrearsRange(creditsList, 61, 90), [creditsList, filterCreditsByArrearsRange]);
+  const mora180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 91, 180), [creditsList, filterCreditsByArrearsRange]);
+  const mas180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 181, null), [creditsList, filterCreditsByArrearsRange]);
 
   const uniqueLeads = useMemo(() => {
     const leadsMap = new Map();
@@ -348,12 +390,12 @@ export default function CobrosPage() {
                             <TabsTrigger value="mas-180-dias">+180 días ({mas180.length})</TabsTrigger>
                         </TabsList>
                     </CardHeader>
-                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} /></CardContent></TabsContent>
-                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} /></CardContent></TabsContent>
-                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} /></CardContent></TabsContent>
-                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} /></CardContent></TabsContent>
-                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} /></CardContent></TabsContent>
-                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} /></CardContent></TabsContent>
+                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} /></CardContent></TabsContent>
                 </Card>
             </Tabs>
         </TabsContent>
