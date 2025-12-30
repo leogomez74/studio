@@ -1,9 +1,8 @@
 "use client";
 
-import type { ChangeEvent, FormEvent } from "react";
+import type { FormEvent } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, Filter } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -62,7 +61,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
@@ -295,19 +293,6 @@ function formatDate(dateString?: string | null): string {
   }).format(date);
 }
 
-function formatDateTime(dateString?: string | null): string {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("es-CR", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 export default function CreditsPage() {
   const { toast } = useToast();
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
@@ -406,7 +391,6 @@ export default function CreditsPage() {
         data = [];
       }
       setDeductoras(data);
-      console.log('Deductoras loaded:', data);
     } catch (error) {
       setDeductoras([]);
       console.error("Error fetching deductoras:", error);
@@ -552,26 +536,6 @@ export default function CreditsPage() {
     });
     setDialogCredit(null);
     setDialogState("create");
-  };
-
-  const handleEdit = (credit: CreditItem) => {
-    form.reset({
-      reference: credit.reference,
-      title: credit.title,
-      status: credit.status || CREDIT_STATUS_OPTIONS[0],
-      category: credit.category || CREDIT_CATEGORY_OPTIONS[0],
-      monto_credito: credit.monto_credito || 0,
-      clientId: String(credit.lead_id),
-      opportunityId: credit.opportunity_id ? String(credit.opportunity_id) : "",
-      assignedTo: credit.assigned_to || "",
-      openedAt: credit.opened_at ? credit.opened_at.split('T')[0] : "",
-      description: credit.description || "",
-      divisa: credit.divisa || "CRC",
-      plazo: credit.plazo || 36,
-      poliza: credit.poliza ?? false,
-    });
-    setDialogCredit(credit);
-    setDialogState("edit");
   };
 
   const onSubmit = async (values: CreditFormValues) => {
