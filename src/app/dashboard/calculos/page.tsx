@@ -113,13 +113,28 @@ export default function CalculosPage() {
 
     // Resetear el cálculo previo
     setMonthlyPayment(null);
-    setSelectedLead(undefined);
+
+    // Auto-seleccionar el lead asociado a la oportunidad
+    const leadCedula = selectedOpportunity.lead_cedula || selectedOpportunity.leadCedula;
+    if (leadCedula && leads.length > 0) {
+      const associatedLead = leads.find(l => l.cedula === leadCedula);
+      if (associatedLead) {
+        setSelectedLead(String(associatedLead.id));
+      } else {
+        setSelectedLead(undefined);
+      }
+    } else if (selectedOpportunity.lead?.id) {
+      // Si la oportunidad trae el lead embebido
+      setSelectedLead(String(selectedOpportunity.lead.id));
+    } else {
+      setSelectedLead(undefined);
+    }
 
     toast({
       title: "Oportunidad cargada",
       description: `Datos de la oportunidad #${selectedOpportunity.id} cargados en la calculadora.`,
     });
-  }, [selectedOpportunityId, opportunities, toast]);
+  }, [selectedOpportunityId, opportunities, leads, toast]);
 
   /**
    * Efecto que carga los leads desde la API al montar el componente.
