@@ -793,15 +793,19 @@ class KpiSeeder extends Seeder
         ];
 
         foreach ($categories as $index => $categoryData) {
-            RewardBadgeCategory::firstOrCreate(
-                ['slug' => $categoryData['slug']],
-                [
+            // Use DB::table to avoid model's default $attributes (is_active doesn't exist in table)
+            $exists = DB::table('reward_badge_categories')->where('slug', $categoryData['slug'])->exists();
+            if (!$exists) {
+                DB::table('reward_badge_categories')->insert([
+                    'slug' => $categoryData['slug'],
                     'name' => $categoryData['name'],
                     'description' => $categoryData['description'],
                     'icon' => $categoryData['icon'],
                     'sort_order' => $index + 1,
-                ]
-            );
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
         }
     }
 
