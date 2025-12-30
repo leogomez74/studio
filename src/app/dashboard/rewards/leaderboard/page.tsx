@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useLeaderboard, useMyLeaderboardPosition, useLeaderboardStats } from "@/hooks/use-leaderboard";
+import { useLeaderboard, useMyLeaderboardPosition, useLeaderboardStats, type LeaderboardMetric, type LeaderboardPeriod, type LeaderboardData } from "@/hooks/use-leaderboard";
+import type { LeaderboardEntry } from "@/types/rewards";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,6 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LeaderboardEntry } from "@/types/rewards";
 
 const metricConfig = {
   points: { label: "Puntos", icon: Star, color: "text-amber-500" },
@@ -123,7 +123,7 @@ function LeaderboardRow({
       {/* User Info */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <Avatar className="h-10 w-10 border-2 border-background shadow">
-          <AvatarImage src={entry.user?.avatar} />
+          <AvatarImage src={entry.user?.avatar ?? undefined} />
           <AvatarFallback>
             {entry.user?.name?.charAt(0) || "?"}
           </AvatarFallback>
@@ -180,8 +180,8 @@ function LeaderboardSkeleton() {
   );
 }
 
-function MyPositionCard({ metric, period }: { metric: string; period: string }) {
-  const { data, isLoading } = useMyLeaderboardPosition(metric, period);
+function MyPositionCard({ metric, period }: { metric: LeaderboardMetric; period: LeaderboardPeriod }) {
+  const { position, isLoading } = useMyLeaderboardPosition(metric, period);
   const metricInfo = metricConfig[metric as keyof typeof metricConfig] || metricConfig.points;
   const MetricIcon = metricInfo.icon;
 
@@ -212,9 +212,8 @@ function MyPositionCard({ metric, period }: { metric: string; period: string }) 
             <p className="text-sm text-muted-foreground">Tu posición</p>
             <div className="flex items-center gap-2">
               <span className="text-2xl font-bold">
-                #{data?.rank || "-"}
+                #{position?.position || "-"}
               </span>
-              {data?.rankChange !== undefined && getRankChange(data.rankChange)}
             </div>
           </div>
           <div className="ml-auto text-right">
@@ -222,7 +221,7 @@ function MyPositionCard({ metric, period }: { metric: string; period: string }) 
             <div className="flex items-center gap-1 justify-end">
               <MetricIcon className={cn("h-4 w-4", metricInfo.color)} />
               <span className="text-xl font-bold">
-                {data?.score?.toLocaleString() || 0}
+                {position?.value?.toLocaleString() || 0}
               </span>
             </div>
           </div>
@@ -232,8 +231,8 @@ function MyPositionCard({ metric, period }: { metric: string; period: string }) 
   );
 }
 
-function StatsCards({ metric, period }: { metric: string; period: string }) {
-  const { data: stats, isLoading } = useLeaderboardStats(metric, period);
+function StatsCards({ metric, period }: { metric: LeaderboardMetric; period: LeaderboardPeriod }) {
+  const { stats, isLoading } = useLeaderboardStats();
 
   if (isLoading) {
     return (
@@ -250,30 +249,32 @@ function StatsCards({ metric, period }: { metric: string; period: string }) {
     );
   }
 
+  const userPosition = stats?.[metric]?.[period];
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <Card>
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">Participantes</p>
-          <p className="text-2xl font-bold">{stats?.totalParticipants || 0}</p>
+          <p className="text-2xl font-bold">{userPosition?.totalParticipants || 0}</p>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4">
-          <p className="text-sm text-muted-foreground">Promedio</p>
-          <p className="text-2xl font-bold">{Math.round(stats?.average || 0).toLocaleString()}</p>
+          <p className="text-sm text-muted-foreground">Tu valor</p>
+          <p className="text-2xl font-bold">{(userPosition?.value || 0).toLocaleString()}</p>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4">
-          <p className="text-sm text-muted-foreground">Máximo</p>
-          <p className="text-2xl font-bold">{(stats?.highest || 0).toLocaleString()}</p>
+          <p className="text-sm text-muted-foreground">Tu posición</p>
+          <p className="text-2xl font-bold">#{userPosition?.position || "-"}</p>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">Tu percentil</p>
-          <p className="text-2xl font-bold">Top {stats?.yourPercentile || 100}%</p>
+          <p className="text-2xl font-bold">Top {userPosition?.percentile || 100}%</p>
         </CardContent>
       </Card>
     </div>
@@ -281,10 +282,10 @@ function StatsCards({ metric, period }: { metric: string; period: string }) {
 }
 
 export default function LeaderboardPage() {
-  const [metric, setMetric] = useState<string>("points");
-  const [period, setPeriod] = useState<string>("weekly");
-  
-  const { data, isLoading, error } = useLeaderboard(metric, period, 50);
+  const [metric, setMetric] = useState<LeaderboardMetric>("points");
+  const [period, setPeriod] = useState<LeaderboardPeriod>("weekly");
+
+  const { ranking, isLoading, error } = useLeaderboard({ metric, period, limit: 50 });
   
   // Simular usuario actual - esto vendría del contexto de auth
   const currentUserId = 1;
@@ -293,7 +294,7 @@ export default function LeaderboardPage() {
     <div className="space-y-6">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <Tabs value={metric} onValueChange={setMetric} className="flex-1">
+        <Tabs value={metric} onValueChange={(value) => setMetric(value as LeaderboardMetric)} className="flex-1">
           <TabsList className="grid w-full grid-cols-4">
             {Object.entries(metricConfig).map(([key, config]) => {
               const Icon = config.icon;
@@ -307,7 +308,7 @@ export default function LeaderboardPage() {
           </TabsList>
         </Tabs>
 
-        <Select value={period} onValueChange={setPeriod}>
+        <Select value={period} onValueChange={(value) => setPeriod(value as LeaderboardPeriod)}>
           <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -342,7 +343,7 @@ export default function LeaderboardPage() {
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
-              {data?.entries?.length || 0} jugadores
+              {ranking?.entries?.length || 0} jugadores
             </div>
           </div>
         </CardHeader>
@@ -353,7 +354,7 @@ export default function LeaderboardPage() {
             <div className="text-center py-8 text-muted-foreground">
               Error al cargar el leaderboard
             </div>
-          ) : !data?.entries?.length ? (
+          ) : !ranking?.entries?.length ? (
             <div className="text-center py-8">
               <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No hay datos disponibles</p>
@@ -363,12 +364,12 @@ export default function LeaderboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {data.entries.map((entry, index) => (
+              {ranking.entries.map((entry: LeaderboardEntry, index: number) => (
                 <LeaderboardRow
-                  key={entry.userId || index}
+                  key={entry.user?.id || index}
                   entry={entry}
                   rank={index + 1}
-                  isCurrentUser={entry.userId === currentUserId}
+                  isCurrentUser={entry.user?.id === currentUserId}
                   metric={metric}
                 />
               ))}

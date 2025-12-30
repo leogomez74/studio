@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next';
 
-const nextConfig: NextConfig = {
+const nextConfig: NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } } = {
   /* Config options */
 
   // Ignorar errores de compilación y ESLint durante el build

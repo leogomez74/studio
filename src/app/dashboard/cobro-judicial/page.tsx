@@ -51,7 +51,7 @@ const JudicialCreditTableRow = React.memo(function JudicialCreditTableRow({ cred
       <TableCell>{credit.expediente}</TableCell>
       <TableCell>{credit.debtorName}</TableCell>
       <TableCell className="text-right font-mono">
-        ₡{credit.balance.toLocaleString('de-DE')}
+        ₡{(credit.balance ?? 0).toLocaleString('de-DE')}
       </TableCell>
       <TableCell>
         <DropdownMenu>

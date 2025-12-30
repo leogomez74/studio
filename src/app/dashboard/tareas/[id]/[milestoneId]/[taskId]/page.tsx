@@ -212,7 +212,7 @@ function TaskDetailClient({
                     Archivos Adjuntos
                 </h4>
                 <div className="space-y-2">
-                    {task.attachments?.length > 0 ? (
+                    {task.attachments && task.attachments.length > 0 ? (
                     task.attachments.map((file) => (
                         <div
                         key={file.id}

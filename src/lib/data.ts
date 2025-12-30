@@ -222,7 +222,13 @@ export type Credit = {
   lead?: { id: number; name: string; email: string | null  ; cedula?: number} | null;
   opportunity?: { id: string; title: string | null } | null;
 
-  // Legacy / UI fields
+  // Legacy / UI fields for cobro-judicial
+  operationNumber?: string;
+  expediente?: string;
+  debtorName?: string;
+  balance?: number;
+  daysInArrears?: number;
+  employer?: string;
 };
 
 export type Deductora = {
