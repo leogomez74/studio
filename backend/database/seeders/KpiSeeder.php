@@ -22,8 +22,10 @@ use App\Models\Rewards\RewardRedemption;
 use App\Models\Rewards\RewardLeaderboard;
 use App\Models\Rewards\RewardLeaderboardEntry;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Carbon\Carbon;
 
 class KpiSeeder extends Seeder
@@ -36,12 +38,20 @@ class KpiSeeder extends Seeder
 
     public function run(): void
     {
-        $this->command->info('🚀 Starting KPI Seeder...');
+        $startTime = microtime(true);
 
-        // Seed base data first
-        $this->seedUsers(); // Keep - needed for $this->users array
+        $this->command->info('');
+        $this->command->info('<fg=cyan;options=bold>╔════════════════════════════════════════════════════════════╗</>');
+        $this->command->info('<fg=cyan;options=bold>║                    KPI SEEDER                              ║</>');
+        $this->command->info('<fg=cyan;options=bold>╚════════════════════════════════════════════════════════════╝</>');
+        $this->command->info('');
+
+        // Seed base data first (quick operations, no progress bar needed)
+        $this->command->info('<fg=yellow>▸ Preparing base data...</>');
+        $this->seedUsers();
         $this->seedDeductoras();
         $this->seedLeadStatuses();
+        $this->command->info('<fg=green>  ✓ Base data ready</>');
 
         // Seed main data distributed over the past 12 months
         $this->seedLeadsAndClients();
@@ -49,13 +59,18 @@ class KpiSeeder extends Seeder
         $this->seedCreditsWithPayments();
         $this->seedGamificationData();
 
-        $this->command->info('✅ KPI Seeder completed successfully!');
+        $elapsedTime = round(microtime(true) - $startTime, 2);
+
+        $this->command->info('');
+        $this->command->info('<fg=green;options=bold>╔════════════════════════════════════════════════════════════╗</>');
+        $this->command->info('<fg=green;options=bold>║         ✅ KPI SEEDER COMPLETED SUCCESSFULLY               ║</>');
+        $this->command->info('<fg=green;options=bold>╚════════════════════════════════════════════════════════════╝</>');
+        $this->command->info("<fg=white>   Total execution time: </><fg=cyan>{$elapsedTime}s</>");
+        $this->command->info('');
     }
 
     private function seedUsers(): void
     {
-        $this->command->info('👥 Seeding users...');
-
         $usersData = [
             ['name' => 'Administrador', 'email' => 'admin@pep.cr'],
             ['name' => 'Carlos Mendez', 'email' => 'carlosm@pep.cr'],
@@ -81,8 +96,6 @@ class KpiSeeder extends Seeder
 
     private function seedDeductoras(): void
     {
-        $this->command->info('🏦 Seeding deductoras...');
-
         $deductorasData = [
             ['nombre' => 'Banco Nacional', 'comision' => 1.50],
             ['nombre' => 'Banco de Costa Rica', 'comision' => 1.75],
@@ -119,9 +132,21 @@ class KpiSeeder extends Seeder
 
     private function seedLeadsAndClients(): void
     {
-        $this->command->info('👤 Seeding leads and clients (12 months of data)...');
+        $this->command->info('');
+        $this->command->info('👤 <fg=cyan>Seeding leads and clients (12 months of data)...</>');
 
         $now = Carbon::now();
+
+        // Pre-calculate total records to create for progress bar
+        $totalRecords = 0;
+        for ($monthsAgo = 11; $monthsAgo >= 0; $monthsAgo--) {
+            $totalRecords += rand(15, 25) + (11 - $monthsAgo) * 2;
+        }
+
+        $progressBar = $this->createProgressBar($totalRecords, 'Leads/Clients');
+        $leadsData = [];
+        $clientsData = [];
+        $currentRecord = 0;
 
         // Create leads and clients distributed over 12 months
         for ($monthsAgo = 11; $monthsAgo >= 0; $monthsAgo--) {
@@ -139,8 +164,7 @@ class KpiSeeder extends Seeder
                 $willConvert = rand(1, 100) <= rand(25, 35);
 
                 if ($willConvert) {
-                    // Create as client
-                    Client::create([
+                    $clientsData[] = [
                         'name' => $this->generateName(),
                         'cedula' => $cedula,
                         'email' => 'client' . $cedula . '@example.com',
@@ -153,13 +177,12 @@ class KpiSeeder extends Seeder
                         'assigned_to_id' => $this->users[array_rand($this->users)]->id,
                         'created_at' => $createdAt,
                         'updated_at' => $createdAt->copy()->addDays(rand(1, 14)),
-                    ]);
+                    ];
                 } else {
-                    // Create as lead
                     $statuses = ['Nuevo', 'Contactado', 'Interesado', 'En Proceso', 'Rechazado'];
                     $statusName = $statuses[array_rand($statuses)];
 
-                    Lead::create([
+                    $leadsData[] = [
                         'name' => $this->generateName(),
                         'cedula' => $cedula,
                         'email' => 'lead' . $cedula . '@example.com',
@@ -172,17 +195,36 @@ class KpiSeeder extends Seeder
                         'assigned_to_id' => $this->users[array_rand($this->users)]->id,
                         'created_at' => $createdAt,
                         'updated_at' => $createdAt->copy()->addHours(rand(1, 72)),
-                    ]);
+                    ];
                 }
+
+                $currentRecord++;
+                $progressBar->setProgress($currentRecord);
             }
         }
 
-        $this->command->info('   Created ' . Lead::count() . ' leads and ' . Client::count() . ' clients');
+        $progressBar->finish();
+        $this->command->info('');
+        $this->command->info('   <fg=yellow>Committing transaction...</>');
+
+        // Batch insert within transaction for performance
+        DB::transaction(function () use ($leadsData, $clientsData) {
+            // Insert in chunks of 100 for optimal performance
+            foreach (array_chunk($leadsData, 100) as $chunk) {
+                Lead::insert($chunk);
+            }
+            foreach (array_chunk($clientsData, 100) as $chunk) {
+                Client::insert($chunk);
+            }
+        });
+
+        $this->command->info('   <fg=green>✓ Created ' . count($leadsData) . ' leads and ' . count($clientsData) . ' clients</>');
     }
 
     private function seedOpportunities(): void
     {
-        $this->command->info('💼 Seeding opportunities...');
+        $this->command->info('');
+        $this->command->info('💼 <fg=cyan>Seeding opportunities...</>');
 
         $now = Carbon::now();
         $types = ['Crédito Regular', 'Micro-crédito', 'Crédito Empresarial'];
@@ -192,7 +234,14 @@ class KpiSeeder extends Seeder
         $clients = Client::all();
         $persons = $leads->merge($clients);
 
+        $progressBar = $this->createProgressBar($persons->count(), 'Opportunities');
+        $opportunitiesData = [];
+        $processed = 0;
+
         foreach ($persons as $person) {
+            $processed++;
+            $progressBar->setProgress($processed);
+
             // 60% chance of having an opportunity
             if (rand(1, 100) > 60) continue;
 
@@ -204,7 +253,6 @@ class KpiSeeder extends Seeder
             $status = 'Abierta';
 
             if ($daysSinceCreation > 60) {
-                // Older opportunities should be closed
                 $status = rand(1, 100) <= 55 ? 'Ganada' : 'Perdida';
             } elseif ($daysSinceCreation > 30) {
                 $statusRand = rand(1, 100);
@@ -215,9 +263,9 @@ class KpiSeeder extends Seeder
                 $status = rand(1, 100) <= 50 ? 'En seguimiento' : 'Abierta';
             }
 
-            $amount = rand(5, 100) * 100000; // 500,000 to 10,000,000
+            $amount = rand(5, 100) * 100000;
 
-            Opportunity::create([
+            $opportunitiesData[] = [
                 'lead_cedula' => $person->cedula,
                 'opportunity_type' => $types[array_rand($types)],
                 'amount' => $amount,
@@ -226,15 +274,27 @@ class KpiSeeder extends Seeder
                 'expected_close_date' => $createdAt->copy()->addDays(rand(30, 90)),
                 'created_at' => $createdAt,
                 'updated_at' => $status !== 'Abierta' ? $createdAt->copy()->addDays(rand(7, 45)) : $createdAt,
-            ]);
+            ];
         }
 
-        $this->command->info('   Created ' . Opportunity::count() . ' opportunities');
+        $progressBar->finish();
+        $this->command->info('');
+        $this->command->info('   <fg=yellow>Committing transaction...</>');
+
+        // Batch insert within transaction
+        DB::transaction(function () use ($opportunitiesData) {
+            foreach (array_chunk($opportunitiesData, 100) as $chunk) {
+                Opportunity::insert($chunk);
+            }
+        });
+
+        $this->command->info('   <fg=green>✓ Created ' . count($opportunitiesData) . ' opportunities</>');
     }
 
     private function seedCreditsWithPayments(): void
     {
-        $this->command->info('💰 Seeding credits and payments...');
+        $this->command->info('');
+        $this->command->info('💰 <fg=cyan>Seeding credits and payments...</>');
 
         // Get won opportunities that don't have credits yet
         $existingOpportunityIds = Credit::whereNotNull('opportunity_id')->pluck('opportunity_id')->toArray();
@@ -244,103 +304,167 @@ class KpiSeeder extends Seeder
             ->whereNotNull('lead_cedula')
             ->get();
 
-        $creditCount = 0;
-        $paymentCount = 0;
-
-        foreach ($wonOpportunities as $opportunity) {
-            // Find the client by cedula (credits are now created for clients, not leads)
-            $client = Client::where('cedula', $opportunity->lead_cedula)->first();
-
-            // If no client exists, convert the lead to client (simulates won opportunity conversion)
-            if (!$client) {
-                $lead = Lead::where('cedula', $opportunity->lead_cedula)->first();
-                if (!$lead) continue;
-
-                // Convert lead to client by changing person_type_id
-                $lead->update(['person_type_id' => 2]);
-                $client = Client::where('cedula', $opportunity->lead_cedula)->first();
-            }
-
-            if (!$client) continue;
-
-            $deductora = $this->deductoras[array_rand($this->deductoras)];
-            $monto = $opportunity->amount ?? rand(5, 50) * 100000;
-            $plazo = [12, 24, 36, 48, 60][array_rand([12, 24, 36, 48, 60])];
-            $tasaAnual = rand(28, 36) + (rand(0, 99) / 100);
-            $cuota = round($monto / $plazo * 1.15, 2); // Simple calculation with interest
-
-            $createdAt = $opportunity->updated_at ?? $opportunity->created_at;
-
-            // Determine credit status
-            $daysSinceCreation = $createdAt->diffInDays(Carbon::now());
-            $cuotasAtrasadas = 0;
-
-            // 15% chance of having overdue payments
-            if (rand(1, 100) <= 15 && $daysSinceCreation > 60) {
-                $cuotasAtrasadas = rand(1, 4);
-            }
-
-            $credit = Credit::create([
-                'reference' => 'CRED-' . strtoupper(Str::random(8)),
-                'title' => 'Crédito ' . $opportunity->opportunity_type,
-                'status' => 'Activo',
-                'category' => 'Regular',
-                'progress' => min(100, intval($daysSinceCreation / 3)),
-                'lead_id' => $client->id,
-                'opportunity_id' => $opportunity->id,
-                'assigned_to' => $this->users[array_rand($this->users)]->name,
-                'opened_at' => $createdAt->toDateString(),
-                'description' => 'Crédito generado desde oportunidad',
-                'monto_credito' => $monto,
-                'cuota' => $cuota,
-                'plazo' => $plazo,
-                'tasa_anual' => $tasaAnual,
-                'cuotas_atrasadas' => $cuotasAtrasadas,
-                'deductora_id' => $deductora->id,
-                'poliza' => rand(0, 1),
-                'created_at' => $createdAt,
-                'updated_at' => $createdAt,
-            ]);
-
-            $creditCount++;
-
-            // Create plan de pagos and payments
-            $this->createPlanDePagosAndPayments($credit, $cuota, $plazo, $createdAt);
-            $paymentCount += $credit->payments()->count();
+        if ($wonOpportunities->isEmpty()) {
+            $this->command->info('   <fg=yellow>No opportunities to process</>');
+            return;
         }
 
-        $this->command->info("   Created {$creditCount} credits and {$paymentCount} payments");
+        $progressBar = $this->createProgressBar($wonOpportunities->count(), 'Credits');
+        $creditCount = 0;
+        $paymentCount = 0;
+        $planCount = 0;
+        $processed = 0;
+
+        // Collect all data first, then batch insert
+        $plansToInsert = [];
+        $paymentsToInsert = [];
+        $plansToUpdate = [];
+
+        DB::transaction(function () use (
+            $wonOpportunities,
+            $progressBar,
+            &$creditCount,
+            &$paymentCount,
+            &$planCount,
+            &$processed,
+            &$plansToInsert,
+            &$paymentsToInsert,
+            &$plansToUpdate
+        ) {
+            foreach ($wonOpportunities as $opportunity) {
+                $processed++;
+                $progressBar->setProgress($processed);
+
+                // Find the client by cedula
+                $client = Client::where('cedula', $opportunity->lead_cedula)->first();
+
+                // If no client exists, convert the lead to client
+                if (!$client) {
+                    $lead = Lead::where('cedula', $opportunity->lead_cedula)->first();
+                    if (!$lead) continue;
+
+                    $lead->update(['person_type_id' => 2]);
+                    $client = Client::where('cedula', $opportunity->lead_cedula)->first();
+                }
+
+                if (!$client) continue;
+
+                $deductora = $this->deductoras[array_rand($this->deductoras)];
+                $monto = $opportunity->amount ?? rand(5, 50) * 100000;
+                $plazo = [12, 24, 36, 48, 60][array_rand([12, 24, 36, 48, 60])];
+                $tasaAnual = rand(28, 36) + (rand(0, 99) / 100);
+                $cuota = round($monto / $plazo * 1.15, 2);
+
+                $createdAt = $opportunity->updated_at ?? $opportunity->created_at;
+                $daysSinceCreation = $createdAt->diffInDays(Carbon::now());
+                $cuotasAtrasadas = 0;
+
+                if (rand(1, 100) <= 15 && $daysSinceCreation > 60) {
+                    $cuotasAtrasadas = rand(1, 4);
+                }
+
+                $poliza = rand(0, 1);
+
+                // Create credit (needs ID for related records)
+                $credit = Credit::create([
+                    'reference' => 'CRED-' . strtoupper(Str::random(8)),
+                    'title' => 'Crédito ' . $opportunity->opportunity_type,
+                    'status' => 'Activo',
+                    'category' => 'Regular',
+                    'progress' => min(100, intval($daysSinceCreation / 3)),
+                    'lead_id' => $client->id,
+                    'opportunity_id' => $opportunity->id,
+                    'assigned_to' => $this->users[array_rand($this->users)]->name,
+                    'opened_at' => $createdAt->toDateString(),
+                    'description' => 'Crédito generado desde oportunidad',
+                    'monto_credito' => $monto,
+                    'cuota' => $cuota,
+                    'plazo' => $plazo,
+                    'tasa_anual' => $tasaAnual,
+                    'cuotas_atrasadas' => $cuotasAtrasadas,
+                    'deductora_id' => $deductora->id,
+                    'poliza' => $poliza,
+                    'created_at' => $createdAt,
+                    'updated_at' => $createdAt,
+                ]);
+
+                $creditCount++;
+
+                // Generate plans and payments data
+                $result = $this->generatePlanDePagosAndPaymentsData(
+                    $credit->id,
+                    $monto,
+                    $cuota,
+                    $plazo,
+                    $tasaAnual,
+                    $poliza,
+                    $createdAt
+                );
+
+                $plansToInsert = array_merge($plansToInsert, $result['plans']);
+                $paymentsToInsert = array_merge($paymentsToInsert, $result['payments']);
+                $plansToUpdate = array_merge($plansToUpdate, $result['plansToUpdate']);
+                $planCount += count($result['plans']);
+                $paymentCount += count($result['payments']);
+
+                // Batch insert every 50 credits to prevent memory issues
+                if ($creditCount % 50 === 0) {
+                    $this->flushBatchInserts($plansToInsert, $paymentsToInsert, $plansToUpdate);
+                    $plansToInsert = [];
+                    $paymentsToInsert = [];
+                    $plansToUpdate = [];
+                }
+            }
+
+            // Final flush for remaining records
+            $this->flushBatchInserts($plansToInsert, $paymentsToInsert, $plansToUpdate);
+        });
+
+        $progressBar->finish();
+        $this->command->info('');
+        $this->command->info('   <fg=yellow>Transaction committed</>');
+        $this->command->info("   <fg=green>✓ Created {$creditCount} credits, {$planCount} payment plans and {$paymentCount} payments</>");
     }
 
-    private function createPlanDePagosAndPayments(Credit $credit, float $cuota, int $plazo, Carbon $startDate): void
-    {
-        $saldoAnterior = $credit->monto_credito;
+    private function generatePlanDePagosAndPaymentsData(
+        int $creditId,
+        float $monto,
+        float $cuota,
+        int $plazo,
+        float $tasaAnual,
+        int $poliza,
+        Carbon $startDate
+    ): array {
+        $plans = [];
+        $payments = [];
+        $plansToUpdate = [];
+        $saldoAnterior = $monto;
         $now = Carbon::now();
 
         for ($i = 1; $i <= $plazo; $i++) {
             $fechaCorte = $startDate->copy()->addMonths($i);
 
-            // Stop if future date
             if ($fechaCorte > $now) break;
 
-            $amortizacion = round($credit->monto_credito / $plazo, 2);
+            $amortizacion = round($monto / $plazo, 2);
             $saldoNuevo = max(0, $saldoAnterior - $amortizacion);
+            $polizaAmount = $poliza ? rand(1000, 5000) : 0;
+            $interesCorriente = round($cuota - $amortizacion, 2);
 
-            // Create plan de pago entry
-            $plan = PlanDePago::create([
-                'credit_id' => $credit->id,
+            $planData = [
+                'credit_id' => $creditId,
                 'linea' => 1,
                 'numero_cuota' => $i,
                 'proceso' => 'Normal',
                 'fecha_inicio' => $fechaCorte->copy()->subMonth(),
                 'fecha_corte' => $fechaCorte,
                 'fecha_pago' => null,
-                'tasa_actual' => $credit->tasa_anual,
+                'tasa_actual' => $tasaAnual,
                 'plazo_actual' => $plazo,
                 'cuota' => $cuota,
                 'cargos' => 0,
-                'poliza' => $credit->poliza ? rand(1000, 5000) : 0,
-                'interes_corriente' => round($cuota - $amortizacion, 2),
+                'poliza' => $polizaAmount,
+                'interes_corriente' => $interesCorriente,
                 'interes_moratorio' => 0,
                 'amortizacion' => $amortizacion,
                 'saldo_anterior' => $saldoAnterior,
@@ -350,106 +474,152 @@ class KpiSeeder extends Seeder
                 'dias_mora' => 0,
                 'created_at' => $fechaCorte,
                 'updated_at' => $fechaCorte,
-            ]);
+            ];
 
-            // 85% chance of payment on time, 10% late, 5% no payment
             $paymentChance = rand(1, 100);
+            $fechaPago = null;
 
             if ($paymentChance <= 85) {
-                // On time payment
                 $fechaPago = $fechaCorte->copy()->subDays(rand(0, 5));
-                $this->createPayment($credit, $plan, $cuota, $fechaPago, 'Pagado');
             } elseif ($paymentChance <= 95) {
-                // Late payment
                 $fechaPago = $fechaCorte->copy()->addDays(rand(1, 15));
-                if ($fechaPago <= $now) {
-                    $this->createPayment($credit, $plan, $cuota, $fechaPago, 'Pagado');
+                if ($fechaPago > $now) {
+                    $fechaPago = null;
                 }
             }
-            // else: no payment
 
+            if ($fechaPago) {
+                $planData['fecha_pago'] = $fechaPago;
+                $planData['estado'] = 'Pagado';
+
+                $payments[] = [
+                    'credit_id' => $creditId,
+                    'numero_cuota' => $i,
+                    'proceso' => 'Normal',
+                    'fecha_cuota' => $fechaCorte,
+                    'fecha_pago' => $fechaPago,
+                    'cuota' => $cuota,
+                    'monto' => $cuota,
+                    'cargos' => 0,
+                    'poliza' => $polizaAmount,
+                    'interes_corriente' => $interesCorriente,
+                    'interes_moratorio' => 0,
+                    'amortizacion' => $amortizacion,
+                    'saldo_anterior' => $saldoAnterior,
+                    'nuevo_saldo' => $saldoNuevo,
+                    'estado' => 'Pagado',
+                    'fecha_movimiento' => $fechaPago,
+                    'movimiento_total' => $cuota,
+                    'source' => ['Ventanilla', 'Planilla', 'Transferencia'][array_rand(['Ventanilla', 'Planilla', 'Transferencia'])],
+                    'created_at' => $fechaPago,
+                    'updated_at' => $fechaPago,
+                ];
+            }
+
+            $plans[] = $planData;
             $saldoAnterior = $saldoNuevo;
         }
+
+        return [
+            'plans' => $plans,
+            'payments' => $payments,
+            'plansToUpdate' => $plansToUpdate,
+        ];
     }
 
-    private function createPayment(Credit $credit, PlanDePago $plan, float $cuota, Carbon $fechaPago, string $estado): void
+    private function flushBatchInserts(array $plans, array $payments, array $plansToUpdate): void
     {
-        CreditPayment::create([
-            'credit_id' => $credit->id,
-            'numero_cuota' => $plan->numero_cuota,
-            'proceso' => 'Normal',
-            'fecha_cuota' => $plan->fecha_corte,
-            'fecha_pago' => $fechaPago,
-            'cuota' => $cuota,
-            'monto' => $cuota,
-            'cargos' => 0,
-            'poliza' => $plan->poliza,
-            'interes_corriente' => $plan->interes_corriente,
-            'interes_moratorio' => 0,
-            'amortizacion' => $plan->amortizacion,
-            'saldo_anterior' => $plan->saldo_anterior,
-            'nuevo_saldo' => $plan->saldo_nuevo,
-            'estado' => $estado,
-            'fecha_movimiento' => $fechaPago,
-            'movimiento_total' => $cuota,
-            'source' => ['Ventanilla', 'Planilla', 'Transferencia'][array_rand(['Ventanilla', 'Planilla', 'Transferencia'])],
-            'created_at' => $fechaPago,
-            'updated_at' => $fechaPago,
-        ]);
+        if (!empty($plans)) {
+            foreach (array_chunk($plans, 100) as $chunk) {
+                PlanDePago::insert($chunk);
+            }
+        }
 
-        // Update plan de pago
-        $plan->update([
-            'fecha_pago' => $fechaPago,
-            'estado' => 'Pagado',
-        ]);
+        if (!empty($payments)) {
+            foreach (array_chunk($payments, 100) as $chunk) {
+                CreditPayment::insert($chunk);
+            }
+        }
     }
 
     private function seedGamificationData(): void
     {
-        $this->command->info('🎮 Seeding gamification data...');
+        $this->command->info('');
+        $this->command->info('🎮 <fg=cyan>Seeding gamification data...</>');
 
-        // Create reward users for all users
-        foreach ($this->users as $user) {
-            RewardUser::firstOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'total_points' => rand(100, 5000),
-                    'level' => rand(1, 5),
-                    'current_streak' => rand(0, 30),
-                    'longest_streak' => rand(10, 60),
-                    'created_at' => now()->subMonths(rand(1, 12)),
-                ]
-            );
+        // Calculate total steps for progress bar (users + sub-tasks)
+        $totalSteps = count($this->users) + 5; // 5 additional sub-tasks
+        $progressBar = $this->createProgressBar($totalSteps, 'Gamification');
+        $currentStep = 0;
 
-            // Create transactions for the past 12 months
-            $this->createRewardTransactions($user);
-        }
+        DB::transaction(function () use ($progressBar, &$currentStep) {
+            // Create reward users for all users with batch transactions
+            $transactionsData = [];
 
-        // Create badge categories first
-        $this->createBadgeCategories();
+            foreach ($this->users as $user) {
+                $rewardUser = RewardUser::firstOrCreate(
+                    ['user_id' => $user->id],
+                    [
+                        'total_points' => rand(100, 5000),
+                        'level' => rand(1, 5),
+                        'current_streak' => rand(0, 30),
+                        'longest_streak' => rand(10, 60),
+                        'created_at' => now()->subMonths(rand(1, 12)),
+                    ]
+                );
 
-        // Create badges
-        $this->createBadgesAndUserBadges();
+                // Collect transactions for batch insert
+                $transactionsData = array_merge(
+                    $transactionsData,
+                    $this->generateRewardTransactionsData($rewardUser->id)
+                );
 
-        // Create challenges
-        $this->createChallengesAndParticipation();
+                $currentStep++;
+                $progressBar->setProgress($currentStep);
+            }
 
-        // Create redemptions
-        $this->createRedemptions();
+            // Batch insert all transactions
+            if (!empty($transactionsData)) {
+                foreach (array_chunk($transactionsData, 100) as $chunk) {
+                    RewardTransaction::insert($chunk);
+                }
+            }
 
-        // Create leaderboards and entries
-        $this->createLeaderboards();
+            // Create badge categories first
+            $this->createBadgeCategories();
+            $currentStep++;
+            $progressBar->setProgress($currentStep);
 
-        $this->command->info('   Gamification data created');
+            // Create badges
+            $this->createBadgesAndUserBadges();
+            $currentStep++;
+            $progressBar->setProgress($currentStep);
+
+            // Create challenges
+            $this->createChallengesAndParticipation();
+            $currentStep++;
+            $progressBar->setProgress($currentStep);
+
+            // Create redemptions
+            $this->createRedemptions();
+            $currentStep++;
+            $progressBar->setProgress($currentStep);
+
+            // Create leaderboards and entries
+            $this->createLeaderboards();
+            $currentStep++;
+            $progressBar->setProgress($currentStep);
+        });
+
+        $progressBar->finish();
+        $this->command->info('');
+        $this->command->info('   <fg=yellow>Transaction committed</>');
+        $this->command->info('   <fg=green>✓ Gamification data created</>');
     }
 
-    private function createRewardTransactions(User $user): void
+    private function generateRewardTransactionsData(int $rewardUserId): array
     {
-        $rewardUser = RewardUser::where('user_id', $user->id)->first();
-        if (!$rewardUser) {
-            return;
-        }
-
+        $transactions = [];
         $now = Carbon::now();
 
         for ($monthsAgo = 11; $monthsAgo >= 0; $monthsAgo--) {
@@ -462,16 +632,18 @@ class KpiSeeder extends Seeder
             for ($i = 0; $i < $transactionCount; $i++) {
                 $createdAt = $this->randomDateBetween($monthStart, $monthEnd);
 
-                RewardTransaction::create([
-                    'reward_user_id' => $rewardUser->id,
+                $transactions[] = [
+                    'reward_user_id' => $rewardUserId,
                     'amount' => rand(10, 200),
                     'type' => 'earn',
                     'description' => 'Puntos ganados por actividad',
                     'created_at' => $createdAt,
                     'updated_at' => $createdAt,
-                ]);
+                ];
             }
         }
+
+        return $transactions;
     }
 
     private function createBadgesAndUserBadges(): void
@@ -593,10 +765,10 @@ class KpiSeeder extends Seeder
     private function createBadgeCategories(): void
     {
         $categories = [
-            ['name' => 'Rendimiento', 'slug' => 'rendimiento', 'description' => 'Badges por logros de rendimiento', 'icon' => 'trophy', 'color' => '#FFD700'],
-            ['name' => 'Consistencia', 'slug' => 'consistencia', 'description' => 'Badges por mantener rachas', 'icon' => 'flame', 'color' => '#FF6B35'],
-            ['name' => 'Colaboración', 'slug' => 'colaboracion', 'description' => 'Badges por trabajo en equipo', 'icon' => 'users', 'color' => '#4ECDC4'],
-            ['name' => 'Especiales', 'slug' => 'especiales', 'description' => 'Badges por eventos especiales', 'icon' => 'star', 'color' => '#9B59B6'],
+            ['name' => 'Rendimiento', 'slug' => 'rendimiento', 'description' => 'Badges por logros de rendimiento', 'icon' => 'trophy'],
+            ['name' => 'Consistencia', 'slug' => 'consistencia', 'description' => 'Badges por mantener rachas', 'icon' => 'flame'],
+            ['name' => 'Colaboración', 'slug' => 'colaboracion', 'description' => 'Badges por trabajo en equipo', 'icon' => 'users'],
+            ['name' => 'Especiales', 'slug' => 'especiales', 'description' => 'Badges por eventos especiales', 'icon' => 'star'],
         ];
 
         foreach ($categories as $index => $categoryData) {
@@ -606,9 +778,7 @@ class KpiSeeder extends Seeder
                     'name' => $categoryData['name'],
                     'description' => $categoryData['description'],
                     'icon' => $categoryData['icon'],
-                    'color' => $categoryData['color'],
                     'sort_order' => $index + 1,
-                    'is_active' => true,
                 ]
             );
         }
@@ -623,63 +793,64 @@ class KpiSeeder extends Seeder
             [
                 'name' => 'Top Puntos Semanal',
                 'slug' => 'puntos-semanal',
-                'description' => 'Ranking semanal por puntos acumulados',
                 'metric' => 'points',
                 'period' => 'weekly',
             ],
             [
                 'name' => 'Top Puntos Mensual',
                 'slug' => 'puntos-mensual',
-                'description' => 'Ranking mensual por puntos acumulados',
                 'metric' => 'points',
                 'period' => 'monthly',
             ],
             [
                 'name' => 'Top Nivel',
                 'slug' => 'nivel-general',
-                'description' => 'Ranking por nivel alcanzado',
                 'metric' => 'level',
                 'period' => 'all_time',
             ],
             [
                 'name' => 'Top Rachas',
                 'slug' => 'rachas-activas',
-                'description' => 'Ranking por días consecutivos activos',
                 'metric' => 'streak',
                 'period' => 'all_time',
             ],
         ];
 
         foreach ($leaderboards as $leaderboardData) {
+            // Determine period dates based on leaderboard period type
+            $periodStart = match ($leaderboardData['period']) {
+                'weekly' => now()->startOfWeek()->toDateString(),
+                'monthly' => now()->startOfMonth()->toDateString(),
+                default => now()->startOfYear()->toDateString(),
+            };
+            $periodEnd = match ($leaderboardData['period']) {
+                'weekly' => now()->endOfWeek()->toDateString(),
+                'monthly' => now()->endOfMonth()->toDateString(),
+                default => now()->endOfYear()->toDateString(),
+            };
+
             $leaderboard = RewardLeaderboard::firstOrCreate(
                 ['slug' => $leaderboardData['slug']],
                 [
                     'name' => $leaderboardData['name'],
-                    'description' => $leaderboardData['description'],
                     'metric' => $leaderboardData['metric'],
                     'period' => $leaderboardData['period'],
                     'is_active' => true,
-                    'starts_at' => $leaderboardData['period'] === 'weekly' ? now()->startOfWeek() : ($leaderboardData['period'] === 'monthly' ? now()->startOfMonth() : null),
-                    'ends_at' => $leaderboardData['period'] === 'weekly' ? now()->endOfWeek() : ($leaderboardData['period'] === 'monthly' ? now()->endOfMonth() : null),
                 ]
             );
 
             // Create entries for each user based on metric
             $sortedUsers = $rewardUsers->sortByDesc(function ($user) use ($leaderboardData) {
-                switch ($leaderboardData['metric']) {
-                    case 'points':
-                        return $user->total_points;
-                    case 'level':
-                        return $user->level;
-                    case 'streak':
-                        return $user->current_streak;
-                    default:
-                        return $user->total_points;
-                }
+                return match ($leaderboardData['metric']) {
+                    'points' => $user->total_points,
+                    'level' => $user->level,
+                    'streak' => $user->current_streak,
+                    default => $user->total_points,
+                };
             })->values();
 
             foreach ($sortedUsers as $rank => $rewardUser) {
-                $score = match ($leaderboardData['metric']) {
+                $value = match ($leaderboardData['metric']) {
                     'points' => $rewardUser->total_points,
                     'level' => $rewardUser->level,
                     'streak' => $rewardUser->current_streak,
@@ -690,15 +861,13 @@ class KpiSeeder extends Seeder
                     [
                         'leaderboard_id' => $leaderboard->id,
                         'reward_user_id' => $rewardUser->id,
+                        'period_start' => $periodStart,
                     ],
                     [
                         'rank' => $rank + 1,
-                        'score' => $score,
-                        'previous_rank' => rand(1, 100) <= 70 ? $rank + rand(-2, 3) : null,
-                        'snapshot_data' => [
-                            'user_name' => $rewardUser->user->name ?? 'Usuario',
-                            'recorded_at' => now()->toISOString(),
-                        ],
+                        'value' => $value,
+                        'previous_rank' => rand(1, 100) <= 70 ? max(1, $rank + rand(-2, 3)) : null,
+                        'period_end' => $periodEnd,
                     ]
                 );
             }
@@ -706,6 +875,29 @@ class KpiSeeder extends Seeder
     }
 
     // Helper methods
+
+    /**
+     * Create a progress bar with consistent formatting
+     */
+    private function createProgressBar(int $max, string $label): ProgressBar
+    {
+        $progressBar = $this->command->getOutput()->createProgressBar($max);
+
+        // Set custom format with label, progress, percentage, and ETA
+        $progressBar->setFormat(
+            "   <fg=white>{$label}:</> [%bar%] <fg=green>%current%/%max%</> (<fg=yellow>%percent:3s%%</>) <fg=cyan>~%remaining:6s%</>"
+        );
+
+        $progressBar->setBarCharacter('<fg=green>█</>');
+        $progressBar->setEmptyBarCharacter('<fg=gray>░</>');
+        $progressBar->setProgressCharacter('<fg=green>█</>');
+        $progressBar->setBarWidth(30);
+
+        $progressBar->start();
+
+        return $progressBar;
+    }
+
     private function generateCedula(): string
     {
         return rand(1, 9) . '-' . str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT) . '-' . str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
