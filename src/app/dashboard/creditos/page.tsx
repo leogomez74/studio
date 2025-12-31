@@ -301,10 +301,6 @@ export default function CreditsPage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityOption[]>([]);
   const [users, setUsers] = useState<{ id: number, name: string }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingClients, setIsLoadingClients] = useState(true);
-  const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [tabValue, setTabValue] = useState("all");
   const [filters, setFilters] = useState({
     monto: "",
@@ -342,17 +338,8 @@ export default function CreditsPage() {
 
   const [isSaving, setIsSaving] = useState(false);
 
-  const [isStatusOpen, setIsStatusOpen] = useState(false);
-  const [statusCredit, setStatusCredit] = useState<CreditItem | null>(null);
-  const [statusForm, setStatusForm] = useState({ status: CREDIT_STATUS_OPTIONS[0] as string });
-
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [documentsCredit, setDocumentsCredit] = useState<CreditItem | null>(null);
-
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [detailCredit, setDetailCredit] = useState<CreditItem | null>(null);
-
-  // Drag scroll state 
 
   const currentClientId = form.watch("clientId");
   const currentClient = useMemo(() => {
@@ -399,7 +386,6 @@ export default function CreditsPage() {
 
   const fetchCredits = useCallback(async () => {
     try {
-      setIsLoading(true);
       const response = await api.get('/api/credits');
 
       // Handle both paginated response { data: [...] } and direct array response
@@ -409,27 +395,21 @@ export default function CreditsPage() {
       console.error("Error fetching credits:", error);
       toast({ title: "Error", description: "No se pudieron cargar los créditos. Intente nuevamente.", variant: "destructive" });
       setCredits([]);
-    } finally {
-      setIsLoading(false);
     }
   }, [toast]);
 
   const fetchClients = useCallback(async () => {
     try {
-      setIsLoadingClients(true);
       const response = await api.get('/api/clients');
       const data = response.data.data || response.data;
       setClients(data.map((c: any) => ({ id: c.id, name: c.name, email: c.email, cedula: c.cedula, deductora_id: c.deductora_id })));
     } catch (error) {
       console.error("Error fetching clients:", error);
-    } finally {
-      setIsLoadingClients(false);
     }
   }, []);
 
   const fetchOpportunities = useCallback(async () => {
     try {
-      setIsLoadingOpportunities(true);
       const response = await api.get('/api/opportunities');
       const data = response.data.data || response.data;
       setOpportunities(data.map((o: any) => ({
@@ -439,20 +419,15 @@ export default function CreditsPage() {
       })));
     } catch (error) {
       console.error("Error fetching opportunities:", error);
-    } finally {
-      setIsLoadingOpportunities(false);
     }
   }, []);
 
   const fetchUsers = useCallback(async () => {
     try {
-      setIsLoadingUsers(true);
       const response = await api.get('/api/agents');
       setUsers(response.data);
     } catch (error) {
       console.error("Error fetching users:", error);
-    } finally {
-      setIsLoadingUsers(false);
     }
   }, []);
 
@@ -565,24 +540,6 @@ export default function CreditsPage() {
 
       toast({ title: "Éxito", description: "Crédito guardado correctamente." });
       setDialogState(null);
-      fetchCredits();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleStatusUpdate = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!statusCredit) return;
-    setIsSaving(true);
-    try {
-      await api.put(`/api/credits/${statusCredit.id}`, {
-        status: statusForm.status
-      });
-      toast({ title: "Éxito", description: "Estado actualizado." });
-      setIsStatusOpen(false);
       fetchCredits();
     } catch (error: any) {
       toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
@@ -1393,30 +1350,6 @@ export default function CreditsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Status Dialog */}
-      <Dialog open={isStatusOpen} onOpenChange={setIsStatusOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Actualizar Estado</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleStatusUpdate} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Estado</Label>
-              <Select value={statusForm.status} onValueChange={v => setStatusForm({ ...statusForm, status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsStatusOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={isSaving}>Actualizar</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       {/* Documents Dialog */}
       <CreditDocumentsDialog
         isOpen={isDocumentsOpen}
@@ -1425,26 +1358,6 @@ export default function CreditsPage() {
         canDownloadDocuments={canDownloadDocuments}
         deductoras={deductoras}
       />
-
-      {/* Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Detalle del Crédito</DialogTitle>
-          </DialogHeader>
-          {detailCredit && (
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label className="text-muted-foreground">Referencia</Label><p>{detailCredit.reference}</p></div>
-              <div><Label className="text-muted-foreground">Título</Label><p>{detailCredit.title}</p></div>
-              <div><Label className="text-muted-foreground">Estado</Label><p>{detailCredit.status}</p></div>
-              <div><Label className="text-muted-foreground">Categoría</Label><p>{detailCredit.category}</p></div>
-              <div><Label className="text-muted-foreground">Cliente</Label><p>{detailCredit.client?.name}</p></div>
-              <div><Label className="text-muted-foreground">Responsable</Label><p>{detailCredit.assigned_to}</p></div>
-              <div className="col-span-2"><Label className="text-muted-foreground">Descripción</Label><p>{detailCredit.description}</p></div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
