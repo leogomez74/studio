@@ -712,7 +712,7 @@ export default function CreditsPage() {
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
+   
 
     // Plan de Pagos (Detailed Installments)
     if (credit.plan_de_pagos && credit.plan_de_pagos.length > 0) {
@@ -742,6 +742,8 @@ export default function CreditsPage() {
         styles: { fontSize: 7, cellPadding: 1 },
         headStyles: { fontStyle: 'bold', textColor: [0, 0, 0], fillColor: [220, 220, 220] },
       });
+    }else{
+       doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
     }
 
     doc.save(`estado_cuenta_${credit.lead_id}.pdf`);
