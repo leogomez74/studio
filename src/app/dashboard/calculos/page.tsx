@@ -313,8 +313,6 @@ export default function CalculosPage() {
         method: method,
       };
 
-      console.log('Enviando cotización con payload:', payload);
-
       const response = await api.post('/api/quotes/send', payload);
 
       if (response.data.success) {
