@@ -85,12 +85,13 @@ const leadSchema = z.object({
   }, "El número de teléfono debe tener 8 dígitos"),
   fechaNacimiento: z.string().refine((date) => {
     if (!date) return false;
+    // input[type="date"] siempre devuelve YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
     const today = new Date();
-    const [day, month, year] = date.split('-').map(Number);
-    const dateObj = new Date(year, month - 1, day);
     today.setHours(0, 0, 0, 0);
-    return /^\d{2}-\d{2}-\d{4}$/.test(date) && dateObj <= today;
-  }, "La fecha de nacimiento no puede ser en el futuro y debe tener el formato DD-MM-AAAA"),
+    const dateObj = new Date(date + 'T00:00:00'); // Evitar problemas de timezone
+    return dateObj <= today;
+  }, "La fecha de nacimiento no puede ser en el futuro"),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
@@ -483,13 +484,8 @@ export default function ClientesPage() {
     setIsSavingLead(true);
 
     try {
-      let formattedDate = null;
-      if (values.fechaNacimiento && values.fechaNacimiento.length === 10) {
-          const [day, month, year] = values.fechaNacimiento.split('-');
-          if (day && month && year) {
-              formattedDate = `${year}-${month}-${day}`;
-          }
-      }
+      // El input[type="date"] ya devuelve YYYY-MM-DD, listo para el backend
+      const formattedDate = values.fechaNacimiento || null;
 
       const body = {
         name: values.name.trim(),
@@ -579,15 +575,22 @@ export default function ClientesPage() {
       }
   };
 
-  // Helper to convert YYYY-MM-DD to DD-MM-YYYY for the input
+  // Helper: devuelve YYYY-MM-DD para input[type="date"]
   const formatDateForInput = (dateStr: string) => {
     if (!dateStr) return "";
+    // Si ya viene en formato ISO o YYYY-MM-DD, extraer solo la parte de fecha
+    const isoMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    // Si viene en DD-MM-YYYY, convertir a YYYY-MM-DD
+    const ddmmyyyyMatch = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (ddmmyyyyMatch) {
+      const [, d, m, y] = ddmmyyyyMatch;
+      return `${y}-${m}-${d}`;
+    }
+    // Fallback: intentar parsear con Date
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return "";
-    // Adjust for timezone if needed, or simple split if string format is consistent
-    // Assuming YYYY-MM-DD from backend
-    const [y, m, d] = dateStr.split('T')[0].split('-');
-    return `${d}-${m}-${y}`;
+    return date.toISOString().split('T')[0];
   };
 
   const handleConvertLead = async (lead: Lead) => {
@@ -975,21 +978,26 @@ export default function ClientesPage() {
                 <FormField
                   control={form.control}
                   name="fechaNacimiento"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Fecha de nacimiento</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          required
-                          disabled={isViewOnly}
-                          max={new Date().toISOString().split('T')[0]}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    // Calcular max con fecha local para evitar problemas de timezone
+                    const today = new Date();
+                    const maxDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    return (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Fecha de nacimiento</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="date"
+                            required
+                            disabled={isViewOnly}
+                            max={maxDate}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
               <DialogFooter>
