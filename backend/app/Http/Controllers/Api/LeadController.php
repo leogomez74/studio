@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\LeadStatus;
+use App\Models\Opportunity;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LeadController extends Controller
 {
@@ -132,17 +135,58 @@ class LeadController extends Controller
             'actividad_economica' => 'nullable|string|max:255',
             'tipo_sociedad' => 'nullable|string|max:255',
             'nombramientos' => 'nullable|string',
+            // Campo para crear oportunidad automáticamente
+            'monto' => 'nullable|numeric|min:0',
+            'vertical' => 'nullable|string|max:255',
+            'opportunity_type' => 'nullable|string|max:255',
         ]);
+
+        // Extraer datos de oportunidad antes de crear el lead
+        $monto = $validated['monto'] ?? null;
+        $vertical = $validated['vertical'] ?? null;
+        $opportunityType = $validated['opportunity_type'] ?? null;
+        unset($validated['monto'], $validated['vertical'], $validated['opportunity_type']);
 
         $leadStatus = $this->resolveStatus($validated['lead_status_id'] ?? null);
         $validated['lead_status_id'] = $leadStatus?->value;
         $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? 'Activo';
         $validated['is_active'] = $validated['is_active'] ?? true;
 
-        $lead = Lead::create($validated);
-        $lead->load(['assignedAgent', 'leadStatus']);
+        // Usar transacción para asegurar consistencia
+        $result = DB::transaction(function () use ($validated, $monto, $vertical, $opportunityType) {
+            $lead = Lead::create($validated);
+            $opportunity = null;
 
-        return response()->json($lead, 201);
+            // Crear oportunidad automáticamente si se proporciona monto y cédula
+            if ($monto !== null && !empty($validated['cedula'])) {
+                $opportunity = Opportunity::create([
+                    'lead_cedula' => $validated['cedula'],
+                    'amount' => $monto,
+                    'status' => 'Nueva',
+                    'vertical' => $vertical ?? 'General',
+                    'opportunity_type' => $opportunityType ?? 'Estándar',
+                    'assigned_to_id' => $validated['assigned_to_id'] ?? null,
+                ]);
+
+                Log::info('Oportunidad creada automáticamente con lead', [
+                    'lead_id' => $lead->id,
+                    'opportunity_id' => $opportunity->id,
+                    'monto' => $monto
+                ]);
+            }
+
+            return [
+                'lead' => $lead,
+                'opportunity' => $opportunity
+            ];
+        });
+
+        $result['lead']->load(['assignedAgent', 'leadStatus']);
+
+        return response()->json([
+            'lead' => $result['lead'],
+            'opportunity' => $result['opportunity'],
+        ], 201);
     }
 
     public function show($id)

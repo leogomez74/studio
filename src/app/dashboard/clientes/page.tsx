@@ -92,6 +92,11 @@ const leadSchema = z.object({
     const dateObj = new Date(date + 'T00:00:00'); // Evitar problemas de timezone
     return dateObj <= today;
   }, "La fecha de nacimiento no puede ser en el futuro"),
+  monto: z.string().optional().refine((val) => {
+    if (!val || val === '') return true;
+    const num = parseFloat(val);
+    return !isNaN(num) && num >= 0;
+  }, "El monto debe ser un número válido mayor o igual a 0"),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
@@ -198,6 +203,7 @@ export default function ClientesPage() {
       phone: "",
       cedula: "",
       fechaNacimiento: "",
+      monto: "",
     },
   });
 
@@ -409,6 +415,7 @@ export default function ClientesPage() {
       phone: "",
       cedula: "",
       fechaNacimiento: "",
+      monto: "",
     });
     setEditingId(null);
     setEditingType(null);
@@ -487,7 +494,7 @@ export default function ClientesPage() {
       // El input[type="date"] ya devuelve YYYY-MM-DD, listo para el backend
       const formattedDate = values.fechaNacimiento || null;
 
-      const body = {
+      const body: Record<string, any> = {
         name: values.name.trim(),
         email: values.email?.trim() || null,
         cedula: values.cedula || null,
@@ -498,13 +505,24 @@ export default function ClientesPage() {
         fecha_nacimiento: formattedDate,
       };
 
+      // Agregar monto solo al crear (no al editar) para crear oportunidad automáticamente
+      if (!editingId && values.monto) {
+        body.monto = parseFloat(values.monto);
+      }
+
       if (editingId) {
           const endpoint = editingType === 'client' ? `/api/clients/${editingId}` : `/api/leads/${editingId}`;
           await api.put(endpoint, body);
           toast({ title: "Actualizado", description: "Datos actualizados correctamente." });
       } else {
-          await api.post('/api/leads', body);
-          toast({ title: "Creado", description: "Lead registrado exitosamente." });
+          const response = await api.post('/api/leads', body);
+          const hasOpportunity = response.data?.opportunity !== null;
+          toast({
+            title: "Creado",
+            description: hasOpportunity
+              ? "Lead y oportunidad registrados exitosamente."
+              : "Lead registrado exitosamente."
+          });
       }
 
       closeLeadDialog();
@@ -983,7 +1001,7 @@ export default function ClientesPage() {
                     const today = new Date();
                     const maxDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
                     return (
-                      <FormItem className="md:col-span-2">
+                      <FormItem>
                         <FormLabel>Fecha de nacimiento</FormLabel>
                         <FormControl>
                           <Input
@@ -999,6 +1017,30 @@ export default function ClientesPage() {
                     );
                   }}
                 />
+                {/* Campo monto solo visible al crear nuevo lead */}
+                {!editingId && (
+                  <FormField
+                    control={form.control}
+                    name="monto"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Monto estimado (opcional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            disabled={isViewOnly}
+                            {...field}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Si ingresa un monto, se creará una oportunidad automáticamente.</p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeLeadDialog} disabled={isSavingLead}>

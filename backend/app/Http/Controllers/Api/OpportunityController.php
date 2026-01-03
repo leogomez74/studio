@@ -110,6 +110,106 @@ class OpportunityController extends Controller
     }
 
     /**
+     * Actualizar el status de oportunidades por ID o filtros.
+     * PATCH /api/opportunities/update-status
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     *
+     * Ejemplos de uso:
+     * - Por ID: { "id": "25-00001-OP", "status": "Ganada" }
+     * - Por filtro: { "filter": { "lead_cedula": "1-2345-6789" }, "status": "Perdida" }
+     * - Por status actual: { "filter": { "current_status": "Nueva" }, "status": "En Proceso" }
+     */
+    public function updateStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'status' => 'required|string',
+            'id' => 'sometimes|string',
+            'filter' => 'sometimes|array',
+            'filter.lead_cedula' => 'sometimes|string',
+            'filter.current_status' => 'sometimes|string',
+            'filter.assigned_to_id' => 'sometimes|integer',
+            'filter.vertical' => 'sometimes|string',
+        ]);
+
+        $newStatus = $validated['status'];
+
+        // Caso 1: Actualizar por ID específico
+        if (!empty($validated['id'])) {
+            $opportunity = Opportunity::findOrFail($validated['id']);
+            $oldStatus = $opportunity->status;
+            $opportunity->update(['status' => $newStatus]);
+
+            Log::info('Status de oportunidad actualizado', [
+                'id' => $opportunity->id,
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status actualizado correctamente',
+                'opportunity' => $opportunity,
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus
+            ]);
+        }
+
+        // Caso 2: Actualizar por filtros (bulk update)
+        if (!empty($validated['filter'])) {
+            $query = Opportunity::query();
+            $filter = $validated['filter'];
+
+            if (!empty($filter['lead_cedula'])) {
+                $query->where('lead_cedula', $filter['lead_cedula']);
+            }
+
+            if (!empty($filter['current_status'])) {
+                $query->where('status', $filter['current_status']);
+            }
+
+            if (!empty($filter['assigned_to_id'])) {
+                $query->where('assigned_to_id', $filter['assigned_to_id']);
+            }
+
+            if (!empty($filter['vertical'])) {
+                $query->where('vertical', $filter['vertical']);
+            }
+
+            $count = $query->count();
+
+            if ($count === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontraron oportunidades con los filtros especificados',
+                    'updated_count' => 0
+                ], 404);
+            }
+
+            $query->update(['status' => $newStatus]);
+
+            Log::info('Status de oportunidades actualizado en bulk', [
+                'filter' => $filter,
+                'new_status' => $newStatus,
+                'count' => $count
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Se actualizaron {$count} oportunidad(es)",
+                'updated_count' => $count,
+                'new_status' => $newStatus
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Debe proporcionar un ID o filtros para actualizar'
+        ], 422);
+    }
+
+    /**
      * Mover archivos del Buzón del Cliente (PersonDocument) al Expediente de la Oportunidad.
      *
      * @param string $cedula

@@ -52,6 +52,7 @@ Route::apiResource('leads', LeadController::class);
 Route::apiResource('clients', ClientController::class);
 Route::post('/opportunities/{id}/move-files', [OpportunityController::class, 'moveFiles']);
 Route::get('/opportunities/{id}/files', [OpportunityController::class, 'getFiles']);
+Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
 
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
