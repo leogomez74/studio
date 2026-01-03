@@ -742,8 +742,8 @@ export default function CreditsPage() {
         styles: { fontSize: 7, cellPadding: 1 },
         headStyles: { fontStyle: 'bold', textColor: [0, 0, 0], fillColor: [220, 220, 220] },
       });
-    }else{
-       doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
+    } else {
+      doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
     }
 
     doc.save(`estado_cuenta_${credit.lead_id}.pdf`);

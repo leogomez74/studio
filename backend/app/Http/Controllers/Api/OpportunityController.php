@@ -187,7 +187,7 @@ class OpportunityController extends Controller
                 ], 404);
             }
 
-            $query->update(['status' => $newStatus]);
+            $query->update(['status' => $newStatus, 'updated_at' => now()]);
 
             Log::info('Status de oportunidades actualizado en bulk', [
                 'filter' => $filter,

@@ -148,7 +148,7 @@ class LeadController extends Controller
         unset($validated['monto'], $validated['vertical'], $validated['opportunity_type']);
 
         $leadStatus = $this->resolveStatus($validated['lead_status_id'] ?? null);
-        $validated['lead_status_id'] = $leadStatus?->value;
+        $validated['lead_status_id'] = $leadStatus?->id;
         $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? 'Activo';
         $validated['is_active'] = $validated['is_active'] ?? true;
 
