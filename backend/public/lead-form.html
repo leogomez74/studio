@@ -471,7 +471,8 @@
                         nombre: data.nombre,
                         apellido1: data.apellido1,
                         apellido2: data.apellido2,
-                        fechaNacimiento: data['fecha-nacimiento']
+                        fechaNacimiento: data['fecha-nacimiento'],
+                        genero: data.sexo
                     };
                     tseLookupDone = true;
 
@@ -626,6 +627,7 @@
                 formData.name = tseData.nombre;
                 formData.apellido1 = tseData.apellido1;
                 formData.apellido2 = tseData.apellido2;
+                formData.genero = tseData.genero;
                 if (tseData.fechaNacimiento && tseData.fechaNacimiento !== 'fallecido') {
                     formData.fecha_nacimiento = tseData.fechaNacimiento;
                 }
