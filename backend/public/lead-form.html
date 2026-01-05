@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Lead</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+        }
+        h1 {
+            color: #1a1a2e;
+            font-size: 24px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #6b7280;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        input::placeholder {
+            color: #9ca3af;
+        }
+        .hint {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .error-text {
+            color: #dc2626;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+        .input-error {
+            border-color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Registrar Lead</h1>
+        <p class="subtitle">Complete los datos para comenzar el seguimiento</p>
+
+        <div id="alert" class="alert"></div>
+
+        <form id="leadForm">
+            <div class="form-group">
+                <label for="cedula">Cedula *</label>
+                <input
+                    type="text"
+                    id="cedula"
+                    name="cedula"
+                    placeholder="0-0000-0000"
+                    maxlength="11"
+                    required
+                >
+                <p class="hint">Formato: X-XXXX-XXXX</p>
+                <p class="error-text" id="cedula-error"></p>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Correo *</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="correo@ejemplo.com"
+                    required
+                >
+                <p class="error-text" id="email-error"></p>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Telefono (WhatsApp) *</label>
+                <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    placeholder="88887777"
+                    maxlength="8"
+                    required
+                >
+                <p class="hint">8 digitos sin guiones</p>
+                <p class="error-text" id="phone-error"></p>
+            </div>
+
+            <div class="form-group">
+                <label for="sector">Sector Laboral *</label>
+                <select id="sector" name="sector" required>
+                    <option value="">Selecciona un sector</option>
+                    <option value="publico">Publico</option>
+                    <option value="privado">Privado</option>
+                    <option value="otro">Otro</option>
+                </select>
+                <p class="error-text" id="sector-error"></p>
+            </div>
+
+            <button type="submit" id="submitBtn">Registrar Lead</button>
+        </form>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+
+        // Formatear cedula mientras se escribe
+        document.getElementById('cedula').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/[^0-9]/g, '');
+            if (value.length > 9) value = value.slice(0, 9);
+
+            if (value.length <= 1) {
+                e.target.value = value;
+            } else if (value.length <= 5) {
+                e.target.value = value.slice(0, 1) + '-' + value.slice(1);
+            } else {
+                e.target.value = value.slice(0, 1) + '-' + value.slice(1, 5) + '-' + value.slice(5);
+            }
+        });
+
+        // Solo numeros en telefono
+        document.getElementById('phone').addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 8);
+        });
+
+        // Mostrar alerta
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = 'alert alert-' + type;
+            alert.style.display = 'block';
+
+            if (type === 'success') {
+                setTimeout(() => {
+                    alert.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Mostrar error en campo
+        function showFieldError(field, message) {
+            const input = document.getElementById(field);
+            const error = document.getElementById(field + '-error');
+            input.classList.add('input-error');
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        // Limpiar errores
+        function clearErrors() {
+            document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+            document.querySelectorAll('.error-text').forEach(el => {
+                el.style.display = 'none';
+                el.textContent = '';
+            });
+            document.getElementById('alert').style.display = 'none';
+        }
+
+        // Validar formulario
+        function validateForm(data) {
+            let isValid = true;
+
+            // Validar cedula
+            if (!/^\d{1}-\d{4}-\d{4}$/.test(data.cedula)) {
+                showFieldError('cedula', 'El formato debe ser X-XXXX-XXXX');
+                isValid = false;
+            }
+
+            // Validar email
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+                showFieldError('email', 'Ingrese un correo valido');
+                isValid = false;
+            }
+
+            // Validar telefono
+            if (!/^\d{8}$/.test(data.phone)) {
+                showFieldError('phone', 'El telefono debe tener 8 digitos');
+                isValid = false;
+            }
+
+            // Validar sector
+            if (!data.sector) {
+                showFieldError('sector', 'Seleccione un sector');
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Enviar formulario
+        document.getElementById('leadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            clearErrors();
+
+            const formData = {
+                cedula: document.getElementById('cedula').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                sector: document.getElementById('sector').value
+            };
+
+            if (!validateForm(formData)) {
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Registrando...';
+
+            try {
+                const response = await fetch(API_BASE_URL + '/api/leads', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert('Lead registrado exitosamente!' + (result.opportunity ? ' Se creo una oportunidad automaticamente.' : ''), 'success');
+                    document.getElementById('leadForm').reset();
+                } else {
+                    if (result.errors) {
+                        Object.keys(result.errors).forEach(field => {
+                            showFieldError(field, result.errors[field][0]);
+                        });
+                        showAlert('Por favor corrija los errores en el formulario.', 'error');
+                    } else {
+                        showAlert(result.message || 'Error al registrar el lead.', 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Error de conexion. Intente nuevamente.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Registrar Lead';
+            }
+        });
+    </script>
+</body>
+</html>
