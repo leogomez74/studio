@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Lead</title>
+    <title>Registro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -176,8 +176,8 @@
                             <label for="genero" class="block text-sm font-medium text-foreground mb-1">Género</label>
                             <select id="genero" name="genero" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Seleccione el género</option>
-                                <option value="masculino">Masculino</option>
-                                <option value="femenino">Femenino</option>
+                                <option value="Masculino">Masculino</option>
+                                <option value="Femenino">Femenino</option>
                             </select>
                             <p id="genero-error" class="hidden text-xs text-red-500 mt-1"></p>
                         </div>
@@ -278,11 +278,14 @@
         });
 
         document.getElementById('cedula').addEventListener('input', function(e) {
+            // Solo permitir números
             const rawCedula = e.target.value.replace(/[^0-9]/g, '');
+            e.target.value = rawCedula;
+
             if (rawCedula.length >= 6 && rawCedula !== lastCedulaLookup) {
                 lastCedulaLookup = rawCedula;
                 lookupTSE(rawCedula);
-            } else if (rawCedula.length < 9 && lastCedulaLookup) {
+            } else if (rawCedula.length < 6 && lastCedulaLookup) {
                 resetForm();
                 document.getElementById('cedula').value = rawCedula;
             }
