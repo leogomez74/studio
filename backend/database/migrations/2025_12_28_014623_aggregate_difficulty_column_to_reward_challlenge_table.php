@@ -11,12 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('reward_challenge', function (Blueprint $table) {
-            $table->string('type')->default('individual');
-            $table->string('difficulty')->default('medium');
-            $table->integer('points_reward')->default(0);
-            $table->integer('xp_reward')->default(0);
-            //
+        Schema::table('reward_challenges', function (Blueprint $table) {
+            if (!Schema::hasColumn('reward_challenges', 'difficulty')) {
+                $table->string('difficulty')->default('medium')->after('type');
+            }
+
+            if (!Schema::hasColumn('reward_challenges', 'points_reward')) {
+                $table->integer('points_reward')->default(0)->after('description');
+            }
+
+            if (!Schema::hasColumn('reward_challenges', 'xp_reward')) {
+                $table->integer('xp_reward')->default(0)->after('points_reward');
+            }
         });
     }
 
@@ -26,12 +32,13 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('reward_challenges', function (Blueprint $table) {
-            $table->string('type')->default('individual');
-            $table->string('difficulty')->default('medium');
-            $table->integer('points_reward')->default(0);
-            $table->integer('xp_reward')->default(0);
+            $columns = ['difficulty', 'points_reward', 'xp_reward'];
 
-            //
+            foreach ($columns as $column) {
+                if (Schema::hasColumn('reward_challenges', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
         });
     }
 };
