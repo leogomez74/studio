@@ -71,32 +71,28 @@ const formatCedula = (value: string): string => {
 };
 
 const leadSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
-  apellido1: z.string().min(1, "El primer apellido es requerido"),
-  apellido2: z.string().min(1, "El segundo apellido es requerido"),
-  cedula: z.string().min(11, "La cédula debe tener 9 dígitos").refine((cedula) => {
-    if (!cedula) return false;
-    return /^\d{1}-\d{4}-\d{4}$/.test(cedula);
-  }, "El formato de la cédula debe ser X-XXXX-XXXX"),
-  email: z.string().email("Correo inválido").optional(),
-  phone: z.string().refine((phone) => {
-    if (!phone) return false;
-    return /^\d{8}$/.test(phone);
-  }, "El número de teléfono debe tener 8 dígitos"),
-  fechaNacimiento: z.string().refine((date) => {
-    if (!date) return false;
+  // Campos auto-rellenados por TSE (opcionales)
+  name: z.string().optional(),
+  apellido1: z.string().optional(),
+  apellido2: z.string().optional(),
+  fechaNacimiento: z.string().optional().refine((date) => {
+    if (!date) return true; // Opcional
     // input[type="date"] siempre devuelve YYYY-MM-DD
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dateObj = new Date(date + 'T00:00:00'); // Evitar problemas de timezone
+    const dateObj = new Date(date + 'T00:00:00');
     return dateObj <= today;
   }, "La fecha de nacimiento no puede ser en el futuro"),
-  monto: z.string().optional().refine((val) => {
-    if (!val || val === '') return true;
-    const num = parseFloat(val);
-    return !isNaN(num) && num >= 0;
-  }, "El monto debe ser un número válido mayor o igual a 0"),
+  // Campos visibles en formulario (requeridos)
+  cedula: z.string().min(11, "La cédula debe tener 9 dígitos").refine((cedula) => {
+    if (!cedula) return false;
+    return /^\d{1}-\d{4}-\d{4}$/.test(cedula);
+  }, "El formato de la cédula debe ser X-XXXX-XXXX"),
+  email: z.string().min(1, "El correo es requerido").email("Correo inválido"),
+  phone: z.string().min(1, "El teléfono es requerido").refine((phone) => {
+    return /^\d{8}$/.test(phone);
+  }, "El número de teléfono debe tener 8 dígitos"),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
@@ -203,7 +199,6 @@ export default function ClientesPage() {
       phone: "",
       cedula: "",
       fechaNacimiento: "",
-      monto: "",
     },
   });
 
@@ -415,7 +410,6 @@ export default function ClientesPage() {
       phone: "",
       cedula: "",
       fechaNacimiento: "",
-      monto: "",
     });
     setEditingId(null);
     setEditingType(null);
@@ -495,7 +489,7 @@ export default function ClientesPage() {
       const formattedDate = values.fechaNacimiento || null;
 
       const body: Record<string, any> = {
-        name: values.name.trim(),
+        name: values.name?.trim() || null,
         email: values.email?.trim() || null,
         cedula: values.cedula || null,
         phone: values.phone || null,
@@ -504,11 +498,6 @@ export default function ClientesPage() {
         ...(editingId ? {} : { status: "Nuevo" }),
         fecha_nacimiento: formattedDate,
       };
-
-      // Agregar monto solo al crear (no al editar) para crear oportunidad automáticamente
-      if (!editingId && values.monto) {
-        body.monto = parseFloat(values.monto);
-      }
 
       if (editingId) {
           const endpoint = editingType === 'client' ? `/api/clients/${editingId}` : `/api/leads/${editingId}`;

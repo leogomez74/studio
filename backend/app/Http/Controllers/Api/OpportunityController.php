@@ -53,12 +53,17 @@ class OpportunityController extends Controller
             'lead_cedula' => 'required|string|exists:persons,cedula',
             'opportunity_type' => 'nullable|string',
             'vertical' => 'nullable|string',
-            'amount' => 'required|numeric|min:0',
-            'status' => 'required|string',
+            'amount' => 'nullable|numeric|min:0',
+            'status' => 'nullable|string',
             'expected_close_date' => 'nullable|date',
             'comments' => 'nullable|string',
             'assigned_to_id' => 'nullable|exists:users,id',
         ]);
+
+        // Valores por defecto
+        $validated['status'] = $validated['status'] ?? 'Nueva';
+        $validated['vertical'] = $validated['vertical'] ?? 'General';
+        $validated['opportunity_type'] = $validated['opportunity_type'] ?? 'Estándar';
 
         // Crear la oportunidad
         $opportunity = Opportunity::create($validated);
@@ -86,11 +91,11 @@ class OpportunityController extends Controller
         $opportunity = Opportunity::findOrFail($id);
 
         $validated = $request->validate([
-            'lead_cedula' => 'sometimes|required|string|exists:persons,cedula',
+            'lead_cedula' => 'sometimes|string|exists:persons,cedula',
             'opportunity_type' => 'sometimes|nullable|string',
             'vertical' => 'sometimes|nullable|string',
-            'amount' => 'sometimes|required|numeric|min:0',
-            'status' => 'sometimes|required|string',
+            'amount' => 'sometimes|nullable|numeric|min:0',
+            'status' => 'sometimes|nullable|string',
             'expected_close_date' => 'sometimes|nullable|date',
             'comments' => 'sometimes|nullable|string',
             'assigned_to_id' => 'sometimes|nullable|exists:users,id',

@@ -89,12 +89,12 @@ class LeadController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
             'apellido1' => 'nullable|string|max:255',
             'apellido2' => 'nullable|string|max:255',
-            'cedula' => 'nullable|string|max:20|unique:persons,cedula',
+            'cedula' => 'required|string|max:20|unique:persons,cedula',
             'email' => 'required|email|max:255|unique:persons,email',
-            'phone' => 'nullable|string|max:20',
+            'phone' => 'required|string|max:20',
             'status' => 'nullable|string|max:100',
             'lead_status_id' => 'nullable|integer|exists:lead_statuses,id',
             'assigned_to_id' => 'nullable|exists:users,id',
@@ -135,17 +135,19 @@ class LeadController extends Controller
             'actividad_economica' => 'nullable|string|max:255',
             'tipo_sociedad' => 'nullable|string|max:255',
             'nombramientos' => 'nullable|string',
-            // Campo para crear oportunidad automáticamente
+            // Campos opcionales para oportunidad (si se proporcionan)
             'monto' => 'nullable|numeric|min:0',
             'vertical' => 'nullable|string|max:255',
             'opportunity_type' => 'nullable|string|max:255',
+            'create_opportunity' => 'nullable|boolean',
         ]);
 
         // Extraer datos de oportunidad antes de crear el lead
         $monto = $validated['monto'] ?? null;
         $vertical = $validated['vertical'] ?? null;
         $opportunityType = $validated['opportunity_type'] ?? null;
-        unset($validated['monto'], $validated['vertical'], $validated['opportunity_type']);
+        $createOpportunity = $validated['create_opportunity'] ?? true; // Por defecto crear oportunidad
+        unset($validated['monto'], $validated['vertical'], $validated['opportunity_type'], $validated['create_opportunity']);
 
         $leadStatus = $this->resolveStatus($validated['lead_status_id'] ?? null);
         $validated['lead_status_id'] = $leadStatus?->id;
@@ -153,15 +155,15 @@ class LeadController extends Controller
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         // Usar transacción para asegurar consistencia
-        $result = DB::transaction(function () use ($validated, $monto, $vertical, $opportunityType) {
+        $result = DB::transaction(function () use ($validated, $monto, $vertical, $opportunityType, $createOpportunity) {
             $lead = Lead::create($validated);
             $opportunity = null;
 
-            // Crear oportunidad automáticamente si se proporciona monto y cédula
-            if ($monto !== null && !empty($validated['cedula'])) {
+            // Crear oportunidad automáticamente si tiene cédula y no se desactivó explícitamente
+            if ($createOpportunity && !empty($validated['cedula'])) {
                 $opportunity = Opportunity::create([
                     'lead_cedula' => $validated['cedula'],
-                    'amount' => $monto,
+                    'amount' => $monto, // Puede ser null
                     'status' => 'Nueva',
                     'vertical' => $vertical ?? 'General',
                     'opportunity_type' => $opportunityType ?? 'Estándar',
