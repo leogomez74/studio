@@ -355,8 +355,8 @@
         function validateForm(data) {
             let isValid = true;
             clearErrors();
-            if (!/^\d{9}$/.test(data.cedula.replace(/[^0-g]/, ''))) {
-                showFieldError('cedula', 'La cédula debe tener 9 dígitos.');
+            if (!/^\d{6,9}$/.test(data.cedula.replace(/[^0-g]/, ''))) {
+                showFieldError('cedula', 'La cédula debe tener entre 6 y 9 dígitos.');
                 isValid = false;
             }
             if (!userConfirmedTse && !document.getElementById('isExtranjero').checked) {
