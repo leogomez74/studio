@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrar Lead</title>
+    <title>Registro</title>
     <style>
         * {
             box-sizing: border-box;
@@ -315,7 +315,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Registrar Lead</h1>
+        <h1>Planilla de Registro</h1>
         <p class="subtitle">Complete los datos para comenzar el seguimiento</p>
 
         <div id="alert" class="alert"></div>
@@ -332,6 +332,7 @@
                     required
                 >
                 <p class="error-text" id="cedula-error"></p>
+                <p class="hint loading" id="tseLoading" style="display: none;">Buscando en TSE...</p>
             </div>
 
             <!-- TSE Info Display -->
@@ -446,11 +447,13 @@
         async function lookupTSE(cedula) {
             const tseInfo = document.getElementById('tseInfo');
             const extranjeroSwitch = document.getElementById('extranjeroSwitch');
+            const tseLoading = document.getElementById('tseLoading');
 
             tseData = null;
             tseLookupDone = false;
 
-            // Ocultar info anterior
+            // Mostrar loading, ocultar info anterior
+            tseLoading.style.display = 'block';
             tseInfo.classList.remove('visible');
             extranjeroSwitch.classList.add('hidden');
             document.getElementById('extranjeroFields').classList.remove('visible');
@@ -459,6 +462,8 @@
             try {
                 const response = await fetch(TSE_API_URL + cedula);
                 const data = await response.json();
+
+                tseLoading.style.display = 'none';
 
                 if (data.success && data.nombre) {
                     // TSE encontro la persona
@@ -482,6 +487,7 @@
                 }
             } catch (error) {
                 console.error('Error consultando TSE:', error);
+                tseLoading.style.display = 'none';
                 tseLookupDone = true;
                 extranjeroSwitch.classList.remove('hidden');
             }
@@ -595,6 +601,7 @@
             tseLookupDone = false;
             lastCedulaLookup = '';
             document.getElementById('tseInfo').classList.remove('visible');
+            document.getElementById('tseLoading').style.display = 'none';
             document.getElementById('extranjeroSwitch').classList.add('hidden');
             document.getElementById('extranjeroFields').classList.remove('visible');
         }
