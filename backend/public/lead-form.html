@@ -171,6 +171,15 @@
                                  <p id="apellido2-error" class="hidden text-xs text-red-500 mt-1"></p>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label for="genero" class="block text-sm font-medium text-foreground mb-1">Género</label>
+                            <select id="genero" name="genero" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Seleccione el género</option>
+                                <option value="1">Masculino</option>
+                                <option value="2">Femenino</option>
+                            </select>
+                            <p id="genero-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -216,7 +225,7 @@
         let lastCedulaLookup = '';
         let userConfirmedTse = false;
 
-        const formFieldsToManage = ['nombre', 'apellido1', 'apellido2', 'email', 'phone', 'sector'];
+        const formFieldsToManage = ['nombre', 'apellido1', 'apellido2', 'email', 'phone', 'sector', 'genero'];
 
         function setFieldsDisabled(disabled) {
             formFieldsToManage.forEach(id => {
@@ -359,6 +368,10 @@
                     showFieldError('apellido1', 'El primer apellido es requerido.');
                     isValid = false;
                 }
+                if (!data.genero) {
+                    showFieldError('genero', 'Seleccione un género.');
+                    isValid = false;
+                }
             }
              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
                 showFieldError('email', 'Ingrese un correo válido.');
@@ -414,6 +427,7 @@
                 formData.name = document.getElementById('nombre').value;
                 formData.apellido1 = document.getElementById('apellido1').value;
                 formData.apellido2 = document.getElementById('apellido2').value;
+                formData.genero = document.getElementById('genero').value;
             }
 
             if (!validateForm(formData)) return;
@@ -429,18 +443,35 @@
                     body: JSON.stringify(formData)
                 });
                 const result = await response.json();
-                if (response.ok) {
-                    showAlert(`Lead registrado exitosamente!${result.opportunity ? ' Se creo una oportunidad automaticamente.' : ''}`, 'success');
-                    resetForm(true);
-                } else {
-                    if (result.errors) {
-                        Object.keys(result.errors).forEach(field => showFieldError(field, result.errors[field][0]));
-                        showAlert('Por favor corrija los errores en el formulario.', 'error');
-                    } else {
-                        showAlert(result.message || 'Error al registrar el lead.', 'error');
-                    }
-                }
-            } catch (error) {
+                                if (response.ok) {
+                                    showAlert(`Lead registrado exitosamente!${result.opportunity ? ' Se creo una oportunidad automaticamente.' : ''}`, 'success');
+                                    resetForm(true);
+                
+                                    // --- Secondary POST request to n8n webhook ---
+                                    try {
+                                        const n8nResponse = await fetch('https://n8n.webhook.ssc.cr/webhook/estado', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                                            body: JSON.stringify(formData)
+                                        });
+                                        if (n8nResponse.ok) {
+                                            console.log('Successfully sent data to n8n webhook.');
+                                        } else {
+                                            console.error('Failed to send data to n8n webhook:', n8nResponse.status, n8nResponse.statusText);
+                                        }
+                                    } catch (n8nError) {
+                                        console.error('Error sending data to n8n webhook:', n8nError);
+                                    }
+                                    // --- End Secondary POST request ---
+                
+                                } else {
+                                     if (result.errors) {
+                                        Object.keys(result.errors).forEach(field => showFieldError(field, result.errors[field][0]));
+                                        showAlert('Por favor corrija los errores en el formulario.', 'error');
+                                    } else {
+                                        showAlert(result.message || 'Error al registrar el lead.', 'error');
+                                    }
+                                }            } catch (error) {
                 console.error('Error:', error);
                 showAlert('Error de conexión. Intente nuevamente.', 'error');
             } finally {
