@@ -528,8 +528,11 @@
                 // Enable only email, phone, sector
                 ['email', 'phone', 'sector'].forEach(id => document.getElementById(id).disabled = false);
                 document.getElementById('submitBtn').disabled = false;
-                // Name fields remain disabled as data is from TSE
+                // Name fields are not needed for input, so we can hide the container
                 document.getElementById('extranjeroFields').classList.remove('visible');
+                 // and ensure they are disabled
+                ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = true);
+
             } else { // "No"
                 userConfirmedTse = false;
                 tseData = null; // Discard TSE data
@@ -544,6 +547,8 @@
             const fields = document.getElementById('extranjeroFields');
             if (e.target.checked) {
                 fields.classList.add('visible');
+                 // If user says they are a foreigner, enable name fields for input
+                ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = false);
             } else {
                 fields.classList.remove('visible');
             }
