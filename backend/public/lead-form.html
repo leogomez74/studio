@@ -3,148 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro</title>
+    <title>Registro de Lead</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        html {
-            font-size: 16px;
-            -webkit-text-size-adjust: 100%;
-            min-height: 100%;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            background-attachment: fixed;
-            min-height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-        }
-        .container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 32px 24px;
-            width: 100%;
-            max-width: 450px;
-        }
-        h1 {
-            color: #1a1a2e;
-            font-size: 22px;
-            margin-bottom: 6px;
-            text-align: center;
-        }
-        .subtitle {
-            color: #6b7280;
-            font-size: 13px;
-            text-align: center;
-            margin-bottom: 24px;
-        }
-        .form-group {
-            margin-bottom: 16px;
-        }
-        label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 5px;
-        }
-        input, select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            -webkit-appearance: none;
-            appearance: none;
-            background-color: white;
-        }
-        select {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            padding-right: 36px;
-        }
-        input:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        input::placeholder {
-            color: #9ca3af;
-        }
-        input:disabled {
-            background-color: #f3f4f6;
-            color: #6b7280;
-        }
-        .hint {
-            font-size: 11px;
-            color: #6b7280;
-            margin-top: 3px;
-        }
-        .hint.success {
-            color: #059669;
-        }
-        .hint.loading {
-            color: #667eea;
-        }
-        button {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-top: 8px;
-            -webkit-tap-highlight-color: transparent;
-        }
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-        button:active {
-            transform: translateY(0);
-            background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
-        }
-        button:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
+        :root {
+            --background: 220 13% 97%;
+            --foreground: 224 71.4% 4.1%;
+            --card: 0 0% 100%;
+            --card-foreground: 224 71.4% 4.1%;
+            --primary: 209 78% 34%;
+            --primary-foreground: 0 0% 100%;
+            --secondary: 220 13% 91%;
+            --secondary-foreground: 220 9% 38%;
+            --muted: 220 13% 91%;
+            --muted-foreground: 220 9% 45%;
+            --accent: 220 14% 96%;
+            --border: 220 13% 85%;
+            --input: 220 13% 85%;
+            --ring: 209 78% 34%;
+            --radius: 0.5rem;
         }
 
-        /* Switch toggle */
-        .switch-group {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 0;
-            margin-bottom: 16px;
-            border-top: 1px solid #e5e7eb;
-            border-bottom: 1px solid #e5e7eb;
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
         }
-        .switch-group.hidden {
-            display: none;
-        }
-        .switch-label {
-            font-size: 14px;
-            font-weight: 600;
-            color: #374151;
-        }
+
+        /* Custom switch styles to match dashboard UI */
         .switch {
             position: relative;
-            width: 48px;
-            height: 26px;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
         }
         .switch input {
             opacity: 0;
@@ -158,318 +51,166 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #cbd5e1;
-            transition: 0.3s;
-            border-radius: 26px;
+            background-color: hsl(var(--secondary));
+            transition: .4s;
+            border-radius: 24px;
         }
         .slider:before {
             position: absolute;
             content: "";
-            height: 20px;
-            width: 20px;
+            height: 18px;
+            width: 18px;
             left: 3px;
             bottom: 3px;
             background-color: white;
-            transition: 0.3s;
+            transition: .4s;
             border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .switch input:checked + .slider {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        input:checked + .slider {
+            background-color: hsl(var(--primary));
         }
-        .switch input:checked + .slider:before {
-            transform: translateX(22px);
+        input:checked + .slider:before {
+            transform: translateX(20px);
         }
-
-        /* Extranjero fields */
-        .extranjero-fields {
-            display: none;
-            animation: slideDown 0.3s ease;
-        }
-        .extranjero-fields.visible {
-            display: block;
-        }
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* TSE info display */
-        .tse-info {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 16px;
-            display: none;
-        }
-        .tse-info.visible {
-            display: block;
-        }
-        .tse-info p {
-            font-size: 13px;
-            color: #166534;
-            margin-bottom: 4px;
-        }
-        .tse-info p:last-child {
-            margin-bottom: 0;
-        }
-        .tse-info strong {
-            color: #14532d;
-        }
-
-        /* iPhone SE and small devices (320px - 375px) */
-        @media screen and (max-width: 375px) {
-            body {
-                padding: 12px;
-                align-items: flex-start;
-                padding-top: 24px;
-            }
-            .container {
-                padding: 24px 16px;
-                border-radius: 10px;
-            }
-            h1 {
-                font-size: 20px;
-            }
-            .subtitle {
-                font-size: 12px;
-                margin-bottom: 20px;
-            }
-            .form-group {
-                margin-bottom: 14px;
-            }
-            label {
-                font-size: 12px;
-            }
-            input, select {
-                padding: 10px;
-                border-radius: 6px;
-            }
-            .hint {
-                font-size: 10px;
-            }
-            button {
-                padding: 12px;
-                font-size: 15px;
-            }
-            .switch-label {
-                font-size: 13px;
-            }
-        }
-
-        /* Very small devices (iPhone 4/5 era) */
-        @media screen and (max-width: 320px) {
-            body {
-                padding: 8px;
-            }
-            .container {
-                padding: 20px 12px;
-            }
-            h1 {
-                font-size: 18px;
-            }
-        }
-
-        /* Safe area for notched devices */
-        @supports (padding: max(0px)) {
-            body {
-                padding-left: max(16px, env(safe-area-inset-left));
-                padding-right: max(16px, env(safe-area-inset-right));
-                padding-bottom: max(16px, env(safe-area-inset-bottom));
-            }
-        }
-        .alert {
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: none;
-        }
-        .alert-success {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-        }
-        .alert-error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
-        }
-        .error-text {
-            color: #dc2626;
-            font-size: 12px;
-            margin-top: 4px;
-            display: none;
-        }
-        .input-error {
-            border-color: #dc2626;
-        }
-
-        /* Confirmation Buttons */
-        #tse-confirmation-buttons {
-            display: flex;
-            gap: 8px;
-        }
-        .confirmation-btn {
-            padding: 8px 16px;
-            font-size: 14px;
-            font-weight: 600;
-            border-radius: 6px;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.2s;
-        }
-        .yes-btn {
-            background-color: #22c55e;
-            color: white;
-            border-color: #16a34a;
-        }
-        .yes-btn:hover {
-            background-color: #16a34a;
-        }
-        .no-btn {
-            background-color: #ef4444;
-            color: white;
-            border-color: #dc2626;
-        }
-        .no-btn:hover {
-            background-color: #dc2626;
+        .hidden {
+          display: none;
         }
     </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        headline: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        background: 'hsl(var(--background))',
+                        foreground: 'hsl(var(--foreground))',
+                        card: 'hsl(var(--card))',
+                        'card-foreground': 'hsl(var(--card-foreground))',
+                        primary: 'hsl(var(--primary))',
+                        'primary-foreground': 'hsl(var(--primary-foreground))',
+                        secondary: 'hsl(var(--secondary))',
+                        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+                        muted: 'hsl(var(--muted))',
+                        'muted-foreground': 'hsl(var(--muted-foreground))',
+                        accent: 'hsl(var(--accent))',
+                        border: 'hsl(var(--border))',
+                        input: 'hsl(var(--input))',
+                        ring: 'hsl(var(--ring))',
+                    },
+                    borderRadius: {
+                        lg: 'var(--radius)',
+                        md: 'calc(var(--radius) - 2px)',
+                        sm: 'calc(var(--radius) - 4px)',
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container">
-        <h1>Planilla de Registro</h1>
-        <p class="subtitle">Complete los datos para comenzar el seguimiento</p>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-lg">
+        <div id="alert" class="hidden p-4 mb-4 text-sm rounded-lg" role="alert"></div>
 
-        <div id="alert" class="alert"></div>
-
-        <form id="leadForm">
-            <div class="form-group">
-                <label for="cedula">Cedula *</label>
-                <input
-                    type="text"
-                    id="cedula"
-                    name="cedula"
-                    placeholder="123456789"
-                    maxlength="9"
-                    required
-                >
-                <p class="error-text" id="cedula-error"></p>
-                <p class="hint loading" id="tseLoading" style="display: none;">Buscando en TSE...</p>
-            </div>
-
-            <!-- TSE Info Display -->
-            <div class="tse-info" id="tseInfo">
-                <p><strong>Nombre:</strong> <span id="tseNombre"></span></p>
-                <p><strong>Apellidos:</strong> <span id="tseApellidos"></span></p>
-            </div>
-
-            <!-- TSE Confirmation -->
-            <div class="switch-group hidden" id="tseConfirmation">
-                <span class="switch-label" id="tseConfirmationLabel"></span>
-                <div id="tse-confirmation-buttons">
-                    <button type="button" id="tseConfirmNoBtn" class="confirmation-btn no-btn">No</button>
-                    <button type="button" id="tseConfirmYesBtn" class="confirmation-btn yes-btn">Sí</button>
+        <div class="bg-card text-card-foreground rounded-xl border shadow-lg">
+            <div class="p-6">
+                <div class="text-center">
+                    <h1 class="text-2xl font-headline font-bold text-primary">Planilla de Registro</h1>
+                    <p class="text-muted-foreground text-sm mt-1">Complete los datos para iniciar el proceso.</p>
                 </div>
             </div>
 
-            <!-- Switch para extranjero -->
-            <div class="switch-group hidden" id="extranjeroSwitch">
-                <span class="switch-label">Es extranjero?</span>
-                <label class="switch">
-                    <input type="checkbox" id="isExtranjero">
-                    <span class="slider"></span>
-                </label>
-            </div>
+            <form id="leadForm" class="p-6 pt-0">
+                <div class="space-y-4">
+                    <div class="form-group">
+                        <label for="cedula" class="block text-sm font-medium text-foreground mb-1">Cédula *</label>
+                        <input type="text" id="cedula" name="cedula" placeholder="Digite los 9 digitos" maxlength="9" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                        <p id="cedula-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        <p id="tseLoading" class="hidden text-xs text-primary mt-1">Buscando en TSE...</p>
+                    </div>
 
-            <!-- Campos para extranjero -->
-            <div class="extranjero-fields" id="extranjeroFields">
-                <div class="form-group">
-                    <label for="nombre">Nombre *</label>
-                    <input
-                        type="text"
-                        id="nombre"
-                        name="nombre"
-                        placeholder="Nombre completo"
-                    >
-                    <p class="error-text" id="nombre-error"></p>
+                    <div id="tseInfo" class="hidden p-3 bg-accent rounded-md border">
+                        <p class="text-sm font-medium"><strong>Nombre:</strong> <span id="tseNombre"></span></p>
+                        <p class="text-sm font-medium"><strong>Apellidos:</strong> <span id="tseApellidos"></span></p>
+                    </div>
+
+                    <div id="tseConfirmation" class="hidden flex items-center justify-between p-4 border rounded-lg bg-background">
+                         <span class="text-sm font-medium text-foreground" id="tseConfirmationLabel"></span>
+                         <div class="flex items-center gap-2">
+                            <button type="button" id="tseConfirmNoBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md shadow-sm">No</button>
+                            <button type="button" id="tseConfirmYesBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm">Sí</button>
+                         </div>
+                    </div>
+
+
+                    <div id="extranjeroSwitch" class="hidden flex items-center justify-between p-4 border rounded-lg bg-background">
+                        <label for="isExtranjero" class="text-sm font-medium text-foreground">¿La cédula es de un extranjero?</label>
+                        <label class="switch">
+                            <input type="checkbox" id="isExtranjero">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div id="extranjeroFields" class="hidden space-y-4">
+                        <div class="form-group">
+                            <label for="nombre" class="block text-sm font-medium text-foreground mb-1">Nombre *</label>
+                            <input type="text" id="nombre" name="nombre" placeholder="Nombre completo" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <p id="nombre-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label for="apellido1" class="block text-sm font-medium text-foreground mb-1">Primer Apellido *</label>
+                                <input type="text" id="apellido1" name="apellido1" placeholder="Primer apellido" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <p id="apellido1-error" class="hidden text-xs text-red-500 mt-1"></p>
+                            </div>
+                            <div class="form-group">
+                                <label for="apellido2" class="block text-sm font-medium text-foreground mb-1">Segundo Apellido</label>
+                                <input type="text" id="apellido2" name="apellido2" placeholder="Segundo apellido" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                 <p id="apellido2-error" class="hidden text-xs text-red-500 mt-1"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email" class="block text-sm font-medium text-foreground mb-1">Correo Electrónico *</label>
+                        <input type="email" id="email" name="email" placeholder="correo@ejemplo.com" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                        <p id="email-error" class="hidden text-xs text-red-500 mt-1"></p>
+                    </div>
+
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label for="phone" class="block text-sm font-medium text-foreground mb-1">Teléfono (WhatsApp) *</label>
+                            <input type="tel" id="phone" name="phone" placeholder="88887777" maxlength="8" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <p id="phone-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
+                        <div class="form-group">
+                            <label for="sector" class="block text-sm font-medium text-foreground mb-1">Sector Laboral *</label>
+                            <select id="sector" name="sector" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Seleccione un sector</option>
+                                <option value="publico">Sector Público</option>
+                                <option value="privado">Sector Privado</option>
+                                <option value="otro">Independiente / Propio</option>
+                            </select>
+                            <p id="sector-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="apellido1">Primer Apellido *</label>
-                    <input
-                        type="text"
-                        id="apellido1"
-                        name="apellido1"
-                        placeholder="Primer apellido"
-                    >
-                    <p class="error-text" id="apellido1-error"></p>
+
+                <div class="pt-6">
+                     <button type="submit" id="submitBtn" class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                        Registrar Lead
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label for="apellido2">Segundo Apellido</label>
-                    <input
-                        type="text"
-                        id="apellido2"
-                        name="apellido2"
-                        placeholder="Segundo apellido"
-                    >
-                    <p class="error-text" id="apellido2-error"></p>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="email">Correo *</label>
-                <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    placeholder="correo@ejemplo.com"
-                    required
-                >
-                <p class="error-text" id="email-error"></p>
-            </div>
-
-            <div class="form-group">
-                <label for="phone">Telefono (WhatsApp) *</label>
-                <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    placeholder="88887777"
-                    maxlength="8"
-                    required
-                >
-                <p class="hint">8 digitos sin guiones</p>
-                <p class="error-text" id="phone-error"></p>
-            </div>
-
-            <div class="form-group">
-                <label for="sector">Sector Laboral *</label>
-                <select id="sector" name="sector" required>
-                    <option value="">Selecciona un sector</option>
-                    <option value="publico">Sector Publico</option>
-                    <option value="privado">Sector Privado</option>
-                    <option value="otro">En lo Propio</option>
-                </select>
-                <p class="error-text" id="sector-error"></p>
-            </div>
-
-            <button type="submit" id="submitBtn">Registrar Lead</button>
-        </form>
+            </form>
+        </div>
     </div>
 
     <script>
         const API_BASE_URL = window.location.origin;
         const TSE_API_URL = 'https://www.dsf.cr/tse/';
 
-        // Estado del TSE
         let tseData = null;
         let tseLookupDone = false;
         let lastCedulaLookup = '';
@@ -480,18 +221,20 @@
         function setFieldsDisabled(disabled) {
             formFieldsToManage.forEach(id => {
                 const field = document.getElementById(id);
-                if (field) field.disabled = disabled;
+                if (field) {
+                    field.disabled = disabled;
+                    field.classList.toggle('disabled:opacity-70', disabled);
+                }
             });
             document.getElementById('submitBtn').disabled = disabled;
+            document.getElementById('submitBtn').classList.toggle('disabled:opacity-70', disabled);
         }
 
-        // Initialize form on load
         document.addEventListener('DOMContentLoaded', () => {
             setFieldsDisabled(true);
-             document.getElementById('extranjeroFields').classList.remove('visible');
+            document.getElementById('extranjeroFields').classList.add('hidden');
         });
 
-        // Listener para cedula
         document.getElementById('cedula').addEventListener('input', function(e) {
             const rawCedula = e.target.value.replace(/[^0-9]/g, '');
             if (rawCedula.length === 9 && rawCedula !== lastCedulaLookup) {
@@ -503,21 +246,14 @@
             }
         });
 
-        // Buscar en TSE API
         async function lookupTSE(cedula) {
-            const tseInfo = document.getElementById('tseInfo');
-            const tseLoading = document.getElementById('tseLoading');
-            const extranjeroSwitch = document.getElementById('extranjeroSwitch');
-            const tseConfirmation = document.getElementById('tseConfirmation');
-            const tseConfirmationLabel = document.getElementById('tseConfirmationLabel');
-
-            resetForm(false); // Soft reset
-            tseLoading.style.display = 'block';
+            resetForm(false);
+            document.getElementById('tseLoading').classList.remove('hidden');
 
             try {
                 const response = await fetch(TSE_API_URL + cedula);
                 const data = await response.json();
-                tseLoading.style.display = 'none';
+                document.getElementById('tseLoading').classList.add('hidden');
 
                 if (data.success && data.nombre) {
                     tseData = {
@@ -528,105 +264,114 @@
                         genero: data.sexo
                     };
                     tseLookupDone = true;
-
                     document.getElementById('tseNombre').textContent = data.nombre;
                     document.getElementById('tseApellidos').textContent = (data.apellido1 || '') + ' ' + (data.apellido2 || '');
-                    tseInfo.classList.add('visible');
-
-                    tseConfirmationLabel.textContent = `¿Eres ${data.nombre} ${data.apellido1}? (Si/No)`;
-                    tseConfirmation.classList.remove('hidden');
+                    document.getElementById('tseInfo').classList.remove('hidden');
+                    document.getElementById('tseConfirmationLabel').textContent = `¿Eres ${data.nombre} ${data.apellido1}?`;
+                    document.getElementById('tseConfirmation').classList.remove('hidden');
                 } else {
                     tseLookupDone = true;
-                    extranjeroSwitch.classList.remove('hidden');
-                    setFieldsDisabled(false); // Enable fields for manual entry
+                    document.getElementById('extranjeroSwitch').classList.remove('hidden');
+                    setFieldsDisabled(false);
                 }
             } catch (error) {
                 console.error('Error consultando TSE:', error);
-                tseLoading.style.display = 'none';
+                document.getElementById('tseLoading').classList.add('hidden');
                 tseLookupDone = true;
-                extranjeroSwitch.classList.remove('hidden');
+                document.getElementById('extranjeroSwitch').classList.remove('hidden');
                 setFieldsDisabled(false);
             }
         }
 
-        // Listener for TSE confirmation buttons
         document.getElementById('tseConfirmYesBtn').addEventListener('click', function() {
-            const isConfirmed = true;
-            tseConfirmation.classList.add('hidden');
-
-            if (isConfirmed) { // "Sí"
-                userConfirmedTse = true;
-                // Enable only email, phone, sector
-                ['email', 'phone', 'sector'].forEach(id => document.getElementById(id).disabled = false);
-                document.getElementById('submitBtn').disabled = false;
-                // Name fields are not needed for input, so we can hide the container
-                document.getElementById('extranjeroFields').classList.remove('visible');
-                 // and ensure they are disabled
-                ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = true);
-            }
+            userConfirmedTse = true;
+            document.getElementById('tseConfirmation').classList.add('hidden');
+            ['email', 'phone', 'sector'].forEach(id => document.getElementById(id).disabled = false);
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('extranjeroFields').classList.add('hidden');
+            ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = true);
         });
 
         document.getElementById('tseConfirmNoBtn').addEventListener('click', function() {
-            const isConfirmed = false;
-            tseConfirmation.classList.add('hidden');
-
-            if (!isConfirmed) { // "No"
-                userConfirmedTse = false;
-                tseData = null; // Discard TSE data
-                tseInfo.classList.remove('visible');
-                document.getElementById('extranjeroFields').classList.add('visible');
-                setFieldsDisabled(false); // Enable all fields for manual input
-            }
+            userConfirmedTse = false;
+            tseData = null;
+            document.getElementById('tseInfo').classList.add('hidden');
+            document.getElementById('tseConfirmation').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('hidden');
+            setFieldsDisabled(false);
         });
 
-        // Toggle extranjero fields
         document.getElementById('isExtranjero').addEventListener('change', function(e) {
             const fields = document.getElementById('extranjeroFields');
             if (e.target.checked) {
-                fields.classList.add('visible');
-                 // If user says they are a foreigner, enable name fields for input
-                ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = false);
+                fields.classList.remove('hidden');
+                 ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = false);
             } else {
-                fields.classList.remove('visible');
+                fields.classList.add('hidden');
             }
         });
 
+        document.getElementById('phone').addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 8);
+        });
+
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `p-4 mb-4 text-sm rounded-lg ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+            alert.classList.remove('hidden');
+            if (type === 'success') {
+                setTimeout(() => alert.classList.add('hidden'), 5000);
+            }
+        }
+
+        function showFieldError(field, message) {
+            const errorEl = document.getElementById(field + '-error');
+            if (errorEl) {
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+            }
+            const inputEl = document.getElementById(field);
+            if (inputEl) {
+                 inputEl.classList.add('border-red-500');
+            }
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('[id$="-error"]').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('input, select').forEach(el => el.classList.remove('border-red-500'));
+             document.getElementById('alert').classList.add('hidden');
+        }
 
         function validateForm(data) {
             let isValid = true;
             clearErrors();
-
-            if (!/^\d{9}$/.test(data.cedula.replace(/[^0-9]/g, ''))) {
-                showFieldError('cedula', 'La cedula debe tener 9 digitos');
+            if (!/^\d{9}$/.test(data.cedula.replace(/[^0-g]/, ''))) {
+                showFieldError('cedula', 'La cédula debe tener 9 dígitos.');
                 isValid = false;
             }
-
-            if (!userConfirmedTse) { // Manual input validation
+            if (!userConfirmedTse && !document.getElementById('isExtranjero').checked) {
                 if (!data.name || data.name.trim() === '') {
-                    showFieldError('nombre', 'El nombre es requerido');
+                    showFieldError('nombre', 'El nombre es requerido.');
                     isValid = false;
                 }
                 if (!data.apellido1 || data.apellido1.trim() === '') {
-                    showFieldError('apellido1', 'El primer apellido es requerido');
+                    showFieldError('apellido1', 'El primer apellido es requerido.');
                     isValid = false;
                 }
             }
-
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-                showFieldError('email', 'Ingrese un correo valido');
+             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+                showFieldError('email', 'Ingrese un correo válido.');
                 isValid = false;
             }
-
             if (!/^\d{8}$/.test(data.phone)) {
-                showFieldError('phone', 'El telefono debe tener 8 digitos');
+                showFieldError('phone', 'El teléfono debe tener 8 dígitos.');
                 isValid = false;
             }
-
             if (!data.sector) {
-                showFieldError('sector', 'Seleccione un sector');
+                showFieldError('sector', 'Seleccione un sector laboral.');
                 isValid = false;
             }
-
             return isValid;
         }
 
@@ -640,17 +385,16 @@
             tseData = null;
             userConfirmedTse = false;
             tseLookupDone = false;
-            document.getElementById('tseInfo').classList.remove('visible');
-            document.getElementById('tseLoading').style.display = 'none';
+            document.getElementById('tseInfo').classList.add('hidden');
+            document.getElementById('tseLoading').classList.add('hidden');
             document.getElementById('tseConfirmation').classList.add('hidden');
             document.getElementById('extranjeroSwitch').classList.add('hidden');
-            document.getElementById('extranjeroFields').classList.remove('visible');
+            document.getElementById('extranjeroFields').classList.add('hidden');
             document.getElementById('isExtranjero').checked = false;
         }
 
         document.getElementById('leadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-
             const formData = {
                 cedula: document.getElementById('cedula').value,
                 email: document.getElementById('email').value,
@@ -658,13 +402,12 @@
                 sector: document.getElementById('sector').value,
                 whatsapp: document.getElementById('phone').value
             };
-
             if (userConfirmedTse && tseData) {
                 formData.name = tseData.nombre;
                 formData.apellido1 = tseData.apellido1;
                 formData.apellido2 = tseData.apellido2;
                 formData.genero = tseData.genero;
-                 if (tseData.fechaNacimiento && tseData.fechaNacimiento !== 'fallecido') {
+                if (tseData.fechaNacimiento && tseData.fechaNacimiento !== 'fallecido') {
                     formData.fecha_nacimiento = tseData.fechaNacimiento;
                 }
             } else {
@@ -673,26 +416,24 @@
                 formData.apellido2 = document.getElementById('apellido2').value;
             }
 
-            if (!validateForm(formData)) {
-                return;
-            }
+            if (!validateForm(formData)) return;
 
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Registrando...';
 
             try {
-                const response = await fetch(API_BASE_URL + '/api/leads', {
+                const response = await fetch(`${API_BASE_URL}/api/leads`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify(formData)
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    showAlert('Lead registrado exitosamente!' + (result.opportunity ? ' Se creo una oportunidad automaticamente.' : ''), 'success');
-                    resetForm();
+                    showAlert(`Lead registrado exitosamente!${result.opportunity ? ' Se creo una oportunidad automaticamente.' : ''}`, 'success');
+                    resetForm(true);
                 } else {
-                     if (result.errors) {
+                    if (result.errors) {
                         Object.keys(result.errors).forEach(field => showFieldError(field, result.errors[field][0]));
                         showAlert('Por favor corrija los errores en el formulario.', 'error');
                     } else {
@@ -701,44 +442,13 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showAlert('Error de conexion. Intente nuevamente.', 'error');
+                showAlert('Error de conexión. Intente nuevamente.', 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Registrar Lead';
             }
         });
-
-        // Helper functions (showAlert, showFieldError, clearErrors, etc.)
-        // These can be placed here, assuming they are defined as in the original file
-        document.getElementById('phone').addEventListener('input', function(e) {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 8);
-        });
-        function showAlert(message, type) {
-            const alert = document.getElementById('alert');
-            alert.textContent = message;
-            alert.className = 'alert alert-' + type;
-            alert.style.display = 'block';
-            if (type === 'success') {
-                setTimeout(() => { alert.style.display = 'none'; }, 5000);
-            }
-        }
-        function showFieldError(field, message) {
-            const input = document.getElementById(field);
-            const error = document.getElementById(field + '-error');
-            if (input) input.classList.add('input-error');
-            if (error) {
-                error.textContent = message;
-                error.style.display = 'block';
-            }
-        }
-        function clearErrors() {
-            document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-            document.querySelectorAll('.error-text').forEach(el => {
-                el.style.display = 'none';
-                el.textContent = '';
-            });
-            document.getElementById('alert').style.display = 'none';
-        }
     </script>
 </body>
 </html>
+
