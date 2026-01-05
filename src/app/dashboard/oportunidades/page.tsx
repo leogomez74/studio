@@ -271,9 +271,18 @@ export default function DealsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 300);
 
+  // --- Table Logic ---
+
+  const handleFilterChange = useCallback(
+    <K extends keyof OpportunityTableFilters>(field: K, value: OpportunityTableFilters[K]) => {
+      setFilters((previous) => ({ ...previous, [field]: value }));
+    },
+    []
+  );
+
   useEffect(() => {
     handleFilterChange("search", debouncedSearch);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, handleFilterChange]);
 
 
   const [sortConfig, setSortConfig] = useState<{ column: SortableColumn; direction: "asc" | "desc" }>(
@@ -336,8 +345,8 @@ export default function DealsPage() {
   useEffect(() => {
     fetchOpportunities();
     fetchLeads();
-    fetchUsers(); // <--- AGREGADO
-  }, [fetchOpportunities, fetchLeads, fetchUsers, filters]);
+    fetchUsers();
+  }, [fetchOpportunities, fetchLeads, fetchUsers]);
 
   // --- Form Logic ---
 
@@ -580,13 +589,6 @@ export default function DealsPage() {
   };
 
   // --- Table Logic ---
-
-  const handleFilterChange = useCallback(
-    <K extends keyof OpportunityTableFilters>(field: K, value: OpportunityTableFilters[K]) => {
-      setFilters((previous) => ({ ...previous, [field]: value }));
-    },
-    []
-  );
 
   const handleClearFilters = useCallback(() => {
     setFilters({ search: "", status: "todos", vertical: "todos", createdFrom: "", createdTo: "" });

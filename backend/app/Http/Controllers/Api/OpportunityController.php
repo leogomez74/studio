@@ -160,21 +160,34 @@ class OpportunityController extends Controller
         if (!empty($validated['filter'])) {
             $query = Opportunity::query();
             $filter = $validated['filter'];
+            $hasValidFilter = false;
 
             if (!empty($filter['lead_cedula'])) {
                 $query->where('lead_cedula', $filter['lead_cedula']);
+                $hasValidFilter = true;
             }
 
             if (!empty($filter['current_status'])) {
                 $query->where('status', $filter['current_status']);
+                $hasValidFilter = true;
             }
 
             if (!empty($filter['assigned_to_id'])) {
                 $query->where('assigned_to_id', $filter['assigned_to_id']);
+                $hasValidFilter = true;
             }
 
             if (!empty($filter['vertical'])) {
                 $query->where('vertical', $filter['vertical']);
+                $hasValidFilter = true;
+            }
+
+            // Evitar actualizar TODAS las oportunidades si no hay filtros válidos
+            if (!$hasValidFilter) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Debe proporcionar al menos un filtro válido (lead_cedula, current_status, assigned_to_id, o vertical)'
+                ], 422);
             }
 
             $count = $query->count();
