@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuestionario Público</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background: 220 13% 97%;
+            --foreground: 224 71.4% 4.1%;
+            --card: 0 0% 100%;
+            --card-foreground: 224 71.4% 4.1%;
+            --primary: 209 78% 34%;
+            --primary-foreground: 0 0% 100%;
+            --secondary: 220 13% 91%;
+            --secondary-foreground: 220 9% 38%;
+            --muted: 220 13% 91%;
+            --muted-foreground: 220 9% 45%;
+            --accent: 220 14% 96%;
+            --border: 220 13% 85%;
+            --input: 220 13% 85%;
+            --ring: 209 78% 34%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        headline: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        background: 'hsl(var(--background))',
+                        foreground: 'hsl(var(--foreground))',
+                        card: 'hsl(var(--card))',
+                        'card-foreground': 'hsl(var(--card-foreground))',
+                        primary: 'hsl(var(--primary))',
+                        'primary-foreground': 'hsl(var(--primary-foreground))',
+                        secondary: 'hsl(var(--secondary))',
+                        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+                        muted: 'hsl(var(--muted))',
+                        'muted-foreground': 'hsl(var(--muted-foreground))',
+                        accent: 'hsl(var(--accent))',
+                        border: 'hsl(var(--border))',
+                        input: 'hsl(var(--input))',
+                        ring: 'hsl(var(--ring))',
+                    },
+                    borderRadius: {
+                        lg: 'var(--radius)',
+                        md: 'calc(var(--radius) - 2px)',
+                        sm: 'calc(var(--radius) - 4px)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-2 md:p-4">
+    <div class="w-full max-w-3xl">
+        <div id="alert" class="hidden p-4 mb-4 text-sm rounded-lg" role="alert"></div>
+
+        <div class="bg-card text-card-foreground rounded-xl border shadow-lg">
+            <div class="p-4 md:p-6">
+                <div class="text-center space-y-1">
+                    <p class="text-xs font-semibold tracking-wide text-primary uppercase">Paso a paso</p>
+                    <h1 class="text-2xl md:text-3xl font-headline font-bold text-primary">Cuestionario Público</h1>
+                    <p class="text-muted-foreground text-sm md:text-base">Queremos entender mejor tu necesidad. Son 3 pasos rápidos.</p>
+                </div>
+
+                <div class="mt-6">
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1 h-2 rounded-full bg-secondary" aria-hidden="true">
+                            <div id="progressBar" class="h-2 rounded-full bg-primary transition-all duration-200" style="width: 33%"></div>
+                        </div>
+                        <span id="stepLabel" class="text-xs font-semibold text-muted-foreground">Paso 1 de 3</span>
+                    </div>
+                </div>
+            </div>
+
+            <form id="questionnaireForm" class="p-4 md:p-6 pt-0 space-y-6">
+                <div id="step-1" class="space-y-4">
+                    <h2 class="text-lg font-semibold text-foreground">1. ¿Qué te interesa?</h2>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <label class="block cursor-pointer group">
+                            <input type="radio" name="interes" value="credito" class="peer sr-only">
+                            <div class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
+                                <p class="text-sm font-semibold text-foreground">Crédito</p>
+                                <p class="text-xs text-muted-foreground mt-1">Financia tus metas y obligaciones.</p>
+                            </div>
+                        </label>
+                        <label class="block cursor-pointer group">
+                            <input type="radio" name="interes" value="servicios_legales" class="peer sr-only">
+                            <div class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
+                                <p class="text-sm font-semibold text-foreground">Servicios legales</p>
+                                <p class="text-xs text-muted-foreground mt-1">Divorcios, traspasos, sucesiones u otros.</p>
+                            </div>
+                        </label>
+                        <label class="block cursor-pointer group">
+                            <input type="radio" name="interes" value="ambos" class="peer sr-only">
+                            <div class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
+                                <p class="text-sm font-semibold text-foreground">Ambos</p>
+                                <p class="text-xs text-muted-foreground mt-1">Necesito crédito y apoyo legal.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="step-2" class="space-y-4 hidden">
+                    <h2 class="text-lg font-semibold text-foreground">2. Detalles de tu necesidad</h2>
+
+                    <div id="creditoFields" class="space-y-3 hidden">
+                        <p class="text-sm font-semibold text-muted-foreground">Crédito</p>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-1">Monto aproximado</label>
+                                <select name="monto" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                    <option value="">Selecciona un rango</option>
+                                    <option value="0-3m">Menos de 3M CRC</option>
+                                    <option value="3-10m">3M - 10M CRC</option>
+                                    <option value="10-25m">10M - 25M CRC</option>
+                                    <option value="25m+">Más de 25M CRC</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-1">Uso del crédito</label>
+                                <select name="uso_credito" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                    <option value="">Selecciona</option>
+                                    <option value="consumo">Consumo / personales</option>
+                                    <option value="consolidacion">Consolidación de deudas</option>
+                                    <option value="vivienda">Vivienda / mejoras</option>
+                                    <option value="negocio">Negocio / capital de trabajo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-1">Situación laboral</label>
+                                <select name="situacion_laboral" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                    <option value="">Selecciona</option>
+                                    <option value="publico">Sector público</option>
+                                    <option value="privado">Sector privado</option>
+                                    <option value="independiente">Independiente</option>
+                                    <option value="pensionado">Pensionado</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-1">Ingreso mensual aproximado</label>
+                                <select name="ingreso" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                    <option value="">Selecciona</option>
+                                    <option value="<600k">Menos de 600k</option>
+                                    <option value="600k-1m">600k - 1M</option>
+                                    <option value="1m-2m">1M - 2M</option>
+                                    <option value=">2m">Más de 2M</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="legalesFields" class="space-y-3 hidden">
+                        <p class="text-sm font-semibold text-muted-foreground">Servicios legales</p>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-1">Tipo de trámite</label>
+                                <div class="space-y-2 border rounded-md p-3 bg-background">
+                                    <label class="flex items-center gap-2 text-sm text-foreground">
+                                        <input type="checkbox" name="tramites" value="divorcio" class="h-4 w-4 text-primary border-input rounded">
+                                        <span>Divorcio</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-sm text-foreground">
+                                        <input type="checkbox" name="tramites" value="traspaso" class="h-4 w-4 text-primary border-input rounded">
+                                        <span>Traspaso de bienes</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-sm text-foreground">
+                                        <input type="checkbox" name="tramites" value="sucesion" class="h-4 w-4 text-primary border-input rounded">
+                                        <span>Sucesiones</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-sm text-foreground">
+                                        <input type="checkbox" name="tramites" value="otros" class="h-4 w-4 text-primary border-input rounded">
+                                        <span>Otros</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-foreground mb-1">Urgencia</label>
+                                <select name="urgencia" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                    <option value="">Selecciona</option>
+                                    <option value="inmediata">Inmediata (menos de 15 días)</option>
+                                    <option value="30-60">En 30 - 60 días</option>
+                                    <option value=">60">En más de 60 días</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Breve descripción</label>
+                            <textarea name="detalle_legal" rows="3" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Cuéntanos el contexto del trámite"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="step-3" class="space-y-4 hidden">
+                    <h2 class="text-lg font-semibold text-foreground">3. Datos de contacto</h2>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Nombre completo *</label>
+                            <input type="text" name="nombre" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Tu nombre" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Correo *</label>
+                            <input type="email" name="email" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="correo@ejemplo.com" required>
+                        </div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Teléfono / WhatsApp *</label>
+                            <input type="tel" name="telefono" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="88887777" required minlength="7" maxlength="15">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Provincia (opcional)</label>
+                            <select name="provincia" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="san_jose">San José</option>
+                                <option value="alajuela">Alajuela</option>
+                                <option value="cartago">Cartago</option>
+                                <option value="heredia">Heredia</option>
+                                <option value="guanacaste">Guanacaste</option>
+                                <option value="puntarenas">Puntarenas</option>
+                                <option value="limon">Limón</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-1">Canal preferido</label>
+                        <select name="canal" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="llamada">Llamada</option>
+                            <option value="correo">Correo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <button type="button" id="backBtn" class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-foreground bg-background hover:bg-accent disabled:opacity-50" disabled>Atrás</button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="nextBtn" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">Siguiente</button>
+                        <button type="submit" id="submitBtn" class="hidden inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">Enviar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="successDialog" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="fixed inset-0 bg-black/50" onclick="closeSuccessDialog()"></div>
+        <div class="relative bg-card rounded-xl shadow-2xl p-6 md:p-8 max-w-md mx-4 text-center" style="animation: fadeIn 0.2s ease-out;">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-headline font-bold text-foreground mb-2">Listo</h2>
+            <p class="text-muted-foreground mb-6">Guardamos tus respuestas para continuar el proceso. Pronto te contactaremos.</p>
+            <button onclick="closeSuccessDialog()" class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">Entendido</button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+
+    <script>
+        const steps = ['step-1', 'step-2', 'step-3'];
+        let currentStep = 0;
+
+        function showStep(index) {
+            steps.forEach((id, i) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.toggle('hidden', i !== index);
+            });
+            document.getElementById('backBtn').disabled = index === 0;
+            document.getElementById('nextBtn').classList.toggle('hidden', index === steps.length - 1);
+            document.getElementById('submitBtn').classList.toggle('hidden', index !== steps.length - 1);
+            const percent = ((index + 1) / steps.length) * 100;
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('stepLabel').textContent = `Paso ${index + 1} de ${steps.length}`;
+        }
+
+        function showAlert(message, type = 'error') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `p-4 mb-4 text-sm rounded-lg ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+            alert.classList.remove('hidden');
+            if (type === 'success') {
+                setTimeout(() => alert.classList.add('hidden'), 4000);
+            }
+        }
+
+        function clearAlert() {
+            document.getElementById('alert').classList.add('hidden');
+        }
+
+        function updateDynamicBlocks() {
+            const interes = document.querySelector('input[name="interes"]:checked')?.value;
+            const showCredito = interes === 'credito' || interes === 'ambos';
+            const showLegales = interes === 'servicios_legales' || interes === 'ambos';
+            document.getElementById('creditoFields').classList.toggle('hidden', !showCredito);
+            document.getElementById('legalesFields').classList.toggle('hidden', !showLegales);
+        }
+
+        function validateStep(index) {
+            clearAlert();
+            if (index === 0) {
+                const interes = document.querySelector('input[name="interes"]:checked');
+                if (!interes) {
+                    showAlert('Selecciona qué te interesa para continuar.');
+                    return false;
+                }
+            }
+            if (index === 1) {
+                const interes = document.querySelector('input[name="interes"]:checked')?.value;
+                if (interes === 'credito' || interes === 'ambos') {
+                    const monto = document.querySelector('select[name="monto"]').value;
+                    const uso = document.querySelector('select[name="uso_credito"]').value;
+                    const situacion = document.querySelector('select[name="situacion_laboral"]').value;
+                    if (!monto || !uso || !situacion) {
+                        showAlert('Completa los datos de crédito.');
+                        return false;
+                    }
+                }
+                if (interes === 'servicios_legales' || interes === 'ambos') {
+                    const tramites = Array.from(document.querySelectorAll('input[name="tramites"]:checked'));
+                    const urgencia = document.querySelector('select[name="urgencia"]').value;
+                    if (tramites.length === 0 || !urgencia) {
+                        showAlert('Selecciona al menos un trámite legal y la urgencia.');
+                        return false;
+                    }
+                }
+            }
+            if (index === 2) {
+                const nombre = document.querySelector('input[name="nombre"]').value.trim();
+                const email = document.querySelector('input[name="email"]').value.trim();
+                const tel = document.querySelector('input[name="telefono"]').value.trim();
+                const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                const telOk = /^\d{7,15}$/.test(tel);
+                if (!nombre || !emailOk || !telOk) {
+                    showAlert('Revisa nombre, correo y teléfono.');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function collectData() {
+            const interes = document.querySelector('input[name="interes"]:checked')?.value || '';
+            const data = { interes };
+            if (interes === 'credito' || interes === 'ambos') {
+                data.monto = document.querySelector('select[name="monto"]').value;
+                data.uso_credito = document.querySelector('select[name="uso_credito"]').value;
+                data.situacion_laboral = document.querySelector('select[name="situacion_laboral"]').value;
+                data.ingreso = document.querySelector('select[name="ingreso"]').value;
+            }
+            if (interes === 'servicios_legales' || interes === 'ambos') {
+                data.tramites = Array.from(document.querySelectorAll('input[name="tramites"]:checked')).map(el => el.value);
+                data.urgencia = document.querySelector('select[name="urgencia"]').value;
+                data.detalle_legal = document.querySelector('textarea[name="detalle_legal"]').value;
+            }
+            data.nombre = document.querySelector('input[name="nombre"]').value.trim();
+            data.email = document.querySelector('input[name="email"]').value.trim();
+            data.telefono = document.querySelector('input[name="telefono"]').value.trim();
+            data.provincia = document.querySelector('select[name="provincia"]').value;
+            data.canal = document.querySelector('select[name="canal"]').value;
+            return data;
+        }
+
+        function showSuccessDialog() {
+            document.getElementById('successDialog').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSuccessDialog() {
+            document.getElementById('successDialog').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            showStep(currentStep);
+            document.querySelectorAll('input[name="interes"]').forEach(input => {
+                input.addEventListener('change', updateDynamicBlocks);
+            });
+            document.getElementById('backBtn').addEventListener('click', () => {
+                if (currentStep > 0) {
+                    currentStep -= 1;
+                    showStep(currentStep);
+                }
+            });
+            document.getElementById('nextBtn').addEventListener('click', () => {
+                if (!validateStep(currentStep)) return;
+                if (currentStep < steps.length - 1) {
+                    currentStep += 1;
+                    showStep(currentStep);
+                }
+            });
+            document.getElementById('questionnaireForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (!validateStep(2)) return;
+                const data = collectData();
+                console.log('Respuestas cuestionario público', data);
+                showAlert('Respuestas guardadas. Pronto te contactaremos.', 'success');
+                showSuccessDialog();
+            });
+        });
+    </script>
+</body>
+</html>

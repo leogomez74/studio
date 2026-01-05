@@ -250,6 +250,14 @@
         let lastCedulaLookup = '';
         let userConfirmedTse = false;
 
+        function normalizePhone(raw) {
+            const digits = (raw || '').replace(/\D/g, '');
+            if (!digits) return '';
+            if (digits.startsWith('506')) return digits;
+            if (digits.length <= 8) return `506${digits}`;
+            return digits;
+        }
+
         const formFieldsToManage = ['nombre', 'apellido1', 'apellido2', 'email', 'phone', 'sector', 'genero'];
 
         function setFieldsDisabled(disabled) {
@@ -353,6 +361,10 @@
             e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 15);
         });
 
+        document.getElementById('phone').addEventListener('blur', function(e) {
+            e.target.value = normalizePhone(e.target.value).slice(0, 15);
+        });
+
         function showAlert(message, type) {
             const alert = document.getElementById('alert');
             alert.textContent = message;
@@ -447,9 +459,9 @@
             const formData = {
                 cedula: document.getElementById('cedula').value,
                 email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value,
+                phone: normalizePhone(document.getElementById('phone').value),
                 sector: document.getElementById('sector').value,
-                whatsapp: document.getElementById('phone').value
+                whatsapp: normalizePhone(document.getElementById('phone').value)
             };
             if (userConfirmedTse && tseData) {
                 formData.name = tseData.nombre;
