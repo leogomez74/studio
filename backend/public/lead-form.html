@@ -327,11 +327,10 @@
                     type="text"
                     id="cedula"
                     name="cedula"
-                    placeholder="0-0000-0000"
-                    maxlength="11"
+                    placeholder="123456789"
+                    maxlength="9"
                     required
                 >
-                <p class="hint" id="cedula-hint">Formato: X-XXXX-XXXX</p>
                 <p class="error-text" id="cedula-error"></p>
             </div>
 
@@ -434,15 +433,20 @@
         let tseLookupDone = false;
         let lastCedulaLookup = '';
 
+        // Listener para cedula - buscar en TSE cuando tenga 9 digitos
+        document.getElementById('cedula').addEventListener('input', function(e) {
+            const rawCedula = e.target.value.replace(/[^0-9]/g, '');
+            if (rawCedula.length === 9 && rawCedula !== lastCedulaLookup) {
+                lastCedulaLookup = rawCedula;
+                lookupTSE(rawCedula);
+            }
+        });
 
         // Buscar en TSE API
         async function lookupTSE(cedula) {
-            const hint = document.getElementById('cedula-hint');
             const tseInfo = document.getElementById('tseInfo');
             const extranjeroSwitch = document.getElementById('extranjeroSwitch');
 
-            hint.textContent = 'Buscando en TSE...';
-            hint.className = 'hint loading';
             tseData = null;
             tseLookupDone = false;
 
@@ -471,22 +475,15 @@
                     document.getElementById('tseApellidos').textContent =
                         (data.apellido1 || '') + ' ' + (data.apellido2 || '');
                     tseInfo.classList.add('visible');
-
-                    hint.textContent = 'Datos encontrados en TSE';
-                    hint.className = 'hint success';
                 } else {
                     // No encontrado - mostrar switch de extranjero
                     tseLookupDone = true;
                     extranjeroSwitch.classList.remove('hidden');
-                    hint.textContent = 'No encontrado en TSE. Es extranjero?';
-                    hint.className = 'hint';
                 }
             } catch (error) {
                 console.error('Error consultando TSE:', error);
                 tseLookupDone = true;
                 extranjeroSwitch.classList.remove('hidden');
-                hint.textContent = 'No se pudo consultar TSE. Ingrese datos manualmente si es extranjero.';
-                hint.className = 'hint';
             }
         }
 
@@ -544,9 +541,10 @@
         function validateForm(data) {
             let isValid = true;
 
-            // Validar cedula
-            if (!/^\d{1}-\d{4}-\d{4}$/.test(data.cedula)) {
-                showFieldError('cedula', 'El formato debe ser X-XXXX-XXXX');
+            // Validar cedula (9 digitos)
+            const rawCedula = data.cedula.replace(/[^0-9]/g, '');
+            if (rawCedula.length !== 9) {
+                showFieldError('cedula', 'La cedula debe tener 9 digitos');
                 isValid = false;
             }
 
@@ -599,8 +597,6 @@
             document.getElementById('tseInfo').classList.remove('visible');
             document.getElementById('extranjeroSwitch').classList.add('hidden');
             document.getElementById('extranjeroFields').classList.remove('visible');
-            document.getElementById('cedula-hint').textContent = 'Formato: X-XXXX-XXXX';
-            document.getElementById('cedula-hint').className = 'hint';
         }
 
         // Enviar formulario
