@@ -93,6 +93,7 @@ const leadSchema = z.object({
   phone: z.string().min(1, "El teléfono es requerido").refine((phone) => {
     return /^\d{8}$/.test(phone);
   }, "El número de teléfono debe tener 8 dígitos"),
+  sector: z.string().min(1, "El sector laboral es requerido"),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
@@ -199,6 +200,7 @@ export default function ClientesPage() {
       phone: "",
       cedula: "",
       fechaNacimiento: "",
+      sector: "",
     },
   });
 
@@ -410,6 +412,7 @@ export default function ClientesPage() {
       phone: "",
       cedula: "",
       fechaNacimiento: "",
+      sector: "",
     });
     setEditingId(null);
     setEditingType(null);
@@ -495,6 +498,7 @@ export default function ClientesPage() {
         phone: values.phone || null,
         apellido1: values.apellido1?.trim() || null,
         apellido2: values.apellido2?.trim() || null,
+        sector: values.sector || null,
         ...(editingId ? {} : { status: "Nuevo" }),
         fecha_nacimiento: formattedDate,
       };
@@ -567,6 +571,7 @@ export default function ClientesPage() {
                 phone: lead.phone || "",
                 cedula: lead.cedula || "",
                 fechaNacimiento: (lead as any).fecha_nacimiento ? formatDateForInput((lead as any).fecha_nacimiento) : "",
+                sector: (lead as any).sector || "",
               });
               setIsLeadDialogOpen(true);
               break;
@@ -645,6 +650,7 @@ export default function ClientesPage() {
         phone: client.phone || "",
         cedula: client.cedula || "",
         fechaNacimiento: (client as any).fecha_nacimiento ? formatDateForInput((client as any).fecha_nacimiento) : "",
+        sector: (client as any).sector || "",
       });
       setIsLeadDialogOpen(true);
   };
@@ -943,7 +949,28 @@ export default function ClientesPage() {
                     </FormItem>
                   )}
                 />
-                {/* Campo monto solo visible al crear nuevo lead */}
+                <FormField
+                  control={form.control}
+                  name="sector"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sector Laboral</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isViewOnly}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un sector" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="publico">Público</SelectItem>
+                          <SelectItem value="privado">Privado</SelectItem>
+                          <SelectItem value="otro">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeLeadDialog} disabled={isSavingLead}>
