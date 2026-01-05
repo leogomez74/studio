@@ -270,11 +270,14 @@
         });
 
         document.getElementById('cedula').addEventListener('input', function(e) {
+            // Solo permitir números
             const rawCedula = e.target.value.replace(/[^0-9]/g, '');
+            e.target.value = rawCedula;
+
             if (rawCedula.length >= 6 && rawCedula !== lastCedulaLookup) {
                 lastCedulaLookup = rawCedula;
                 lookupTSE(rawCedula);
-            } else if (rawCedula.length < 9 && lastCedulaLookup) {
+            } else if (rawCedula.length < 6 && lastCedulaLookup) {
                 resetForm();
                 document.getElementById('cedula').value = rawCedula;
             }
