@@ -145,12 +145,13 @@
                     </div>
 
 
-                    <div id="extranjeroSwitch" class="hidden flex items-center justify-between p-4 border rounded-lg bg-background">
-                        <label for="isExtranjero" class="text-sm font-medium text-foreground">¿La cédula es de un extranjero?</label>
-                        <label class="switch">
-                            <input type="checkbox" id="isExtranjero">
-                            <span class="slider"></span>
-                        </label>
+                    <div id="notFoundPrompt" class="hidden flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border rounded-lg bg-background">
+                        <span class="text-sm font-medium text-foreground text-center sm:text-left">No se encontró en TSE. ¿Es extranjero?</span>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <input type="hidden" id="isExtranjero" value="false">
+                            <button type="button" id="notExtranjeroBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-gray-500 hover:bg-gray-600 rounded-md shadow-sm">No</button>
+                            <button type="button" id="siExtranjeroBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-md shadow-sm">Sí</button>
+                        </div>
                     </div>
 
                     <div id="extranjeroFields" class="hidden space-y-4">
@@ -216,6 +217,30 @@
         </div>
     </div>
 
+    <!-- Success Dialog -->
+    <div id="successDialog" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="fixed inset-0 bg-black/50" onclick="closeSuccessDialog()"></div>
+        <div class="relative bg-card rounded-xl shadow-2xl p-6 md:p-8 max-w-md mx-4 text-center" style="animation: fadeIn 0.2s ease-out;">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-headline font-bold text-foreground mb-2">Registro Exitoso</h2>
+            <p class="text-muted-foreground mb-6">Pronto nos comunicaremos con usted, revise su WhatsApp y correo.</p>
+            <button onclick="closeSuccessDialog()" class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+
     <script>
         const API_BASE_URL = window.location.origin;
         const TSE_API_URL = 'https://www.dsf.cr/tse/';
@@ -280,15 +305,13 @@
                     document.getElementById('tseConfirmation').classList.remove('hidden');
                 } else {
                     tseLookupDone = true;
-                    document.getElementById('extranjeroSwitch').classList.remove('hidden');
-                    setFieldsDisabled(false);
+                    document.getElementById('notFoundPrompt').classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Error consultando TSE:', error);
                 document.getElementById('tseLoading').classList.add('hidden');
                 tseLookupDone = true;
-                document.getElementById('extranjeroSwitch').classList.remove('hidden');
-                setFieldsDisabled(false);
+                document.getElementById('notFoundPrompt').classList.remove('hidden');
             }
         }
 
@@ -310,14 +333,20 @@
             setFieldsDisabled(false);
         });
 
-        document.getElementById('isExtranjero').addEventListener('change', function(e) {
-            const fields = document.getElementById('extranjeroFields');
-            if (e.target.checked) {
-                fields.classList.remove('hidden');
-                 ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = false);
-            } else {
-                fields.classList.add('hidden');
-            }
+        // Botón "Sí" - es extranjero
+        document.getElementById('siExtranjeroBtn').addEventListener('click', function() {
+            document.getElementById('isExtranjero').value = 'true';
+            document.getElementById('notFoundPrompt').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('hidden');
+            setFieldsDisabled(false);
+        });
+
+        // Botón "No" - no es extranjero, pero igual permite llenar manualmente
+        document.getElementById('notExtranjeroBtn').addEventListener('click', function() {
+            document.getElementById('isExtranjero').value = 'false';
+            document.getElementById('notFoundPrompt').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('hidden');
+            setFieldsDisabled(false);
         });
 
         document.getElementById('phone').addEventListener('input', function(e) {
@@ -359,17 +388,14 @@
                 showFieldError('cedula', 'La cédula debe tener entre 6 y 9 dígitos.');
                 isValid = false;
             }
-            if (!userConfirmedTse && !document.getElementById('isExtranjero').checked) {
+            // Si no se usaron datos del TSE, requerir campos manuales
+            if (!userConfirmedTse) {
                 if (!data.name || data.name.trim() === '') {
                     showFieldError('nombre', 'El nombre es requerido.');
                     isValid = false;
                 }
                 if (!data.apellido1 || data.apellido1.trim() === '') {
                     showFieldError('apellido1', 'El primer apellido es requerido.');
-                    isValid = false;
-                }
-                if (!data.genero) {
-                    showFieldError('genero', 'Seleccione un género.');
                     isValid = false;
                 }
             }
@@ -401,9 +427,19 @@
             document.getElementById('tseInfo').classList.add('hidden');
             document.getElementById('tseLoading').classList.add('hidden');
             document.getElementById('tseConfirmation').classList.add('hidden');
-            document.getElementById('extranjeroSwitch').classList.add('hidden');
+            document.getElementById('notFoundPrompt').classList.add('hidden');
             document.getElementById('extranjeroFields').classList.add('hidden');
-            document.getElementById('isExtranjero').checked = false;
+            document.getElementById('isExtranjero').value = 'false';
+        }
+
+        function showSuccessDialog() {
+            document.getElementById('successDialog').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSuccessDialog() {
+            document.getElementById('successDialog').classList.add('hidden');
+            document.body.style.overflow = '';
         }
 
         document.getElementById('leadForm').addEventListener('submit', async function(e) {
@@ -444,9 +480,9 @@
                 });
                 const result = await response.json();
                                 if (response.ok) {
-                                    showAlert(`Lead registrado exitosamente!${result.opportunity ? ' Se creo una oportunidad automaticamente.' : ''}`, 'success');
                                     resetForm(true);
-                
+                                    showSuccessDialog();
+
                                     // --- Secondary POST request to n8n webhook ---
                                     try {
                                         const n8nResponse = await fetch('https://n8n.webhook.ssc.cr/webhook/estado', {
