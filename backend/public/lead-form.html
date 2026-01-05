@@ -110,19 +110,19 @@
         }
     </script>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen flex items-center justify-center p-2 md:p-4">
     <div class="w-full max-w-lg">
         <div id="alert" class="hidden p-4 mb-4 text-sm rounded-lg" role="alert"></div>
 
         <div class="bg-card text-card-foreground rounded-xl border shadow-lg">
-            <div class="p-6">
+            <div class="p-4 md:p-6">
                 <div class="text-center">
-                    <h1 class="text-2xl font-headline font-bold text-primary">Planilla de Registro</h1>
-                    <p class="text-muted-foreground text-sm mt-1">Complete los datos para iniciar el proceso.</p>
+                    <h1 class="text-xl md:text-2xl font-headline font-bold text-primary">Planilla de Registro</h1>
+                    <p class="text-muted-foreground text-xs md:text-sm mt-1">Complete los datos para iniciar el proceso.</p>
                 </div>
             </div>
 
-            <form id="leadForm" class="p-6 pt-0">
+            <form id="leadForm" class="p-4 md:p-6 pt-0">
                 <div class="space-y-4">
                     <div class="form-group">
                         <label for="cedula" class="block text-sm font-medium text-foreground mb-1">Cédula *</label>
@@ -136,9 +136,9 @@
                         <p class="text-sm font-medium"><strong>Apellidos:</strong> <span id="tseApellidos"></span></p>
                     </div>
 
-                    <div id="tseConfirmation" class="hidden flex items-center justify-between p-4 border rounded-lg bg-background">
-                         <span class="text-sm font-medium text-foreground" id="tseConfirmationLabel"></span>
-                         <div class="flex items-center gap-2">
+                    <div id="tseConfirmation" class="hidden flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border rounded-lg bg-background">
+                         <span class="text-sm font-medium text-foreground text-center sm:text-left" id="tseConfirmationLabel"></span>
+                         <div class="flex items-center gap-2 flex-shrink-0">
                             <button type="button" id="tseConfirmNoBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md shadow-sm">No</button>
                             <button type="button" id="tseConfirmYesBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm">Sí</button>
                          </div>
@@ -159,7 +159,7 @@
                             <input type="text" id="nombre" name="nombre" placeholder="Nombre completo" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                             <p id="nombre-error" class="hidden text-xs text-red-500 mt-1"></p>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid md:grid-cols-2 gap-4">
                             <div class="form-group">
                                 <label for="apellido1" class="block text-sm font-medium text-foreground mb-1">Primer Apellido *</label>
                                 <input type="text" id="apellido1" name="apellido1" placeholder="Primer apellido" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
@@ -179,7 +179,7 @@
                         <p id="email-error" class="hidden text-xs text-red-500 mt-1"></p>
                     </div>
 
-                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div class="grid md:grid-cols-2 gap-4">
                         <div class="form-group">
                             <label for="phone" class="block text-sm font-medium text-foreground mb-1">Teléfono (WhatsApp) *</label>
                             <input type="tel" id="phone" name="phone" placeholder="88887777" maxlength="8" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
