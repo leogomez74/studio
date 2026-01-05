@@ -459,12 +459,15 @@
 
         document.getElementById('leadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+            const phoneInput = document.getElementById('phone');
+            const normalizedPhone = normalizePhone(phoneInput.value);
+            phoneInput.value = normalizedPhone;
             const formData = {
                 cedula: document.getElementById('cedula').value,
                 email: document.getElementById('email').value,
-                phone: normalizePhone(document.getElementById('phone').value),
+                phone: normalizedPhone,
                 sector: document.getElementById('sector').value,
-                whatsapp: normalizePhone(document.getElementById('phone').value)
+                whatsapp: normalizedPhone
             };
             if (userConfirmedTse && tseData) {
                 formData.name = tseData.nombre;
