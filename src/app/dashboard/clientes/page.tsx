@@ -917,45 +917,6 @@ export default function ClientesPage() {
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input required disabled={isViewOnly} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="apellido1"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Primer apellido</FormLabel>
-                      <FormControl>
-                        <Input required disabled={isViewOnly} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="apellido2"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Segundo apellido</FormLabel>
-                      <FormControl>
-                        <Input required disabled={isViewOnly} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
@@ -976,7 +937,7 @@ export default function ClientesPage() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Teléfono</FormLabel>
+                      <FormLabel>Teléfono (Whatsapp)</FormLabel>
                       <FormControl>
                         <Input
                           required
@@ -993,54 +954,7 @@ export default function ClientesPage() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="fechaNacimiento"
-                  render={({ field }) => {
-                    // Calcular max con fecha local para evitar problemas de timezone
-                    const today = new Date();
-                    const maxDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                    return (
-                      <FormItem>
-                        <FormLabel>Fecha de nacimiento</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="date"
-                            required
-                            disabled={isViewOnly}
-                            max={maxDate}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
                 {/* Campo monto solo visible al crear nuevo lead */}
-                {!editingId && (
-                  <FormField
-                    control={form.control}
-                    name="monto"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Monto estimado (opcional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            disabled={isViewOnly}
-                            {...field}
-                          />
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground">Si ingresa un monto, se creará una oportunidad automáticamente.</p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeLeadDialog} disabled={isSavingLead}>
