@@ -60,10 +60,11 @@
             padding: 12px;
             border: 2px solid #e5e7eb;
             border-radius: 8px;
-            font-size: 16px; /* Prevents iOS zoom on focus */
+            font-size: 16px;
             transition: border-color 0.2s, box-shadow 0.2s;
             -webkit-appearance: none;
             appearance: none;
+            background-color: white;
         }
         select {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
@@ -79,10 +80,20 @@
         input::placeholder {
             color: #9ca3af;
         }
+        input:disabled {
+            background-color: #f3f4f6;
+            color: #6b7280;
+        }
         .hint {
             font-size: 11px;
             color: #6b7280;
             margin-top: 3px;
+        }
+        .hint.success {
+            color: #059669;
+        }
+        .hint.loading {
+            color: #667eea;
         }
         button {
             width: 100%;
@@ -110,6 +121,107 @@
             opacity: 0.7;
             cursor: not-allowed;
             transform: none;
+        }
+
+        /* Switch toggle */
+        .switch-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            margin-bottom: 16px;
+            border-top: 1px solid #e5e7eb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .switch-group.hidden {
+            display: none;
+        }
+        .switch-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }
+        .switch {
+            position: relative;
+            width: 48px;
+            height: 26px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e1;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .switch input:checked + .slider {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .switch input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Extranjero fields */
+        .extranjero-fields {
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        .extranjero-fields.visible {
+            display: block;
+        }
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* TSE info display */
+        .tse-info {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .tse-info.visible {
+            display: block;
+        }
+        .tse-info p {
+            font-size: 13px;
+            color: #166534;
+            margin-bottom: 4px;
+        }
+        .tse-info p:last-child {
+            margin-bottom: 0;
+        }
+        .tse-info strong {
+            color: #14532d;
         }
 
         /* iPhone SE and small devices (320px - 375px) */
@@ -146,6 +258,9 @@
             button {
                 padding: 12px;
                 font-size: 15px;
+            }
+            .switch-label {
+                font-size: 13px;
             }
         }
 
@@ -216,8 +331,57 @@
                     maxlength="11"
                     required
                 >
-                <p class="hint">Formato: X-XXXX-XXXX</p>
+                <p class="hint" id="cedula-hint">Formato: X-XXXX-XXXX</p>
                 <p class="error-text" id="cedula-error"></p>
+            </div>
+
+            <!-- TSE Info Display -->
+            <div class="tse-info" id="tseInfo">
+                <p><strong>Nombre:</strong> <span id="tseNombre"></span></p>
+                <p><strong>Apellidos:</strong> <span id="tseApellidos"></span></p>
+            </div>
+
+            <!-- Switch para extranjero -->
+            <div class="switch-group hidden" id="extranjeroSwitch">
+                <span class="switch-label">Es extranjero?</span>
+                <label class="switch">
+                    <input type="checkbox" id="isExtranjero">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <!-- Campos para extranjero -->
+            <div class="extranjero-fields" id="extranjeroFields">
+                <div class="form-group">
+                    <label for="nombre">Nombre *</label>
+                    <input
+                        type="text"
+                        id="nombre"
+                        name="nombre"
+                        placeholder="Nombre completo"
+                    >
+                    <p class="error-text" id="nombre-error"></p>
+                </div>
+                <div class="form-group">
+                    <label for="apellido1">Primer Apellido *</label>
+                    <input
+                        type="text"
+                        id="apellido1"
+                        name="apellido1"
+                        placeholder="Primer apellido"
+                    >
+                    <p class="error-text" id="apellido1-error"></p>
+                </div>
+                <div class="form-group">
+                    <label for="apellido2">Segundo Apellido</label>
+                    <input
+                        type="text"
+                        id="apellido2"
+                        name="apellido2"
+                        placeholder="Segundo apellido"
+                    >
+                    <p class="error-text" id="apellido2-error"></p>
+                </div>
             </div>
 
             <div class="form-group">
@@ -263,6 +427,12 @@
 
     <script>
         const API_BASE_URL = window.location.origin;
+        const TSE_API_URL = 'https://www.dsf.cr/tse/';
+
+        // Estado del TSE
+        let tseData = null;
+        let tseLookupDone = false;
+        let lastCedulaLookup = '';
 
         // Formatear cedula mientras se escribe
         document.getElementById('cedula').addEventListener('input', function(e) {
@@ -275,6 +445,78 @@
                 e.target.value = value.slice(0, 1) + '-' + value.slice(1);
             } else {
                 e.target.value = value.slice(0, 1) + '-' + value.slice(1, 5) + '-' + value.slice(5);
+            }
+
+            // Buscar en TSE cuando la cedula esta completa
+            const rawCedula = e.target.value.replace(/[^0-9]/g, '');
+            if (rawCedula.length === 9 && rawCedula !== lastCedulaLookup) {
+                lastCedulaLookup = rawCedula;
+                lookupTSE(rawCedula);
+            }
+        });
+
+        // Buscar en TSE API
+        async function lookupTSE(cedula) {
+            const hint = document.getElementById('cedula-hint');
+            const tseInfo = document.getElementById('tseInfo');
+            const extranjeroSwitch = document.getElementById('extranjeroSwitch');
+
+            hint.textContent = 'Buscando en TSE...';
+            hint.className = 'hint loading';
+            tseData = null;
+            tseLookupDone = false;
+
+            // Ocultar info anterior
+            tseInfo.classList.remove('visible');
+            extranjeroSwitch.classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('visible');
+            document.getElementById('isExtranjero').checked = false;
+
+            try {
+                const response = await fetch(TSE_API_URL + cedula);
+                const data = await response.json();
+
+                if (data.success && data.nombre) {
+                    // TSE encontro la persona
+                    tseData = {
+                        nombre: data.nombre,
+                        apellido1: data.apellido1,
+                        apellido2: data.apellido2,
+                        fechaNacimiento: data['fecha-nacimiento']
+                    };
+                    tseLookupDone = true;
+
+                    // Mostrar info del TSE
+                    document.getElementById('tseNombre').textContent = data.nombre;
+                    document.getElementById('tseApellidos').textContent =
+                        (data.apellido1 || '') + ' ' + (data.apellido2 || '');
+                    tseInfo.classList.add('visible');
+
+                    hint.textContent = 'Datos encontrados en TSE';
+                    hint.className = 'hint success';
+                } else {
+                    // No encontrado - mostrar switch de extranjero
+                    tseLookupDone = true;
+                    extranjeroSwitch.classList.remove('hidden');
+                    hint.textContent = 'No encontrado en TSE. Es extranjero?';
+                    hint.className = 'hint';
+                }
+            } catch (error) {
+                console.error('Error consultando TSE:', error);
+                tseLookupDone = true;
+                extranjeroSwitch.classList.remove('hidden');
+                hint.textContent = 'No se pudo consultar TSE. Ingrese datos manualmente si es extranjero.';
+                hint.className = 'hint';
+            }
+        }
+
+        // Toggle extranjero fields
+        document.getElementById('isExtranjero').addEventListener('change', function(e) {
+            const fields = document.getElementById('extranjeroFields');
+            if (e.target.checked) {
+                fields.classList.add('visible');
+            } else {
+                fields.classList.remove('visible');
             }
         });
 
@@ -301,9 +543,11 @@
         function showFieldError(field, message) {
             const input = document.getElementById(field);
             const error = document.getElementById(field + '-error');
-            input.classList.add('input-error');
-            error.textContent = message;
-            error.style.display = 'block';
+            if (input) input.classList.add('input-error');
+            if (error) {
+                error.textContent = message;
+                error.style.display = 'block';
+            }
         }
 
         // Limpiar errores
@@ -324,6 +568,25 @@
             if (!/^\d{1}-\d{4}-\d{4}$/.test(data.cedula)) {
                 showFieldError('cedula', 'El formato debe ser X-XXXX-XXXX');
                 isValid = false;
+            }
+
+            // Si es extranjero, validar campos adicionales
+            const isExtranjero = document.getElementById('isExtranjero').checked;
+            if (isExtranjero) {
+                if (!data.nombre || data.nombre.trim() === '') {
+                    showFieldError('nombre', 'El nombre es requerido');
+                    isValid = false;
+                }
+                if (!data.apellido1 || data.apellido1.trim() === '') {
+                    showFieldError('apellido1', 'El primer apellido es requerido');
+                    isValid = false;
+                }
+            } else if (!tseData) {
+                // No es extranjero pero tampoco hay datos del TSE
+                if (tseLookupDone) {
+                    showFieldError('cedula', 'Verifique la cedula o marque como extranjero');
+                    isValid = false;
+                }
             }
 
             // Validar email
@@ -347,10 +610,25 @@
             return isValid;
         }
 
+        // Resetear formulario
+        function resetForm() {
+            document.getElementById('leadForm').reset();
+            tseData = null;
+            tseLookupDone = false;
+            lastCedulaLookup = '';
+            document.getElementById('tseInfo').classList.remove('visible');
+            document.getElementById('extranjeroSwitch').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('visible');
+            document.getElementById('cedula-hint').textContent = 'Formato: X-XXXX-XXXX';
+            document.getElementById('cedula-hint').className = 'hint';
+        }
+
         // Enviar formulario
         document.getElementById('leadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             clearErrors();
+
+            const isExtranjero = document.getElementById('isExtranjero').checked;
 
             const formData = {
                 cedula: document.getElementById('cedula').value,
@@ -358,6 +636,22 @@
                 phone: document.getElementById('phone').value,
                 sector: document.getElementById('sector').value
             };
+
+            // Agregar datos de nombre segun origen
+            if (tseData) {
+                // Datos del TSE
+                formData.name = tseData.nombre;
+                formData.apellido1 = tseData.apellido1;
+                formData.apellido2 = tseData.apellido2;
+                if (tseData.fechaNacimiento && tseData.fechaNacimiento !== 'fallecido') {
+                    formData.fecha_nacimiento = tseData.fechaNacimiento;
+                }
+            } else if (isExtranjero) {
+                // Datos manuales de extranjero
+                formData.name = document.getElementById('nombre').value;
+                formData.apellido1 = document.getElementById('apellido1').value;
+                formData.apellido2 = document.getElementById('apellido2').value;
+            }
 
             if (!validateForm(formData)) {
                 return;
@@ -381,7 +675,7 @@
 
                 if (response.ok) {
                     showAlert('Lead registrado exitosamente!' + (result.opportunity ? ' Se creo una oportunidad automaticamente.' : ''), 'success');
-                    document.getElementById('leadForm').reset();
+                    resetForm();
                 } else {
                     if (result.errors) {
                         Object.keys(result.errors).forEach(field => {
