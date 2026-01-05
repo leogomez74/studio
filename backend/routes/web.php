@@ -6,9 +6,9 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// Ruta oculta para formulario de registro de leads
-// Acceso: /Xk9mP2nL
-Route::get('/Xk9mP2nL', function () {
-    return response(file_get_contents(public_path('lead-form.html')))
+// Formulario público de registro de leads
+// Ruta amigable para compartir en redes sociales
+Route::get('/registro', function () {
+    return response(file_get_contents(resource_path('lead-form.html')))
         ->header('Content-Type', 'text/html');
 });
