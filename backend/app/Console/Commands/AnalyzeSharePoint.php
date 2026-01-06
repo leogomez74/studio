@@ -8,8 +8,8 @@ use Illuminate\Support\Str;
 
 class AnalyzeSharePoint extends Command
 {
-    protected $signature = 'sharepoint:analyze {--token= : Token del dueño (Owner)} {--folder= : Nombre de la carpeta a buscar (opcional)}';
-    protected $description = 'Analiza el Drive del dueño del token automáticamente.';
+    protected $signature = 'sharepoint:analyze {--token= : Token de acceso} {--drive-id=3c12fb8d-2541-4ad7-bbcc-cb210ac338a5 : El ID del Drive}';
+    protected $description = 'Analiza el Drive específico usando el ID proporcionado.';
 
     protected $keywords = [
         'constancia' => ['colilla', 'constancia', 'nomina', 'salario', 'boleta', 'planilla'],
@@ -19,56 +19,58 @@ class AnalyzeSharePoint extends Command
     public function handle()
     {
         $accessToken = $this->option('token');
-        $targetFolder = $this->option('folder'); // Ej: "documentos Made (PEP)"
+        // Usamos el ID que sacaste del F12 por defecto
+        $rawDriveId = $this->option('drive-id'); 
 
         if (!$accessToken) {
-            $this->error('Necesitas el token del dueño: php artisan sharepoint:analyze --token="..."');
+            $this->error('Falta el token: --token="..."');
             return 1;
         }
 
-        $this->info('1. Obteniendo información del Drive del usuario...');
+        $this->info("Usando Drive ID: $rawDriveId");
+
+        // Intentar leer la raíz directamente
+        // Probamos primero como Drive, luego como Site/List si falla
         
-        // Pedir el Drive por defecto del usuario dueño del token
-        $meDriveResponse = Http::withToken($accessToken)->get('https://graph.microsoft.com/v1.0/me/drive');
+        $url = "https://graph.microsoft.com/v1.0/drives/$rawDriveId/root/children";
+        $this->info("Probando acceso directo: GET /drives/$rawDriveId/root/children");
 
-        if ($meDriveResponse->failed()) {
-            $this->error('Error al obtener el Drive: ' . $meDriveResponse->body());
-            return 1;
-        }
-
-        $driveId = $meDriveResponse->json()['id'];
-        $this->info("   > Drive ID encontrado: $driveId");
-
-        // 2. Localizar la carpeta objetivo (si se especificó) o usar la raíz
-        $rootUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/root";
-        
-        if ($targetFolder) {
-            $this->info("2. Buscando carpeta: '$targetFolder'...");
-            // Buscar la carpeta específica en la raíz
-            $searchUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/root/children?\$filter=name eq '$targetFolder'";
-            $searchRes = Http::withToken($accessToken)->get($searchUrl);
-            
-            $found = $searchRes->json()['value'][0] ?? null;
-            
-            if (!$found) {
-                $this->error("   > No se encontró la carpeta '$targetFolder' en la raíz.");
-                return 1;
-            }
-            
-            $rootUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/items/" . $found['id'];
-            $this->info("   > Carpeta encontrada. ID: " . $found['id']);
-        } else {
-            $this->info("2. Usando la raíz del Drive.");
-        }
-
-        // 3. Escanear contenido
-        $this->info('3. Escaneando empresas...');
-        $childrenUrl = "$rootUrl/children";
-        $response = Http::withToken($accessToken)->get($childrenUrl);
+        $response = Http::withToken($accessToken)->get($url);
 
         if ($response->failed()) {
-            $this->error('Error leyendo carpetas: ' . $response->body());
-            return 1;
+            // Si falla, es probable que el ID sea de una Lista y no de un Drive.
+            // Intentaremos acceder vía Site/List si tenemos esos datos, 
+            // PERO primero probemos si es el formato de ID el problema.
+            
+            $this->warn('Acceso directo falló: ' . $response->json()['error']['code']);
+            
+            // Intento 2: Buscar la carpeta "documentos Made (PEP)" usando búsqueda global en el Drive
+            // A veces el ID raíz falla pero la búsqueda funciona
+            $this->info('Intentando búsqueda de carpeta "documentos Made (PEP)"...');
+            
+            $searchUrl = "https://graph.microsoft.com/v1.0/drives/$rawDriveId/root/search(q='documentos Made')";
+            $searchResp = Http::withToken($accessToken)->get($searchUrl);
+            
+            if ($searchResp->successful()) {
+                $found = $searchResp->json()['value'][0] ?? null;
+                if ($found) {
+                    $this->info('¡Carpeta encontrada! ID: ' . $found['id']);
+                    // Usar ese ID para listar hijos
+                    $url = "https://graph.microsoft.com/v1.0/drives/$rawDriveId/items/" . $found['id'] . "/children";
+                    $response = Http::withToken($accessToken)->get($url);
+                } else {
+                    $this->error('No se encontró la carpeta.');
+                    return 1;
+                }
+            } else {
+                $this->error('Búsqueda falló también: ' . $searchResp->body());
+                return 1;
+            }
+        }
+
+        if ($response->failed()) {
+             $this->error('Imposible acceder. El ID o el Token no son válidos para esta operación.');
+             return 1;
         }
 
         $items = $response->json()['value'] ?? [];
@@ -88,8 +90,7 @@ class AnalyzeSharePoint extends Command
                     'otros' => []
                 ];
 
-                // Leer archivos dentro de la empresa
-                $filesUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/items/$empresaId/children";
+                $filesUrl = "https://graph.microsoft.com/v1.0/drives/$rawDriveId/items/$empresaId/children";
                 $filesResp = Http::withToken($accessToken)->get($filesUrl);
 
                 if ($filesResp->successful()) {
@@ -99,7 +100,6 @@ class AnalyzeSharePoint extends Command
                             $this->clasificarArchivo($file['name'], $mapaEmpresas[$nombreEmpresa]);
                         }
                     }
-                    // Limpiar duplicados
                     foreach ($mapaEmpresas[$nombreEmpresa] as $k => $v) {
                         $mapaEmpresas[$nombreEmpresa][$k] = array_values(array_unique($v));
                     }
@@ -110,8 +110,6 @@ class AnalyzeSharePoint extends Command
 
         $bar->finish();
         $this->newLine(2);
-
-        $this->info('Resultados:');
         $this->line(json_encode($mapaEmpresas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
