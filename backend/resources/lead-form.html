@@ -875,7 +875,7 @@
                                     }
                                     // Encode cedula in base64 for the link
                                     const cedulaHash = btoa(formData.cedula);
-                                    const questionnaireLink = `${API_BASE_URL}${sectorPath}?hash=${cedulaHash}`;
+                                    const questionnaireLink = `${API_BASE_URL}${sectorPath}?${cedulaHash}`;
                                     
                                     // Add link to webhook payload
                                     const webhookData = { ...formData, link: questionnaireLink };
