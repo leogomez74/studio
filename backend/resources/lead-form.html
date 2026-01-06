@@ -216,7 +216,8 @@
                                 <option value="">Seleccione un sector</option>
                                 <option value="publico">Sector Público</option>
                                 <option value="privado">Sector Privado</option>
-                                <option value="otro">Independiente / Propio</option>
+                                <option value="pensionado">Pensionado</option>
+                                <option value="propio">Independiente / Propio</option>
                             </select>
                             <p id="sector-error" class="hidden text-xs text-red-500 mt-1"></p>
                         </div>
@@ -869,9 +870,13 @@
                                         case 'privado':
                                             sectorPath = '/privado';
                                             break;
-                                        case 'otro':
+                                        case 'propio':
                                             sectorPath = '/propio';
                                             break;
+                                        case 'pensionado':
+                                            sectorPath = '/pensionado';
+                                            break;
+                                            
                                         default:
                                             sectorPath = '/registro'; // Fallback
                                     }
