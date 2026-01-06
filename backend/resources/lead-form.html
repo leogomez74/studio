@@ -592,17 +592,35 @@
             }
         });
 
+        // Sanitize input while typing
         document.getElementById('cedula').addEventListener('input', function(e) {
-            // Solo permitir números
             const rawCedula = e.target.value.replace(/[^0-9]/g, '');
             e.target.value = rawCedula;
+            
+            // If user clears the input, reset the form state
+            if (rawCedula === '') {
+                resetForm();
+            } else if (rawCedula !== lastCedulaLookup && (tseData || userConfirmedTse)) {
+                // If user changes value after a successful lookup, reset previous match
+                resetForm(false); 
+                e.target.value = rawCedula;
+            }
+        });
 
+        // Trigger lookup on blur (losing focus)
+        document.getElementById('cedula').addEventListener('blur', function(e) {
+            const rawCedula = e.target.value;
             if (rawCedula.length >= 6 && rawCedula !== lastCedulaLookup) {
                 lastCedulaLookup = rawCedula;
                 lookupTSE(rawCedula);
-            } else if (rawCedula.length < 6 && lastCedulaLookup) {
-                resetForm();
-                document.getElementById('cedula').value = rawCedula;
+            }
+        });
+
+        // Trigger lookup on Enter key
+        document.getElementById('cedula').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent form submission
+                document.getElementById('cedula').blur(); // Trigger blur to start lookup
             }
         });
 
