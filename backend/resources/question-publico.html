@@ -146,13 +146,19 @@
                         <div class="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-foreground mb-1">Empresa en la que Labora</label>
-                                <select name="situacion_laboral" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Selecciona</option>
-                                    <option value="Empresa 1">Empresa 1</option>
-                                    <option value="Empresa 2">Empresa 2</option>
-                                    <option value="Empresa 3">Empresa 3</option>
-                                    <option value="Empresa 4">Empresa 4</option>
-                                </select>
+                                <div id="companyContainer" class="relative">
+                                    <button type="button" id="companyTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
+                                        <span id="companyLabel" class="truncate text-muted-foreground">Selecciona</span>
+                                        <span class="text-xs text-muted-foreground">▼</span>
+                                    </button>
+                                    <div id="companyDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
+                                        <div class="p-2 border-b">
+                                            <input id="companySearch" type="text" placeholder="Buscar empresa" class="w-full px-2 py-1 text-sm border rounded-md" aria-label="Buscar empresa">
+                                        </div>
+                                        <div id="companyList" class="max-h-64 overflow-y-auto"></div>
+                                    </div>
+                                    <input type="hidden" id="companyValue" name="situacion_laboral" value="">
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-foreground mb-1">Ingreso mensual aproximado</label>
@@ -321,6 +327,72 @@
             document.getElementById('legalesFields').classList.toggle('hidden', !showLegales);
         }
 
+        const companyOptions = [
+            'I.M.A.S', 'C.N.P.', 'A.N.E.P.', 'P.A.N.I', 'MUNICIPALIDAD DE TIBÁS', 'MUNICIPALIDAD SAN JOSÉ', 'C.C.S.S', 'PERSONA JOVEN', 'CONAVI', 'MUNICIPALIDAD DE GOICOECHEA',
+            'CORONADO', 'COSEVI', 'UCR', 'CEN-CINAI', 'INA', 'I.C.E.', 'MUNICIPALIDAD GRECIA', 'I.A.F.A.', 'I.C.O.D.E.R', 'RECOPE', 'MUNICIPALIDAD DE OREAMUNO', 'PODER JUDICIAL',
+            'PENSIONADOS PODER JUDICIAL', 'MUNICIPALIDAD DE MORAVIA', 'O.T.M.', 'ASAMBLEA LEGISLATIVA', 'CONTROL DE MIGRACIÓN Y EXTRANJERÍA', 'DEFENSORÍA DE LOS HABITANTES',
+            'DESARROLLO DE LA COMUNIDAD', 'DIRECCIÓN GENERAL DE SERVICIO CIVIL', 'DIRECCIÓN NACIONAL DE PENSIONES', 'IMPRENTA NACIONAL', 'MIN DE AGRICULTURA Y GANADERÍA',
+            'MINISTERIO DE AMBIENTE Y ENERGÍA', 'MIN DE CIENCIA TECNOLOGÍA Y TELECOMUNICACIONES', 'MIN DE COMERCIO EXTERIOR', 'MIN DE CULT.JUV Y DEPORTES', 'MIN DE GOBERNACIÓN Y POLICÍA',
+            'MIN DE ECO.IND Y COMERCIO', 'MINISTERIO DE EDUCACIÓN PÚBLICA', 'MINISTERIO DE HACIENDA', 'MINISTERIO DE JUSTICIA Y GRACIA', 'MINISTERIO DE LA PRESIDENCIA',
+            'MINISTERIO DE OBRAS PUBL. Y TRANSPORTE', 'MINISTERIO DE PLANIF.NAC Y POL.ECO', 'MINISTERIO DE RELACIONES EXTERIORES Y CULTO', 'MINISTERIO DE SALUD',
+            'MINISTERIO DE SEGURIDAD PÚBLICA', 'MINISTERIO DE TRAB. Y SEGUR. SOC', 'MINISTERIO DE VIVIENDA Y ASENT.HUMANOS', 'PRESIDENCIA DE LA REPÚBLICA',
+            'PROCURADURÍA GENERAL DE LA REPÚBLICA', 'REGISTRO NACIONAL', 'SERVICIO EXTERIOR', 'TRIBUNAL DE SERVICIO CIVIL', 'TRIBUNAL SUPREMO DE ELECCIONES', 'AYA',
+            'ARCHIVO NACIONAL', 'CN MUSICA', 'FANAL', 'FITOSANITARIO', 'SENASA', 'FONAFIFO', 'ICE', 'ICE EMERGENCIAS 911', 'IFAM', 'INDER (IDA)', 'INVU', 'SEC', 'TEATRO NACIONAL', 'CNC',
+            'GOBIERNO CENTRAL INTEGRA', 'INTA', 'JUNTA ADM. REGISTRO NACIONAL', 'MINAE', 'ICE ENERGIA Y TELEC.', 'AVIACION CIVIL', 'MUSEO NACIONAL', 'UCR UNIVERSIDAD DE COSTA RICA',
+            'MUNICIPALIDAD DE ALVARADO', 'MUNICIPALIDAD DE ASERRI', 'MUNICIPALIDAD DE CORONADO', 'MUNICIPALIDAD DE CORREDORES', 'MUNICIPALIDAD DE DESAMPARADOS',
+            'MUNICIPALIDAD DE MORA', 'MUNICIPALIDAD DE NARANJO', 'MUNICIPALIDAD DE OROTIÑA', 'MUNICIPALIDAD DE PALMARES', 'MUNICIPALIDAD DE PARRITA', 'MUNICIPALIDAD DE PUNTARENAS',
+            'MUNICIPALIDAD DE SAN MATEO', 'MUNICIPALIDAD DE SAN PABLO', 'MUNICIPALIDAD DE SAN VITO'
+        ];
+
+        function renderCompanyOptions(filter = '') {
+            const list = document.getElementById('companyList');
+            list.innerHTML = '';
+            const term = filter.trim().toLowerCase();
+            companyOptions.forEach(name => {
+                if (term && !name.toLowerCase().includes(term)) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = name;
+                btn.className = 'w-full text-left px-3 py-2 text-sm hover:bg-gray-100';
+                btn.addEventListener('click', () => selectCompany(name));
+                list.appendChild(btn);
+            });
+            if (!list.children.length) {
+                const empty = document.createElement('div');
+                empty.className = 'px-3 py-2 text-sm text-muted-foreground';
+                empty.textContent = 'Sin resultados';
+                list.appendChild(empty);
+            }
+        }
+
+        function selectCompany(name) {
+            const hidden = document.getElementById('companyValue');
+            const label = document.getElementById('companyLabel');
+            hidden.value = name || '';
+            label.textContent = name || 'Selecciona';
+            label.classList.toggle('text-muted-foreground', !name);
+            closeCompanyDropdown();
+        }
+
+        function openCompanyDropdown() {
+            document.getElementById('companyDropdown').classList.remove('hidden');
+            renderCompanyOptions(document.getElementById('companySearch').value || '');
+            document.getElementById('companySearch').focus();
+        }
+
+        function closeCompanyDropdown() {
+            document.getElementById('companyDropdown').classList.add('hidden');
+        }
+
+        function toggleCompanyDropdown() {
+            const dropdown = document.getElementById('companyDropdown');
+            if (dropdown.classList.contains('hidden')) {
+                openCompanyDropdown();
+            } else {
+                closeCompanyDropdown();
+            }
+        }
+
         function validateStep(index) {
             clearAlert();
             if (index === 0) {
@@ -335,7 +407,7 @@
                 if (interes === 'credito' || interes === 'ambos') {
                     const monto = document.querySelector('select[name="monto"]').value;
                     const uso = document.querySelector('select[name="uso_credito"]').value;
-                    const situacion = document.querySelector('select[name="situacion_laboral"]').value;
+                    const situacion = document.getElementById('companyValue').value;
                     if (!monto || !uso || !situacion) {
                         showAlert('Completa los datos de crédito.');
                         return false;
@@ -370,7 +442,7 @@
             if (interes === 'credito' || interes === 'ambos') {
                 data.monto = document.querySelector('select[name="monto"]').value;
                 data.uso_credito = document.querySelector('select[name="uso_credito"]').value;
-                data.situacion_laboral = document.querySelector('select[name="situacion_laboral"]').value;
+                data.situacion_laboral = document.getElementById('companyValue').value;
                 data.ingreso = document.querySelector('select[name="ingreso"]').value;
             }
             if (interes === 'servicios_legales' || interes === 'ambos') {
@@ -398,8 +470,23 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             showStep(currentStep);
+            renderCompanyOptions();
             document.querySelectorAll('input[name="interes"]').forEach(input => {
                 input.addEventListener('change', updateDynamicBlocks);
+            });
+            document.getElementById('companyTrigger').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleCompanyDropdown();
+            });
+            document.getElementById('companySearch').addEventListener('input', (e) => {
+                renderCompanyOptions(e.target.value || '');
+            });
+            document.addEventListener('click', (e) => {
+                const dropdown = document.getElementById('companyDropdown');
+                const container = document.getElementById('companyContainer');
+                if (!container.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
             });
             document.getElementById('backBtn').addEventListener('click', () => {
                 if (currentStep > 0) {
