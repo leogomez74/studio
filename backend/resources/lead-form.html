@@ -858,12 +858,34 @@
                                     resetForm(true);
                                     showSuccessDialog();
 
+                                    // Generate sector-specific link
+                                    let sectorPath = '';
+                                    switch (formData.sector) {
+                                        case 'publico':
+                                            sectorPath = '/publico';
+                                            break;
+                                        case 'privado':
+                                            sectorPath = '/privado';
+                                            break;
+                                        case 'otro':
+                                            sectorPath = '/propio';
+                                            break;
+                                        default:
+                                            sectorPath = '/registro'; // Fallback
+                                    }
+                                    // Encode cedula in base64 for the link
+                                    const cedulaHash = btoa(formData.cedula);
+                                    const questionnaireLink = `${API_BASE_URL}${sectorPath}?hash=${cedulaHash}`;
+                                    
+                                    // Add link to webhook payload
+                                    const webhookData = { ...formData, link: questionnaireLink };
+
                                     // --- Secondary POST request to n8n webhook ---
                                     try {
                                         const n8nResponse = await fetch('https://n8n.webhook.ssc.cr/webhook/estado', {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                                            body: JSON.stringify(formData)
+                                            body: JSON.stringify(webhookData)
                                         });
                                         if (n8nResponse.ok) {
                                             console.log('Successfully sent data to n8n webhook.');
