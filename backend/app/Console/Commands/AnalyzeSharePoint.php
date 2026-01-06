@@ -8,23 +8,9 @@ use Illuminate\Support\Str;
 
 class AnalyzeSharePoint extends Command
 {
-    /**
-     * El nombre y la firma del comando de consola.
-     *
-     * @var string
-     */
     protected $signature = 'sharepoint:analyze {--token= : Token de acceso de Microsoft Graph} {--folder-id= : ID de la carpeta específica}';
+    protected $description = 'Analiza carpetas de SharePoint resolviendo el Drive ID automáticamente.';
 
-    /**
-     * La descripción del comando.
-     *
-     * @var string
-     */
-    protected $description = 'Analiza carpetas de SharePoint usando SiteId + ListId para mayor compatibilidad.';
-
-    /**
-     * Palabras clave para identificar tipos de documentos.
-     */
     protected $keywords = [
         'constancia' => ['colilla', 'constancia', 'nomina', 'salario', 'boleta', 'planilla'],
         'comprobante' => ['comprobante', 'pago', 'sinpe', 'transferencia', 'voucher', 'recibo', 'deposito']
@@ -32,63 +18,53 @@ class AnalyzeSharePoint extends Command
 
     public function handle()
     {
-        // IDs extraídos del F12 o Graph Explorer (GUIDs puros)
         $siteId = env('MICROSOFT_SITE_ID');
         $listId = env('MICROSOFT_LIST_ID');
         $accessToken = $this->option('token');
 
-        if (!$siteId || !$listId || !$accessToken) {
-            $this->error('Error de configuración:');
-            $this->line('- Asegúrate de tener MICROSOFT_SITE_ID y MICROSOFT_LIST_ID en tu archivo .env');
-            $this->line('- Ejecuta el comando con --token="TU_TOKEN_DE_GRAPH_EXPLORER"');
+        if (!$accessToken) {
+            $this->error('Por favor proporciona el token con --token="..."');
             return 1;
         }
 
-        $this->info("Conectando a SharePoint...");
-        $this->info("Site ID: $siteId");
-        $this->info("List ID: $listId");
+        // 1. Resolver el Drive ID correcto
+        $this->info('Resolviendo Drive ID...');
+        $driveUrl = "https://graph.microsoft.com/v1.0/sites/$siteId/lists/$listId/drive";
+        $driveResp = Http::withToken($accessToken)->get($driveUrl);
 
-        // 1. Construir URL base usando la API de Listas (Acepta GUIDs directos)
-        // Documentación: GET /sites/{site-id}/lists/{list-id}/items/{item-id}/children
-        
+        if ($driveResp->failed()) {
+            $this->error('No se pudo encontrar el Drive asociado a la lista: ' . $driveResp->body());
+            return 1;
+        }
+
+        $driveId = $driveResp->json()['id'];
+        $this->info("Drive ID resuelto: $driveId");
+
+        // 2. Escanear
         $folderId = $this->option('folder-id');
+        $url = $folderId 
+            ? "https://graph.microsoft.com/v1.0/drives/$driveId/items/$folderId/children"
+            : "https://graph.microsoft.com/v1.0/drives/$driveId/root/children";
+
+        $this->info('Escaneando carpetas...');
         
-        // Si no hay folder ID, usamos 'root' para la raíz de la lista
-        $endpoint = $folderId 
-            ? "/items/$folderId/children" 
-            : "/items/root/children";
-
-        $url = "https://graph.microsoft.com/v1.0/sites/$siteId/lists/$listId" . $endpoint;
-
-        // Importante: $expand=driveItem nos da acceso a si es folder o file y sus propiedades
-        $response = Http::withToken($accessToken)->get($url . '?$expand=driveItem');
+        $response = Http::withToken($accessToken)->get($url);
         
         if ($response->failed()) {
-            $this->error('Fallo al leer la lista: ' . $response->body());
+            $this->error('Error leyendo carpetas: ' . $response->body());
             return 1;
         }
 
         $items = $response->json()['value'] ?? [];
         $mapaEmpresas = [];
 
-        if (empty($items)) {
-            $this->warn('La carpeta está vacía o no se encontraron ítems.');
-            return 0;
-        }
-
         $bar = $this->output->createProgressBar(count($items));
         $bar->start();
 
         foreach ($items as $item) {
-            // Detectar si es carpeta
-            // En listas, el contentType suele indicar "Folder" o existe la propiedad driveItem->folder
-            $isFolder = isset($item['driveItem']['folder']) || 
-                        (isset($item['contentType']['name']) && $item['contentType']['name'] === 'Folder');
-
-            if ($isFolder) {
-                // El nombre real suele estar en 'fields->LinkTitle' o 'driveItem->name'
-                $nombreEmpresa = $item['driveItem']['name'] ?? $item['fields']['LinkTitle'] ?? 'SinNombre';
-                $empresaItemId = $item['id']; // ID del ítem en la lista
+            if (isset($item['folder'])) {
+                $nombreEmpresa = $item['name'];
+                $empresaId = $item['id'];
 
                 $mapaEmpresas[$nombreEmpresa] = [
                     'constancia' => [],
@@ -96,22 +72,18 @@ class AnalyzeSharePoint extends Command
                     'otros' => []
                 ];
 
-                // 2. Leer contenido de la subcarpeta (Empresa)
-                $subUrl = "https://graph.microsoft.com/v1.0/sites/$siteId/lists/$listId/items/$empresaItemId/children?\$expand=driveItem";
-                $subResponse = Http::withToken($accessToken)->get($subUrl);
+                // Leer archivos
+                $filesUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/items/$empresaId/children";
+                $filesResp = Http::withToken($accessToken)->get($filesUrl);
 
-                if ($subResponse->successful()) {
-                    $files = $subResponse->json()['value'] ?? [];
-                    
+                if ($filesResp->successful()) {
+                    $files = $filesResp->json()['value'] ?? [];
                     foreach ($files as $file) {
-                        // Verificar si es archivo
-                        if (isset($file['driveItem']['file'])) {
-                            $fileName = $file['driveItem']['name'];
-                            $this->clasificarArchivo($fileName, $mapaEmpresas[$nombreEmpresa]);
+                        if (isset($file['file'])) {
+                            $this->clasificarArchivo($file['name'], $mapaEmpresas[$nombreEmpresa]);
                         }
                     }
-                    
-                    // Limpiar duplicados
+                    // Limpiar
                     foreach ($mapaEmpresas[$nombreEmpresa] as $k => $v) {
                         $mapaEmpresas[$nombreEmpresa][$k] = array_values(array_unique($v));
                     }
@@ -123,16 +95,14 @@ class AnalyzeSharePoint extends Command
         $bar->finish();
         $this->newLine(2);
 
-        $jsonResult = json_encode($mapaEmpresas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-        $this->info('Análisis completado:');
-        $this->line($jsonResult);
+        $this->info('Resultado:');
+        $this->line(json_encode($mapaEmpresas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
     private function clasificarArchivo($nombre, &$bucket)
     {
         $nombreLower = Str::lower($nombre);
         $extension = pathinfo($nombre, PATHINFO_EXTENSION);
-        
         if (empty($extension)) return;
 
         foreach ($this->keywords as $tipo => $palabras) {
