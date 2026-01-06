@@ -661,6 +661,7 @@
 
         document.getElementById('tseConfirmYesBtn').addEventListener('click', function() {
             userConfirmedTse = true;
+            document.getElementById('isExtranjero').value = 'false';
             document.getElementById('tseConfirmation').classList.add('hidden');
             ['email', 'phone', 'sector'].forEach(id => document.getElementById(id).disabled = false);
             document.getElementById('submitBtn').disabled = false;
@@ -672,6 +673,7 @@
         document.getElementById('tseConfirmNoBtn').addEventListener('click', function() {
             userConfirmedTse = false;
             tseData = null;
+            document.getElementById('isExtranjero').value = 'false';
             document.getElementById('tseInfo').classList.add('hidden');
             document.getElementById('tseConfirmation').classList.add('hidden');
             document.getElementById('extranjeroFields').classList.remove('hidden');
@@ -745,7 +747,7 @@
         function validateForm(data) {
             let isValid = true;
             clearErrors();
-            if (!/^\d{6,9}$/.test(data.cedula.replace(/[^0-g]/, ''))) {
+            if (!/^\d{6,9}$/.test(data.cedula.replace(/[^0-9]/g, ''))) {
                 showFieldError('cedula', 'La cédula debe tener entre 6 y 9 dígitos.');
                 isValid = false;
             }
