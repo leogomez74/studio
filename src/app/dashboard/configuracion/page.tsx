@@ -55,15 +55,24 @@ import api from '@/lib/axios';
 // 1. COMPONENTES Y CONSTANTES AUXILIARES (Definidos FUERA del componente principal)
 // ----------------------------------------------------------------------
 
-const tiposOptions = [
-  { label: 'Constancia', value: 'Constancia' },
-  { label: 'Colilla', value: 'Colilla' },
+const extensionOptions = [
+  { label: 'PDF', value: 'pdf' },
+  { label: 'Imagen (JPG/JPEG)', value: 'jpg' },
+  { label: 'Imagen (PNG)', value: 'png' },
+  { label: 'HTML', value: 'html' },
 ];
+
+interface Requirement {
+  id?: number;
+  name: string;
+  file_extension: string;
+  quantity: number;
+}
 
 interface Empresa {
   id: number;
   business_name: string;
-  requirements: { id?: number; name: string; file_extension: string }[];
+  requirements: Requirement[];
 }
 
 const EmpresasCRUD: React.FC = () => {
@@ -74,10 +83,10 @@ const EmpresasCRUD: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
-  const [formData, setFormData] = useState({
-    business_name: '',
-    tipos: [] as string[],
-  });
+  
+  // Estado del formulario
+  const [businessName, setBusinessName] = useState('');
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
 
   const fetchEmpresas = async () => {
     setLoading(true);
@@ -100,66 +109,93 @@ const EmpresasCRUD: React.FC = () => {
 
   const openCreateDialog = () => {
     setEditingEmpresa(null);
-    setFormData({ business_name: '', tipos: [] });
+    setBusinessName('');
+    setRequirements([{ name: 'Constancia', file_extension: 'pdf', quantity: 1 }]); // Default
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (empresa: Empresa) => {
     setEditingEmpresa(empresa);
-    const uniqueTipos = [...new Set(empresa.requirements?.map(r => r.name) || [])];
-    setFormData({
-      business_name: empresa.business_name,
-      tipos: uniqueTipos,
-    });
+    setBusinessName(empresa.business_name);
+    // Cargar requisitos existentes o poner uno por defecto si no tiene
+    setRequirements(empresa.requirements.length > 0 
+      ? empresa.requirements.map(r => ({ ...r })) 
+      : [{ name: '', file_extension: 'pdf', quantity: 1 }]
+    );
     setIsDialogOpen(true);
   };
 
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditingEmpresa(null);
-    setFormData({ business_name: '', tipos: [] });
+    setBusinessName('');
+    setRequirements([]);
+  };
+
+  // Manejo de requisitos dinámicos
+  const addRequirement = () => {
+    setRequirements([...requirements, { name: '', file_extension: 'pdf', quantity: 1 }]);
+  };
+
+  const removeRequirement = (index: number) => {
+    const newReqs = [...requirements];
+    newReqs.splice(index, 1);
+    setRequirements(newReqs);
+  };
+
+  const updateRequirement = (index: number, field: keyof Requirement, value: any) => {
+    const newReqs = [...requirements];
+    newReqs[index] = { ...newReqs[index], [field]: value };
+    setRequirements(newReqs);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.business_name.trim()) {
+    if (!businessName.trim()) {
       toast({ title: 'Error', description: 'El nombre es obligatorio.', variant: 'destructive' });
       return;
     }
-    if (formData.tipos.length === 0) {
-      toast({ title: 'Error', description: 'Selecciona al menos un tipo.', variant: 'destructive' });
+    if (requirements.length === 0) {
+      toast({ title: 'Error', description: 'Agrega al menos un requisito.', variant: 'destructive' });
       return;
+    }
+
+    // Validar campos vacíos
+    for (const req of requirements) {
+      if (!req.name.trim()) {
+        toast({ title: 'Error', description: 'Todos los documentos deben tener nombre.', variant: 'destructive' });
+        return;
+      }
     }
 
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      const extensiones = ['pdf', 'html'];
-
-      const requirements = formData.tipos.flatMap(tipo =>
-        extensiones.map(ext => ({
-          name: tipo,
-          file_extension: ext,
-          upload_date: now,
-          last_updated: now,
-        }))
-      );
+      
+      // Preparar payload para el backend
+      const requirementsPayload = requirements.map(r => ({
+        name: r.name,
+        file_extension: r.file_extension,
+        quantity: r.quantity || 1,
+        upload_date: now,
+        last_updated: now,
+      }));
 
       const payload = {
-        business_name: formData.business_name.trim(),
-        requirements,
+        business_name: businessName.trim(),
+        requirements: requirementsPayload,
       };
 
       if (editingEmpresa) {
         await api.put(`/api/enterprises/${editingEmpresa.id}`, payload, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        toast({ title: 'Empresa actualizada', description: `${formData.business_name} ha sido actualizada.` });
+        toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
       } else {
         await api.post('/api/enterprises', payload, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        toast({ title: 'Empresa creada', description: `${formData.business_name} ha sido creada.` });
+        toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
       }
 
       closeDialog();
@@ -188,77 +224,110 @@ const EmpresasCRUD: React.FC = () => {
     }
   };
 
-  const toggleTipo = (tipo: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tipos: prev.tipos.includes(tipo)
-        ? prev.tipos.filter(t => t !== tipo)
-        : [...prev.tipos, tipo],
-    }));
-  };
-
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Empresas</CardTitle>
-            <CardDescription>Gestiona las empresas y sus requerimientos.</CardDescription>
+            <CardTitle>Empresas y Requisitos</CardTitle>
+            <CardDescription>Configura los documentos necesarios por cada institución.</CardDescription>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1" onClick={openCreateDialog}>
                 <PlusCircle className="h-4 w-4" />
-                Agregar Empresa
+                Nueva Empresa
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingEmpresa ? 'Editar Empresa' : 'Crear Empresa'}</DialogTitle>
                 <DialogDescription>
-                  {editingEmpresa ? 'Modifica los datos de la empresa.' : 'Ingresa los datos de la nueva empresa.'}
+                  Define el nombre y los documentos que se deben solicitar.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="empresa-name">Nombre de la empresa</Label>
+                  <Label htmlFor="empresa-name">Nombre de la Empresa</Label>
                   <Input
                     id="empresa-name"
-                    value={formData.business_name}
-                    onChange={e => setFormData(prev => ({ ...prev, business_name: e.target.value }))}
-                    placeholder="Ej: I.M.A.S, C.N.P., ..."
+                    value={businessName}
+                    onChange={e => setBusinessName(e.target.value)}
+                    placeholder="Ej: Ministerio de Educación (MEP)"
                     required
                     disabled={saving}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Tipos de documentos requeridos</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {tiposOptions.map(opt => (
-                      <Button
-                        key={opt.value}
-                        type="button"
-                        variant={formData.tipos.includes(opt.value) ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => toggleTipo(opt.value)}
-                        disabled={saving}
-                      >
-                        {formData.tipos.includes(opt.value) && <CheckCircle className="h-4 w-4 mr-1" />}
-                        {opt.label}
-                      </Button>
-                    ))}
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Documentos Requeridos</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addRequirement} disabled={saving}>
+                      <PlusCircle className="h-3 w-3 mr-1" /> Agregar
+                    </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Cada tipo generará requerimientos para extensiones PDF y HTML.
-                  </p>
+                  
+                  {requirements.map((req, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row gap-3 items-start sm:items-end p-3 border rounded-md bg-muted/20">
+                      <div className="flex-1 w-full space-y-1">
+                        <Label className="text-xs">Nombre del Documento</Label>
+                        <Input
+                          value={req.name}
+                          onChange={e => updateRequirement(idx, 'name', e.target.value)}
+                          placeholder="Ej: Constancia Salarial"
+                          className="h-8"
+                          disabled={saving}
+                        />
+                      </div>
+                      <div className="w-full sm:w-32 space-y-1">
+                        <Label className="text-xs">Formato</Label>
+                        <Select 
+                          value={req.file_extension} 
+                          onValueChange={v => updateRequirement(idx, 'file_extension', v)}
+                          disabled={saving}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {extensionOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-full sm:w-20 space-y-1">
+                        <Label className="text-xs">Cant.</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={req.quantity}
+                          onChange={e => updateRequirement(idx, 'quantity', parseInt(e.target.value) || 1)}
+                          className="h-8"
+                          disabled={saving}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive/90"
+                        onClick={() => removeRequirement(idx)}
+                        disabled={requirements.length === 1 || saving}
+                      >
+                        <MoreHorizontal className="h-4 w-4 rotate-45" /> {/* Using generic icon as X */}
+                      </Button>
+                    </div>
+                  ))}
                 </div>
+
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={closeDialog} disabled={saving}>
                     Cancelar
                   </Button>
                   <Button type="submit" disabled={saving}>
                     {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {editingEmpresa ? 'Actualizar' : 'Crear'}
+                    Guardar
                   </Button>
                 </DialogFooter>
               </form>
@@ -275,7 +344,7 @@ const EmpresasCRUD: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
+                <TableHead className="w-[50px]">ID</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Requerimientos</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -295,11 +364,15 @@ const EmpresasCRUD: React.FC = () => {
                     <TableCell className="font-medium">{empresa.business_name}</TableCell>
                     <TableCell>
                       {empresa.requirements && empresa.requirements.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {[...new Map(empresa.requirements.map((req: any) => [req.name, req])).values()].map((req: any, idx: number) => (
-                            <span key={idx} className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                              {req.name || 'Documento'}
-                            </span>
+                        <div className="flex flex-wrap gap-2">
+                          {empresa.requirements.map((req, idx) => (
+                            <div key={idx} className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm">
+                              <span className="font-medium text-foreground">{req.name}</span>
+                              <span className="text-[10px] uppercase bg-secondary px-1 rounded">{req.file_extension}</span>
+                              {req.quantity > 1 && (
+                                <span className="font-bold text-primary">x{req.quantity}</span>
+                              )}
+                            </div>
                           ))}
                         </div>
                       ) : (
