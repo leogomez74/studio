@@ -18,7 +18,6 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CrmSeeder::class,
             EnterpriseSeeder::class,
-            EnterpriseRequirementSeeder::class,
             DeductoraSeeder::class,
             CreditSeeder::class,
             KpiSeeder::class,
