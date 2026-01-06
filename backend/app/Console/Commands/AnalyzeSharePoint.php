@@ -8,8 +8,8 @@ use Illuminate\Support\Str;
 
 class AnalyzeSharePoint extends Command
 {
-    protected $signature = 'sharepoint:analyze {--token= : Token de acceso de Microsoft Graph}';
-    protected $description = 'Analiza SharePoint obteniendo todos los items de la lista y agrupándolos.';
+    protected $signature = 'sharepoint:analyze {--token= : Token del dueño (Owner)} {--folder= : Nombre de la carpeta a buscar (opcional)}';
+    protected $description = 'Analiza el Drive del dueño del token automáticamente.';
 
     protected $keywords = [
         'constancia' => ['colilla', 'constancia', 'nomina', 'salario', 'boleta', 'planilla'],
@@ -18,147 +18,101 @@ class AnalyzeSharePoint extends Command
 
     public function handle()
     {
-        $siteId = env('MICROSOFT_SITE_ID');
-        $listId = env('MICROSOFT_LIST_ID');
         $accessToken = $this->option('token');
+        $targetFolder = $this->option('folder'); // Ej: "documentos Made (PEP)"
 
-        if (!$siteId || !$listId || !$accessToken) {
-            $this->error('Faltan credenciales (SITE_ID, LIST_ID en .env) o el --token.');
+        if (!$accessToken) {
+            $this->error('Necesitas el token del dueño: php artisan sharepoint:analyze --token="..."');
             return 1;
         }
 
-        $this->info('Recuperando items de la lista (Estrategia Plana)...');
+        $this->info('1. Obteniendo información del Drive del usuario...');
+        
+        // Pedir el Drive por defecto del usuario dueño del token
+        $meDriveResponse = Http::withToken($accessToken)->get('https://graph.microsoft.com/v1.0/me/drive');
 
-        // URL para traer todos los items expandiendo la info de archivo/carpeta
-        $url = "https://graph.microsoft.com/v1.0/sites/$siteId/lists/$listId/items?\$expand=driveItem,fields&\$top=999";
+        if ($meDriveResponse->failed()) {
+            $this->error('Error al obtener el Drive: ' . $meDriveResponse->body());
+            return 1;
+        }
 
-        $response = Http::withToken($accessToken)->get($url);
+        $driveId = $meDriveResponse->json()['id'];
+        $this->info("   > Drive ID encontrado: $driveId");
+
+        // 2. Localizar la carpeta objetivo (si se especificó) o usar la raíz
+        $rootUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/root";
+        
+        if ($targetFolder) {
+            $this->info("2. Buscando carpeta: '$targetFolder'...");
+            // Buscar la carpeta específica en la raíz
+            $searchUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/root/children?\$filter=name eq '$targetFolder'";
+            $searchRes = Http::withToken($accessToken)->get($searchUrl);
+            
+            $found = $searchRes->json()['value'][0] ?? null;
+            
+            if (!$found) {
+                $this->error("   > No se encontró la carpeta '$targetFolder' en la raíz.");
+                return 1;
+            }
+            
+            $rootUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/items/" . $found['id'];
+            $this->info("   > Carpeta encontrada. ID: " . $found['id']);
+        } else {
+            $this->info("2. Usando la raíz del Drive.");
+        }
+
+        // 3. Escanear contenido
+        $this->info('3. Escaneando empresas...');
+        $childrenUrl = "$rootUrl/children";
+        $response = Http::withToken($accessToken)->get($childrenUrl);
 
         if ($response->failed()) {
-            $this->error('Error al obtener items: ' . $response->body());
+            $this->error('Error leyendo carpetas: ' . $response->body());
             return 1;
         }
 
         $items = $response->json()['value'] ?? [];
-        $this->info('Items encontrados: ' . count($items));
-
-        $carpetasEmpresas = [];
-        $archivos = [];
-
-        // 1. Separar Carpetas y Archivos
-        foreach ($items as $item) {
-            $isFolder = isset($item['driveItem']['folder']) || ($item['contentType']['name'] ?? '') === 'Folder';
-            
-            // Nombre: intentamos varios campos por si acaso
-            $name = $item['fields']['LinkTitle'] ?? $item['driveItem']['name'] ?? 'SinNombre';
-            $itemId = $item['id'];
-
-            if ($isFolder) {
-                // Es una empresa (o subcarpeta)
-                $carpetasEmpresas[$itemId] = $name;
-            } else {
-                // Es un archivo
-                // Guardamos la info necesaria y el Parent Reference ID
-                if (isset($item['driveItem'])) {
-                    $archivos[] = [
-                        'name' => $item['driveItem']['name'],
-                        'parentId' => $item['driveItem']['parentReference']['id'] ?? null // Este ID suele ser del driveItem padre, no del listItem.
-                    ];
-                }
-            }
-        }
-
-        // NOTA: El 'parentId' en driveItem suele ser un ID de DriveItem, no de ListItem. 
-        // En esta vista plana de Listas, conectar ambos puede ser truculento porque los IDs cambian.
-        // Si la estrategia de ParentID falla, usaremos el path.
-
         $mapaEmpresas = [];
 
-        // Inicializar empresas en el mapa
-        foreach ($carpetasEmpresas as $id => $nombre) {
-            $mapaEmpresas[$nombre] = [
-                'constancia' => [],
-                'comprobante' => [],
-                'otros' => []
-            ];
-        }
+        $bar = $this->output->createProgressBar(count($items));
+        $bar->start();
 
-        // 2. Clasificar archivos
-        // Como el parentId de driveItem no siempre hace match directo con el listId en esta vista,
-        // vamos a intentar un truco: Si el path del archivo contiene el nombre de la empresa.
-        
-        foreach ($archivos as $archivo) {
-            $nombreArchivo = $archivo['name'];
-            
-            // Intentar asignar a una empresa
-            $asignado = false;
-            foreach ($carpetasEmpresas as $empresaId => $nombreEmpresa) {
-                // OJO: Esta es una heurística simple. Si tienes carpetas anidadas complejas, 
-                // esto podría necesitar mejorar verificando el 'parentReference.path'.
-                // Pero para "Carpeta Empresa -> Archivos", esto suele bastar si obtenemos el path.
-                
-                // Aquí asumimos que los archivos que recuperamos pertenecen a alguna de las carpetas listadas.
-                // Como no tenemos el path completo fácil en esta vista de lista sin hacer más llamadas,
-                // vamos a clasificar todo lo que encontramos e intentar agruparlo.
-                
-                // Si no podemos determinar el padre con certeza en esta vista plana simple,
-                // clasificaremos el archivo pero sin asignarlo a empresa específica si no hay match claro.
-                
-                // MEJORA: Clasificar el archivo independientemente de la empresa para darte el patrón general.
-                $this->clasificarArchivo($nombreArchivo, $mapaEmpresas[$nombreEmpresa]); 
-                // (Esto asignará el archivo a TODAS las empresas, lo cual no es ideal, pero probará la lógica de detección).
-                
-                // ESPERA: Si asignamos a todas, el JSON será enorme e incorrecto.
-                // Necesitamos el vínculo real.
-                
-                // Vamos a usar una estrategia más segura:
-                // Si no podemos vincular el archivo a su carpeta padre (porque los IDs de Graph son un lío entre Drives y Listas),
-                // al menos te mostraré qué tipos de archivos encontré en GENERAL en toda la biblioteca.
-            }
-        }
-        
-        // CORRECCIÓN: Para no entregarte basura, voy a imprimir un resumen global de archivos encontrados
-        // si no logro hacer el match de carpetas.
-        
-        // Pero intentemos el match por ParentId si es posible.
-        // El parentId del driveItem DEBERÍA coincidir con el ID del driveItem de la carpeta.
-        // Hagamos un mapa de DriveItemId -> NombreEmpresa
-        
-        $driveItemIdToName = [];
         foreach ($items as $item) {
-            if (isset($item['driveItem']['folder']) && isset($item['driveItem']['id'])) {
-                $driveItemIdToName[$item['driveItem']['id']] = $item['driveItem']['name'];
-            }
-        }
-        
-        // Reiniciar el mapa limpio
-        $mapaFinal = [];
-        
-        foreach ($archivos as $archivo) {
-            $parentId = $archivo['parentId'];
-            $nombreArchivo = $archivo['name'];
-            
-            if ($parentId && isset($driveItemIdToName[$parentId])) {
-                $nombreEmpresa = $driveItemIdToName[$parentId];
-                
-                if (!isset($mapaFinal[$nombreEmpresa])) {
-                    $mapaFinal[$nombreEmpresa] = ['constancia' => [], 'comprobante' => [], 'otros' => []];
+            if (isset($item['folder'])) {
+                $nombreEmpresa = $item['name'];
+                $empresaId = $item['id'];
+
+                $mapaEmpresas[$nombreEmpresa] = [
+                    'constancia' => [],
+                    'comprobante' => [],
+                    'otros' => []
+                ];
+
+                // Leer archivos dentro de la empresa
+                $filesUrl = "https://graph.microsoft.com/v1.0/drives/$driveId/items/$empresaId/children";
+                $filesResp = Http::withToken($accessToken)->get($filesUrl);
+
+                if ($filesResp->successful()) {
+                    $files = $filesResp->json()['value'] ?? [];
+                    foreach ($files as $file) {
+                        if (isset($file['file'])) {
+                            $this->clasificarArchivo($file['name'], $mapaEmpresas[$nombreEmpresa]);
+                        }
+                    }
+                    // Limpiar duplicados
+                    foreach ($mapaEmpresas[$nombreEmpresa] as $k => $v) {
+                        $mapaEmpresas[$nombreEmpresa][$k] = array_values(array_unique($v));
+                    }
                 }
-                
-                $this->clasificarArchivo($nombreArchivo, $mapaFinal[$nombreEmpresa]);
             }
-        }
-        
-        // Limpiar duplicados
-        foreach ($mapaFinal as $emp => $cats) {
-            foreach ($cats as $k => $v) {
-                $mapaFinal[$emp][$k] = array_values(array_unique($v));
-            }
+            $bar->advance();
         }
 
-        $this->newLine();
-        $this->info('Análisis completado.');
-        $this->line(json_encode($mapaFinal, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        $bar->finish();
+        $this->newLine(2);
+
+        $this->info('Resultados:');
+        $this->line(json_encode($mapaEmpresas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
     private function clasificarArchivo($nombre, &$bucket)
