@@ -15,11 +15,13 @@ class EnterprisesRequirement extends Model
         'enterprise_id',
         'name',
         'file_extension',
+        'quantity', // Nuevo campo
         'upload_date',
         'last_updated',
     ];
 
     protected $casts = [
+        'quantity' => 'integer',
         'upload_date' => 'date',
         'last_updated' => 'date',
     ];

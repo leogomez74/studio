@@ -6,50 +6,248 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Enterprise;
-use App\Models\EnterpriseEmployeeDocumentRequirement;
+use App\Models\EnterprisesRequirement;
 
 class EnterpriseSeeder extends Seeder
 {
     public function run(): void
     {
-        $empresas = [
-            "I.M.A.S", "C.N.P.", "A.N.E.P.", "P.A.N.I", "MUNICIPALIDAD DE TIBÁS", "MUNICIPALIDAD SAN JOSÉ", "C.C.S.S", 
-            "PERSONA JOVEN", "CONAVI", "MUNICIPALIDAD DE GOICOECHEA", "CORONADO", "COSEVI", "UCR", "CEN-CINAI", "INA", 
-            "I.C.E.", "MUNICIPALIDAD GRECIA", "I.A.F.A.", "I.C.O.D.E.R", "RECOPE", "MUNICIPALIDAD DE OREAMUNO", 
-            "PODER JUDICIAL", "PENSIONADOS PODER JUDICIAL", "MUNICIPALIDAD DE MORAVIA", "O.T.M.", "ASAMBLEA LEGISLATIVA", 
-            "CONTROL DE MIGRACIÓN Y EXTRANJERÍA", "DEFENSORÍA DE LOS HABITANTES", "DESARROLLO DE LA COMUNIDAD", 
-            "DIRECCIÓN GENERAL DE SERVICIO CIVIL", "DIRECCIÓN NACIONAL DE PENSIONES", "IMPRENTA NACIONAL", 
-            "MIN DE AGRICULTURA Y GANADERÍA", "MINISTERIO DE AMBIENTE Y ENERGÍA", "MIN DE CIENCIA TECNOLOGÍA Y TELECOMUNICACIONES", 
-            "MIN DE COMERCIO EXTERIOR", "MIN DE CULT.JUV Y DEPORTES", "MIN DE GOBERNACIÓN Y POLICÍA", "MIN DE ECO.IND Y COMERCIO", 
-            "MINISTERIO DE EDUACIÓN PÚBLICA", "MINISTERIO DE HACIENDA", "MINISTERIO DE JUSTICIA Y GRACIA", 
-            "MINISTERIO DE LA PRESIDENCIA", "MINISTERIO DE OBRAS PUBL. Y TRANSPORTE", "MINISTERIO DE PLANIF.NAC Y POL.ECO", 
-            "MINISTERIO DE RELACIONES EXTERIORES Y CULTO", "MINSTERIO DE SALUD", "MINISTERIO DE SEGURIDAD PÚBLICA", 
-            "MINSITERIO DE TRAB. Y SEGUR. SOC", "MINISTERIO DE VIVIENDA Y ASENT.HUMANOS", "PRESIDENCIA DE LA REPÚBLICA", 
-            "PROCURADURÍA GENERAL DE LA REPÚBLICA", "REGISTRO NACIONAL", "SERVICIO EXTERIOR", "TRIBUNAL DE SERVICIO CIVIL", 
-            "TRIBUNAL SUPREMO DE ELECCIONES", "AYA", "ARCHIVO NACIONAL", "CN MUSICA", "CNE", "COOPEJOVO", "FANAL", 
-            "FITOSANITARIO", "SENASA", "FONAFIFO", "ICD", "ICE EMERGENCIAS 911", "IFAM", "INDER (IDA)", "INVU", "SEC", 
-            "TEATRO NACIONAL", "CNC", "GOBIERNO CENTRAL INTEGRA", "INTA", "JUNTA ADM. REGISTRO NACIONAL", "MINAE", "IMAS", 
-            "ICE ENERGIA Y TELEC.", "AVIACION CIVIL", "MUNICIPALIDAD DE ALVARADO", "MUNICIPALIDAD DE ASERRI", 
-            "MUNICIPALIDAD DE CORONADO", "MUNICIPALIDAD DE CORREDORES", "MUNICIPALIDAD DE DESAMPARADOS", "MUNICIPALIDAD DE MORA", 
-            "MUNICIPALIDAD DE NARANJO", "MUNICIPALIDAD DE OROTINA", "MUNICIPALIDAD DE PALMARES", "MUNICIPALIDAD DE PARRITA", 
-            "MUNICIPALIDAD DE PUNTARENAS", "MUNICIPALIDAD DE SAN MATEO", "MUNICIPALIDAD DE SAN PABLO", "MUNICIPALIDAD DE SAN VITO"
+        $now = now();
+
+        $data = [
+            '911' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpg', 'qty' => 6],
+            ],
+            'Archivo Nacional' => [
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpg', 'qty' => 6],
+            ],
+            'ASAMB L' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpg', 'qty' => 6],
+            ],
+            'AYA' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Mensuales', 'ext' => 'pdf', 'qty' => 3],
+            ],
+            'CCSS' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'CEN CINAI' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'CNE' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'CNP' => [
+                ['name' => 'Constancia y Comprobantes (PDF con fotos)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Fotos de Documentos', 'ext' => 'jpg', 'qty' => 1],
+            ],
+            'CONAVI' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpg', 'qty' => 6],
+            ],
+            'COSEVI' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpg', 'qty' => 6],
+            ],
+            'DEFENSORIA' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpg', 'qty' => 6],
+            ],
+            'DGAC' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpg', 'qty' => 6],
+            ],
+            'DGSC' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 6],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'DINADECO' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'FITOSANITARIO' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 5],
+            ],
+            'ICD' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Unificado)', 'ext' => 'pdf', 'qty' => 1],
+            ],
+            'ICE' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'IMAS' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'IMPRENTA NACIONAL' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'INA' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Mensuales (PDF)', 'ext' => 'pdf', 'qty' => 3],
+                ['name' => 'Comprobantes Mensuales (HTM)', 'ext' => 'html', 'qty' => 3],
+            ],
+            'INDER' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Mensuales (Imágenes en PDF)', 'ext' => 'pdf', 'qty' => 1],
+            ],
+            'INVU' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'MAG' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'MCE' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MCJ' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Unificado)', 'ext' => 'pdf', 'qty' => 1],
+            ],
+            'MEIC' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MEP' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MGP' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MH' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Unificado)', 'ext' => 'pdf', 'qty' => 1],
+            ],
+            'MIDEPLAN' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+                ['name' => 'Comprobantes Quincenales (PNG)', 'ext' => 'png', 'qty' => 6],
+            ],
+            'MIGRACION' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MINAE' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'MINIST DE SALUD' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MJP' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MOPT' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MREC' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Unificado)', 'ext' => 'pdf', 'qty' => 1],
+            ],
+            'MSP' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MTSS' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'MUN DE ASERRI' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'MUN DE DESAM' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'MUN DE GOICO' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'jpeg', 'qty' => 6],
+            ],
+            'MUN DE OREAMU' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'MUN DE SAN P' => [
+                ['name' => 'Constancia', 'ext' => 'jpeg', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (PDF)', 'ext' => 'pdf', 'qty' => 6],
+                ['name' => 'Comprobantes Quincenales (JPEG)', 'ext' => 'jpeg', 'qty' => 6],
+            ],
+            'MUN DE SJ' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'MUN DE TIBAS' => [
+                ['name' => 'Constancia', 'ext' => 'jpg', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'PANI' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Imágenes en PDF)', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'PENSIONADOS PJ' => [
+                ['name' => 'Constancia', 'ext' => 'jpeg', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (Unificado)', 'ext' => 'pdf', 'qty' => 1],
+            ],
+            'PGR' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'PODER JUDICIAL' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'RECOPE' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales', 'ext' => 'pdf', 'qty' => 6],
+            ],
+            'RN' => [
+                ['name' => 'Constancia (Imagen en PDF)', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'TSE' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Quincenales (HTML)', 'ext' => 'html', 'qty' => 6],
+            ],
+            'UCR' => [
+                ['name' => 'Constancia', 'ext' => 'pdf', 'qty' => 1],
+                ['name' => 'Comprobantes Mensuales', 'ext' => 'pdf', 'qty' => 3],
+            ],
         ];
-        $tipos = ['Constancia', 'Colilla'];
-        $extensiones = ['pdf', 'html'];
-        $fecha = now();
-        foreach ($empresas as $empresa) {
-            $enterprise = Enterprise::create([
-                'business_name' => $empresa,
-            ]);
-            foreach ($tipos as $tipo) {
-                foreach ($extensiones as $ext) {
-                    $enterprise->requirements()->create([
-                        'file_extension' => $ext,
-                        'name' => $tipo,
-                        'upload_date' => $fecha,
-                        'last_updated' => $fecha,
-                    ]);
-                }
+
+        foreach ($data as $enterpriseName => $requirements) {
+            $enterprise = Enterprise::updateOrCreate(
+                ['business_name' => $enterpriseName]
+            );
+
+            // Borrar requisitos anteriores para limpieza total
+            $enterprise->requirements()->delete();
+
+            foreach ($requirements as $req) {
+                $enterprise->requirements()->create([
+                    'name' => $req['name'],
+                    'file_extension' => $req['ext'],
+                    'quantity' => $req['qty'],
+                    'upload_date' => $now,
+                    'last_updated' => $now,
+                ]);
             }
         }
     }
