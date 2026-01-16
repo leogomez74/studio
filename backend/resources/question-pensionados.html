@@ -92,32 +92,59 @@
                 <div id="step-1" class="space-y-4">
                     <h2 class="text-lg font-semibold text-foreground">1. Perfil de pensión</h2>
                     <div class="grid md:grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <p class="text-sm font-medium text-foreground">Tipo de pensión *</n>
-                            <div class="space-y-2 border rounded-md p-3 bg-background">
-                                <label class="flex items-center gap-2 text-sm text-foreground">
-                                    <input type="radio" name="tipo_pension" value="hacienda" class="h-4 w-4 text-primary border-input rounded">
-                                    <span>Hacienda</span>
-                                </label>
-                                <label class="flex items-center gap-2 text-sm text-foreground">
-                                    <input type="radio" name="tipo_pension" value="poder_judicial" class="h-4 w-4 text-primary border-input rounded">
-                                    <span>Poder Judicial</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-sm font-medium text-foreground mb-1">Entidad que paga la pensión *</label>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">¿Quién paga tu pensión? *</label>
                             <select name="entidad" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
                                 <option value="hacienda">Ministerio de Hacienda</option>
                                 <option value="poder_judicial">Poder Judicial</option>
                             </select>
-                            <label class="block text-sm font-medium text-foreground mb-1 mt-3">Antigüedad recibiendo pensión *</label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Antigüedad recibiendo pensión *</label>
                             <select name="antiguedad" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
                                 <option value="<1a">Menos de 1 año</option>
                                 <option value="1-3a">1 - 3 años</option>
                                 <option value=">3a">Más de 3 años</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Monto mensual de pensión (neto) *</label>
+                            <input type="number" name="pension_neta" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: 450000" min="0">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Rango de edad *</label>
+                            <select name="rango_edad" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="45-55">45 - 55 años</option>
+                                <option value="56-65">56 - 65 años</option>
+                                <option value="66-75">66 - 75 años</option>
+                                <option value=">75">Más de 75 años</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">¿Tienes otras deudas? *</label>
+                            <select name="tiene_deudas" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="no">No</option>
+                                <option value="si_1_2">Sí, 1-2 créditos</option>
+                                <option value="si_3_mas">Sí, 3 o más</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Estado civil</label>
+                            <select name="estado_civil" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="soltero">Soltero/a</option>
+                                <option value="casado">Casado/a</option>
+                                <option value="union_libre">Unión libre</option>
+                                <option value="viudo">Viudo/a</option>
+                                <option value="divorciado">Divorciado/a</option>
                             </select>
                         </div>
                     </div>
@@ -148,16 +175,6 @@
                     </div>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Pensión neta mensual *</label>
-                            <input type="number" name="pension_neta" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: 450000" min="0">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Deducciones mensuales *</label>
-                            <input type="number" name="deducciones" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: 120000" min="0">
-                        </div>
-                    </div>
-                    <div class="grid md:grid-cols-2 gap-4">
-                        <div>
                             <label class="block text-sm font-medium text-foreground mb-1">Destino del crédito *</label>
                             <select name="destino" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
@@ -168,57 +185,71 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Deseas consolidar deudas?</label>
-                            <select name="consolidar" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                <option value="">Selecciona</option>
-                                <option value="si">Sí</option>
-                                <option value="no">No</option>
-                            </select>
+                            <label class="block text-sm font-medium text-foreground mb-1">Deducciones mensuales actuales</label>
+                            <input type="number" name="deducciones" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: 120000" min="0">
                         </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-foreground mb-1">Breve contexto (opcional)</label>
-                        <textarea name="detalle" rows="3" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: consolidar deudas, mejoras en vivienda, cubrir tratamientos, etc."></textarea>
+                        <textarea name="detalle" rows="3" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: consolidar deudas, cubrir tratamientos, gastos personales, etc."></textarea>
                     </div>
                 </div>
 
                 <div id="step-3" class="space-y-4 hidden">
-                    <h2 class="text-lg font-semibold text-foreground">3. Datos de contacto</h2>
+                    <h2 class="text-lg font-semibold text-foreground">3. Perfil financiero</h2>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Nombre completo *</label>
-                            <input type="text" name="nombre" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Tu nombre" required>
+                            <label class="block text-sm font-medium text-foreground mb-1">¿Has tenido créditos antes? *</label>
+                            <select name="experiencia_crediticia" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="si_bancarios">Sí, con bancos</option>
+                                <option value="si_cooperativas">Sí, con cooperativas</option>
+                                <option value="si_otros">Sí, con otras entidades</option>
+                                <option value="no">No, es mi primer crédito</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Correo *</label>
-                            <input type="email" name="email" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="correo@ejemplo.com" required>
+                            <label class="block text-sm font-medium text-foreground mb-1">Historial de pagos *</label>
+                            <select name="historial_mora" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="siempre_al_dia">Siempre al día</option>
+                                <option value="atrasos_ocasionales">Atrasos ocasionales (1-2 veces)</option>
+                                <option value="atrasos_frecuentes">Atrasos frecuentes</option>
+                                <option value="no_aplica">No aplica / Primer crédito</option>
+                            </select>
                         </div>
                     </div>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Teléfono / WhatsApp *</label>
-                            <input type="tel" name="telefono" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="88887777" required minlength="7" maxlength="15">
+                            <label class="block text-sm font-medium text-foreground mb-1">Tipo de vivienda *</label>
+                            <select name="tipo_vivienda" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="propia_pagada">Propia (pagada)</option>
+                                <option value="propia_hipotecada">Propia (con hipoteca)</option>
+                                <option value="alquilada">Alquilada</option>
+                                <option value="familiar">Familiar / Prestada</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Provincia (opcional)</label>
-                            <select name="provincia" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <label class="block text-sm font-medium text-foreground mb-1">Personas a tu cargo *</label>
+                            <select name="dependientes" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
-                                <option value="san_jose">San José</option>
-                                <option value="alajuela">Alajuela</option>
-                                <option value="cartago">Cartago</option>
-                                <option value="heredia">Heredia</option>
-                                <option value="guanacaste">Guanacaste</option>
-                                <option value="puntarenas">Puntarenas</option>
-                                <option value="limon">Limón</option>
+                                <option value="0">Ninguna</option>
+                                <option value="1-2">1 - 2 personas</option>
+                                <option value="3-4">3 - 4 personas</option>
+                                <option value=">4">Más de 4 personas</option>
                             </select>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-foreground mb-1">Canal preferido</label>
-                        <select name="canal" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                            <option value="whatsapp">WhatsApp</option>
-                            <option value="llamada">Llamada</option>
-                            <option value="correo">Correo</option>
+                        <label class="block text-sm font-medium text-foreground mb-1">¿Cómo conociste Credipep?</label>
+                        <select name="origen_lead" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <option value="">Selecciona</option>
+                            <option value="redes_sociales">Redes sociales</option>
+                            <option value="recomendacion">Recomendación</option>
+                            <option value="google">Búsqueda en Google</option>
+                            <option value="publicidad">Publicidad</option>
+                            <option value="otro">Otro</option>
                         </select>
                     </div>
                 </div>
@@ -290,37 +321,36 @@
         function validateStep(index) {
             clearAlert();
             if (index === 0) {
-                const tipo = document.querySelector('input[name="tipo_pension"]:checked');
                 const entidad = document.querySelector('select[name="entidad"]').value;
                 const antiguedad = document.querySelector('select[name="antiguedad"]').value;
-                if (!tipo || !entidad || !antiguedad) {
-                    showAlert('Selecciona tipo de pensión, entidad y antigüedad.');
+                const pensionNeta = document.querySelector('input[name="pension_neta"]').value.trim();
+                const rangoEdad = document.querySelector('select[name="rango_edad"]').value;
+                const tieneDeudas = document.querySelector('select[name="tiene_deudas"]').value;
+                if (!entidad || !antiguedad || !pensionNeta || !rangoEdad || !tieneDeudas) {
+                    showAlert('Completa todos los campos del perfil de pensión.');
+                    return false;
+                }
+                if (Number(pensionNeta) <= 0) {
+                    showAlert('El monto de pensión debe ser mayor a cero.');
                     return false;
                 }
             }
             if (index === 1) {
                 const monto = document.querySelector('select[name="monto"]').value;
                 const plazo = document.querySelector('select[name="plazo"]').value;
-                const pensionNeta = document.querySelector('input[name="pension_neta"]').value.trim();
-                const deducciones = document.querySelector('input[name="deducciones"]').value.trim();
                 const destino = document.querySelector('select[name="destino"]').value;
-                if (!monto || !plazo || !pensionNeta || !deducciones || !destino) {
-                    showAlert('Completa monto, plazo, pensión neta, deducciones y destino.');
-                    return false;
-                }
-                if (Number(pensionNeta) < 0 || Number(deducciones) < 0) {
-                    showAlert('Los montos no pueden ser negativos.');
+                if (!monto || !plazo || !destino) {
+                    showAlert('Completa monto, plazo y destino del crédito.');
                     return false;
                 }
             }
             if (index === 2) {
-                const nombre = document.querySelector('input[name="nombre"]').value.trim();
-                const email = document.querySelector('input[name="email"]').value.trim();
-                const tel = document.querySelector('input[name="telefono"]').value.trim();
-                const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-                const telOk = /^\d{7,15}$/.test(tel);
-                if (!nombre || !emailOk || !telOk) {
-                    showAlert('Revisa nombre, correo y teléfono.');
+                const experiencia = document.querySelector('select[name="experiencia_crediticia"]').value;
+                const historial = document.querySelector('select[name="historial_mora"]').value;
+                const vivienda = document.querySelector('select[name="tipo_vivienda"]').value;
+                const dependientes = document.querySelector('select[name="dependientes"]').value;
+                if (!experiencia || !historial || !vivienda || !dependientes) {
+                    showAlert('Completa todos los campos obligatorios del perfil financiero.');
                     return false;
                 }
             }
@@ -329,21 +359,22 @@
 
         function collectData() {
             return {
-                tipo_pension: document.querySelector('input[name="tipo_pension"]:checked')?.value || '',
                 entidad: document.querySelector('select[name="entidad"]').value,
                 antiguedad: document.querySelector('select[name="antiguedad"]').value,
+                pension_neta: document.querySelector('input[name="pension_neta"]').value.trim(),
+                rango_edad: document.querySelector('select[name="rango_edad"]').value,
+                tiene_deudas: document.querySelector('select[name="tiene_deudas"]').value,
+                estado_civil: document.querySelector('select[name="estado_civil"]').value,
                 monto: document.querySelector('select[name="monto"]').value,
                 plazo: document.querySelector('select[name="plazo"]').value,
-                pension_neta: document.querySelector('input[name="pension_neta"]').value.trim(),
-                deducciones: document.querySelector('input[name="deducciones"]').value.trim(),
                 destino: document.querySelector('select[name="destino"]').value,
-                consolidar: document.querySelector('select[name="consolidar"]').value,
+                deducciones: document.querySelector('input[name="deducciones"]').value.trim(),
                 detalle: document.querySelector('textarea[name="detalle"]').value,
-                nombre: document.querySelector('input[name="nombre"]').value.trim(),
-                email: document.querySelector('input[name="email"]').value.trim(),
-                telefono: document.querySelector('input[name="telefono"]').value.trim(),
-                provincia: document.querySelector('select[name="provincia"]').value,
-                canal: document.querySelector('select[name="canal"]').value,
+                experiencia_crediticia: document.querySelector('select[name="experiencia_crediticia"]').value,
+                historial_mora: document.querySelector('select[name="historial_mora"]').value,
+                tipo_vivienda: document.querySelector('select[name="tipo_vivienda"]').value,
+                dependientes: document.querySelector('select[name="dependientes"]').value,
+                origen_lead: document.querySelector('select[name="origen_lead"]').value,
             };
         }
 

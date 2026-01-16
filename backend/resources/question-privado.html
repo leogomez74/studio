@@ -124,16 +124,15 @@
                 </div>
 
                 <div id="step-2" class="space-y-4 hidden">
-                    <h2 class="text-lg font-semibold text-foreground">2. Detalles del crédito</h2>
+                    <h2 class="text-lg font-semibold text-foreground">2. Detalles laborales y crédito</h2>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Monto requerido *</label>
+                            <label class="block text-sm font-medium text-foreground mb-1">Monto aproximado *</label>
                             <select name="monto" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                <option value="">Selecciona</option>
-                                <option value="0-3m">Menos de 3M CRC</option>
-                                <option value="3-8m">3M - 8M CRC</option>
-                                <option value="8-15m">8M - 15M CRC</option>
-                                <option value="15m+">Más de 15M CRC</option>
+                                <option value="">Selecciona un rango</option>
+                                <option value="100k-300k">100 mil - 300 mil</option>
+                                <option value="300k-500k">300 mil - 500 mil</option>
+                                <option value="500k-690k">500 mil - 690 mil</option>
                             </select>
                         </div>
                         <div>
@@ -149,17 +148,38 @@
                     </div>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Ingreso mensual neto *</label>
+                            <label class="block text-sm font-medium text-foreground mb-1">Ingreso mensual *</label>
                             <select name="ingreso" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
-                                <option value="<800k">Menos de 800k</option>
-                                <option value="800k-1.2m">800k - 1.2M</option>
-                                <option value="1.2m-2m">1.2M - 2M</option>
-                                <option value=">2m">Más de 2M</option>
+                                <option value="300k-500k">300 mil - 500 mil</option>
+                                <option value="500k-800k">500 mil - 800 mil</option>
+                                <option value="800k-1.2m">800 mil - 1.2M</option>
+                                <option value=">1.2m">Más de 1.2M</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Garantía disponible *</label>
+                            <label class="block text-sm font-medium text-foreground mb-1">Tiempo laborando *</label>
+                            <select name="antiguedad_laboral" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="<1a">Menos de 1 año</option>
+                                <option value="1-3a">1 a 3 años</option>
+                                <option value="3-5a">3 a 5 años</option>
+                                <option value=">5a">Más de 5 años</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">¿Tienes deudas actualmente? *</label>
+                            <select name="tiene_deudas" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="no">No</option>
+                                <option value="si_1_2">Sí, 1-2 créditos</option>
+                                <option value="si_3_mas">Sí, 3 o más</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">Garantía disponible</label>
                             <select name="garantia" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
                                 <option value="propiedad">Propiedad</option>
@@ -170,32 +190,67 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-foreground mb-1">Breve contexto</label>
-                        <textarea name="detalle" rows="3" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: divorcio de mutuo acuerdo, propiedad en venta, etc."></textarea>
+                        <label class="block text-sm font-medium text-foreground mb-1">Breve contexto (opcional)</label>
+                        <textarea name="detalle" rows="3" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Ej: divorcio de mutuo acuerdo, propiedad en venta, consolidar deudas, etc."></textarea>
                     </div>
                 </div>
 
                 <div id="step-3" class="space-y-4 hidden">
-                    <h2 class="text-lg font-semibold text-foreground">3. Datos de contacto</h2>
+                    <h2 class="text-lg font-semibold text-foreground">3. Perfil financiero</h2>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Nombre completo *</label>
-                            <input type="text" name="nombre" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Tu nombre" required>
+                            <label class="block text-sm font-medium text-foreground mb-1">¿Has tenido créditos antes? *</label>
+                            <select name="experiencia_crediticia" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="si_bancarios">Sí, con bancos</option>
+                                <option value="si_cooperativas">Sí, con cooperativas</option>
+                                <option value="si_otros">Sí, con otras entidades</option>
+                                <option value="no">No, es mi primer crédito</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Correo *</label>
-                            <input type="email" name="email" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="correo@ejemplo.com" required>
+                            <label class="block text-sm font-medium text-foreground mb-1">Historial de pagos *</label>
+                            <select name="historial_mora" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="siempre_al_dia">Siempre al día</option>
+                                <option value="atrasos_ocasionales">Atrasos ocasionales (1-2 veces)</option>
+                                <option value="atrasos_frecuentes">Atrasos frecuentes</option>
+                                <option value="no_aplica">No aplica / Primer crédito</option>
+                            </select>
                         </div>
                     </div>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Teléfono / WhatsApp *</label>
-                            <input type="tel" name="telefono" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="88887777" required minlength="7" maxlength="15">
+                            <label class="block text-sm font-medium text-foreground mb-1">Tipo de vivienda *</label>
+                            <select name="tipo_vivienda" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="propia_pagada">Propia (pagada)</option>
+                                <option value="propia_hipotecada">Propia (con hipoteca)</option>
+                                <option value="alquilada">Alquilada</option>
+                                <option value="familiar">Familiar / Prestada</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Empresa o puesto (opcional)</label>
-                            <input type="text" name="empresa" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm" placeholder="Empresa / puesto">
+                            <label class="block text-sm font-medium text-foreground mb-1">Personas a tu cargo *</label>
+                            <select name="dependientes" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Selecciona</option>
+                                <option value="0">Ninguna</option>
+                                <option value="1-2">1 - 2 personas</option>
+                                <option value="3-4">3 - 4 personas</option>
+                                <option value=">4">Más de 4 personas</option>
+                            </select>
                         </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-1">¿Cómo conociste Credipep?</label>
+                        <select name="origen_lead" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <option value="">Selecciona</option>
+                            <option value="redes_sociales">Redes sociales</option>
+                            <option value="recomendacion">Recomendación</option>
+                            <option value="google">Búsqueda en Google</option>
+                            <option value="publicidad">Publicidad</option>
+                            <option value="otro">Otro</option>
+                        </select>
                     </div>
                 </div>
 
@@ -276,20 +331,20 @@
                 const monto = document.querySelector('select[name="monto"]').value;
                 const plazo = document.querySelector('select[name="plazo"]').value;
                 const ingreso = document.querySelector('select[name="ingreso"]').value;
-                const garantia = document.querySelector('select[name="garantia"]').value;
-                if (!monto || !plazo || !ingreso || !garantia) {
-                    showAlert('Completa monto, plazo, ingreso y garantía.');
+                const antiguedad = document.querySelector('select[name="antiguedad_laboral"]').value;
+                const tieneDeudas = document.querySelector('select[name="tiene_deudas"]').value;
+                if (!monto || !plazo || !ingreso || !antiguedad || !tieneDeudas) {
+                    showAlert('Completa todos los campos obligatorios del paso 2.');
                     return false;
                 }
             }
             if (index === 2) {
-                const nombre = document.querySelector('input[name="nombre"]').value.trim();
-                const email = document.querySelector('input[name="email"]').value.trim();
-                const tel = document.querySelector('input[name="telefono"]').value.trim();
-                const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-                const telOk = /^\d{7,15}$/.test(tel);
-                if (!nombre || !emailOk || !telOk) {
-                    showAlert('Revisa nombre, correo y teléfono.');
+                const experiencia = document.querySelector('select[name="experiencia_crediticia"]').value;
+                const historial = document.querySelector('select[name="historial_mora"]').value;
+                const vivienda = document.querySelector('select[name="tipo_vivienda"]').value;
+                const dependientes = document.querySelector('select[name="dependientes"]').value;
+                if (!experiencia || !historial || !vivienda || !dependientes) {
+                    showAlert('Completa todos los campos obligatorios del perfil financiero.');
                     return false;
                 }
             }
@@ -302,12 +357,15 @@
                 monto: document.querySelector('select[name="monto"]').value,
                 plazo: document.querySelector('select[name="plazo"]').value,
                 ingreso: document.querySelector('select[name="ingreso"]').value,
+                antiguedad_laboral: document.querySelector('select[name="antiguedad_laboral"]').value,
+                tiene_deudas: document.querySelector('select[name="tiene_deudas"]').value,
                 garantia: document.querySelector('select[name="garantia"]').value,
                 detalle: document.querySelector('textarea[name="detalle"]').value,
-                nombre: document.querySelector('input[name="nombre"]').value.trim(),
-                email: document.querySelector('input[name="email"]').value.trim(),
-                telefono: document.querySelector('input[name="telefono"]').value.trim(),
-                empresa: document.querySelector('input[name="empresa"]').value.trim(),
+                experiencia_crediticia: document.querySelector('select[name="experiencia_crediticia"]').value,
+                historial_mora: document.querySelector('select[name="historial_mora"]').value,
+                tipo_vivienda: document.querySelector('select[name="tipo_vivienda"]').value,
+                dependientes: document.querySelector('select[name="dependientes"]').value,
+                origen_lead: document.querySelector('select[name="origen_lead"]').value,
             };
         }
 
