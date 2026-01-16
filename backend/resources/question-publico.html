@@ -126,10 +126,9 @@
                                 <label class="block text-sm font-medium text-foreground mb-1">Monto aproximado</label>
                                 <select name="monto" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                     <option value="">Selecciona un rango</option>
-                                    <option value="0-3m">Menos de 3M CRC</option>
-                                    <option value="3-10m">3M - 10M CRC</option>
-                                    <option value="10-25m">10M - 25M CRC</option>
-                                    <option value="25m+">Más de 25M CRC</option>
+                                    <option value="100k-300k">100 mil - 300 mil</option>
+                                    <option value="300k-500k">300 mil - 500 mil</option>
+                                    <option value="500k-690k">500 mil - 690 mil</option>
                                 </select>
                             </div>
                             <div>
@@ -138,7 +137,6 @@
                                     <option value="">Selecciona</option>
                                     <option value="consumo">Consumo / personales</option>
                                     <option value="consolidacion">Consolidación de deudas</option>
-                                    <option value="vivienda">Vivienda / mejoras</option>
                                     <option value="negocio">Negocio / capital de trabajo</option>
                                 </select>
                             </div>
@@ -164,10 +162,10 @@
                                 <label class="block text-sm font-medium text-foreground mb-1">Ingreso mensual aproximado</label>
                                 <select name="ingreso" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                     <option value="">Selecciona</option>
-                                    <option value="<600k">Menos de 600k</option>
-                                    <option value="600k-1m">600k - 1M</option>
-                                    <option value="1m-2m">1M - 2M</option>
-                                    <option value=">2m">Más de 2M</option>
+                                    <option value="300k-500k">300 mil - 500 mil</option>
+                                    <option value="500k-800k">500 mil - 800 mil</option>
+                                    <option value="800k-1.2m">800 mil - 1.2M</option>
+                                    <option value=">1.2m">Más de 1.2M</option>
                                 </select>
                             </div>
                         </div>
@@ -328,20 +326,99 @@
         }
 
         const companyOptions = [
-            'I.M.A.S', 'C.N.P.', 'A.N.E.P.', 'P.A.N.I', 'MUNICIPALIDAD DE TIBÁS', 'MUNICIPALIDAD SAN JOSÉ', 'C.C.S.S', 'PERSONA JOVEN', 'CONAVI', 'MUNICIPALIDAD DE GOICOECHEA',
-            'CORONADO', 'COSEVI', 'UCR', 'CEN-CINAI', 'INA', 'I.C.E.', 'MUNICIPALIDAD GRECIA', 'I.A.F.A.', 'I.C.O.D.E.R', 'RECOPE', 'MUNICIPALIDAD DE OREAMUNO', 'PODER JUDICIAL',
-            'PENSIONADOS PODER JUDICIAL', 'MUNICIPALIDAD DE MORAVIA', 'O.T.M.', 'ASAMBLEA LEGISLATIVA', 'CONTROL DE MIGRACIÓN Y EXTRANJERÍA', 'DEFENSORÍA DE LOS HABITANTES',
-            'DESARROLLO DE LA COMUNIDAD', 'DIRECCIÓN GENERAL DE SERVICIO CIVIL', 'DIRECCIÓN NACIONAL DE PENSIONES', 'IMPRENTA NACIONAL', 'MIN DE AGRICULTURA Y GANADERÍA',
-            'MINISTERIO DE AMBIENTE Y ENERGÍA', 'MIN DE CIENCIA TECNOLOGÍA Y TELECOMUNICACIONES', 'MIN DE COMERCIO EXTERIOR', 'MIN DE CULT.JUV Y DEPORTES', 'MIN DE GOBERNACIÓN Y POLICÍA',
-            'MIN DE ECO.IND Y COMERCIO', 'MINISTERIO DE EDUCACIÓN PÚBLICA', 'MINISTERIO DE HACIENDA', 'MINISTERIO DE JUSTICIA Y GRACIA', 'MINISTERIO DE LA PRESIDENCIA',
-            'MINISTERIO DE OBRAS PUBL. Y TRANSPORTE', 'MINISTERIO DE PLANIF.NAC Y POL.ECO', 'MINISTERIO DE RELACIONES EXTERIORES Y CULTO', 'MINISTERIO DE SALUD',
-            'MINISTERIO DE SEGURIDAD PÚBLICA', 'MINISTERIO DE TRAB. Y SEGUR. SOC', 'MINISTERIO DE VIVIENDA Y ASENT.HUMANOS', 'PRESIDENCIA DE LA REPÚBLICA',
-            'PROCURADURÍA GENERAL DE LA REPÚBLICA', 'REGISTRO NACIONAL', 'SERVICIO EXTERIOR', 'TRIBUNAL DE SERVICIO CIVIL', 'TRIBUNAL SUPREMO DE ELECCIONES', 'AYA',
-            'ARCHIVO NACIONAL', 'CN MUSICA', 'FANAL', 'FITOSANITARIO', 'SENASA', 'FONAFIFO', 'ICE', 'ICE EMERGENCIAS 911', 'IFAM', 'INDER (IDA)', 'INVU', 'SEC', 'TEATRO NACIONAL', 'CNC',
-            'GOBIERNO CENTRAL INTEGRA', 'INTA', 'JUNTA ADM. REGISTRO NACIONAL', 'MINAE', 'ICE ENERGIA Y TELEC.', 'AVIACION CIVIL', 'MUSEO NACIONAL', 'UCR UNIVERSIDAD DE COSTA RICA',
-            'MUNICIPALIDAD DE ALVARADO', 'MUNICIPALIDAD DE ASERRI', 'MUNICIPALIDAD DE CORONADO', 'MUNICIPALIDAD DE CORREDORES', 'MUNICIPALIDAD DE DESAMPARADOS',
-            'MUNICIPALIDAD DE MORA', 'MUNICIPALIDAD DE NARANJO', 'MUNICIPALIDAD DE OROTIÑA', 'MUNICIPALIDAD DE PALMARES', 'MUNICIPALIDAD DE PARRITA', 'MUNICIPALIDAD DE PUNTARENAS',
-            'MUNICIPALIDAD DE SAN MATEO', 'MUNICIPALIDAD DE SAN PABLO', 'MUNICIPALIDAD DE SAN VITO'
+            'A.N.E.P.',
+            'ARCHIVO NACIONAL',
+            'ASAMBLEA LEGISLATIVA',
+            'AVIACION CIVIL',
+            'AYA',
+            'C.C.S.S',
+            'C.N.P.',
+            'CEN-CINAI',
+            'CN MUSICA',
+            'CNC',
+            'CONAVI',
+            'CONTROL DE MIGRACIÓN Y EXTRANJERÍA',
+            'CORONADO',
+            'COSEVI',
+            'DEFENSORÍA DE LOS HABITANTES',
+            'DESARROLLO DE LA COMUNIDAD',
+            'DIRECCIÓN GENERAL DE SERVICIO CIVIL',
+            'DIRECCIÓN NACIONAL DE PENSIONES',
+            'FANAL',
+            'FITOSANITARIO',
+            'FONAFIFO',
+            'GOBIERNO CENTRAL INTEGRA',
+            'I.A.F.A.',
+            'I.C.E.',
+            'I.C.O.D.E.R',
+            'I.M.A.S',
+            'ICE',
+            'ICE EMERGENCIAS 911',
+            'ICE ENERGIA Y TELEC.',
+            'IFAM',
+            'IMPRENTA NACIONAL',
+            'INA',
+            'INDER (IDA)',
+            'INTA',
+            'INVU',
+            'JUNTA ADM. REGISTRO NACIONAL',
+            'MIN DE AGRICULTURA Y GANADERÍA',
+            'MIN DE CIENCIA TECNOLOGÍA Y TELECOMUNICACIONES',
+            'MIN DE COMERCIO EXTERIOR',
+            'MIN DE CULT.JUV Y DEPORTES',
+            'MIN DE ECO.IND Y COMERCIO',
+            'MIN DE GOBERNACIÓN Y POLICÍA',
+            'MINAE',
+            'MINISTERIO DE AMBIENTE Y ENERGÍA',
+            'MINISTERIO DE EDUCACIÓN PÚBLICA',
+            'MINISTERIO DE HACIENDA',
+            'MINISTERIO DE JUSTICIA Y GRACIA',
+            'MINISTERIO DE LA PRESIDENCIA',
+            'MINISTERIO DE OBRAS PUBL. Y TRANSPORTE',
+            'MINISTERIO DE PLANIF.NAC Y POL.ECO',
+            'MINISTERIO DE RELACIONES EXTERIORES Y CULTO',
+            'MINISTERIO DE SALUD',
+            'MINISTERIO DE SEGURIDAD PÚBLICA',
+            'MINISTERIO DE TRAB. Y SEGUR. SOC',
+            'MINISTERIO DE VIVIENDA Y ASENT.HUMANOS',
+            'MUNICIPALIDAD DE ALVARADO',
+            'MUNICIPALIDAD DE ASERRI',
+            'MUNICIPALIDAD DE CORONADO',
+            'MUNICIPALIDAD DE CORREDORES',
+            'MUNICIPALIDAD DE DESAMPARADOS',
+            'MUNICIPALIDAD DE GOICOECHEA',
+            'MUNICIPALIDAD DE MORA',
+            'MUNICIPALIDAD DE MORAVIA',
+            'MUNICIPALIDAD DE NARANJO',
+            'MUNICIPALIDAD DE OREAMUNO',
+            'MUNICIPALIDAD DE OROTIÑA',
+            'MUNICIPALIDAD DE PALMARES',
+            'MUNICIPALIDAD DE PARRITA',
+            'MUNICIPALIDAD DE PUNTARENAS',
+            'MUNICIPALIDAD DE SAN MATEO',
+            'MUNICIPALIDAD DE SAN PABLO',
+            'MUNICIPALIDAD DE SAN VITO',
+            'MUNICIPALIDAD DE TIBÁS',
+            'MUNICIPALIDAD GRECIA',
+            'MUNICIPALIDAD SAN JOSÉ',
+            'MUSEO NACIONAL',
+            'O.T.M.',
+            'P.A.N.I',
+            'PENSIONADOS PODER JUDICIAL',
+            'PERSONA JOVEN',
+            'PODER JUDICIAL',
+            'PRESIDENCIA DE LA REPÚBLICA',
+            'PROCURADURÍA GENERAL DE LA REPÚBLICA',
+            'RECOPE',
+            'REGISTRO NACIONAL',
+            'SEC',
+            'SENASA',
+            'SERVICIO EXTERIOR',
+            'TEATRO NACIONAL',
+            'TRIBUNAL DE SERVICIO CIVIL',
+            'TRIBUNAL SUPREMO DE ELECCIONES',
+            'UCR',
+            'UCR UNIVERSIDAD DE COSTA RICA'
         ];
 
         function renderCompanyOptions(filter = '') {

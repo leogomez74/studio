@@ -30,3 +30,9 @@ Route::get('/propio', function () {
     return response(file_get_contents(resource_path('question-propio.html')))
         ->header('Content-Type', 'text/html');
 });
+
+// Cuestionario pensionados
+Route::get('/pensionados', function () {
+    return response(file_get_contents(resource_path('question-pensionados.html')))
+        ->header('Content-Type', 'text/html');
+});
