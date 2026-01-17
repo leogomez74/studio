@@ -141,8 +141,31 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="space-y-3">
+                            <label class="block text-sm font-medium text-foreground mb-1">Condición laboral</label>
+                            <div class="grid md:grid-cols-3 gap-3">
+                                <label class="block cursor-pointer group">
+                                    <input type="radio" name="condicion_laboral" value="empleado_activo" class="peer sr-only">
+                                    <div class="border rounded-lg p-3 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center">
+                                        <p class="text-sm font-medium text-foreground">Empleado público activo</p>
+                                    </div>
+                                </label>
+                                <label class="block cursor-pointer group">
+                                    <input type="radio" name="condicion_laboral" value="pensionado_pj" class="peer sr-only">
+                                    <div class="border rounded-lg p-3 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center">
+                                        <p class="text-sm font-medium text-foreground">Pensionado del Poder Judicial</p>
+                                    </div>
+                                </label>
+                                <label class="block cursor-pointer group">
+                                    <input type="radio" name="condicion_laboral" value="pensionado_hacienda" class="peer sr-only">
+                                    <div class="border rounded-lg p-3 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center">
+                                        <p class="text-sm font-medium text-foreground">Pensionado por Hacienda</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
                         <div class="grid md:grid-cols-2 gap-4">
-                            <div>
+                            <div id="empresaWrapper">
                                 <label class="block text-sm font-medium text-foreground mb-1">Empresa en la que Labora</label>
                                 <div id="companyContainer" class="relative">
                                     <button type="button" id="companyTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
@@ -364,6 +387,20 @@
             document.getElementById('legalesFields').classList.toggle('hidden', !showLegales);
         }
 
+        function updateCondicionLaboral() {
+            const condicion = document.querySelector('input[name="condicion_laboral"]:checked')?.value;
+            const empresaWrapper = document.getElementById('empresaWrapper');
+            // Solo mostrar empresa si es empleado activo
+            const showEmpresa = condicion === 'empleado_activo';
+            empresaWrapper.classList.toggle('hidden', !showEmpresa);
+            // Limpiar empresa si se oculta
+            if (!showEmpresa) {
+                document.getElementById('companyValue').value = '';
+                document.getElementById('companyLabel').textContent = 'Selecciona';
+                document.getElementById('companyLabel').classList.add('text-muted-foreground');
+            }
+        }
+
         const companyOptions = [
             'A.N.E.P.',
             'ARCHIVO NACIONAL',
@@ -523,10 +560,18 @@
                 if (interes === 'credito' || interes === 'ambos') {
                     const monto = document.querySelector('select[name="monto"]').value;
                     const uso = document.querySelector('select[name="uso_credito"]').value;
-                    const situacion = document.getElementById('companyValue').value;
-                    if (!monto || !uso || !situacion) {
-                        showAlert('Completa los datos de crédito.');
+                    const condicion = document.querySelector('input[name="condicion_laboral"]:checked')?.value;
+                    if (!monto || !uso || !condicion) {
+                        showAlert('Completa los datos de crédito y selecciona tu condición laboral.');
                         return false;
+                    }
+                    // Solo requerir empresa si es empleado activo
+                    if (condicion === 'empleado_activo') {
+                        const situacion = document.getElementById('companyValue').value;
+                        if (!situacion) {
+                            showAlert('Selecciona la empresa en la que laboras.');
+                            return false;
+                        }
                     }
                 }
                 if (interes === 'servicios_legales' || interes === 'ambos') {
@@ -557,8 +602,11 @@
             if (interes === 'credito' || interes === 'ambos') {
                 data.monto = document.querySelector('select[name="monto"]').value;
                 data.uso_credito = document.querySelector('select[name="uso_credito"]').value;
-                data.situacion_laboral = document.getElementById('companyValue').value;
-                data.antiguedad_laboral = document.querySelector('select[name="antiguedad_laboral"]').value;
+                data.condicion_laboral = document.querySelector('input[name="condicion_laboral"]:checked')?.value || '';
+                // Solo incluir situacion_laboral (empresa) si es empleado activo
+                if (data.condicion_laboral === 'empleado_activo') {
+                    data.situacion_laboral = document.getElementById('companyValue').value;
+                }
                 data.ingreso = document.querySelector('select[name="ingreso"]').value;
                 data.tiene_deudas = document.querySelector('select[name="tiene_deudas"]').value;
             }
@@ -590,6 +638,11 @@
             renderCompanyOptions();
             document.querySelectorAll('input[name="interes"]').forEach(input => {
                 input.addEventListener('change', updateDynamicBlocks);
+            });
+            // Ocultar empresaWrapper al inicio (hasta que se seleccione condición laboral)
+            document.getElementById('empresaWrapper').classList.add('hidden');
+            document.querySelectorAll('input[name="condicion_laboral"]').forEach(input => {
+                input.addEventListener('change', updateCondicionLaboral);
             });
             document.getElementById('companyTrigger').addEventListener('click', (e) => {
                 e.stopPropagation();
