@@ -266,27 +266,29 @@ export function CaseChat({ conversationId }: { conversationId: string }) {
   );
 
   return (
-    <div className="flex flex-col rounded-lg border bg-card">
-        <Tabs defaultValue="all" className="flex flex-col h-[600px]">
+    <div className="flex flex-col rounded-lg border bg-card overflow-hidden h-full">
+        <Tabs defaultValue="all" className="flex flex-col h-full min-h-0">
           {/* Lista de pestañas para cambiar entre vistas. */}
-          <TabsList className="mx-2 mt-2">
-            <TabsTrigger value="all" className="gap-1">
-              <List className="h-4 w-4" />
-              Todo
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-1">
-              <MessagesSquare className="h-4 w-4" />
-              Mensajes
-            </TabsTrigger>
-            <TabsTrigger value="comments" className="gap-1">
-              <MessageCircle className="h-4 w-4" />
-              Comentarios
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex-shrink-0 overflow-x-auto px-2 pt-2">
+            <TabsList className="w-full sm:w-auto inline-flex">
+              <TabsTrigger value="all" className="gap-1 text-xs sm:text-sm flex-1 sm:flex-none">
+                <List className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span>Todo</span>
+              </TabsTrigger>
+              <TabsTrigger value="messages" className="gap-1 text-xs sm:text-sm flex-1 sm:flex-none">
+                <MessagesSquare className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span>Mensajes</span>
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="gap-1 text-xs sm:text-sm flex-1 sm:flex-none">
+                <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span>Comentarios</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
           {/* Contenido de la pestaña "Todo". */}
           <TabsContent
             value="all"
-            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0"
+            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0 mt-0"
           >
             {loading ? (
               <div className="p-4 text-center text-sm text-muted-foreground">Cargando mensajes...</div>
@@ -300,7 +302,7 @@ export function CaseChat({ conversationId }: { conversationId: string }) {
           {/* Contenido de la pestaña "Mensajes". */}
           <TabsContent
             value="messages"
-            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0"
+            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0 mt-0"
           >
             {loading ? (
               <div className="p-4 text-center text-sm text-muted-foreground">Cargando mensajes...</div>
@@ -311,13 +313,13 @@ export function CaseChat({ conversationId }: { conversationId: string }) {
           {/* Contenido de la pestaña "Comentarios". */}
           <TabsContent
             value="comments"
-            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0"
+            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0 mt-0"
           >
             <InternalNotesList notes={relevantNotes} />
           </TabsContent>
 
           {/* Área para escribir y enviar un nuevo mensaje. */}
-          <div className="border-t bg-background p-2">
+          <div className="flex-shrink-0 border-t bg-background p-2">
             <div className="relative">
               <Textarea
                 placeholder="Escribe tu mensaje..."
