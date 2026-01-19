@@ -148,7 +148,7 @@ export default function OpportunityDetailPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         {/* Main Content - Left Column (Refactored with Archivos as main tab) */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs defaultValue="resumen" className="w-full">
