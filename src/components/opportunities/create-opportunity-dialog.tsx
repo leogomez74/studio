@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, FileUp, Loader2 } from "lucide-react"; // Agregados íconos útiles
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label } from "@/components/ui/label"; //
 import {
   Select,
   SelectContent,
@@ -94,6 +94,9 @@ export function CreateOpportunityDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
   const [checkingDocs, setCheckingDocs] = useState(false);
+  
+  // Nuevo estado para la subida de archivos
+  const [isUploading, setIsUploading] = useState(false);
 
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
@@ -127,6 +130,9 @@ export function CreateOpportunityDialog({
         expectedCloseDate: "",
         comments: "",
       });
+      // Reiniciar estados
+      setHasDocuments(false);
+      setIsUploading(false);
     }
   }, [open, defaultLeadId, leads, form]);
 
@@ -160,6 +166,41 @@ export function CreateOpportunityDialog({
   useEffect(() => {
     checkDocs();
   }, [checkDocs]);
+
+  // Manejador para subir documento directamente desde el modal
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentLeadId) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('person_id', currentLeadId);
+    formData.append('file', file);
+
+    try {
+        // Usamos el endpoint existente de PersonDocumentController
+        await api.post('/api/person-documents', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        toast({ title: "Documento subido", description: "El documento se ha vinculado correctamente." });
+        
+        // Volver a verificar documentos para habilitar el botón
+        await checkDocs();
+        
+    } catch (error: any) {
+        console.error("Upload error:", error);
+        toast({ 
+            title: "Error al subir", 
+            description: error.response?.data?.message || "No se pudo subir el documento.", 
+            variant: "destructive" 
+        });
+    } finally {
+        setIsUploading(false);
+        // Limpiar el input
+        e.target.value = '';
+    }
+  };
 
   const onSubmit = async (values: CreateOpportunityFormValues) => {
       setIsSaving(true);
@@ -211,7 +252,7 @@ export function CreateOpportunityDialog({
 
   return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Crear oportunidad</DialogTitle>
             <DialogDescription>Registra una nueva oportunidad.</DialogDescription>
@@ -242,6 +283,30 @@ export function CreateOpportunityDialog({
                   </FormItem>
                 )}
               />
+              
+              {/* Sección de carga de documentos si no existen */}
+              {!checkingDocs && !hasDocuments && currentLeadId && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                    <div className="flex items-center gap-2 text-amber-800 mb-2">
+                        <FileUp className="h-4 w-4" />
+                        <h4 className="text-sm font-semibold">Requisito: Documento inicial</h4>
+                    </div>
+                    <p className="text-xs text-amber-700 mb-3">
+                        Para crear una oportunidad, el expediente debe tener al menos un documento (ej. Cédula, Estado de cuenta).
+                        Súbelo aquí para continuar.
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <Input 
+                            type="file" 
+                            onChange={handleFileUpload} 
+                            disabled={isUploading}
+                            className="bg-white text-sm h-9 file:text-xs"
+                        />
+                        {isUploading && <Loader2 className="h-4 w-4 animate-spin text-amber-600" />}
+                    </div>
+                </div>
+              )}
+
               <FormField
                 control={form.control}
                 name="vertical"
@@ -384,14 +449,17 @@ export function CreateOpportunityDialog({
               </div>
               <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                  <Button type="submit" disabled={isSaving || checkingDocs || !hasDocuments}>
+                  {/* Se deshabilita si está guardando, verificando, subiendo archivo, o si NO hay documentos */}
+                  <Button type="submit" disabled={isSaving || checkingDocs || isUploading || !hasDocuments}>
                     {isSaving
                       ? "Guardando..."
                       : checkingDocs
-                        ? "Verificando documentos..."
-                        : hasDocuments
-                          ? "Guardar"
-                          : "Sube documentos para habilitar"}
+                        ? "Verificando..."
+                        : isUploading
+                            ? "Subiendo..."
+                            : hasDocuments
+                                ? "Guardar"
+                                : "Requiere Documento"}
                   </Button>
               </DialogFooter>
             </form>
