@@ -82,7 +82,7 @@ class OpportunityController extends Controller
 
     public function show(string $id)
     {
-        $opportunity = Opportunity::with(['lead', 'user'])->findOrFail($id);
+        $opportunity = Opportunity::with(['lead', 'user','lead.documents'])->findOrFail($id);
         return response()->json($opportunity, 200);
     }
 
