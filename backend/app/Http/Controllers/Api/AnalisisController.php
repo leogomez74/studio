@@ -33,7 +33,7 @@ public function index()
             'status' => 'required|string',
             'category' => 'nullable|string',
             'monto_credito' => 'required|numeric|min:1',
-            'lead_id' => 'required|integer',
+            'lead_id' => 'nullable|integer',
             'opportunity_id' => 'nullable|integer',
             'assigned_to' => 'nullable|string',
             'opened_at' => 'nullable|date',
