@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -46,7 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { patronos, deductoras as deductorasData, creditConfigs } from '@/lib/data'; // Ajusté deductorasData por si acaso
+import { patronos } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/env';
 import { useAuth } from '@/components/auth-guard';
 import api from '@/lib/axios';
@@ -699,40 +699,135 @@ export default function ConfiguracionPage() {
     }
   };
 
-  // Estado para el Crédito Regular
+  // Estado para configuraciones de préstamos
   const [regularConfig, setRegularConfig] = useState({
-    minAmount: '500000',
-    maxAmount: '10000000',
-    interestRate: creditConfigs.regular.interestRate.toString(),
-    minTerm: '12',
-    maxTerm: '72',
+    minAmount: '',
+    maxAmount: '',
+    interestRate: '',
+    minTerm: '',
+    maxTerm: '',
   });
 
-  // Estado para el Micro-Crédito
   const [microConfig, setMicroConfig] = useState({
-    minAmount: '100000',
-    maxAmount: '1000000',
-    interestRate: creditConfigs.micro.interestRate.toString(),
-    minTerm: '6',
-    maxTerm: '24',
+    minAmount: '',
+    maxAmount: '',
+    interestRate: '',
+    minTerm: '',
+    maxTerm: '',
   });
+
+  const [loadingLoanConfigs, setLoadingLoanConfigs] = useState(false);
+  const [savingRegular, setSavingRegular] = useState(false);
+  const [savingMicro, setSavingMicro] = useState(false);
+
+  // Función para formatear número a colones con comas
+  const formatColones = (value: string | number): string => {
+    const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
+    if (isNaN(num) || num === 0) return '';
+    // Usar formato con comas como separador de miles
+    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  };
+
+  // Función para parsear colones a número
+  const parseColones = (value: string): string => {
+    return value.replace(/,/g, '');
+  };
+
+  // Cargar configuraciones de préstamos desde la API
+  const fetchLoanConfigurations = useCallback(async () => {
+    setLoadingLoanConfigs(true);
+    try {
+      const response = await api.get('/api/loan-configurations');
+      const configs = response.data;
+
+      const regular = configs.find((c: any) => c.tipo === 'regular');
+      const micro = configs.find((c: any) => c.tipo === 'microcredito');
+
+      if (regular) {
+        setRegularConfig({
+          minAmount: regular.monto_minimo?.toString() || '',
+          maxAmount: regular.monto_maximo?.toString() || '',
+          interestRate: regular.tasa_anual?.toString() || '',
+          minTerm: regular.plazo_minimo?.toString() || '',
+          maxTerm: regular.plazo_maximo?.toString() || '',
+        });
+      }
+
+      if (micro) {
+        setMicroConfig({
+          minAmount: micro.monto_minimo?.toString() || '',
+          maxAmount: micro.monto_maximo?.toString() || '',
+          interestRate: micro.tasa_anual?.toString() || '',
+          minTerm: micro.plazo_minimo?.toString() || '',
+          maxTerm: micro.plazo_maximo?.toString() || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching loan configurations:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar las configuraciones de préstamos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingLoanConfigs(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchLoanConfigurations();
+  }, [fetchLoanConfigurations]);
 
   const handleRegularChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setRegularConfig((prev) => ({ ...prev, [id]: value }));
+    // Para montos, guardar sin formato
+    if (id === 'minAmount' || id === 'maxAmount') {
+      setRegularConfig((prev) => ({ ...prev, [id]: parseColones(value) }));
+    } else {
+      setRegularConfig((prev) => ({ ...prev, [id]: value }));
+    }
   };
 
   const handleMicroChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setMicroConfig((prev) => ({ ...prev, [id]: value }));
+    // Para montos, guardar sin formato
+    if (id === 'minAmount' || id === 'maxAmount') {
+      setMicroConfig((prev) => ({ ...prev, [id]: parseColones(value) }));
+    } else {
+      setMicroConfig((prev) => ({ ...prev, [id]: value }));
+    }
   };
 
-  const handleSave = (creditType: 'Crédito Regular' | 'Micro-crédito') => {
-    toast({
-      title: "Parámetros Guardados",
-      description: `La configuración para ${creditType} ha sido actualizada.`,
-      duration: 3000,
-    });
+  const handleSave = async (creditType: 'regular' | 'microcredito') => {
+    const config = creditType === 'regular' ? regularConfig : microConfig;
+    const setLoading = creditType === 'regular' ? setSavingRegular : setSavingMicro;
+    const label = creditType === 'regular' ? 'Crédito Regular' : 'Micro-crédito';
+
+    setLoading(true);
+    try {
+      await api.put(`/api/loan-configurations/${creditType}`, {
+        monto_minimo: parseFloat(config.minAmount) || 0,
+        monto_maximo: parseFloat(config.maxAmount) || 0,
+        tasa_anual: parseFloat(config.interestRate) || 0,
+        plazo_minimo: parseInt(config.minTerm) || 1,
+        plazo_maximo: parseInt(config.maxTerm) || 1,
+      });
+
+      toast({
+        title: "Parámetros Guardados",
+        description: `La configuración para ${label} ha sido actualizada.`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error saving loan configuration:', error);
+      toast({
+        title: 'Error',
+        description: `No se pudo guardar la configuración de ${label}.`,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const [tasaActual, setTasaActual] = useState<string>('33.5');
@@ -905,149 +1000,180 @@ export default function ConfiguracionPage() {
       </TabsContent>
 
       <TabsContent value="prestamos">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Crédito Regular</CardTitle>
-              <CardDescription>
-                Parámetros para los créditos regulares de deducción de planilla.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="regular-minAmount">Monto Mínimo (₡)</Label>
-                  <Input
-                    id="minAmount"
-                    type="number"
-                    value={regularConfig.minAmount}
-                    onChange={handleRegularChange}
-                    className="font-mono"
-                  />
+        {loadingLoanConfigs ? (
+          <div className="flex justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Crédito Regular</CardTitle>
+                <CardDescription>
+                  Parámetros para los créditos regulares de deducción de planilla.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-minAmount">Monto Mínimo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="minAmount"
+                        type="text"
+                        value={formatColones(regularConfig.minAmount)}
+                        onChange={handleRegularChange}
+                        className="font-mono pl-7"
+                        disabled={savingRegular}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-maxAmount">Monto Máximo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="maxAmount"
+                        type="text"
+                        value={formatColones(regularConfig.maxAmount)}
+                        onChange={handleRegularChange}
+                        className="font-mono pl-7"
+                        disabled={savingRegular}
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="regular-maxAmount">Monto Máximo (₡)</Label>
+                  <Label htmlFor="regular-interestRate">Tasa Anual (%)</Label>
                   <Input
-                    id="maxAmount"
+                    id="interestRate"
                     type="number"
-                    value={regularConfig.maxAmount}
+                    step="0.01"
+                    value={regularConfig.interestRate}
                     onChange={handleRegularChange}
                     className="font-mono"
+                    disabled={savingRegular}
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="regular-interestRate">
-                  Tasa Anual (%)
-                </Label>
-                <Input
-                  id="interestRate"
-                  type="number"
-                  value={regularConfig.interestRate}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-minTerm">Plazo Mínimo (meses)</Label>
+                    <Input
+                      id="minTerm"
+                      type="number"
+                      value={regularConfig.minTerm}
+                      onChange={handleRegularChange}
+                      className="font-mono"
+                      disabled={savingRegular}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-maxTerm">Plazo Máximo (meses)</Label>
+                    <Input
+                      id="maxTerm"
+                      type="number"
+                      value={regularConfig.maxTerm}
+                      onChange={handleRegularChange}
+                      className="font-mono"
+                      disabled={savingRegular}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={() => handleSave('regular')} disabled={savingRegular}>
+                  {savingRegular && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Guardar Cambios
+                </Button>
+              </CardFooter>
+            </Card>
 
-                  onChange={handleRegularChange}
-                  className="font-mono"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="regular-minTerm">Plazo Mínimo (meses)</Label>
-                  <Input
-                    id="minTerm"
-                    type="number"
-                    value={regularConfig.minTerm}
-                    onChange={handleRegularChange}
-                    className="font-mono"
-                  />
+            <Card>
+              <CardHeader>
+                <CardTitle>Micro-crédito</CardTitle>
+                <CardDescription>
+                  Parámetros para micro-créditos de rápida aprobación.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-minAmount">Monto Mínimo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="minAmount"
+                        type="text"
+                        value={formatColones(microConfig.minAmount)}
+                        onChange={handleMicroChange}
+                        className="font-mono pl-7"
+                        disabled={savingMicro}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-maxAmount">Monto Máximo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="maxAmount"
+                        type="text"
+                        value={formatColones(microConfig.maxAmount)}
+                        onChange={handleMicroChange}
+                        className="font-mono pl-7"
+                        disabled={savingMicro}
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="regular-maxTerm">Plazo Máximo (meses)</Label>
+                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual (%)</Label>
                   <Input
-                    id="maxTerm"
+                    id="interestRate"
                     type="number"
-                    value={regularConfig.maxTerm}
-                    onChange={handleRegularChange}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={() => handleSave('Crédito Regular')}>Guardar Cambios</Button>
-            </CardFooter>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Micro-crédito</CardTitle>
-              <CardDescription>
-                Parámetros para micro-créditos de rápida aprobación.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="micro-minAmount">Monto Mínimo (₡)</Label>
-                  <Input
-                    id="minAmount"
-                    type="number"
-                    value={microConfig.minAmount}
+                    step="0.01"
+                    value={microConfig.interestRate}
                     onChange={handleMicroChange}
                     className="font-mono"
+                    placeholder="35.5"
+                    disabled={savingMicro}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="micro-maxAmount">Monto Máximo (₡)</Label>
-                  <Input
-                    id="maxAmount"
-                    type="number"
-                    value={microConfig.maxAmount}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-minTerm">Plazo Mínimo (meses)</Label>
+                    <Input
+                      id="minTerm"
+                      type="number"
+                      value={microConfig.minTerm}
+                      onChange={handleMicroChange}
+                      className="font-mono"
+                      disabled={savingMicro}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-maxTerm">Plazo Máximo (meses)</Label>
+                    <Input
+                      id="maxTerm"
+                      type="number"
+                      value={microConfig.maxTerm}
+                      onChange={handleMicroChange}
+                      className="font-mono"
+                      disabled={savingMicro}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="micro-interestRate">
-                  Tasa de Interés Anual (%)
-                </Label>
-                <Input
-                  id="interestRate"
-                  type="number"
-                  value={microConfig.interestRate}
-                  onChange={handleMicroChange}
-                  className="font-mono"
-                  placeholder='35.5'
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="micro-minTerm">Plazo Mínimo (meses)</Label>
-                  <Input
-                    id="minTerm"
-                    type="number"
-                    value={microConfig.minTerm}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="micro-maxTerm">Plazo Máximo (meses)</Label>
-                  <Input
-                    id="maxTerm"
-                    type="number"
-                    value={microConfig.maxTerm}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={() => handleSave('Micro-crédito')}>Guardar Cambios</Button>
-            </CardFooter>
-          </Card>
-        </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={() => handleSave('microcredito')} disabled={savingMicro}>
+                  {savingMicro && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Guardar Cambios
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        )}
       </TabsContent>
 
       <TabsContent value="usuarios">

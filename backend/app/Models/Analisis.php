@@ -25,11 +25,16 @@ class Analisis extends Model
         'description',
         'divisa',
         'plazo',
+        'ingreso_bruto',
+        'ingreso_neto',
+        'propuesta',
     ];
 
     protected $casts = [
         'opened_at' => 'date',
         'monto_credito' => 'decimal:2',
+        'ingreso_bruto' => 'decimal:2',
+        'ingreso_neto' => 'decimal:2',
         'plazo' => 'integer',
     ];
 

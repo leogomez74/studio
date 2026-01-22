@@ -14,15 +14,10 @@ class AnalisisController extends Controller
 
 public function index()
 {
-    // Cargamos la oportunidad Y el lead dentro de la oportunidad
-    $analisis = Analisis::with(['opportunity.lead'])
+    $analisis = Analisis::with(['opportunity', 'lead'])
         ->orderBy('created_at', 'desc')
-        ->get(); // O ->paginate(10);
+        ->get();
 
-    // Si estás usando API Resources (Recomendado):
-    // return AnalisisResource::collection($analisis);
-
-    // Si retornas JSON directo:
     return response()->json($analisis);
 }
     public function store(Request $request)
@@ -40,14 +35,17 @@ public function index()
             'description' => 'nullable|string',
             'divisa' => 'nullable|string',
             'plazo' => 'required|integer|min:1',
+            'ingreso_bruto' => 'nullable|numeric',
+            'ingreso_neto' => 'nullable|numeric',
+            'propuesta' => 'nullable|string',
         ]);
         $analisis = Analisis::create($validated);
         return response()->json($analisis, 201);
     }
 
-    public function show($id)
+    public function show(int $id)
     {
-        $analisis = Analisis::findOrFail($id);
+        $analisis = Analisis::with(['opportunity', 'lead'])->findOrFail($id);
         return response()->json($analisis);
     }
 
@@ -67,6 +65,9 @@ public function index()
             'description' => 'nullable|string',
             'divisa' => 'nullable|string',
             'plazo' => 'nullable|integer',
+            'ingreso_bruto' => 'nullable|numeric',
+            'ingreso_neto' => 'nullable|numeric',
+            'propuesta' => 'nullable|string',
         ]);
         $analisis->update($validated);
         return response()->json($analisis);

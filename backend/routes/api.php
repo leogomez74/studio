@@ -68,6 +68,15 @@ Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\
 // Deductoras
 Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class);
 
+// Configuración de Préstamos
+Route::prefix('loan-configurations')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'index']);
+    Route::get('/activas', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'activas']);
+    Route::get('/rangos', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'rangosParaFormulario']);
+    Route::get('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'porTipo']);
+    Route::put('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'update']);
+});
+
 // Documentos de Personas (Leads/Clientes) - Unificado
 Route::get('/person-documents', [PersonDocumentController::class, 'index']);
 Route::post('/person-documents', [PersonDocumentController::class, 'store']);
