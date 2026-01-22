@@ -95,7 +95,7 @@ class CreditController extends Controller
                         if (!Storage::disk('public')->exists("credit-docs/{$credit->id}")) {
                             Storage::disk('public')->makeDirectory("credit-docs/{$credit->id}");
                         }
-                        
+
                         // Si el archivo destino ya existe, renombrar (timestamp)
                         if (Storage::disk('public')->exists($newPath)) {
                             $extension = pathinfo($fileName, PATHINFO_EXTENSION);

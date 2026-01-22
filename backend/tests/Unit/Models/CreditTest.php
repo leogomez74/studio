@@ -147,7 +147,7 @@ class CreditTest extends TestCase
     public function it_gets_primera_deduccion_attribute()
     {
         $credit = Credit::factory()->create();
-        
+
         // Create a plan de pago with numero_cuota > 0
         $date = Carbon::now()->addMonth();
         PlanDePago::factory()->create([
