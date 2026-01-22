@@ -85,10 +85,19 @@ class OpportunityController extends Controller
             'assigned_to_id' => 'nullable|exists:users,id',
         ]);
 
+        // Buscar el lead para obtener los datos del cuestionario
+        $lead = \App\Models\Lead::where('cedula', $validated['lead_cedula'])->first();
+
         // Valores por defecto
         $validated['status'] = $validated['status'] ?? 'Nueva';
         $validated['vertical'] = $validated['vertical'] ?? 'General';
-        $validated['opportunity_type'] = $validated['opportunity_type'] ?? 'Estándar';
+
+        // Auto-mapear opportunity_type basado en el interes del cuestionario
+        if (!isset($validated['opportunity_type']) && $lead) {
+            $validated['opportunity_type'] = $this->determineOpportunityType($lead);
+        } else {
+            $validated['opportunity_type'] = $validated['opportunity_type'] ?? 'Estándar';
+        }
 
         // Crear la oportunidad
         $opportunity = Opportunity::create($validated);
@@ -261,13 +270,11 @@ class OpportunityController extends Controller
      */
     private function moveFilesToOpportunityFolder(string $cedula, string $opportunityId): array
     {
-        $cedula = preg_replace('/[^0-9]/', '', $cedula);
-
         if (empty($cedula)) {
             return ['success' => false, 'message' => 'Cédula vacía'];
         }
 
-        // Buscar la Persona (Lead/Cliente) por cédula
+        // Buscar la Persona (Lead/Cliente) por cédula (con guiones)
         $person = \App\Models\Person::where('cedula', $cedula)->first();
 
         if (!$person) {
@@ -278,10 +285,13 @@ class OpportunityController extends Controller
         $personDocuments = $person->documents;
 
         if ($personDocuments->isEmpty()) {
+            Log::info('No hay documentos en el buzón para mover', ['cedula' => $cedula]);
             return ['success' => true, 'message' => 'No hay documentos en el buzón', 'files' => []];
         }
 
-        $opportunityFolder = "documentos/{$cedula}/{$opportunityId}";
+        // Limpiar cédula solo para el nombre de la carpeta (sin guiones)
+        $cedulaLimpia = preg_replace('/[^0-9]/', '', $cedula);
+        $opportunityFolder = "documentos/{$cedulaLimpia}/{$opportunityId}";
         $movedFiles = [];
 
         try {
@@ -431,5 +441,83 @@ class OpportunityController extends Controller
             'folder' => $opportunityFolder,
             'files' => $fileList,
         ]);
+    }
+
+    /**
+     * Determinar el tipo de oportunidad basado en el interes del cuestionario.
+     *
+     * @param \App\Models\Lead $lead
+     * @return string
+     */
+    private function determineOpportunityType(\App\Models\Lead $lead): string
+    {
+        $interes = $lead->interes;
+        $tipoCreditoValue = $lead->tipo_credito;
+        $tramites = $lead->tramites; // Array gracias al cast
+
+        // Si el interés es en crédito
+        if ($interes === 'credito') {
+            if ($tipoCreditoValue === 'microcredito') {
+                return 'Micro Crédito';
+            } elseif ($tipoCreditoValue === 'regular') {
+                return 'Crédito';
+            }
+            return 'Crédito'; // Default si no se especifica tipo
+        }
+
+        // Si el interés es en servicios legales
+        if ($interes === 'servicios_legales') {
+            if (is_array($tramites) && count($tramites) > 0) {
+                // Mapear el primer trámite seleccionado al tipo de oportunidad
+                $tramite = $tramites[0];
+                return $this->mapTramiteToOpportunityType($tramite);
+            }
+            return 'Servicios Legales'; // Default
+        }
+
+        // Si el interés es en ambos (crédito y servicios legales)
+        if ($interes === 'ambos') {
+            // Priorizar crédito si está definido
+            if (!empty($tipoCreditoValue)) {
+                if ($tipoCreditoValue === 'microcredito') {
+                    return 'Micro Crédito';
+                } elseif ($tipoCreditoValue === 'regular') {
+                    return 'Crédito';
+                }
+                return 'Crédito';
+            }
+            // Si no hay tipo de crédito, revisar servicios legales
+            if (is_array($tramites) && count($tramites) > 0) {
+                $tramite = $tramites[0];
+                return $this->mapTramiteToOpportunityType($tramite);
+            }
+        }
+
+        // Default si no hay interes definido
+        return 'Estándar';
+    }
+
+    /**
+     * Mapear un trámite específico a un tipo de oportunidad.
+     *
+     * @param string $tramite
+     * @return string
+     */
+    private function mapTramiteToOpportunityType(string $tramite): string
+    {
+        $mapping = [
+            'divorcio' => 'Divorcio',
+            'notariado' => 'Notariado',
+            'testamento' => 'Testamentos',
+            'testamentos' => 'Testamentos',
+            'descuento_facturas' => 'Descuento de Facturas',
+            'poder' => 'Poder',
+            'escritura' => 'Escritura',
+            'declaratoria_herederos' => 'Declaratoria de Herederos',
+        ];
+
+        $tramiteLower = strtolower($tramite);
+
+        return $mapping[$tramiteLower] ?? ucfirst($tramite);
     }
 }

@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Rewards\CatalogController;
 use App\Http\Controllers\Api\Rewards\RedemptionController;
 use App\Http\Controllers\Api\Rewards\Admin\GamificationConfigController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\QuestionnaireController;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,6 +52,9 @@ Route::apiResource('products', ProductController::class);
 Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
 Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::apiResource('leads', LeadController::class);
+
+// Questionnaires
+Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
 
 // Clientes
 Route::apiResource('clients', ClientController::class);
