@@ -26,7 +26,23 @@ class OpportunityController extends Controller
         if ($request->has('status') && $request->input('status') !== 'todos') {
             $query->where('status', $request->input('status'));
         }
-
+        if ($request->filled('search')) { // 'filled' es mejor que 'has' para ignorar cadenas vacías
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                // 1. Buscar por ID de la oportunidad
+                $q->where('id', 'like', "%{$search}%")
+                // 2. Campos directos existentes
+                ->orWhere('lead_cedula', 'like', "%{$search}%")
+                ->orWhere('opportunity_type', 'like', "%{$search}%")
+                ->orWhere('vertical', 'like', "%{$search}%")
+                ->orWhere('comments', 'like', "%{$search}%")
+                // 3. Buscar dentro de la relación 'lead' (Nombre y Email)
+                ->orWhereHas('lead', function ($qLead) use ($search) {
+                    $qLead->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                });
+            });
+        }
         if ($request->has('lead_cedula')) {
             $query->where('lead_cedula', $request->input('lead_cedula'));
         }
