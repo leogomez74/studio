@@ -26,22 +26,30 @@ class OpportunityController extends Controller
         if ($request->has('status') && $request->input('status') !== 'todos') {
             $query->where('status', $request->input('status'));
         }
-        if ($request->filled('search')) { // 'filled' es mejor que 'has' para ignorar cadenas vacías
+        if ($request->filled('search')) {
             $search = $request->input('search');
             $cleanSearch = ltrim($search, '#');
-            $query->where(function ($q) use ($search,$cleanSearch) {
-                // 1. Buscar por ID de la oportunidad
-                $q->where('id', 'like', "{$cleanSearch}%")
-                // 2. Campos directos existentes
+            $strippedSearch = preg_replace('/[^0-9]/', '', $search);
+
+            $query->where(function ($q) use ($search, $cleanSearch, $strippedSearch) {
+                $q->where('id', 'like', "%{$cleanSearch}%")
                 ->orWhere('lead_cedula', 'like', "%{$search}%")
                 ->orWhere('opportunity_type', 'like', "%{$search}%")
                 ->orWhere('vertical', 'like', "%{$search}%")
                 ->orWhere('comments', 'like', "%{$search}%")
-                // 3. Buscar dentro de la relación 'lead' (Nombre y Email)
                 ->orWhereHas('lead', function ($qLead) use ($search) {
                     $qLead->where('name', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%");
+                          ->orWhere('email', 'like', "%{$search}%");
                 });
+
+                // Buscar por ID y cédula sin guiones
+                if (!empty($strippedSearch)) {
+                    $q->orWhereRaw("REPLACE(id, '-', '') LIKE ?", ["%{$strippedSearch}%"])
+                      ->orWhere('lead_cedula', 'like', "%{$strippedSearch}%")
+                      ->orWhereHas('lead', function ($qLead) use ($strippedSearch) {
+                          $qLead->where('cedula', 'like', "%{$strippedSearch}%");
+                      });
+                }
             });
         }
         if ($request->has('lead_cedula')) {
