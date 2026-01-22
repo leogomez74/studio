@@ -5,8 +5,15 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Building2 } from "lucide-react";
 
 export function Logo() {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  // Try to get sidebar context, but don't fail if it's not available
+  let isCollapsed = false;
+  try {
+    const { state } = useSidebar();
+    isCollapsed = state === "collapsed";
+  } catch (error) {
+    // SidebarProvider not available (e.g., during SSR/build)
+    // Default to expanded state
+  }
 
   return (
     <div className="flex h-16 items-center justify-center p-2">
