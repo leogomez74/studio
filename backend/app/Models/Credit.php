@@ -33,7 +33,8 @@ class Credit extends Model
         'plazo',
         'cuotas_atrasadas',
         'deductora_id',
-        'poliza'
+        'poliza',
+        'poliza_actual',
     ];
 
     protected $casts = [
@@ -46,6 +47,7 @@ class Credit extends Model
         'cuota' => 'decimal:2',
         'movimiento_amortizacion' => 'decimal:2',
         'tasa_anual' => 'decimal:2',
+        'poliza_actual' => 'decimal:2',
         'poliza' => 'boolean',
     ];
 

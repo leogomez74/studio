@@ -58,11 +58,16 @@ class CreditController extends Controller
             'tasa_anual' => 'nullable|numeric',
             'fecha_primera_cuota' => 'nullable|date',
             'poliza' => 'nullable|boolean',
+            'poliza_actual' => 'nullable|numeric',
         ]);
 
         // Tasa por defecto
         if (!isset($validated['tasa_anual'])) {
             $validated['tasa_anual'] = 33.50;
+        }
+
+        if (!isset($validated['poliza_actual'])) {
+            $validated['poliza_actual'] = 0;
         }
 
 
@@ -310,6 +315,7 @@ class CreditController extends Controller
             'monto_credito' => 'nullable|numeric',
             'tasa_anual' => 'nullable|numeric',
             'poliza' => 'nullable|boolean',
+              'poliza_actual' => 'nullable|numeric',
              // ... resto de campos si es necesario editar
         ]);
 

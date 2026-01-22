@@ -20,6 +20,7 @@ class CreditFactory extends Factory
             'opportunity_id' => Opportunity::factory(),
             'status' => 'Active',
             'monto_credito' => $this->faker->randomFloat(2, 5000, 50000),
+            'poliza_actual' => $this->faker->randomFloat(2, 0, 5000),
             'reference' => 'CRED-' . Str::upper(Str::random(8)),
             'title' => 'Crédito Test ' . $this->faker->word,
         ];

@@ -45,7 +45,8 @@ class CreditTest extends TestCase
             'plazo',
             'cuotas_atrasadas',
             'deductora_id',
-            'poliza'
+            'poliza',
+            'poliza_actual'
         ];
 
         $this->assertEquals($expectedFillable, $credit->getFillable());
@@ -66,6 +67,7 @@ class CreditTest extends TestCase
         $this->assertEquals('decimal:2', $casts['cuota']);
         $this->assertEquals('decimal:2', $casts['movimiento_amortizacion']);
         $this->assertEquals('decimal:2', $casts['tasa_anual']);
+        $this->assertEquals('decimal:2', $casts['poliza_actual']);
         $this->assertEquals('boolean', $casts['poliza']);
     }
 

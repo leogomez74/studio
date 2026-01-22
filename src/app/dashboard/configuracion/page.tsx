@@ -739,17 +739,29 @@ export default function ConfiguracionPage() {
   const [tasaLoading, setTasaLoading] = useState(false);
   const [tasaSaving, setTasaSaving] = useState(false);
   const [tasaCreditId, setTasaCreditId] = useState<number | null>(null);
+  const [polizaActual, setPolizaActual] = useState<string>('0');
+  const [polizaLoading, setPolizaLoading] = useState(false);
+  const [polizaSaving, setPolizaSaving] = useState(false);
+  const [polizaCreditId, setPolizaCreditId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>('prestamos');
+
+  const fetchReferenceCredit = useCallback(async () => {
+    const res = await api.get('/api/credits');
+    const list = res.data;
+    if (Array.isArray(list) && list.length > 0) {
+      return list[0];
+    }
+    return null;
+  }, []);
 
   const loadTasa = useCallback(async () => {
     setTasaLoading(true);
     try {
-      const res = await api.get('/api/credits');
-      const list = res.data;
-      if (Array.isArray(list) && list.length > 0) {
-        const first = list[0];
-        setTasaCreditId(first.id);
-        setTasaActual(first.tasa_actual ? String(first.tasa_actual) : '33.5');
+      const credit = await fetchReferenceCredit();
+      if (credit) {
+        setTasaCreditId(credit.id);
+        const tasaValue = credit.tasa_actual ?? credit.tasa_anual;
+        setTasaActual(tasaValue ? String(tasaValue) : '33.5');
       } else {
         setTasaActual('33.5');
         setTasaCreditId(null);
@@ -760,13 +772,39 @@ export default function ConfiguracionPage() {
     } finally {
       setTasaLoading(false);
     }
-  }, [toast]);
+  }, [fetchReferenceCredit, toast]);
+
+  const loadPoliza = useCallback(async () => {
+    setPolizaLoading(true);
+    try {
+      const credit = await fetchReferenceCredit();
+      if (credit) {
+        setPolizaCreditId(credit.id);
+        const value = credit.poliza_actual ?? 0;
+        setPolizaActual(String(value));
+      } else {
+        setPolizaActual('0');
+        setPolizaCreditId(null);
+      }
+    } catch (err) {
+      console.error('Failed to load poliza_actual from credits:', err);
+      toast({ title: 'Error', description: 'No se pudo obtener la póliza.', variant: 'destructive' });
+    } finally {
+      setPolizaLoading(false);
+    }
+  }, [fetchReferenceCredit, toast]);
 
   useEffect(() => {
     if (activeTab === 'tasa_actual') {
       loadTasa();
     }
   }, [activeTab, loadTasa]);
+
+  useEffect(() => {
+    if (activeTab === 'poliza') {
+      loadPoliza();
+    }
+  }, [activeTab, loadPoliza]);
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
@@ -778,6 +816,7 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="empresas">Empresas</TabsTrigger>
         <TabsTrigger value="api">API ERP</TabsTrigger>
         <TabsTrigger value="tasa_actual">Tasa Actual</TabsTrigger>
+        <TabsTrigger value="poliza">Póliza</TabsTrigger>
       </TabsList>
 
 
@@ -819,6 +858,46 @@ export default function ConfiguracionPage() {
                 disabled={tasaLoading || tasaSaving}
               >
                 {tasaSaving ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="poliza">
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-3">
+            <Label htmlFor="poliza-actual" className="text-center">Póliza (₡)</Label>
+            <Input
+              id="poliza-actual"
+              type="number"
+              value={polizaActual}
+              onChange={(e) => setPolizaActual(e.target.value)}
+              className="max-w-xs text-center font-mono"
+              disabled={polizaLoading}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={async () => {
+                  if (polizaCreditId === null) {
+                    toast({ title: 'Error', description: 'No hay crédito seleccionado para actualizar.', variant: 'destructive' });
+                    return;
+                  }
+                  setPolizaSaving(true);
+                  try {
+                    await api.put(`/api/credits/${polizaCreditId}`, { poliza_actual: parseFloat(polizaActual) || 0 });
+                    toast({ title: 'Guardado', description: 'Póliza actualizada correctamente.' });
+                    await loadPoliza();
+                  } catch (err) {
+                    console.error('Failed to save poliza_actual:', err);
+                    toast({ title: 'Error', description: 'No se pudo guardar la póliza.', variant: 'destructive' });
+                  } finally {
+                    setPolizaSaving(false);
+                  }
+                }}
+                disabled={polizaLoading || polizaSaving}
+              >
+                {polizaSaving ? 'Guardando...' : 'Guardar'}
               </Button>
             </div>
           </div>
