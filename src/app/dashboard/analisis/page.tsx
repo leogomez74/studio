@@ -2,6 +2,7 @@
 
 import api from '@/lib/axios';
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Opportunity, Lead } from '@/lib/data';
-import { AnalisisDetailsDialog } from '@/components/analisis-details-dialog';
 
 type AnalisisItem = {
   id: number;
@@ -27,6 +27,7 @@ type AnalisisItem = {
 };
 
 export default function AnalisisPage() {
+  const router = useRouter();
   const [analisisList, setAnalisisList] = useState<AnalisisItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +35,6 @@ export default function AnalisisPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
 
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
-  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
-  const [selectedAnalisis, setSelectedAnalisis] = useState<AnalisisItem | null>(null);
 
   const [creditForm, setCreditForm] = useState({
     reference: '',
@@ -92,13 +91,8 @@ export default function AnalisisPage() {
   }, [fetchAll]);
 
   const handleOpenDetail = (item: AnalisisItem) => {
-    setSelectedAnalisis(item);
-    setIsDetailDialogOpen(true);
+    router.push(`/dashboard/analisis/${item.id}`);
   };
-
-  const handleRefresh = useCallback(() => {
-    fetchAll();
-  }, [fetchAll]);
 
   // 3. RENDERIZADO CONDICIONAL (Carga / Error)
   if (loading) {
@@ -230,14 +224,6 @@ export default function AnalisisPage() {
         </table>
       </div>
 
-      {/* Dialog de Detalle de Análisis */}
-      <AnalisisDetailsDialog
-        open={isDetailDialogOpen}
-        onOpenChange={setIsDetailDialogOpen}
-        analisis={selectedAnalisis}
-        onUpdate={handleRefresh}
-      />
-
       {/* Dialog for creating credit */}
       <Dialog open={isCreditDialogOpen} onOpenChange={setIsCreditDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -263,7 +249,7 @@ export default function AnalisisPage() {
                   plazo: parseInt(creditForm.plazo) || 36,
                 });
                 setIsCreditDialogOpen(false);
-                handleRefresh();
+                fetchAll();
               } catch (err) {
                 alert('Error al crear crédito');
               } finally {
