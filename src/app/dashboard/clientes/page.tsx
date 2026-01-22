@@ -17,7 +17,8 @@ import {
   Loader2,
   Trash,
   Upload,
-  X
+  X,
+  Search
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -29,7 +30,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -156,7 +156,7 @@ type LeadStatus = {
     name: string;
 };
 
-// --- Main Component ---it shou
+// --- Main Component ---
 
 export default function ClientesPage() {
   const { toast } = useToast();
@@ -175,6 +175,7 @@ export default function ClientesPage() {
   // UI State
   const [isLeadFiltersOpen, setIsLeadFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("leads");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
@@ -684,42 +685,58 @@ export default function ClientesPage() {
       <div className="space-y-6">
         <Card>
           <Collapsible open={isLeadFiltersOpen} onOpenChange={setIsLeadFiltersOpen} className="space-y-0">
-            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            
+            <CardHeader className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-1">
                 <CardTitle>CRM</CardTitle>
-                <CardDescription>Gestiona leads y clientes desde un solo panel.</CardDescription>
+                <CardDescription>Gestiona leads y clientes.</CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" className="gap-2" onClick={openLeadDialog}>
-                  <PlusCircle className="h-4 w-4" />
-                  Nuevo lead
-                </Button>
+
+              {/* Contenedor de Acciones: Buscar + Filtros + Nuevo */}
+              <div className="flex items-center gap-1">
+                
+                {/* Buscador Expansible */}
+                <div className={`transition-all duration-300 ease-in-out ${isSearchOpen || searchQuery ? 'w-full sm:w-60 mr-2' : 'w-9'}`}>
+                  {isSearchOpen || searchQuery ? (
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-9 pl-8"
+                        placeholder="Buscar..."
+                        autoFocus
+                        onBlur={() => !searchQuery && setIsSearchOpen(false)}
+                      />
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-9 w-9 text-muted-foreground hover:bg-muted" 
+                      onClick={() => setIsSearchOpen(true)}
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Botón Filtros */}
                 <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" size="sm" className="gap-2 hover:bg-[lightgray]/48">
-                    {isLeadFiltersOpen ? "Ocultar filtros" : "Mostrar filtros"}
-                    {isLeadFiltersOpen ? (
-                      <ChevronUp className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                    )}
+                  <Button variant="ghost" size="sm" className="h-9 gap-2">
+                    <span className="hidden sm:inline">{isLeadFiltersOpen ? "Ocultar" : "Filtros"}</span>
+                    {isLeadFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                 </CollapsibleTrigger>
-              </div>
-              <div className="space-y-1 md:col-span-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Buscar
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                  placeholder="Cédula, nombre o correo"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                  />
-                </div>
+
+                {/* Botón Nuevo Lead */}
+                <Button size="sm" className="h-9 gap-2" onClick={openLeadDialog}>
+                  <PlusCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">Nuevo</span>
+                </Button>
               </div>
             </CardHeader>
+
             <CardContent>
               <div className="space-y-6">
                 <CollapsibleContent className="space-y-4 rounded-md border border-dashed border-muted-foreground/30 p-4">
