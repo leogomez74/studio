@@ -29,13 +29,44 @@ class CreditController extends Controller
     }
 
     /**
+     * Obtener la próxima referencia disponible
+     */
+    public function nextReference()
+    {
+        return response()->json(['reference' => $this->generateReference()]);
+    }
+
+    /**
+     * Generar referencia automática con formato YY-XXXXX-CRED (para preview)
+     */
+    private function generateReference(): string
+    {
+        $year = date('y'); // Año en 2 dígitos (26 para 2026)
+
+        // Obtener el próximo ID de la tabla credits
+        $nextId = DB::select("SHOW TABLE STATUS LIKE 'credits'")[0]->Auto_increment;
+
+        // Formatear con padding de 5 dígitos
+        return sprintf('%s-%05d-CRED', $year, $nextId);
+    }
+
+    /**
+     * Generar referencia con el ID real del crédito
+     */
+    private function generateReferenceWithId(int $id): string
+    {
+        $year = date('y'); // Año en 2 dígitos (26 para 2026)
+        return sprintf('%s-%05d-CRED', $year, $id);
+    }
+
+    /**
      * Crear Crédito y Generar Tabla de Amortización INICIAL
      */
     public function store(Request $request)
     {
         // 1. Validaciones (Sincronizadas con tu nuevo modelo Credit)
         $validated = $request->validate([
-            'reference' => 'required|unique:credits,reference',
+            'reference' => 'nullable|unique:credits,reference',
             'title' => 'required|string',
             'status' => 'required|string',
             'category' => 'nullable|string',
@@ -70,10 +101,16 @@ class CreditController extends Controller
             $validated['poliza_actual'] = 0;
         }
 
+        // Referencia temporal (se actualiza después con el ID real)
+        $validated['reference'] = 'TEMP-' . time();
 
         $credit = DB::transaction(function () use ($validated) {
             // A. Crear Cabecera
             $credit = Credit::create($validated);
+
+            // B. Generar referencia con el ID real del crédito
+            $credit->reference = $this->generateReferenceWithId($credit->id);
+            $credit->save();
 
             // Validar estado antes de crear plan de pagos
             if (strtolower($credit->status) === 'formalizado') {

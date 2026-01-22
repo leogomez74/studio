@@ -58,6 +58,7 @@ Route::patch('/opportunities/update-status', [OpportunityController::class, 'upd
 Route::apiResource('opportunities', OpportunityController::class);
 
 // Créditos
+Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
 Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
 Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
 Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos']);
