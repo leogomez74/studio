@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -704,6 +705,20 @@ export default function ClientesPage() {
                   </Button>
                 </CollapsibleTrigger>
               </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Buscar
+                </Label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                  placeholder="Cédula, nombre o correo"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8"
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -754,16 +769,6 @@ export default function ClientesPage() {
                     </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="space-y-1 md:col-span-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Buscar
-                      </Label>
-                      <Input
-                        placeholder="Cédula, nombre o correo"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
                       {activeTab === "leads" ? (
