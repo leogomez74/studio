@@ -560,7 +560,7 @@ export default function DealsPage() {
   const handleOpenAnalisisDialog = (opportunity: Opportunity) => {
     setAnalisisOpportunity(opportunity);
     setAnalisisForm({
-      reference: `ANAL-${opportunity.id}`,
+      reference: `${opportunity.id.slice(0,opportunity.id.length-3)}-ANL`,
       title: opportunity.opportunity_type || "",
       status: "Activo",
       category: "Crédito",
