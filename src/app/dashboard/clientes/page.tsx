@@ -1280,69 +1280,12 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Subir Archivos</DialogTitle>
-            <DialogDescription>
-              Adjunta la constancia y otros archivos obligatorios para el lead.
-              {currentLeadCedula && (
-                <span className="block mt-1 text-sm font-medium text-primary">
-                  Cédula: {currentLeadCedula}
-                </span>
-              )}
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">
             {/* Constancia File Input */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Constancia (PDF o HTML)</Label>
-              <div
-                onClick={() => !uploading && document.getElementById('constancia-input')?.click()}
-                className={`
-                  relative flex flex-col items-center justify-center gap-3 p-6
-                  border-2 border-dashed rounded-lg cursor-pointer
-                  transition-colors duration-200
-                  ${uploading ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:bg-muted/50'}
-                  ${constanciaFile ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}
-                `}
-              >
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Arrastra tu archivo aquí</p>
-                  <p className="text-xs text-muted-foreground mt-1">o</p>
-                </div>
-                <Button type="button" variant="secondary" size="sm" disabled={uploading}>
-                  Seleccionar archivo
-                </Button>
-                <input
-                  id="constancia-input"
-                  type="file"
-                  accept=".pdf,.html,application/pdf,text/html"
-                  onChange={handleConstanciaChange}
-                  disabled={uploading}
-                  className="hidden"
-                />
-              </div>
-              {constanciaFile && (
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium truncate max-w-[400px]">{constanciaFile.name}</span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => { e.stopPropagation(); setConstanciaFile(null); }}
-                    disabled={uploading}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-
             {/* Additional Files Input */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Archivos adicionales (PDF o HTML, múltiples)</Label>
+              <Label className="text-sm font-medium">Archivos Obligatorios (Cedula, recibos de luz,etc.)</Label>
               <div
                 onClick={() => !uploading && document.getElementById('multi-files-input')?.click()}
                 className={`
