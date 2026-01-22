@@ -705,7 +705,7 @@ export default function ClientesPage() {
                   </Button>
                 </CollapsibleTrigger>
               </div>
-              <div className="space-y-1 md:col-span-2">
+              <div className="space-y-1 md:col-span-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Buscar
                 </Label>
