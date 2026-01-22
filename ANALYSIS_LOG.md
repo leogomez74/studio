@@ -541,3 +541,25 @@ Se extendió el análisis de "pruebas imaginarias" a los controladores y modelos
   - `backend/app/Models/Credit.php`
   - `backend/app/Models/ChatMessage.php`
   - `backend/database/migrations/2025_12_23_190952_create_chat_messages_table.php`
+
+---
+
+## Configuración de Póliza Global
+
+- Fecha: 2026-01-22 10:00
+- Rol: `Desarrollador Fullstack`
+- Autor: `GitHub Copilot`
+- Resumen: Se añadió un valor configurable para la póliza desde el panel para reutilizarlo en futuros cálculos financieros.
+- Acciones tomadas:
+  - Creada migración `2026_01_22_000100_add_poliza_actual_to_credits_table.php` para almacenar el monto global de póliza.
+  - Actualizados `Credit`, `CreditController`, la factory y los tests unitarios para soportar `poliza_actual`.
+  - Añadido el tab "Póliza" en `src/app/dashboard/configuracion/page.tsx` con lógica de carga y guardado similar a "Tasa Actual".
+- Archivos modificados:
+  - `backend/database/migrations/2026_01_22_000100_add_poliza_actual_to_credits_table.php`
+  - `backend/app/Models/Credit.php`
+  - `backend/app/Http/Controllers/Api/CreditController.php`
+  - `backend/database/factories/CreditFactory.php`
+  - `backend/tests/Unit/Models/CreditTest.php`
+  - `src/app/dashboard/configuracion/page.tsx`
+- Notas:
+  - El valor se obtiene del primer crédito disponible hasta que exista un endpoint dedicado para configuraciones globales.

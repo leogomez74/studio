@@ -11,7 +11,18 @@ use Illuminate\Support\Facades\Log;
 
 class PersonDocumentController extends Controller
 {
-    // ...
+    public function index(Request $request)
+    {
+        $request->validate([
+            'person_id' => 'required|integer|exists:persons,id',
+        ]);
+
+        $documents = PersonDocument::where('person_id', $request->person_id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($documents);
+    }
 
     public function checkCedulaFolder(Request $request)
     {

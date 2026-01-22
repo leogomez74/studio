@@ -58,11 +58,16 @@ class CreditController extends Controller
             'tasa_anual' => 'nullable|numeric',
             'fecha_primera_cuota' => 'nullable|date',
             'poliza' => 'nullable|boolean',
+            'poliza_actual' => 'nullable|numeric',
         ]);
 
         // Tasa por defecto
         if (!isset($validated['tasa_anual'])) {
             $validated['tasa_anual'] = 33.50;
+        }
+
+        if (!isset($validated['poliza_actual'])) {
+            $validated['poliza_actual'] = 0;
         }
 
 
@@ -90,7 +95,7 @@ class CreditController extends Controller
                         if (!Storage::disk('public')->exists("credit-docs/{$credit->id}")) {
                             Storage::disk('public')->makeDirectory("credit-docs/{$credit->id}");
                         }
-                        
+
                         // Si el archivo destino ya existe, renombrar (timestamp)
                         if (Storage::disk('public')->exists($newPath)) {
                             $extension = pathinfo($fileName, PATHINFO_EXTENSION);
@@ -310,6 +315,7 @@ class CreditController extends Controller
             'monto_credito' => 'nullable|numeric',
             'tasa_anual' => 'nullable|numeric',
             'poliza' => 'nullable|boolean',
+              'poliza_actual' => 'nullable|numeric',
              // ... resto de campos si es necesario editar
         ]);
 
