@@ -28,9 +28,10 @@ class OpportunityController extends Controller
         }
         if ($request->filled('search')) { // 'filled' es mejor que 'has' para ignorar cadenas vacías
             $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
+            $cleanSearch = ltrim($search, '#');
+            $query->where(function ($q) use ($search,$cleanSearch) {
                 // 1. Buscar por ID de la oportunidad
-                $q->where('id', 'like', "%{$search}%")
+                $q->where('id', 'like', "{$cleanSearch}%")
                 // 2. Campos directos existentes
                 ->orWhere('lead_cedula', 'like', "%{$search}%")
                 ->orWhere('opportunity_type', 'like', "%{$search}%")
