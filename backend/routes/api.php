@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Rewards\ChallengeController;
 use App\Http\Controllers\Api\Rewards\CatalogController;
 use App\Http\Controllers\Api\Rewards\RedemptionController;
 use App\Http\Controllers\Api\Rewards\Admin\GamificationConfigController;
+use App\Http\Controllers\Api\ProductController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,6 +43,9 @@ Route::get('/agents', function () {
 Route::get('/lead-statuses', function () {
     return response()->json(\App\Models\LeadStatus::select('id', 'name')->orderBy('order_column')->get());
 });
+
+// Products
+Route::apiResource('products', ProductController::class);
 
 // Leads
 Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
