@@ -26,12 +26,22 @@ type AnalisisItem = {
   lead?: Lead;
 };
 
+type Product = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+};
+
 export default function AnalisisPage() {
   const [analisisList, setAnalisisList] = useState<AnalisisItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
@@ -41,7 +51,7 @@ export default function AnalisisPage() {
     reference: '',
     title: '',
     status: 'Activo',
-    category: 'Regular',
+    category: 'Crédito',
     monto_credito: '',
     leadId: '',
     description: '',
@@ -53,16 +63,19 @@ export default function AnalisisPage() {
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const [analisisRes, oppsRes, leadsRes] = await Promise.all([
+      const [analisisRes, oppsRes, leadsRes, productsRes] = await Promise.all([
         api.get('/api/analisis'),
         api.get('/api/opportunities'),
         api.get('/api/leads'),
+        api.get('/api/products'),
       ]);
       const analisisData = analisisRes.data as AnalisisItem[];
       const oppsData = Array.isArray(oppsRes.data.data) ? oppsRes.data.data : oppsRes.data;
       const leadsData = Array.isArray(leadsRes.data.data) ? leadsRes.data.data : leadsRes.data;
+      const productsData = productsRes.data as Product[];
       setOpportunities(oppsData);
       setLeads(leadsData);
+      setProducts(productsData);
 
       const mapped = analisisData.map((item) => {
         const opportunity = oppsData.find((o: Opportunity) => String(o.id) === String(item.opportunity_id));
@@ -203,7 +216,7 @@ export default function AnalisisPage() {
                             reference: '',
                             title: '',
                             status: 'Activo',
-                            category: 'Regular',
+                            category: 'Crédito',
                             monto_credito: '',
                             leadId: item.lead?.id ? String(item.lead.id) : '',
                             description: '',
@@ -309,10 +322,11 @@ export default function AnalisisPage() {
                 <Select value={creditForm.category} onValueChange={v => setCreditForm(f => ({ ...f, category: v }))}>
                   <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Regular">Regular</SelectItem>
-                    <SelectItem value="Micro-crédito">Micro-crédito</SelectItem>
-                    <SelectItem value="Hipotecario">Hipotecario</SelectItem>
-                    <SelectItem value="Personal">Personal</SelectItem>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.name}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -27,6 +27,15 @@ import { Opportunity, chatMessages, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } fr
 import { DocumentManager } from "@/components/document-manager";
 import { CaseChat } from "@/components/case-chat";
 
+type Product = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+};
+
 export default function OpportunityDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -34,26 +43,34 @@ export default function OpportunityDetailPage() {
   const id = params.id as string;
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
 
   useEffect(() => {
-    const fetchOpportunity = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get(`/api/opportunities/${id}`);
-        const data = response.data.data || response.data;
-        setOpportunity(data);
+        const [opportunityRes, productsRes] = await Promise.all([
+          api.get(`/api/opportunities/${id}`),
+          api.get('/api/products'),
+        ]);
+
+        const opportunityData = opportunityRes.data.data || opportunityRes.data;
+        const productsData = productsRes.data as Product[];
+
+        setOpportunity(opportunityData);
+        setProducts(productsData);
       } catch (error) {
-        console.error("Error fetching opportunity:", error);
-        toast({ title: "Error", description: "No se pudo cargar la oportunidad.", variant: "destructive" });
+        console.error("Error fetching data:", error);
+        toast({ title: "Error", description: "No se pudo cargar la información.", variant: "destructive" });
       } finally {
         setLoading(false);
       }
     };
 
     if (id) {
-      fetchOpportunity();
+      fetchData();
     }
   }, [id, toast]);
 
@@ -203,19 +220,19 @@ export default function OpportunityDetailPage() {
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">TIPO</p>
                         <div className="flex flex-wrap gap-2">
-                          {OPPORTUNITY_TYPES.map((type) => (
+                          {products.map((product) => (
                             <Button
-                              key={type}
-                              variant={opportunity.opportunity_type === type ? "default" : "outline"}
-                              onClick={() => handleTypeChange(type)}
+                              key={product.id}
+                              variant={opportunity.opportunity_type === product.name ? "default" : "outline"}
+                              onClick={() => handleTypeChange(product.name)}
                               disabled={updatingType}
                               className={`h-7 text-xs ${
-                                opportunity.opportunity_type === type 
-                                  ? "bg-slate-900 text-white hover:bg-slate-800" 
+                                opportunity.opportunity_type === product.name
+                                  ? "bg-slate-900 text-white hover:bg-slate-800"
                                   : "text-slate-600 border-slate-200"
                               }`}
                             >
-                              {type}
+                              {product.name}
                             </Button>
                           ))}
                         </div>

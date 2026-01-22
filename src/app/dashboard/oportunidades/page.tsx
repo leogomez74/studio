@@ -183,13 +183,23 @@ const generateAmparoReference = () => {
 
 // --- Main Component ---
 
+type Product = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+};
+
 export default function DealsPage() {
   const { toast } = useToast();
-  
+
   // Data State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]); // <--- AGREGADO: Estado para usuarios
+  const [products, setProducts] = useState<Product[]>([]); // <--- AGREGADO: Estado para productos
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
 
@@ -243,7 +253,7 @@ export default function DealsPage() {
     reference: "",
     title: "",
     status: "Activo",
-    category: "Regular",
+    category: "Crédito",
     monto_credito: "",
     leadId: "",
     opportunityId: "",
@@ -342,11 +352,22 @@ export default function DealsPage() {
     }
   }, []);
 
+  // AGREGADO: Fetch Products para el select de categorías
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await api.get('/api/products');
+      setProducts(response.data);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOpportunities();
     fetchLeads();
     fetchUsers();
-  }, [fetchOpportunities, fetchLeads, fetchUsers]);
+    fetchProducts();
+  }, [fetchOpportunities, fetchLeads, fetchUsers, fetchProducts]);
 
   // --- Form Logic ---
 
@@ -542,7 +563,7 @@ export default function DealsPage() {
       reference: `ANAL-${opportunity.id}`,
       title: opportunity.opportunity_type || "",
       status: "Activo",
-      category: "Regular",
+      category: "Crédito",
       monto_credito: opportunity.amount ? String(opportunity.amount) : "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
@@ -1273,7 +1294,7 @@ export default function DealsPage() {
                 <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
                   <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
                   <SelectContent>
-                    {["Regular", "Micro-crédito", "Hipotecario", "Personal"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
