@@ -90,7 +90,13 @@ class OpportunityController extends Controller
 
         // Valores por defecto
         $validated['status'] = $validated['status'] ?? 'Nueva';
-        $validated['vertical'] = $validated['vertical'] ?? 'General';
+
+        // Auto-mapear vertical desde institucion_labora del lead
+        if (!isset($validated['vertical']) && $lead && !empty($lead->institucion_labora)) {
+            $validated['vertical'] = $lead->institucion_labora;
+        } else {
+            $validated['vertical'] = $validated['vertical'] ?? 'General';
+        }
 
         // Auto-mapear opportunity_type basado en el interes del cuestionario
         if (!isset($validated['opportunity_type']) && $lead) {
