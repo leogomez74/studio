@@ -396,9 +396,11 @@ class QuestionnaireController extends Controller
             $targetFolder = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
 
             try {
-                // Crear carpeta destino si no existe
-                if (!Storage::disk('public')->exists($targetFolder)) {
-                    Storage::disk('public')->makeDirectory($targetFolder, 0755, true);
+                // Crear carpeta destino si no existe usando mkdir() directamente
+                $fullTargetFolder = Storage::disk('public')->path($targetFolder);
+
+                if (!file_exists($fullTargetFolder)) {
+                    @mkdir($fullTargetFolder, 0755, true);
                 }
 
                 // Obtener archivos del buzón
