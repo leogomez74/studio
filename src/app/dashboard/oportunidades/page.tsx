@@ -219,8 +219,8 @@ export default function DealsPage() {
     resolver: zodResolver(opportunitySchema),
     defaultValues: {
       leadId: "",
-      vertical: VERTICAL_OPTIONS[0],
-      opportunityType: OPPORTUNITY_TYPES[0],
+      vertical: "",
+      opportunityType: "",
       status: defaultStatus,
       amount: 0,
       expectedCloseDate: "",

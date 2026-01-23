@@ -88,6 +88,16 @@ class OpportunityController extends Controller
         // Buscar el lead para obtener los datos del cuestionario
         $lead = \App\Models\Lead::where('cedula', $validated['lead_cedula'])->first();
 
+        // DEBUG LOG
+        \Log::info('=== OPPORTUNITY CREATE DEBUG ===', [
+            'opportunity_type_recibido' => $validated['opportunity_type'] ?? 'NO EXISTE',
+            'vertical_recibido' => $validated['vertical'] ?? 'NO EXISTE',
+            'amount_recibido' => $validated['amount'] ?? 'NO EXISTE',
+            'lead_encontrado' => $lead ? 'SI' : 'NO',
+            'lead_interes' => $lead->interes ?? 'NULL',
+            'lead_tipo_credito' => $lead->tipo_credito ?? 'NULL',
+        ]);
+
         // Valores por defecto
         $validated['status'] = $validated['status'] ?? 'Nueva';
 
