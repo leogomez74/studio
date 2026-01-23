@@ -64,6 +64,18 @@ class AnalisisController extends Controller
             'propuesta' => 'nullable|string',
         ]);
 
+        // Verificar si ya existe un análisis para esta oportunidad
+        if (!empty($validated['opportunity_id'])) {
+            $existingAnalisis = Analisis::where('opportunity_id', $validated['opportunity_id'])->first();
+            if ($existingAnalisis) {
+                return response()->json([
+                    'message' => 'Ya existe un análisis para esta oportunidad',
+                    'analisis' => $existingAnalisis,
+                    'redirect_to' => $existingAnalisis->id,
+                ], 409); // 409 Conflict
+            }
+        }
+
         // Valor por defecto para estado_pep
         if (!isset($validated['estado_pep'])) {
             $validated['estado_pep'] = 'Pendiente';

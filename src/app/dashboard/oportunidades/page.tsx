@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, FormEvent, ChangeEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
@@ -194,6 +195,7 @@ type Product = {
 
 export default function DealsPage() {
   const { toast } = useToast();
+  const router = useRouter();
 
   // Data State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -636,7 +638,13 @@ export default function DealsPage() {
       setIsAnalisisDialogOpen(false);
       fetchOpportunities();
     } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+      // Si ya existe un análisis (409 Conflict), mostrar mensaje
+      if (error.response?.status === 409) {
+        toast({ title: "Análisis existente", description: "Ya existe un análisis para esta oportunidad." });
+        setIsAnalisisDialogOpen(false);
+      } else {
+        toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+      }
     }
   };
 
