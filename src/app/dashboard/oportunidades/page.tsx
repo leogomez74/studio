@@ -209,7 +209,7 @@ export default function DealsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [perPage, setPerPage] = useState(20);
+  const [perPage, setPerPage] = useState(10);
 
   // Dialog States
   const [dialogState, setDialogState] = useState<"create" | "edit" | null>(null);
@@ -321,6 +321,7 @@ export default function DealsPage() {
       if (filters.vertical !== 'todos') params.vertical = filters.vertical;
       if (filters.search.trim()) params.search = filters.search.trim();
       params.page = currentPage;
+      params.per_page = perPage;
 
       const response = await api.get('/api/opportunities', { params });
 
@@ -357,7 +358,7 @@ export default function DealsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.vertical, filters.search, currentPage]);
+  }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.vertical, filters.search, currentPage, perPage]);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -894,7 +895,7 @@ export default function DealsPage() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
                 <Input placeholder="Referencia, lead o título" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -977,6 +978,21 @@ export default function DealsPage() {
                     </div>
                   </PopoverContent>
                 </Popover>
+            </div>
+            <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+                <Select value={String(perPage)} onValueChange={(value) => {
+                  setPerPage(Number(value));
+                  setCurrentPage(1);
+                }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="30">30</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
         </div>
 
@@ -1101,12 +1117,13 @@ export default function DealsPage() {
         </Table>
 
         {/* Pagination Controls */}
-        {totalPages > 1 && (
+        {totalItems > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
             <div className="text-sm text-muted-foreground">
               Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} oportunidades
             </div>
-            <div className="flex items-center gap-2">
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -1179,7 +1196,8 @@ export default function DealsPage() {
               >
                 Siguiente
               </Button>
-            </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

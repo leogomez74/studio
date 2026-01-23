@@ -87,7 +87,12 @@ class OpportunityController extends Controller
             $query->whereDate('created_at', '<=', $request->input('date_to'));
         }
 
-        $opportunities = $query->latest()->paginate(20);
+        if ($request->has('vertical')) {
+            $query->where('vertical', $request->input('vertical'));
+        }
+
+        $perPage = min((int) $request->input('per_page', 10), 100);
+        $opportunities = $query->latest()->paginate($perPage);
 
         return response()->json($opportunities, 200);
     }

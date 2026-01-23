@@ -72,6 +72,12 @@ export default function AnalisisPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [perPage, setPerPage] = useState(10);
+
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
 
   const [creditForm, setCreditForm] = useState({
@@ -93,12 +99,21 @@ export default function AnalisisPage() {
     try {
       setLoading(true);
       const [analisisRes, oppsRes, leadsRes, productsRes] = await Promise.all([
-        api.get('/api/analisis'),
+        api.get('/api/analisis', { params: { page: currentPage, per_page: perPage } }),
         api.get('/api/opportunities'),
         api.get('/api/leads'),
         api.get('/api/products'),
       ]);
-      const analisisData = analisisRes.data as AnalisisItem[];
+
+      const isPaginated = analisisRes.data.data && analisisRes.data.current_page;
+      const analisisData = isPaginated ? analisisRes.data.data as AnalisisItem[] : analisisRes.data as AnalisisItem[];
+
+      if (isPaginated) {
+        setCurrentPage(analisisRes.data.current_page);
+        setTotalPages(analisisRes.data.last_page);
+        setTotalItems(analisisRes.data.total);
+      }
+
       const oppsData = Array.isArray(oppsRes.data.data) ? oppsRes.data.data : oppsRes.data;
       const leadsData = Array.isArray(leadsRes.data.data) ? leadsRes.data.data : leadsRes.data;
       const productsData = productsRes.data as Product[];
@@ -127,11 +142,23 @@ export default function AnalisisPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage, perPage]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
 
   const handleOpenDetail = (item: AnalisisItem) => {
     router.push(`/dashboard/analisis/${item.id}`);
@@ -159,6 +186,23 @@ export default function AnalisisPage() {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Listado de Analizados</h1>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="perPage" className="text-sm font-medium">Registros por página:</Label>
+          <Select value={String(perPage)} onValueChange={(value) => {
+            setPerPage(Number(value));
+            setCurrentPage(1);
+          }}>
+            <SelectTrigger id="perPage" className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="30">30</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="overflow-x-auto bg-white shadow-md rounded-lg border border-gray-200">
@@ -351,6 +395,49 @@ export default function AnalisisPage() {
             )}
           </tbody>
         </table>
+
+        {totalItems > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} analizados
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                  Anterior
+                </Button>
+                <div className="flex items-center gap-1">
+                  {currentPage > 3 && (
+                    <>
+                      <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
+                        1
+                      </Button>
+                      {currentPage > 4 && <span className="px-2 text-gray-500">...</span>}
+                    </>
+                  )}
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => Math.abs(page - currentPage) <= 2)
+                    .map(page => (
+                      <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
+                        {page}
+                      </Button>
+                    ))}
+                  {currentPage < totalPages - 2 && (
+                    <>
+                      {currentPage < totalPages - 3 && <span className="px-2 text-gray-500">...</span>}
+                      <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
+                        {totalPages}
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                  Siguiente
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Dialog for creating credit */}

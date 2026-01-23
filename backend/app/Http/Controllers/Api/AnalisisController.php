@@ -34,11 +34,13 @@ class AnalisisController extends Controller
         return null;
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        $perPage = min((int) $request->input('per_page', 10), 100);
+
         $analisis = Analisis::with(['opportunity', 'lead'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($perPage);
 
         return response()->json($analisis);
     }

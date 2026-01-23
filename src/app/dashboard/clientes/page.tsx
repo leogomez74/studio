@@ -167,6 +167,12 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [perPage, setPerPage] = useState(10);
+
   // Lists for Dropdowns
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
 
@@ -240,6 +246,8 @@ export default function ClientesPage() {
       if (contactFilter !== "all") commonParams.has_contact = contactFilter;
       if (dateFrom) commonParams.date_from = dateFrom;
       if (dateTo) commonParams.date_to = dateTo;
+      commonParams.page = currentPage;
+      commonParams.per_page = perPage;
 
       const leadParams = { ...commonParams };
       const clientParams = { ...commonParams };
@@ -260,21 +268,46 @@ export default function ClientesPage() {
           }
       }
 
-      const [resClients, resLeads] = await Promise.all([
-        api.get('/api/clients', { params: clientParams }),
-        api.get('/api/leads', { params: leadParams })
-      ]);
+      if (activeTab === "leads") {
+        const resLeads = await api.get('/api/leads', { params: leadParams });
+        const isPaginated = resLeads.data.data && resLeads.data.current_page;
 
-      const clientsArray = resClients.data.data || resClients.data;
-      const leadsArray = resLeads.data.data || resLeads.data;
+        if (isPaginated) {
+          setLeadsData(Array.isArray(resLeads.data.data) ? resLeads.data.data : []);
+          setCurrentPage(resLeads.data.current_page);
+          setTotalPages(resLeads.data.last_page);
+          setTotalItems(resLeads.data.total);
+        } else {
+          setLeadsData(Array.isArray(resLeads.data) ? resLeads.data : []);
+        }
+      } else if (activeTab === "clientes") {
+        const resClients = await api.get('/api/clients', { params: clientParams });
+        const isPaginated = resClients.data.data && resClients.data.current_page;
 
-      if (activeTab === 'inactivos') {
-          const combined = [...(Array.isArray(clientsArray) ? clientsArray : []), ...(Array.isArray(leadsArray) ? leadsArray : [])];
-          combined.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
-          setInactiveData(combined);
-      } else {
-          setClientsData(Array.isArray(clientsArray) ? clientsArray : []);
-          setLeadsData(Array.isArray(leadsArray) ? leadsArray : []);
+        if (isPaginated) {
+          setClientsData(Array.isArray(resClients.data.data) ? resClients.data.data : []);
+          setCurrentPage(resClients.data.current_page);
+          setTotalPages(resClients.data.last_page);
+          setTotalItems(resClients.data.total);
+        } else {
+          setClientsData(Array.isArray(resClients.data) ? resClients.data : []);
+        }
+      } else if (activeTab === 'inactivos') {
+        const [resClients, resLeads] = await Promise.all([
+          api.get('/api/clients', { params: clientParams }),
+          api.get('/api/leads', { params: leadParams })
+        ]);
+
+        const clientsArray = resClients.data.data || resClients.data;
+        const leadsArray = resLeads.data.data || resLeads.data;
+
+        const combined = [...(Array.isArray(clientsArray) ? clientsArray : []), ...(Array.isArray(leadsArray) ? leadsArray : [])];
+        combined.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+        setInactiveData(combined);
+
+        // For inactivos tab, we don't have server-side pagination
+        setTotalItems(combined.length);
+        setTotalPages(1);
       }
 
     } catch (err) {
@@ -283,7 +316,7 @@ export default function ClientesPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, contactFilter, dateFrom, dateTo, activeTab, statusFilter]);
+  }, [searchQuery, contactFilter, dateFrom, dateTo, activeTab, statusFilter, currentPage, perPage]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -305,6 +338,19 @@ export default function ClientesPage() {
       setStatusFilter("all");
       setDateFrom("");
       setDateTo("");
+      setCurrentPage(1);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
   const handleExportPDF = () => {
@@ -783,7 +829,7 @@ export default function ClientesPage() {
                       </DropdownMenu>
                     </div>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
                       {activeTab === "leads" ? (
@@ -826,6 +872,23 @@ export default function ClientesPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+                      <Select value={String(perPage)} onValueChange={(value) => {
+                        setPerPage(Number(value));
+                        setCurrentPage(1);
+                      }}>
+                        <SelectTrigger className="hover:bg-[lightgray]/48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10" className="focus:bg-[lightgray]/48 cursor-pointer">10</SelectItem>
+                          <SelectItem value="30" className="focus:bg-[lightgray]/48 cursor-pointer">30</SelectItem>
+                          <SelectItem value="50" className="focus:bg-[lightgray]/48 cursor-pointer">50</SelectItem>
+                          <SelectItem value="100" className="focus:bg-[lightgray]/48 cursor-pointer">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </CollapsibleContent>
 
@@ -844,7 +907,51 @@ export default function ClientesPage() {
                     {loading ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
                     ) : (
-                        <LeadsTable data={leadsData} onAction={handleLeadAction} />
+                        <>
+                          <LeadsTable data={leadsData} onAction={handleLeadAction} />
+                          {totalItems > 0 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+                              <div className="text-sm text-muted-foreground">
+                                Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} leads
+                              </div>
+                              {totalPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                                    Anterior
+                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    {currentPage > 3 && (
+                                      <>
+                                        <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
+                                          1
+                                        </Button>
+                                        {currentPage > 4 && <span className="px-2 text-muted-foreground">...</span>}
+                                      </>
+                                    )}
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                      .filter(page => Math.abs(page - currentPage) <= 2)
+                                      .map(page => (
+                                        <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
+                                          {page}
+                                        </Button>
+                                      ))}
+                                    {currentPage < totalPages - 2 && (
+                                      <>
+                                        {currentPage < totalPages - 3 && <span className="px-2 text-muted-foreground">...</span>}
+                                        <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
+                                          {totalPages}
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                  <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                                    Siguiente
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
                     )}
                   </TabsContent>
 
@@ -866,7 +973,51 @@ export default function ClientesPage() {
                     {loading ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
                     ) : (
-                        <ClientsTable data={clientsData} onEdit={handleEditClient} onDelete={confirmDeleteClient} />
+                        <>
+                          <ClientsTable data={clientsData} onEdit={handleEditClient} onDelete={confirmDeleteClient} />
+                          {totalItems > 0 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+                              <div className="text-sm text-muted-foreground">
+                                Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} clientes
+                              </div>
+                              {totalPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                                    Anterior
+                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    {currentPage > 3 && (
+                                      <>
+                                        <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
+                                          1
+                                        </Button>
+                                        {currentPage > 4 && <span className="px-2 text-muted-foreground">...</span>}
+                                      </>
+                                    )}
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                      .filter(page => Math.abs(page - currentPage) <= 2)
+                                      .map(page => (
+                                        <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
+                                          {page}
+                                        </Button>
+                                      ))}
+                                    {currentPage < totalPages - 2 && (
+                                      <>
+                                        {currentPage < totalPages - 3 && <span className="px-2 text-muted-foreground">...</span>}
+                                        <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
+                                          {totalPages}
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                  <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                                    Siguiente
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
                     )}
                   </TabsContent>
 

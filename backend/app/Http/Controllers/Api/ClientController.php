@@ -74,7 +74,8 @@ class ClientController extends Controller
             $query->whereDate('created_at', '<=', $request->input('date_to'));
         }
 
-        $clients = $query->latest()->paginate(20);
+        $perPage = min((int) $request->input('per_page', 10), 100);
+        $clients = $query->latest()->paginate($perPage);
 
         return response()->json($clients, 200);
     }
