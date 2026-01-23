@@ -895,7 +895,7 @@ export default function KPIsPage() {
         <TabsContent value="opportunities" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              title="Win Rate"
+              title="Porcentaje de créditos ganados"
               value={opportunityKPIs?.winRate?.value ?? 0}
               unit={opportunityKPIs?.winRate?.unit}
               change={opportunityKPIs?.winRate?.change}
@@ -905,7 +905,7 @@ export default function KPIsPage() {
               isLoading={isLoading}
             />
             <StatCard
-              title="Pipeline Value"
+              title="Valor de la cartera"
               value={formatCurrency(Number(opportunityKPIs?.pipelineValue?.value) || 0)}
               change={opportunityKPIs?.pipelineValue?.change}
               icon={DollarSign}
@@ -923,7 +923,7 @@ export default function KPIsPage() {
               isLoading={isLoading}
             />
             <StatCard
-              title="Velocidad de Pipeline"
+              title="Velocidad de la cartera"
               value={opportunityKPIs?.velocity?.value ?? 0}
               change={opportunityKPIs?.velocity?.change}
               icon={Zap}
@@ -1010,7 +1010,7 @@ export default function KPIsPage() {
               isLoading={isLoading}
             />
             <StatCard
-              title="DSO (Days Sales Outstanding)"
+              title="PMP (Periodo Medio de Pago)"
               value={collectionKPIs?.dso?.value ?? 0}
               unit={collectionKPIs?.dso?.unit}
               change={collectionKPIs?.dso?.change}
@@ -1186,7 +1186,7 @@ export default function KPIsPage() {
         <TabsContent value="business" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
             <StatCard
-              title="Customer Lifetime Value (CLV)"
+              title="Valor de Vida del Cliente"
               value={formatCurrency(Number(businessHealthKPIs?.clv?.value) || 0)}
               change={businessHealthKPIs?.clv?.change}
               icon={DollarSign}
@@ -1195,7 +1195,7 @@ export default function KPIsPage() {
               isLoading={isLoading}
             />
             <StatCard
-              title="Customer Acquisition Cost (CAC)"
+              title="Costo de Adquisición de Clientes"
               value={formatCurrency(Number(businessHealthKPIs?.cac?.value) || 0)}
               change={businessHealthKPIs?.cac?.change}
               icon={TrendingDown}
@@ -1215,7 +1215,7 @@ export default function KPIsPage() {
               isLoading={isLoading}
             />
             <StatCard
-              title="Net Promoter Score (NPS)"
+              title="Indice de Promotores Neto"
               value={businessHealthKPIs?.nps?.value ?? 0}
               unit={businessHealthKPIs?.nps?.unit}
               change={businessHealthKPIs?.nps?.change}
@@ -1239,7 +1239,7 @@ export default function KPIsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Briefcase className="h-5 w-5" />
-                  Ratio CLV:CAC
+                  Relación VVC:CAC
                 </CardTitle>
                 <CardDescription>
                   Relación entre el valor del cliente y el costo de adquisición

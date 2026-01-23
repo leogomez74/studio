@@ -50,6 +50,7 @@ import { patronos } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/env';
 import { useAuth } from '@/components/auth-guard';
 import api from '@/lib/axios';
+import { EMPRESAS_MOCK, Empresa, Requirement } from '@/lib/empresas-mock';
 
 // ----------------------------------------------------------------------
 // 1. COMPONENTES Y CONSTANTES AUXILIARES (Definidos FUERA del componente principal)
@@ -62,25 +63,13 @@ const extensionOptions = [
   { label: 'HTML', value: 'html' },
 ];
 
-interface Requirement {
-  id?: number;
-  name: string;
-  file_extension: string;
-  quantity: number;
-}
-
-interface Empresa {
-  id: number;
-  business_name: string;
-  requirements: Requirement[];
-}
-
 const EmpresasCRUD: React.FC = () => {
   const { toast } = useToast();
   const { token } = useAuth();
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>(EMPRESAS_MOCK);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [usingMock, setUsingMock] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   
@@ -94,10 +83,20 @@ const EmpresasCRUD: React.FC = () => {
       const res = await api.get('/api/enterprises', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      setEmpresas(res.data);
+      const apiData = res.data;
+
+      // Si la API tiene más datos que el mock, usar API; si no, usar mock
+      if (apiData.length > EMPRESAS_MOCK.length) {
+        setEmpresas(apiData);
+        setUsingMock(false);
+      } else {
+        setEmpresas(EMPRESAS_MOCK);
+        setUsingMock(true);
+      }
     } catch (err) {
-      console.error('Error fetching empresas:', err);
-      setEmpresas([]);
+      console.error('Error fetching empresas, using mock data:', err);
+      setEmpresas(EMPRESAS_MOCK);
+      setUsingMock(true);
     } finally {
       setLoading(false);
     }
@@ -169,58 +168,91 @@ const EmpresasCRUD: React.FC = () => {
     }
 
     setSaving(true);
-    try {
-      const now = new Date().toISOString();
-      
-      // Preparar payload para el backend
-      const requirementsPayload = requirements.map(r => ({
-        name: r.name,
-        file_extension: r.file_extension,
-        quantity: r.quantity || 1,
-        upload_date: now,
-        last_updated: now,
-      }));
 
-      const payload = {
-        business_name: businessName.trim(),
-        requirements: requirementsPayload,
-      };
+    const newRequirements = requirements.map(r => ({
+      name: r.name,
+      file_extension: r.file_extension,
+      quantity: r.quantity || 1,
+    }));
 
+    if (usingMock) {
+      // Operación local con mock
       if (editingEmpresa) {
-        await api.put(`/api/enterprises/${editingEmpresa.id}`, payload, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        setEmpresas(prev => prev.map(emp =>
+          emp.id === editingEmpresa.id
+            ? { ...emp, business_name: businessName.trim(), requirements: newRequirements }
+            : emp
+        ));
         toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
       } else {
-        await api.post('/api/enterprises', payload, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const newId = Math.max(...empresas.map(e => e.id), 0) + 1;
+        setEmpresas(prev => [...prev, {
+          id: newId,
+          business_name: businessName.trim(),
+          requirements: newRequirements
+        }]);
         toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
       }
-
       closeDialog();
-      fetchEmpresas();
-    } catch (err: any) {
-      console.error(err);
-      const msg = err?.response?.data?.message || 'No se pudo guardar la empresa.';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
-    } finally {
       setSaving(false);
+    } else {
+      // Operación con API
+      try {
+        const now = new Date().toISOString();
+        const requirementsPayload = requirements.map(r => ({
+          name: r.name,
+          file_extension: r.file_extension,
+          quantity: r.quantity || 1,
+          upload_date: now,
+          last_updated: now,
+        }));
+
+        const payload = {
+          business_name: businessName.trim(),
+          requirements: requirementsPayload,
+        };
+
+        if (editingEmpresa) {
+          await api.put(`/api/enterprises/${editingEmpresa.id}`, payload, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
+        } else {
+          await api.post('/api/enterprises', payload, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
+        }
+
+        closeDialog();
+        fetchEmpresas();
+      } catch (err: any) {
+        console.error(err);
+        const msg = err?.response?.data?.message || 'No se pudo guardar la empresa.';
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
   const handleDelete = async (empresa: Empresa) => {
     if (!confirm(`¿Eliminar la empresa "${empresa.business_name}"?`)) return;
 
-    try {
-      await api.delete(`/api/enterprises/${empresa.id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+    if (usingMock) {
+      setEmpresas(prev => prev.filter(e => e.id !== empresa.id));
       toast({ title: 'Eliminado', description: 'Empresa eliminada correctamente.' });
-      fetchEmpresas();
-    } catch (err) {
-      console.error('Error deleting empresa:', err);
-      toast({ title: 'Error', description: 'No se pudo eliminar la empresa.', variant: 'destructive' });
+    } else {
+      try {
+        await api.delete(`/api/enterprises/${empresa.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        toast({ title: 'Eliminado', description: 'Empresa eliminada correctamente.' });
+        fetchEmpresas();
+      } catch (err) {
+        console.error('Error deleting empresa:', err);
+        toast({ title: 'Error', description: 'No se pudo eliminar la empresa.', variant: 'destructive' });
+      }
     }
   };
 
@@ -391,6 +423,336 @@ const EmpresasCRUD: React.FC = () => {
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => openEditDialog(empresa)}>Editar</DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(empresa)}>Eliminar</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// Productos CRUD Component
+interface Product {
+  id?: number;
+  name: string;
+  slug?: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+}
+
+const ProductosCRUD: React.FC = () => {
+  const { toast } = useToast();
+  const { token } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Form state
+  const [productForm, setProductForm] = useState<Product>({
+    name: '',
+    description: '',
+    is_default: false,
+    order_column: 0,
+  });
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/products');
+      setProducts(res.data);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar los créditos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const openCreateDialog = () => {
+    setEditingProduct(null);
+    setProductForm({
+      name: '',
+      description: '',
+      is_default: false,
+      order_column: products.length + 1,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (product: Product) => {
+    setEditingProduct(product);
+    setProductForm({ ...product });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingProduct(null);
+    setProductForm({
+      name: '',
+      description: '',
+      is_default: false,
+      order_column: 0,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!productForm.name.trim()) {
+      toast({
+        title: 'Error',
+        description: 'El nombre del crédito es obligatorio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        name: productForm.name.trim(),
+        description: productForm.description || '',
+        is_default: productForm.is_default,
+        order_column: productForm.order_column,
+      };
+
+      if (editingProduct) {
+        await api.put(`/api/products/${editingProduct.id}`, payload);
+        toast({
+          title: 'Actualizado',
+          description: 'Crédito actualizado correctamente.',
+        });
+      } else {
+        await api.post('/api/products', payload);
+        toast({
+          title: 'Creado',
+          description: 'Crédito creado correctamente.',
+        });
+      }
+
+      closeDialog();
+      fetchProducts();
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.response?.data?.message || 'No se pudo guardar el crédito.';
+      toast({
+        title: 'Error',
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (product: Product) => {
+    if (!confirm(`¿Eliminar el crédito "${product.name}"?`)) return;
+
+    try {
+      await api.delete(`/api/products/${product.id}`);
+      toast({
+        title: 'Eliminado',
+        description: 'Crédito eliminado correctamente.',
+      });
+      fetchProducts();
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      toast({
+        title: 'Error',
+        description: 'No se pudo eliminar el crédito.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Tipos de Créditos</CardTitle>
+            <CardDescription>
+              Gestiona los tipos de créditos y servicios ofrecidos por la empresa.
+            </CardDescription>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1" onClick={openCreateDialog}>
+                <PlusCircle className="h-4 w-4" />
+                Nuevo Crédito
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingProduct ? 'Editar Crédito' : 'Crear Crédito'}
+                </DialogTitle>
+                <DialogDescription>
+                  Define el nombre y descripción del tipo de crédito.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="product-name">Nombre del Crédito</Label>
+                  <Input
+                    id="product-name"
+                    value={productForm.name}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, name: e.target.value })
+                    }
+                    placeholder="Ej: Micro Crédito"
+                    required
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-description">Descripción</Label>
+                  <Input
+                    id="product-description"
+                    value={productForm.description || ''}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: Préstamos pequeños de rápida aprobación"
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-order">Orden</Label>
+                  <Input
+                    id="product-order"
+                    type="number"
+                    min="1"
+                    value={productForm.order_column}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        order_column: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="product-default"
+                    checked={productForm.is_default}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        is_default: e.target.checked,
+                      })
+                    }
+                    disabled={saving}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="product-default" className="text-sm font-normal">
+                    Marcar como crédito por defecto
+                  </Label>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeDialog}
+                    disabled={saving}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Guardar
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">Orden</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead className="w-[100px]">Por Defecto</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {products.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No hay créditos registrados.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                products.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-mono">{product.order_column}</TableCell>
+                    <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {product.description || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {product.is_default ? (
+                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                          Sí
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menú</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openEditDialog(product)}>
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => handleDelete(product)}
+                          >
+                            Eliminar
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -837,7 +1199,6 @@ export default function ConfiguracionPage() {
   const [polizaActual, setPolizaActual] = useState<string>('0');
   const [polizaLoading, setPolizaLoading] = useState(false);
   const [polizaSaving, setPolizaSaving] = useState(false);
-  const [polizaCreditId, setPolizaCreditId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>('prestamos');
 
   const fetchReferenceCredit = useCallback(async () => {
@@ -872,22 +1233,16 @@ export default function ConfiguracionPage() {
   const loadPoliza = useCallback(async () => {
     setPolizaLoading(true);
     try {
-      const credit = await fetchReferenceCredit();
-      if (credit) {
-        setPolizaCreditId(credit.id);
-        const value = credit.poliza_actual ?? 0;
-        setPolizaActual(String(value));
-      } else {
-        setPolizaActual('0');
-        setPolizaCreditId(null);
-      }
+      const res = await api.get('/api/loan-configurations/regular');
+      const config = res.data;
+      setPolizaActual(String(config.monto_poliza ?? 0));
     } catch (err) {
-      console.error('Failed to load poliza_actual from credits:', err);
+      console.error('Failed to load monto_poliza from loan_configurations:', err);
       toast({ title: 'Error', description: 'No se pudo obtener la póliza.', variant: 'destructive' });
     } finally {
       setPolizaLoading(false);
     }
-  }, [fetchReferenceCredit, toast]);
+  }, [toast]);
 
   useEffect(() => {
     if (activeTab === 'tasa_actual') {
@@ -909,6 +1264,7 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="patronos">Patronos</TabsTrigger>
         <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
         <TabsTrigger value="empresas">Empresas</TabsTrigger>
+        <TabsTrigger value="productos">Créditos</TabsTrigger>
         <TabsTrigger value="api">API ERP</TabsTrigger>
         <TabsTrigger value="tasa_actual">Tasa Actual</TabsTrigger>
         <TabsTrigger value="poliza">Póliza</TabsTrigger>
@@ -917,6 +1273,10 @@ export default function ConfiguracionPage() {
 
       <TabsContent value="empresas">
         <EmpresasCRUD />
+      </TabsContent>
+
+      <TabsContent value="productos">
+        <ProductosCRUD />
       </TabsContent>
 
       <TabsContent value="tasa_actual">
@@ -962,7 +1322,10 @@ export default function ConfiguracionPage() {
       <TabsContent value="poliza">
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
-            <Label htmlFor="poliza-actual" className="text-center">Póliza (₡)</Label>
+            <Label htmlFor="poliza-actual" className="text-center">Monto de Póliza por Cuota (₡)</Label>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Este monto fijo se aplicará a cada cuota del plan de pagos cuando el crédito tenga póliza activa.
+            </p>
             <Input
               id="poliza-actual"
               type="number"
@@ -974,17 +1337,13 @@ export default function ConfiguracionPage() {
             <div className="flex items-center gap-2">
               <Button
                 onClick={async () => {
-                  if (polizaCreditId === null) {
-                    toast({ title: 'Error', description: 'No hay crédito seleccionado para actualizar.', variant: 'destructive' });
-                    return;
-                  }
                   setPolizaSaving(true);
                   try {
-                    await api.put(`/api/credits/${polizaCreditId}`, { poliza_actual: parseFloat(polizaActual) || 0 });
+                    await api.put('/api/loan-configurations/regular', { monto_poliza: parseFloat(polizaActual) || 0 });
                     toast({ title: 'Guardado', description: 'Póliza actualizada correctamente.' });
                     await loadPoliza();
                   } catch (err) {
-                    console.error('Failed to save poliza_actual:', err);
+                    console.error('Failed to save monto_poliza:', err);
                     toast({ title: 'Error', description: 'No se pudo guardar la póliza.', variant: 'destructive' });
                   } finally {
                     setPolizaSaving(false);

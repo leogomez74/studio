@@ -62,11 +62,30 @@ class Lead extends Person
         'nombramientos',
         'estado_puesto',
         'assigned_to_id',
+        // Campos del cuestionario
+        'source',
+        'interes',
+        'tipo_credito',
+        'monto',
+        'uso_credito',
+        'tiene_deudas',
+        'ingreso',
+        'salario_exacto',
+        'experiencia_crediticia',
+        'historial_mora',
+        'tipo_vivienda',
+        'dependientes',
+        'tramites',
+        'urgencia',
+        'detalle_legal',
+        'questionnaire_completed_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'fecha_nacimiento' => 'date',
+        'questionnaire_completed_at' => 'datetime',
+        'tramites' => 'array', // Cast JSON to array
     ];
 
     /**

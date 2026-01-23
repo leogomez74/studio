@@ -183,15 +183,31 @@ const generateAmparoReference = () => {
 
 // --- Main Component ---
 
+type Product = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+};
+
 export default function DealsPage() {
   const { toast } = useToast();
-  
+
   // Data State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]); // <--- AGREGADO: Estado para usuarios
+  const [products, setProducts] = useState<Product[]>([]); // <--- AGREGADO: Estado para productos
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [perPage, setPerPage] = useState(20);
 
   // Dialog States
   const [dialogState, setDialogState] = useState<"create" | "edit" | null>(null);
@@ -203,8 +219,8 @@ export default function DealsPage() {
     resolver: zodResolver(opportunitySchema),
     defaultValues: {
       leadId: "",
-      vertical: VERTICAL_OPTIONS[0],
-      opportunityType: OPPORTUNITY_TYPES[0],
+      vertical: "",
+      opportunityType: "",
       status: defaultStatus,
       amount: 0,
       expectedCloseDate: "",
@@ -242,9 +258,11 @@ export default function DealsPage() {
   const [analisisForm, setAnalisisForm] = useState({
     reference: "",
     title: "",
-    status: "Activo",
-    category: "Regular",
+    category: "Crédito",
     monto_credito: "",
+    ingreso_bruto: "",
+    ingreso_neto: "",
+    propuesta: "",
     leadId: "",
     opportunityId: "",
     assignedTo: "",
@@ -295,29 +313,50 @@ export default function DealsPage() {
     try {
       setIsLoading(true);
       // Send all filters to backend for server-side filtering
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = {};
       if (filters.createdFrom) params.date_from = filters.createdFrom;
       if (filters.createdTo) params.date_to = filters.createdTo;
       if (filters.status !== 'todos') params.status = filters.status;
       if (filters.vertical !== 'todos') params.vertical = filters.vertical;
       if (filters.search.trim()) params.search = filters.search.trim();
+      params.page = currentPage;
 
       const response = await api.get('/api/opportunities', { params });
-      const data = response.data.data || response.data;
 
-      setOpportunities(Array.isArray(data) ? data.map((item: any) => ({
+      // Handle paginated response from Laravel
+      const isPaginated = response.data.data && response.data.current_page;
+
+      if (isPaginated) {
+        const data = response.data.data;
+        setOpportunities(Array.isArray(data) ? data.map((item: any) => ({
           ...item,
           vertical: normalizeOpportunityVertical(item.vertical),
           opportunity_type: item.opportunity_type || OPPORTUNITY_TYPES[0],
           amount: resolveEstimatedOpportunityAmount(item.amount),
-      })) : []);
+        })) : []);
+
+        // Update pagination metadata
+        setCurrentPage(response.data.current_page);
+        setTotalPages(response.data.last_page);
+        setTotalItems(response.data.total);
+        setPerPage(response.data.per_page);
+      } else {
+        // Fallback for non-paginated response
+        const data = response.data;
+        setOpportunities(Array.isArray(data) ? data.map((item: any) => ({
+          ...item,
+          vertical: normalizeOpportunityVertical(item.vertical),
+          opportunity_type: item.opportunity_type || OPPORTUNITY_TYPES[0],
+          amount: resolveEstimatedOpportunityAmount(item.amount),
+        })) : []);
+      }
     } catch (error) {
       console.error("Error fetching opportunities:", error);
       toast({ title: "Error", description: "No se pudieron cargar las oportunidades.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
-  }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.vertical, filters.search]);
+  }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.vertical, filters.search, currentPage]);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -342,11 +381,22 @@ export default function DealsPage() {
     }
   }, []);
 
+  // AGREGADO: Fetch Products para el select de categorías
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await api.get('/api/products');
+      setProducts(response.data);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOpportunities();
     fetchLeads();
     fetchUsers();
-  }, [fetchOpportunities, fetchLeads, fetchUsers]);
+    fetchProducts();
+  }, [fetchOpportunities, fetchLeads, fetchUsers, fetchProducts]);
 
   // --- Form Logic ---
 
@@ -536,14 +586,26 @@ export default function DealsPage() {
 
   // --- Analisis Logic ---
 
-  const handleOpenAnalisisDialog = (opportunity: Opportunity) => {
+  const handleOpenAnalisisDialog = async (opportunity: Opportunity) => {
     setAnalisisOpportunity(opportunity);
+
+    // Obtener la próxima referencia del backend
+    let nextRef = "";
+    try {
+      const res = await api.get('/api/analisis/next-reference');
+      nextRef = res.data.reference || "";
+    } catch (error) {
+      console.error("Error fetching next reference:", error);
+    }
+
     setAnalisisForm({
-      reference: `ANAL-${opportunity.id}`,
+      reference: nextRef,
       title: opportunity.opportunity_type || "",
-      status: "Activo",
-      category: "Regular",
+      category: "Crédito",
       monto_credito: opportunity.amount ? String(opportunity.amount) : "",
+      ingreso_bruto: "",
+      ingreso_neto: "",
+      propuesta: "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
       assignedTo: "",
@@ -562,13 +624,25 @@ export default function DealsPage() {
   const handleAnalisisSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/api/analisis', {
-        ...analisisForm,
+      const payload: Record<string, any> = {
+        title: analisisForm.title,
+        status: "Pendiente", // Default status para análisis nuevo
+        category: analisisForm.category,
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
+        ingreso_bruto: parseFloat(analisisForm.ingreso_bruto) || 0,
+        ingreso_neto: parseFloat(analisisForm.ingreso_neto) || 0,
+        propuesta: analisisForm.propuesta || null,
         lead_id: parseInt(analisisForm.leadId),
-        opportunity_id: parseInt(analisisForm.opportunityId),
+        opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
         plazo: parseInt(analisisForm.plazo) || 36,
-      });
+        divisa: analisisForm.divisa,
+        description: analisisForm.description,
+        opened_at: analisisForm.openedAt,
+        assigned_to: analisisForm.assignedTo || null,
+      };
+      // reference se auto-genera en backend con formato YY-XXXXX-EPP-AN
+
+      await api.post('/api/analisis', payload);
       toast({ title: "Éxito", description: "Análisis creado correctamente." });
       setIsAnalisisDialogOpen(false);
       fetchOpportunities();
@@ -581,17 +655,43 @@ export default function DealsPage() {
   const getAnalisisButtonProps = (opportunity: Opportunity) => {
     // Check if opportunity already has an analysis based on status or a flag
     const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis;
+    const isGanada = opportunity.status === 'Ganada';
 
     if (hasAnalysis) {
-      return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" /> };
+      return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" />, disabled: false };
     }
-    return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" /> };
+    if (!isGanada) {
+      return { label: "Solo oportunidades ganadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
+    }
+    return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
   };
+
+  // --- Pagination Logic ---
+
+  const handlePageChange = useCallback((newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  }, [totalPages]);
+
+  const handlePreviousPage = useCallback(() => {
+    handlePageChange(currentPage - 1);
+  }, [currentPage, handlePageChange]);
+
+  const handleNextPage = useCallback(() => {
+    handlePageChange(currentPage + 1);
+  }, [currentPage, handlePageChange]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.search, filters.status, filters.vertical, filters.createdFrom, filters.createdTo]);
 
   // --- Table Logic ---
 
   const handleClearFilters = useCallback(() => {
     setFilters({ search: "", status: "todos", vertical: "todos", createdFrom: "", createdTo: "" });
+    setCurrentPage(1);
   }, []);
 
   const handleSort = useCallback((column: SortableColumn) => {
@@ -778,7 +878,7 @@ export default function DealsPage() {
             <CardTitle>Oportunidades</CardTitle>
             <CardDescription>Gestiona las oportunidades asociadas a tus leads.</CardDescription>
             <p className="text-sm text-muted-foreground mt-1">
-                {visibleOpportunities.length} {visibleOpportunities.length === 1 ? "oportunidad" : "oportunidades"}
+                {totalItems > 0 ? `${totalItems} ${totalItems === 1 ? "oportunidad" : "oportunidades"} total` : "No hay oportunidades"}
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
@@ -815,7 +915,7 @@ export default function DealsPage() {
                 </Select>
             </div>
             <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vertical</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Institución</Label>
                 <Popover open={openFilterVertical} onOpenChange={setOpenFilterVertical} modal={true}>
                   <PopoverTrigger asChild>
                     <Button
@@ -986,6 +1086,7 @@ export default function DealsPage() {
                                 size="icon"
                                 className={`h-9 w-9 rounded-md text-white border-0 ${getAnalisisButtonProps(opportunity).color}`}
                                 onClick={() => handleOpenAnalisisDialog(opportunity)}
+                                disabled={getAnalisisButtonProps(opportunity).disabled}
                               >
                                 {getAnalisisButtonProps(opportunity).icon}
                               </Button>
@@ -1001,6 +1102,89 @@ export default function DealsPage() {
             )}
           </TableBody>
         </Table>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} oportunidades
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+              >
+                Anterior
+              </Button>
+
+              {/* Page Numbers */}
+              <div className="flex items-center gap-1">
+                {/* First page */}
+                {currentPage > 3 && (
+                  <>
+                    <Button
+                      variant={currentPage === 1 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(1)}
+                      className="w-9 h-9 p-0"
+                    >
+                      1
+                    </Button>
+                    {currentPage > 4 && (
+                      <span className="px-2 text-muted-foreground">...</span>
+                    )}
+                  </>
+                )}
+
+                {/* Pages around current */}
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    // Show current page and 2 pages on each side
+                    return Math.abs(page - currentPage) <= 2;
+                  })
+                  .map(page => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(page)}
+                      className="w-9 h-9 p-0"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+
+                {/* Last page */}
+                {currentPage < totalPages - 2 && (
+                  <>
+                    {currentPage < totalPages - 3 && (
+                      <span className="px-2 text-muted-foreground">...</span>
+                    )}
+                    <Button
+                      variant={currentPage === totalPages ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(totalPages)}
+                      className="w-9 h-9 p-0"
+                    >
+                      {totalPages}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
 
       {/* Create/Edit Dialog */}
@@ -1037,7 +1221,7 @@ export default function DealsPage() {
                 name="vertical"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vertical</FormLabel>
+                    <FormLabel>Institución</FormLabel>
                     <Popover open={openVertical} onOpenChange={setOpenVertical} modal={true}>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -1101,10 +1285,18 @@ export default function DealsPage() {
                     <FormLabel>Tipo</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar tipo..." /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {OPPORTUNITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        {products.length === 0 ? (
+                          <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                        ) : (
+                          products.map(product => (
+                            <SelectItem key={product.id} value={product.name}>
+                              {product.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -1253,27 +1445,23 @@ export default function DealsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="reference">Referencia</Label>
-                <Input id="reference" value={analisisForm.reference} onChange={e => handleAnalisisFormChange('reference', e.target.value)} required />
+                <Input
+                  id="reference"
+                  value={analisisForm.reference}
+                  readOnly
+                  className="bg-muted"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="title">Título</Label>
                 <Input id="title" value={analisisForm.title} onChange={e => handleAnalisisFormChange('title', e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="status">Estado</Label>
-                <Select value={analisisForm.status} onValueChange={v => handleAnalisisFormChange('status', v)}>
-                  <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
-                  <SelectContent>
-                    {["Activo", "Mora", "Cerrado", "Legal"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>
                 <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
                   <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
                   <SelectContent>
-                    {["Regular", "Micro-crédito", "Hipotecario", "Personal"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1287,8 +1475,16 @@ export default function DealsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="monto">Monto</Label>
+                <Label htmlFor="monto">Monto Crédito</Label>
                 <Input id="monto" type="number" step="0.01" min="0" value={analisisForm.monto_credito} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ingreso_bruto">Ingreso Bruto</Label>
+                <Input id="ingreso_bruto" type="number" step="0.01" min="0" value={analisisForm.ingreso_bruto} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ingreso_neto">Ingreso Neto</Label>
+                <Input id="ingreso_neto" type="number" step="0.01" min="0" value={analisisForm.ingreso_neto} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="plazo">Plazo (Meses)</Label>
@@ -1316,6 +1512,10 @@ export default function DealsPage() {
               <div className="sm:col-span-2 space-y-2">
                 <Label htmlFor="description">Descripción</Label>
                 <Textarea id="description" value={analisisForm.description} onChange={e => handleAnalisisFormChange('description', e.target.value)} />
+              </div>
+              <div className="sm:col-span-2 space-y-2">
+                <Label htmlFor="propuesta">Propuesta de Análisis</Label>
+                <Textarea id="propuesta" rows={3} placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
               </div>
             </div>
             <DialogFooter>

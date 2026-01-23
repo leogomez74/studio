@@ -9,7 +9,8 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
+.github/copilot-instructions.md
+/.github/
 # testing
 /coverage
 *.txt
@@ -33,7 +34,8 @@ yarn-error.log*
 
 # vercel
 .vercel
-
+# .txt
+*.txt
 # typescript
 *.tsbuildinfo
 next-env.d.ts

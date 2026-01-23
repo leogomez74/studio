@@ -16,6 +16,7 @@ class LoanConfiguration extends Model
         'plazo_minimo',
         'plazo_maximo',
         'activo',
+        'monto_poliza',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class LoanConfiguration extends Model
         'plazo_minimo' => 'integer',
         'plazo_maximo' => 'integer',
         'activo' => 'boolean',
+        'monto_poliza' => 'decimal:2',
     ];
 
     /**

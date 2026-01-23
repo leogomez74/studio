@@ -65,11 +65,19 @@ class LeadController extends Controller
         // Search by Name, Cedula, Email, Phone
         if ($request->has('q') && !empty($request->input('q'))) {
             $search = $request->input('q');
-            $query->where(function ($q) use ($search) {
+            // Strip non-numeric characters for cedula search
+            $strippedSearch = preg_replace('/[^0-9]/', '', $search);
+
+            $query->where(function ($q) use ($search, $strippedSearch) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('cedula', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
+
+                // Also search stripped cedula if it differs from original
+                if (!empty($strippedSearch) && $strippedSearch !== $search) {
+                    $q->orWhereRaw("REPLACE(REPLACE(cedula, '-', ''), ' ', '') LIKE ?", ["%{$strippedSearch}%"]);
+                }
             });
         }
 
