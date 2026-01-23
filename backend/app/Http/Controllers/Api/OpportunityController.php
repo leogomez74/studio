@@ -92,14 +92,14 @@ class OpportunityController extends Controller
         $validated['status'] = $validated['status'] ?? 'Nueva';
 
         // Auto-mapear vertical desde institucion_labora del lead
-        if (!isset($validated['vertical']) && $lead && !empty($lead->institucion_labora)) {
+        if ((empty($validated['vertical']) || $validated['vertical'] === 'General') && $lead && !empty($lead->institucion_labora)) {
             $validated['vertical'] = $lead->institucion_labora;
         } else {
             $validated['vertical'] = $validated['vertical'] ?? 'General';
         }
 
         // Auto-mapear opportunity_type basado en el interes del cuestionario
-        if (!isset($validated['opportunity_type']) && $lead) {
+        if ((empty($validated['opportunity_type']) || $validated['opportunity_type'] === 'Estándar') && $lead) {
             $validated['opportunity_type'] = $this->determineOpportunityType($lead);
         } else {
             $validated['opportunity_type'] = $validated['opportunity_type'] ?? 'Estándar';
