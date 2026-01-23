@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Opportunity, Lead } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 
@@ -82,6 +83,7 @@ export default function AnalisisPage() {
     description: '',
     divisa: 'CRC',
     plazo: '36',
+    poliza: false,
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -329,6 +331,7 @@ export default function AnalisisPage() {
                 description: creditForm.description,
                 divisa: creditForm.divisa,
                 plazo: plazoNumerico,
+                poliza: creditForm.poliza,
               };
               console.log('Enviando payload:', payload);
 
@@ -453,6 +456,19 @@ export default function AnalisisPage() {
                     }
                   }}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="poliza">Póliza</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="poliza"
+                    checked={creditForm.poliza}
+                    onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
+                  />
+                  <Label htmlFor="poliza" className="text-sm text-muted-foreground">
+                    {creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza'}
+                  </Label>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cliente">Cliente</Label>

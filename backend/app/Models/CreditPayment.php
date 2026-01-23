@@ -17,7 +17,6 @@ class CreditPayment extends Model
         'fecha_pago',
         'cuota',           // Cuota exigible (Snapshot del momento)
         'monto',           // Dinero real pagado
-        'cargos',
         'poliza',
         'interes_corriente', // Informativo: cuánto de este pago fue a interés
         'interes_moratorio', // Informativo: cuánto de este pago fue a mora
@@ -47,7 +46,6 @@ class CreditPayment extends Model
         'fecha_corte' => 'date',
         'cuota' => 'decimal:2',
         'monto' => 'decimal:2',
-        'cargos' => 'decimal:2',
         'poliza' => 'decimal:2',
         'interes_corriente' => 'decimal:2',
         'interes_moratorio' => 'decimal:2',

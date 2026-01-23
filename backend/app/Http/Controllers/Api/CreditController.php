@@ -7,6 +7,7 @@ use App\Models\Credit;
 use App\Models\CreditDocument;
 use App\Models\PlanDePago;
 use App\Models\Lead;
+use App\Models\LoanConfiguration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -37,17 +38,18 @@ class CreditController extends Controller
     }
 
     /**
-     * Generar referencia automática con formato YY-XXXXX-CRED (para preview)
+     * Generar referencia automática con formato YY-XXXXX-01-CRED (para preview)
      */
     private function generateReference(): string
     {
         $year = date('y'); // Año en 2 dígitos (26 para 2026)
 
-        // Obtener el próximo ID de la tabla credits
-        $nextId = DB::select("SHOW TABLE STATUS LIKE 'credits'")[0]->Auto_increment;
+        // Obtener el último ID de la tabla credits y sumarle 1
+        $lastId = Credit::max('id') ?? 0;
+        $nextId = $lastId + 1;
 
-        // Formatear con padding de 5 dígitos
-        return sprintf('%s-%05d-CRED', $year, $nextId);
+        // Formatear con padding de 5 dígitos + sufijo 01 por defecto
+        return sprintf('%s-%05d-01-CRED', $year, $nextId);
     }
 
     /**
@@ -56,7 +58,7 @@ class CreditController extends Controller
     private function generateReferenceWithId(int $id): string
     {
         $year = date('y'); // Año en 2 dígitos (26 para 2026)
-        return sprintf('%s-%05d-CRED', $year, $id);
+        return sprintf('%s-%05d-01-CRED', $year, $id);
     }
 
     /**
@@ -95,10 +97,6 @@ class CreditController extends Controller
         // Tasa por defecto
         if (!isset($validated['tasa_anual'])) {
             $validated['tasa_anual'] = 33.50;
-        }
-
-        if (!isset($validated['poliza_actual'])) {
-            $validated['poliza_actual'] = 0;
         }
 
         // Referencia temporal (se actualiza después con el ID real)
@@ -174,6 +172,14 @@ class CreditController extends Controller
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
 
+        // Obtener el monto de póliza solo si el crédito tiene póliza activa
+        $polizaPorCuota = 0;
+        if ($credit->poliza) {
+            // Obtener monto de póliza desde la configuración global
+            $loanConfig = LoanConfiguration::where('tipo', 'regular')->first();
+            $polizaPorCuota = (float) ($loanConfig->monto_poliza ?? 0);
+        }
+
         $tasaMensual = ($tasaAnual / 100) / 12;
 
         // 0. Crear línea de inicialización (cuota 0) - Desembolso Inicial
@@ -190,7 +196,6 @@ class CreditController extends Controller
                 'tasa_actual' => $tasaAnual,
                 'plazo_actual' => $plazo,
                 'cuota' => 0,
-                'cargos' => 0,
                 'poliza' => 0,
                 'interes_corriente' => 0,
                 'interes_moratorio' => 0,
@@ -202,7 +207,6 @@ class CreditController extends Controller
                 'dias_mora' => 0,
                 'fecha_movimiento' => $credit->opened_at ?? now(),
                 'movimiento_total' => $monto,
-                'movimiento_cargos' => 0,
                 'movimiento_poliza' => 0,
                 'movimiento_interes_corriente' => 0,
                 'movimiento_interes_moratorio' => 0,
@@ -268,12 +272,11 @@ class CreditController extends Controller
                 'fecha_pago' => null,
                 'tasa_actual' => $tasaAnual,
                 'plazo_actual' => $plazo,
-                'cuota' => $cuotaFija,
+                'cuota' => $cuotaFija + $polizaPorCuota,
                 // Desglose financiero
                 'interes_corriente' => $interesMes,
                 'amortizacion' => $amortizacionMes,
-                'cargos' => 0,
-                'poliza' => 0,
+                'poliza' => $polizaPorCuota,
                 'interes_moratorio' => 0,
                 'saldo_anterior' => $saldoPendiente,
                 'saldo_nuevo' => max(0, $nuevoSaldo),
@@ -282,7 +285,6 @@ class CreditController extends Controller
                 'dias_mora' => 0,
                 // Inicializar movimientos en 0 (Limpio para futuros pagos)
                 'movimiento_total' => 0,
-                'movimiento_cargos' => 0,
                 'movimiento_poliza' => 0,
                 'movimiento_interes_corriente' => 0,
                 'movimiento_interes_moratorio' => 0,

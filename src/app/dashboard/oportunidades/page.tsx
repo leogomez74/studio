@@ -602,11 +602,15 @@ export default function DealsPage() {
   const getAnalisisButtonProps = (opportunity: Opportunity) => {
     // Check if opportunity already has an analysis based on status or a flag
     const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis;
+    const isGanada = opportunity.status === 'Ganada';
 
     if (hasAnalysis) {
-      return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" /> };
+      return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" />, disabled: false };
     }
-    return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" /> };
+    if (!isGanada) {
+      return { label: "Solo oportunidades ganadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
+    }
+    return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
   };
 
   // --- Table Logic ---
@@ -1007,6 +1011,7 @@ export default function DealsPage() {
                                 size="icon"
                                 className={`h-9 w-9 rounded-md text-white border-0 ${getAnalisisButtonProps(opportunity).color}`}
                                 onClick={() => handleOpenAnalisisDialog(opportunity)}
+                                disabled={getAnalisisButtonProps(opportunity).disabled}
                               >
                                 {getAnalisisButtonProps(opportunity).icon}
                               </Button>

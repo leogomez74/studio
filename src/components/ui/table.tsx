@@ -2,17 +2,77 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// ScrollableTableContainer - allows drag-to-scroll for tables with many columns
+const ScrollableTableContainer = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, children, ...props }, ref) => {
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = React.useState(false)
+  const [startX, setStartX] = React.useState(0)
+  const [scrollLeft, setScrollLeft] = React.useState(0)
+
+  React.useImperativeHandle(ref, () => containerRef.current!)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!containerRef.current) return
+    setIsDragging(true)
+    setStartX(e.pageX - containerRef.current.offsetLeft)
+    setScrollLeft(containerRef.current.scrollLeft)
+    containerRef.current.style.cursor = 'grabbing'
+    containerRef.current.style.userSelect = 'none'
+  }
+
+  const handleMouseUp = () => {
+    if (!containerRef.current) return
+    setIsDragging(false)
+    containerRef.current.style.cursor = 'grab'
+    containerRef.current.style.userSelect = ''
+  }
+
+  const handleMouseLeave = () => {
+    if (!containerRef.current) return
+    setIsDragging(false)
+    containerRef.current.style.cursor = 'grab'
+    containerRef.current.style.userSelect = ''
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !containerRef.current) return
+    e.preventDefault()
+    const x = e.pageX - containerRef.current.offsetLeft
+    const walk = (x - startX) * 1.5 // Scroll speed multiplier
+    containerRef.current.scrollLeft = scrollLeft - walk
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn(
+        "overflow-x-auto cursor-grab scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent hover:scrollbar-thumb-muted-foreground/40",
+        className
+      )}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMove}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+})
+ScrollableTableContainer.displayName = "ScrollableTableContainer"
+
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
-      {...props}
-    />
-  </div>
+  <table
+    ref={ref}
+    className={cn("w-full caption-bottom text-sm", className)}
+    {...props}
+  />
 ))
 Table.displayName = "Table"
 
@@ -114,4 +174,5 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  ScrollableTableContainer,
 }

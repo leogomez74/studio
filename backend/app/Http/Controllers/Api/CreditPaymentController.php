@@ -180,6 +180,12 @@ class CreditPaymentController extends Controller
         if($startCuotaNum < 1){
             $startCuotaNum = 1;
         }
+
+        // Capturar el valor de póliza ANTES de borrar las cuotas (se definió al formalizar)
+        $polizaOriginal = PlanDePago::where('credit_id', $credit->id)
+            ->where('numero_cuota', '>=', $startCuotaNum)
+            ->value('poliza') ?? 0;
+
         // 1. LIMPIEZA: Borramos el plan desde la cuota actual en adelante.
         PlanDePago::where('credit_id', $credit->id)
             ->where('numero_cuota', '>=', $startCuotaNum)
@@ -229,7 +235,7 @@ class CreditPaymentController extends Controller
 
                 $nuevoSaldo = round($saldo - $amortizacion, 2);
 
-                $this->crearCuota($credit->id, $numeroReal, $fechaIteracion, $tasaAnual, $cuotaFinal, $interes, $amortizacion, $saldo, $nuevoSaldo);
+                $this->crearCuota($credit->id, $numeroReal, $fechaIteracion, $tasaAnual, $cuotaFinal, $interes, $amortizacion, $saldo, $nuevoSaldo, $polizaOriginal);
 
                 $saldo = $nuevoSaldo;
             }
@@ -268,7 +274,7 @@ class CreditPaymentController extends Controller
                     $nuevoSaldo = round($saldo - $amortizacion, 2);
                 }
 
-                $this->crearCuota($credit->id, $contadorCuota, $fechaIteracion, $tasaAnual, $cuotaReal, $interes, $amortizacion, $saldo, $nuevoSaldo);
+                $this->crearCuota($credit->id, $contadorCuota, $fechaIteracion, $tasaAnual, $cuotaReal, $interes, $amortizacion, $saldo, $nuevoSaldo, $polizaOriginal);
 
                 $saldo = $nuevoSaldo;
                 $contadorCuota++;
@@ -282,8 +288,9 @@ class CreditPaymentController extends Controller
 
     /**
      * Helper para crear el registro en la BD
+     * $poliza: Monto de póliza por cuota (se mantiene desde la formalización)
      */
-    private function crearCuota($creditId, $numero, $fecha, $tasa, $cuota, $interes, $amortizacion, $saldoAnt, $saldoNuevo)
+    private function crearCuota($creditId, $numero, $fecha, $tasa, $cuota, $interes, $amortizacion, $saldoAnt, $saldoNuevo, $poliza = 0)
     {
         PlanDePago::create([
             'credit_id'         => $creditId,
@@ -291,16 +298,17 @@ class CreditPaymentController extends Controller
             'fecha_inicio'      => $fecha->copy()->subMonth(),
             'fecha_corte'       => $fecha->copy(),
             'tasa_actual'       => $tasa,
-            'cuota'             => $cuota,
+            'cuota'             => $cuota + $poliza,
+            'poliza'            => $poliza,
             'interes_corriente' => $interes,
             'amortizacion'      => $amortizacion,
             'saldo_anterior'    => max(0, $saldoAnt),
             'saldo_nuevo'       => max(0, $saldoNuevo),
             'estado'            => 'Pendiente',
             'movimiento_total'  => 0,
+            'movimiento_poliza' => 0,
             'movimiento_principal' => 0,
             'movimiento_interes_corriente' => 0,
-            'movimiento_cargos' => 0,
             'movimiento_interes_moratorio' => 0
         ]);
     }
@@ -338,13 +346,13 @@ class CreditPaymentController extends Controller
 
             if (!$primerCuotaAfectada) {
                 $primerCuotaAfectada = $cuota;
-                $saldoAnteriorSnapshot = ($cuota->cuota + $cuota->cargos + $cuota->interes_moratorio) - $cuota->movimiento_total;
+                $saldoAnteriorSnapshot = ($cuota->cuota + $cuota->interes_moratorio) - $cuota->movimiento_total;
             }
 
             // A. Pendientes
             $pendienteMora = max(0.0, $cuota->interes_moratorio - $cuota->movimiento_interes_moratorio);
             $pendienteInteres = max(0.0, $cuota->interes_corriente - $cuota->movimiento_interes_corriente) + $carryInteres;
-            $pendienteCargos = max(0.0, ($cuota->cargos + $cuota->poliza) - ($cuota->movimiento_cargos + $cuota->movimiento_poliza));
+            $pendientePoliza = max(0.0, $cuota->poliza - $cuota->movimiento_poliza);
             $pendientePrincipal = max(0.0, $cuota->amortizacion - $cuota->movimiento_principal) + $carryAmort;
 
             // B. Aplicar Pagos
@@ -359,11 +367,11 @@ class CreditPaymentController extends Controller
                 $dineroDisponible -= $pagoInteres;
             }
 
-            $pagoCargos = 0;
+            $pagoPoliza = 0;
             if ($dineroDisponible > 0) {
-                $pagoCargos = min($dineroDisponible, $pendienteCargos);
-                $cuota->movimiento_cargos += $pagoCargos;
-                $dineroDisponible -= $pagoCargos;
+                $pagoPoliza = min($dineroDisponible, $pendientePoliza);
+                $cuota->movimiento_poliza += $pagoPoliza;
+                $dineroDisponible -= $pagoPoliza;
             }
 
             $pagoPrincipal = 0;
@@ -388,12 +396,12 @@ class CreditPaymentController extends Controller
                 $carryAmort = 0.0;
             }
 
-            $totalPagadoEnEstaTransaccion = $pagoMora + $pagoInteres + $pagoCargos + $pagoPrincipal;
+            $totalPagadoEnEstaTransaccion = $pagoMora + $pagoInteres + $pagoPoliza + $pagoPrincipal;
             $cuota->movimiento_total += $totalPagadoEnEstaTransaccion;
             $cuota->movimiento_amortizacion += $pagoPrincipal;
             $cuota->fecha_movimiento = $fecha;
 
-            $totalExigible = $cuota->cuota + $cuota->interes_moratorio + $cuota->cargos + $cuota->poliza;
+            $totalExigible = $cuota->cuota + $cuota->interes_moratorio + $cuota->poliza;
 
             if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
                 $cuota->estado = 'Pagado';
