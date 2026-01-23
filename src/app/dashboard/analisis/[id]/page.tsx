@@ -355,112 +355,109 @@ export default function AnalisisDetailPage() {
 
           {/* Layout principal: 2 columnas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Columna izquierda: Verificación + Heredados */}
-            <div className="space-y-4 flex flex-col">
-              {/* Checklist de Documentos Requeridos */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Verificacion de Documentos</CardTitle>
-                  <p className="text-xs text-muted-foreground">
-                    Los documentos se verifican automáticamente por nombre. Si no coinciden, puede marcarlos manualmente.
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {requirements.map((req, idx) => {
-                    const { fulfilled, autoMatch, matchedFiles } = isRequirementFulfilled(req);
+            {/* Columna izquierda: Verificación de Documentos */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Verificacion de Documentos</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Los documentos se verifican automáticamente por nombre. Si no coinciden, puede marcarlos manualmente.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {requirements.map((req, idx) => {
+                  const { fulfilled, autoMatch, matchedFiles } = isRequirementFulfilled(req);
 
-                    return (
-                      <div key={idx} className="flex items-center justify-between p-3 border rounded bg-gray-50">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-blue-500" />
-                            <span className="text-sm font-medium">{req.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] uppercase bg-secondary px-1.5 py-0.5 rounded">{req.file_extension}</span>
-                            <span className="text-xs text-muted-foreground">x{req.quantity}</span>
-                            {matchedFiles.length > 0 && (
-                              <span className="text-xs text-green-600">({matchedFiles.length} encontrado{matchedFiles.length > 1 ? 's' : ''})</span>
-                            )}
-                          </div>
-                        </div>
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-3 border rounded bg-gray-50">
+                      <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          {fulfilled ? (
-                            <Badge variant="default" className="bg-green-500">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              {autoMatch ? 'Auto' : 'Manual'}
-                            </Badge>
-                          ) : (
-                            <>
-                              <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                                <AlertCircle className="h-3 w-3 mr-1" /> Pendiente
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => toggleManualVerification(req.name)}
-                              >
-                                Verificar
-                              </Button>
-                            </>
-                          )}
-                          {fulfilled && !autoMatch && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs text-red-500 hover:text-red-700"
-                              onClick={() => toggleManualVerification(req.name)}
-                            >
-                              Desmarcar
-                            </Button>
+                          <FileText className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-medium">{req.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] uppercase bg-secondary px-1.5 py-0.5 rounded">{req.file_extension}</span>
+                          <span className="text-xs text-muted-foreground">x{req.quantity}</span>
+                          {matchedFiles.length > 0 && (
+                            <span className="text-xs text-green-600">({matchedFiles.length} encontrado{matchedFiles.length > 1 ? 's' : ''})</span>
                           )}
                         </div>
                       </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-
-              {/* Documentos del Análisis */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FolderInput className="h-4 w-4 text-blue-500" />
-                    Documentos
-                    <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">Archivos asociados al análisis</p>
-                </CardHeader>
-                <CardContent className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {loadingFiles ? (
-                    <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-                  ) : heredados.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Sin documentos</p>
-                  ) : (
-                    heredados.map((file) => {
-                      const { icon: FileIcon, color } = getFileTypeInfo(file.name);
-                      return (
-                        <div key={file.path} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50">
-                          <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                          <div className="min-w-0 flex-1">
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-medium hover:underline truncate block"
+                      <div className="flex items-center gap-2">
+                        {fulfilled ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            {autoMatch ? 'Auto' : 'Manual'}
+                          </Badge>
+                        ) : (
+                          <>
+                            <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                              <AlertCircle className="h-3 w-3 mr-1" /> Pendiente
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => toggleManualVerification(req.name)}
                             >
-                              {file.name}
-                            </a>
-                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                          </div>
+                              Verificar
+                            </Button>
+                          </>
+                        )}
+                        {fulfilled && !autoMatch && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-red-500 hover:text-red-700"
+                            onClick={() => toggleManualVerification(req.name)}
+                          >
+                            Desmarcar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {/* Columna derecha: Documentos */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FolderInput className="h-4 w-4 text-blue-500" />
+                  Documentos
+                  <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Archivos asociados al análisis</p>
+              </CardHeader>
+              <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                {loadingFiles ? (
+                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+                ) : heredados.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Sin documentos</p>
+                ) : (
+                  heredados.map((file) => {
+                    const { icon: FileIcon, color } = getFileTypeInfo(file.name);
+                    return (
+                      <div key={file.path} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50">
+                        <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                        <div className="min-w-0 flex-1">
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium hover:underline truncate block"
+                          >
+                            {file.name}
+                          </a>
+                          <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                         </div>
-                      );
-                    })
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
