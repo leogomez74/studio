@@ -49,8 +49,12 @@ class MigrateOldFileStructure extends Command
                 $migrated++;
             } elseif ($result['status'] === 'skipped') {
                 $skipped++;
+                if (!$dryRun) {
+                    $this->warn("  Omitido: {$doc->path} - {$result['message']}");
+                }
             } else {
                 $errors++;
+                $this->error("  Error en {$doc->path}: {$result['message']}");
             }
 
             $bar->advance();
@@ -87,7 +91,7 @@ class MigrateOldFileStructure extends Command
             if (count($pathParts) < 3 || $pathParts[0] !== 'leads') {
                 return [
                     'status' => 'skipped',
-                    'message' => 'Path no coincide con estructura antigua'
+                    'message' => "Path no coincide: {$doc->path}"
                 ];
             }
 
@@ -97,12 +101,19 @@ class MigrateOldFileStructure extends Command
             // Limpiar cédula (remover guiones)
             $strippedCedula = preg_replace('/[^0-9]/', '', $cedula);
 
+            // Debug: mostrar información del path
+            $fullPath = Storage::disk('public')->path($doc->path);
+
             // Verificar que el archivo existe físicamente
             if (!Storage::disk('public')->exists($doc->path)) {
-                Log::warning('Archivo físico no existe', ['path' => $doc->path]);
+                Log::warning('Archivo físico no existe', [
+                    'path' => $doc->path,
+                    'full_path' => $fullPath,
+                    'exists' => file_exists($fullPath)
+                ]);
                 return [
                     'status' => 'skipped',
-                    'message' => 'Archivo físico no existe'
+                    'message' => "Archivo no existe: {$fullPath}"
                 ];
             }
 
