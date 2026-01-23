@@ -57,7 +57,8 @@ class AnalisisController extends Controller
         $validated = $request->validate([
             'reference' => 'nullable|unique:analisis,reference', // Auto-generado si no se provee
             'title' => 'required|string',
-            'status' => 'required|string',
+            'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
+            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
             'category' => 'nullable|string',
             'monto_credito' => 'required|numeric|min:1',
             'lead_id' => 'nullable|integer',
@@ -71,6 +72,11 @@ class AnalisisController extends Controller
             'ingreso_neto' => 'nullable|numeric',
             'propuesta' => 'nullable|string',
         ]);
+
+        // Valor por defecto para estado_pep
+        if (!isset($validated['estado_pep'])) {
+            $validated['estado_pep'] = 'Pendiente';
+        }
 
         // Auto-mapear category basado en la oportunidad o el lead
         if (!isset($validated['category'])) {
@@ -104,7 +110,8 @@ class AnalisisController extends Controller
         $validated = $request->validate([
             'reference' => 'sometimes|required|unique:analisis,reference,' . $id,
             'title' => 'sometimes|required|string',
-            'status' => 'sometimes|required|string',
+            'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
+            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
             'category' => 'nullable|string',
             'monto_credito' => 'nullable|numeric',
             'lead_id' => 'nullable|integer',
@@ -118,6 +125,12 @@ class AnalisisController extends Controller
             'ingreso_neto' => 'nullable|numeric',
             'propuesta' => 'nullable|string',
         ]);
+
+        // Si estado_pep no es "Aceptado", limpiar estado_cliente
+        if (isset($validated['estado_pep']) && $validated['estado_pep'] !== 'Aceptado') {
+            $validated['estado_cliente'] = null;
+        }
+
         $analisis->update($validated);
         return response()->json($analisis);
     }
