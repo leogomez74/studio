@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             CrmSeeder::class,
             EnterpriseSeeder::class,
             DeductoraSeeder::class,
+            ProductSeeder::class,
             CreditSeeder::class,
             KpiSeeder::class,
             LoanConfigurationSeeder::class,

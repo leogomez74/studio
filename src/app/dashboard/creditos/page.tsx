@@ -1,8 +1,9 @@
-"use client";
+  "use client";
 
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -270,6 +271,15 @@ const TRACKED_STATUS_SET = new Set(
 
 const normalizeStatus = (status?: string | null): string => (status ?? "").trim().toLowerCase();
 
+const formatAmount = (amount?: number | null): string => {
+  if (amount === null || amount === undefined) return "0.00";
+  return new Intl.NumberFormat('es-CR', {
+    style: 'decimal',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+
 const getStatusBadgeStyle = (status?: string | null): { variant: "default" | "secondary" | "destructive" | "outline"; className?: string } => {
   const normalized = normalizeStatus(status);
   switch (normalized) {
@@ -308,6 +318,7 @@ function formatDate(dateString?: string | null): string {
 
 export default function CreditsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
 
   const [credits, setCredits] = useState<CreditItem[]>([]);
@@ -664,6 +675,42 @@ export default function CreditsPage() {
     document.body.removeChild(link);
   };
 
+  const handleGenerateDocuments = async (credit: CreditItem) => {
+    try {
+      let fullCredit = credit;
+      try {
+        const res = await api.get(`/api/credits/${credit.id}`);
+        fullCredit = res.data;
+      } catch (error) {
+        console.error('Error fetching full credit for pagaré, using list data', error);
+      }
+
+      const doc = new jsPDF();
+      const today = new Date().toLocaleDateString('es-CR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const img = new Image();
+      img.src = '/logopepweb.png';
+      img.onload = () => {
+        doc.addImage(img, 'PNG', 15, 10, 40, 15);
+        generatePagareDocument(doc, fullCredit, today);
+      };
+      img.onerror = () => {
+        generatePagareDocument(doc, fullCredit, today);
+      };
+    } catch (error) {
+      console.error('Error generating pagaré PDF', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo generar el pagaré.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleExportPDF = async (credit: CreditItem) => {
     const doc = new jsPDF();
     const currentDate = new Date().toLocaleDateString('es-CR');
@@ -825,6 +872,139 @@ export default function CreditsPage() {
     doc.save(`estado_cuenta_${credit.lead_id}.pdf`);
   };
 
+  const generatePagareDocument = (doc: jsPDF, credit: CreditItem, prettyDate: string) => {
+    // Configurar para UTF-8 support
+    doc.setLanguage("es");
+
+    const debtor = credit.client || credit.lead || null;
+    const nombre = (debtor?.name || '').toUpperCase();
+    const cedula = (debtor as any)?.cedula || '';
+    const estadoCivil = ((debtor as any)?.estado_civil || '').toUpperCase();
+    const profesion = (debtor?.ocupacion || '').toUpperCase();
+    const direccion = [
+      (debtor as any)?.direccion1,
+      (debtor as any)?.direccion2,
+    ].filter(Boolean).join(', ').toUpperCase();
+
+    let y = 35;
+
+    // Encabezado operación (esquina superior derecha)
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('OPERACIÓN N°', 160, 15);
+    doc.text(credit.numero_operacion || credit.reference || '', 188, 15);
+
+    // Título principal
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAGARE', 105, 25, { align: 'center' });
+
+    // Lugar y fecha
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`San José, Costa Rica, el día ${prettyDate.toUpperCase()}`, 20, y);
+    y += 8;
+
+    // Sección DEUDOR
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DEUDOR', 20, y);
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+
+    // Nombre
+    doc.text('Nombre y apellidos del deudor:', 30, y);
+    doc.text(nombre, 90, y);
+    y += 4;
+
+    // Cédula
+    doc.text('Número de cédula de identidad:', 30, y);
+    doc.text(cedula, 90, y);
+    y += 4;
+
+    // Estado civil
+    doc.text('Estado civil:', 30, y);
+    doc.text(estadoCivil, 90, y);
+    y += 4;
+
+    // Profesión
+    doc.text('Profesión/Oficio:', 30, y);
+    doc.text(profesion, 90, y);
+    y += 4;
+
+    // Dirección
+    doc.text('Dirección de domicilio:', 30, y);
+    if (direccion) {
+      const direccionLines = doc.splitTextToSize(direccion, 105);
+      doc.text(direccionLines, 90, y);
+      y += direccionLines.length * 3.5 + 2;
+    } else {
+      y += 4;
+    }
+    y += 5;
+
+    // Monto en números
+    const monto = Number(credit.monto_credito ?? 0);
+    const plazo = Number(credit.plazo ?? 0);
+    const tasaNumber = Number(credit.tasa_anual ?? 0);
+    const tasaMensual = (tasaNumber / 12).toFixed(2);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Monto en números:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    const divisaCode = credit.divisa || 'CRC';
+    doc.text(`${divisaCode}  ${formatAmount(monto)}`, 85, y);
+    y += 5;
+
+    // Monto en letras
+    doc.setFont('helvetica', 'bold');
+    doc.text('Monto en letras:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('____________________________________________ DE COLONES EXACTOS', 85, y);
+    y += 5;
+
+    // Tasas de interés
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tasa de interés corriente:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Tasa fija mensual del ${tasaMensual}%`, 85, y);
+    y += 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tasa de interés moratoria:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    const tasaMoratoria = ((tasaNumber / 12) * 1.3).toFixed(2);
+    doc.text(`Tasa mensual del ${tasaMoratoria}%`, 85, y);
+    y += 6;
+
+    // Forma de pago
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Forma de pago:', 30, y);
+    y += 4;
+
+    doc.setFont('helvetica', 'normal');
+    const formaPago = `Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables y meses". Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José, San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento determinado y en porcentajes señalados como "tasa de interés corriente" Los pagos incluyen el capital más intereses y pagaré con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden para representación de un compromiso incondicional de pago de sumas de dinero.`;
+    const formaPagoLines = doc.splitTextToSize(formaPago, 175);
+    doc.text(formaPagoLines, 30, y);
+    y += formaPagoLines.length * 3.5 + 5;
+
+    // Abonos extraordinarios
+    doc.setFont('helvetica', 'bold');
+    doc.text('SOBRE LOS ABONOS EXTRAORDINARIOS Y CANCELACIÓN ANTICIPADA:', 30, y);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    const abonosTexto = `Se indica y aclara al deudor de este pagaré, que, por los abonos extraordinarios y cancelación anticipada antes de los primeros doce meses naturales a partir del primer día siguiente a la firma de este crédito se penalizará con tres meses de intereses corrientes, (los cuales tendrá como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).`;
+    const abonosLines = doc.splitTextToSize(abonosTexto, 175);
+    doc.text(abonosLines, 30, y);
+
+    doc.save(`pagare_${credit.numero_operacion || credit.reference}.pdf`);
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -930,6 +1110,7 @@ export default function CreditsPage() {
                   <Table className="min-w-[1800px]">
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="text-right sticky left-0 bg-background z-10">Acciones</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead>Nombre</TableHead>
                         <TableHead>No. Operación</TableHead>
@@ -946,7 +1127,6 @@ export default function CreditsPage() {
                         <TableHead>Tasa</TableHead>
                         <TableHead>Cuotas Atrasadas</TableHead>
                         <TableHead>Deductora</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -972,41 +1152,7 @@ export default function CreditsPage() {
 
                         return (
                           <TableRow key={credit.id}>
-                            <TableCell>
-                              {(() => {
-                                const badgeStyle = getStatusBadgeStyle(credit.status);
-                                return (
-                                  <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
-                                    {credit.status}
-                                  </Badge>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell>{credit.client?.name || credit.lead?.name}</TableCell>
-                            <TableCell className="font-medium">
-                              <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
-                                {credit.numero_operacion || credit.reference || "-"}
-                              </Link>
-                            </TableCell>
-                            <TableCell>{credit.divisa || "CRC"}</TableCell>
-                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
-                            <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
-                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
-                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
-
-                            {/* Columnas Calculadas / Fallbacks */}
-                            <TableCell>{linea}</TableCell>
-                            <TableCell>{formatDate(fechaInicio)}</TableCell>
-                            <TableCell>{credit.garantia || "-"}</TableCell>
-                            <TableCell>{formatDate(fechaFin)}</TableCell>
-                            <TableCell>{proceso}</TableCell>
-                            <TableCell>{tasa ? `${tasa}%` : "-"}</TableCell>
-
-                            <TableCell>{credit.cuotas_atrasadas || 0}</TableCell>
-                            <TableCell>
-                              {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "-"}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right sticky left-0 bg-background z-10">
                               <div className="flex items-center gap-2">
                                 <Button
                                   variant="outline"
@@ -1079,12 +1225,51 @@ export default function CreditsPage() {
                                         Formalizar crédito
                                       </DropdownMenuItem>
                                     )}
+                                    <DropdownMenuItem
+                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                    >
+                                      Exportar pagaré
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
                                       Gestionar documentos
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              {(() => {
+                                const badgeStyle = getStatusBadgeStyle(credit.status);
+                                return (
+                                  <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
+                                    {credit.status}
+                                  </Badge>
+                                );
+                              })()}
+                            </TableCell>
+                            <TableCell>{credit.client?.name || credit.lead?.name}</TableCell>
+                            <TableCell className="font-medium">
+                              <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                                {credit.numero_operacion || credit.reference || "-"}
+                              </Link>
+                            </TableCell>
+                            <TableCell>{credit.divisa || "CRC"}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
+                            <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
+
+                            {/* Columnas Calculadas / Fallbacks */}
+                            <TableCell>{linea}</TableCell>
+                            <TableCell>{formatDate(fechaInicio)}</TableCell>
+                            <TableCell>{credit.garantia || "-"}</TableCell>
+                            <TableCell>{formatDate(fechaFin)}</TableCell>
+                            <TableCell>{proceso}</TableCell>
+                            <TableCell>{tasa ? `${tasa}%` : "-"}</TableCell>
+
+                            <TableCell>{credit.cuotas_atrasadas || 0}</TableCell>
+                            <TableCell>
+                              {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "-"}
                             </TableCell>
                           </TableRow>
                         );
