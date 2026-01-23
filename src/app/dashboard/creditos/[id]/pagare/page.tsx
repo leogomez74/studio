@@ -14,6 +14,7 @@ interface CreditData {
   numero_operacion?: string;
   reference?: string;
   monto_credito?: number;
+  monto_letras?: string;
   plazo?: number;
   tasa_anual?: number;
   divisa?: string;
@@ -88,7 +89,8 @@ export default function PagarePage() {
   const tasaNumber = Number(credit.tasa_anual ?? 0);
   const tasaMensual = (tasaNumber / 12).toFixed(2);
   const tasaMoratoria = ((tasaNumber / 12) * 1.3).toFixed(2);
-  const divisaCode = credit.divisa || 'CRC';
+  // Usar símbolo ₡ para CRC, de lo contrario usar el código de divisa
+  const divisaSymbol = credit.divisa === 'CRC' || !credit.divisa ? '₡' : credit.divisa;
 
   const today = new Date().toLocaleDateString('es-CR', {
     year: 'numeric',
@@ -201,23 +203,23 @@ export default function PagarePage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               <tr>
-                <td style={{ width: '35%', paddingLeft: '10mm', paddingBottom: '2mm' }}>Nombre y apellidos del deudor:</td>
+                <td style={{ width: '35%', paddingBottom: '2mm' }}>Nombre y apellidos del deudor:</td>
                 <td style={{ paddingBottom: '2mm' }}>{nombre}</td>
               </tr>
               <tr>
-                <td style={{ paddingLeft: '10mm', paddingBottom: '2mm' }}>Número de cédula de identidad:</td>
+                <td style={{ paddingBottom: '2mm' }}>Número de cédula de identidad:</td>
                 <td style={{ paddingBottom: '2mm' }}>{cedula}</td>
               </tr>
               <tr>
-                <td style={{ paddingLeft: '10mm', paddingBottom: '2mm' }}>Estado civil:</td>
+                <td style={{ paddingBottom: '2mm' }}>Estado civil:</td>
                 <td style={{ paddingBottom: '2mm' }}>{estadoCivil}</td>
               </tr>
               <tr>
-                <td style={{ paddingLeft: '10mm', paddingBottom: '2mm' }}>Profesión/Oficio:</td>
+                <td style={{ paddingBottom: '2mm' }}>Profesión/Oficio:</td>
                 <td style={{ paddingBottom: '2mm' }}>{profesion}</td>
               </tr>
               <tr>
-                <td style={{ paddingLeft: '10mm', paddingBottom: '2mm' }}>Dirección de domicilio:</td>
+                <td style={{ paddingBottom: '2mm' }}>Dirección de domicilio:</td>
                 <td style={{ paddingBottom: '2mm' }}>{direccion}</td>
               </tr>
             </tbody>
@@ -229,11 +231,11 @@ export default function PagarePage() {
           <tbody>
             <tr>
               <td style={{ width: '35%', fontWeight: 'bold', paddingBottom: '2mm' }}>Monto en números:</td>
-              <td style={{ paddingBottom: '2mm' }}>{divisaCode}  {formatCurrency(monto)}</td>
+              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>{divisaSymbol}  {formatCurrency(monto)}</td>
             </tr>
             <tr>
               <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>Monto en letras:</td>
-              <td style={{ paddingBottom: '2mm' }}>____________________________________________ DE COLONES EXACTOS</td>
+              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>{credit.monto_letras || ''}</td>
             </tr>
             <tr>
               <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>Tasa de interés corriente:</td>

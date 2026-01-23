@@ -7,6 +7,7 @@ use App\Models\Credit;
 use App\Models\CreditDocument;
 use App\Models\PlanDePago;
 use App\Models\Lead;
+use App\Helpers\NumberToWords;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -274,7 +275,12 @@ class CreditController extends Controller
             }
         ])->findOrFail($id);
 
-        return response()->json($credit);
+        // Agregar monto en letras
+        $response = $credit->toArray();
+        $moneda = $credit->divisa === 'USD' ? 'DOLARES' : 'COLONES';
+        $response['monto_letras'] = NumberToWords::convert((float) $credit->monto_credito, $moneda);
+
+        return response()->json($response);
     }
 
     /**
