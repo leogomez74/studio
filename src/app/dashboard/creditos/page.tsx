@@ -271,7 +271,7 @@ const TRACKED_STATUS_SET = new Set(
 
 const normalizeStatus = (status?: string | null): string => (status ?? "").trim().toLowerCase();
 
-const formatCurrency = (amount?: number | null): string => {
+const formatAmount = (amount?: number | null): string => {
   if (amount === null || amount === undefined) return "0.00";
   return new Intl.NumberFormat('es-CR', {
     style: 'decimal',
@@ -956,7 +956,7 @@ export default function CreditsPage() {
     doc.text('Monto en números:', 30, y);
     doc.setFont('helvetica', 'normal');
     const divisaCode = credit.divisa || 'CRC';
-    doc.text(`${divisaCode}  ${formatCurrency(monto)}`, 85, y);
+    doc.text(`${divisaCode}  ${formatAmount(monto)}`, 85, y);
     y += 5;
 
     // Monto en letras
