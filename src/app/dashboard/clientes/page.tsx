@@ -496,7 +496,7 @@ export default function ClientesPage() {
       const body: Record<string, any> = {
         name: values.name?.trim() || null,
         email: values.email?.trim() || null,
-        cedula: values.cedula || null,
+        cedula: values.cedula ? values.cedula.replace(/[^0-9]/g, '') : null,
         phone: values.phone || null,
         apellido1: values.apellido1?.trim() || null,
         apellido2: values.apellido2?.trim() || null,
