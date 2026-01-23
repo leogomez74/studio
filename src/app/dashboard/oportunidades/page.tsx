@@ -258,9 +258,11 @@ export default function DealsPage() {
   const [analisisForm, setAnalisisForm] = useState({
     reference: "",
     title: "",
-    status: "Activo",
     category: "Crédito",
     monto_credito: "",
+    ingreso_bruto: "",
+    ingreso_neto: "",
+    propuesta: "",
     leadId: "",
     opportunityId: "",
     assignedTo: "",
@@ -599,9 +601,11 @@ export default function DealsPage() {
     setAnalisisForm({
       reference: nextRef,
       title: opportunity.opportunity_type || "",
-      status: "Activo",
       category: "Crédito",
       monto_credito: opportunity.amount ? String(opportunity.amount) : "",
+      ingreso_bruto: "",
+      ingreso_neto: "",
+      propuesta: "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
       assignedTo: "",
@@ -622,9 +626,12 @@ export default function DealsPage() {
     try {
       const payload: Record<string, any> = {
         title: analisisForm.title,
-        status: analisisForm.status,
+        status: "Pendiente", // Default status para análisis nuevo
         category: analisisForm.category,
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
+        ingreso_bruto: parseFloat(analisisForm.ingreso_bruto) || 0,
+        ingreso_neto: parseFloat(analisisForm.ingreso_neto) || 0,
+        propuesta: analisisForm.propuesta || null,
         lead_id: parseInt(analisisForm.leadId),
         opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
         plazo: parseInt(analisisForm.plazo) || 36,
@@ -1450,15 +1457,6 @@ export default function DealsPage() {
                 <Input id="title" value={analisisForm.title} onChange={e => handleAnalisisFormChange('title', e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="status">Estado</Label>
-                <Select value={analisisForm.status} onValueChange={v => handleAnalisisFormChange('status', v)}>
-                  <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
-                  <SelectContent>
-                    {["Activo", "Mora", "Cerrado", "Legal"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>
                 <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
                   <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
@@ -1477,8 +1475,16 @@ export default function DealsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="monto">Monto</Label>
+                <Label htmlFor="monto">Monto Crédito</Label>
                 <Input id="monto" type="number" step="0.01" min="0" value={analisisForm.monto_credito} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ingreso_bruto">Ingreso Bruto</Label>
+                <Input id="ingreso_bruto" type="number" step="0.01" min="0" value={analisisForm.ingreso_bruto} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ingreso_neto">Ingreso Neto</Label>
+                <Input id="ingreso_neto" type="number" step="0.01" min="0" value={analisisForm.ingreso_neto} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="plazo">Plazo (Meses)</Label>
@@ -1506,6 +1512,10 @@ export default function DealsPage() {
               <div className="sm:col-span-2 space-y-2">
                 <Label htmlFor="description">Descripción</Label>
                 <Textarea id="description" value={analisisForm.description} onChange={e => handleAnalisisFormChange('description', e.target.value)} />
+              </div>
+              <div className="sm:col-span-2 space-y-2">
+                <Label htmlFor="propuesta">Propuesta de Análisis</Label>
+                <Textarea id="propuesta" rows={3} placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
               </div>
             </div>
             <DialogFooter>
