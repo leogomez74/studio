@@ -136,7 +136,7 @@ class MigrateOldFileStructure extends Command
                 // Crear carpeta si no existe
                 $targetFolder = "documentos/{$strippedCedula}/buzon";
                 if (!Storage::disk('public')->exists($targetFolder)) {
-                    Storage::disk('public')->makeDirectory($targetFolder);
+                    Storage::disk('public')->makeDirectory($targetFolder, 0755, true);
                 }
 
                 // Mover archivo
@@ -194,7 +194,7 @@ class MigrateOldFileStructure extends Command
             try {
                 // Crear carpeta si no existe
                 if (!Storage::disk('public')->exists($targetFolder)) {
-                    Storage::disk('public')->makeDirectory($targetFolder);
+                    Storage::disk('public')->makeDirectory($targetFolder, 0755, true);
                 }
 
                 // Si ya existe, omitir
