@@ -17,7 +17,7 @@ class ClientController extends Controller
             ->select([
                 'id', 'name', 'apellido1', 'apellido2', 'cedula',
                 'email', 'phone', 'status', 'is_active', 'assigned_to_id',
-                'created_at', 'updated_at'
+                'deductora_id', 'created_at', 'updated_at'
             ])
             ->with('assignedAgent:id,name');
 
@@ -107,7 +107,7 @@ class ClientController extends Controller
             'telefono3' => 'nullable|string|max:20',
             'institucion_labora' => 'nullable|string|max:255',
             'departamento_cargo' => 'nullable|string|max:255',
-            'deductora_id' => 'nullable|exists:deductoras,id',
+            'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
             'cedula_vencimiento' => 'nullable|date',
             'nivel_academico' => 'nullable|string|max:255',
             'profesion' => 'nullable|string|max:255',
@@ -167,7 +167,7 @@ class ClientController extends Controller
             'telefono3' => 'sometimes|nullable|string|max:20',
             'institucion_labora' => 'sometimes|nullable|string|max:255',
             'departamento_cargo' => 'sometimes|nullable|string|max:255',
-            'deductora_id' => 'sometimes|nullable|exists:deductoras,id',
+            'deductora_id' => ['sometimes', 'nullable', 'integer', 'in:1,2,3'],
             'cedula_vencimiento' => 'sometimes|nullable|date',
             'nivel_academico' => 'sometimes|nullable|string|max:255',
             'profesion' => 'sometimes|nullable|string|max:255',

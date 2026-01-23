@@ -82,7 +82,7 @@ class CreditController extends Controller
             // Campos Nuevos
             'tipo_credito' => 'nullable|string',
             'numero_operacion' => 'nullable|string|unique:credits,numero_operacion',
-            'deductora_id' => 'nullable|exists:deductoras,id',
+            'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
             'divisa' => 'nullable|string',
             'garantia' => 'nullable|string',
 
