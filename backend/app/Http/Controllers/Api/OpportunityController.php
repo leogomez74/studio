@@ -317,11 +317,18 @@ class OpportunityController extends Controller
             return ['success' => false, 'message' => 'Cédula vacía'];
         }
 
-        // Buscar la Persona (Lead/Cliente) por cédula (con guiones)
-        $person = Person::where('cedula', $cedula)->first();
+        $strippedCedula = $this->cleanCedula($cedula);
+
+        // Buscar la Persona (Lead/Cliente) por cédula (con o sin guiones)
+        $person = Person::where('cedula', $cedula)
+            ->orWhere('cedula', $strippedCedula)
+            ->first();
 
         if (!$person) {
-            Log::info('Persona no encontrada para copiar archivos', ['cedula' => $cedula]);
+            Log::info('Persona no encontrada para copiar archivos', [
+                'cedula' => $cedula,
+                'stripped_cedula' => $strippedCedula
+            ]);
             return ['success' => true, 'message' => 'Persona no encontrada', 'files' => []];
         }
 
