@@ -169,12 +169,13 @@ class MigrateOldFileStructure extends Command
             Log::error('Error migrando documento', [
                 'document_id' => $doc->id,
                 'path' => $doc->path,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return [
                 'status' => 'error',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage() . ' | Línea: ' . $e->getLine()
             ];
         }
     }
