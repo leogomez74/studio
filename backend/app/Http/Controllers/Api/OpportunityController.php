@@ -105,6 +105,11 @@ class OpportunityController extends Controller
             $validated['opportunity_type'] = $validated['opportunity_type'] ?? 'Estándar';
         }
 
+        // Auto-mapear amount desde el monto del cuestionario si no viene en el request
+        if ((empty($validated['amount']) || $validated['amount'] == 0) && $lead && !empty($lead->monto)) {
+            $validated['amount'] = $this->extractAmountFromRange($lead->monto);
+        }
+
         // Crear la oportunidad
         $opportunity = Opportunity::create($validated);
 
@@ -525,5 +530,51 @@ class OpportunityController extends Controller
         $tramiteLower = strtolower($tramite);
 
         return $mapping[$tramiteLower] ?? ucfirst($tramite);
+    }
+
+    /**
+     * Extraer un monto numérico desde el rango de monto del cuestionario.
+     * Ejemplos: "100k-250k" -> 175000, "1.7m-2.2m" -> 1950000
+     *
+     * @param string $rangoMonto
+     * @return float
+     */
+    private function extractAmountFromRange(string $rangoMonto): float
+    {
+        // Mapping de rangos del cuestionario a valores numéricos (promedio del rango)
+        $rangosMap = [
+            '100k-250k' => 175000,
+            '250k-450k' => 350000,
+            '450k-690k' => 570000,
+            '690k-1m' => 845000,
+            '1m-1.7m' => 1350000,
+            '1.7m-2.2m' => 1950000,
+        ];
+
+        // Buscar coincidencia exacta
+        if (isset($rangosMap[$rangoMonto])) {
+            return $rangosMap[$rangoMonto];
+        }
+
+        // Si no coincide, intentar parsear manualmente
+        // Ejemplo: "300k-450k" o "100,000 - 250,000"
+        $rangoMonto = strtolower(str_replace([' ', ',', '₡'], '', $rangoMonto));
+
+        if (preg_match('/(\d+(?:\.\d+)?)(k|m)?-(\d+(?:\.\d+)?)(k|m)?/', $rangoMonto, $matches)) {
+            $min = (float) $matches[1];
+            $max = (float) $matches[3];
+
+            // Convertir k (miles) y m (millones)
+            if (isset($matches[2]) && $matches[2] === 'k') $min *= 1000;
+            if (isset($matches[2]) && $matches[2] === 'm') $min *= 1000000;
+            if (isset($matches[4]) && $matches[4] === 'k') $max *= 1000;
+            if (isset($matches[4]) && $matches[4] === 'm') $max *= 1000000;
+
+            // Retornar el promedio
+            return ($min + $max) / 2;
+        }
+
+        // Default: retornar 0 si no se puede parsear
+        return 0;
     }
 }
