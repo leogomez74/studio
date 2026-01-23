@@ -193,8 +193,30 @@ class QuestionnaireController extends Controller
                 'data' => $questionnaireData
             ]);
 
+            // Determinar elegibilidad basada en salario para créditos (solo para sector público)
+            $salarioExacto = isset($questionnaireData['salario_exacto'])
+                ? (float) $questionnaireData['salario_exacto']
+                : 0;
+            $interes = $questionnaireData['interes'] ?? '';
+            $sector = $lead->sector ?? '';
+
+            $elegibleCredito = true; // Por defecto elegible
+            $responseMessage = '¡Registro completado satisfactoriamente! Nuestro equipo revisará tu solicitud y se pondrá en contacto contigo pronto.';
+            $responseType = 'success';
+
+            // Validación de salario mínimo solo para sector público
+            if ($sector === 'publico' && ($interes === 'credito' || $interes === 'ambos')) {
+                $elegibleCredito = $salarioExacto >= 300000;
+                if (!$elegibleCredito) {
+                    $responseMessage = 'Lamentamos informarle que actualmente no contamos con créditos para clientes del sector público cuyo salario sea menor a ₡300,000. Sin embargo, puede optar por nuestros servicios legales (divorcios, notariado, testamentos, etc.).';
+                    $responseType = 'info';
+                }
+            }
+
             return response()->json([
-                'message' => 'Cuestionario enviado exitosamente.',
+                'message' => $responseMessage,
+                'type' => $responseType,
+                'elegible_credito' => $elegibleCredito,
                 'lead_id' => $lead->id,
                 'files' => [
                     'cedula' => Storage::url($cedulaPath),

@@ -78,11 +78,13 @@ class Lead extends Person
         'tramites',
         'urgencia',
         'detalle_legal',
+        'questionnaire_completed_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'fecha_nacimiento' => 'date',
+        'questionnaire_completed_at' => 'datetime',
         'tramites' => 'array', // Cast JSON to array
     ];
 

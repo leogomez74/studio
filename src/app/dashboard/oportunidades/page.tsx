@@ -885,7 +885,7 @@ export default function DealsPage() {
                 </Select>
             </div>
             <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vertical</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Institución</Label>
                 <Popover open={openFilterVertical} onOpenChange={setOpenFilterVertical} modal={true}>
                   <PopoverTrigger asChild>
                     <Button
@@ -1190,7 +1190,7 @@ export default function DealsPage() {
                 name="vertical"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vertical</FormLabel>
+                    <FormLabel>Institución</FormLabel>
                     <Popover open={openVertical} onOpenChange={setOpenVertical} modal={true}>
                       <PopoverTrigger asChild>
                         <FormControl>
