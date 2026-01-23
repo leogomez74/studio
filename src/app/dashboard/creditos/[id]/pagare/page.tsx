@@ -18,6 +18,11 @@ interface CreditData {
   plazo?: number;
   tasa_anual?: number;
   divisa?: string;
+  cuota?: number;
+  plan_de_pagos?: Array<{
+    numero_cuota: number;
+    cuota: number;
+  }>;
   client?: {
     name?: string;
     cedula?: string;
@@ -25,6 +30,7 @@ interface CreditData {
     ocupacion?: string;
     direccion1?: string;
     direccion2?: string;
+    deductora_id?: number;
   };
   lead?: {
     name?: string;
@@ -33,7 +39,14 @@ interface CreditData {
     ocupacion?: string;
     direccion1?: string;
     direccion2?: string;
+    deductora_id?: number;
   };
+}
+
+interface Deductora {
+  id: number;
+  nombre: string;
+  codigo: string;
 }
 
 const formatCurrency = (amount?: number | null): string => {
@@ -45,26 +58,41 @@ const formatCurrency = (amount?: number | null): string => {
   }).format(amount);
 };
 
+// Calcular cuota mensual usando fórmula de amortización
+const calcularCuotaMensual = (monto: number, plazo: number, tasaAnual: number): number => {
+  const tasaMensual = (tasaAnual / 100) / 12;
+  if (tasaMensual === 0) return monto / plazo;
+  const cuota = monto * (tasaMensual * Math.pow(1 + tasaMensual, plazo)) / (Math.pow(1 + tasaMensual, plazo) - 1);
+  return cuota;
+};
+
 export default function PagarePage() {
   const params = useParams();
   const router = useRouter();
   const [credit, setCredit] = useState<CreditData | null>(null);
+  const [deductoras, setDeductoras] = useState<Deductora[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const pagareRef = useRef<HTMLDivElement>(null);
+  const autorizacionRef = useRef<HTMLDivElement>(null);
+  const autorizacionCSGRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchCredit = async () => {
+    const fetchData = async () => {
       try {
-        const res = await api.get(`/api/credits/${params.id}`);
-        setCredit(res.data);
+        const [creditRes, deductorasRes] = await Promise.all([
+          api.get(`/api/credits/${params.id}`),
+          api.get('/api/deductoras')
+        ]);
+        setCredit(creditRes.data);
+        setDeductoras(Array.isArray(deductorasRes.data) ? deductorasRes.data : []);
       } catch (error) {
-        console.error("Error fetching credit:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchCredit();
+    fetchData();
   }, [params.id]);
 
   if (loading) {
@@ -86,11 +114,25 @@ export default function PagarePage() {
   ].filter(Boolean).join(', ').toUpperCase();
 
   const monto = Number(credit.monto_credito ?? 0);
+  const plazo = Number(credit.plazo ?? 0);
   const tasaNumber = Number(credit.tasa_anual ?? 0);
   const tasaMensual = (tasaNumber / 12).toFixed(2);
   const tasaMoratoria = ((tasaNumber / 12) * 1.3).toFixed(2);
-  // Usar símbolo ₡ para CRC, de lo contrario usar el código de divisa
   const divisaSymbol = credit.divisa === 'CRC' || !credit.divisa ? '₡' : credit.divisa;
+
+  // Obtener la cuota mensual desde plan_de_pagos o calcularla
+  const cuotaMensual = credit.plan_de_pagos?.find(p => p.numero_cuota === 1)?.cuota
+    || credit.cuota
+    || calcularCuotaMensual(monto, plazo, tasaNumber);
+
+  // Obtener deductora del cliente
+  const deductoraId = debtor?.deductora_id;
+  const deductora = deductoras.find(d => d.id === deductoraId);
+  const deductoraNombre = deductora?.nombre || '';
+
+  // Determinar qué autorización mostrar
+  const showAutorizacionCoope = deductoraId === 1 || deductoraId === 2; // COOPENACIONAL o COOPESERVICIOS
+  const showAutorizacionCSG = deductoraId === 3; // Coope San Gabriel
 
   const today = new Date().toLocaleDateString('es-CR', {
     year: 'numeric',
@@ -98,24 +140,26 @@ export default function PagarePage() {
     day: 'numeric',
   }).toUpperCase();
 
+  // Fecha con día de la semana para autorización
+  const todayWithDay = new Date().toLocaleDateString('es-CR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).toUpperCase();
+
+  // Componentes de fecha para Coope San Gabriel
+  const now = new Date();
+  const diaNumero = now.getDate();
+  const diaSemana = now.toLocaleDateString('es-CR', { weekday: 'long' }).toUpperCase();
+  const mesNombre = now.toLocaleDateString('es-CR', { month: 'long' }).toUpperCase();
+  const anio = now.getFullYear();
+
   const handleExportPDF = async () => {
     if (!pagareRef.current || !credit) return;
 
     setExporting(true);
     try {
-      const element = pagareRef.current;
-
-      // Capturar el HTML como canvas
-      const canvas = await html2canvas(element, {
-        scale: 2, // Mayor calidad
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-
-      // Crear PDF con tamaño A4
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -125,19 +169,62 @@ export default function PagarePage() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      // Calcular dimensiones manteniendo proporción
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      // Página 1: Pagaré
+      const canvas1 = await html2canvas(pagareRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
 
-      const finalWidth = imgWidth * ratio;
-      const finalHeight = imgHeight * ratio;
+      const imgData1 = canvas1.toDataURL('image/png');
+      const ratio1 = Math.min(pdfWidth / canvas1.width, pdfHeight / canvas1.height);
+      const finalWidth1 = canvas1.width * ratio1;
+      const finalHeight1 = canvas1.height * ratio1;
+      const x1 = (pdfWidth - finalWidth1) / 2;
 
-      // Centrar la imagen
-      const x = (pdfWidth - finalWidth) / 2;
-      const y = 0;
+      pdf.addImage(imgData1, 'PNG', x1, 0, finalWidth1, finalHeight1);
 
-      pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
+      // Página 2: Autorización de Deducción (COOPENACIONAL o COOPESERVICIOS)
+      if (showAutorizacionCoope && autorizacionRef.current) {
+        pdf.addPage();
+
+        const canvas2 = await html2canvas(autorizacionRef.current, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+
+        const imgData2 = canvas2.toDataURL('image/png');
+        const ratio2 = Math.min(pdfWidth / canvas2.width, pdfHeight / canvas2.height);
+        const finalWidth2 = canvas2.width * ratio2;
+        const finalHeight2 = canvas2.height * ratio2;
+        const x2 = (pdfWidth - finalWidth2) / 2;
+
+        pdf.addImage(imgData2, 'PNG', x2, 0, finalWidth2, finalHeight2);
+      }
+
+      // Página 2: Autorización de Deducción (Coope San Gabriel)
+      if (showAutorizacionCSG && autorizacionCSGRef.current) {
+        pdf.addPage();
+
+        const canvas3 = await html2canvas(autorizacionCSGRef.current, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+
+        const imgData3 = canvas3.toDataURL('image/png');
+        const ratio3 = Math.min(pdfWidth / canvas3.width, pdfHeight / canvas3.height);
+        const finalWidth3 = canvas3.width * ratio3;
+        const finalHeight3 = canvas3.height * ratio3;
+        const x3 = (pdfWidth - finalWidth3) / 2;
+
+        pdf.addImage(imgData3, 'PNG', x3, 0, finalWidth3, finalHeight3);
+      }
+
       pdf.save(`pagare_${credit.numero_operacion || credit.reference || credit.id}.pdf`);
     } catch (error) {
       console.error('Error exportando PDF:', error);
@@ -162,10 +249,10 @@ export default function PagarePage() {
         </Button>
       </div>
 
-      {/* Documento Pagaré - Simula una hoja A4 */}
+      {/* Documento Pagaré - Página 1 */}
       <div
         ref={pagareRef}
-        className="bg-white mx-auto shadow-lg"
+        className="bg-white mx-auto shadow-lg mb-8"
         style={{
           width: '210mm',
           minHeight: '297mm',
@@ -298,6 +385,135 @@ export default function PagarePage() {
           <p style={{ marginBottom: '8mm' }}>Firma: _________________________________________________</p>
         </div>
       </div>
+
+      {/* Página 2: Autorización de Deducción - COOPENACIONAL o COOPESERVICIOS */}
+      {showAutorizacionCoope && (
+        <div
+          ref={autorizacionRef}
+          className="bg-white mx-auto shadow-lg mb-8"
+          style={{
+            width: '210mm',
+            minHeight: '297mm',
+            padding: '20mm 25mm',
+            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontSize: '11pt',
+            lineHeight: '1.6'
+          }}
+        >
+          {/* Título */}
+          <h1 style={{
+            textAlign: 'center',
+            fontSize: '18pt',
+            fontWeight: 'bold',
+            marginBottom: '15mm',
+            borderBottom: '2px solid #000',
+            paddingBottom: '5mm'
+          }}>
+            AUTORIZACION DE DEDUCCION
+          </h1>
+
+          {/* Contenido */}
+          <div style={{ textAlign: 'justify', marginBottom: '20mm' }}>
+            <p style={{ marginBottom: '10mm', lineHeight: '2' }}>
+              Yo <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 5mm' }}>{nombre}</span> Cedula <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 5mm' }}>{cedula.replace(/-/g, '')}</span> autorizo irrevocablemente a <span style={{ fontWeight: 'bold', backgroundColor: '#e0f7fa', padding: '0 2mm' }}>{deductoraNombre.toUpperCase()}</span> o a cualquier tercero con el que la cooperativa tenga un convenio de cooperación, que deduzca de mi salario o pensión, la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(cuotaMensual)}</span> que incluye intereses y principal durante un plazo de <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 3mm' }}>{plazo}</span> meses para cancelar la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(monto)}</span> y que corresponden al financiamiento de la operación crediticia <span style={{ fontWeight: 'bold' }}>{credit.numero_operacion || credit.reference || ''}</span> . Si por alguna razón no se aplica la deducción de mi salario o pensión, me comprometo a realizar el pago de la misma por el medio o los medios que se informen oportunamente o en su efecto autorizo a modificar el plazo o la cuota por falta de pago.
+            </p>
+          </div>
+
+          {/* Línea de firma */}
+          <div style={{
+            borderTop: '1px solid #000',
+            width: '60%',
+            margin: '30mm auto 5mm auto'
+          }} />
+
+          {/* Fecha */}
+          <p style={{
+            textAlign: 'center',
+            fontWeight: 'bold',
+            fontSize: '11pt'
+          }}>
+            {todayWithDay}
+          </p>
+        </div>
+      )}
+
+      {/* Página 2: Autorización de Deducción - Coope San Gabriel */}
+      {showAutorizacionCSG && (
+        <div
+          ref={autorizacionCSGRef}
+          className="bg-white mx-auto shadow-lg mb-8"
+          style={{
+            width: '210mm',
+            minHeight: '297mm',
+            padding: '15mm 20mm',
+            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontSize: '10pt',
+            lineHeight: '1.5'
+          }}
+        >
+          {/* Título con borde redondeado */}
+          <div style={{
+            border: '2px solid #000',
+            borderRadius: '15px',
+            padding: '8mm 15mm',
+            marginBottom: '10mm'
+          }}>
+            <h1 style={{
+              textAlign: 'center',
+              fontSize: '16pt',
+              fontWeight: 'bold',
+              margin: 0
+            }}>
+              AUTORIZACION DE DEDUCCION
+            </h1>
+          </div>
+
+          {/* Contenido principal con borde redondeado */}
+          <div style={{
+            border: '2px solid #000',
+            borderRadius: '15px',
+            padding: '8mm 10mm',
+            marginBottom: '10mm'
+          }}>
+            <p style={{ textAlign: 'justify', marginBottom: '8mm', lineHeight: '1.8' }}>
+              Autorizo a <span style={{ fontWeight: 'bold', backgroundColor: '#e0f7fa', padding: '0 2mm' }}>Coope San Gabriel R.L.(CSG)</span> para que deduzca de mi salario, pensión o la respectiva cuenta bancaria domiciliada, la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(cuotaMensual)}</span> correspondiente a las cuotas mensuales, ajustables y consecutivas las cuales incluyen intereses, principal y Fondo de Ayuda Cooperativa (FAC) no reembolsable. Además, consiento en que de la primera cuota se rebaje un Certificado de Aportación a Coope San Gabriel R.L. por la suma de ₡100, esto en cumplimiento con el estatuto de la Cooperativa en materia de asociados y según normativa vigente que rige a las cooperativas. El plazo del crédito <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 3mm' }}>{plazo}</span> meses para cancelar la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(monto)}</span> de principal más intereses sobre correspondiente al financiamiento de la operación <span style={{ fontWeight: 'bold' }}>{credit.numero_operacion || credit.reference || ''}</span> . Si por alguna razón, NO SE REALIZA LA DEDUCCION, del mes o meses al cobro de mi salario o pensión, me comprometo a realizar el pago de la misma en las cuentas bancarias que Credipep S.A designe para tal fin, incluyendo los cargos administrativos correspondientes o en su defecto, autorizo a la Credipep S.A a aumentar el plazo de la operación en el número de meses equivalentes al número de cuotas pendientes o gestione el cobro a mi patrono, conforme a lo establecido en el artículo 69, inciso K, del código de trabajo.
+            </p>
+
+            <p style={{ textAlign: 'justify', marginBottom: '8mm', lineHeight: '1.8' }}>
+              Adicionalmente, me responsabilizo a actualizar los datos correspondientes a domicilio y telefonía en caso de presentar alguna modificación, de acuerdo a la ley 8204 y a la Ley de Notificaciones.
+            </p>
+
+            <p style={{ textAlign: 'justify', marginBottom: '8mm', lineHeight: '1.8' }}>
+              El firmante declara bajo la fe de juramento que consiente, conoce, acepta y leyó las cláusulas aquí pactadas en la fecha del anverso en esta solicitud y que cuenta para este acto con la capacidad jurídica suficiente para suscribir el presente acuerdo.
+            </p>
+
+            {/* Fecha */}
+            <div style={{ marginTop: '10mm' }}>
+              <p>
+                <span>Fecha: </span>
+                <span style={{ fontWeight: 'bold' }}>{diaNumero} DE {mesNombre} DEL {anio}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Firmas */}
+          <div style={{ marginTop: '15mm' }}>
+            <table style={{ width: '100%' }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: '45%', borderTop: '1px solid #000', paddingTop: '3mm', textAlign: 'center' }}>
+                    FIRMA DEUDOR
+                  </td>
+                  <td style={{ width: '10%' }}></td>
+                  <td style={{ width: '45%', borderTop: '1px solid #000', paddingTop: '3mm', textAlign: 'center' }}>
+                    CEDULA O NUMERO DE IDENTIFICACION
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
