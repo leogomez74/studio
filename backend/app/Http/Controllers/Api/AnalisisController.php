@@ -43,15 +43,6 @@ class AnalisisController extends Controller
         return response()->json($analisis);
     }
 
-    /**
-     * Obtener la próxima referencia que se generará (preview).
-     * GET /api/analisis/next-reference
-     */
-    public function nextReference()
-    {
-        $reference = Analisis::generateReference(1, 1);
-        return response()->json(['reference' => $reference]);
-    }
     public function store(Request $request)
     {
         $validated = $request->validate([

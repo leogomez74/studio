@@ -267,7 +267,6 @@ export default function DealsPage() {
     opportunityId: "",
     assignedTo: "",
     openedAt: new Date().toISOString().split('T')[0],
-    description: "",
     divisa: "CRC",
     plazo: "36",
   });
@@ -586,20 +585,12 @@ export default function DealsPage() {
 
   // --- Analisis Logic ---
 
-  const handleOpenAnalisisDialog = async (opportunity: Opportunity) => {
+  const handleOpenAnalisisDialog = (opportunity: Opportunity) => {
     setAnalisisOpportunity(opportunity);
 
-    // Obtener la próxima referencia del backend
-    let nextRef = "";
-    try {
-      const res = await api.get('/api/analisis/next-reference');
-      nextRef = res.data.reference || "";
-    } catch (error) {
-      console.error("Error fetching next reference:", error);
-    }
-
+    // La referencia es el ID de la oportunidad
     setAnalisisForm({
-      reference: nextRef,
+      reference: String(opportunity.id),
       title: opportunity.opportunity_type || "",
       category: "Crédito",
       monto_credito: opportunity.amount ? String(opportunity.amount) : "",
@@ -610,7 +601,6 @@ export default function DealsPage() {
       opportunityId: String(opportunity.id),
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
-      description: opportunity.comments || "",
       divisa: "CRC",
       plazo: "36",
     });
@@ -636,7 +626,6 @@ export default function DealsPage() {
         opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
         plazo: parseInt(analisisForm.plazo) || 36,
         divisa: analisisForm.divisa,
-        description: analisisForm.description,
         opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
       };
@@ -1508,10 +1497,6 @@ export default function DealsPage() {
               <div className="space-y-2">
                 <Label htmlFor="openedAt">Fecha Apertura</Label>
                 <Input id="openedAt" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
-              </div>
-              <div className="sm:col-span-2 space-y-2">
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea id="description" value={analisisForm.description} onChange={e => handleAnalisisFormChange('description', e.target.value)} />
               </div>
               <div className="sm:col-span-2 space-y-2">
                 <Label htmlFor="propuesta">Propuesta de Análisis</Label>
