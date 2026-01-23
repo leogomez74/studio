@@ -1278,10 +1278,18 @@ export default function DealsPage() {
                     <FormLabel>Tipo</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar tipo..." /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {OPPORTUNITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        {products.length === 0 ? (
+                          <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                        ) : (
+                          products.map(product => (
+                            <SelectItem key={product.id} value={product.name}>
+                              {product.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
