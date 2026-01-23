@@ -2,15 +2,24 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  ArrowLeft, 
-  RefreshCw, 
-  Paperclip, 
-  Smile, 
-  Send, 
-  List, 
-  MessageSquare, 
-  MessageCircle 
+import {
+  ArrowLeft,
+  RefreshCw,
+  Paperclip,
+  Smile,
+  Send,
+  List,
+  MessageSquare,
+  MessageCircle,
+  FileText,
+  File,
+  Image as ImageIcon,
+  FileSpreadsheet,
+  Trash,
+  Upload,
+  Loader2,
+  FolderOpen,
+  FolderInput
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,9 +32,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
-import { Opportunity, chatMessages, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
-import { DocumentManager } from "@/components/document-manager";
+import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { CaseChat } from "@/components/case-chat";
+import { Label } from "@/components/ui/label";
+
+// Tipo para archivos del filesystem
+interface OpportunityFile {
+  name: string;
+  path: string;
+  url: string;
+  size: number;
+  last_modified: number;
+}
 
 type Product = {
   id: number;
@@ -48,6 +66,26 @@ export default function OpportunityDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
 
+  // Estados para archivos
+  const [heredados, setHeredados] = useState<OpportunityFile[]>([]);
+  const [especificos, setEspecificos] = useState<OpportunityFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Cargar archivos de la oportunidad
+  const fetchFiles = async () => {
+    try {
+      setLoadingFiles(true);
+      const res = await api.get(`/api/opportunities/${id}/files`);
+      setHeredados(res.data.heredados || []);
+      setEspecificos(res.data.especificos || []);
+    } catch (error) {
+      console.error("Error fetching files:", error);
+    } finally {
+      setLoadingFiles(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -61,6 +99,9 @@ export default function OpportunityDetailPage() {
 
         setOpportunity(opportunityData);
         setProducts(productsData);
+
+        // Cargar archivos
+        fetchFiles();
       } catch (error) {
         console.error("Error fetching data:", error);
         toast({ title: "Error", description: "No se pudo cargar la información.", variant: "destructive" });
@@ -73,6 +114,72 @@ export default function OpportunityDetailPage() {
       fetchData();
     }
   }, [id, toast]);
+
+  // Subir archivo específico
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setUploading(true);
+      await api.post(`/api/opportunities/${id}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast({ title: "Éxito", description: "Archivo subido correctamente." });
+      fetchFiles();
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // Eliminar archivo
+  const handleDeleteFile = async (filename: string) => {
+    if (!confirm(`¿Eliminar el archivo "${filename}"?`)) return;
+
+    try {
+      await api.delete(`/api/opportunities/${id}/files/${encodeURIComponent(filename)}`);
+      toast({ title: "Éxito", description: "Archivo eliminado." });
+      fetchFiles();
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      toast({ title: "Error", description: "No se pudo eliminar el archivo.", variant: "destructive" });
+    }
+  };
+
+  // Helper para obtener info del tipo de archivo
+  const getFileTypeInfo = (fileName: string) => {
+    const name = fileName.toLowerCase();
+    if (name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+      return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600' };
+    }
+    if (name.endsWith('.pdf')) {
+      return { icon: FileText, label: 'PDF', color: 'text-red-600' };
+    }
+    if (name.match(/\.(xls|xlsx|csv)$/)) {
+      return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600' };
+    }
+    if (name.match(/\.(doc|docx)$/)) {
+      return { icon: FileText, label: 'Word', color: 'text-blue-600' };
+    }
+    if (name.match(/\.(html|htm)$/)) {
+      return { icon: FileText, label: 'HTML', color: 'text-orange-600' };
+    }
+    return { icon: File, label: 'Archivo', color: 'text-slate-600' };
+  };
+
+  // Formatear tamaño de archivo
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     if (!opportunity) return;
@@ -271,21 +378,124 @@ export default function OpportunityDetailPage() {
             </TabsContent>
 
             <TabsContent value="archivos">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Paperclip className="h-5 w-5" />
-                    Archivos de la Oportunidad
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {/* Use DocumentManager as in leads */}
-                  <DocumentManager 
-                    personId={opportunity.lead ? Number(opportunity.lead.id) : 0}
-                    initialDocuments={(opportunity.lead && (opportunity.lead as any).documents) ? (opportunity.lead as any).documents : []}
-                  />
-                </CardContent>
-              </Card>
+              <div className="space-y-4">
+                {/* Subir archivo específico */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      Subir Archivo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4">
+                      <div className="grid w-full max-w-sm items-center gap-1.5">
+                        <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad</Label>
+                        <Input
+                          id="file-upload"
+                          type="file"
+                          onChange={handleFileUpload}
+                          disabled={uploading}
+                          className="cursor-pointer"
+                        />
+                      </div>
+                      {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {loadingFiles ? (
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Archivos Heredados */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <FolderInput className="h-4 w-4 text-blue-500" />
+                          Documentos Personales
+                          <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground">Documentos copiados del buzón del cliente</p>
+                      </CardHeader>
+                      <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                        {heredados.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">Sin archivos heredados</p>
+                        ) : (
+                          heredados.map((file) => {
+                            const { icon: FileIcon, label, color } = getFileTypeInfo(file.name);
+                            return (
+                              <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                                  <div className="min-w-0">
+                                    <a
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm font-medium hover:underline truncate block"
+                                    >
+                                      {file.name}
+                                    </a>
+                                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                                  </div>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(file.name)}>
+                                  <Trash className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Archivos Específicos */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-green-500" />
+                          Específicos de Oportunidad
+                          <Badge variant="secondary" className="ml-auto">{especificos.length}</Badge>
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground">Documentos subidos directamente aquí</p>
+                      </CardHeader>
+                      <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                        {especificos.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">Sin archivos específicos</p>
+                        ) : (
+                          especificos.map((file) => {
+                            const { icon: FileIcon, label, color } = getFileTypeInfo(file.name);
+                            return (
+                              <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                                  <div className="min-w-0">
+                                    <a
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm font-medium hover:underline truncate block"
+                                    >
+                                      {file.name}
+                                    </a>
+                                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                                  </div>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(file.name)}>
+                                  <Trash className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>

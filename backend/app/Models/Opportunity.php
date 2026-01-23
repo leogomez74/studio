@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
 
 class Opportunity extends Model
 {
@@ -35,27 +34,57 @@ class Opportunity extends Model
     {
         static::creating(function ($model) {
             if (empty($model->id)) {
-                $year = date('y');
-                $prefix = $year . '-';
-                $suffix = '-OP';
-
-                // Find the last ID with this prefix
-                $lastRecord = static::where('id', 'like', $prefix . '%' . $suffix)
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $sequence = 1;
-                if ($lastRecord) {
-                    // Extract sequence: 25-00004-OP -> 00004
-                    $parts = explode('-', $lastRecord->id);
-                    if (count($parts) === 3) {
-                        $sequence = intval($parts[1]) + 1;
-                    }
-                }
-
-                $model->id = $prefix . str_pad($sequence, 5, '0', STR_PAD_LEFT) . $suffix;
+                $model->id = static::generateId(
+                    $model->empresa_code ?? 1,
+                    $model->producto_code ?? 1
+                );
             }
         });
+    }
+
+    /**
+     * Generar ID con formato: YY-XXXXX-EPP-OP
+     * YY = Año (2 dígitos)
+     * XXXXX = Consecutivo (5 dígitos)
+     * E = Empresa (1 dígito)
+     * PP = Producto (2 dígitos)
+     * OP = Proceso (Oportunidad)
+     *
+     * @param int $empresaCode Código de empresa (1-9)
+     * @param int $productoCode Código de producto (1-99)
+     * @return string
+     */
+    public static function generateId(int $empresaCode = 1, int $productoCode = 1): string
+    {
+        $year = date('y');
+        $suffix = '-OP';
+
+        // Buscar el último consecutivo del año actual
+        $lastRecord = static::where('id', 'like', $year . '-%' . $suffix)
+            ->orderByRaw("CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(id, '-', 2), '-', -1) AS UNSIGNED) DESC")
+            ->first();
+
+        $sequence = 1;
+        if ($lastRecord) {
+            // Extraer consecutivo: 26-00004-101-OP -> 00004
+            $parts = explode('-', $lastRecord->id);
+            if (count($parts) >= 2) {
+                $sequence = intval($parts[1]) + 1;
+            }
+        }
+
+        // Formato: YY-XXXXX-EPP-OP
+        $empresaPart = (string) $empresaCode;
+        $productoPart = str_pad((string) $productoCode, 2, '0', STR_PAD_LEFT);
+
+        return sprintf(
+            '%s-%s-%s%s%s',
+            $year,
+            str_pad((string) $sequence, 5, '0', STR_PAD_LEFT),
+            $empresaPart,
+            $productoPart,
+            $suffix
+        );
     }
 
     // Relación con Lead (FK: lead_cedula -> persons.cedula)

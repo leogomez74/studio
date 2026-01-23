@@ -55,6 +55,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  ScrollableTableContainer,
 } from '@/components/ui/table';
 import api from '@/lib/axios';
 import { useToast } from "@/hooks/use-toast";
@@ -85,7 +86,6 @@ interface CreditPayment {
   fecha_cuota: string;
   fecha_pago: string | null;
   cuota: number;
-  cargos: number;
   poliza: number;
   interes_corriente: number;
   interes_moratorio: number;
@@ -118,7 +118,6 @@ interface PlanDePago {
   tasa_actual: number;
   plazo_actual: number;
   cuota: number;
-  cargos: number;
   poliza: number;
   interes_corriente: number;
   interes_moratorio: number;
@@ -130,7 +129,6 @@ interface PlanDePago {
   dias_mora: number;
   fecha_movimiento: string | null;
   movimiento_total: number;
-  movimiento_cargos: number;
   movimiento_poliza: number;
   movimiento_interes_corriente: number;
   movimiento_interes_moratorio: number;
@@ -969,7 +967,8 @@ function CreditDetailClient({ id }: { id: string }) {
                     </TooltipProvider>
                   )}
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent>
+                  <ScrollableTableContainer className="max-h-[70vh]">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -981,7 +980,6 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs">Tasa Actual</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Plazo Actual</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Cuota</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Cargos</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Corriente</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Moratorio</TableHead>
@@ -993,7 +991,6 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs">Mora (Días)</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Fecha Mov.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Total</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Mov. Cargos</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Corr.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Mora.</TableHead>
@@ -1017,7 +1014,6 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-center">{payment.tasa_actual || "-"}</TableCell>
                             <TableCell className="text-xs text-center">{payment.plazo_actual || "-"}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.cuota)}</TableCell>
-                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.cargos)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_corriente)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_moratorio)}</TableCell>
@@ -1033,7 +1029,6 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-center">{payment.dias_mora || "0"}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_movimiento)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_total)}</TableCell>
-                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_cargos)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_corriente)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_moratorio)}</TableCell>
@@ -1094,6 +1089,7 @@ function CreditDetailClient({ id }: { id: string }) {
                       )}
                     </TableBody>
                   </Table>
+                  </ScrollableTableContainer>
                 </CardContent>
               </Card>
             </TabsContent>

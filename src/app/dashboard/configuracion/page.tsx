@@ -50,6 +50,7 @@ import { patronos } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/env';
 import { useAuth } from '@/components/auth-guard';
 import api from '@/lib/axios';
+import { EMPRESAS_MOCK, Empresa, Requirement } from '@/lib/empresas-mock';
 
 // ----------------------------------------------------------------------
 // 1. COMPONENTES Y CONSTANTES AUXILIARES (Definidos FUERA del componente principal)
@@ -62,25 +63,13 @@ const extensionOptions = [
   { label: 'HTML', value: 'html' },
 ];
 
-interface Requirement {
-  id?: number;
-  name: string;
-  file_extension: string;
-  quantity: number;
-}
-
-interface Empresa {
-  id: number;
-  business_name: string;
-  requirements: Requirement[];
-}
-
 const EmpresasCRUD: React.FC = () => {
   const { toast } = useToast();
   const { token } = useAuth();
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>(EMPRESAS_MOCK);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [usingMock, setUsingMock] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   
@@ -94,10 +83,20 @@ const EmpresasCRUD: React.FC = () => {
       const res = await api.get('/api/enterprises', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      setEmpresas(res.data);
+      const apiData = res.data;
+
+      // Si la API tiene más datos que el mock, usar API; si no, usar mock
+      if (apiData.length > EMPRESAS_MOCK.length) {
+        setEmpresas(apiData);
+        setUsingMock(false);
+      } else {
+        setEmpresas(EMPRESAS_MOCK);
+        setUsingMock(true);
+      }
     } catch (err) {
-      console.error('Error fetching empresas:', err);
-      setEmpresas([]);
+      console.error('Error fetching empresas, using mock data:', err);
+      setEmpresas(EMPRESAS_MOCK);
+      setUsingMock(true);
     } finally {
       setLoading(false);
     }
@@ -169,58 +168,91 @@ const EmpresasCRUD: React.FC = () => {
     }
 
     setSaving(true);
-    try {
-      const now = new Date().toISOString();
-      
-      // Preparar payload para el backend
-      const requirementsPayload = requirements.map(r => ({
-        name: r.name,
-        file_extension: r.file_extension,
-        quantity: r.quantity || 1,
-        upload_date: now,
-        last_updated: now,
-      }));
 
-      const payload = {
-        business_name: businessName.trim(),
-        requirements: requirementsPayload,
-      };
+    const newRequirements = requirements.map(r => ({
+      name: r.name,
+      file_extension: r.file_extension,
+      quantity: r.quantity || 1,
+    }));
 
+    if (usingMock) {
+      // Operación local con mock
       if (editingEmpresa) {
-        await api.put(`/api/enterprises/${editingEmpresa.id}`, payload, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        setEmpresas(prev => prev.map(emp =>
+          emp.id === editingEmpresa.id
+            ? { ...emp, business_name: businessName.trim(), requirements: newRequirements }
+            : emp
+        ));
         toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
       } else {
-        await api.post('/api/enterprises', payload, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const newId = Math.max(...empresas.map(e => e.id), 0) + 1;
+        setEmpresas(prev => [...prev, {
+          id: newId,
+          business_name: businessName.trim(),
+          requirements: newRequirements
+        }]);
         toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
       }
-
       closeDialog();
-      fetchEmpresas();
-    } catch (err: any) {
-      console.error(err);
-      const msg = err?.response?.data?.message || 'No se pudo guardar la empresa.';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
-    } finally {
       setSaving(false);
+    } else {
+      // Operación con API
+      try {
+        const now = new Date().toISOString();
+        const requirementsPayload = requirements.map(r => ({
+          name: r.name,
+          file_extension: r.file_extension,
+          quantity: r.quantity || 1,
+          upload_date: now,
+          last_updated: now,
+        }));
+
+        const payload = {
+          business_name: businessName.trim(),
+          requirements: requirementsPayload,
+        };
+
+        if (editingEmpresa) {
+          await api.put(`/api/enterprises/${editingEmpresa.id}`, payload, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
+        } else {
+          await api.post('/api/enterprises', payload, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
+        }
+
+        closeDialog();
+        fetchEmpresas();
+      } catch (err: any) {
+        console.error(err);
+        const msg = err?.response?.data?.message || 'No se pudo guardar la empresa.';
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
   const handleDelete = async (empresa: Empresa) => {
     if (!confirm(`¿Eliminar la empresa "${empresa.business_name}"?`)) return;
 
-    try {
-      await api.delete(`/api/enterprises/${empresa.id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+    if (usingMock) {
+      setEmpresas(prev => prev.filter(e => e.id !== empresa.id));
       toast({ title: 'Eliminado', description: 'Empresa eliminada correctamente.' });
-      fetchEmpresas();
-    } catch (err) {
-      console.error('Error deleting empresa:', err);
-      toast({ title: 'Error', description: 'No se pudo eliminar la empresa.', variant: 'destructive' });
+    } else {
+      try {
+        await api.delete(`/api/enterprises/${empresa.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        toast({ title: 'Eliminado', description: 'Empresa eliminada correctamente.' });
+        fetchEmpresas();
+      } catch (err) {
+        console.error('Error deleting empresa:', err);
+        toast({ title: 'Error', description: 'No se pudo eliminar la empresa.', variant: 'destructive' });
+      }
     }
   };
 
@@ -1167,7 +1199,6 @@ export default function ConfiguracionPage() {
   const [polizaActual, setPolizaActual] = useState<string>('0');
   const [polizaLoading, setPolizaLoading] = useState(false);
   const [polizaSaving, setPolizaSaving] = useState(false);
-  const [polizaCreditId, setPolizaCreditId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>('prestamos');
 
   const fetchReferenceCredit = useCallback(async () => {
@@ -1202,22 +1233,16 @@ export default function ConfiguracionPage() {
   const loadPoliza = useCallback(async () => {
     setPolizaLoading(true);
     try {
-      const credit = await fetchReferenceCredit();
-      if (credit) {
-        setPolizaCreditId(credit.id);
-        const value = credit.poliza_actual ?? 0;
-        setPolizaActual(String(value));
-      } else {
-        setPolizaActual('0');
-        setPolizaCreditId(null);
-      }
+      const res = await api.get('/api/loan-configurations/regular');
+      const config = res.data;
+      setPolizaActual(String(config.monto_poliza ?? 0));
     } catch (err) {
-      console.error('Failed to load poliza_actual from credits:', err);
+      console.error('Failed to load monto_poliza from loan_configurations:', err);
       toast({ title: 'Error', description: 'No se pudo obtener la póliza.', variant: 'destructive' });
     } finally {
       setPolizaLoading(false);
     }
-  }, [fetchReferenceCredit, toast]);
+  }, [toast]);
 
   useEffect(() => {
     if (activeTab === 'tasa_actual') {
@@ -1297,7 +1322,10 @@ export default function ConfiguracionPage() {
       <TabsContent value="poliza">
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
-            <Label htmlFor="poliza-actual" className="text-center">Póliza (₡)</Label>
+            <Label htmlFor="poliza-actual" className="text-center">Monto de Póliza por Cuota (₡)</Label>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Este monto fijo se aplicará a cada cuota del plan de pagos cuando el crédito tenga póliza activa.
+            </p>
             <Input
               id="poliza-actual"
               type="number"
@@ -1309,17 +1337,13 @@ export default function ConfiguracionPage() {
             <div className="flex items-center gap-2">
               <Button
                 onClick={async () => {
-                  if (polizaCreditId === null) {
-                    toast({ title: 'Error', description: 'No hay crédito seleccionado para actualizar.', variant: 'destructive' });
-                    return;
-                  }
                   setPolizaSaving(true);
                   try {
-                    await api.put(`/api/credits/${polizaCreditId}`, { poliza_actual: parseFloat(polizaActual) || 0 });
+                    await api.put('/api/loan-configurations/regular', { monto_poliza: parseFloat(polizaActual) || 0 });
                     toast({ title: 'Guardado', description: 'Póliza actualizada correctamente.' });
                     await loadPoliza();
                   } catch (err) {
-                    console.error('Failed to save poliza_actual:', err);
+                    console.error('Failed to save monto_poliza:', err);
                     toast({ title: 'Error', description: 'No se pudo guardar la póliza.', variant: 'destructive' });
                   } finally {
                     setPolizaSaving(false);

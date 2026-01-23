@@ -58,6 +58,7 @@ class LoanConfigurationController extends Controller
             'plazo_minimo' => 'sometimes|integer|min:1',
             'plazo_maximo' => 'sometimes|integer|min:1',
             'activo' => 'sometimes|boolean',
+            'monto_poliza' => 'sometimes|numeric|min:0',
         ]);
 
         $config->update($validated);

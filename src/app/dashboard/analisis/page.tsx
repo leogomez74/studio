@@ -9,7 +9,25 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Opportunity, Lead } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
+
+// Funciones para formateo de moneda (Colones)
+const formatCurrency = (value: string | number): string => {
+  const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : value;
+  if (isNaN(num)) return '';
+  return new Intl.NumberFormat('es-CR', {
+    style: 'currency',
+    currency: 'CRC',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+};
+
+const parseCurrencyToNumber = (value: string): string => {
+  return value.replace(/[^\d.]/g, '');
+};
 
 type AnalisisItem = {
   id: number;
@@ -19,9 +37,16 @@ type AnalisisItem = {
   created_at: string;
   opportunity_id?: string;
   lead_id?: string;
+  // Campos del análisis
+  category?: string;
+  title?: string;
+  description?: string;
+  divisa?: string;
+  plazo?: number;
   ingreso_bruto?: number;
   ingreso_neto?: number;
   propuesta?: string;
+  // Relaciones
   opportunity?: Opportunity;
   lead?: Lead;
 };
@@ -37,6 +62,7 @@ type Product = {
 
 export default function AnalisisPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [analisisList, setAnalisisList] = useState<AnalisisItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +79,11 @@ export default function AnalisisPage() {
     category: 'Crédito',
     monto_credito: '',
     leadId: '',
+    clientName: '',
     description: '',
     divisa: 'CRC',
     plazo: '36',
+    poliza: false,
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -205,19 +233,32 @@ export default function AnalisisPage() {
                         variant="outline"
                         className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
                         title="Crear Crédito"
-                        onClick={() => {
-                          setCreditForm({
-                            reference: '',
-                            title: '',
-                            status: 'Activo',
-                            category: 'Crédito',
-                            monto_credito: '',
-                            leadId: item.lead?.id ? String(item.lead.id) : '',
-                            description: '',
-                            divisa: 'CRC',
-                            plazo: '36',
-                          });
-                          setIsCreditDialogOpen(true);
+                        onClick={async () => {
+                          try {
+                            // Obtener la próxima referencia del servidor
+                            const refResponse = await api.get('/api/credits/next-reference');
+                            const nextReference = refResponse.data.reference;
+
+                            setCreditForm({
+                              reference: nextReference,
+                              title: item.title || '',
+                              status: 'Activo',
+                              category: item.category || 'Regular',
+                              monto_credito: item.monto_credito ? String(item.monto_credito) : '',
+                              leadId: item.lead_id ? String(item.lead_id) : (item.lead?.id ? String(item.lead.id) : ''),
+                              clientName: item.lead?.name || '',
+                              description: item.description || '',
+                              divisa: item.divisa || 'CRC',
+                              plazo: item.plazo ? String(item.plazo) : '36',
+                            });
+                            setIsCreditDialogOpen(true);
+                          } catch (err) {
+                            toast({
+                              variant: "destructive",
+                              title: "Error",
+                              description: "No se pudo obtener la referencia del crédito",
+                            });
+                          }
                         }}
                       >
                         Crear Crédito
@@ -248,23 +289,81 @@ export default function AnalisisPage() {
             className="space-y-6"
             onSubmit={async (e) => {
               e.preventDefault();
-              setIsSaving(true);
-              try {
-                await api.post('/api/credits', {
-                  reference: creditForm.reference,
-                  title: creditForm.title,
-                  status: creditForm.status,
-                  category: creditForm.category,
-                  monto_credito: parseFloat(creditForm.monto_credito) || 0,
-                  lead_id: parseInt(creditForm.leadId),
-                  description: creditForm.description,
-                  divisa: creditForm.divisa,
-                  plazo: parseInt(creditForm.plazo) || 36,
+
+              // Validaciones previas
+              const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
+              const leadIdNumerico = parseInt(creditForm.leadId);
+              const plazoNumerico = parseInt(creditForm.plazo);
+
+              if (!creditForm.leadId || isNaN(leadIdNumerico)) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "No hay un cliente asociado al análisis",
                 });
+                return;
+              }
+              if (isNaN(montoNumerico) || montoNumerico < 2) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "El monto debe ser un número mayor a 2",
+                });
+                return;
+              }
+              if (isNaN(plazoNumerico) || plazoNumerico < 1 || plazoNumerico > 120) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "El plazo debe ser un número entre 1 y 120",
+                });
+                return;
+              }
+
+              setIsSaving(true);
+              const payload = {
+                reference: creditForm.reference,
+                title: creditForm.title,
+                status: creditForm.status,
+                category: creditForm.category,
+                monto_credito: montoNumerico,
+                lead_id: leadIdNumerico,
+                description: creditForm.description,
+                divisa: creditForm.divisa,
+                plazo: plazoNumerico,
+                poliza: creditForm.poliza,
+              };
+              console.log('Enviando payload:', payload);
+
+              try {
+                const response = await api.post('/api/credits', payload);
+                console.log('Respuesta:', response.data);
                 setIsCreditDialogOpen(false);
+                toast({
+                  variant: "success",
+                  title: "Crédito creado",
+                  description: `El crédito ${response.data.reference} se ha creado exitosamente.`,
+                });
                 fetchAll();
-              } catch (err) {
-                alert('Error al crear crédito');
+              } catch (err: any) {
+                console.error('Error completo:', err);
+                console.error('Response:', err?.response);
+                console.error('Response data:', err?.response?.data);
+                console.error('Response status:', err?.response?.status);
+
+                let mensaje = 'Error al crear crédito';
+                if (err?.response?.data?.message) {
+                  mensaje = err.response.data.message;
+                } else if (err?.response?.data?.errors) {
+                  mensaje = Object.values(err.response.data.errors).flat().join(', ');
+                } else if (err?.message) {
+                  mensaje = err.message;
+                }
+                toast({
+                  variant: "destructive",
+                  title: "Error al crear crédito",
+                  description: mensaje,
+                });
               } finally {
                 setIsSaving(false);
               }
@@ -275,10 +374,9 @@ export default function AnalisisPage() {
                 <Label htmlFor="reference">Referencia</Label>
                 <Input
                   id="reference"
-                  placeholder="Ej: CRED-ABC12345"
+                  placeholder="Se genera automáticamente (YY-XXXXX-CR)"
                   value={creditForm.reference}
-                  onChange={e => setCreditForm(f => ({ ...f, reference: e.target.value }))}
-                  required
+                  disabled
                 />
               </div>
               <div className="space-y-2">
@@ -331,31 +429,54 @@ export default function AnalisisPage() {
                 <Label htmlFor="monto">Monto</Label>
                 <Input
                   id="monto"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={creditForm.monto_credito}
-                  onChange={e => setCreditForm(f => ({ ...f, monto_credito: e.target.value }))}
+                  type="text"
+                  placeholder="₡0.00"
+                  value={creditForm.monto_credito ? formatCurrency(creditForm.monto_credito) : ''}
+                  onChange={e => {
+                    const rawValue = parseCurrencyToNumber(e.target.value);
+                    setCreditForm(f => ({ ...f, monto_credito: rawValue }));
+                  }}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="plazo">Plazo (Meses)</Label>
-                <Select value={creditForm.plazo} onValueChange={v => setCreditForm(f => ({ ...f, plazo: v }))}>
-                  <SelectTrigger id="plazo"><SelectValue placeholder="Selecciona el plazo" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="36">36 meses</SelectItem>
-                    <SelectItem value="60">60 meses</SelectItem>
-                    <SelectItem value="120">120 meses</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="plazo"
+                  type="number"
+                  min="1"
+                  max="120"
+                  placeholder="1 - 120"
+                  value={creditForm.plazo}
+                  onChange={e => {
+                    const valor = parseInt(e.target.value);
+                    if (e.target.value === '') {
+                      setCreditForm(f => ({ ...f, plazo: '' }));
+                    } else if (!isNaN(valor) && valor >= 1 && valor <= 120) {
+                      setCreditForm(f => ({ ...f, plazo: String(valor) }));
+                    }
+                  }}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lead">Lead</Label>
+                <Label htmlFor="poliza">Póliza</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="poliza"
+                    checked={creditForm.poliza}
+                    onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
+                  />
+                  <Label htmlFor="poliza" className="text-sm text-muted-foreground">
+                    {creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza'}
+                  </Label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cliente">Cliente</Label>
                 <Input
-                  id="lead"
-                  value={creditForm.leadId}
+                  id="cliente"
+                  value={creditForm.clientName}
                   disabled
+                  placeholder="Cliente del análisis"
                 />
               </div>
             </div>

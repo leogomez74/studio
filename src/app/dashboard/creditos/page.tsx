@@ -1,9 +1,9 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, Filter } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useForm } from "react-hook-form";
@@ -65,6 +65,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
+
+// Funciones para formateo de moneda (Colones)
+const formatCurrency = (value: string | number): string => {
+  const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : value;
+  if (isNaN(num) || num === 0) return '';
+  return new Intl.NumberFormat('es-CR', {
+    style: 'currency',
+    currency: 'CRC',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+};
+
+const parseCurrencyToNumber = (value: string): number => {
+  const cleaned = value.replace(/[^\d.]/g, '');
+  return parseFloat(cleaned) || 0;
+};
 
 const creditSchema = z.object({
   reference: z.string().min(1, "La referencia es requerida"),
@@ -137,6 +154,7 @@ interface OpportunityOption {
   id: string;
   title: string;
   lead_id: number;
+  status?: string;
   credit?: {
     id: number;
   } | null;
@@ -162,7 +180,6 @@ interface CreditPayment {
   fecha_corte: string;
   fecha_pago: string | null;
   cuota: number;
-  cargos: number;
   poliza: number;
   interes_corriente: number;
   interes_moratorio: number;
@@ -224,12 +241,8 @@ const CREDIT_STATUS_OPTIONS = [
   "Aprobado",
   "Formalizado"
 ] as const;
-const CREDIT_CATEGORY_OPTIONS = ["Regular", "Micro-crédito", "Hipotecario", "Personal"] as const;
 const CURRENCY_OPTIONS = [
   { value: "CRC", label: "Colón Costarricense (CRC)" },
-  { value: "USD", label: "Dólar Estadounidense (USD)" },
-  { value: "EUR", label: "Euro (EUR)" },
-  { value: "GBP", label: "Libra Esterlina (GBP)" },
 ] as const;
 
 const CREDIT_STATUS_TAB_CONFIG = [
@@ -301,6 +314,7 @@ export default function CreditsPage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityOption[]>([]);
   const [users, setUsers] = useState<{ id: number, name: string }[]>([]);
+  const [products, setProducts] = useState<{ id: number, name: string }[]>([]);
   const [tabValue, setTabValue] = useState("all");
   const [filters, setFilters] = useState({
     monto: "",
@@ -308,6 +322,10 @@ export default function CreditsPage() {
     leadName: "",
     documentoId: ""
   });
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Combobox state
   const [openCombobox, setOpenCombobox] = useState(false);
@@ -323,7 +341,7 @@ export default function CreditsPage() {
       reference: "",
       title: "",
       status: CREDIT_STATUS_OPTIONS[0],
-      category: CREDIT_CATEGORY_OPTIONS[0],
+      category: "",
       monto_credito: 0,
       clientId: "",
       opportunityId: "",
@@ -349,18 +367,28 @@ export default function CreditsPage() {
   const filteredClients = useMemo(() => {
     if (!searchQuery) return clients;
     const lowerQuery = searchQuery.toLowerCase();
-    return clients.filter(client =>
-      client.name.toLowerCase().includes(lowerQuery) ||
-      (client.cedula && client.cedula.includes(lowerQuery))
-    );
+    // Normalizar query removiendo símbolos para búsqueda por cédula
+    const normalizedQuery = searchQuery.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+    return clients.filter(client => {
+      // Buscar por nombre
+      const matchesName = client.name.toLowerCase().includes(lowerQuery);
+
+      // Buscar por cédula (ignorando símbolos)
+      const normalizedCedula = client.cedula ? client.cedula.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+      const matchesCedula = normalizedCedula.includes(normalizedQuery);
+
+      return matchesName || matchesCedula;
+    });
   }, [clients, searchQuery]);
 
   const availableOpportunities = useMemo(() => {
     return opportunities.filter((opportunity) => {
       const belongsToClient = currentClientId ? opportunity.lead_id === parseInt(currentClientId, 10) : true;
+      const isGanada = opportunity.status === 'Ganada';
       const canSelectExistingCredit = dialogCredit?.opportunity_id === opportunity.id;
       const isFree = !opportunity.credit;
-      return belongsToClient && (canSelectExistingCredit || isFree);
+      return belongsToClient && isGanada && (canSelectExistingCredit || isFree);
     });
   }, [opportunities, currentClientId, dialogCredit]);
 
@@ -415,7 +443,9 @@ export default function CreditsPage() {
       setOpportunities(data.map((o: any) => ({
         id: o.id,
         title: `${o.id} - ${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`,
-        lead_id: o.lead?.id
+        lead_id: o.lead?.id,
+        status: o.status,
+        credit: o.credit
       })));
     } catch (error) {
       console.error("Error fetching opportunities:", error);
@@ -431,13 +461,23 @@ export default function CreditsPage() {
     }
   }, []);
 
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await api.get('/api/products');
+      setProducts(response.data);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCredits();
     fetchClients();
     fetchOpportunities();
     fetchUsers();
     fetchDeductoras();
-  }, [fetchCredits, fetchClients, fetchOpportunities, fetchUsers, fetchDeductoras]);
+    fetchProducts();
+  }, [fetchCredits, fetchClients, fetchOpportunities, fetchUsers, fetchDeductoras, fetchProducts]);
 
   // Populate client objects on credits based on lead_id
   useEffect(() => {
@@ -450,6 +490,11 @@ export default function CreditsPage() {
       };
     }));
   }, [clients]);
+
+  // Reset page when filters or tab change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tabValue, filters]);
 
   const getCreditsForTab = useCallback(
     (value: string): CreditItem[] => {
@@ -493,12 +538,43 @@ export default function CreditsPage() {
     [credits, filters]
   );
 
-  const handleCreate = () => {
+  // Get paginated credits for the current tab
+  const getPaginatedCredits = useCallback(
+    (value: string) => {
+      const filtered = getCreditsForTab(value);
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedItems = filtered.slice(startIndex, endIndex);
+
+      return {
+        items: paginatedItems,
+        totalItems,
+        totalPages,
+        currentPage,
+        startIndex: startIndex + 1,
+        endIndex: Math.min(endIndex, totalItems),
+      };
+    },
+    [getCreditsForTab, currentPage, itemsPerPage]
+  );
+
+  const handleCreate = async () => {
+    // Obtener la siguiente referencia del backend
+    let nextReference = "";
+    try {
+      const refResponse = await api.get('/api/credits/next-reference');
+      nextReference = refResponse.data.reference;
+    } catch (err) {
+      console.error('Error al obtener referencia:', err);
+    }
+
     form.reset({
-      reference: "",
+      reference: nextReference,
       title: "",
       status: CREDIT_STATUS_OPTIONS[0],
-      category: CREDIT_CATEGORY_OPTIONS[0],
+      category: products.length > 0 ? products[0].name : "",
       monto_credito: 0,
       clientId: "",
       opportunityId: "",
@@ -756,81 +832,83 @@ export default function CreditsPage() {
           <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
           <p className="text-muted-foreground">Gestiona los créditos y sus documentos.</p>
         </div>
-        <div className="flex gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <Filter className="mr-2 h-4 w-4" />
-                Filtros
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80">
-              <div className="grid gap-4">
-                <div className="space-y-2">
+        <Button onClick={handleCreate}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nuevo Crédito
+        </Button>
+      </div>
 
-                  <h4 className="font-medium leading-none">Filtros</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Filtra los créditos por los siguientes criterios.
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-monto">Monto</Label>
-                    <Input
-                      id="filter-monto"
-                      className="col-span-2 h-8"
-                      value={filters.monto}
-                      onChange={(e) => setFilters({ ...filters, monto: e.target.value })}
-                      placeholder="Ej: 100000"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-op">No. Op.</Label>
-                    <Input
-                      id="filter-op"
-                      className="col-span-2 h-8"
-                      value={filters.numeroOperacion}
-                      onChange={(e) => setFilters({ ...filters, numeroOperacion: e.target.value })}
-                      placeholder="Ej: CRED-123"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-client">Cliente</Label>
-                    <Input
-                      id="filter-client"
-                      className="col-span-2 h-8"
-                      value={filters.leadName}
-                      onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
-                      placeholder="Nombre del cliente"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-doc">No. Doc.</Label>
-                    <Input
-                      id="filter-doc"
-                      className="col-span-2 h-8"
-                      value={filters.documentoId}
-                      onChange={(e) => setFilters({ ...filters, documentoId: e.target.value })}
-                      placeholder="ID Documento"
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "" })}
-                    className="mt-2"
-                  >
-                    Limpiar Filtros
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-          <Button onClick={handleCreate}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Nuevo Crédito
-          </Button>
+      {/* Filtros visibles */}
+      <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-monto" className="text-sm whitespace-nowrap">Monto:</Label>
+          <Input
+            id="filter-monto"
+            className="w-[140px] h-9"
+            value={filters.monto}
+            onChange={(e) => setFilters({ ...filters, monto: e.target.value })}
+            placeholder="Ej: 100000"
+          />
         </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-op" className="text-sm whitespace-nowrap">No. Op.:</Label>
+          <Input
+            id="filter-op"
+            className="w-[140px] h-9"
+            value={filters.numeroOperacion}
+            onChange={(e) => setFilters({ ...filters, numeroOperacion: e.target.value })}
+            placeholder="Ej: CRED-123"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-client" className="text-sm whitespace-nowrap">Cliente:</Label>
+          <Input
+            id="filter-client"
+            className="w-[180px] h-9"
+            value={filters.leadName}
+            onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
+            placeholder="Nombre del cliente"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-doc" className="text-sm whitespace-nowrap">No. Doc.:</Label>
+          <Input
+            id="filter-doc"
+            className="w-[140px] h-9"
+            value={filters.documentoId}
+            onChange={(e) => setFilters({ ...filters, documentoId: e.target.value })}
+            placeholder="ID Documento"
+          />
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <Label htmlFor="items-per-page" className="text-sm whitespace-nowrap">Mostrar:</Label>
+          <Select
+            value={String(itemsPerPage)}
+            onValueChange={(value) => {
+              setItemsPerPage(Number(value));
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger id="items-per-page" className="w-[80px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {(filters.monto || filters.numeroOperacion || filters.leadName || filters.documentoId) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "" })}
+          >
+            Limpiar Filtros
+          </Button>
+        )}
       </div>
 
       <Tabs value={tabValue} onValueChange={setTabValue}>
@@ -842,12 +920,14 @@ export default function CreditsPage() {
           ))}
         </TabsList>
 
-        {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+        {CREDIT_STATUS_TAB_CONFIG.map((tab) => {
+          const paginationData = getPaginatedCredits(tab.value);
+          return (
           <TabsContent key={tab.value} value={tab.value}>
             <Card>
-              <CardContent>
-                <DraggableScrollContainer className="overflow-x-auto select-none">
-                  <Table className="min-w-max">
+              <CardContent className="p-0">
+                <DraggableScrollContainer className="overflow-x-auto select-none p-6">
+                  <Table className="min-w-[1800px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Estado</TableHead>
@@ -870,7 +950,7 @@ export default function CreditsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getCreditsForTab(tab.value).map((credit) => {
+                      {paginationData.items.map((credit) => {
                         // --- LÓGICA CALCULADA EN FRONTEND ---
                         const pagosOrdenados = credit.plan_de_pagos?.length
                           ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
@@ -1012,10 +1092,82 @@ export default function CreditsPage() {
                     </TableBody>
                   </Table>
                 </DraggableScrollContainer>
+
+                {/* Pagination Controls */}
+                {paginationData.totalPages > 0 && (
+                  <div className="flex items-center justify-between px-6 py-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {paginationData.startIndex} a {paginationData.endIndex} de {paginationData.totalItems} registros
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        Primera
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+
+                      {/* Page numbers */}
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, paginationData.totalPages) }, (_, i) => {
+                          let pageNum: number;
+                          if (paginationData.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= paginationData.totalPages - 2) {
+                            pageNum = paginationData.totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="w-9"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, paginationData.totalPages))}
+                        disabled={currentPage === paginationData.totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(paginationData.totalPages)}
+                        disabled={currentPage === paginationData.totalPages}
+                      >
+                        Última
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
-        ))}
+        );
+        })}
       </Tabs>
 
       {/* Create/Edit Dialog */}
@@ -1054,7 +1206,7 @@ export default function CreditsPage() {
                           <FormItem>
                             <FormLabel>Referencia</FormLabel>
                             <FormControl>
-                              <Input placeholder="Ej: CRED-ABC12345" {...field} />
+                              <Input placeholder="Se genera automáticamente" {...field} disabled />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1064,7 +1216,7 @@ export default function CreditsPage() {
                         control={form.control}
                         name="clientId"
                         render={({ field }) => (
-                          <FormItem className="flex flex-col">
+                          <FormItem>
                             <FormLabel>Cliente</FormLabel>
                             <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                               <PopoverTrigger asChild>
@@ -1073,7 +1225,7 @@ export default function CreditsPage() {
                                     variant="outline"
                                     role="combobox"
                                     aria-expanded={openCombobox}
-                                    className="justify-between font-normal w-full"
+                                    className="justify-between font-normal w-full h-10"
                                   >
                                     {field.value
                                       ? clients.find((client) => String(client.id) === field.value)?.name
@@ -1181,7 +1333,15 @@ export default function CreditsPage() {
                           <FormItem>
                             <FormLabel>Monto Solicitado</FormLabel>
                             <FormControl>
-                              <Input type="number" step="0.01" min="0" placeholder="0.00" {...field} />
+                              <Input
+                                type="text"
+                                placeholder="₡0.00"
+                                value={field.value ? formatCurrency(field.value) : ''}
+                                onChange={(e) => {
+                                  const numericValue = parseCurrencyToNumber(e.target.value);
+                                  field.onChange(numericValue);
+                                }}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1194,7 +1354,21 @@ export default function CreditsPage() {
                           <FormItem>
                             <FormLabel>Plazo (Meses)</FormLabel>
                             <FormControl>
-                              <Input type="number" min="1" max="120" placeholder="Plazo en meses" {...field} />
+                              <Input
+                                type="number"
+                                min="1"
+                                max="120"
+                                placeholder="1 - 120"
+                                value={field.value}
+                                onChange={(e) => {
+                                  const valor = parseInt(e.target.value);
+                                  if (e.target.value === '') {
+                                    field.onChange(0);
+                                  } else if (!isNaN(valor) && valor >= 1 && valor <= 120) {
+                                    field.onChange(valor);
+                                  }
+                                }}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1254,7 +1428,7 @@ export default function CreditsPage() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {CREDIT_CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                {products.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -1267,17 +1441,17 @@ export default function CreditsPage() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>¿Tiene póliza?</FormLabel>
-                            <div className="flex items-center space-x-2 pt-2">
-                              <FormControl>
+                            <FormControl>
+                              <div className="flex items-center space-x-2 h-10 px-3 border rounded-md">
                                 <Switch
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
                                 />
-                              </FormControl>
-                              <FormLabel className="font-normal cursor-pointer">
-                                {field.value ? "Sí" : "No"}
-                              </FormLabel>
-                            </div>
+                                <span className="text-sm text-muted-foreground">
+                                  {field.value ? "Sí posee póliza" : "No posee póliza"}
+                                </span>
+                              </div>
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1731,65 +1905,67 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
 }
 
 function DraggableScrollContainer({ children, className }: { children: React.ReactNode, className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isGrabbing, setIsGrabbing] = useState(false);
+  const dragState = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
 
-  useLayoutEffect(() => {
-    const slider = ref.current;
-    if (!slider) return;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    let isDown = false;
-    let startX = 0;
-    let scrollLeft = 0;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, input, select, textarea, [role="button"], [role="menuitem"], svg')) {
+        return;
+      }
 
-    const onMouseDown = (e: MouseEvent) => {
-      isDown = true;
-      slider.classList.add("active");
-      slider.style.cursor = "grabbing";
-      startX = e.pageX - slider.offsetLeft;
-      scrollLeft = slider.scrollLeft;
+      dragState.current = {
+        isDown: true,
+        startX: e.clientX,
+        scrollLeft: container.scrollLeft,
+      };
+      setIsGrabbing(true);
+      container.setPointerCapture(e.pointerId);
     };
 
-    const onMouseLeave = () => {
-      isDown = false;
-      slider.classList.remove("active");
-      slider.style.cursor = "grab";
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!dragState.current.isDown) return;
+
+      const deltaX = e.clientX - dragState.current.startX;
+      container.scrollLeft = dragState.current.scrollLeft - deltaX;
     };
 
-    const onMouseUp = () => {
-      isDown = false;
-      slider.classList.remove("active");
-      slider.style.cursor = "grab";
+    const handlePointerUp = (e: PointerEvent) => {
+      if (dragState.current.isDown) {
+        dragState.current.isDown = false;
+        setIsGrabbing(false);
+        container.releasePointerCapture(e.pointerId);
+      }
     };
 
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDown) return;
-      e.preventDefault();
-      const x = e.pageX - slider.offsetLeft;
-      const walk = (x - startX) * 2; // Scroll-fast
-      slider.scrollLeft = scrollLeft - walk;
-    };
-
-    slider.addEventListener("mousedown", onMouseDown);
-    slider.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-
-    slider.addEventListener("mouseleave", onMouseLeave);
-    slider.addEventListener("mouseup", onMouseUp);
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('pointercancel', handlePointerUp);
 
     return () => {
-      slider.removeEventListener("mousedown", onMouseDown);
-      slider.removeEventListener("mousemove", onMouseMove);
-      slider.removeEventListener("mouseleave", onMouseLeave);
-      slider.removeEventListener("mouseup", onMouseUp);
-      window.removeEventListener("mouseup", onMouseUp);
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('pointercancel', handlePointerUp);
     };
   }, []);
 
   return (
     <div
-      ref={ref}
+      ref={containerRef}
       className={className}
-      style={{ scrollbarWidth: 'thin', cursor: 'grab' }}
+      style={{
+        cursor: isGrabbing ? 'grabbing' : 'grab',
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        touchAction: 'pan-y',
+      }}
     >
       {children}
     </div>

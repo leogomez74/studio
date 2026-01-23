@@ -61,12 +61,15 @@ Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit'])
 Route::apiResource('clients', ClientController::class);
 Route::post('/opportunities/{id}/move-files', [OpportunityController::class, 'moveFiles']);
 Route::get('/opportunities/{id}/files', [OpportunityController::class, 'getFiles']);
+Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadFile']);
+Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile']);
 Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
 
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
 
 // Créditos
+Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
 Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
 Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
 Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos']);
@@ -91,6 +94,7 @@ Route::get('/person-documents', [PersonDocumentController::class, 'index']);
 Route::post('/person-documents', [PersonDocumentController::class, 'store']);
 Route::delete('/person-documents/{id}', [PersonDocumentController::class, 'destroy']);
 Route::get('/person-documents/check-cedula-folder', [PersonDocumentController::class, 'checkCedulaFolder']);
+Route::post('/person-documents/sync-to-opportunity', [PersonDocumentController::class, 'syncToOpportunity']);
 
 // Pagos de Crédito
 Route::apiResource('credit-payments', CreditPaymentController::class);
@@ -105,7 +109,13 @@ Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::cl
 Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
 
 // Analisis CRUD
+Route::get('analisis/next-reference', [\App\Http\Controllers\Api\AnalisisController::class, 'nextReference']);
 Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
+
+// Analisis - Archivos
+Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
+Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
+Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
 
 // KPIs
 Route::prefix('kpis')->group(function () {
