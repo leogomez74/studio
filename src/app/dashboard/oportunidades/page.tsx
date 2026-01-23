@@ -655,13 +655,13 @@ export default function DealsPage() {
   const getAnalisisButtonProps = (opportunity: Opportunity) => {
     // Check if opportunity already has an analysis based on status or a flag
     const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis;
-    const isGanada = opportunity.status === 'Ganada';
+    const isAnalizada = opportunity.status === 'Analizada';
 
     if (hasAnalysis) {
       return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" />, disabled: false };
     }
-    if (!isGanada) {
-      return { label: "Solo oportunidades ganadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
+    if (!isAnalizada) {
+      return { label: "Solo oportunidades analizadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
     }
     return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
   };
@@ -707,7 +707,7 @@ export default function DealsPage() {
     switch (column) {
       case "reference": return opportunity.id ?? 0;
       case "lead": return (opportunity.lead?.name || opportunity.lead?.email || "").toString().toLowerCase();
-      case "status": return (opportunity.status ?? "Abierta").toLowerCase();
+      case "status": return (opportunity.status ?? "Pendiente").toLowerCase();
       case "type": return (opportunity.opportunity_type ?? "").toLowerCase();
       case "amount": return resolveEstimatedOpportunityAmount(opportunity.amount) ?? 0;
       case "expected_close_date": return opportunity.expected_close_date ? new Date(opportunity.expected_close_date).getTime() : 0;
@@ -777,7 +777,7 @@ export default function DealsPage() {
         formatOpportunityReference(opportunity.id),
         opportunity.lead?.name ?? "Lead desconocido",
         opportunity.lead?.email ?? "Sin correo",
-        opportunity.status ?? "Abierta",
+        opportunity.status ?? "Pendiente",
         opportunity.opportunity_type ?? "Sin tipo",
         formatAmountForExport(opportunity.amount),
         formatDate(opportunity.expected_close_date),
@@ -799,7 +799,7 @@ export default function DealsPage() {
       formatOpportunityReference(opportunity.id),
       opportunity.lead?.name ?? "Lead desconocido",
       opportunity.lead?.email ?? "Sin correo",
-      opportunity.status ?? "Abierta",
+      opportunity.status ?? "Pendiente",
       opportunity.opportunity_type ?? "Sin tipo",
       formatAmountForExport(opportunity.amount),
       opportunity.expected_close_date ?? "",
@@ -836,7 +836,7 @@ export default function DealsPage() {
         formatOpportunityReference(opportunity.id),
         opportunity.lead?.name ?? "Lead desconocido",
         opportunity.lead?.email ?? "Sin correo",
-        opportunity.status ?? "Abierta",
+        opportunity.status ?? "Pendiente",
         opportunity.opportunity_type ?? "Sin tipo",
         formatAmountForExport(opportunity.amount),
         formatDate(opportunity.expected_close_date),
@@ -1048,7 +1048,7 @@ export default function DealsPage() {
                             <span className="text-xs text-muted-foreground">{opportunity.lead?.email || "-"}</span>
                         </div>
                     </TableCell>
-                    <TableCell><Badge variant="default" className="bg-slate-900 hover:bg-slate-800">{opportunity.status || "Abierta"}</Badge></TableCell>
+                    <TableCell><Badge variant="default" className="bg-slate-900 hover:bg-slate-800">{opportunity.status || "Pendiente"}</Badge></TableCell>
                     <TableCell>{opportunity.opportunity_type || "-"}</TableCell>
                     <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
                     <TableCell className="hidden md:table-cell">{formatDate(opportunity.expected_close_date)}</TableCell>

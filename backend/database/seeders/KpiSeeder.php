@@ -266,17 +266,17 @@ class KpiSeeder extends Seeder
 
             // Determine status based on time passed
             $daysSinceCreation = $createdAt->diffInDays($now);
-            $status = 'Abierta';
+            $status = 'Pendiente';
 
             if ($daysSinceCreation > 60) {
-                $status = rand(1, 100) <= 55 ? 'Ganada' : 'Perdida';
+                $status = rand(1, 100) <= 55 ? 'Analizada' : 'Perdida';
             } elseif ($daysSinceCreation > 30) {
                 $statusRand = rand(1, 100);
-                if ($statusRand <= 40) $status = 'Ganada';
+                if ($statusRand <= 40) $status = 'Analizada';
                 elseif ($statusRand <= 60) $status = 'Perdida';
                 else $status = 'En seguimiento';
             } elseif ($daysSinceCreation > 14) {
-                $status = rand(1, 100) <= 50 ? 'En seguimiento' : 'Abierta';
+                $status = rand(1, 100) <= 50 ? 'En seguimiento' : 'Pendiente';
             }
 
             $amount = rand(5, 100) * 100000;
@@ -294,7 +294,7 @@ class KpiSeeder extends Seeder
                 'assigned_to_id' => $this->users[array_rand($this->users)]->id,
                 'expected_close_date' => $createdAt->copy()->addDays(rand(30, 90)),
                 'created_at' => $createdAt,
-                'updated_at' => $status !== 'Abierta' ? $createdAt->copy()->addDays(rand(7, 45)) : $createdAt,
+                'updated_at' => $status !== 'Pendiente' ? $createdAt->copy()->addDays(rand(7, 45)) : $createdAt,
             ];
         }
 
@@ -320,7 +320,7 @@ class KpiSeeder extends Seeder
         // Get won opportunities that don't have credits yet
         $existingOpportunityIds = Credit::whereNotNull('opportunity_id')->pluck('opportunity_id')->toArray();
 
-        $wonOpportunities = Opportunity::where('status', 'Ganada')
+        $wonOpportunities = Opportunity::where('status', 'Analizada')
             ->whereNotIn('id', $existingOpportunityIds)
             ->whereNotNull('lead_cedula')
             ->get();

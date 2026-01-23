@@ -119,7 +119,7 @@ class OpportunityController extends Controller
         ]);
 
         // Valores por defecto
-        $validated['status'] = $validated['status'] ?? 'Nueva';
+        $validated['status'] = $validated['status'] ?? 'Pendiente';
 
         // Auto-mapear vertical desde institucion_labora del lead
         if ((empty($validated['vertical']) || $validated['vertical'] === 'General') && $lead && !empty($lead->institucion_labora)) {
@@ -197,9 +197,9 @@ class OpportunityController extends Controller
      * @return \Illuminate\Http\JsonResponse
      *
      * Ejemplos de uso:
-     * - Por ID: { "id": "25-00001-OP", "status": "Ganada" }
+     * - Por ID: { "id": "25-00001-OP", "status": "Analizada" }
      * - Por filtro: { "filter": { "lead_cedula": "1-2345-6789" }, "status": "Perdida" }
-     * - Por status actual: { "filter": { "current_status": "Nueva" }, "status": "En Proceso" }
+     * - Por status actual: { "filter": { "current_status": "Pendiente" }, "status": "En seguimiento" }
      */
     public function updateStatus(Request $request)
     {
