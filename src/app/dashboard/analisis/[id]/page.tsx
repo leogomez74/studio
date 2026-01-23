@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderOpen, FolderInput } from 'lucide-react';
+import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput } from 'lucide-react';
 import api from '@/lib/axios';
 import { Lead } from '@/lib/data';
 import {
@@ -51,9 +51,8 @@ export default function AnalisisDetailPage() {
 
   const [activeTab, setActiveTab] = useState('resumen');
 
-  // Estados para archivos del filesystem (heredados/específicos)
+  // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
-  const [especificos, setEspecificos] = useState<AnalisisFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
 
   // Verificación manual de documentos (key: requirement name, value: boolean)
@@ -91,13 +90,14 @@ export default function AnalisisDetailPage() {
     }
   }, [analisisId]);
 
-  // Cargar archivos del filesystem (heredados/específicos)
+  // Cargar archivos del filesystem
   const fetchAnalisisFiles = async () => {
     try {
       setLoadingFiles(true);
       const res = await api.get(`/api/analisis/${analisisId}/files`);
-      setHeredados(res.data.heredados || []);
-      setEspecificos(res.data.especificos || []);
+      // Combinar heredados y específicos en una sola lista
+      const allFiles = [...(res.data.heredados || []), ...(res.data.especificos || [])];
+      setHeredados(allFiles);
     } catch (error) {
       console.error('Error fetching analisis files:', error);
     } finally {
@@ -157,8 +157,7 @@ export default function AnalisisDetailPage() {
   const lead = analisis.lead;
 
   // Verificar si un requisito está cumplido (auto o manual)
-  // Combina archivos heredados y específicos del análisis
-  const allFiles = [...heredados, ...especificos];
+  const allFiles = heredados;
 
   const isRequirementFulfilled = (req: Requirement): { fulfilled: boolean; autoMatch: boolean; matchedFiles: AnalisisFile[] } => {
     // Buscar archivos que coincidan por nombre y extensión
@@ -423,21 +422,21 @@ export default function AnalisisDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Archivos Heredados (de la Oportunidad) */}
+              {/* Documentos del Análisis */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <FolderInput className="h-4 w-4 text-blue-500" />
-                    Heredados de Oportunidad
+                    Documentos
                     <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground">Documentos copiados de la oportunidad</p>
+                  <p className="text-xs text-muted-foreground">Archivos asociados al análisis</p>
                 </CardHeader>
-                <CardContent className="space-y-2 max-h-[250px] overflow-y-auto">
+                <CardContent className="space-y-2 max-h-[300px] overflow-y-auto">
                   {loadingFiles ? (
                     <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
                   ) : heredados.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Sin archivos heredados</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">Sin documentos</p>
                   ) : (
                     heredados.map((file) => {
                       const { icon: FileIcon, color } = getFileTypeInfo(file.name);
@@ -462,47 +461,6 @@ export default function AnalisisDetailPage() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Columna derecha: Específicos del Análisis (altura completa) */}
-            <Card className="h-full flex flex-col">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-green-500" />
-                  Específicos del Análisis
-                  <Badge variant="secondary" className="ml-auto">{especificos.length}</Badge>
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Documentos subidos directamente aquí</p>
-              </CardHeader>
-              <CardContent className="space-y-2 flex-1 flex flex-col">
-                <div className="flex-1 overflow-y-auto space-y-2">
-                  {loadingFiles ? (
-                    <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-                  ) : especificos.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Sin archivos específicos</p>
-                  ) : (
-                    especificos.map((file) => {
-                      const { icon: FileIcon, color } = getFileTypeInfo(file.name);
-                      return (
-                        <div key={file.path} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50">
-                          <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                          <div className="min-w-0 flex-1">
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-medium hover:underline truncate block"
-                            >
-                              {file.name}
-                            </a>
-                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
       </Tabs>
