@@ -78,8 +78,11 @@ class QuestionnaireController extends Controller
                 ], 400);
             }
 
-            // Create storage directory for this cedula
-            $storagePath = "leads/{$cedula}";
+            // Limpiar cédula (remover guiones y espacios)
+            $strippedCedula = preg_replace('/[^0-9]/', '', $cedula);
+
+            // Crear directorio en la estructura unificada: documentos/{cedula}/buzon/
+            $storagePath = "documentos/{$strippedCedula}/buzon";
 
             // Save cedula file
             $cedulaFile = $request->file('cedula_file');
@@ -187,14 +190,40 @@ class QuestionnaireController extends Controller
             // Actualizar oportunidades existentes con los nuevos datos del cuestionario
             $this->updateOpportunitiesFromLead($lead);
 
+            // Sincronizar archivos a oportunidades existentes
+            $syncResult = $this->syncFilesToOpportunities($lead, $strippedCedula);
+
             Log::info("Questionnaire submitted for lead: {$cedula}", [
                 'lead_id' => $lead->id,
                 'files' => [$cedulaPath, $reciboPath],
-                'data' => $questionnaireData
+                'data' => $questionnaireData,
+                'synced_to_opportunities' => $syncResult
             ]);
 
+            // Determinar elegibilidad basada en salario para créditos (solo para sector público)
+            $salarioExacto = isset($questionnaireData['salario_exacto'])
+                ? (float) $questionnaireData['salario_exacto']
+                : 0;
+            $interes = $questionnaireData['interes'] ?? '';
+            $sector = $lead->sector ?? '';
+
+            $elegibleCredito = true; // Por defecto elegible
+            $responseMessage = '¡Registro completado satisfactoriamente! Nuestro equipo revisará tu solicitud y se pondrá en contacto contigo pronto.';
+            $responseType = 'success';
+
+            // Validación de salario mínimo solo para sector público
+            if ($sector === 'publico' && ($interes === 'credito' || $interes === 'ambos')) {
+                $elegibleCredito = $salarioExacto >= 300000;
+                if (!$elegibleCredito) {
+                    $responseMessage = 'Lamentamos informarle que actualmente no contamos con créditos para clientes del sector público cuyo salario sea menor a ₡300,000. Sin embargo, puede optar por nuestros servicios legales (divorcios, notariado, testamentos, etc.).';
+                    $responseType = 'info';
+                }
+            }
+
             return response()->json([
-                'message' => 'Cuestionario enviado exitosamente.',
+                'message' => $responseMessage,
+                'type' => $responseType,
+                'elegible_credito' => $elegibleCredito,
                 'lead_id' => $lead->id,
                 'files' => [
                     'cedula' => Storage::url($cedulaPath),
@@ -340,5 +369,72 @@ class QuestionnaireController extends Controller
         }
 
         return 0;
+    }
+
+    /**
+     * Sincronizar archivos del buzón del lead a todas sus oportunidades existentes.
+     *
+     * @param Lead $lead
+     * @param string $strippedCedula
+     * @return array
+     */
+    private function syncFilesToOpportunities($lead, string $strippedCedula): array
+    {
+        // Buscar oportunidades del lead
+        $opportunities = \App\Models\Opportunity::where('lead_cedula', $lead->cedula)
+            ->orWhere('lead_cedula', $strippedCedula)
+            ->get();
+
+        if ($opportunities->isEmpty()) {
+            return ['count' => 0, 'opportunities' => []];
+        }
+
+        $sourceFolder = "documentos/{$strippedCedula}/buzon";
+        $synced = [];
+
+        foreach ($opportunities as $opportunity) {
+            $targetFolder = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
+
+            try {
+                // Crear carpeta destino si no existe
+                if (!Storage::disk('public')->exists($targetFolder)) {
+                    Storage::disk('public')->makeDirectory($targetFolder);
+                }
+
+                // Obtener archivos del buzón
+                if (!Storage::disk('public')->exists($sourceFolder)) {
+                    continue;
+                }
+
+                $files = Storage::disk('public')->files($sourceFolder);
+
+                foreach ($files as $file) {
+                    $fileName = basename($file);
+                    $targetPath = "{$targetFolder}/{$fileName}";
+
+                    // Skip si ya existe
+                    if (Storage::disk('public')->exists($targetPath)) {
+                        continue;
+                    }
+
+                    // Copiar archivo
+                    Storage::disk('public')->copy($file, $targetPath);
+                }
+
+                $synced[] = $opportunity->id;
+
+                Log::info("Archivos sincronizados a oportunidad desde cuestionario", [
+                    'opportunity_id' => $opportunity->id,
+                    'lead_cedula' => $lead->cedula
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Error sincronizando archivos a oportunidad", [
+                    'opportunity_id' => $opportunity->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return ['count' => count($synced), 'opportunities' => $synced];
     }
 }

@@ -28,7 +28,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/axios";
-import { type Lead, OPPORTUNITY_STATUSES, VERTICAL_OPTIONS, OPPORTUNITY_TYPES } from "@/lib/data";
+import { type Lead, OPPORTUNITY_STATUSES, VERTICAL_OPTIONS } from "@/lib/data";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -49,14 +49,21 @@ interface CreateOpportunityDialogProps {
   defaultLeadId?: string;
 }
 
+type Product = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+};
+
 const createOpportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
   vertical: z.enum(VERTICAL_OPTIONS, {
     errorMap: () => ({ message: "Vertical no válida" })
   }),
-  opportunityType: z.enum(OPPORTUNITY_TYPES, {
-    errorMap: () => ({ message: "Tipo de oportunidad no válido" })
-  }),
+  opportunityType: z.string().min(1, "Debes seleccionar un tipo"),
   status: z.enum(OPPORTUNITY_STATUSES, {
     errorMap: () => ({ message: "Estado no válido" })
   }),
@@ -75,7 +82,7 @@ type CreateOpportunityFormValues = z.infer<typeof createOpportunitySchema>;
 type CreateOpportunityPayload = {
   lead_cedula: string;
   vertical: (typeof VERTICAL_OPTIONS)[number];
-  opportunity_type: (typeof OPPORTUNITY_TYPES)[number];
+  opportunity_type: string;
   status: (typeof OPPORTUNITY_STATUSES)[number];
   amount: number;
   expected_close_date: string | null;
@@ -94,9 +101,13 @@ export function CreateOpportunityDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
   const [checkingDocs, setCheckingDocs] = useState(false);
-  
+
   // Nuevo estado para la subida de archivos
   const [isUploading, setIsUploading] = useState(false);
+
+  // Estado para productos
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
@@ -107,13 +118,34 @@ export function CreateOpportunityDialog({
     defaultValues: {
       leadId: defaultLeadId || "",
       vertical: VERTICAL_OPTIONS[0],
-      opportunityType: OPPORTUNITY_TYPES[0],
+      opportunityType: "",
       status: OPPORTUNITY_STATUSES[0],
       amount: 0,
       expectedCloseDate: "",
       comments: "",
     },
   });
+
+  // Cargar productos al montar el componente
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await api.get('/api/products');
+        setProducts(response.data);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los tipos de oportunidad.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, [toast]);
 
   // Detectar si es lead o cliente por props
   const isLeadSelectionDisabled = !!defaultLeadId;
@@ -124,7 +156,7 @@ export function CreateOpportunityDialog({
       form.reset({
         leadId: defaultLeadId || (leads.length > 0 ? String(leads[0].id) : ""),
         vertical: VERTICAL_OPTIONS[0],
-        opportunityType: OPPORTUNITY_TYPES[0],
+        opportunityType: products.length > 0 ? products[0].name : "",
         status: OPPORTUNITY_STATUSES[0],
         amount: 0,
         expectedCloseDate: "",
@@ -134,7 +166,7 @@ export function CreateOpportunityDialog({
       setHasDocuments(false);
       setIsUploading(false);
     }
-  }, [open, defaultLeadId, leads, form]);
+  }, [open, defaultLeadId, leads, products, form]);
 
   const currentLeadId = form.watch("leadId");
 
@@ -312,7 +344,7 @@ export function CreateOpportunityDialog({
                 name="vertical"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vertical</FormLabel>
+                    <FormLabel>Institución</FormLabel>
                     <Popover open={openVertical} onOpenChange={setOpenVertical} modal={true}>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -324,16 +356,16 @@ export function CreateOpportunityDialog({
                           >
                             {field.value
                               ? VERTICAL_OPTIONS.find((v) => v === field.value)
-                              : "Seleccionar vertical..."}
+                              : "Seleccionar institución..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-[400px] p-0 z-[200]">
                         <div className="p-2 border-b">
-                            <Input 
-                                placeholder="Buscar vertical..." 
-                                value={searchVertical} 
+                            <Input
+                                placeholder="Buscar institución..."
+                                value={searchVertical}
                                 onChange={(e) => setSearchVertical(e.target.value)}
                                 className="h-8"
                             />
@@ -374,12 +406,20 @@ export function CreateOpportunityDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={loadingProducts}>
                       <FormControl>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={loadingProducts ? "Cargando..." : "Seleccionar tipo..."} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                          {OPPORTUNITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        {loadingProducts ? (
+                          <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                        ) : (
+                          products.map(product => (
+                            <SelectItem key={product.id} value={product.name}>
+                              {product.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />

@@ -460,8 +460,15 @@
             };
         }
 
-        function showSuccessDialog() {
-            document.getElementById('successDialog').classList.remove('hidden');
+        function showSuccessDialog(message) {
+            const dialog = document.getElementById('successDialog');
+            const messageElement = dialog.querySelector('.text-muted-foreground');
+            if (messageElement && message) {
+                messageElement.textContent = message;
+            }
+            const button = dialog.querySelector('button');
+            button.onclick = () => window.location.reload();
+            dialog.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
 
@@ -658,8 +665,8 @@
                     });
 
                     if (response.ok) {
-                        showAlert('Respuestas guardadas. Pronto te contactaremos.', 'success');
-                        showSuccessDialog();
+                        const result = await response.json();
+                        showSuccessDialog(result.message || '¡Registro completado satisfactoriamente!');
                     } else {
                         const error = await response.json();
                         showAlert(error.message || 'Error al enviar el formulario.', 'error');

@@ -7,9 +7,29 @@ use App\Models\Opportunity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
-
+use App\Models\Lead;
+use App\Models\Person;
 class OpportunityController extends Controller
 {
+    /**
+     * Limpiar cédula removiendo caracteres no numéricos.
+     */
+    private function cleanCedula(?string $cedula): string
+    {
+        return preg_replace('/[^0-9]/', '', $cedula ?? '');
+    }
+
+    /**
+     * Obtener la cédula limpia de una oportunidad o null si no existe.
+     */
+    private function getCleanCedulaFromOpportunity(Opportunity $opportunity): ?string
+    {
+        if (empty($opportunity->lead_cedula)) {
+            return null;
+        }
+        return $this->cleanCedula($opportunity->lead_cedula);
+    }
+
     public function index(Request $request)
     {
         $query = Opportunity::query()
@@ -86,10 +106,10 @@ class OpportunityController extends Controller
         ]);
 
         // Buscar el lead para obtener los datos del cuestionario
-        $lead = \App\Models\Lead::where('cedula', $validated['lead_cedula'])->first();
+        $lead = Lead::where('cedula', $validated['lead_cedula'])->first();
 
         // DEBUG LOG
-        \Log::info('=== OPPORTUNITY CREATE DEBUG ===', [
+        Log::info('=== OPPORTUNITY CREATE DEBUG ===', [
             'opportunity_type_recibido' => $validated['opportunity_type'] ?? 'NO EXISTE',
             'vertical_recibido' => $validated['vertical'] ?? 'NO EXISTE',
             'amount_recibido' => $validated['amount'] ?? 'NO EXISTE',
@@ -297,11 +317,18 @@ class OpportunityController extends Controller
             return ['success' => false, 'message' => 'Cédula vacía'];
         }
 
-        // Buscar la Persona (Lead/Cliente) por cédula (con guiones)
-        $person = \App\Models\Person::where('cedula', $cedula)->first();
+        $strippedCedula = $this->cleanCedula($cedula);
+
+        // Buscar la Persona (Lead/Cliente) por cédula (con o sin guiones)
+        $person = Person::where('cedula', $cedula)
+            ->orWhere('cedula', $strippedCedula)
+            ->first();
 
         if (!$person) {
-            Log::info('Persona no encontrada para copiar archivos', ['cedula' => $cedula]);
+            Log::info('Persona no encontrada para copiar archivos', [
+                'cedula' => $cedula,
+                'stripped_cedula' => $strippedCedula
+            ]);
             return ['success' => true, 'message' => 'Persona no encontrada', 'files' => []];
         }
 
@@ -313,7 +340,7 @@ class OpportunityController extends Controller
         }
 
         // Limpiar cédula solo para el nombre de la carpeta (sin guiones)
-        $cedulaLimpia = preg_replace('/[^0-9]/', '', $cedula);
+        $cedulaLimpia = $this->cleanCedula($cedula);
         // Usar subcarpeta 'heredados' para archivos copiados del lead
         $heredadosFolder = "documentos/{$cedulaLimpia}/{$opportunityId}/heredados";
         $copiedFiles = [];
@@ -433,7 +460,7 @@ class OpportunityController extends Controller
             ]);
         }
 
-        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $cedula = $this->getCleanCedulaFromOpportunity($opportunity);
         $baseFolder = "documentos/{$cedula}/{$opportunity->id}";
         $heredadosFolder = "{$baseFolder}/heredados";
         $especificosFolder = "{$baseFolder}/especificos";
@@ -473,7 +500,7 @@ class OpportunityController extends Controller
             ], 422);
         }
 
-        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $cedula = $this->getCleanCedulaFromOpportunity($opportunity);
         $especificosFolder = "documentos/{$cedula}/{$opportunity->id}/especificos";
 
         try {
@@ -527,7 +554,7 @@ class OpportunityController extends Controller
             ], 422);
         }
 
-        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $cedula = $this->getCleanCedulaFromOpportunity($opportunity);
         $baseFolder = "documentos/{$cedula}/{$opportunity->id}";
 
         // Buscar en ambas carpetas
@@ -586,7 +613,7 @@ class OpportunityController extends Controller
      * @param \App\Models\Lead $lead
      * @return string
      */
-    private function determineOpportunityType(\App\Models\Lead $lead): string
+    private function determineOpportunityType(Lead $lead): string
     {
         $interes = $lead->interes;
         $tipoCreditoValue = $lead->tipo_credito;

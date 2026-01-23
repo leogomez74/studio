@@ -933,8 +933,29 @@
             return data;
         }
 
-        function showSuccessDialog() {
-            document.getElementById('successDialog').classList.remove('hidden');
+        function showSuccessDialog(message, elegibleCredito) {
+            const dialog = document.getElementById('successDialog');
+            const dialogContent = dialog.querySelector('.relative.bg-card');
+
+            const iconBg = elegibleCredito ? 'bg-green-100' : 'bg-yellow-100';
+            const iconColor = elegibleCredito ? 'text-green-600' : 'text-yellow-600';
+            const title = elegibleCredito ? '¡Listo!' : 'Información Importante';
+
+            dialogContent.innerHTML = `
+                <div class="w-16 h-16 ${iconBg} rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 ${iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        ${elegibleCredito
+                            ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>'
+                            : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+                        }
+                    </svg>
+                </div>
+                <h2 class="text-xl font-headline font-bold text-foreground mb-2">${title}</h2>
+                <p class="text-muted-foreground mb-6">${message}</p>
+                <button onclick="window.location.reload()" class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">Entendido</button>
+            `;
+
+            dialog.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
 
@@ -1185,8 +1206,8 @@
                     });
 
                     if (response.ok) {
-                        showAlert('Respuestas guardadas. Pronto te contactaremos.', 'success');
-                        showSuccessDialog();
+                        const result = await response.json();
+                        showSuccessDialog(result.message, result.elegible_credito);
                     } else {
                         const error = await response.json();
                         showAlert(error.message || 'Error al enviar el formulario.', 'error');

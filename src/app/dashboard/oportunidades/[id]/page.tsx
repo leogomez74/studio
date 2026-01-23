@@ -313,7 +313,7 @@ export default function OpportunityDetailPage() {
                         <p className="text-sm font-medium text-slate-900">{opportunity.lead_cedula}</p>
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground uppercase mb-1">VERTICAL</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase mb-1">INSTITUCIÓN</p>
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-0">
                           {opportunity.vertical}
                         </Badge>
