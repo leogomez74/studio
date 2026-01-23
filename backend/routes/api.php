@@ -77,8 +77,8 @@ Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController
 Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
 Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
 
-// Deductoras
-Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class);
+// Deductoras (solo lectura - datos hardcodeados en config/deductoras.php)
+Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show']);
 
 // Configuración de Préstamos
 Route::prefix('loan-configurations')->group(function () {

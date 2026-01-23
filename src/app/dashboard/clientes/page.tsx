@@ -13,10 +13,8 @@ import {
   Pencil,
   PlusCircle,
   Sparkles,
-  UserCheck,
   Loader2,
   Trash,
-  Upload,
   X,
   Search
 } from "lucide-react";
@@ -1043,134 +1041,6 @@ type LeadsTableProps = {
 
 function LeadsTable({ data, onAction }: LeadsTableProps) {
   const { toast } = useToast();
-  const [uploadDialogOpen, setUploadDialogOpen] = useState<string | null>(null);
- /* const [constanciaFile, setConstanciaFile] = useState<File | null>(null);*/
-  const [multiFiles, setMultiFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  
-  // Estados para validación de duplicados
-  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
-  const [currentLeadCedula, setCurrentLeadCedula] = useState<string | null>(null);
-
-  const handleOpenUploadDialog = async (leadId: string, leadCedula?: string) => {
-    // Verificar si el lead tiene cédula
-    if (!leadCedula) {
-      toast({
-        title: "Error", 
-        description: "El lead no tiene cédula registrada. No se puede subir archivos.", 
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setCheckingDuplicate(true);
-    try {
-      // Verificar si ya existe carpeta con archivos para esta cédula
-      const checkRes = await api.get('/api/person-documents/check-cedula-folder', {
-        params: { cedula: leadCedula }
-      });
-
-      if (checkRes.data?.exists) { // Updated to check 'exists' which covers DB records
-        toast({
-          title: "Archivos ya existen", 
-          description: `Ya existen archivos para la cédula ${leadCedula}. No se permiten duplicados.`, 
-          variant: "destructive"
-        });
-        setCheckingDuplicate(false);
-        return;
-      }
-
-      // Si no hay duplicados, abrir el diálogo
-      setCurrentLeadCedula(leadCedula);
-      setUploadDialogOpen(leadId);
-      //setConstanciaFile(null);
-      setMultiFiles([]);
-      
-    } catch (error) {
-      console.error('Error verificando duplicados:', error);
-      // Si falla la verificación, permitir continuar (el backend validará de nuevo)
-      setCurrentLeadCedula(leadCedula);
-      setUploadDialogOpen(leadId);
-     // setConstanciaFile(null);
-      setMultiFiles([]);
-    } finally {
-      setCheckingDuplicate(false);
-    }
-  };
-
-  /*const handleConstanciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!['application/pdf', 'text/html'].includes(file.type) && !file.name.endsWith('.pdf') && !file.name.endsWith('.html')) {
-      toast({ title: "Archivo inválido", description: "Solo se permiten archivos PDF o HTML.", variant: "destructive" });
-      return;
-    }
-    setConstanciaFile(file);
-  };*/
-
-  const handleMultiFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const validFiles = files.filter(file =>
-      (['application/pdf', 'text/html'].includes(file.type) || file.name.endsWith('.pdf') || file.name.endsWith('.html'))
-    );
-    if (validFiles.length !== files.length) {
-      toast({ title: "Algunos archivos no son válidos", description: "Solo se permiten archivos PDF o HTML.", variant: "destructive" });
-    }
-    setMultiFiles(validFiles);
-  };
-
-  const handleUpload = async () => {
-    if (!uploadDialogOpen) return;
-    setUploading(true);
-    try {
-      
-      // Subir archivos obligatorios
-      if (multiFiles.length > 0) {
-        for (const file of multiFiles) {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('person_id', uploadDialogOpen); // Added person_id
-          await api.post('/api/person-documents', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-        }
-      }
-
-      toast({ title: "Archivos subidos", description: "Los archivos se subieron correctamente." });
-      setUploadDialogOpen(null);
-      setCurrentLeadCedula(null);
-    } catch (err: any) {
-      // Map HTTP error codes to user-friendly messages
-      const errorStatus = err.response?.status;
-      let userMessage = "Error al subir los archivos. Intente nuevamente.";
-
-      if (errorStatus === 409) {
-        toast({
-          title: "Ya existen archivos",
-          description: err.response?.data?.message || "No se permiten duplicados para esta cédula.",
-          variant: "destructive"
-        });
-        setUploadDialogOpen(null);
-        setCurrentLeadCedula(null);
-        return;
-      } else if (errorStatus === 413) {
-        userMessage = "El archivo es demasiado grande. El tamaño máximo permitido es 10MB.";
-      } else if (errorStatus === 415) {
-        userMessage = "Tipo de archivo no permitido. Solo se aceptan PDF y HTML.";
-      } else if (errorStatus === 401 || errorStatus === 403) {
-        userMessage = "No tiene permisos para subir archivos.";
-      } else if (errorStatus === 500) {
-        userMessage = "Error en el servidor. Contacte al administrador.";
-      } else if (!navigator.onLine) {
-        userMessage = "Sin conexión a internet. Verifique su conexión.";
-      }
-
-      toast({ title: "Error", description: userMessage, variant: "destructive" });
-      console.error("Upload error:", err);
-    } finally {
-      setUploading(false);
-    }
-  };
 
   if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
 
@@ -1218,39 +1088,13 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                   <div className="flex flex-wrap justify-end gap-2">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button 
-                          size="icon" 
-                          onClick={() => handleOpenUploadDialog(String(lead.id), lead.cedula || undefined)}
-                          disabled={checkingDuplicate || !lead.cedula}
-                        >
-                          {checkingDuplicate ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Upload className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {!lead.cedula ? "Requiere cédula" : "Subir Archivos Obligatorios"}
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
                         <Button size="icon" onClick={() => onAction('create_opportunity', lead)}>
                           <Sparkles className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Crear oportunidad</TooltipContent>
                     </Tooltip>
-                    
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => onAction('convert', lead)}>
-                          <UserCheck className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Convertir a cliente</TooltipContent>
-                    </Tooltip>
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
@@ -1266,83 +1110,6 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
           })}
         </TableBody>
       </Table>
-      {/* Upload Dialog */}
-      <Dialog open={!!uploadDialogOpen} onOpenChange={open => { if (!open) { setUploadDialogOpen(null); setCurrentLeadCedula(null); } }}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Subir Archivos</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Constancia File Input */}
-            {/* Additional Files Input */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Archivos Obligatorios (Cedula, recibos de luz,etc.)</Label>
-              <div
-                onClick={() => !uploading && document.getElementById('multi-files-input')?.click()}
-                className={`
-                  relative flex flex-col items-center justify-center gap-3 p-6
-                  border-2 border-dashed rounded-lg cursor-pointer
-                  transition-colors duration-200
-                  ${uploading ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:bg-muted/50'}
-                  ${multiFiles.length > 0 ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}
-                `}
-              >
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Arrastra tus archivos aquí</p>
-                  <p className="text-xs text-muted-foreground mt-1">o</p>
-                </div>
-                <Button type="button" variant="secondary" size="sm" disabled={uploading}>
-                  Seleccionar archivos
-                </Button>
-                <input
-                  id="multi-files-input"
-                  type="file"
-                  accept=".pdf,.html,application/pdf,text/html,.png,image/jpeg,image/png"
-                  multiple
-                  onChange={handleMultiFilesChange}
-                  disabled={uploading}
-                  className="hidden"
-                />
-              </div>
-              {multiFiles.length > 0 && (
-                <div className="space-y-2">
-                  {multiFiles.map((file, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium truncate max-w-[400px]">{file.name}</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMultiFiles(prev => prev.filter((_, i) => i !== idx));
-                        }}
-                        disabled={uploading}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setUploadDialogOpen(null); setCurrentLeadCedula(null); }} disabled={uploading}>
-              Cancelar
-            </Button>
-            <Button onClick={handleUpload} disabled={uploading || (multiFiles.length === 0)}>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Subir
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

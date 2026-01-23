@@ -8,6 +8,7 @@ use App\Models\CreditDocument;
 use App\Models\PlanDePago;
 use App\Models\Lead;
 use App\Models\LoanConfiguration;
+use App\Helpers\NumberToWords;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -81,7 +82,7 @@ class CreditController extends Controller
             // Campos Nuevos
             'tipo_credito' => 'nullable|string',
             'numero_operacion' => 'nullable|string|unique:credits,numero_operacion',
-            'deductora_id' => 'nullable|exists:deductoras,id',
+            'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
             'divisa' => 'nullable|string',
             'garantia' => 'nullable|string',
 
@@ -313,7 +314,12 @@ class CreditController extends Controller
             }
         ])->findOrFail($id);
 
-        return response()->json($credit);
+        // Agregar monto en letras
+        $response = $credit->toArray();
+        $moneda = $credit->divisa === 'USD' ? 'DOLARES' : 'COLONES';
+        $response['monto_letras'] = NumberToWords::convert((float) $credit->monto_credito, $moneda);
+
+        return response()->json($response);
     }
 
     /**
