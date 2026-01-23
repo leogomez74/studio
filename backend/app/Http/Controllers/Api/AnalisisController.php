@@ -43,21 +43,13 @@ class AnalisisController extends Controller
         return response()->json($analisis);
     }
 
-    /**
-     * Obtener la próxima referencia que se generará (preview).
-     * GET /api/analisis/next-reference
-     */
-    public function nextReference()
-    {
-        $reference = Analisis::generateReference(1, 1);
-        return response()->json(['reference' => $reference]);
-    }
     public function store(Request $request)
     {
         $validated = $request->validate([
             'reference' => 'nullable|unique:analisis,reference', // Auto-generado si no se provee
             'title' => 'required|string',
-            'status' => 'required|string',
+            'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
+            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
             'category' => 'nullable|string',
             'monto_credito' => 'required|numeric|min:1',
             'lead_id' => 'nullable|integer',
@@ -71,6 +63,23 @@ class AnalisisController extends Controller
             'ingreso_neto' => 'nullable|numeric',
             'propuesta' => 'nullable|string',
         ]);
+
+        // Verificar si ya existe un análisis para esta oportunidad
+        if (!empty($validated['opportunity_id'])) {
+            $existingAnalisis = Analisis::where('opportunity_id', $validated['opportunity_id'])->first();
+            if ($existingAnalisis) {
+                return response()->json([
+                    'message' => 'Ya existe un análisis para esta oportunidad',
+                    'analisis' => $existingAnalisis,
+                    'redirect_to' => $existingAnalisis->id,
+                ], 409); // 409 Conflict
+            }
+        }
+
+        // Valor por defecto para estado_pep
+        if (!isset($validated['estado_pep'])) {
+            $validated['estado_pep'] = 'Pendiente';
+        }
 
         // Auto-mapear category basado en la oportunidad o el lead
         if (!isset($validated['category'])) {
@@ -104,7 +113,8 @@ class AnalisisController extends Controller
         $validated = $request->validate([
             'reference' => 'sometimes|required|unique:analisis,reference,' . $id,
             'title' => 'sometimes|required|string',
-            'status' => 'sometimes|required|string',
+            'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
+            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
             'category' => 'nullable|string',
             'monto_credito' => 'nullable|numeric',
             'lead_id' => 'nullable|integer',
@@ -118,6 +128,12 @@ class AnalisisController extends Controller
             'ingreso_neto' => 'nullable|numeric',
             'propuesta' => 'nullable|string',
         ]);
+
+        // Si estado_pep no es "Aceptado", limpiar estado_cliente
+        if (isset($validated['estado_pep']) && $validated['estado_pep'] !== 'Aceptado') {
+            $validated['estado_cliente'] = null;
+        }
+
         $analisis->update($validated);
         return response()->json($analisis);
     }

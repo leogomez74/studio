@@ -396,10 +396,10 @@ export default function CreditsPage() {
   const availableOpportunities = useMemo(() => {
     return opportunities.filter((opportunity) => {
       const belongsToClient = currentClientId ? opportunity.lead_id === parseInt(currentClientId, 10) : true;
-      const isGanada = opportunity.status === 'Ganada';
+      const isAnalizada = opportunity.status === 'Analizada';
       const canSelectExistingCredit = dialogCredit?.opportunity_id === opportunity.id;
       const isFree = !opportunity.credit;
-      return belongsToClient && isGanada && (canSelectExistingCredit || isFree);
+      return belongsToClient && isAnalizada && (canSelectExistingCredit || isFree);
     });
   }, [opportunities, currentClientId, dialogCredit]);
 

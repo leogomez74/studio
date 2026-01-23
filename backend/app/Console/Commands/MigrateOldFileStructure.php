@@ -24,6 +24,20 @@ class MigrateOldFileStructure extends Command
         $this->info('Iniciando migración de estructura de archivos...');
         $this->newLine();
 
+        // Asegurar que la carpeta base 'documentos' existe
+        $documentosPath = Storage::disk('public')->path('documentos');
+        if (!file_exists($documentosPath)) {
+            $this->info('📁 Creando carpeta base "documentos"...');
+            if (!$dryRun) {
+                if (@mkdir($documentosPath, 0755, true)) {
+                    $this->info('✓ Carpeta creada');
+                } else {
+                    $this->error('✗ No se pudo crear la carpeta. Verifica permisos.');
+                    return 1;
+                }
+            }
+        }
+
         // Buscar todos los documentos con rutas antiguas
         $oldDocuments = PersonDocument::where('path', 'like', 'leads/%')->get();
 
@@ -49,8 +63,12 @@ class MigrateOldFileStructure extends Command
                 $migrated++;
             } elseif ($result['status'] === 'skipped') {
                 $skipped++;
+                if (!$dryRun) {
+                    $this->warn("  Omitido: {$doc->path} - {$result['message']}");
+                }
             } else {
                 $errors++;
+                $this->error("  Error en {$doc->path}: {$result['message']}");
             }
 
             $bar->advance();
@@ -87,7 +105,7 @@ class MigrateOldFileStructure extends Command
             if (count($pathParts) < 3 || $pathParts[0] !== 'leads') {
                 return [
                     'status' => 'skipped',
-                    'message' => 'Path no coincide con estructura antigua'
+                    'message' => "Path no coincide: {$doc->path}"
                 ];
             }
 
@@ -97,12 +115,19 @@ class MigrateOldFileStructure extends Command
             // Limpiar cédula (remover guiones)
             $strippedCedula = preg_replace('/[^0-9]/', '', $cedula);
 
+            // Debug: mostrar información del path
+            $fullPath = Storage::disk('public')->path($doc->path);
+
             // Verificar que el archivo existe físicamente
             if (!Storage::disk('public')->exists($doc->path)) {
-                Log::warning('Archivo físico no existe', ['path' => $doc->path]);
+                Log::warning('Archivo físico no existe', [
+                    'path' => $doc->path,
+                    'full_path' => $fullPath,
+                    'exists' => file_exists($fullPath)
+                ]);
                 return [
                     'status' => 'skipped',
-                    'message' => 'Archivo físico no existe'
+                    'message' => "Archivo no existe: {$fullPath}"
                 ];
             }
 
@@ -122,10 +147,14 @@ class MigrateOldFileStructure extends Command
             }
 
             if (!$dryRun) {
-                // Crear carpeta si no existe
+                // Crear carpeta si no existe usando mkdir() directamente
                 $targetFolder = "documentos/{$strippedCedula}/buzon";
-                if (!Storage::disk('public')->exists($targetFolder)) {
-                    Storage::disk('public')->makeDirectory($targetFolder);
+                $fullTargetPath = Storage::disk('public')->path($targetFolder);
+
+                if (!file_exists($fullTargetPath)) {
+                    if (!@mkdir($fullTargetPath, 0755, true) && !is_dir($fullTargetPath)) {
+                        throw new \Exception("No se pudo crear el directorio: {$fullTargetPath}. Verifica los permisos del usuario www-data.");
+                    }
                 }
 
                 // Mover archivo
@@ -158,12 +187,13 @@ class MigrateOldFileStructure extends Command
             Log::error('Error migrando documento', [
                 'document_id' => $doc->id,
                 'path' => $doc->path,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return [
                 'status' => 'error',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage() . ' | Línea: ' . $e->getLine()
             ];
         }
     }
@@ -180,9 +210,11 @@ class MigrateOldFileStructure extends Command
             $targetPath = "{$targetFolder}/{$fileName}";
 
             try {
-                // Crear carpeta si no existe
-                if (!Storage::disk('public')->exists($targetFolder)) {
-                    Storage::disk('public')->makeDirectory($targetFolder);
+                // Crear carpeta si no existe usando mkdir() directamente
+                $fullTargetFolder = Storage::disk('public')->path($targetFolder);
+
+                if (!file_exists($fullTargetFolder)) {
+                    @mkdir($fullTargetFolder, 0755, true);
                 }
 
                 // Si ya existe, omitir

@@ -19,7 +19,7 @@ class OpportunityFactory extends Factory
             'opportunity_type' => 'Personal',
             'vertical' => 'Lending',
             'amount' => $this->faker->randomFloat(2, 1000, 10000),
-            'status' => 'Abierta',
+            'status' => 'Pendiente',
         ];
     }
 }

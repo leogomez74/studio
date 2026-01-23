@@ -172,7 +172,7 @@ class LeadController extends Controller
                 $opportunity = Opportunity::create([
                     'lead_cedula' => $validated['cedula'],
                     'amount' => $monto, // Puede ser null
-                    'status' => 'Nueva',
+                    'status' => 'Pendiente',
                     'vertical' => $vertical ?? 'General',
                     'opportunity_type' => $opportunityType ?? 'Estándar',
                     'assigned_to_id' => $validated['assigned_to_id'] ?? null,

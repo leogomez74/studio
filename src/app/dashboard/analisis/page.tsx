@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Opportunity, Lead } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 
@@ -33,7 +34,8 @@ type AnalisisItem = {
   id: number;
   reference: string;
   monto_credito: number;
-  status: string;
+  estado_pep: string;
+  estado_cliente?: string | null;
   created_at: string;
   opportunity_id?: string;
   lead_id?: string;
@@ -172,7 +174,8 @@ export default function AnalisisPage() {
               <th className="px-6 py-3 bg-blue-50 text-blue-800">Estado Puesto</th>
               
               <th className="px-6 py-3">Monto</th>
-              <th className="px-6 py-3">Estado</th>
+              <th className="px-6 py-3">Estado PEP</th>
+              <th className="px-6 py-3">Estado Cliente</th>
               <th className="px-6 py-3 text-right">Acciones</th>
             </tr>
           </thead>
@@ -218,14 +221,85 @@ export default function AnalisisPage() {
                     {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(item.monto_credito)}
                   </td>
 
-                  {/* Estado del Análisis */}
+                  {/* Estado PEP - Clickeable para cambiar */}
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold 
-                      ${item.status === 'Aprobado' ? 'bg-green-100 text-green-700' : 
-                        item.status === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {item.status}
-                    </span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
+                          ${item.estado_pep === 'Aceptado' ? 'bg-green-100 text-green-700' :
+                            item.estado_pep === 'Rechazado' ? 'bg-red-100 text-red-700' :
+                            item.estado_pep === 'Pendiente de cambios' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {item.estado_pep || 'Pendiente'}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48 p-2">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Cambiar Estado PEP:</p>
+                          {['Pendiente', 'Aceptado', 'Pendiente de cambios', 'Rechazado'].map((estado) => (
+                            <button
+                              key={estado}
+                              className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_pep === estado ? 'bg-gray-100 font-medium' : ''}`}
+                              onClick={async () => {
+                                try {
+                                  await api.put(`/api/analisis/${item.id}`, { estado_pep: estado });
+                                  setAnalisisList(prev => prev.map(a =>
+                                    a.id === item.id ? { ...a, estado_pep: estado, estado_cliente: estado !== 'Aceptado' ? null : a.estado_cliente } : a
+                                  ));
+                                  toast({ title: "Estado actualizado", description: `Estado PEP cambiado a "${estado}"` });
+                                } catch (err) {
+                                  toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
+                                }
+                              }}
+                            >
+                              {estado}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </td>
+
+                  {/* Estado Cliente - Solo visible si estado_pep es Aceptado */}
+                  <td className="px-6 py-4">
+                    {item.estado_pep === 'Aceptado' ? (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
+                            ${item.estado_cliente === 'Aprobado' ? 'bg-green-100 text-green-700' :
+                              item.estado_cliente === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {item.estado_cliente || 'Sin definir'}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-40 p-2">
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium text-gray-500 mb-2">Estado Cliente:</p>
+                            {['Aprobado', 'Rechazado'].map((estado) => (
+                              <button
+                                key={estado}
+                                className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_cliente === estado ? 'bg-gray-100 font-medium' : ''}`}
+                                onClick={async () => {
+                                  try {
+                                    await api.put(`/api/analisis/${item.id}`, { estado_cliente: estado });
+                                    setAnalisisList(prev => prev.map(a =>
+                                      a.id === item.id ? { ...a, estado_cliente: estado } : a
+                                    ));
+                                    toast({ title: "Estado actualizado", description: `Estado Cliente cambiado a "${estado}"` });
+                                  } catch (err) {
+                                    toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
+                                  }
+                                }}
+                              >
+                                {estado}
+                              </button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+
                   {/* Acciones */}
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center gap-2 justify-end">
@@ -250,6 +324,7 @@ export default function AnalisisPage() {
                               description: item.description || '',
                               divisa: item.divisa || 'CRC',
                               plazo: item.plazo ? String(item.plazo) : '36',
+                              poliza: false,
                             });
                             setIsCreditDialogOpen(true);
                           } catch (err) {

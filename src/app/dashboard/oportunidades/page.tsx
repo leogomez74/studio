@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, FormEvent, ChangeEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
@@ -194,6 +195,7 @@ type Product = {
 
 export default function DealsPage() {
   const { toast } = useToast();
+  const router = useRouter();
 
   // Data State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -267,7 +269,6 @@ export default function DealsPage() {
     opportunityId: "",
     assignedTo: "",
     openedAt: new Date().toISOString().split('T')[0],
-    description: "",
     divisa: "CRC",
     plazo: "36",
   });
@@ -586,20 +587,12 @@ export default function DealsPage() {
 
   // --- Analisis Logic ---
 
-  const handleOpenAnalisisDialog = async (opportunity: Opportunity) => {
+  const handleOpenAnalisisDialog = (opportunity: Opportunity) => {
     setAnalisisOpportunity(opportunity);
 
-    // Obtener la próxima referencia del backend
-    let nextRef = "";
-    try {
-      const res = await api.get('/api/analisis/next-reference');
-      nextRef = res.data.reference || "";
-    } catch (error) {
-      console.error("Error fetching next reference:", error);
-    }
-
+    // La referencia es el ID de la oportunidad
     setAnalisisForm({
-      reference: nextRef,
+      reference: String(opportunity.id),
       title: opportunity.opportunity_type || "",
       category: "Crédito",
       monto_credito: opportunity.amount ? String(opportunity.amount) : "",
@@ -610,7 +603,6 @@ export default function DealsPage() {
       opportunityId: String(opportunity.id),
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
-      description: opportunity.comments || "",
       divisa: "CRC",
       plazo: "36",
     });
@@ -636,7 +628,6 @@ export default function DealsPage() {
         opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
         plazo: parseInt(analisisForm.plazo) || 36,
         divisa: analisisForm.divisa,
-        description: analisisForm.description,
         opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
       };
@@ -647,7 +638,13 @@ export default function DealsPage() {
       setIsAnalisisDialogOpen(false);
       fetchOpportunities();
     } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+      // Si ya existe un análisis (409 Conflict), mostrar mensaje
+      if (error.response?.status === 409) {
+        toast({ title: "Análisis existente", description: "Ya existe un análisis para esta oportunidad." });
+        setIsAnalisisDialogOpen(false);
+      } else {
+        toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+      }
     }
   };
 
@@ -655,13 +652,13 @@ export default function DealsPage() {
   const getAnalisisButtonProps = (opportunity: Opportunity) => {
     // Check if opportunity already has an analysis based on status or a flag
     const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis;
-    const isGanada = opportunity.status === 'Ganada';
+    const isAnalizada = opportunity.status === 'Analizada';
 
     if (hasAnalysis) {
       return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" />, disabled: false };
     }
-    if (!isGanada) {
-      return { label: "Solo oportunidades ganadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
+    if (!isAnalizada) {
+      return { label: "Solo oportunidades analizadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
     }
     return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
   };
@@ -707,7 +704,7 @@ export default function DealsPage() {
     switch (column) {
       case "reference": return opportunity.id ?? 0;
       case "lead": return (opportunity.lead?.name || opportunity.lead?.email || "").toString().toLowerCase();
-      case "status": return (opportunity.status ?? "Abierta").toLowerCase();
+      case "status": return (opportunity.status ?? "Pendiente").toLowerCase();
       case "type": return (opportunity.opportunity_type ?? "").toLowerCase();
       case "amount": return resolveEstimatedOpportunityAmount(opportunity.amount) ?? 0;
       case "expected_close_date": return opportunity.expected_close_date ? new Date(opportunity.expected_close_date).getTime() : 0;
@@ -777,7 +774,7 @@ export default function DealsPage() {
         formatOpportunityReference(opportunity.id),
         opportunity.lead?.name ?? "Lead desconocido",
         opportunity.lead?.email ?? "Sin correo",
-        opportunity.status ?? "Abierta",
+        opportunity.status ?? "Pendiente",
         opportunity.opportunity_type ?? "Sin tipo",
         formatAmountForExport(opportunity.amount),
         formatDate(opportunity.expected_close_date),
@@ -799,7 +796,7 @@ export default function DealsPage() {
       formatOpportunityReference(opportunity.id),
       opportunity.lead?.name ?? "Lead desconocido",
       opportunity.lead?.email ?? "Sin correo",
-      opportunity.status ?? "Abierta",
+      opportunity.status ?? "Pendiente",
       opportunity.opportunity_type ?? "Sin tipo",
       formatAmountForExport(opportunity.amount),
       opportunity.expected_close_date ?? "",
@@ -836,7 +833,7 @@ export default function DealsPage() {
         formatOpportunityReference(opportunity.id),
         opportunity.lead?.name ?? "Lead desconocido",
         opportunity.lead?.email ?? "Sin correo",
-        opportunity.status ?? "Abierta",
+        opportunity.status ?? "Pendiente",
         opportunity.opportunity_type ?? "Sin tipo",
         formatAmountForExport(opportunity.amount),
         formatDate(opportunity.expected_close_date),
@@ -1048,7 +1045,7 @@ export default function DealsPage() {
                             <span className="text-xs text-muted-foreground">{opportunity.lead?.email || "-"}</span>
                         </div>
                     </TableCell>
-                    <TableCell><Badge variant="default" className="bg-slate-900 hover:bg-slate-800">{opportunity.status || "Abierta"}</Badge></TableCell>
+                    <TableCell><Badge variant="default" className="bg-slate-900 hover:bg-slate-800">{opportunity.status || "Pendiente"}</Badge></TableCell>
                     <TableCell>{opportunity.opportunity_type || "-"}</TableCell>
                     <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
                     <TableCell className="hidden md:table-cell">{formatDate(opportunity.expected_close_date)}</TableCell>
@@ -1508,10 +1505,6 @@ export default function DealsPage() {
               <div className="space-y-2">
                 <Label htmlFor="openedAt">Fecha Apertura</Label>
                 <Input id="openedAt" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
-              </div>
-              <div className="sm:col-span-2 space-y-2">
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea id="description" value={analisisForm.description} onChange={e => handleAnalisisFormChange('description', e.target.value)} />
               </div>
               <div className="sm:col-span-2 space-y-2">
                 <Label htmlFor="propuesta">Propuesta de Análisis</Label>
