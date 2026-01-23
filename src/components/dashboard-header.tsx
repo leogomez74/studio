@@ -88,10 +88,9 @@ export function DashboardHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm md:px-6">
-      {/* Contenedor para el botón de la barra lateral (en móvil) y las migas de pan. */}
+      {/* Contenedor para el botón de la barra lateral y las migas de pan. */}
       <div className="flex items-center gap-4">
-        <SidebarTrigger className="md:hidden" /> {/* Se muestra solo en pantallas pequeñas. */}
-        {/*<SidebarTrigger /> {/* Se muestra en todas las pantallas. */}
+        <SidebarTrigger /> {/* Botón para colapsar/expandir el sidebar */}
         <Breadcrumbs /> {/* Las migas de pan. */}
       </div>
 

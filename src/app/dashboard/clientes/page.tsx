@@ -1044,7 +1044,7 @@ type LeadsTableProps = {
 function LeadsTable({ data, onAction }: LeadsTableProps) {
   const { toast } = useToast();
   const [uploadDialogOpen, setUploadDialogOpen] = useState<string | null>(null);
-  const [constanciaFile, setConstanciaFile] = useState<File | null>(null);
+ /* const [constanciaFile, setConstanciaFile] = useState<File | null>(null);*/
   const [multiFiles, setMultiFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   
@@ -1083,7 +1083,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
       // Si no hay duplicados, abrir el diálogo
       setCurrentLeadCedula(leadCedula);
       setUploadDialogOpen(leadId);
-      setConstanciaFile(null);
+      //setConstanciaFile(null);
       setMultiFiles([]);
       
     } catch (error) {
@@ -1091,14 +1091,14 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
       // Si falla la verificación, permitir continuar (el backend validará de nuevo)
       setCurrentLeadCedula(leadCedula);
       setUploadDialogOpen(leadId);
-      setConstanciaFile(null);
+     // setConstanciaFile(null);
       setMultiFiles([]);
     } finally {
       setCheckingDuplicate(false);
     }
   };
 
-  const handleConstanciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /*const handleConstanciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!['application/pdf', 'text/html'].includes(file.type) && !file.name.endsWith('.pdf') && !file.name.endsWith('.html')) {
@@ -1106,7 +1106,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
       return;
     }
     setConstanciaFile(file);
-  };
+  };*/
 
   const handleMultiFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -1123,17 +1123,8 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
     if (!uploadDialogOpen) return;
     setUploading(true);
     try {
-      // Subir constancia
-      if (constanciaFile) {
-        const formData = new FormData();
-        formData.append('file', constanciaFile);
-        formData.append('person_id', uploadDialogOpen); // Added person_id
-        await api.post('/api/person-documents', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-      }
       
-      // Subir archivos adicionales
+      // Subir archivos obligatorios
       if (multiFiles.length > 0) {
         for (const file of multiFiles) {
           const formData = new FormData();
@@ -1307,7 +1298,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                 <input
                   id="multi-files-input"
                   type="file"
-                  accept=".pdf,.html,application/pdf,text/html"
+                  accept=".pdf,.html,application/pdf,text/html,.png,image/jpeg,image/png"
                   multiple
                   onChange={handleMultiFilesChange}
                   disabled={uploading}
@@ -1345,7 +1336,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
             <Button variant="outline" onClick={() => { setUploadDialogOpen(null); setCurrentLeadCedula(null); }} disabled={uploading}>
               Cancelar
             </Button>
-            <Button onClick={handleUpload} disabled={uploading || (!constanciaFile && multiFiles.length === 0)}>
+            <Button onClick={handleUpload} disabled={uploading || (multiFiles.length === 0)}>
               {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Subir
             </Button>

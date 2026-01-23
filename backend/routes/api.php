@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Rewards\CatalogController;
 use App\Http\Controllers\Api\Rewards\RedemptionController;
 use App\Http\Controllers\Api\Rewards\Admin\GamificationConfigController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\QuestionnaireController;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,10 +53,16 @@ Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive'
 Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::apiResource('leads', LeadController::class);
 
+// Questionnaires
+Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
+Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
+
 // Clientes
 Route::apiResource('clients', ClientController::class);
 Route::post('/opportunities/{id}/move-files', [OpportunityController::class, 'moveFiles']);
 Route::get('/opportunities/{id}/files', [OpportunityController::class, 'getFiles']);
+Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadFile']);
+Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile']);
 Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
 
 // Oportunidades
@@ -87,6 +94,7 @@ Route::get('/person-documents', [PersonDocumentController::class, 'index']);
 Route::post('/person-documents', [PersonDocumentController::class, 'store']);
 Route::delete('/person-documents/{id}', [PersonDocumentController::class, 'destroy']);
 Route::get('/person-documents/check-cedula-folder', [PersonDocumentController::class, 'checkCedulaFolder']);
+Route::post('/person-documents/sync-to-opportunity', [PersonDocumentController::class, 'syncToOpportunity']);
 
 // Pagos de Crédito
 Route::apiResource('credit-payments', CreditPaymentController::class);
@@ -101,7 +109,13 @@ Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::cl
 Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
 
 // Analisis CRUD
+Route::get('analisis/next-reference', [\App\Http\Controllers\Api\AnalisisController::class, 'nextReference']);
 Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
+
+// Analisis - Archivos
+Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
+Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
+Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
 
 // KPIs
 Route::prefix('kpis')->group(function () {

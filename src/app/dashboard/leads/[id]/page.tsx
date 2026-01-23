@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, UserCheck, Archive, Plus, Paperclip } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, UserCheck, Archive, Plus, Paperclip, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +44,8 @@ export default function LeadDetailPage() {
     const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
     const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
     const [deductoras, setDeductoras] = useState<{id: string, nombre: string}[]>([]);
+    const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string}[]>([]);
+    const [syncing, setSyncing] = useState(false);
 
     useEffect(() => {
         const fetchLead = async () => {
@@ -83,6 +85,52 @@ export default function LeadDetailPage() {
             fetchDeductoras();
         }
     }, [id, toast]);
+
+    // Fetch opportunities when lead is loaded
+    useEffect(() => {
+        const fetchOpportunities = async () => {
+            if (!lead?.cedula) return;
+            try {
+                const response = await api.get(`/api/opportunities?lead_cedula=${lead.cedula}`);
+                setOpportunities(response.data.data || []);
+            } catch (error) {
+                console.error("Error fetching opportunities:", error);
+            }
+        };
+        fetchOpportunities();
+    }, [lead?.cedula]);
+
+    // Sync files to all opportunities
+    const handleSyncToOpportunities = async () => {
+        if (!lead?.cedula || opportunities.length === 0) {
+            toast({ title: "Sin oportunidades", description: "Este lead no tiene oportunidades asociadas.", variant: "destructive" });
+            return;
+        }
+
+        setSyncing(true);
+        let totalSynced = 0;
+
+        try {
+            for (const opp of opportunities) {
+                const response = await api.post('/api/person-documents/sync-to-opportunity', {
+                    cedula: lead.cedula,
+                    opportunity_id: opp.id,
+                });
+                totalSynced += response.data.files_synced || 0;
+            }
+
+            toast({
+                title: "Sincronización completada",
+                description: `${totalSynced} archivo(s) sincronizado(s) a ${opportunities.length} oportunidad(es).`,
+                className: "bg-green-600 text-white"
+            });
+        } catch (error) {
+            console.error("Error syncing files:", error);
+            toast({ title: "Error", description: "No se pudieron sincronizar los archivos.", variant: "destructive" });
+        } finally {
+            setSyncing(false);
+        }
+    };
 
     const handleInputChange = (field: keyof Lead, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -895,15 +943,38 @@ export default function LeadDetailPage() {
                         <TabsContent value="archivos">
                             <Card>
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Paperclip className="h-5 w-5" />
-                                        Archivos del Lead
-                                    </CardTitle>
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Paperclip className="h-5 w-5" />
+                                            Archivos del Lead
+                                        </CardTitle>
+                                        {opportunities.length > 0 && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleSyncToOpportunities}
+                                                disabled={syncing}
+                                            >
+                                                {syncing ? (
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                                )}
+                                                Sincronizar a Oportunidades ({opportunities.length})
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {opportunities.length > 0 && (
+                                        <CardDescription className="mt-2">
+                                            Los archivos subidos aquí se copian automáticamente a las oportunidades.
+                                            Use el botón para sincronizar archivos existentes.
+                                        </CardDescription>
+                                    )}
                                 </CardHeader>
                                 <CardContent>
-                                    <DocumentManager 
-                                        personId={Number(lead.id)} 
-                                        initialDocuments={(lead as any).documents || []} 
+                                    <DocumentManager
+                                        personId={Number(lead.id)}
+                                        initialDocuments={(lead as any).documents || []}
                                     />
                                 </CardContent>
                             </Card>

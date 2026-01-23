@@ -26,22 +26,30 @@ class OpportunityController extends Controller
         if ($request->has('status') && $request->input('status') !== 'todos') {
             $query->where('status', $request->input('status'));
         }
-        if ($request->filled('search')) { // 'filled' es mejor que 'has' para ignorar cadenas vacías
+        if ($request->filled('search')) {
             $search = $request->input('search');
             $cleanSearch = ltrim($search, '#');
-            $query->where(function ($q) use ($search,$cleanSearch) {
-                // 1. Buscar por ID de la oportunidad
-                $q->where('id', 'like', "{$cleanSearch}%")
-                // 2. Campos directos existentes
+            $strippedSearch = preg_replace('/[^0-9]/', '', $search);
+
+            $query->where(function ($q) use ($search, $cleanSearch, $strippedSearch) {
+                $q->where('id', 'like', "%{$cleanSearch}%")
                 ->orWhere('lead_cedula', 'like', "%{$search}%")
                 ->orWhere('opportunity_type', 'like', "%{$search}%")
                 ->orWhere('vertical', 'like', "%{$search}%")
                 ->orWhere('comments', 'like', "%{$search}%")
-                // 3. Buscar dentro de la relación 'lead' (Nombre y Email)
                 ->orWhereHas('lead', function ($qLead) use ($search) {
                     $qLead->where('name', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%");
+                          ->orWhere('email', 'like', "%{$search}%");
                 });
+
+                // Buscar por ID y cédula sin guiones
+                if (!empty($strippedSearch)) {
+                    $q->orWhereRaw("REPLACE(id, '-', '') LIKE ?", ["%{$strippedSearch}%"])
+                      ->orWhere('lead_cedula', 'like', "%{$strippedSearch}%")
+                      ->orWhereHas('lead', function ($qLead) use ($strippedSearch) {
+                          $qLead->where('cedula', 'like', "%{$strippedSearch}%");
+                      });
+                }
             });
         }
         if ($request->has('lead_cedula')) {
@@ -77,10 +85,40 @@ class OpportunityController extends Controller
             'assigned_to_id' => 'nullable|exists:users,id',
         ]);
 
+        // Buscar el lead para obtener los datos del cuestionario
+        $lead = \App\Models\Lead::where('cedula', $validated['lead_cedula'])->first();
+
+        // DEBUG LOG
+        \Log::info('=== OPPORTUNITY CREATE DEBUG ===', [
+            'opportunity_type_recibido' => $validated['opportunity_type'] ?? 'NO EXISTE',
+            'vertical_recibido' => $validated['vertical'] ?? 'NO EXISTE',
+            'amount_recibido' => $validated['amount'] ?? 'NO EXISTE',
+            'lead_encontrado' => $lead ? 'SI' : 'NO',
+            'lead_interes' => $lead->interes ?? 'NULL',
+            'lead_tipo_credito' => $lead->tipo_credito ?? 'NULL',
+        ]);
+
         // Valores por defecto
         $validated['status'] = $validated['status'] ?? 'Nueva';
-        $validated['vertical'] = $validated['vertical'] ?? 'General';
-        $validated['opportunity_type'] = $validated['opportunity_type'] ?? 'Estándar';
+
+        // Auto-mapear vertical desde institucion_labora del lead
+        if ((empty($validated['vertical']) || $validated['vertical'] === 'General') && $lead && !empty($lead->institucion_labora)) {
+            $validated['vertical'] = $lead->institucion_labora;
+        } else {
+            $validated['vertical'] = $validated['vertical'] ?? 'General';
+        }
+
+        // Auto-mapear opportunity_type basado en el interes del cuestionario
+        if ((empty($validated['opportunity_type']) || $validated['opportunity_type'] === 'Estándar') && $lead) {
+            $validated['opportunity_type'] = $this->determineOpportunityType($lead);
+        } else {
+            $validated['opportunity_type'] = $validated['opportunity_type'] ?? 'Estándar';
+        }
+
+        // Auto-mapear amount desde el monto del cuestionario si no viene en el request
+        if ((empty($validated['amount']) || $validated['amount'] == 0) && $lead && !empty($lead->monto)) {
+            $validated['amount'] = $this->extractAmountFromRange($lead->monto);
+        }
 
         // Crear la oportunidad
         $opportunity = Opportunity::create($validated);
@@ -245,7 +283,9 @@ class OpportunityController extends Controller
     }
 
     /**
-     * Mover archivos del Buzón del Cliente (PersonDocument) al Expediente de la Oportunidad.
+     * Copiar archivos del Buzón del Cliente (PersonDocument) al Expediente de la Oportunidad.
+     * Los archivos originales del lead se MANTIENEN para futuras oportunidades.
+     * Estructura: documentos/{cedula}/{opportunityId}/heredados/
      *
      * @param string $cedula
      * @param string $opportunityId
@@ -253,40 +293,42 @@ class OpportunityController extends Controller
      */
     private function moveFilesToOpportunityFolder(string $cedula, string $opportunityId): array
     {
-        $cedula = preg_replace('/[^0-9]/', '', $cedula);
-
         if (empty($cedula)) {
             return ['success' => false, 'message' => 'Cédula vacía'];
         }
 
-        // Buscar la Persona (Lead/Cliente) por cédula
+        // Buscar la Persona (Lead/Cliente) por cédula (con guiones)
         $person = \App\Models\Person::where('cedula', $cedula)->first();
 
         if (!$person) {
-            Log::info('Persona no encontrada para mover archivos', ['cedula' => $cedula]);
+            Log::info('Persona no encontrada para copiar archivos', ['cedula' => $cedula]);
             return ['success' => true, 'message' => 'Persona no encontrada', 'files' => []];
         }
 
         $personDocuments = $person->documents;
 
         if ($personDocuments->isEmpty()) {
+            Log::info('No hay documentos en el buzón para copiar', ['cedula' => $cedula]);
             return ['success' => true, 'message' => 'No hay documentos en el buzón', 'files' => []];
         }
 
-        $opportunityFolder = "documentos/{$cedula}/{$opportunityId}";
-        $movedFiles = [];
+        // Limpiar cédula solo para el nombre de la carpeta (sin guiones)
+        $cedulaLimpia = preg_replace('/[^0-9]/', '', $cedula);
+        // Usar subcarpeta 'heredados' para archivos copiados del lead
+        $heredadosFolder = "documentos/{$cedulaLimpia}/{$opportunityId}/heredados";
+        $copiedFiles = [];
 
         try {
-            // Crear carpeta de oportunidad si no existe
-            if (!Storage::disk('public')->exists($opportunityFolder)) {
-                Storage::disk('public')->makeDirectory($opportunityFolder);
+            // Crear carpeta de heredados si no existe
+            if (!Storage::disk('public')->exists($heredadosFolder)) {
+                Storage::disk('public')->makeDirectory($heredadosFolder);
             }
 
             foreach ($personDocuments as $doc) {
                 // Verificar existencia física
                 if (Storage::disk('public')->exists($doc->path)) {
                     $fileName = basename($doc->path);
-                    $newPath = "{$opportunityFolder}/{$fileName}";
+                    $newPath = "{$heredadosFolder}/{$fileName}";
 
                     // Manejo de colisiones de nombre
                     if (Storage::disk('public')->exists($newPath)) {
@@ -294,47 +336,42 @@ class OpportunityController extends Controller
                         $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
                         $timestamp = now()->format('Ymd_His');
                         $fileName = "{$nameWithoutExt}_{$timestamp}.{$extension}";
-                        $newPath = "{$opportunityFolder}/{$fileName}";
+                        $newPath = "{$heredadosFolder}/{$fileName}";
                     }
 
                     try {
-                        // 1. Mover físicamente
-                        Storage::disk('public')->move($doc->path, $newPath);
-                        
-                        $movedFiles[] = [
+                        // COPIAR en lugar de mover - mantener archivos originales del lead
+                        Storage::disk('public')->copy($doc->path, $newPath);
+
+                        $copiedFiles[] = [
                             'original' => $doc->path,
-                            'new' => $newPath
+                            'copy' => $newPath
                         ];
 
-                        // 2. Eliminar registro del Buzón (PersonDocument)
-                        $doc->delete();
-
-                        Log::info('Archivo movido de Buzón a Oportunidad', [
+                        Log::info('Archivo copiado de Buzón a Oportunidad', [
                             'from' => $doc->path,
                             'to' => $newPath
                         ]);
                     } catch (\Exception $e) {
-                        Log::error('Error moviendo archivo individual', [
+                        Log::error('Error copiando archivo individual', [
                             'file' => $doc->path,
                             'error' => $e->getMessage()
                         ]);
                     }
                 } else {
-                    // Si el archivo físico no existe pero el registro sí, eliminamos el registro huérfano
-                    Log::warning('Archivo físico no encontrado, eliminando registro huérfano', ['path' => $doc->path]);
-                    $doc->delete();
+                    Log::warning('Archivo físico no encontrado en buzón', ['path' => $doc->path]);
                 }
             }
 
             return [
                 'success' => true,
-                'message' => 'Archivos movidos al expediente correctamente',
-                'files_count' => count($movedFiles),
-                'files' => $movedFiles
+                'message' => 'Archivos copiados al expediente correctamente',
+                'files_count' => count($copiedFiles),
+                'files' => $copiedFiles
             ];
 
         } catch (\Exception $e) {
-            Log::error('Error general moviendo archivos a oportunidad', [
+            Log::error('Error general copiando archivos a oportunidad', [
                 'cedula' => $cedula,
                 'opportunity_id' => $opportunityId,
                 'error' => $e->getMessage()
@@ -342,13 +379,14 @@ class OpportunityController extends Controller
 
             return [
                 'success' => false,
-                'message' => 'Error al mover archivos: ' . $e->getMessage()
+                'message' => 'Error al copiar archivos: ' . $e->getMessage()
             ];
         }
     }
 
     /**
-     * Endpoint para mover archivos manualmente a una oportunidad existente.
+     * Endpoint para copiar archivos manualmente a una oportunidad existente.
+     * Los archivos originales del lead se mantienen.
      * POST /api/opportunities/{id}/move-files
      *
      * @param string $id
@@ -376,7 +414,7 @@ class OpportunityController extends Controller
     }
 
     /**
-     * Obtener los archivos de una oportunidad.
+     * Obtener los archivos de una oportunidad (heredados + específicos).
      * GET /api/opportunities/{id}/files
      *
      * @param string $id
@@ -389,22 +427,144 @@ class OpportunityController extends Controller
         if (empty($opportunity->lead_cedula)) {
             return response()->json([
                 'success' => true,
-                'files' => [],
+                'heredados' => [],
+                'especificos' => [],
                 'message' => 'La oportunidad no tiene cédula asociada'
             ]);
         }
 
         $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
-        $opportunityFolder = "documentos/{$cedula}/{$opportunity->id}";
+        $baseFolder = "documentos/{$cedula}/{$opportunity->id}";
+        $heredadosFolder = "{$baseFolder}/heredados";
+        $especificosFolder = "{$baseFolder}/especificos";
 
-        if (!Storage::disk('public')->exists($opportunityFolder)) {
+        $heredados = $this->listFilesInFolder($heredadosFolder);
+        $especificos = $this->listFilesInFolder($especificosFolder);
+
+        return response()->json([
+            'success' => true,
+            'opportunity_id' => $opportunity->id,
+            'cedula' => $cedula,
+            'heredados' => $heredados,
+            'especificos' => $especificos,
+        ]);
+    }
+
+    /**
+     * Subir un archivo específico a la oportunidad.
+     * POST /api/opportunities/{id}/files
+     *
+     * @param Request $request
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadFile(Request $request, string $id)
+    {
+        $request->validate([
+            'file' => 'required|file|max:10240', // 10MB max
+        ]);
+
+        $opportunity = Opportunity::findOrFail($id);
+
+        if (empty($opportunity->lead_cedula)) {
             return response()->json([
-                'success' => true,
-                'files' => [],
-            ]);
+                'success' => false,
+                'message' => 'La oportunidad no tiene cédula asociada'
+            ], 422);
         }
 
-        $files = Storage::disk('public')->files($opportunityFolder);
+        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $especificosFolder = "documentos/{$cedula}/{$opportunity->id}/especificos";
+
+        try {
+            if (!Storage::disk('public')->exists($especificosFolder)) {
+                Storage::disk('public')->makeDirectory($especificosFolder);
+            }
+
+            $file = $request->file('file');
+            $originalName = $file->getClientOriginalName();
+            $path = $file->storeAs($especificosFolder, $originalName, 'public');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Archivo subido correctamente',
+                'file' => [
+                    'name' => $originalName,
+                    'path' => $path,
+                    'url' => asset("storage/{$path}"),
+                    'size' => $file->getSize(),
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Error subiendo archivo a oportunidad', [
+                'opportunity_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al subir archivo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Eliminar un archivo de la oportunidad.
+     * DELETE /api/opportunities/{id}/files/{filename}
+     *
+     * @param string $id
+     * @param string $filename
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteFile(string $id, string $filename)
+    {
+        $opportunity = Opportunity::findOrFail($id);
+
+        if (empty($opportunity->lead_cedula)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La oportunidad no tiene cédula asociada'
+            ], 422);
+        }
+
+        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $baseFolder = "documentos/{$cedula}/{$opportunity->id}";
+
+        // Buscar en ambas carpetas
+        $possiblePaths = [
+            "{$baseFolder}/heredados/{$filename}",
+            "{$baseFolder}/especificos/{$filename}",
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Archivo eliminado correctamente'
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Archivo no encontrado'
+        ], 404);
+    }
+
+    /**
+     * Listar archivos en una carpeta.
+     *
+     * @param string $folder
+     * @return array
+     */
+    private function listFilesInFolder(string $folder): array
+    {
+        if (!Storage::disk('public')->exists($folder)) {
+            return [];
+        }
+
+        $files = Storage::disk('public')->files($folder);
         $fileList = [];
 
         foreach ($files as $file) {
@@ -417,11 +577,130 @@ class OpportunityController extends Controller
             ];
         }
 
-        return response()->json([
-            'success' => true,
-            'opportunity_id' => $opportunity->id,
-            'folder' => $opportunityFolder,
-            'files' => $fileList,
-        ]);
+        return $fileList;
+    }
+
+    /**
+     * Determinar el tipo de oportunidad basado en el interes del cuestionario.
+     *
+     * @param \App\Models\Lead $lead
+     * @return string
+     */
+    private function determineOpportunityType(\App\Models\Lead $lead): string
+    {
+        $interes = $lead->interes;
+        $tipoCreditoValue = $lead->tipo_credito;
+        $tramites = $lead->tramites; // Array gracias al cast
+
+        // Si el interés es en crédito
+        if ($interes === 'credito') {
+            if ($tipoCreditoValue === 'microcredito') {
+                return 'Micro Crédito';
+            } elseif ($tipoCreditoValue === 'regular') {
+                return 'Crédito';
+            }
+            return 'Crédito'; // Default si no se especifica tipo
+        }
+
+        // Si el interés es en servicios legales
+        if ($interes === 'servicios_legales') {
+            if (is_array($tramites) && count($tramites) > 0) {
+                // Mapear el primer trámite seleccionado al tipo de oportunidad
+                $tramite = $tramites[0];
+                return $this->mapTramiteToOpportunityType($tramite);
+            }
+            return 'Servicios Legales'; // Default
+        }
+
+        // Si el interés es en ambos (crédito y servicios legales)
+        if ($interes === 'ambos') {
+            // Priorizar crédito si está definido
+            if (!empty($tipoCreditoValue)) {
+                if ($tipoCreditoValue === 'microcredito') {
+                    return 'Micro Crédito';
+                } elseif ($tipoCreditoValue === 'regular') {
+                    return 'Crédito';
+                }
+                return 'Crédito';
+            }
+            // Si no hay tipo de crédito, revisar servicios legales
+            if (is_array($tramites) && count($tramites) > 0) {
+                $tramite = $tramites[0];
+                return $this->mapTramiteToOpportunityType($tramite);
+            }
+        }
+
+        // Default si no hay interes definido
+        return 'Estándar';
+    }
+
+    /**
+     * Mapear un trámite específico a un tipo de oportunidad.
+     *
+     * @param string $tramite
+     * @return string
+     */
+    private function mapTramiteToOpportunityType(string $tramite): string
+    {
+        $mapping = [
+            'divorcio' => 'Divorcio',
+            'notariado' => 'Notariado',
+            'testamento' => 'Testamentos',
+            'testamentos' => 'Testamentos',
+            'descuento_facturas' => 'Descuento de Facturas',
+            'poder' => 'Poder',
+            'escritura' => 'Escritura',
+            'declaratoria_herederos' => 'Declaratoria de Herederos',
+        ];
+
+        $tramiteLower = strtolower($tramite);
+
+        return $mapping[$tramiteLower] ?? ucfirst($tramite);
+    }
+
+    /**
+     * Extraer un monto numérico desde el rango de monto del cuestionario.
+     * Ejemplos: "100k-250k" -> 175000, "1.7m-2.2m" -> 1950000
+     *
+     * @param string $rangoMonto
+     * @return float
+     */
+    private function extractAmountFromRange(string $rangoMonto): float
+    {
+        // Mapping de rangos del cuestionario a valores numéricos (promedio del rango)
+        $rangosMap = [
+            '100k-250k' => 175000,
+            '250k-450k' => 350000,
+            '450k-690k' => 570000,
+            '690k-1m' => 845000,
+            '1m-1.7m' => 1350000,
+            '1.7m-2.2m' => 1950000,
+        ];
+
+        // Buscar coincidencia exacta
+        if (isset($rangosMap[$rangoMonto])) {
+            return $rangosMap[$rangoMonto];
+        }
+
+        // Si no coincide, intentar parsear manualmente
+        // Ejemplo: "300k-450k" o "100,000 - 250,000"
+        $rangoMonto = strtolower(str_replace([' ', ',', '₡'], '', $rangoMonto));
+
+        if (preg_match('/(\d+(?:\.\d+)?)(k|m)?-(\d+(?:\.\d+)?)(k|m)?/', $rangoMonto, $matches)) {
+            $min = (float) $matches[1];
+            $max = (float) $matches[3];
+
+            // Convertir k (miles) y m (millones)
+            if (isset($matches[2]) && $matches[2] === 'k') $min *= 1000;
+            if (isset($matches[2]) && $matches[2] === 'm') $min *= 1000000;
+            if (isset($matches[4]) && $matches[4] === 'k') $max *= 1000;
+            if (isset($matches[4]) && $matches[4] === 'm') $max *= 1000000;
+
+            // Retornar el promedio
+            return ($min + $max) / 2;
+        }
+
+        // Default: retornar 0 si no se puede parsear
+        return 0;
     }
 }

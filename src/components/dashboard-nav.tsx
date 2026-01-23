@@ -68,6 +68,7 @@ export function DashboardNav() {
                 ? pathname === item.href
                 : pathname.startsWith(item.href)
             }
+            tooltip={item.label}
           >
             <Link href={item.href}>
                 <item.icon />

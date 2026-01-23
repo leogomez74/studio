@@ -75,7 +75,7 @@
                 <div class="text-center space-y-1">
                     <p class="text-xs font-semibold tracking-wide text-primary uppercase">Sector privado</p>
                     <h1 class="text-2xl md:text-3xl font-headline font-bold text-primary">Cuestionario Privado</h1>
-                    <p class="text-muted-foreground text-sm md:text-base">Financiación para trámites legales (divorcios, traspasos, sucesiones). 3 pasos rápidos.</p>
+                    <p class="text-muted-foreground text-sm md:text-base">Financiación para trámites legales (divorcios, traspasos, sucesiones). 4 pasos rápidos.</p>
                 </div>
 
                 <div class="mt-6">
@@ -254,6 +254,76 @@
                     </div>
                 </div>
 
+                <div id="step-4" class="space-y-4 hidden">
+                    <h2 class="text-lg font-semibold text-foreground">4. Documentos requeridos</h2>
+                    <p class="text-sm text-muted-foreground">Para completar tu solicitud, por favor adjunta los siguientes documentos.</p>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2">Cédula de identidad (imagen) *</label>
+                            <div class="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer" id="cedulaDropZone">
+                                <input type="file" id="cedulaFile" name="cedula_file" accept="image/*" class="hidden" required>
+                                <div id="cedulaPlaceholder">
+                                    <svg class="w-12 h-12 mx-auto text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                    </svg>
+                                    <p class="text-sm text-foreground font-medium">Click para seleccionar tu cédula</p>
+                                    <p class="text-xs text-muted-foreground mt-1">o arrastra la imagen aquí</p>
+                                    <p class="text-xs text-muted-foreground mt-1">PNG, JPG hasta 5MB</p>
+                                </div>
+                                <div id="cedulaPreview" class="hidden">
+                                    <img id="cedulaImage" class="max-w-full h-auto rounded-md mx-auto" style="max-height: 200px;">
+                                    <p id="cedulaFileName" class="text-sm text-foreground font-medium mt-2"></p>
+                                    <button type="button" id="cedulaRemove" class="mt-2 text-xs text-red-600 hover:text-red-700 font-medium">Eliminar</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-2">Recibo de servicio (imagen o PDF) *</label>
+                            <div class="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer" id="reciboDropZone">
+                                <input type="file" id="reciboFile" name="recibo_file" accept="image/*,application/pdf" class="hidden" required>
+                                <div id="reciboPlaceholder">
+                                    <svg class="w-12 h-12 mx-auto text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <p class="text-sm text-foreground font-medium">Click para seleccionar tu recibo</p>
+                                    <p class="text-xs text-muted-foreground mt-1">o arrastra el archivo aquí</p>
+                                    <p class="text-xs text-muted-foreground mt-1">PNG, JPG, PDF hasta 5MB</p>
+                                </div>
+                                <div id="reciboPreview" class="hidden">
+                                    <div id="reciboImageContainer" class="hidden">
+                                        <img id="reciboImage" class="max-w-full h-auto rounded-md mx-auto" style="max-height: 200px;">
+                                    </div>
+                                    <div id="reciboPdfContainer" class="hidden">
+                                        <svg class="w-16 h-16 mx-auto text-red-600 mb-2" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                                        </svg>
+                                    </div>
+                                    <p id="reciboFileName" class="text-sm text-foreground font-medium mt-2"></p>
+                                    <button type="button" id="reciboRemove" class="mt-2 text-xs text-red-600 hover:text-red-700 font-medium">Eliminar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 p-4 bg-accent/50 rounded-lg border border-border/50">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                            </svg>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-foreground mb-2">Protección de datos personales</p>
+                                <p class="text-xs text-muted-foreground leading-relaxed">
+                                    Los datos y documentos que nos proporcionas están protegidos bajo nuestra política de privacidad y la normativa de protección de datos personales.
+                                    Serán utilizados exclusivamente para procesar tu solicitud de crédito o servicios legales. Tus archivos se almacenan de forma segura
+                                    y solo el personal autorizado tendrá acceso a ellos. Al enviar este formulario, aceptas nuestros términos y condiciones.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex items-center justify-between pt-2">
                     <button type="button" id="backBtn" class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-foreground bg-background hover:bg-accent disabled:opacity-50" disabled>Atrás</button>
                     <div class="flex items-center gap-2">
@@ -287,7 +357,7 @@
     </style>
 
     <script>
-        const steps = ['step-1', 'step-2', 'step-3'];
+        const steps = ['step-1', 'step-2', 'step-3', 'step-4'];
         let currentStep = 0;
 
         function showStep(index) {
@@ -348,6 +418,27 @@
                     return false;
                 }
             }
+            if (index === 3) {
+                const cedulaFile = document.getElementById('cedulaFile').files[0];
+                const reciboFile = document.getElementById('reciboFile').files[0];
+                if (!cedulaFile) {
+                    showAlert('Por favor adjunta una imagen de tu cédula.');
+                    return false;
+                }
+                if (!reciboFile) {
+                    showAlert('Por favor adjunta tu recibo de servicio.');
+                    return false;
+                }
+                // Validate file sizes (max 5MB)
+                if (cedulaFile.size > 5 * 1024 * 1024) {
+                    showAlert('La imagen de la cédula no debe superar 5MB.');
+                    return false;
+                }
+                if (reciboFile.size > 5 * 1024 * 1024) {
+                    showAlert('El recibo no debe superar 5MB.');
+                    return false;
+                }
+            }
             return true;
         }
 
@@ -379,7 +470,150 @@
             document.body.style.overflow = '';
         }
 
+        function setupFileUpload(fieldName, acceptTypes) {
+            const fileInput = document.getElementById(`${fieldName}File`);
+            const dropZone = document.getElementById(`${fieldName}DropZone`);
+            const placeholder = document.getElementById(`${fieldName}Placeholder`);
+            const preview = document.getElementById(`${fieldName}Preview`);
+            const removeBtn = document.getElementById(`${fieldName}Remove`);
+            const fileName = document.getElementById(`${fieldName}FileName`);
+
+            // Click to upload
+            dropZone.addEventListener('click', () => {
+                if (!preview.classList.contains('hidden')) return;
+                fileInput.click();
+            });
+
+            // File selected
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    handleFile(file, fieldName);
+                }
+            });
+
+            // Drag and drop
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-primary', 'bg-accent');
+            });
+
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-primary', 'bg-accent');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-primary', 'bg-accent');
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                    // Validate file type
+                    const acceptedTypes = acceptTypes.split(',').map(t => t.trim());
+                    const fileType = file.type;
+                    const isValid = acceptedTypes.some(type => {
+                        if (type.includes('*')) {
+                            const baseType = type.split('/')[0];
+                            return fileType.startsWith(baseType);
+                        }
+                        return fileType === type;
+                    });
+
+                    if (!isValid) {
+                        showAlert(`Tipo de archivo no válido para ${fieldName}.`, 'error');
+                        return;
+                    }
+
+                    // Set the file to the input
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+
+                    handleFile(file, fieldName);
+                }
+            });
+
+            // Remove file
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fileInput.value = '';
+                placeholder.classList.remove('hidden');
+                preview.classList.add('hidden');
+                if (fieldName === 'cedula') {
+                    document.getElementById('cedulaImage').src = '';
+                } else if (fieldName === 'recibo') {
+                    document.getElementById('reciboImageContainer').classList.add('hidden');
+                    document.getElementById('reciboPdfContainer').classList.add('hidden');
+                    document.getElementById('reciboImage').src = '';
+                }
+            });
+        }
+
+        function handleFile(file, fieldName) {
+            const placeholder = document.getElementById(`${fieldName}Placeholder`);
+            const preview = document.getElementById(`${fieldName}Preview`);
+            const fileName = document.getElementById(`${fieldName}FileName`);
+
+            // Show filename
+            fileName.textContent = file.name;
+
+            // Show preview
+            placeholder.classList.add('hidden');
+            preview.classList.remove('hidden');
+
+            // Handle image preview
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (fieldName === 'cedula') {
+                        document.getElementById('cedulaImage').src = e.target.result;
+                    } else if (fieldName === 'recibo') {
+                        document.getElementById('reciboImageContainer').classList.remove('hidden');
+                        document.getElementById('reciboPdfContainer').classList.add('hidden');
+                        document.getElementById('reciboImage').src = e.target.result;
+                    }
+                };
+                reader.readAsDataURL(file);
+            } else if (file.type === 'application/pdf' && fieldName === 'recibo') {
+                // Show PDF icon
+                document.getElementById('reciboImageContainer').classList.add('hidden');
+                document.getElementById('reciboPdfContainer').classList.remove('hidden');
+            }
+        }
+
+        async function checkQuestionnaireStatus() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const cedulaHash = Array.from(urlParams.keys())[0];
+
+            if (!cedulaHash) {
+                alert('No se proporcionó identificación válida.');
+                document.getElementById('questionnaireForm').innerHTML = '<p class="text-center text-red-600">Enlace inválido</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/questionnaire/status?cedula=${encodeURIComponent(cedulaHash)}`);
+                const data = await response.json();
+
+                if (data.completed) {
+                    document.getElementById('questionnaireForm').innerHTML = `
+                        <div class="text-center p-8">
+                            <svg class="mx-auto h-16 w-16 text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h2 class="text-2xl font-bold mb-2">Cuestionario ya completado</h2>
+                            <p class="mb-4">Este cuestionario fue completado el ${new Date(data.completed_at).toLocaleDateString('es-ES')}</p>
+                            <p class="text-sm text-gray-600">Si necesitas actualizar tu información, por favor contacta a nuestro equipo.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error verificando estado:', error);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            checkQuestionnaireStatus();
             showStep(currentStep);
             document.getElementById('backBtn').addEventListener('click', () => {
                 if (currentStep > 0) {
@@ -394,13 +628,59 @@
                     showStep(currentStep);
                 }
             });
-            document.getElementById('questionnaireForm').addEventListener('submit', (e) => {
+
+            // File upload handlers
+            setupFileUpload('cedula', 'image/*');
+            setupFileUpload('recibo', 'image/*,application/pdf');
+
+            document.getElementById('questionnaireForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                if (!validateStep(2)) return;
+                if (!validateStep(3)) return;
+
+                // Collect form data
                 const data = collectData();
-                console.log('Respuestas cuestionario privado', data);
-                showAlert('Respuestas guardadas. Pronto te contactaremos.', 'success');
-                showSuccessDialog();
+                const formData = new FormData();
+
+                // Add all questionnaire data as JSON
+                formData.append('questionnaire_data', JSON.stringify(data));
+
+                // Add files
+                const cedulaFile = document.getElementById('cedulaFile').files[0];
+                const reciboFile = document.getElementById('reciboFile').files[0];
+                formData.append('cedula_file', cedulaFile);
+                formData.append('recibo_file', reciboFile);
+
+                // Get cedula from URL (base64 encoded)
+                const urlParams = new URLSearchParams(window.location.search);
+                const cedulaHash = Array.from(urlParams.keys())[0];
+                if (cedulaHash) {
+                    try {
+                        const cedula = atob(cedulaHash);
+                        formData.append('cedula', cedula);
+                    } catch (e) {
+                        console.error('Error decoding cedula from URL');
+                    }
+                }
+
+                // Submit to API
+                try {
+                    showAlert('Enviando información...', 'success');
+                    const response = await fetch('/api/questionnaire/submit', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        showAlert('Respuestas guardadas. Pronto te contactaremos.', 'success');
+                        showSuccessDialog();
+                    } else {
+                        const error = await response.json();
+                        showAlert(error.message || 'Error al enviar el formulario.', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showAlert('Error de conexión. Intenta nuevamente.', 'error');
+                }
             });
         });
     </script>
