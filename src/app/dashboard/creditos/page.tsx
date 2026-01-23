@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, Filter } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -304,6 +305,7 @@ function formatDate(dateString?: string | null): string {
 
 export default function CreditsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
 
   const [credits, setCredits] = useState<CreditItem[]>([]);
@@ -1144,7 +1146,7 @@ export default function CreditsPage() {
                                       </DropdownMenuItem>
                                     )}
                                     <DropdownMenuItem
-                                      onClick={() => handleGenerateDocuments(credit)}
+                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
                                     >
                                       Exportar pagaré
                                     </DropdownMenuItem>
