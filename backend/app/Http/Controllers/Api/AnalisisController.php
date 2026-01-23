@@ -12,6 +12,28 @@ use Illuminate\Support\Facades\Log;
 
 class AnalisisController extends Controller
 {
+    /**
+     * Limpiar cédula removiendo caracteres no numéricos.
+     */
+    private function cleanCedula(?string $cedula): string
+    {
+        return preg_replace('/[^0-9]/', '', $cedula ?? '');
+    }
+
+    /**
+     * Obtener la cédula limpia desde un análisis (vía lead u oportunidad).
+     */
+    private function getCedulaFromAnalisis(Analisis $analisis): ?string
+    {
+        if ($analisis->lead && !empty($analisis->lead->cedula)) {
+            return $this->cleanCedula($analisis->lead->cedula);
+        }
+        if ($analisis->opportunity && !empty($analisis->opportunity->lead_cedula)) {
+            return $this->cleanCedula($analisis->opportunity->lead_cedula);
+        }
+        return null;
+    }
+
     public function index()
     {
         $analisis = Analisis::with(['opportunity', 'lead'])
@@ -215,7 +237,7 @@ class AnalisisController extends Controller
             return ['success' => false, 'message' => 'Oportunidad no encontrada o sin cédula'];
         }
 
-        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $cedula = $this->cleanCedula($opportunity->lead_cedula);
         $baseFolder = "documentos/{$cedula}/{$opportunityId}";
         $targetFolder = "documentos/{$cedula}/analisis/{$analisisId}/heredados";
 
@@ -286,14 +308,7 @@ class AnalisisController extends Controller
     public function getFiles(int $id)
     {
         $analisis = Analisis::with(['lead', 'opportunity'])->findOrFail($id);
-
-        // Determinar la cédula
-        $cedula = null;
-        if ($analisis->lead) {
-            $cedula = preg_replace('/[^0-9]/', '', $analisis->lead->cedula ?? '');
-        } elseif ($analisis->opportunity) {
-            $cedula = preg_replace('/[^0-9]/', '', $analisis->opportunity->lead_cedula ?? '');
-        }
+        $cedula = $this->getCedulaFromAnalisis($analisis);
 
         if (empty($cedula)) {
             return response()->json([
@@ -335,14 +350,7 @@ class AnalisisController extends Controller
         ]);
 
         $analisis = Analisis::with(['lead', 'opportunity'])->findOrFail($id);
-
-        // Determinar la cédula
-        $cedula = null;
-        if ($analisis->lead) {
-            $cedula = preg_replace('/[^0-9]/', '', $analisis->lead->cedula ?? '');
-        } elseif ($analisis->opportunity) {
-            $cedula = preg_replace('/[^0-9]/', '', $analisis->opportunity->lead_cedula ?? '');
-        }
+        $cedula = $this->getCedulaFromAnalisis($analisis);
 
         if (empty($cedula)) {
             return response()->json([
@@ -396,14 +404,7 @@ class AnalisisController extends Controller
     public function deleteFile(int $id, string $filename)
     {
         $analisis = Analisis::with(['lead', 'opportunity'])->findOrFail($id);
-
-        // Determinar la cédula
-        $cedula = null;
-        if ($analisis->lead) {
-            $cedula = preg_replace('/[^0-9]/', '', $analisis->lead->cedula ?? '');
-        } elseif ($analisis->opportunity) {
-            $cedula = preg_replace('/[^0-9]/', '', $analisis->opportunity->lead_cedula ?? '');
-        }
+        $cedula = $this->getCedulaFromAnalisis($analisis);
 
         if (empty($cedula)) {
             return response()->json([
