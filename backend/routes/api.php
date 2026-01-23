@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Rewards\RedemptionController;
 use App\Http\Controllers\Api\Rewards\Admin\GamificationConfigController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\QuestionnaireController;
+use App\Http\Controllers\Api\InstitucionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -47,6 +48,9 @@ Route::get('/lead-statuses', function () {
 
 // Products
 Route::apiResource('products', ProductController::class);
+
+// Instituciones
+Route::apiResource('instituciones', InstitucionController::class);
 
 // Leads
 Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);

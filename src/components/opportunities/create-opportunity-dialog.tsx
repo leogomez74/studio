@@ -28,7 +28,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/axios";
-import { type Lead, OPPORTUNITY_STATUSES, VERTICAL_OPTIONS } from "@/lib/data";
+import { type Lead, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -60,9 +60,7 @@ type Product = {
 
 const createOpportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
-  vertical: z.enum(VERTICAL_OPTIONS, {
-    errorMap: () => ({ message: "Vertical no válida" })
-  }),
+  vertical: z.string().min(1, "Debes seleccionar una institución"),
   opportunityType: z.string().min(1, "Debes seleccionar un tipo"),
   status: z.enum(OPPORTUNITY_STATUSES, {
     errorMap: () => ({ message: "Estado no válido" })
@@ -81,7 +79,7 @@ type CreateOpportunityFormValues = z.infer<typeof createOpportunitySchema>;
 
 type CreateOpportunityPayload = {
   lead_cedula: string;
-  vertical: (typeof VERTICAL_OPTIONS)[number];
+  vertical: string;
   opportunity_type: string;
   status: (typeof OPPORTUNITY_STATUSES)[number];
   amount: number;
@@ -109,6 +107,10 @@ export function CreateOpportunityDialog({
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
+  // Estado para instituciones
+  const [instituciones, setInstituciones] = useState<Array<{ id: number; nombre: string; activa: boolean }>>([]);
+  const [loadingInstituciones, setLoadingInstituciones] = useState(true);
+
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
   const [searchVertical, setSearchVertical] = useState("");
@@ -117,7 +119,7 @@ export function CreateOpportunityDialog({
     resolver: zodResolver(createOpportunitySchema),
     defaultValues: {
       leadId: defaultLeadId || "",
-      vertical: VERTICAL_OPTIONS[0],
+      vertical: "",
       opportunityType: "",
       status: OPPORTUNITY_STATUSES[0],
       amount: 0,
@@ -147,6 +149,27 @@ export function CreateOpportunityDialog({
     fetchProducts();
   }, [toast]);
 
+  // Cargar instituciones al montar el componente
+  useEffect(() => {
+    const fetchInstituciones = async () => {
+      try {
+        const response = await api.get('/api/instituciones?activas_only=true');
+        setInstituciones(response.data);
+      } catch (error) {
+        console.error("Error fetching instituciones:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las instituciones.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingInstituciones(false);
+      }
+    };
+
+    fetchInstituciones();
+  }, [toast]);
+
   // Detectar si es lead o cliente por props
   const isLeadSelectionDisabled = !!defaultLeadId;
 
@@ -155,7 +178,7 @@ export function CreateOpportunityDialog({
     if (open) {
       form.reset({
         leadId: defaultLeadId || (leads.length > 0 ? String(leads[0].id) : ""),
-        vertical: VERTICAL_OPTIONS[0],
+        vertical: instituciones.length > 0 ? instituciones[0].nombre : "",
         opportunityType: products.length > 0 ? products[0].name : "",
         status: OPPORTUNITY_STATUSES[0],
         amount: 0,
@@ -166,7 +189,7 @@ export function CreateOpportunityDialog({
       setHasDocuments(false);
       setIsUploading(false);
     }
-  }, [open, defaultLeadId, leads, products, form]);
+  }, [open, defaultLeadId, leads, products, instituciones, form]);
 
   const currentLeadId = form.watch("leadId");
 
@@ -278,9 +301,9 @@ export function CreateOpportunityDialog({
   }, [leads]);
 
   const filteredVerticals = useMemo(() => {
-    if (!searchVertical) return VERTICAL_OPTIONS;
-    return VERTICAL_OPTIONS.filter((v) => v.toLowerCase().includes(searchVertical.toLowerCase()));
-  }, [searchVertical]);
+    if (!searchVertical) return instituciones;
+    return instituciones.filter((inst) => inst.nombre.toLowerCase().includes(searchVertical.toLowerCase()));
+  }, [searchVertical, instituciones]);
 
   return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -353,10 +376,11 @@ export function CreateOpportunityDialog({
                             role="combobox"
                             aria-expanded={openVertical}
                             className="w-full justify-between"
+                            disabled={loadingInstituciones}
                           >
                             {field.value
-                              ? VERTICAL_OPTIONS.find((v) => v === field.value)
-                              : "Seleccionar institución..."}
+                              ? instituciones.find((inst) => inst.nombre === field.value)?.nombre
+                              : loadingInstituciones ? "Cargando..." : "Seleccionar institución..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </FormControl>
@@ -374,22 +398,22 @@ export function CreateOpportunityDialog({
                             {filteredVerticals.length === 0 ? (
                                 <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron resultados.</div>
                             ) : (
-                                filteredVerticals.map((vertical) => (
+                                filteredVerticals.map((institucion) => (
                                     <div
-                                        key={vertical}
-                                        className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${field.value === vertical ? "bg-accent text-accent-foreground" : ""}`}
+                                        key={institucion.id}
+                                        className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${field.value === institucion.nombre ? "bg-accent text-accent-foreground" : ""}`}
                                         onClick={() => {
-                                            form.setValue("vertical", vertical);
+                                            form.setValue("vertical", institucion.nombre);
                                             setOpenVertical(false);
                                             setSearchVertical("");
                                         }}
                                     >
                                         <Check
                                             className={`mr-2 h-4 w-4 ${
-                                                field.value === vertical ? "opacity-100" : "opacity-0"
+                                                field.value === institucion.nombre ? "opacity-100" : "opacity-0"
                                             }`}
                                         />
-                                        {vertical}
+                                        {institucion.nombre}
                                     </div>
                                 ))
                             )}

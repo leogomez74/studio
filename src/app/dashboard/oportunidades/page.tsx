@@ -77,7 +77,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
-import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, VERTICAL_OPTIONS, OPPORTUNITY_TYPES } from "@/lib/data";
+import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
 
 const opportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
@@ -128,10 +128,10 @@ interface ConvertCaseFormValues {
   description: string;
 }
 
-const normalizeOpportunityVertical = (vertical?: string | null) => {
-  if (!vertical) return VERTICAL_OPTIONS[0];
-  const found = VERTICAL_OPTIONS.find(v => v.toLowerCase() === vertical.toLowerCase());
-  return found || VERTICAL_OPTIONS[0];
+const normalizeOpportunityVertical = (vertical?: string | null, instituciones?: Array<{ id: number; nombre: string; activa: boolean }>) => {
+  if (!vertical || !instituciones || instituciones.length === 0) return "";
+  const found = instituciones.find(inst => inst.nombre.toLowerCase() === vertical.toLowerCase());
+  return found ? found.nombre : "";
 };
 
 const formatOpportunityReference = (ref: string | number | null | undefined) => {
@@ -202,6 +202,7 @@ export default function DealsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]); // <--- AGREGADO: Estado para usuarios
   const [products, setProducts] = useState<Product[]>([]); // <--- AGREGADO: Estado para productos
+  const [instituciones, setInstituciones] = useState<Array<{ id: number; nombre: string; activa: boolean }>>([]); // <--- AGREGADO: Estado para instituciones
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
 
@@ -393,12 +394,23 @@ export default function DealsPage() {
     }
   }, []);
 
+  // AGREGADO: Fetch Instituciones para el select de vertical
+  const fetchInstituciones = useCallback(async () => {
+    try {
+      const response = await api.get('/api/instituciones?activas_only=true');
+      setInstituciones(response.data);
+    } catch (error) {
+      console.error("Error fetching instituciones:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOpportunities();
     fetchLeads();
     fetchUsers();
     fetchProducts();
-  }, [fetchOpportunities, fetchLeads, fetchUsers, fetchProducts]);
+    fetchInstituciones();
+  }, [fetchOpportunities, fetchLeads, fetchUsers, fetchProducts, fetchInstituciones]);
 
   // --- Form Logic ---
 
@@ -409,7 +421,7 @@ export default function DealsPage() {
   }, [dialogState, leads, form]);
 
   const resetForm = useCallback((opportunity?: Opportunity | null) => {
-    const derivedVertical = opportunity ? normalizeOpportunityVertical(opportunity.vertical) : VERTICAL_OPTIONS[0];
+    const derivedVertical = opportunity ? normalizeOpportunityVertical(opportunity.vertical, instituciones) : (instituciones.length > 0 ? instituciones[0].nombre : "");
     form.reset({
       leadId: opportunity?.lead?.id ? String(opportunity.lead.id) : "",
       vertical: derivedVertical,
@@ -419,7 +431,7 @@ export default function DealsPage() {
       expectedCloseDate: opportunity?.expected_close_date ?? "",
       comments: opportunity?.comments ?? "",
     });
-  }, [defaultStatus, form]);
+  }, [defaultStatus, form, instituciones]);
 
   const resetConvertCaseForm = useCallback(() => {
     setConvertCaseValues({
@@ -859,14 +871,14 @@ export default function DealsPage() {
   }, [leads]);
 
   const filteredVerticals = useMemo(() => {
-    if (!searchVertical) return VERTICAL_OPTIONS;
-    return VERTICAL_OPTIONS.filter((v) => v.toLowerCase().includes(searchVertical.toLowerCase()));
-  }, [searchVertical]);
+    if (!searchVertical) return instituciones;
+    return instituciones.filter((inst) => inst.nombre.toLowerCase().includes(searchVertical.toLowerCase()));
+  }, [searchVertical, instituciones]);
 
   const filteredFilterVerticals = useMemo(() => {
-    if (!searchFilterVertical) return VERTICAL_OPTIONS;
-    return VERTICAL_OPTIONS.filter((v) => v.toLowerCase().includes(searchFilterVertical.toLowerCase()));
-  }, [searchFilterVertical]);
+    if (!searchFilterVertical) return instituciones;
+    return instituciones.filter((inst) => inst.nombre.toLowerCase().includes(searchFilterVertical.toLowerCase()));
+  }, [searchFilterVertical, instituciones]);
 
   return (
     <Card>
@@ -923,7 +935,7 @@ export default function DealsPage() {
                       className="w-full justify-between"
                     >
                       {filters.vertical !== "todos"
-                        ? VERTICAL_OPTIONS.find((v) => v === filters.vertical)
+                        ? instituciones.find((inst) => inst.nombre === filters.vertical)?.nombre
                         : "Todas las verticales"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -956,22 +968,22 @@ export default function DealsPage() {
                         {filteredFilterVerticals.length === 0 ? (
                             <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron resultados.</div>
                         ) : (
-                            filteredFilterVerticals.map((vertical) => (
+                            filteredFilterVerticals.map((institucion) => (
                                 <div
-                                    key={vertical}
-                                    className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${filters.vertical === vertical ? "bg-accent text-accent-foreground" : ""}`}
+                                    key={institucion.id}
+                                    className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${filters.vertical === institucion.nombre ? "bg-accent text-accent-foreground" : ""}`}
                                     onClick={() => {
-                                        handleFilterChange("vertical", vertical);
+                                        handleFilterChange("vertical", institucion.nombre);
                                         setOpenFilterVertical(false);
                                         setSearchFilterVertical("");
                                     }}
                                 >
                                     <Check
                                         className={`mr-2 h-4 w-4 ${
-                                            filters.vertical === vertical ? "opacity-100" : "opacity-0"
+                                            filters.vertical === institucion.nombre ? "opacity-100" : "opacity-0"
                                         }`}
                                     />
-                                    {vertical}
+                                    {institucion.nombre}
                                 </div>
                             ))
                         )}
@@ -1247,8 +1259,8 @@ export default function DealsPage() {
                             className="w-full justify-between"
                           >
                             {field.value
-                              ? VERTICAL_OPTIONS.find((v) => v === field.value)
-                              : "Seleccionar vertical..."}
+                              ? instituciones.find((inst) => inst.nombre === field.value)?.nombre
+                              : "Seleccionar institución..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </FormControl>
@@ -1266,22 +1278,22 @@ export default function DealsPage() {
                           {filteredVerticals.length === 0 ? (
                             <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron resultados.</div>
                           ) : (
-                            filteredVerticals.map((vertical) => (
+                            filteredVerticals.map((institucion) => (
                               <div
-                                key={vertical}
-                                className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${field.value === vertical ? "bg-accent text-accent-foreground" : ""}`}
+                                key={institucion.id}
+                                className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${field.value === institucion.nombre ? "bg-accent text-accent-foreground" : ""}`}
                                 onClick={() => {
-                                  form.setValue("vertical", vertical);
+                                  form.setValue("vertical", institucion.nombre);
                                   setOpenVertical(false);
                                   setSearchVertical("");
                                 }}
                               >
                                 <Check
                                   className={`mr-2 h-4 w-4 ${
-                                    field.value === vertical ? "opacity-100" : "opacity-0"
+                                    field.value === institucion.nombre ? "opacity-100" : "opacity-0"
                                   }`}
                                 />
-                                {vertical}
+                                {institucion.nombre}
                               </div>
                             ))
                           )}
