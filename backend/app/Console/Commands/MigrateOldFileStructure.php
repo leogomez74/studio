@@ -24,6 +24,15 @@ class MigrateOldFileStructure extends Command
         $this->info('Iniciando migración de estructura de archivos...');
         $this->newLine();
 
+        // Asegurar que la carpeta base 'documentos' existe
+        if (!Storage::disk('public')->exists('documentos')) {
+            $this->info('📁 Creando carpeta base "documentos"...');
+            if (!$dryRun) {
+                Storage::disk('public')->makeDirectory('documentos', 0755, true);
+                $this->info('✓ Carpeta creada');
+            }
+        }
+
         // Buscar todos los documentos con rutas antiguas
         $oldDocuments = PersonDocument::where('path', 'like', 'leads/%')->get();
 

@@ -398,7 +398,7 @@ class QuestionnaireController extends Controller
             try {
                 // Crear carpeta destino si no existe
                 if (!Storage::disk('public')->exists($targetFolder)) {
-                    Storage::disk('public')->makeDirectory($targetFolder);
+                    Storage::disk('public')->makeDirectory($targetFolder, 0755, true);
                 }
 
                 // Obtener archivos del buzón
