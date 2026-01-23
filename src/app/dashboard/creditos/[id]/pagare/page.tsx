@@ -169,13 +169,32 @@ export default function PagarePage() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
+      // Helper function to capture element as canvas with timeout
+      const captureElement = async (element: HTMLElement): Promise<HTMLCanvasElement> => {
+        const width = element.offsetWidth;
+        const height = element.offsetHeight;
+
+        return html2canvas(element, {
+          scale: 1.5,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: width,
+          height: height,
+          windowWidth: width,
+          windowHeight: height,
+          imageTimeout: 0, // No esperar por imágenes
+          ignoreElements: (el) => {
+            // Ignorar todas las imágenes para evitar bloqueos
+            return el.tagName === 'IMG';
+          }
+        });
+      };
+
       // Página 1: Pagaré
-      const canvas1 = await html2canvas(pagareRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
+      console.log('Capturando página 1: Pagaré...');
+      const canvas1 = await captureElement(pagareRef.current);
 
       const imgData1 = canvas1.toDataURL('image/png');
       const ratio1 = Math.min(pdfWidth / canvas1.width, pdfHeight / canvas1.height);
@@ -187,14 +206,10 @@ export default function PagarePage() {
 
       // Página 2: Autorización de Deducción (COOPENACIONAL o COOPESERVICIOS)
       if (showAutorizacionCoope && autorizacionRef.current) {
+        console.log('Capturando página 2: Autorización COOPE...');
         pdf.addPage();
 
-        const canvas2 = await html2canvas(autorizacionRef.current, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-        });
+        const canvas2 = await captureElement(autorizacionRef.current);
 
         const imgData2 = canvas2.toDataURL('image/png');
         const ratio2 = Math.min(pdfWidth / canvas2.width, pdfHeight / canvas2.height);
@@ -207,14 +222,10 @@ export default function PagarePage() {
 
       // Página 2: Autorización de Deducción (Coope San Gabriel)
       if (showAutorizacionCSG && autorizacionCSGRef.current) {
+        console.log('Capturando página 2: Autorización CSG...');
         pdf.addPage();
 
-        const canvas3 = await html2canvas(autorizacionCSGRef.current, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-        });
+        const canvas3 = await captureElement(autorizacionCSGRef.current);
 
         const imgData3 = canvas3.toDataURL('image/png');
         const ratio3 = Math.min(pdfWidth / canvas3.width, pdfHeight / canvas3.height);
@@ -225,9 +236,12 @@ export default function PagarePage() {
         pdf.addImage(imgData3, 'PNG', x3, 0, finalWidth3, finalHeight3);
       }
 
+      console.log('Guardando PDF...');
       pdf.save(`pagare_${credit.numero_operacion || credit.reference || credit.id}.pdf`);
+      console.log('PDF exportado exitosamente');
     } catch (error) {
       console.error('Error exportando PDF:', error);
+      alert('Error al exportar el PDF. Por favor intente de nuevo.');
     } finally {
       setExporting(false);
     }
