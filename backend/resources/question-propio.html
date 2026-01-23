@@ -581,7 +581,26 @@
             }
         }
 
+        async function checkQuestionnaireStatus() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const cedulaHash = Array.from(urlParams.keys())[0];
+            if (!cedulaHash) {
+                alert('Enlace inválido');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/questionnaire/status?cedula=${encodeURIComponent(cedulaHash)}`);
+                const data = await response.json();
+                if (data.completed) {
+                    document.getElementById('questionnaireForm').innerHTML = `<div class="text-center p-8"><h2 class="text-2xl font-bold mb-2">Cuestionario ya completado</h2><p>Completado el ${new Date(data.completed_at).toLocaleDateString('es-ES')}</p></div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            checkQuestionnaireStatus();
             showStep(currentStep);
             document.getElementById('backBtn').addEventListener('click', () => {
                 if (currentStep > 0) {

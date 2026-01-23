@@ -11,6 +11,42 @@ use Illuminate\Support\Facades\Log;
 
 class QuestionnaireController extends Controller
 {
+    /**
+     * Verificar si el cuestionario ya fue completado para una cédula.
+     */
+    public function checkStatus(Request $request)
+    {
+        $cedula = $request->query('cedula');
+
+        if (!$cedula) {
+            return response()->json([
+                'message' => 'Cédula no proporcionada.'
+            ], 400);
+        }
+
+        // Decodificar cédula si viene en base64
+        try {
+            $cedula = base64_decode($cedula);
+        } catch (\Exception $e) {
+            // Si falla el decode, usar el valor tal cual
+        }
+
+        $lead = Lead::where('cedula', $cedula)->first();
+
+        if (!$lead) {
+            return response()->json([
+                'completed' => false,
+                'message' => 'Lead no encontrado.'
+            ], 404);
+        }
+
+        return response()->json([
+            'completed' => !is_null($lead->questionnaire_completed_at),
+            'completed_at' => $lead->questionnaire_completed_at,
+            'lead_name' => $lead->nombre_completo
+        ]);
+    }
+
     public function submit(Request $request)
     {
         try {
@@ -32,6 +68,14 @@ class QuestionnaireController extends Controller
                 return response()->json([
                     'message' => 'No se encontró un lead con esta cédula.'
                 ], 404);
+            }
+
+            // Verificar si el cuestionario ya fue completado
+            if ($lead->questionnaire_completed_at) {
+                return response()->json([
+                    'message' => 'Este cuestionario ya fue completado anteriormente.',
+                    'completed_at' => $lead->questionnaire_completed_at
+                ], 400);
             }
 
             // Create storage directory for this cedula
@@ -134,6 +178,9 @@ class QuestionnaireController extends Controller
             if (isset($questionnaireData['detalle_legal'])) {
                 $updateData['detalle_legal'] = $questionnaireData['detalle_legal'];
             }
+
+            // Marcar el cuestionario como completado
+            $updateData['questionnaire_completed_at'] = now();
 
             $lead->update($updateData);
 

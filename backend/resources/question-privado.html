@@ -581,7 +581,39 @@
             }
         }
 
+        async function checkQuestionnaireStatus() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const cedulaHash = Array.from(urlParams.keys())[0];
+
+            if (!cedulaHash) {
+                alert('No se proporcionó identificación válida.');
+                document.getElementById('questionnaireForm').innerHTML = '<p class="text-center text-red-600">Enlace inválido</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/questionnaire/status?cedula=${encodeURIComponent(cedulaHash)}`);
+                const data = await response.json();
+
+                if (data.completed) {
+                    document.getElementById('questionnaireForm').innerHTML = `
+                        <div class="text-center p-8">
+                            <svg class="mx-auto h-16 w-16 text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h2 class="text-2xl font-bold mb-2">Cuestionario ya completado</h2>
+                            <p class="mb-4">Este cuestionario fue completado el ${new Date(data.completed_at).toLocaleDateString('es-ES')}</p>
+                            <p class="text-sm text-gray-600">Si necesitas actualizar tu información, por favor contacta a nuestro equipo.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error verificando estado:', error);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            checkQuestionnaireStatus();
             showStep(currentStep);
             document.getElementById('backBtn').addEventListener('click', () => {
                 if (currentStep > 0) {

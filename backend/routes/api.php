@@ -54,6 +54,7 @@ Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::apiResource('leads', LeadController::class);
 
 // Questionnaires
+Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
 Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
 
 // Clientes
