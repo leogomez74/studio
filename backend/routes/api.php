@@ -109,7 +109,6 @@ Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::cl
 Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
 
 // Analisis CRUD
-Route::get('analisis/next-reference', [\App\Http\Controllers\Api\AnalisisController::class, 'nextReference']);
 Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
 
 // Analisis - Archivos
