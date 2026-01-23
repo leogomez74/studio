@@ -3,13 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, Trash, FolderOpen, FolderInput } from 'lucide-react';
+import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderOpen, FolderInput } from 'lucide-react';
 import api from '@/lib/axios';
 import { Lead } from '@/lib/data';
 import {
@@ -53,15 +50,6 @@ export default function AnalisisDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('resumen');
-  const [saving, setSaving] = useState(false);
-
-  // Form states
-  const [ingresoBruto, setIngresoBruto] = useState<string>('');
-  const [ingresoNeto, setIngresoNeto] = useState<string>('');
-  const [propuesta, setPropuesta] = useState<string>('');
-
-  // File upload state
-  const [uploading, setUploading] = useState(false);
 
   // Estados para archivos del filesystem (heredados/específicos)
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
@@ -81,9 +69,6 @@ export default function AnalisisDetailPage() {
         const res = await api.get(`/api/analisis/${analisisId}`);
         const data = res.data as AnalisisItem;
         setAnalisis(data);
-        setIngresoBruto(data.ingreso_bruto?.toString() || '');
-        setIngresoNeto(data.ingreso_neto?.toString() || '');
-        setPropuesta(data.propuesta || '');
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -120,44 +105,6 @@ export default function AnalisisDetailPage() {
     }
   };
 
-  // Subir archivo específico al análisis
-  const handleSpecificFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      setUploading(true);
-      await api.post(`/api/analisis/${analisisId}/files`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      await fetchAnalisisFiles();
-      alert('Documento subido exitosamente.');
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Error al subir el documento.');
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  // Eliminar archivo del análisis
-  const handleDeleteAnalisisFile = async (filename: string) => {
-    if (!confirm(`¿Eliminar el archivo "${filename}"?`)) return;
-
-    try {
-      await api.delete(`/api/analisis/${analisisId}/files/${encodeURIComponent(filename)}`);
-      await fetchAnalisisFiles();
-      alert('Archivo eliminado.');
-    } catch (error) {
-      console.error('Error deleting file:', error);
-      alert('Error al eliminar el archivo.');
-    }
-  };
-
   // Helper para obtener info del tipo de archivo
   const getFileTypeInfo = (fileName: string) => {
     const name = fileName.toLowerCase();
@@ -184,24 +131,6 @@ export default function AnalisisDetailPage() {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const handleSave = async () => {
-    if (!analisis) return;
-    try {
-      setSaving(true);
-      await api.put(`/api/analisis/${analisis.id}`, {
-        ingreso_bruto: parseFloat(ingresoBruto) || 0,
-        ingreso_neto: parseFloat(ingresoNeto) || 0,
-        propuesta: propuesta,
-      });
-      alert('Cambios guardados exitosamente.');
-    } catch (error) {
-      console.error('Error updating analisis:', error);
-      alert('Error al guardar los cambios.');
-    } finally {
-      setSaving(false);
-    }
   };
 
   if (loading) {
@@ -287,18 +216,9 @@ export default function AnalisisDetailPage() {
             <p className="text-sm text-gray-500">Revisión de datos financieros y laborales del cliente</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge className={
-            analisis.status === 'Aprobado' ? 'bg-green-500' :
-            analisis.status === 'Rechazado' ? 'bg-red-500' : 'bg-yellow-500'
-          }>
-            {analisis.status}
-          </Badge>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Guardar Cambios
-          </Button>
-        </div>
+        <Badge className="bg-blue-500">
+          {analisis.reference}
+        </Badge>
       </div>
 
       {/* Tabs Content */}
@@ -358,72 +278,60 @@ export default function AnalisisDetailPage() {
               <CardTitle className="text-sm font-medium text-gray-500">Propuesta de Analisis</CardTitle>
             </CardHeader>
             <CardContent>
-              <Textarea
-                placeholder="Escriba aqui la propuesta o conclusiones del analisis..."
-                className="min-h-[150px]"
-                value={propuesta}
-                onChange={(e) => setPropuesta(e.target.value)}
-              />
+              <div className="min-h-[100px] p-3 bg-gray-50 rounded border text-sm">
+                {analisis.propuesta || <span className="text-muted-foreground italic">Sin propuesta definida</span>}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* TAB: DATOS FINANCIEROS */}
         <TabsContent value="financiero" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-500">Monto Solicitado</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-blue-600">
                   {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.monto_credito)}
                 </div>
               </CardContent>
             </Card>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="ingreso_bruto">Ingreso Bruto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-gray-500">₡</span>
-                  <Input
-                    id="ingreso_bruto"
-                    type="number"
-                    className="pl-8"
-                    placeholder="0.00"
-                    value={ingresoBruto}
-                    onChange={(e) => setIngresoBruto(e.target.value)}
-                  />
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500">Ingreso Bruto</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_bruto || 0)}
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ingreso_neto">Ingreso Neto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-gray-500">₡</span>
-                  <Input
-                    id="ingreso_neto"
-                    type="number"
-                    className="pl-8"
-                    placeholder="0.00"
-                    value={ingresoNeto}
-                    onChange={(e) => setIngresoNeto(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Deducciones (Calculado)</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-red-600">
+                <div className="text-2xl font-bold text-green-600">
+                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_neto || 0)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500">Deducciones</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
                   {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(
-                    (parseFloat(ingresoBruto) || 0) - (parseFloat(ingresoNeto) || 0)
+                    (analisis.ingreso_bruto || 0) - (analisis.ingreso_neto || 0)
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Diferencia entre Bruto y Neto</p>
+                <p className="text-xs text-gray-500 mt-1">Bruto - Neto</p>
               </CardContent>
             </Card>
           </div>
@@ -534,24 +442,19 @@ export default function AnalisisDetailPage() {
                     heredados.map((file) => {
                       const { icon: FileIcon, color } = getFileTypeInfo(file.name);
                       return (
-                        <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                            <div className="min-w-0">
-                              <a
-                                href={file.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-medium hover:underline truncate block"
-                              >
-                                {file.name}
-                              </a>
-                              <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                            </div>
+                        <div key={file.path} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50">
+                          <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                          <div className="min-w-0 flex-1">
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium hover:underline truncate block"
+                            >
+                              {file.name}
+                            </a>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                           </div>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteAnalisisFile(file.name)}>
-                            <Trash className="h-4 w-4 text-destructive" />
-                          </Button>
                         </div>
                       );
                     })
@@ -571,16 +474,6 @@ export default function AnalisisDetailPage() {
                 <p className="text-xs text-muted-foreground">Documentos subidos directamente aquí</p>
               </CardHeader>
               <CardContent className="space-y-2 flex-1 flex flex-col">
-                {/* Subir archivo específico */}
-                <div className="flex items-center gap-2 p-2 border-2 border-dashed rounded mb-2">
-                  <Upload className="h-4 w-4 text-gray-400" />
-                  <Input
-                    type="file"
-                    className="text-xs h-8"
-                    onChange={handleSpecificFileUpload}
-                    disabled={uploading}
-                  />
-                </div>
                 <div className="flex-1 overflow-y-auto space-y-2">
                   {loadingFiles ? (
                     <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
@@ -590,24 +483,19 @@ export default function AnalisisDetailPage() {
                     especificos.map((file) => {
                       const { icon: FileIcon, color } = getFileTypeInfo(file.name);
                       return (
-                        <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                            <div className="min-w-0">
-                              <a
-                                href={file.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-medium hover:underline truncate block"
-                              >
-                                {file.name}
-                              </a>
-                              <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                            </div>
+                        <div key={file.path} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50">
+                          <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                          <div className="min-w-0 flex-1">
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium hover:underline truncate block"
+                            >
+                              {file.name}
+                            </a>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                           </div>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteAnalisisFile(file.name)}>
-                            <Trash className="h-4 w-4 text-destructive" />
-                          </Button>
                         </div>
                       );
                     })
