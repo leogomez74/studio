@@ -324,6 +324,7 @@ export default function AnalisisPage() {
                               description: item.description || '',
                               divisa: item.divisa || 'CRC',
                               plazo: item.plazo ? String(item.plazo) : '36',
+                              poliza: false,
                             });
                             setIsCreditDialogOpen(true);
                           } catch (err) {
