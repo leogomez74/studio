@@ -9,10 +9,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, Trash, FolderOpen, FolderInput } from 'lucide-react';
 import api from '@/lib/axios';
 import { Lead } from '@/lib/data';
+import {
+  findEmpresaByName,
+  getFileExtension,
+  matchesRequirement,
+  Requirement,
+  Empresa
+} from '@/lib/empresas-mock';
 
 interface AnalisisItem {
   id: number;
@@ -28,11 +34,13 @@ interface AnalisisItem {
   propuesta?: string;
 }
 
-interface PersonDocument {
-  id: number;
+// Tipo para archivos del filesystem
+interface AnalisisFile {
   name: string;
+  path: string;
   url: string;
-  created_at: string;
+  size: number;
+  last_modified: number;
 }
 
 export default function AnalisisDetailPage() {
@@ -45,8 +53,6 @@ export default function AnalisisDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('resumen');
-  const [loadingDocs, setLoadingDocs] = useState(false);
-  const [documents, setDocuments] = useState<PersonDocument[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Form states
@@ -56,6 +62,17 @@ export default function AnalisisDetailPage() {
 
   // File upload state
   const [uploading, setUploading] = useState(false);
+
+  // Estados para archivos del filesystem (heredados/específicos)
+  const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
+  const [especificos, setEspecificos] = useState<AnalisisFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
+  // Verificación manual de documentos (key: requirement name, value: boolean)
+  const [manualVerifications, setManualVerifications] = useState<Record<string, boolean>>({});
+
+  // Empresa encontrada basada en institucion_labora del lead
+  const [empresaMatch, setEmpresaMatch] = useState<Empresa | undefined>(undefined);
 
   useEffect(() => {
     const fetchAnalisis = async () => {
@@ -68,8 +85,13 @@ export default function AnalisisDetailPage() {
         setIngresoNeto(data.ingreso_neto?.toString() || '');
         setPropuesta(data.propuesta || '');
 
-        if (data.lead?.id) {
-          fetchDocuments(data.lead.id);
+        // Cargar archivos del filesystem (heredados/específicos)
+        fetchAnalisisFiles();
+
+        // Buscar empresa por institucion_labora
+        if (data.lead?.institucion_labora) {
+          const empresa = findEmpresaByName(data.lead.institucion_labora);
+          setEmpresaMatch(empresa);
         }
       } catch (err) {
         console.error('Error fetching analisis:', err);
@@ -84,16 +106,84 @@ export default function AnalisisDetailPage() {
     }
   }, [analisisId]);
 
-  const fetchDocuments = async (personId: string | number) => {
+  // Cargar archivos del filesystem (heredados/específicos)
+  const fetchAnalisisFiles = async () => {
     try {
-      setLoadingDocs(true);
-      const res = await api.get(`/api/person-documents?person_id=${personId}`);
-      setDocuments(res.data);
+      setLoadingFiles(true);
+      const res = await api.get(`/api/analisis/${analisisId}/files`);
+      setHeredados(res.data.heredados || []);
+      setEspecificos(res.data.especificos || []);
     } catch (error) {
-      console.error('Error fetching documents:', error);
+      console.error('Error fetching analisis files:', error);
     } finally {
-      setLoadingDocs(false);
+      setLoadingFiles(false);
     }
+  };
+
+  // Subir archivo específico al análisis
+  const handleSpecificFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setUploading(true);
+      await api.post(`/api/analisis/${analisisId}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await fetchAnalisisFiles();
+      alert('Documento subido exitosamente.');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Error al subir el documento.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // Eliminar archivo del análisis
+  const handleDeleteAnalisisFile = async (filename: string) => {
+    if (!confirm(`¿Eliminar el archivo "${filename}"?`)) return;
+
+    try {
+      await api.delete(`/api/analisis/${analisisId}/files/${encodeURIComponent(filename)}`);
+      await fetchAnalisisFiles();
+      alert('Archivo eliminado.');
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      alert('Error al eliminar el archivo.');
+    }
+  };
+
+  // Helper para obtener info del tipo de archivo
+  const getFileTypeInfo = (fileName: string) => {
+    const name = fileName.toLowerCase();
+    if (name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+      return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600' };
+    }
+    if (name.endsWith('.pdf')) {
+      return { icon: FileText, label: 'PDF', color: 'text-red-600' };
+    }
+    if (name.match(/\.(xls|xlsx|csv)$/)) {
+      return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600' };
+    }
+    if (name.match(/\.(doc|docx)$/)) {
+      return { icon: FileText, label: 'Word', color: 'text-blue-600' };
+    }
+    if (name.match(/\.(html|htm)$/)) {
+      return { icon: FileText, label: 'HTML', color: 'text-orange-600' };
+    }
+    return { icon: File, label: 'Archivo', color: 'text-slate-600' };
+  };
+
+  // Formatear tamaño de archivo
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleSave = async () => {
@@ -111,30 +201,6 @@ export default function AnalisisDetailPage() {
       alert('Error al guardar los cambios.');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0 || !analisis?.lead?.id) return;
-
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('person_id', String(analisis.lead.id));
-
-    try {
-      setUploading(true);
-      await api.post('/api/person-documents', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      await fetchDocuments(analisis.lead.id);
-      alert('Documento subido exitosamente.');
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Error al subir el documento.');
-    } finally {
-      setUploading(false);
-      e.target.value = '';
     }
   };
 
@@ -161,11 +227,52 @@ export default function AnalisisDetailPage() {
 
   const lead = analisis.lead;
 
-  // Helper to find specific documents
-  const findDoc = (keyword: string) => documents.find(d => d.name.toLowerCase().includes(keyword.toLowerCase()));
-  const colillaDoc = findDoc('colilla');
-  const constanciaDoc = findDoc('constancia');
-  const recordDoc = findDoc('record') || findDoc('crediticio');
+  // Verificar si un requisito está cumplido (auto o manual)
+  // Combina archivos heredados y específicos del análisis
+  const allFiles = [...heredados, ...especificos];
+
+  const isRequirementFulfilled = (req: Requirement): { fulfilled: boolean; autoMatch: boolean; matchedFiles: AnalisisFile[] } => {
+    // Buscar archivos que coincidan por nombre y extensión
+    const matchedFiles = allFiles.filter(file => {
+      const fileExt = getFileExtension(file.name);
+      const extMatches = fileExt === req.file_extension.toLowerCase() ||
+        (req.file_extension === 'jpg' && ['jpg', 'jpeg', 'png'].includes(fileExt)) ||
+        (req.file_extension === 'pdf' && fileExt === 'pdf') ||
+        (req.file_extension === 'html' && ['html', 'htm'].includes(fileExt));
+
+      const nameMatches = matchesRequirement(file.name, req.name);
+
+      return extMatches && nameMatches;
+    });
+
+    // Si hay match automático por nombre
+    if (matchedFiles.length >= req.quantity) {
+      return { fulfilled: true, autoMatch: true, matchedFiles };
+    }
+
+    // Si está verificado manualmente
+    if (manualVerifications[req.name]) {
+      return { fulfilled: true, autoMatch: false, matchedFiles };
+    }
+
+    return { fulfilled: false, autoMatch: false, matchedFiles };
+  };
+
+  // Toggle verificación manual
+  const toggleManualVerification = (reqName: string) => {
+    setManualVerifications(prev => ({
+      ...prev,
+      [reqName]: !prev[reqName]
+    }));
+  };
+
+  // Requisitos por defecto si no hay empresa match
+  const defaultRequirements: Requirement[] = [
+    { name: 'Constancia Salarial', file_extension: 'pdf', quantity: 1 },
+    { name: 'Comprobantes de Pago', file_extension: 'pdf', quantity: 6 },
+  ];
+
+  const requirements = empresaMatch?.requirements || defaultRequirements;
 
   return (
     <div className="container mx-auto p-6">
@@ -324,108 +431,191 @@ export default function AnalisisDetailPage() {
 
         {/* TAB: DOCUMENTACION */}
         <TabsContent value="documentos" className="space-y-4">
+          {/* Info de empresa detectada */}
+          {empresaMatch ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-blue-700">
+                <strong>Empresa detectada:</strong> {empresaMatch.business_name} - Se verificarán los requisitos específicos de esta institución.
+              </p>
+            </div>
+          ) : lead?.institucion_labora ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-yellow-700">
+                <strong>Institución:</strong> {lead.institucion_labora} - No se encontraron requisitos específicos, usando requisitos por defecto.
+              </p>
+            </div>
+          ) : null}
+
+          {/* Layout principal: 2 columnas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Checklist de Documentos Requeridos */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Verificacion de Documentos</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium">Colilla de Pago</span>
-                  </div>
-                  {colillaDoc ? (
-                    <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium">Constancia Salarial</span>
-                  </div>
-                  {constanciaDoc ? (
-                    <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium">Record Crediticio</span>
-                  </div>
-                  {recordDoc ? (
-                    <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Subida de Archivos */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Subir Documento</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors">
-                  <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-500 mb-4 text-center">
-                    Seleccione un archivo para subir (PDF, Imagen)
+            {/* Columna izquierda: Verificación + Heredados */}
+            <div className="space-y-4 flex flex-col">
+              {/* Checklist de Documentos Requeridos */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Verificacion de Documentos</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Los documentos se verifican automáticamente por nombre. Si no coinciden, puede marcarlos manualmente.
                   </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {requirements.map((req, idx) => {
+                    const { fulfilled, autoMatch, matchedFiles } = isRequirementFulfilled(req);
+
+                    return (
+                      <div key={idx} className="flex items-center justify-between p-3 border rounded bg-gray-50">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-500" />
+                            <span className="text-sm font-medium">{req.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] uppercase bg-secondary px-1.5 py-0.5 rounded">{req.file_extension}</span>
+                            <span className="text-xs text-muted-foreground">x{req.quantity}</span>
+                            {matchedFiles.length > 0 && (
+                              <span className="text-xs text-green-600">({matchedFiles.length} encontrado{matchedFiles.length > 1 ? 's' : ''})</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {fulfilled ? (
+                            <Badge variant="default" className="bg-green-500">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              {autoMatch ? 'Auto' : 'Manual'}
+                            </Badge>
+                          ) : (
+                            <>
+                              <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                                <AlertCircle className="h-3 w-3 mr-1" /> Pendiente
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => toggleManualVerification(req.name)}
+                              >
+                                Verificar
+                              </Button>
+                            </>
+                          )}
+                          {fulfilled && !autoMatch && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-red-500 hover:text-red-700"
+                              onClick={() => toggleManualVerification(req.name)}
+                            >
+                              Desmarcar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+
+              {/* Archivos Heredados (de la Oportunidad) */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FolderInput className="h-4 w-4 text-blue-500" />
+                    Heredados de Oportunidad
+                    <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Documentos copiados de la oportunidad</p>
+                </CardHeader>
+                <CardContent className="space-y-2 max-h-[250px] overflow-y-auto">
+                  {loadingFiles ? (
+                    <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+                  ) : heredados.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Sin archivos heredados</p>
+                  ) : (
+                    heredados.map((file) => {
+                      const { icon: FileIcon, color } = getFileTypeInfo(file.name);
+                      return (
+                        <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                            <div className="min-w-0">
+                              <a
+                                href={file.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium hover:underline truncate block"
+                              >
+                                {file.name}
+                              </a>
+                              <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteAnalisisFile(file.name)}>
+                            <Trash className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Columna derecha: Específicos del Análisis (altura completa) */}
+            <Card className="h-full flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-green-500" />
+                  Específicos del Análisis
+                  <Badge variant="secondary" className="ml-auto">{especificos.length}</Badge>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Documentos subidos directamente aquí</p>
+              </CardHeader>
+              <CardContent className="space-y-2 flex-1 flex flex-col">
+                {/* Subir archivo específico */}
+                <div className="flex items-center gap-2 p-2 border-2 border-dashed rounded mb-2">
+                  <Upload className="h-4 w-4 text-gray-400" />
                   <Input
                     type="file"
-                    className="hidden"
-                    id="file-upload"
-                    onChange={handleFileUpload}
+                    className="text-xs h-8"
+                    onChange={handleSpecificFileUpload}
                     disabled={uploading}
                   />
-                  <Label htmlFor="file-upload">
-                    <Button variant="outline" asChild disabled={uploading}>
-                      <span>{uploading ? 'Subiendo...' : 'Seleccionar Archivo'}</span>
-                    </Button>
-                  </Label>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {loadingFiles ? (
+                    <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+                  ) : especificos.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Sin archivos específicos</p>
+                  ) : (
+                    especificos.map((file) => {
+                      const { icon: FileIcon, color } = getFileTypeInfo(file.name);
+                      return (
+                        <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                            <div className="min-w-0">
+                              <a
+                                href={file.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium hover:underline truncate block"
+                              >
+                                {file.name}
+                              </a>
+                              <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteAnalisisFile(file.name)}>
+                            <Trash className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {/* Lista Completa de Documentos */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Todos los Documentos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[300px]">
-                {loadingDocs ? (
-                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-                ) : documents.length > 0 ? (
-                  <div className="space-y-2">
-                    {documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-3 hover:bg-gray-100 rounded border text-sm">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            {doc.name}
-                          </a>
-                        </div>
-                        <span className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">No hay documentos registrados.</p>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

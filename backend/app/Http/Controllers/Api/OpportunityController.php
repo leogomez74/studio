@@ -283,7 +283,9 @@ class OpportunityController extends Controller
     }
 
     /**
-     * Mover archivos del Buzón del Cliente (PersonDocument) al Expediente de la Oportunidad.
+     * Copiar archivos del Buzón del Cliente (PersonDocument) al Expediente de la Oportunidad.
+     * Los archivos originales del lead se MANTIENEN para futuras oportunidades.
+     * Estructura: documentos/{cedula}/{opportunityId}/heredados/
      *
      * @param string $cedula
      * @param string $opportunityId
@@ -299,33 +301,34 @@ class OpportunityController extends Controller
         $person = \App\Models\Person::where('cedula', $cedula)->first();
 
         if (!$person) {
-            Log::info('Persona no encontrada para mover archivos', ['cedula' => $cedula]);
+            Log::info('Persona no encontrada para copiar archivos', ['cedula' => $cedula]);
             return ['success' => true, 'message' => 'Persona no encontrada', 'files' => []];
         }
 
         $personDocuments = $person->documents;
 
         if ($personDocuments->isEmpty()) {
-            Log::info('No hay documentos en el buzón para mover', ['cedula' => $cedula]);
+            Log::info('No hay documentos en el buzón para copiar', ['cedula' => $cedula]);
             return ['success' => true, 'message' => 'No hay documentos en el buzón', 'files' => []];
         }
 
         // Limpiar cédula solo para el nombre de la carpeta (sin guiones)
         $cedulaLimpia = preg_replace('/[^0-9]/', '', $cedula);
-        $opportunityFolder = "documentos/{$cedulaLimpia}/{$opportunityId}";
-        $movedFiles = [];
+        // Usar subcarpeta 'heredados' para archivos copiados del lead
+        $heredadosFolder = "documentos/{$cedulaLimpia}/{$opportunityId}/heredados";
+        $copiedFiles = [];
 
         try {
-            // Crear carpeta de oportunidad si no existe
-            if (!Storage::disk('public')->exists($opportunityFolder)) {
-                Storage::disk('public')->makeDirectory($opportunityFolder);
+            // Crear carpeta de heredados si no existe
+            if (!Storage::disk('public')->exists($heredadosFolder)) {
+                Storage::disk('public')->makeDirectory($heredadosFolder);
             }
 
             foreach ($personDocuments as $doc) {
                 // Verificar existencia física
                 if (Storage::disk('public')->exists($doc->path)) {
                     $fileName = basename($doc->path);
-                    $newPath = "{$opportunityFolder}/{$fileName}";
+                    $newPath = "{$heredadosFolder}/{$fileName}";
 
                     // Manejo de colisiones de nombre
                     if (Storage::disk('public')->exists($newPath)) {
@@ -333,47 +336,42 @@ class OpportunityController extends Controller
                         $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
                         $timestamp = now()->format('Ymd_His');
                         $fileName = "{$nameWithoutExt}_{$timestamp}.{$extension}";
-                        $newPath = "{$opportunityFolder}/{$fileName}";
+                        $newPath = "{$heredadosFolder}/{$fileName}";
                     }
 
                     try {
-                        // 1. Mover físicamente
-                        Storage::disk('public')->move($doc->path, $newPath);
-                        
-                        $movedFiles[] = [
+                        // COPIAR en lugar de mover - mantener archivos originales del lead
+                        Storage::disk('public')->copy($doc->path, $newPath);
+
+                        $copiedFiles[] = [
                             'original' => $doc->path,
-                            'new' => $newPath
+                            'copy' => $newPath
                         ];
 
-                        // 2. Eliminar registro del Buzón (PersonDocument)
-                        $doc->delete();
-
-                        Log::info('Archivo movido de Buzón a Oportunidad', [
+                        Log::info('Archivo copiado de Buzón a Oportunidad', [
                             'from' => $doc->path,
                             'to' => $newPath
                         ]);
                     } catch (\Exception $e) {
-                        Log::error('Error moviendo archivo individual', [
+                        Log::error('Error copiando archivo individual', [
                             'file' => $doc->path,
                             'error' => $e->getMessage()
                         ]);
                     }
                 } else {
-                    // Si el archivo físico no existe pero el registro sí, eliminamos el registro huérfano
-                    Log::warning('Archivo físico no encontrado, eliminando registro huérfano', ['path' => $doc->path]);
-                    $doc->delete();
+                    Log::warning('Archivo físico no encontrado en buzón', ['path' => $doc->path]);
                 }
             }
 
             return [
                 'success' => true,
-                'message' => 'Archivos movidos al expediente correctamente',
-                'files_count' => count($movedFiles),
-                'files' => $movedFiles
+                'message' => 'Archivos copiados al expediente correctamente',
+                'files_count' => count($copiedFiles),
+                'files' => $copiedFiles
             ];
 
         } catch (\Exception $e) {
-            Log::error('Error general moviendo archivos a oportunidad', [
+            Log::error('Error general copiando archivos a oportunidad', [
                 'cedula' => $cedula,
                 'opportunity_id' => $opportunityId,
                 'error' => $e->getMessage()
@@ -381,13 +379,14 @@ class OpportunityController extends Controller
 
             return [
                 'success' => false,
-                'message' => 'Error al mover archivos: ' . $e->getMessage()
+                'message' => 'Error al copiar archivos: ' . $e->getMessage()
             ];
         }
     }
 
     /**
-     * Endpoint para mover archivos manualmente a una oportunidad existente.
+     * Endpoint para copiar archivos manualmente a una oportunidad existente.
+     * Los archivos originales del lead se mantienen.
      * POST /api/opportunities/{id}/move-files
      *
      * @param string $id
@@ -415,7 +414,7 @@ class OpportunityController extends Controller
     }
 
     /**
-     * Obtener los archivos de una oportunidad.
+     * Obtener los archivos de una oportunidad (heredados + específicos).
      * GET /api/opportunities/{id}/files
      *
      * @param string $id
@@ -428,22 +427,144 @@ class OpportunityController extends Controller
         if (empty($opportunity->lead_cedula)) {
             return response()->json([
                 'success' => true,
-                'files' => [],
+                'heredados' => [],
+                'especificos' => [],
                 'message' => 'La oportunidad no tiene cédula asociada'
             ]);
         }
 
         $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
-        $opportunityFolder = "documentos/{$cedula}/{$opportunity->id}";
+        $baseFolder = "documentos/{$cedula}/{$opportunity->id}";
+        $heredadosFolder = "{$baseFolder}/heredados";
+        $especificosFolder = "{$baseFolder}/especificos";
 
-        if (!Storage::disk('public')->exists($opportunityFolder)) {
+        $heredados = $this->listFilesInFolder($heredadosFolder);
+        $especificos = $this->listFilesInFolder($especificosFolder);
+
+        return response()->json([
+            'success' => true,
+            'opportunity_id' => $opportunity->id,
+            'cedula' => $cedula,
+            'heredados' => $heredados,
+            'especificos' => $especificos,
+        ]);
+    }
+
+    /**
+     * Subir un archivo específico a la oportunidad.
+     * POST /api/opportunities/{id}/files
+     *
+     * @param Request $request
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadFile(Request $request, string $id)
+    {
+        $request->validate([
+            'file' => 'required|file|max:10240', // 10MB max
+        ]);
+
+        $opportunity = Opportunity::findOrFail($id);
+
+        if (empty($opportunity->lead_cedula)) {
             return response()->json([
-                'success' => true,
-                'files' => [],
-            ]);
+                'success' => false,
+                'message' => 'La oportunidad no tiene cédula asociada'
+            ], 422);
         }
 
-        $files = Storage::disk('public')->files($opportunityFolder);
+        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $especificosFolder = "documentos/{$cedula}/{$opportunity->id}/especificos";
+
+        try {
+            if (!Storage::disk('public')->exists($especificosFolder)) {
+                Storage::disk('public')->makeDirectory($especificosFolder);
+            }
+
+            $file = $request->file('file');
+            $originalName = $file->getClientOriginalName();
+            $path = $file->storeAs($especificosFolder, $originalName, 'public');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Archivo subido correctamente',
+                'file' => [
+                    'name' => $originalName,
+                    'path' => $path,
+                    'url' => asset("storage/{$path}"),
+                    'size' => $file->getSize(),
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Error subiendo archivo a oportunidad', [
+                'opportunity_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al subir archivo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Eliminar un archivo de la oportunidad.
+     * DELETE /api/opportunities/{id}/files/{filename}
+     *
+     * @param string $id
+     * @param string $filename
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteFile(string $id, string $filename)
+    {
+        $opportunity = Opportunity::findOrFail($id);
+
+        if (empty($opportunity->lead_cedula)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La oportunidad no tiene cédula asociada'
+            ], 422);
+        }
+
+        $cedula = preg_replace('/[^0-9]/', '', $opportunity->lead_cedula);
+        $baseFolder = "documentos/{$cedula}/{$opportunity->id}";
+
+        // Buscar en ambas carpetas
+        $possiblePaths = [
+            "{$baseFolder}/heredados/{$filename}",
+            "{$baseFolder}/especificos/{$filename}",
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Archivo eliminado correctamente'
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Archivo no encontrado'
+        ], 404);
+    }
+
+    /**
+     * Listar archivos en una carpeta.
+     *
+     * @param string $folder
+     * @return array
+     */
+    private function listFilesInFolder(string $folder): array
+    {
+        if (!Storage::disk('public')->exists($folder)) {
+            return [];
+        }
+
+        $files = Storage::disk('public')->files($folder);
         $fileList = [];
 
         foreach ($files as $file) {
@@ -456,12 +577,7 @@ class OpportunityController extends Controller
             ];
         }
 
-        return response()->json([
-            'success' => true,
-            'opportunity_id' => $opportunity->id,
-            'folder' => $opportunityFolder,
-            'files' => $fileList,
-        ]);
+        return $fileList;
     }
 
     /**

@@ -584,10 +584,20 @@ export default function DealsPage() {
 
   // --- Analisis Logic ---
 
-  const handleOpenAnalisisDialog = (opportunity: Opportunity) => {
+  const handleOpenAnalisisDialog = async (opportunity: Opportunity) => {
     setAnalisisOpportunity(opportunity);
+
+    // Obtener la próxima referencia del backend
+    let nextRef = "";
+    try {
+      const res = await api.get('/api/analisis/next-reference');
+      nextRef = res.data.reference || "";
+    } catch (error) {
+      console.error("Error fetching next reference:", error);
+    }
+
     setAnalisisForm({
-      reference: `${opportunity.id.slice(0,opportunity.id.length-3)}-ANL`,
+      reference: nextRef,
       title: opportunity.opportunity_type || "",
       status: "Activo",
       category: "Crédito",
@@ -610,13 +620,22 @@ export default function DealsPage() {
   const handleAnalisisSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/api/analisis', {
-        ...analisisForm,
+      const payload: Record<string, any> = {
+        title: analisisForm.title,
+        status: analisisForm.status,
+        category: analisisForm.category,
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
         lead_id: parseInt(analisisForm.leadId),
-        opportunity_id: parseInt(analisisForm.opportunityId),
+        opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
         plazo: parseInt(analisisForm.plazo) || 36,
-      });
+        divisa: analisisForm.divisa,
+        description: analisisForm.description,
+        opened_at: analisisForm.openedAt,
+        assigned_to: analisisForm.assignedTo || null,
+      };
+      // reference se auto-genera en backend con formato YY-XXXXX-EPP-AN
+
+      await api.post('/api/analisis', payload);
       toast({ title: "Éxito", description: "Análisis creado correctamente." });
       setIsAnalisisDialogOpen(false);
       fetchOpportunities();
@@ -1406,7 +1425,12 @@ export default function DealsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="reference">Referencia</Label>
-                <Input id="reference" value={analisisForm.reference} onChange={e => handleAnalisisFormChange('reference', e.target.value)} required />
+                <Input
+                  id="reference"
+                  value={analisisForm.reference}
+                  readOnly
+                  className="bg-muted"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="title">Título</Label>

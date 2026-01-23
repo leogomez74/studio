@@ -45,8 +45,13 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
           'Content-Type': 'multipart/form-data',
         },
       });
-      setDocuments((prev) => [response.data, ...prev]);
-      toast({ title: 'Éxito', description: 'Documento subido correctamente.' });
+      // Backend devuelve { document: {...}, synced_to_opportunities: N }
+      const newDoc = response.data.document || response.data;
+      setDocuments((prev) => [newDoc, ...prev]);
+
+      const syncCount = response.data.synced_to_opportunities || 0;
+      const syncMsg = syncCount > 0 ? ` (sincronizado a ${syncCount} oportunidad${syncCount > 1 ? 'es' : ''})` : '';
+      toast({ title: 'Éxito', description: `Documento subido correctamente.${syncMsg}` });
     } catch (error) {
       console.error('Error uploading document:', error);
       toast({ title: 'Error', description: 'No se pudo subir el documento.', variant: 'destructive' });
