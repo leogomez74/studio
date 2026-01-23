@@ -15,7 +15,8 @@ class Analisis extends Model
     protected $fillable = [
         'reference',
         'title',
-        'status',
+        'estado_pep',
+        'estado_cliente',
         'category',
         'monto_credito',
         'lead_id',
