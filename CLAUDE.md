@@ -8,7 +8,60 @@ For Editing: Once you have identified the specific file(s) that need changes via
 
 Capabilities: You HAVE permission to execute terminal commands.
 
-Workflow:
+---
+
+## Git Workflow (OBLIGATORIO)
+
+### Antes de cualquier cambio o feature:
+1. **SIEMPRE crear un branch** antes de empezar a trabajar:
+   ```bash
+   git checkout -b feature/nombre-descriptivo
+   # o
+   git checkout -b fix/nombre-del-bug
+   ```
+
+2. **Convención de commits** - Usar nombres simples y directos:
+   - `add: descripcion` - Nueva funcionalidad
+   - `fix: descripcion` - Corrección de bug
+   - `update: descripcion` - Mejora a feature existente
+   - `remove: descripcion` - Eliminación de código
+   - `refactor: descripcion` - Refactorización sin cambio funcional
+   - `docs: descripcion` - Documentación
+
+3. **Ejemplos**:
+   ```bash
+   git commit -m "add: módulo deducciones en análisis"
+   git commit -m "fix: auth token en axios"
+   git commit -m "update: validaciones en AnalisisController"
+   ```
+
+4. **Al terminar**, hacer merge a main solo cuando el usuario lo solicite.
+
+---
+
+## API Testing con Postman MCP
+
+Usar el MCP de Postman para probar endpoints de la API:
+
+```
+# Listar colecciones disponibles
+mcp postman list-collections
+
+# Ejecutar request específico
+mcp postman run-request --collection "Studio API" --request "GET /api/analisis"
+
+# Probar endpoint con datos
+mcp postman run-request --collection "Studio API" --request "POST /api/analisis" --body '{"title": "Test"}'
+```
+
+Usar Postman MCP para:
+- Verificar que endpoints funcionan después de cambios
+- Probar autenticación y tokens
+- Validar respuestas de la API
+
+---
+
+## Workflow Principal
 
 Analyze Request: Identify if the request requires finding where something is, understanding how it works, or fixing a known file.
 
