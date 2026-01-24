@@ -78,9 +78,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
+
 import {
   DEDUCCIONES_TIPOS,
   EditableDeduccion,
+  filterActiveDeduccionesForSave,
 } from "@/lib/analisis";
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
 
