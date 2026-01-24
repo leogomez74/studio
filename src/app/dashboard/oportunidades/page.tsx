@@ -1508,93 +1508,94 @@ export default function DealsPage() {
 
       {/* Analisis Creation Dialog */}
       <Dialog open={isAnalisisDialogOpen} onOpenChange={setIsAnalisisDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>Nuevo Análisis</DialogTitle>
             <DialogDescription>Completa la información del análisis.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAnalisisSubmit} className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="reference">Referencia</Label>
+          <form onSubmit={handleAnalisisSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="reference" className="text-xs">Referencia</Label>
                 <Input
                   id="reference"
                   value={analisisForm.reference}
                   readOnly
-                  className="bg-muted"
+                  className="bg-muted h-8 text-sm"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="title">Título</Label>
-                <Input id="title" value={analisisForm.title} onChange={e => handleAnalisisFormChange('title', e.target.value)} required />
+              <div className="space-y-1">
+                <Label htmlFor="title" className="text-xs">Título</Label>
+                <Input id="title" className="h-8 text-sm" value={analisisForm.title} onChange={e => handleAnalisisFormChange('title', e.target.value)} required />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Categoría</Label>
+              <div className="space-y-1">
+                <Label htmlFor="category" className="text-xs">Categoría</Label>
                 <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
-                  <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
+                  <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="divisa">Divisa</Label>
+              <div className="space-y-1">
+                <Label htmlFor="divisa" className="text-xs">Divisa</Label>
                 <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)}>
-                  <SelectTrigger id="divisa"><SelectValue placeholder="Selecciona la divisa" /></SelectTrigger>
+                  <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="monto">Monto Crédito</Label>
-                <Input id="monto" type="number" step="0.01" min="0" value={analisisForm.monto_credito} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+              <div className="space-y-1">
+                <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
+                <Input id="monto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.monto_credito} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="ingreso_bruto">Ingreso Bruto</Label>
-                <Input id="ingreso_bruto" type="number" step="0.01" min="0" value={analisisForm.ingreso_bruto} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_bruto" className="text-xs">Ingreso Bruto</Label>
+                <Input id="ingreso_bruto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_bruto} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="ingreso_neto">Ingreso Neto</Label>
-                <Input id="ingreso_neto" type="number" step="0.01" min="0" value={analisisForm.ingreso_neto} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_neto" className="text-xs">Ingreso Neto</Label>
+                <Input id="ingreso_neto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_neto} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="plazo">Plazo (Meses)</Label>
+              <div className="space-y-1">
+                <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
                 <Select value={analisisForm.plazo} onValueChange={v => handleAnalisisFormChange('plazo', v)}>
-                  <SelectTrigger id="plazo"><SelectValue placeholder="Selecciona el plazo" /></SelectTrigger>
+                  <SelectTrigger id="plazo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["36", "60", "120"].map(p => <SelectItem key={p} value={p}>{p} meses</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              {/* CAMBIO APLICADO: Select de Responsable */}
-              <div className="space-y-2">
-                <Label htmlFor="assignedTo">Responsable</Label>
+              <div className="space-y-1">
+                <Label htmlFor="assignedTo" className="text-xs">Responsable</Label>
                 <Select value={analisisForm.assignedTo} onValueChange={v => handleAnalisisFormChange('assignedTo', v)}>
-                  <SelectTrigger id="assignedTo"><SelectValue placeholder="Selecciona un responsable" /></SelectTrigger>
+                  <SelectTrigger id="assignedTo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="openedAt">Fecha Apertura</Label>
-                <Input id="openedAt" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
+              <div className="space-y-1">
+                <Label htmlFor="openedAt" className="text-xs">Fecha Apertura</Label>
+                <Input id="openedAt" className="h-8 text-sm" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
               </div>
               {/* Deducciones Checklist */}
-              <div className="sm:col-span-2 space-y-3">
-                <Label>Deducciones al Salario</Label>
-                <div className="grid gap-2 sm:grid-cols-2 border rounded-md p-3 bg-muted/30">
+              <div className="sm:col-span-2 space-y-2">
+                <Label className="text-xs">Deducciones al Salario</Label>
+                <div className="grid gap-1.5 sm:grid-cols-2 border rounded-md p-2 bg-muted/30 max-h-[140px] overflow-y-auto">
                   {deducciones.map((deduccion, index) => (
-                    <div key={deduccion.nombre} className="flex items-center gap-2">
+                    <div key={deduccion.nombre} className="flex items-center gap-1.5">
                       <Checkbox
                         id={`deduccion-${index}`}
                         checked={deduccion.activo}
                         onCheckedChange={() => toggleDeduccion(index)}
+                        className="h-3.5 w-3.5"
                       />
                       <label
                         htmlFor={`deduccion-${index}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1 cursor-pointer"
+                        className="text-xs font-medium leading-none cursor-pointer truncate flex-1"
+                        title={deduccion.nombre}
                       >
                         {deduccion.nombre}
                       </label>
@@ -1603,8 +1604,8 @@ export default function DealsPage() {
                           type="number"
                           step="0.01"
                           min="0"
-                          placeholder="Monto"
-                          className="w-24 h-8 text-sm"
+                          placeholder="₡"
+                          className="w-20 h-6 text-xs px-1.5"
                           value={deduccion.monto || ""}
                           onChange={e => updateDeduccionMonto(index, parseFloat(e.target.value) || 0)}
                         />
@@ -1614,16 +1615,16 @@ export default function DealsPage() {
                 </div>
               </div>
 
-              <div className="sm:col-span-2 space-y-2">
-                <Label htmlFor="propuesta">Propuesta de Análisis</Label>
-                <Textarea id="propuesta" rows={3} placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
+              <div className="sm:col-span-2 space-y-1">
+                <Label htmlFor="propuesta" className="text-xs">Propuesta de Análisis</Label>
+                <Textarea id="propuesta" rows={2} className="text-sm" placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit">Guardar</Button>
-            </DialogFooter>
           </form>
+          <DialogFooter className="flex-shrink-0 pt-2 border-t">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
+            <Button type="submit" size="sm" onClick={handleAnalisisSubmit}>Guardar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
