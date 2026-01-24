@@ -8,7 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput } from 'lucide-react';
+import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import { Lead } from '@/lib/data';
 import {
@@ -52,6 +55,7 @@ interface AnalisisFile {
 export default function AnalisisDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const analisisId = params.id as string;
 
   const [analisis, setAnalisis] = useState<AnalisisItem | null>(null);
@@ -64,6 +68,13 @@ export default function AnalisisDetailPage() {
   const [estadoPep, setEstadoPep] = useState<string | null>('Pendiente');
   const [estadoCliente, setEstadoCliente] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Estados editables (solo cuando estado_pep === 'Pendiente de cambios')
+  const [editMontoCredito, setEditMontoCredito] = useState<number>(0);
+  const [editIngresoBruto, setEditIngresoBruto] = useState<number>(0);
+  const [editIngresoNeto, setEditIngresoNeto] = useState<number>(0);
+  const [editPropuesta, setEditPropuesta] = useState<string>('');
+  const [saving, setSaving] = useState(false);
 
   // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
@@ -86,6 +97,12 @@ export default function AnalisisDetailPage() {
         // Inicializar estados
         setEstadoPep(data.estado_pep || 'Pendiente');
         setEstadoCliente(data.estado_cliente || null);
+
+        // Inicializar campos editables
+        setEditMontoCredito(data.monto_credito || 0);
+        setEditIngresoBruto(data.ingreso_bruto || 0);
+        setEditIngresoNeto(data.ingreso_neto || 0);
+        setEditPropuesta(data.propuesta || '');
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -149,6 +166,40 @@ export default function AnalisisDetailPage() {
       setUpdatingStatus(false);
     }
   };
+
+  // Handler para guardar cambios cuando estado_pep === 'Pendiente de cambios'
+  const handleSaveChanges = async () => {
+    try {
+      setSaving(true);
+      const payload = {
+        monto_credito: editMontoCredito,
+        ingreso_bruto: editIngresoBruto,
+        ingreso_neto: editIngresoNeto,
+        propuesta: editPropuesta,
+      };
+
+      await api.put(`/api/analisis/${analisisId}`, payload);
+
+      // Actualizar el estado local
+      setAnalisis(prev => prev ? {
+        ...prev,
+        monto_credito: editMontoCredito,
+        ingreso_bruto: editIngresoBruto,
+        ingreso_neto: editIngresoNeto,
+        propuesta: editPropuesta,
+      } : null);
+
+      toast({ title: 'Guardado', description: 'Los cambios se guardaron correctamente.' });
+    } catch (error) {
+      console.error('Error saving changes:', error);
+      toast({ title: 'Error', description: 'No se pudieron guardar los cambios.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Determinar si está en modo edición
+  const isEditMode = estadoPep === 'Pendiente de cambios';
 
   // Helper para obtener info del tipo de archivo
   const getFileTypeInfo = (fileName: string) => {
@@ -358,24 +409,62 @@ export default function AnalisisDetailPage() {
               <CardTitle className="text-sm font-medium text-gray-500">Propuesta de Analisis</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="min-h-[100px] p-3 bg-gray-50 rounded border text-sm">
-                {analisis.propuesta || <span className="text-muted-foreground italic">Sin propuesta definida</span>}
-              </div>
+              {isEditMode ? (
+                <Textarea
+                  value={editPropuesta}
+                  onChange={(e) => setEditPropuesta(e.target.value)}
+                  className="min-h-[100px] text-sm"
+                  placeholder="Escriba la propuesta de análisis..."
+                />
+              ) : (
+                <div className="min-h-[100px] p-3 bg-gray-50 rounded border text-sm">
+                  {analisis.propuesta || <span className="text-muted-foreground italic">Sin propuesta definida</span>}
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {/* Botón guardar en modo edición */}
+          {isEditMode && (
+            <div className="flex justify-end">
+              <Button onClick={handleSaveChanges} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Guardar Cambios
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         {/* TAB: DATOS FINANCIEROS */}
         <TabsContent value="financiero" className="space-y-4">
+          {/* Indicador de modo edición */}
+          {isEditMode && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-amber-700">
+                <strong>Modo Edición:</strong> Los campos financieros son editables. Guarda los cambios cuando termines.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-500">Monto Solicitado</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">
-                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.monto_credito)}
-                </div>
+                {isEditMode ? (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editMontoCredito}
+                    onChange={(e) => setEditMontoCredito(parseFloat(e.target.value) || 0)}
+                    className="text-lg font-bold"
+                  />
+                ) : (
+                  <div className="text-2xl font-bold text-blue-600">
+                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.monto_credito)}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -384,9 +473,19 @@ export default function AnalisisDetailPage() {
                 <CardTitle className="text-sm font-medium text-gray-500">Ingreso Bruto</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_bruto || 0)}
-                </div>
+                {isEditMode ? (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editIngresoBruto}
+                    onChange={(e) => setEditIngresoBruto(parseFloat(e.target.value) || 0)}
+                    className="text-lg font-bold"
+                  />
+                ) : (
+                  <div className="text-2xl font-bold text-green-600">
+                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_bruto || 0)}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -395,9 +494,19 @@ export default function AnalisisDetailPage() {
                 <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_neto || 0)}
-                </div>
+                {isEditMode ? (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editIngresoNeto}
+                    onChange={(e) => setEditIngresoNeto(parseFloat(e.target.value) || 0)}
+                    className="text-lg font-bold"
+                  />
+                ) : (
+                  <div className="text-2xl font-bold text-green-600">
+                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_neto || 0)}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -408,13 +517,25 @@ export default function AnalisisDetailPage() {
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">
                   {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(
-                    (analisis.ingreso_bruto || 0) - (analisis.ingreso_neto || 0)
+                    isEditMode
+                      ? (editIngresoBruto - editIngresoNeto)
+                      : ((analisis.ingreso_bruto || 0) - (analisis.ingreso_neto || 0))
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Bruto - Neto</p>
               </CardContent>
             </Card>
           </div>
+
+          {/* Botón guardar en modo edición - Tab Financiero */}
+          {isEditMode && (
+            <div className="flex justify-end">
+              <Button onClick={handleSaveChanges} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Guardar Cambios
+              </Button>
+            </div>
+          )}
 
           {/* Módulo de Deducciones Detalladas */}
           <Card>
