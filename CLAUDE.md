@@ -1,148 +1,179 @@
-# PRIMARY DIRECTIVE: HYBRID AGENTIC WORKFLOW
+# PRIMARY DIRECTIVE: HYBRID AGENTIC WORKFLOW (Laravel Edition)
 
-Role: You are an Expert Code Editor & Generator with access to terminal tools. Constraint (Crucial):
+**Role:** Expert Laravel Code Editor & Generator with terminal access.
 
-For Discovery & Context: You must NOT use your context window to read large sets of files or entire folders. Delegate "understanding the system" to gemini.
-
-For Editing: Once you have identified the specific file(s) that need changes via Gemini's analysis, you MUST read those specific files into your context to ensure precise, syntax-correct edits.
-
-Capabilities: You HAVE permission to execute terminal commands.
+**Constraint (Crucial):**
+1. **Discovery:** Do NOT use your context window for broad folder reading. Delegate "system understanding" to Gemini.
+2. **Editing:** Only read specific files identified by Gemini for precise, syntax-correct PHP edits.
 
 ---
 
-## Git Workflow (OBLIGATORIO)
+## 🌿 Git Workflow (OBLIGATORIO)
 
-### Antes de cualquier cambio o feature:
-1. **SIEMPRE crear un branch** antes de empezar a trabajar:
-   ```bash
-   git checkout -b feature/nombre-descriptivo
-   # o
-   git checkout -b fix/nombre-del-bug
-   ```
-
-2. **Convención de commits** - Usar nombres simples y directos:
-   - `add: descripcion` - Nueva funcionalidad
-   - `fix: descripcion` - Corrección de bug
-   - `update: descripcion` - Mejora a feature existente
-   - `remove: descripcion` - Eliminación de código
-   - `refactor: descripcion` - Refactorización sin cambio funcional
-   - `docs: descripcion` - Documentación
-
-3. **Ejemplos**:
-   ```bash
-   git commit -m "add: módulo deducciones en análisis"
-   git commit -m "fix: auth token en axios"
-   git commit -m "update: validaciones en AnalisisController"
-   ```
-
-4. **Al terminar**, hacer merge a main solo cuando el usuario lo solicite.
-
----
-
-## API Testing con Postman MCP
-
-Usar el MCP de Postman para probar endpoints de la API:
-
+**Branching:** Siempre crear rama antes de trabajar:
+```bash
+git checkout -b feature/nombre-descriptivo
+git checkout -b fix/nombre-del-bug
 ```
-# Listar colecciones disponibles
+
+**Commits:**
+- `add:` - Nueva funcionalidad
+- `fix:` - Corrección de bug
+- `update:` - Mejora a feature existente
+- `remove:` - Eliminación de código
+- `refactor:` - Refactorización sin cambio funcional
+- `docs:` - Documentación
+
+**Merge:** Solo a petición expresa del usuario.
+
+---
+
+## 🚀 Workflow Principal (Discovery + Action)
+
+### 1. AUTONOMOUS DISCOVERY (Gemini/Jules)
+Si el requerimiento es amplio o estructural:
+
+**Protocolo:** Ejecuta `gemini -p "@directorio Explicación..."` para localizar la lógica.
+
+**Ejemplo:**
+```bash
+gemini -p "@app/Http/Controllers/Api/ @routes/api.php Encuentra el controlador de Opportunities"
+```
+
+### 2. SURGICAL ACTION (Claude)
+Una vez identificado el archivo (ej. `OpportunityController.php`):
+- **Acción:** Lee el archivo con tus herramientas nativas.
+- **Edición:** Aplica cambios basados en el contexto de Gemini + el código real.
+
+### 3. API TESTING (Postman MCP)
+Usa Postman para validar los cambios en los endpoints de Laravel:
+
+```bash
+# Listar colecciones
 mcp postman list-collections
 
-# Ejecutar request específico
+# Ejecutar request
 mcp postman run-request --collection "Studio API" --request "GET /api/analisis"
 
-# Probar endpoint con datos
+# Con body
 mcp postman run-request --collection "Studio API" --request "POST /api/analisis" --body '{"title": "Test"}'
 ```
 
-Usar Postman MCP para:
-- Verificar que endpoints funcionan después de cambios
-- Probar autenticación y tokens
-- Validar respuestas de la API
+**Uso:** Validar tokens de Sanctum, respuestas JSON y persistencia en DB.
 
 ---
 
-## Workflow Principal
+## 🏗 Project Architecture & Domain
 
-Analyze Request: Identify if the request requires finding where something is, understanding how it works, or fixing a known file.
+**Stack:** Laravel 12 (API), PHP 8.2+, MySQL, Next.js (Frontend), Laravel Sanctum (Auth).
+**Testing:** SQLite (in-memory).
 
-AUTONOMOUS DISCOVERY (Gemini):
+### STI Pattern (persons table)
+| person_type_id | Tipo   | Descripción          |
+|----------------|--------|----------------------|
+| 1              | Lead   | Cliente potencial    |
+| 2              | Client | Cliente convertido   |
 
-If the request is broad (e.g., "fix the auth bug", "how does credit calculation work?"):
+Ambos modelos heredan de `Person` y usan Global Scopes para filtrar automáticamente.
 
-EXECUTE gemini -p "..." to locate the relevant logic and understand the flow.
+### Core Entities
 
-Example: gemini -p "@app/Http/Controllers/ @routes/ Find the controller handling credit creation"
+| Entidad       | Descripción                                                    |
+|---------------|----------------------------------------------------------------|
+| **Opportunity** | IDs personalizados `YY-XXXXX-OP` (ej. `25-00001-OP`). Vinculado a Lead via `lead_cedula`. |
+| **Credit**      | Registro del préstamo. Genera automáticamente un `PlanDePago`. |
+| **PlanDePago**  | Entradas del cronograma de amortización.                       |
+| **CreditPayment** | Registros de pagos individuales.                             |
+| **Deductora**   | Entidad de deducciones de nómina.                              |
 
-SURGICAL ACTION (Claude):
+### Key Relationships
+- `Lead/Client` → `Opportunity` (via campo `cedula`, no FK estándar)
+- `Credit` → `Lead`, `Opportunity`, `Deductora`, `PlanDePago`, `CreditPayment`
+- `User` → Assigned `Leads`, `Opportunities`, `Credits`
 
-Once Gemini confirms the logic is in CreditController.php:
+### Gamification System
+- **Locations:** `app/Services/Rewards/`, `app/Models/Rewards/`, `app/Events/Rewards/`
+- **Config:** `config/gamification.php`
+- **Pattern:** Event-driven architecture (Events/Listeners)
 
-READ CreditController.php (using your native tool) to see the exact code.
+### API Structure
+- **Controllers:** `app/Http/Controllers/Api/`
+- **Routes:** Mayoría públicas (`routes/api.php`), protegidas usan `auth:sanctum`
+- **Rewards:** Endpoints agrupados bajo `/api/rewards`
 
-EDIT the file based on the context gained from Gemini + the raw code.
+---
 
-Project Overview & Architecture
-Stack: Laravel 12 (API), PHP 8.2+, MySQL, Next.js (Frontend), Laravel Sanctum (Auth). Testing: SQLite (in-memory).
+## 🤖 Jules MCP (Tareas Asíncronas de Código)
 
-Domain Model (Single Table Inheritance)
-The persons table uses a single-table inheritance pattern with person_type_id:
+Usa Jules para delegar tareas de código que pueden ejecutarse en paralelo o de forma asíncrona:
 
-Lead (person_type_id = 1): Potential customer.
+### Comandos Principales
 
-Client (person_type_id = 2): Converted customer. Both models inherit from Person and use Global Scopes to filter automatically.
+| Comando | Descripción |
+|---------|-------------|
+| `jules_create_task` | Crear nueva tarea de código para Jules |
+| `jules_list_tasks` | Ver todas las tareas y su estado |
+| `jules_get_task` | Obtener detalles de una tarea específica |
+| `jules_analyze_code` | Analizar código sin modificarlo |
+| `jules_approve_plan` | Aprobar el plan propuesto por Jules |
+| `jules_send_message` | Enviar instrucciones adicionales a una tarea |
+| `jules_resume_task` | Reanudar una tarea pausada |
+| `jules_bulk_create_tasks` | Crear múltiples tareas a la vez |
 
-Core Business Entities
-Opportunity: Linked to Lead via lead_cedula (Not a standard FK). Uses custom string IDs YY-XXXXX-OP (e.g., 25-00001-OP).
+### Casos de Uso
 
-Credit: The loan record. Linked to Lead and Opportunity. Auto-creates an initial PlanDePago upon creation.
+```
+# Crear tarea para refactorizar un módulo
+jules_create_task "Refactoriza app/Services/CreditService.php para usar DTOs"
 
-PlanDePago: Amortization schedule entries.
+# Analizar código antes de modificar
+jules_analyze_code "app/Http/Controllers/Api/CreditController.php"
 
-CreditPayment: Individual payment records.
+# Crear múltiples tareas en paralelo
+jules_bulk_create_tasks [
+  "Agregar tests para CreditService",
+  "Documentar métodos públicos de CreditController"
+]
+```
 
-Deductora: Payroll deduction entity.
+### Workflow con Jules
+1. **Crear tarea** → Jules analiza y propone un plan
+2. **Revisar plan** → `jules_get_task` para ver la propuesta
+3. **Aprobar** → `jules_approve_plan` para que ejecute los cambios
+4. **Monitorear** → `jules_list_tasks` para ver progreso
 
-Key Relationships
-Lead/Client -> Opportunity (via cedula field, not standard FK).
+**Uso ideal:** Tareas largas, refactorizaciones, generación de tests, documentación.
 
-Credit -> Lead, Opportunity, Deductora, PlanDePago, CreditPayment.
+---
 
-User -> Assigned Leads, Opportunities, Credits.
+## 🔎 Gemini CLI Execution Protocols
 
-Gamification System
-Locations: app/Services/Rewards/, app/Models/Rewards/, app/Events/Rewards/.
+Usa estos patrones antes de escribir código:
 
-Config: config/gamification.php.
+```bash
+# Análisis de archivo/función
+gemini -p "@src/file.php Explica la lógica de calculateTotal"
 
-Pattern: Event-driven architecture (Events/Listeners).
+# Arquitectura y estructura
+gemini -p "@./folder_name Explica el flujo de datos"
 
-API Structure
-Controllers: app/Http/Controllers/Api/.
+# Verificación de implementación
+gemini -p "@src/ @tests/ ¿Está implementado [feature]? Lista archivos y funciones"
 
-Routes: Most are public (routes/api.php), protected ones use auth:sanctum.
+# Debugging
+gemini -p "@app/Http/Controllers/ @routes/ Analiza por qué ocurre [error]"
 
-Rewards: Endpoints grouped under /api/rewards.
+# Generación de tests
+gemini -p "@app/Models/Credit.php @tests/Feature/ Analiza el modelo y sugiere casos de test"
+```
 
-Gemini CLI Execution Protocols
-Use these patterns to fetch context BEFORE writing code. Execute these commands directly.
+---
 
-🔎 File/Files Analysis (Understanding Logic) gemini -p "@src/file.php Explain the logic of the calculateTotal function"
+## 🛠 Coding Standards (After Analysis)
 
-🔎 Architecture & Structure (Broad View) gemini -p "@./folder_name Explain the structure and data flow"
+Una vez tengas el contexto de Gemini Y hayas leído el archivo objetivo:
 
-✅ Implementation Verification gemini -p "@src/ @tests/ Is [feature] implemented? List files and functions"
-
-🐛 Debugging (Tracing) gemini -p "@app/Http/Controllers/ @routes/ Analyze why [error] might occur"
-
-🧪 Test Generation gemini -p "@app/Models/Credit.php @tests/Feature/ Analyze the model and suggest test cases"
-
-Coding Standards (After Analysis)
-Once you have the context from Gemini AND have read the target file:
-
-Strict Typing: Use PHP types for all method arguments and return values.
-
-Laravel Best Practices: Use Eloquent scopes, FormRequests for validation, and API Resources.
-
-Tests: Suggest test updates if logic changes.
-
-Action: Apply the changes directly to the files.
+- **Strict Typing:** Uso obligatorio de tipos de PHP en argumentos y retornos.
+- **Laravel Best Practices:** Eloquent scopes, FormRequests para validación, API Resources.
+- **Tests:** Sugerir actualizaciones de tests si la lógica cambia.
+- **Action:** Aplica los cambios directamente a los archivos.
