@@ -19,4 +19,12 @@ class Enterprise extends Model
     {
         return $this->hasMany(EnterprisesRequirement::class);
     }
+
+    /**
+     * Relación con Institucion (FK: business_name -> instituciones.nombre)
+     */
+    public function institucion()
+    {
+        return $this->belongsTo(Institucion::class, 'business_name', 'nombre');
+    }
 }
