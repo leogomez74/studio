@@ -94,6 +94,20 @@ export default function AnalisisDetailPage() {
   const [editPropuesta, setEditPropuesta] = useState<string>('');
   const [editDeducciones, setEditDeducciones] = useState<EditableDeduccion[]>([]);
   const [saving, setSaving] = useState(false);
+  const [netoManualOverride, setNetoManualOverride] = useState(false);
+
+  // Calcular total de deducciones activas
+  const totalDeduccionesActivas = editDeducciones
+    .filter(d => d.activo)
+    .reduce((sum, d) => sum + d.monto, 0);
+
+  // Auto-calcular ingreso neto cuando cambia bruto o deducciones (si no hay override manual)
+  useEffect(() => {
+    if (!netoManualOverride && editIngresoBruto > 0) {
+      const netoCalculado = editIngresoBruto - totalDeduccionesActivas;
+      setEditIngresoNeto(Math.max(0, netoCalculado));
+    }
+  }, [editIngresoBruto, totalDeduccionesActivas, netoManualOverride]);
 
   // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
@@ -122,6 +136,7 @@ export default function AnalisisDetailPage() {
         setEditIngresoBruto(data.ingreso_bruto || 0);
         setEditIngresoNeto(data.ingreso_neto || 0);
         setEditPropuesta(data.propuesta || '');
+        setNetoManualOverride(false);
 
         // Inicializar deducciones editables (mapear existentes o crear vacías)
         const existingDeducciones = data.deducciones || [];
@@ -547,13 +562,30 @@ export default function AnalisisDetailPage() {
               </CardHeader>
               <CardContent>
                 {isEditMode ? (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={editIngresoNeto}
-                    onChange={(e) => setEditIngresoNeto(parseFloat(e.target.value) || 0)}
-                    className="text-lg font-bold"
-                  />
+                  <div className="space-y-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={editIngresoNeto}
+                      onChange={(e) => {
+                        setNetoManualOverride(true);
+                        setEditIngresoNeto(parseFloat(e.target.value) || 0);
+                      }}
+                      className="text-lg font-bold"
+                    />
+                    {netoManualOverride && (
+                      <button
+                        type="button"
+                        onClick={() => setNetoManualOverride(false)}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        Recalcular automático
+                      </button>
+                    )}
+                    {!netoManualOverride && (
+                      <p className="text-xs text-muted-foreground">Auto: Bruto - Deducciones</p>
+                    )}
+                  </div>
                 ) : (
                   <div className="text-2xl font-bold text-green-600">
                     {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_neto || 0)}
