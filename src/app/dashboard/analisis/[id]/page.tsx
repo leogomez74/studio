@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import { Lead } from '@/lib/data';
@@ -26,6 +27,23 @@ interface DeduccionItem {
   nombre: string;
   monto: number;
 }
+
+interface EditableDeduccion {
+  nombre: string;
+  monto: number;
+  activo: boolean;
+}
+
+// Tipos de deducciones disponibles
+const DEDUCCIONES_TIPOS = [
+  "Comisión",
+  "Intereses",
+  "Respaldo deudor",
+  "Transporte",
+  "Comisión de Formalización Elastic 1",
+  "Descuento por factura",
+  "Intereses por adelantado",
+] as const;
 
 interface AnalisisItem {
   id: number;
@@ -74,6 +92,7 @@ export default function AnalisisDetailPage() {
   const [editIngresoBruto, setEditIngresoBruto] = useState<number>(0);
   const [editIngresoNeto, setEditIngresoNeto] = useState<number>(0);
   const [editPropuesta, setEditPropuesta] = useState<string>('');
+  const [editDeducciones, setEditDeducciones] = useState<EditableDeduccion[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Estados para archivos del filesystem
@@ -103,6 +122,17 @@ export default function AnalisisDetailPage() {
         setEditIngresoBruto(data.ingreso_bruto || 0);
         setEditIngresoNeto(data.ingreso_neto || 0);
         setEditPropuesta(data.propuesta || '');
+
+        // Inicializar deducciones editables (mapear existentes o crear vacías)
+        const existingDeducciones = data.deducciones || [];
+        const deduccionesMap = new Map(existingDeducciones.map(d => [d.nombre, d.monto]));
+        setEditDeducciones(
+          DEDUCCIONES_TIPOS.map(nombre => ({
+            nombre,
+            monto: deduccionesMap.get(nombre) || 0,
+            activo: deduccionesMap.has(nombre) && (deduccionesMap.get(nombre) || 0) > 0,
+          }))
+        );
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -167,15 +197,36 @@ export default function AnalisisDetailPage() {
     }
   };
 
+  // Toggle deducción activa/inactiva
+  const toggleDeduccion = (index: number) => {
+    setEditDeducciones(prev => prev.map((d, i) =>
+      i === index ? { ...d, activo: !d.activo, monto: !d.activo ? d.monto : 0 } : d
+    ));
+  };
+
+  // Actualizar monto de deducción
+  const updateDeduccionMonto = (index: number, monto: number) => {
+    setEditDeducciones(prev => prev.map((d, i) =>
+      i === index ? { ...d, monto } : d
+    ));
+  };
+
   // Handler para guardar cambios cuando estado_pep === 'Pendiente de cambios'
   const handleSaveChanges = async () => {
     try {
       setSaving(true);
+
+      // Filtrar solo deducciones activas con monto > 0
+      const deduccionesActivas = editDeducciones
+        .filter(d => d.activo && d.monto > 0)
+        .map(d => ({ nombre: d.nombre, monto: d.monto }));
+
       const payload = {
         monto_credito: editMontoCredito,
         ingreso_bruto: editIngresoBruto,
         ingreso_neto: editIngresoNeto,
         propuesta: editPropuesta,
+        deducciones: deduccionesActivas.length > 0 ? deduccionesActivas : null,
       };
 
       await api.put(`/api/analisis/${analisisId}`, payload);
@@ -187,6 +238,7 @@ export default function AnalisisDetailPage() {
         ingreso_bruto: editIngresoBruto,
         ingreso_neto: editIngresoNeto,
         propuesta: editPropuesta,
+        deducciones: deduccionesActivas.length > 0 ? deduccionesActivas : undefined,
       } : null);
 
       toast({ title: 'Guardado', description: 'Los cambios se guardaron correctamente.' });
@@ -543,7 +595,50 @@ export default function AnalisisDetailPage() {
               <CardTitle className="text-sm font-medium text-gray-500">Desglose de Deducciones</CardTitle>
             </CardHeader>
             <CardContent>
-              {analisis.deducciones && analisis.deducciones.length > 0 ? (
+              {isEditMode ? (
+                /* Modo edición: mostrar todas las deducciones con checkboxes */
+                <div className="space-y-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {editDeducciones.map((deduccion, index) => (
+                      <div key={deduccion.nombre} className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
+                        <Checkbox
+                          id={`edit-deduccion-${index}`}
+                          checked={deduccion.activo}
+                          onCheckedChange={() => toggleDeduccion(index)}
+                        />
+                        <label
+                          htmlFor={`edit-deduccion-${index}`}
+                          className="text-sm font-medium cursor-pointer flex-1 truncate"
+                          title={deduccion.nombre}
+                        >
+                          {deduccion.nombre}
+                        </label>
+                        {deduccion.activo && (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="Monto"
+                            className="w-28 h-8 text-sm"
+                            value={deduccion.monto || ''}
+                            onChange={e => updateDeduccionMonto(index, parseFloat(e.target.value) || 0)}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Total en modo edición */}
+                  <div className="flex items-center justify-between p-3 bg-red-50 rounded border border-red-200 mt-3">
+                    <span className="text-sm font-bold">Total Deducciones</span>
+                    <span className="text-lg font-bold text-red-600">
+                      {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(
+                        editDeducciones.filter(d => d.activo).reduce((sum, d) => sum + d.monto, 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+              ) : analisis.deducciones && analisis.deducciones.length > 0 ? (
+                /* Modo lectura: mostrar solo las deducciones existentes */
                 <div className="space-y-2">
                   {analisis.deducciones.map((deduccion, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
