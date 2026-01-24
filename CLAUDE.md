@@ -146,6 +146,50 @@ jules_bulk_create_tasks [
 
 ---
 
+## 🌐 Chrome DevTools MCP (Debugging Frontend)
+
+Controla e inspecciona un navegador Chrome en vivo para debugging, automatización y análisis de rendimiento.
+
+### Capacidades
+
+| Categoría | Funcionalidad |
+|-----------|---------------|
+| **DOM** | Inspeccionar elementos, modificar HTML/CSS en tiempo real |
+| **Console** | Leer logs, ejecutar JavaScript, capturar errores |
+| **Network** | Monitorear requests, analizar respuestas, detectar fallos |
+| **Performance** | Profiling, métricas de carga, análisis de memoria |
+| **Screenshots** | Capturas de pantalla para verificar UI |
+
+### Casos de Uso
+
+```bash
+# Inspeccionar elemento específico
+devtools inspect-element "#login-button"
+
+# Ver errores de consola
+devtools get-console-logs --level=error
+
+# Monitorear requests de API
+devtools network-monitor --filter="api/analisis"
+
+# Capturar screenshot
+devtools screenshot --path="./debug-screenshot.png"
+
+# Ejecutar JavaScript en el contexto de la página
+devtools eval "document.querySelector('.error-message')?.textContent"
+```
+
+### Workflow de Debugging Frontend
+1. **Abrir Chrome** con remote debugging habilitado
+2. **Conectar MCP** al puerto de DevTools
+3. **Inspeccionar** → Console logs, Network requests, DOM
+4. **Diagnosticar** → Identificar errores de JS, respuestas 4xx/5xx
+5. **Validar** → Screenshots para confirmar estado visual
+
+**Uso ideal:** Debugging de errores de UI, validar integración API-Frontend, análisis de performance.
+
+---
+
 ## 🔎 Gemini CLI Execution Protocols
 
 Usa estos patrones antes de escribir código:
