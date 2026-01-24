@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput } from 'lucide-react';
 import api from '@/lib/axios';
 import { Lead } from '@/lib/data';
@@ -21,7 +23,6 @@ interface AnalisisItem {
   id: number;
   reference: string;
   monto_credito: number;
-  status: string;
   created_at: string;
   opportunity_id?: string;
   lead_id?: string;
@@ -29,6 +30,8 @@ interface AnalisisItem {
   ingreso_bruto?: number;
   ingreso_neto?: number;
   propuesta?: string;
+  estado_pep?: string;
+  estado_cliente?: string | null;
 }
 
 // Tipo para archivos del filesystem
@@ -51,6 +54,11 @@ export default function AnalisisDetailPage() {
 
   const [activeTab, setActiveTab] = useState('resumen');
 
+  // Estados para estado_pep y estado_cliente
+  const [estadoPep, setEstadoPep] = useState<string | null>('Pendiente');
+  const [estadoCliente, setEstadoCliente] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
   // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -68,6 +76,10 @@ export default function AnalisisDetailPage() {
         const res = await api.get(`/api/analisis/${analisisId}`);
         const data = res.data as AnalisisItem;
         setAnalisis(data);
+
+        // Inicializar estados
+        setEstadoPep(data.estado_pep || 'Pendiente');
+        setEstadoCliente(data.estado_cliente || null);
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -102,6 +114,33 @@ export default function AnalisisDetailPage() {
       console.error('Error fetching analisis files:', error);
     } finally {
       setLoadingFiles(false);
+    }
+  };
+
+  // Handler para actualizar estados
+  const handleEstadoChange = async (field: 'estado_pep' | 'estado_cliente', value: string | null) => {
+    try {
+      setUpdatingStatus(true);
+      const payload: Record<string, string | null> = { [field]: value };
+
+      // Si estado_pep cambia a algo diferente de 'Aceptado', limpiar estado_cliente
+      if (field === 'estado_pep' && value !== 'Aceptado') {
+        payload.estado_cliente = null;
+        setEstadoCliente(null);
+      }
+
+      await api.put(`/api/analisis/${analisisId}`, payload);
+
+      if (field === 'estado_pep') {
+        setEstadoPep(value);
+      } else {
+        setEstadoCliente(value);
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Error al actualizar el estado');
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -215,9 +254,45 @@ export default function AnalisisDetailPage() {
             <p className="text-sm text-gray-500">Revisión de datos financieros y laborales del cliente</p>
           </div>
         </div>
-        <Badge className="bg-blue-500">
-          {analisis.reference}
-        </Badge>
+
+        {/* Selectores de Estado */}
+        <div className="flex items-center gap-4">
+          {/* Estado PEP */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Estado PEP</Label>
+            <Select value={estadoPep || 'Pendiente'} onValueChange={(v) => handleEstadoChange('estado_pep', v)} disabled={updatingStatus}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Pendiente">Pendiente</SelectItem>
+                <SelectItem value="Aceptado">Aceptado</SelectItem>
+                <SelectItem value="Pendiente de cambios">Pendiente de cambios</SelectItem>
+                <SelectItem value="Rechazado">Rechazado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Estado Cliente - Solo visible si estado_pep === 'Aceptado' */}
+          {estadoPep === 'Aceptado' && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Estado Cliente</Label>
+              <Select
+                value={estadoCliente || ''}
+                onValueChange={(v) => handleEstadoChange('estado_cliente', v)}
+                disabled={updatingStatus}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Sin definir" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Aprobado">Aprobado</SelectItem>
+                  <SelectItem value="Rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs Content */}
