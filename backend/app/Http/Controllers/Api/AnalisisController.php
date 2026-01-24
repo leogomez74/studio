@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreAnalisisRequest;
+use App\Http\Requests\UpdateAnalisisRequest;
 use App\Models\Analisis;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -45,29 +47,9 @@ class AnalisisController extends Controller
         return response()->json($analisis);
     }
 
-    public function store(Request $request)
+    public function store(StoreAnalisisRequest $request)
     {
-        $validated = $request->validate([
-            'reference' => 'nullable|unique:analisis,reference', // Auto-generado si no se provee
-            'title' => 'required|string',
-            'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
-            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
-            'category' => 'nullable|string',
-            'monto_credito' => 'required|numeric|min:1',
-            'lead_id' => 'nullable|integer',
-            'opportunity_id' => 'nullable',
-            'assigned_to' => 'nullable|string',
-            'opened_at' => 'nullable|date',
-            'description' => 'nullable|string',
-            'divisa' => 'nullable|string',
-            'plazo' => 'required|integer|min:1',
-            'ingreso_bruto' => 'nullable|numeric',
-            'ingreso_neto' => 'nullable|numeric',
-            'deducciones' => 'nullable|array',
-            'deducciones.*.nombre' => 'required_with:deducciones|string',
-            'deducciones.*.monto' => 'required_with:deducciones|numeric|min:0',
-            'propuesta' => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         // Verificar si ya existe un análisis para esta oportunidad
         if (!empty($validated['opportunity_id'])) {
@@ -112,30 +94,10 @@ class AnalisisController extends Controller
         return response()->json($analisis);
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateAnalisisRequest $request, $id)
     {
         $analisis = Analisis::findOrFail($id);
-        $validated = $request->validate([
-            'reference' => 'sometimes|required|unique:analisis,reference,' . $id,
-            'title' => 'sometimes|required|string',
-            'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
-            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
-            'category' => 'nullable|string',
-            'monto_credito' => 'nullable|numeric',
-            'lead_id' => 'nullable|integer',
-            'opportunity_id' => 'nullable',
-            'assigned_to' => 'nullable|string',
-            'opened_at' => 'nullable|date',
-            'description' => 'nullable|string',
-            'divisa' => 'nullable|string',
-            'plazo' => 'nullable|integer',
-            'ingreso_bruto' => 'nullable|numeric',
-            'ingreso_neto' => 'nullable|numeric',
-            'deducciones' => 'nullable|array',
-            'deducciones.*.nombre' => 'required_with:deducciones|string',
-            'deducciones.*.monto' => 'required_with:deducciones|numeric|min:0',
-            'propuesta' => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         // Si estado_pep no es "Aceptado", limpiar estado_cliente
         if (isset($validated['estado_pep']) && $validated['estado_pep'] !== 'Aceptado') {

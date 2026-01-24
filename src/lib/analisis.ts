@@ -1,0 +1,86 @@
+import { Lead } from './data';
+
+// Tipos de deducciones disponibles
+export const DEDUCCIONES_TIPOS = [
+  "Comisión",
+  "Intereses",
+  "Respaldo deudor",
+  "Transporte",
+  "Comisión de Formalización Elastic 1",
+  "Descuento por factura",
+  "Intereses por adelantado",
+] as const;
+
+export type DeduccionTipo = typeof DEDUCCIONES_TIPOS[number];
+
+// Interfaces
+export interface DeduccionItem {
+  nombre: string;
+  monto: number;
+}
+
+export interface EditableDeduccion {
+  nombre: string;
+  monto: number;
+  activo: boolean;
+}
+
+export interface AnalisisItem {
+  id: number;
+  reference: string;
+  monto_credito: number;
+  created_at: string;
+  opportunity_id?: string;
+  lead_id?: string;
+  lead?: Lead;
+  ingreso_bruto?: number;
+  ingreso_neto?: number;
+  deducciones?: DeduccionItem[];
+  propuesta?: string;
+  estado_pep?: string;
+  estado_cliente?: string | null;
+}
+
+export interface AnalisisFile {
+  name: string;
+  path: string;
+  url: string;
+  size: number;
+  last_modified: number;
+}
+
+// Formateadores
+export function formatCurrency(amount: number, currency: string = 'CRC'): string {
+  return new Intl.NumberFormat('es-CR', {
+    style: 'currency',
+    currency,
+  }).format(amount);
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Helpers para deducciones
+export function initializeEditableDeducciones(existingDeducciones?: DeduccionItem[]): EditableDeduccion[] {
+  const deduccionesMap = new Map((existingDeducciones || []).map(d => [d.nombre, d.monto]));
+  return DEDUCCIONES_TIPOS.map(nombre => ({
+    nombre,
+    monto: deduccionesMap.get(nombre) || 0,
+    activo: deduccionesMap.has(nombre) && (deduccionesMap.get(nombre) || 0) > 0,
+  }));
+}
+
+export function getActiveDeduccionesTotal(deducciones: EditableDeduccion[]): number {
+  return deducciones
+    .filter(d => d.activo)
+    .reduce((sum, d) => sum + d.monto, 0);
+}
+
+export function filterActiveDeduccionesForSave(deducciones: EditableDeduccion[]): DeduccionItem[] {
+  return deducciones
+    .filter(d => d.activo && d.monto > 0)
+    .map(d => ({ nombre: d.nombre, monto: d.monto }));
+}

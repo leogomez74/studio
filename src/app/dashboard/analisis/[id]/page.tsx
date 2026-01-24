@@ -14,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
-import { Lead } from '@/lib/data';
 import {
   findEmpresaByName,
   getFileExtension,
@@ -22,53 +21,18 @@ import {
   Requirement,
   Empresa
 } from '@/lib/empresas-mock';
-
-interface DeduccionItem {
-  nombre: string;
-  monto: number;
-}
-
-interface EditableDeduccion {
-  nombre: string;
-  monto: number;
-  activo: boolean;
-}
-
-// Tipos de deducciones disponibles
-const DEDUCCIONES_TIPOS = [
-  "Comisión",
-  "Intereses",
-  "Respaldo deudor",
-  "Transporte",
-  "Comisión de Formalización Elastic 1",
-  "Descuento por factura",
-  "Intereses por adelantado",
-] as const;
-
-interface AnalisisItem {
-  id: number;
-  reference: string;
-  monto_credito: number;
-  created_at: string;
-  opportunity_id?: string;
-  lead_id?: string;
-  lead?: Lead;
-  ingreso_bruto?: number;
-  ingreso_neto?: number;
-  deducciones?: DeduccionItem[];
-  propuesta?: string;
-  estado_pep?: string;
-  estado_cliente?: string | null;
-}
-
-// Tipo para archivos del filesystem
-interface AnalisisFile {
-  name: string;
-  path: string;
-  url: string;
-  size: number;
-  last_modified: number;
-}
+import {
+  DEDUCCIONES_TIPOS,
+  DeduccionItem,
+  EditableDeduccion,
+  AnalisisItem,
+  AnalisisFile,
+  formatCurrency,
+  formatFileSize,
+  initializeEditableDeducciones,
+  getActiveDeduccionesTotal,
+  filterActiveDeduccionesForSave,
+} from '@/lib/analisis';
 
 export default function AnalisisDetailPage() {
   const params = useParams();
@@ -139,15 +103,7 @@ export default function AnalisisDetailPage() {
         setNetoManualOverride(false);
 
         // Inicializar deducciones editables (mapear existentes o crear vacías)
-        const existingDeducciones = data.deducciones || [];
-        const deduccionesMap = new Map(existingDeducciones.map(d => [d.nombre, d.monto]));
-        setEditDeducciones(
-          DEDUCCIONES_TIPOS.map(nombre => ({
-            nombre,
-            monto: deduccionesMap.get(nombre) || 0,
-            activo: deduccionesMap.has(nombre) && (deduccionesMap.get(nombre) || 0) > 0,
-          }))
-        );
+        setEditDeducciones(initializeEditableDeducciones(data.deducciones));
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -289,12 +245,6 @@ export default function AnalisisDetailPage() {
     return { icon: File, label: 'Archivo', color: 'text-slate-600' };
   };
 
-  // Formatear tamaño de archivo
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   if (loading) {
     return (

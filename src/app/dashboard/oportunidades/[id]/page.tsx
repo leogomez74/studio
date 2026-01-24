@@ -321,7 +321,7 @@ export default function OpportunityDetailPage() {
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">NOMBRE COMPLETO</p>
                         <p className="text-sm font-medium text-slate-900">
-                          {opportunity.lead ? `${opportunity.lead.name} ${opportunity.lead.apellido1}` : 'N/A'}
+                          {`${opportunity.lead?.name ? opportunity.lead?.name : ''} ${opportunity.lead?.apellido1 ? opportunity.lead?.apellido1 : ''}`}
                         </p>
                       </div>
                       <div>

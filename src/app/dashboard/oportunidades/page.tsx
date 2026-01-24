@@ -78,6 +78,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
+import {
+  DEDUCCIONES_TIPOS,
+  EditableDeduccion,
+} from "@/lib/analisis";
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
 
 const opportunitySchema = z.object({
@@ -102,22 +106,6 @@ type OpportunityFormValues = z.infer<typeof opportunitySchema>;
 const CASE_STATUS_OPTIONS = ["Abierto", "En Progreso", "En Espera", "Cerrado"] as const;
 const CASE_CATEGORY_OPTIONS = ["Contenciosa", "No Contenciosa"] as const;
 
-// Tipos de deducciones disponibles
-const DEDUCCIONES_TIPOS = [
-  "Comisión",
-  "Intereses",
-  "Respaldo deudor",
-  "Transporte",
-  "Comisión de Formalización Elastic 1",
-  "Descuento por factura",
-  "Intereses por adelantado",
-] as const;
-
-interface DeduccionItem {
-  nombre: string;
-  monto: number;
-  activo: boolean;
-}
 
 type SortableColumn =
   | "reference"
@@ -293,7 +281,7 @@ export default function DealsPage() {
   });
 
   // Deducciones state para el dialog de análisis
-  const [deducciones, setDeducciones] = useState<DeduccionItem[]>(
+  const [deducciones, setDeducciones] = useState<EditableDeduccion[]>(
     DEDUCCIONES_TIPOS.map(nombre => ({ nombre, monto: 0, activo: false }))
   );
 
