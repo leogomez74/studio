@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -100,6 +101,23 @@ type OpportunityFormValues = z.infer<typeof opportunitySchema>;
 
 const CASE_STATUS_OPTIONS = ["Abierto", "En Progreso", "En Espera", "Cerrado"] as const;
 const CASE_CATEGORY_OPTIONS = ["Contenciosa", "No Contenciosa"] as const;
+
+// Tipos de deducciones disponibles
+const DEDUCCIONES_TIPOS = [
+  "Comisión",
+  "Intereses",
+  "Respaldo deudor",
+  "Transporte",
+  "Comisión de Formalización Elastic 1",
+  "Descuento por factura",
+  "Intereses por adelantado",
+] as const;
+
+interface DeduccionItem {
+  nombre: string;
+  monto: number;
+  activo: boolean;
+}
 
 type SortableColumn =
   | "reference"
@@ -273,6 +291,11 @@ export default function DealsPage() {
     divisa: "CRC",
     plazo: "36",
   });
+
+  // Deducciones state para el dialog de análisis
+  const [deducciones, setDeducciones] = useState<DeduccionItem[]>(
+    DEDUCCIONES_TIPOS.map(nombre => ({ nombre, monto: 0, activo: false }))
+  );
 
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
@@ -619,6 +642,8 @@ export default function DealsPage() {
       divisa: "CRC",
       plazo: "36",
     });
+    // Reset deducciones
+    setDeducciones(DEDUCCIONES_TIPOS.map(nombre => ({ nombre, monto: 0, activo: false })));
     setIsAnalisisDialogOpen(true);
   };
 
@@ -626,9 +651,28 @@ export default function DealsPage() {
     setAnalisisForm(prev => ({ ...prev, [field]: value }));
   };
 
+  // Toggle deducción activa/inactiva
+  const toggleDeduccion = (index: number) => {
+    setDeducciones(prev => prev.map((d, i) =>
+      i === index ? { ...d, activo: !d.activo, monto: !d.activo ? d.monto : 0 } : d
+    ));
+  };
+
+  // Actualizar monto de deducción
+  const updateDeduccionMonto = (index: number, monto: number) => {
+    setDeducciones(prev => prev.map((d, i) =>
+      i === index ? { ...d, monto } : d
+    ));
+  };
+
   const handleAnalisisSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
+      // Filtrar solo deducciones activas con monto > 0
+      const deduccionesActivas = deducciones
+        .filter(d => d.activo && d.monto > 0)
+        .map(d => ({ nombre: d.nombre, monto: d.monto }));
+
       const payload: Record<string, any> = {
         title: analisisForm.title,
         status: "Pendiente", // Default status para análisis nuevo
@@ -636,6 +680,7 @@ export default function DealsPage() {
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
         ingreso_bruto: parseFloat(analisisForm.ingreso_bruto) || 0,
         ingreso_neto: parseFloat(analisisForm.ingreso_neto) || 0,
+        deducciones: deduccionesActivas.length > 0 ? deduccionesActivas : null,
         propuesta: analisisForm.propuesta || null,
         lead_id: parseInt(analisisForm.leadId),
         opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
@@ -1536,6 +1581,39 @@ export default function DealsPage() {
                 <Label htmlFor="openedAt">Fecha Apertura</Label>
                 <Input id="openedAt" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
               </div>
+              {/* Deducciones Checklist */}
+              <div className="sm:col-span-2 space-y-3">
+                <Label>Deducciones al Salario</Label>
+                <div className="grid gap-2 sm:grid-cols-2 border rounded-md p-3 bg-muted/30">
+                  {deducciones.map((deduccion, index) => (
+                    <div key={deduccion.nombre} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`deduccion-${index}`}
+                        checked={deduccion.activo}
+                        onCheckedChange={() => toggleDeduccion(index)}
+                      />
+                      <label
+                        htmlFor={`deduccion-${index}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1 cursor-pointer"
+                      >
+                        {deduccion.nombre}
+                      </label>
+                      {deduccion.activo && (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Monto"
+                          className="w-24 h-8 text-sm"
+                          value={deduccion.monto || ""}
+                          onChange={e => updateDeduccionMonto(index, parseFloat(e.target.value) || 0)}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="sm:col-span-2 space-y-2">
                 <Label htmlFor="propuesta">Propuesta de Análisis</Label>
                 <Textarea id="propuesta" rows={3} placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />

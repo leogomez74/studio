@@ -19,6 +19,11 @@ import {
   Empresa
 } from '@/lib/empresas-mock';
 
+interface DeduccionItem {
+  nombre: string;
+  monto: number;
+}
+
 interface AnalisisItem {
   id: number;
   reference: string;
@@ -29,6 +34,7 @@ interface AnalisisItem {
   lead?: Lead;
   ingreso_bruto?: number;
   ingreso_neto?: number;
+  deducciones?: DeduccionItem[];
   propuesta?: string;
   estado_pep?: string;
   estado_cliente?: string | null;
@@ -397,7 +403,7 @@ export default function AnalisisDetailPage() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Deducciones</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-500">Total Deducciones</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">
@@ -409,6 +415,37 @@ export default function AnalisisDetailPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Módulo de Deducciones Detalladas */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Desglose de Deducciones</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {analisis.deducciones && analisis.deducciones.length > 0 ? (
+                <div className="space-y-2">
+                  {analisis.deducciones.map((deduccion, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
+                      <span className="text-sm font-medium">{deduccion.nombre}</span>
+                      <span className="text-sm font-bold text-red-600">
+                        {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(deduccion.monto)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between p-3 bg-red-50 rounded border border-red-200 mt-3">
+                    <span className="text-sm font-bold">Total Deducciones Registradas</span>
+                    <span className="text-lg font-bold text-red-600">
+                      {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(
+                        analisis.deducciones.reduce((sum, d) => sum + d.monto, 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No se han registrado deducciones específicas</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* TAB: DOCUMENTACION */}

@@ -63,6 +63,9 @@ class AnalisisController extends Controller
             'plazo' => 'required|integer|min:1',
             'ingreso_bruto' => 'nullable|numeric',
             'ingreso_neto' => 'nullable|numeric',
+            'deducciones' => 'nullable|array',
+            'deducciones.*.nombre' => 'required_with:deducciones|string',
+            'deducciones.*.monto' => 'required_with:deducciones|numeric|min:0',
             'propuesta' => 'nullable|string',
         ]);
 
@@ -128,6 +131,9 @@ class AnalisisController extends Controller
             'plazo' => 'nullable|integer',
             'ingreso_bruto' => 'nullable|numeric',
             'ingreso_neto' => 'nullable|numeric',
+            'deducciones' => 'nullable|array',
+            'deducciones.*.nombre' => 'required_with:deducciones|string',
+            'deducciones.*.monto' => 'required_with:deducciones|numeric|min:0',
             'propuesta' => 'nullable|string',
         ]);
 

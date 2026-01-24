@@ -28,6 +28,7 @@ class Analisis extends Model
         'plazo',
         'ingreso_bruto',
         'ingreso_neto',
+        'deducciones',
         'propuesta',
     ];
 
@@ -37,6 +38,7 @@ class Analisis extends Model
         'ingreso_bruto' => 'decimal:2',
         'ingreso_neto' => 'decimal:2',
         'plazo' => 'integer',
+        'deducciones' => 'array',
     ];
 
     protected static function booted()
