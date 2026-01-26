@@ -341,7 +341,7 @@ export default function AnalisisPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-5">
             <div className="space-y-1">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
               <Input placeholder="Referencia, cliente o cédula" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
