@@ -237,7 +237,7 @@ export default function AnalisisPage() {
       (item.lead as any)?.profesion || "-",
       (item.lead as any)?.puesto || "-",
       (item.lead as any)?.estado_puesto || "-",
-      item.monto_credito ? `₡${item.monto_credito.toLocaleString('es-CR')}` : "-",
+      item.monto_credito ? `₡${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.monto_credito)}` : "-",
       item.estado_pep || "-",
       item.estado_cliente || "-",
       item.created_at ? new Date(item.created_at).toLocaleDateString('es-CR') : "-"
@@ -294,7 +294,7 @@ export default function AnalisisPage() {
       x += colWidths[0];
       doc.text((item.lead?.name || "-").substring(0, 25), x, y);
       x += colWidths[1];
-      doc.text(`₡${(item.monto_credito || 0).toLocaleString('es-CR')}`, x, y);
+      doc.text(`₡${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.monto_credito || 0)}`, x, y);
       x += colWidths[2];
       doc.text(item.estado_pep || "-", x, y);
       x += colWidths[3];
@@ -455,7 +455,7 @@ export default function AnalisisPage() {
 
                   {/* Monto (Formateado) */}
                   <td className="px-6 py-4 text-gray-700">
-                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(item.monto_credito)}
+                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.monto_credito || 0)}
                   </td>
 
                   {/* Estado PEP - Clickeable para cambiar */}
