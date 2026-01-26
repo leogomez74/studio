@@ -35,7 +35,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Form,
@@ -728,171 +727,103 @@ export default function ClientesPage() {
     <TooltipProvider>
       <div className="space-y-6">
         <Card>
-          <Collapsible open={isLeadFiltersOpen} onOpenChange={setIsLeadFiltersOpen} className="space-y-0">
-            
-            <CardHeader className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-col gap-1">
-                <CardTitle>CRM</CardTitle>
-                <CardDescription>Gestiona leads y clientes.</CardDescription>
-              </div>
-
-              {/* Contenedor de Acciones: Buscar + Filtros + Nuevo */}
-              <div className="flex items-center gap-1">
-                
-                {/* Buscador Expansible */}
-                <div className={`transition-all duration-300 ease-in-out ${isSearchOpen || searchQuery ? 'w-full sm:w-60 mr-2' : 'w-9'}`}>
-                  {isSearchOpen || searchQuery ? (
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-9 pl-8"
-                        placeholder="Buscar..."
-                        autoFocus
-                        onBlur={() => !searchQuery && setIsSearchOpen(false)}
-                      />
-                    </div>
-                  ) : (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-9 w-9 text-muted-foreground hover:bg-muted" 
-                      onClick={() => setIsSearchOpen(true)}
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  )}
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>CRM</CardTitle>
+                  <CardDescription>Gestiona leads y clientes.</CardDescription>
                 </div>
-
-                {/* Botón Filtros */}
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-9 gap-2">
-                    <span className="hidden sm:inline">{isLeadFiltersOpen ? "Ocultar" : "Filtros"}</span>
-                    {isLeadFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
+                      <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-10 w-36" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
+                      <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-10 w-36" />
+                    </div>
+                  </div>
+                  <Button variant="outline" onClick={handleClearFilters}>Limpiar filtros</Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" className="gap-2">
+                        <Download className="h-4 w-4" />
+                        Exportar
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleExportCSV}>Descargar CSV</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportPDF}>Descargar PDF</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button size="sm" className="gap-2" onClick={openLeadDialog}>
+                    <PlusCircle className="h-4 w-4" />
+                    Nuevo
                   </Button>
-                </CollapsibleTrigger>
-
-                {/* Botón Nuevo Lead */}
-                <Button size="sm" className="h-9 gap-2" onClick={openLeadDialog}>
-                  <PlusCircle className="h-4 w-4" />
-                  <span className="hidden sm:inline">Nuevo</span>
-                </Button>
+                </div>
               </div>
             </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
+                  <Input placeholder="Cédula, nombre o correo" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
+                  {activeTab === "leads" ? (
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los estados</SelectItem>
+                        {Array.isArray(leadStatuses) && leadStatuses.length > 0
+                          ? leadStatuses.map(status => (
+                              <SelectItem key={status.id} value={String(status.id)}>{status.name}</SelectItem>
+                            )) : null}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los estados</SelectItem>
+                        <SelectItem value="Cliente Premium">Cliente Premium</SelectItem>
+                        <SelectItem value="Prospecto">Prospecto</SelectItem>
+                        <SelectItem value="Descartado">Descartado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contacto</Label>
+                  <Select value={contactFilter} onValueChange={setContactFilter}>
+                    <SelectTrigger><SelectValue placeholder="Todas las opciones" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los contactos</SelectItem>
+                      <SelectItem value="con-contacto">Con correo o teléfono</SelectItem>
+                      <SelectItem value="sin-contacto">Sin datos de contacto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+                  <Select value={String(perPage)} onValueChange={(value) => {
+                    setPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="30">30</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-            <CardContent>
-              <div className="space-y-6">
-                <CollapsibleContent className="space-y-4 rounded-md border border-dashed border-muted-foreground/30 p-4">
-                  {/* Filters UI preserved */}
-                  <div className="flex flex-wrap items-end gap-3">
-                    <div className="flex flex-wrap items-end gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
-                        <Input
-                          type="date"
-                          value={dateFrom}
-                          onChange={(e) => setDateFrom(e.target.value)}
-                          className="h-10 w-36"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
-                        <Input
-                          type="date"
-                          value={dateTo}
-                          onChange={(e) => setDateTo(e.target.value)}
-                          className="h-10 w-36"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-end gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleClearFilters}
-                        className="hover:bg-[lightgray]/48"
-                      >
-                        Limpiar filtros
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="secondary" className="gap-2 hover:bg-[lightgray]/48">
-                            <Download className="h-4 w-4" />
-                            Exportar
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={handleExportCSV}>Descargar CSV</DropdownMenuItem>
-                          <DropdownMenuItem onClick={handleExportPDF}>Descargar PDF</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
-                      {activeTab === "leads" ? (
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="hover:bg-[lightgray]/48">
-                            <SelectValue placeholder="Todos los estados" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all" className="focus:bg-[lightgray]/48 cursor-pointer">Todos los estados</SelectItem>
-                            {Array.isArray(leadStatuses) && leadStatuses.length > 0
-                              ? leadStatuses.map(status => (
-                                  <SelectItem key={status.id} value={String(status.id)} className="focus:bg-[lightgray]/48 cursor-pointer">{status.name}</SelectItem>
-                                )) : null}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="hover:bg-[lightgray]/48">
-                            <SelectValue placeholder="Todos los estados" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all" className="focus:bg-[lightgray]/48 cursor-pointer">Todos los estados</SelectItem>
-                            <SelectItem value="Cliente Premium" className="focus:bg-[lightgray]/48 cursor-pointer">Cliente Premium</SelectItem>
-                            <SelectItem value="Prospecto" className="focus:bg-[lightgray]/48 cursor-pointer">Prospecto</SelectItem>
-                            <SelectItem value="Descartado" className="focus:bg-[lightgray]/48 cursor-pointer">Descartado</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contacto</Label>
-                      <Select value={contactFilter} onValueChange={setContactFilter}>
-                        <SelectTrigger className="hover:bg-[lightgray]/48">
-                          <SelectValue placeholder="Todas las opciones" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all" className="focus:bg-[lightgray]/48 cursor-pointer">Todos los contactos</SelectItem>
-                          <SelectItem value="con-contacto" className="focus:bg-[lightgray]/48 cursor-pointer">Con correo o teléfono</SelectItem>
-                          <SelectItem value="sin-contacto" className="focus:bg-[lightgray]/48 cursor-pointer">Sin datos de contacto</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
-                      <Select value={String(perPage)} onValueChange={(value) => {
-                        setPerPage(Number(value));
-                        setCurrentPage(1);
-                      }}>
-                        <SelectTrigger className="hover:bg-[lightgray]/48">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10" className="focus:bg-[lightgray]/48 cursor-pointer">10</SelectItem>
-                          <SelectItem value="30" className="focus:bg-[lightgray]/48 cursor-pointer">30</SelectItem>
-                          <SelectItem value="50" className="focus:bg-[lightgray]/48 cursor-pointer">50</SelectItem>
-                          <SelectItem value="100" className="focus:bg-[lightgray]/48 cursor-pointer">100</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CollapsibleContent>
-
-                <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+              <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                   <TabsList className="grid grid-cols-3">
                     <TabsTrigger value="leads">Leads</TabsTrigger>
                     <TabsTrigger value="clientes">Clientes</TabsTrigger>
@@ -1033,9 +964,7 @@ export default function ClientesPage() {
                     )}
                   </TabsContent>
                 </Tabs>
-              </div>
             </CardContent>
-          </Collapsible>
         </Card>
       </div>
 
@@ -1135,7 +1064,7 @@ export default function ClientesPage() {
                         <SelectContent>
                           <SelectItem value="publico">Público</SelectItem>
                           <SelectItem value="privado">Privado</SelectItem>
-                          <SelectItem value="otro">Otro</SelectItem>
+                          <SelectItem value="propio">Propio</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

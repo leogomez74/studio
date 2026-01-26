@@ -347,8 +347,8 @@ export function CreateOpportunityDialog({
                         <h4 className="text-sm font-semibold">Requisito: Documento inicial</h4>
                     </div>
                     <p className="text-xs text-amber-700 mb-3">
-                        Para crear una oportunidad, el expediente debe tener al menos un documento (ej. Cédula, Estado de cuenta).
-                        Súbelo aquí para continuar.
+                        Para crear una oportunidad, el expediente debe tener los siguientes documentos: Cédula y Recibo de servicio.
+                        Súbelos aquí para continuar.
                     </p>
                     <div className="flex items-center gap-3">
                         <Input 

@@ -1,7 +1,7 @@
 'use client';
 
 import api from '@/lib/axios';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -11,8 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Download, Loader2 } from 'lucide-react';
 import { Opportunity, Lead } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
 
 // Funciones para formateo de moneda (Colones)
 const formatCurrency = (value: string | number): string => {
@@ -77,6 +81,13 @@ export default function AnalisisPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [perPage, setPerPage] = useState(10);
+
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [estadoPepFilter, setEstadoPepFilter] = useState('all');
+  const [estadoClienteFilter, setEstadoClienteFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
 
@@ -164,15 +175,137 @@ export default function AnalisisPage() {
     router.push(`/dashboard/analisis/${item.id}`);
   };
 
-  // 3. RENDERIZADO CONDICIONAL (Carga / Error)
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-gray-500">
-        Cargando análisis...
-      </div>
-    );
-  }
+  // Filter data
+  const filteredData = useMemo(() => {
+    return analisisList.filter(item => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesReference = item.reference?.toLowerCase().includes(query);
+        const matchesClient = item.lead?.name?.toLowerCase().includes(query);
+        const matchesCedula = item.lead?.cedula?.toLowerCase().includes(query);
+        if (!matchesReference && !matchesClient && !matchesCedula) return false;
+      }
 
+      // Estado PEP filter
+      if (estadoPepFilter !== 'all') {
+        if (item.estado_pep !== estadoPepFilter) return false;
+      }
+
+      // Estado Cliente filter
+      if (estadoClienteFilter !== 'all') {
+        if (item.estado_cliente !== estadoClienteFilter) return false;
+      }
+
+      // Date range filter
+      if (dateFrom || dateTo) {
+        const itemDate = new Date(item.created_at);
+        if (dateFrom) {
+          const from = new Date(dateFrom);
+          if (itemDate < from) return false;
+        }
+        if (dateTo) {
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          if (itemDate > to) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [analisisList, searchQuery, estadoPepFilter, estadoClienteFilter, dateFrom, dateTo]);
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setEstadoPepFilter('all');
+    setEstadoClienteFilter('all');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const handleExportCSV = () => {
+    if (filteredData.length === 0) {
+      toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+      return;
+    }
+
+    const headers = ["Referencia", "Cliente", "Cédula", "Profesión", "Puesto", "Estado Puesto", "Monto", "Estado PEP", "Estado Cliente", "Fecha"];
+    const rows = filteredData.map(item => [
+      item.reference || "-",
+      item.lead?.name || "-",
+      item.lead?.cedula || "-",
+      (item.lead as any)?.profesion || "-",
+      (item.lead as any)?.puesto || "-",
+      (item.lead as any)?.estado_puesto || "-",
+      item.monto_credito ? `₡${item.monto_credito.toLocaleString('es-CR')}` : "-",
+      item.estado_pep || "-",
+      item.estado_cliente || "-",
+      item.created_at ? new Date(item.created_at).toLocaleDateString('es-CR') : "-"
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `analizados_${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    if (filteredData.length === 0) {
+      toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(16);
+    doc.text('Listado de Analizados', 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Fecha de exportación: ${new Date().toLocaleDateString('es-CR')}`, 14, 22);
+
+    const headers = ["Referencia", "Cliente", "Monto", "Estado PEP", "Estado Cliente"];
+    let y = 35;
+    const colWidths = [40, 60, 50, 50, 50];
+    let x = 14;
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(14, y - 5, 270, 8, 'F');
+    doc.setFontSize(9);
+    headers.forEach((h, i) => {
+      doc.text(h, x, y);
+      x += colWidths[i];
+    });
+    y += 10;
+
+    filteredData.forEach(item => {
+      if (y > 180) {
+        doc.addPage();
+        y = 20;
+      }
+      x = 14;
+      doc.text(item.reference || "-", x, y);
+      x += colWidths[0];
+      doc.text((item.lead?.name || "-").substring(0, 25), x, y);
+      x += colWidths[1];
+      doc.text(`₡${(item.monto_credito || 0).toLocaleString('es-CR')}`, x, y);
+      x += colWidths[2];
+      doc.text(item.estado_pep || "-", x, y);
+      x += colWidths[3];
+      doc.text(item.estado_cliente || "-", x, y);
+      y += 7;
+    });
+
+    doc.save(`analizados_${Date.now()}.pdf`);
+  };
+
+  // 3. RENDERIZADO CONDICIONAL (Error)
   if (error) {
     return (
       <div className="flex justify-center items-center h-screen text-red-500">
@@ -183,49 +316,109 @@ export default function AnalisisPage() {
 
   // 4. TABLA PRINCIPAL
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Listado de Analizados</h1>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="perPage" className="text-sm font-medium">Registros por página:</Label>
-          <Select value={String(perPage)} onValueChange={(value) => {
-            setPerPage(Number(value));
-            setCurrentPage(1);
-          }}>
-            <SelectTrigger id="perPage" className="w-24">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="30">30</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle>Analizados</CardTitle>
+              <CardDescription>Gestiona y revisa los análisis de crédito.</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-10 w-36" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-10 w-36" />
+                </div>
+              </div>
+              <Button variant="outline" onClick={handleClearFilters}>Limpiar filtros</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" className="gap-2">
+                    <Download className="h-4 w-4" />
+                    Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportCSV}>Descargar CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>Descargar PDF</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
+              <Input placeholder="Referencia, cliente o cédula" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado PEP</Label>
+              <Select value={estadoPepFilter} onValueChange={setEstadoPepFilter}>
+                <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="Pendiente">Pendiente</SelectItem>
+                  <SelectItem value="Aceptado">Aceptado</SelectItem>
+                  <SelectItem value="Pendiente de cambios">Pendiente de cambios</SelectItem>
+                  <SelectItem value="Rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado Cliente</Label>
+              <Select value={estadoClienteFilter} onValueChange={setEstadoClienteFilter}>
+                <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="Aprobado">Aprobado</SelectItem>
+                  <SelectItem value="Rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+              <Select value={String(perPage)} onValueChange={(value) => {
+                setPerPage(Number(value));
+                setCurrentPage(1);
+              }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-      <div className="overflow-x-auto bg-white shadow-md rounded-lg border border-gray-200">
-        <table className="min-w-full text-sm text-left">
-          <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
-            <tr>
-              <th className="px-6 py-3">Referencia</th>
-              <th className="px-6 py-3">Cliente (Lead)</th>
-              
-              {/* NUEVAS COLUMNAS SOLICITADAS */}
-              <th className="px-6 py-3 bg-blue-50 text-blue-800">Profesión</th>
-              <th className="px-6 py-3 bg-blue-50 text-blue-800">Puesto</th>
-              <th className="px-6 py-3 bg-blue-50 text-blue-800">Estado Puesto</th>
-              
-              <th className="px-6 py-3">Monto</th>
-              <th className="px-6 py-3">Estado PEP</th>
-              <th className="px-6 py-3">Estado Cliente</th>
-              <th className="px-6 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {analisisList.length > 0 ? (
-              analisisList.map((item) => (
+          {loading ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+          ) : (
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="min-w-full text-sm text-left">
+              <thead className="bg-muted text-muted-foreground uppercase text-xs">
+                <tr>
+                  <th className="px-6 py-3">Referencia</th>
+                  <th className="px-6 py-3">Cliente (Lead)</th>
+                  <th className="px-6 py-3 bg-blue-50 text-blue-800">Profesión</th>
+                  <th className="px-6 py-3 bg-blue-50 text-blue-800">Puesto</th>
+                  <th className="px-6 py-3 bg-blue-50 text-blue-800">Estado Puesto</th>
+                  <th className="px-6 py-3">Monto</th>
+                  <th className="px-6 py-3">Estado PEP</th>
+                  <th className="px-6 py-3">Estado Cliente</th>
+                  <th className="px-6 py-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredData.length > 0 ? (
+                  filteredData.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900">
                     <button
@@ -388,7 +581,7 @@ export default function AnalisisPage() {
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={9} className="px-6 py-8 text-center text-muted-foreground">
                   No hay análisis registrados aún.
                 </td>
               </tr>
@@ -396,49 +589,52 @@ export default function AnalisisPage() {
           </tbody>
         </table>
 
-        {totalItems > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 border-t border-gray-200">
-            <div className="text-sm text-gray-600">
-              Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} analizados
-            </div>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
-                  Anterior
-                </Button>
-                <div className="flex items-center gap-1">
-                  {currentPage > 3 && (
-                    <>
-                      <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
-                        1
+              {totalItems > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} analizados
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                        Anterior
                       </Button>
-                      {currentPage > 4 && <span className="px-2 text-gray-500">...</span>}
-                    </>
-                  )}
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(page => Math.abs(page - currentPage) <= 2)
-                    .map(page => (
-                      <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
-                        {page}
+                      <div className="flex items-center gap-1">
+                        {currentPage > 3 && (
+                          <>
+                            <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
+                              1
+                            </Button>
+                            {currentPage > 4 && <span className="px-2 text-muted-foreground">...</span>}
+                          </>
+                        )}
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(page => Math.abs(page - currentPage) <= 2)
+                          .map(page => (
+                            <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
+                              {page}
+                            </Button>
+                          ))}
+                        {currentPage < totalPages - 2 && (
+                          <>
+                            {currentPage < totalPages - 3 && <span className="px-2 text-muted-foreground">...</span>}
+                            <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
+                              {totalPages}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                        Siguiente
                       </Button>
-                    ))}
-                  {currentPage < totalPages - 2 && (
-                    <>
-                      {currentPage < totalPages - 3 && <span className="px-2 text-gray-500">...</span>}
-                      <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
-                        {totalPages}
-                      </Button>
-                    </>
+                    </div>
                   )}
                 </div>
-                <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
-                  Siguiente
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Dialog for creating credit */}
       <Dialog open={isCreditDialogOpen} onOpenChange={setIsCreditDialogOpen}>

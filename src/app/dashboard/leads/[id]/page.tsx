@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, UserCheck, Archive, Plus, Paperclip, RefreshCw } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -234,19 +234,6 @@ export default function LeadDetailPage() {
         }
     };
 
-    const handleConvertToClient = async () => {
-        if (!lead) return;
-        if (!confirm(`¿Convertir a ${lead.name} en cliente?`)) return;
-        try {
-            await api.post(`/api/leads/${id}/convert`);
-            toast({ title: "Convertido", description: `${lead.name} ahora es cliente.`, className: "bg-green-600 text-white" });
-            router.push('/dashboard/clientes');
-        } catch (error) {
-            console.error("Error converting lead:", error);
-            toast({ title: "Error", description: "No se pudo convertir el lead.", variant: "destructive" });
-        }
-    };
-
     const handleArchive = async () => {
         if (!lead) return;
         if (!confirm(`¿Archivar a ${lead.name}?`)) return;
@@ -365,21 +352,6 @@ export default function LeadDetailPage() {
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>Crear Oportunidad</TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        size="icon"
-                                                        className="h-9 w-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 border-0"
-                                                        onClick={handleConvertToClient}
-                                                    >
-                                                        <UserCheck className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Convertir a Cliente</TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
 

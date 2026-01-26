@@ -121,7 +121,7 @@ type SortableColumn =
 interface OpportunityTableFilters {
   search: string;
   status: string;
-  vertical: string;
+  tipoCredito: string;
   createdFrom: string;
   createdTo: string;
 }
@@ -157,17 +157,16 @@ const formatAmount = (value: number | null | undefined): string => {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "-";
   }
-  return new Intl.NumberFormat("es-CR", {
-    style: "currency",
-    currency: "CRC",
+  return "₡" + new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 };
 
 const formatAmountForExport = (amount: number | null | undefined): string => {
   const resolved = resolveEstimatedOpportunityAmount(amount);
   if (resolved == null) return "-";
-  return new Intl.NumberFormat("es-CR", {
+  return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(resolved);
@@ -290,14 +289,12 @@ export default function DealsPage() {
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
   const [searchVertical, setSearchVertical] = useState("");
-  const [openFilterVertical, setOpenFilterVertical] = useState(false);
-  const [searchFilterVertical, setSearchFilterVertical] = useState("");
 
   // Filters & Sort
   const [filters, setFilters] = useState<OpportunityTableFilters>({
     search: "",
     status: "todos",
-    vertical: "todos",
+    tipoCredito: "todos",
     createdFrom: "",
     createdTo: "",
   });
@@ -332,7 +329,7 @@ export default function DealsPage() {
       if (filters.createdFrom) params.date_from = filters.createdFrom;
       if (filters.createdTo) params.date_to = filters.createdTo;
       if (filters.status !== 'todos') params.status = filters.status;
-      if (filters.vertical !== 'todos') params.vertical = filters.vertical;
+      if (filters.tipoCredito !== 'todos') params.opportunity_type = filters.tipoCredito;
       if (filters.search.trim()) params.search = filters.search.trim();
       params.page = currentPage;
       params.per_page = perPage;
@@ -372,7 +369,7 @@ export default function DealsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.vertical, filters.search, currentPage, perPage]);
+  }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.tipoCredito, filters.search, currentPage, perPage]);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -637,8 +634,26 @@ export default function DealsPage() {
     setIsAnalisisDialogOpen(true);
   };
 
+  // Formatear número con separadores de miles (coma)
+  const formatCurrency = (value: string | number): string => {
+    const num = typeof value === 'string' ? value.replace(/[^\d]/g, '') : String(value);
+    if (!num) return '';
+    return Number(num).toLocaleString('en-US');
+  };
+
+  // Parsear valor formateado a número
+  const parseCurrency = (value: string): string => {
+    return value.replace(/[^\d]/g, '');
+  };
+
   const handleAnalisisFormChange = (field: string, value: string) => {
-    setAnalisisForm(prev => ({ ...prev, [field]: value }));
+    // Para campos de moneda, guardar solo el valor numérico
+    if (['monto_credito', 'ingreso_bruto', 'ingreso_neto'].includes(field)) {
+      const numericValue = parseCurrency(value);
+      setAnalisisForm(prev => ({ ...prev, [field]: numericValue }));
+    } else {
+      setAnalisisForm(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   // Toggle deducción activa/inactiva
@@ -730,12 +745,12 @@ export default function DealsPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters.search, filters.status, filters.vertical, filters.createdFrom, filters.createdTo]);
+  }, [filters.search, filters.status, filters.tipoCredito, filters.createdFrom, filters.createdTo]);
 
   // --- Table Logic ---
 
   const handleClearFilters = useCallback(() => {
-    setFilters({ search: "", status: "todos", vertical: "todos", createdFrom: "", createdTo: "" });
+    setFilters({ search: "", status: "todos", tipoCredito: "todos", createdFrom: "", createdTo: "" });
     setCurrentPage(1);
   }, []);
 
@@ -780,7 +795,7 @@ export default function DealsPage() {
     return (
       filters.search.trim().length > 0 ||
       filters.status !== "todos" ||
-      filters.vertical !== "todos" ||
+      filters.tipoCredito !== "todos" ||
       filters.createdFrom.length > 0 ||
       filters.createdTo.length > 0
     );
@@ -809,30 +824,6 @@ export default function DealsPage() {
   );
 
   // --- Export ---
-
-  const handleExportSinglePDF = useCallback((opportunity: Opportunity) => {
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(12);
-    doc.text(`Detalle de Oportunidad #${opportunity.id}`, 14, 16);
-
-    autoTable(doc, {
-      startY: 22,
-      head: [["Referencia", "Lead", "Correo", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"]],
-      body: [[
-        formatOpportunityReference(opportunity.id),
-        opportunity.lead?.name ?? "Lead desconocido",
-        opportunity.lead?.email ?? "Sin correo",
-        opportunity.status ?? "Pendiente",
-        opportunity.opportunity_type ?? "Sin tipo",
-        formatAmountForExport(opportunity.amount),
-        formatDate(opportunity.expected_close_date),
-        formatDate(opportunity.created_at),
-      ]],
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [220, 53, 69] },
-    });
-    doc.save(`oportunidad_${opportunity.id}.pdf`);
-  }, []);
 
   const handleExportCSV = useCallback(() => {
     if (visibleOpportunities.length === 0) {
@@ -910,11 +901,6 @@ export default function DealsPage() {
     return instituciones.filter((inst) => inst.nombre.toLowerCase().includes(searchVertical.toLowerCase()));
   }, [searchVertical, instituciones]);
 
-  const filteredFilterVerticals = useMemo(() => {
-    if (!searchFilterVertical) return instituciones;
-    return instituciones.filter((inst) => inst.nombre.toLowerCase().includes(searchFilterVertical.toLowerCase()));
-  }, [searchFilterVertical, instituciones]);
-
   return (
     <Card>
       <CardHeader>
@@ -938,6 +924,10 @@ export default function DealsPage() {
               </div>
             </div>
             <Button variant="outline" onClick={handleClearFilters} disabled={!hasActiveFilters}>Limpiar filtros</Button>
+            <Button variant="default" onClick={handleExportPDF} className="gap-2">
+              <Download className="h-4 w-4" />
+              Exportar PDF
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -960,71 +950,16 @@ export default function DealsPage() {
                 </Select>
             </div>
             <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Institución</Label>
-                <Popover open={openFilterVertical} onOpenChange={setOpenFilterVertical} modal={true}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openFilterVertical}
-                      className="w-full justify-between"
-                    >
-                      {filters.vertical !== "todos"
-                        ? instituciones.find((inst) => inst.nombre === filters.vertical)?.nombre
-                        : "Todas las verticales"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[200px] p-0 z-[200]">
-                    <div className="p-2 border-b">
-                        <Input 
-                            placeholder="Buscar vertical..." 
-                            value={searchFilterVertical} 
-                            onChange={(e) => setSearchFilterVertical(e.target.value)}
-                            className="h-8"
-                        />
-                    </div>
-                    <div className="max-h-[300px] overflow-y-auto p-1">
-                        <div
-                            className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${filters.vertical === "todos" ? "bg-accent text-accent-foreground" : ""}`}
-                            onClick={() => {
-                                handleFilterChange("vertical", "todos");
-                                setOpenFilterVertical(false);
-                                setSearchFilterVertical("");
-                            }}
-                        >
-                            <Check
-                                className={`mr-2 h-4 w-4 ${
-                                    filters.vertical === "todos" ? "opacity-100" : "opacity-0"
-                                }`}
-                            />
-                            Todas las verticales
-                        </div>
-                        {filteredFilterVerticals.length === 0 ? (
-                            <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron resultados.</div>
-                        ) : (
-                            filteredFilterVerticals.map((institucion) => (
-                                <div
-                                    key={institucion.id}
-                                    className={`relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${filters.vertical === institucion.nombre ? "bg-accent text-accent-foreground" : ""}`}
-                                    onClick={() => {
-                                        handleFilterChange("vertical", institucion.nombre);
-                                        setOpenFilterVertical(false);
-                                        setSearchFilterVertical("");
-                                    }}
-                                >
-                                    <Check
-                                        className={`mr-2 h-4 w-4 ${
-                                            filters.vertical === institucion.nombre ? "opacity-100" : "opacity-0"
-                                        }`}
-                                    />
-                                    {institucion.nombre}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de crédito</Label>
+                <Select value={filters.tipoCredito} onValueChange={(value) => handleFilterChange("tipoCredito", value)}>
+                    <SelectTrigger><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="todos">Todos los tipos</SelectItem>
+                        {products.map(product => (
+                            <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
@@ -1125,17 +1060,6 @@ export default function DealsPage() {
                               </Link>
                             </TooltipTrigger>
                             <TooltipContent>Ver detalles</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0" onClick={() => handleExportSinglePDF(opportunity)}>
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Exportar PDF</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
 
@@ -1538,24 +1462,28 @@ export default function DealsPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
-                <Input id="monto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.monto_credito} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="monto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.monto_credito)} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="ingreso_bruto" className="text-xs">Ingreso Bruto</Label>
-                <Input id="ingreso_bruto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_bruto} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_bruto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto)} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="ingreso_neto" className="text-xs">Ingreso Neto</Label>
-                <Input id="ingreso_neto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_neto} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_neto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto)} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
-                <Select value={analisisForm.plazo} onValueChange={v => handleAnalisisFormChange('plazo', v)}>
-                  <SelectTrigger id="plazo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {["36", "60", "120"].map(p => <SelectItem key={p} value={p}>{p} meses</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Input id="plazo" className="h-8 text-sm" type="number" min="1" max="120" value={analisisForm.plazo} onChange={e => handleAnalisisFormChange('plazo', e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="assignedTo" className="text-xs">Responsable</Label>
@@ -1590,15 +1518,16 @@ export default function DealsPage() {
                         {deduccion.nombre}
                       </label>
                       {deduccion.activo && (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="₡"
-                          className="w-20 h-6 text-xs px-1.5"
-                          value={deduccion.monto || ""}
-                          onChange={e => updateDeduccionMonto(index, parseFloat(e.target.value) || 0)}
-                        />
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            className="w-24 h-6 text-xs pl-5 pr-1.5"
+                            value={deduccion.monto ? formatCurrency(deduccion.monto) : ""}
+                            onChange={e => updateDeduccionMonto(index, parseInt(parseCurrency(e.target.value)) || 0)}
+                          />
+                        </div>
                       )}
                     </div>
                   ))}
