@@ -137,6 +137,12 @@ class OpportunityController extends Controller
             $validated['vertical'] = $validated['vertical'] ?? 'General';
         }
 
+        // Actualizar institucion_labora del lead si se seleccionó una institución en la oportunidad
+        if ($lead && !empty($validated['vertical']) && $validated['vertical'] !== 'General') {
+            $lead->institucion_labora = $validated['vertical'];
+            $lead->save();
+        }
+
         // Auto-mapear opportunity_type basado en el interes del cuestionario
         if ((empty($validated['opportunity_type']) || $validated['opportunity_type'] === 'Estándar') && $lead) {
             $validated['opportunity_type'] = $this->determineOpportunityType($lead);
@@ -186,6 +192,15 @@ class OpportunityController extends Controller
         ]);
 
         $opportunity->update($validated);
+
+        // Actualizar institucion_labora del lead si se cambió la vertical
+        if (isset($validated['vertical']) && !empty($validated['vertical']) && $validated['vertical'] !== 'General') {
+            $lead = Lead::where('cedula', $opportunity->lead_cedula)->first();
+            if ($lead) {
+                $lead->institucion_labora = $validated['vertical'];
+                $lead->save();
+            }
+        }
 
         return response()->json($opportunity, 200);
     }

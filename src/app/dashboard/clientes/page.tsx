@@ -765,18 +765,18 @@ export default function ClientesPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-3 md:grid-cols-4">
+              <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-                  <Input placeholder="Cédula, nombre o correo" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <Input placeholder="Cédula, nombre o correo" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-56" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
                   {activeTab === "leads" ? (
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                      <SelectTrigger className="w-auto min-w-[130px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todos los estados</SelectItem>
+                        <SelectItem value="all">Todos</SelectItem>
                         {Array.isArray(leadStatuses) && leadStatuses.length > 0
                           ? leadStatuses.map(status => (
                               <SelectItem key={status.id} value={String(status.id)}>{status.name}</SelectItem>
@@ -785,10 +785,10 @@ export default function ClientesPage() {
                     </Select>
                   ) : (
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                      <SelectTrigger className="w-auto min-w-[130px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todos los estados</SelectItem>
-                        <SelectItem value="Cliente Premium">Cliente Premium</SelectItem>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="Cliente Premium">Premium</SelectItem>
                         <SelectItem value="Prospecto">Prospecto</SelectItem>
                         <SelectItem value="Descartado">Descartado</SelectItem>
                       </SelectContent>
@@ -798,21 +798,21 @@ export default function ClientesPage() {
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contacto</Label>
                   <Select value={contactFilter} onValueChange={setContactFilter}>
-                    <SelectTrigger><SelectValue placeholder="Todas las opciones" /></SelectTrigger>
+                    <SelectTrigger className="w-auto min-w-[140px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos los contactos</SelectItem>
-                      <SelectItem value="con-contacto">Con correo o teléfono</SelectItem>
-                      <SelectItem value="sin-contacto">Sin datos de contacto</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="con-contacto">Con contacto</SelectItem>
+                      <SelectItem value="sin-contacto">Sin contacto</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por página</Label>
                   <Select value={String(perPage)} onValueChange={(value) => {
                     setPerPage(Number(value));
                     setCurrentPage(1);
                   }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-auto min-w-[70px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="10">10</SelectItem>
                       <SelectItem value="30">30</SelectItem>

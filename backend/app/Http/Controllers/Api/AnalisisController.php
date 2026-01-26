@@ -63,6 +63,11 @@ class AnalisisController extends Controller
             $query->where('estado_cliente', $estadoCliente);
         }
 
+        // Filtro por categoría/producto
+        if ($category = $request->input('category')) {
+            $query->where('category', $category);
+        }
+
         // Filtro por rango de fechas
         if ($dateFrom = $request->input('date_from')) {
             $query->whereDate('created_at', '>=', $dateFrom);

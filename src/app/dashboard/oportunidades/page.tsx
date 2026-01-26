@@ -273,6 +273,8 @@ export default function DealsPage() {
     openedAt: new Date().toISOString().split('T')[0],
     divisa: "CRC",
     plazo: "36",
+    cargo: "",
+    nombramiento: "",
   });
 
   // Combobox state
@@ -617,6 +619,8 @@ export default function DealsPage() {
       openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",
+      cargo: (opportunity.lead as any)?.puesto || "",
+      nombramiento: (opportunity.lead as any)?.estado_puesto || "",
     });
     setIsAnalisisDialogOpen(true);
   };
@@ -662,6 +666,15 @@ export default function DealsPage() {
         opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
       };
+
+      // Actualizar el lead con cargo y nombramiento si se proporcionaron
+      if (analisisForm.leadId && (analisisForm.cargo || analisisForm.nombramiento)) {
+        const leadUpdateData: Record<string, string> = {};
+        if (analisisForm.cargo) leadUpdateData.puesto = analisisForm.cargo;
+        if (analisisForm.nombramiento) leadUpdateData.estado_puesto = analisisForm.nombramiento;
+
+        await api.put(`/api/leads/${analisisForm.leadId}`, leadUpdateData);
+      }
 
       await api.post('/api/analisis', payload);
       toast({ title: "Éxito", description: "Análisis creado correctamente." });
@@ -899,17 +912,17 @@ export default function DealsPage() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-                <Input placeholder="Referencia, lead o título" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <Input placeholder="Referencia, lead o título" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-56" />
             </div>
             <div className="space-y-1">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
                 <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value)}>
-                    <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                    <SelectTrigger className="w-auto min-w-[130px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="todos">Todos los estados</SelectItem>
+                        <SelectItem value="todos">Todos</SelectItem>
                         {OPPORTUNITY_STATUSES.map((status) => (
                             <SelectItem key={status} value={status.toLowerCase()}>{status}</SelectItem>
                         ))}
@@ -917,11 +930,11 @@ export default function DealsPage() {
                 </Select>
             </div>
             <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de crédito</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo crédito</Label>
                 <Select value={filters.tipoCredito} onValueChange={(value) => handleFilterChange("tipoCredito", value)}>
-                    <SelectTrigger><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+                    <SelectTrigger className="w-auto min-w-[130px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="todos">Todos los tipos</SelectItem>
+                        <SelectItem value="todos">Todos</SelectItem>
                         {products.map(product => (
                             <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>
                         ))}
@@ -929,12 +942,12 @@ export default function DealsPage() {
                 </Select>
             </div>
             <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por página</Label>
                 <Select value={String(perPage)} onValueChange={(value) => {
                   setPerPage(Number(value));
                   setCurrentPage(1);
                 }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-auto min-w-[70px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="30">30</SelectItem>
@@ -1424,6 +1437,27 @@ export default function DealsPage() {
                   <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="cargo" className="text-xs">Cargo</Label>
+                <Input
+                  id="cargo"
+                  value={analisisForm.cargo}
+                  onChange={e => handleAnalisisFormChange('cargo', e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="Ej: Ingeniero, Docente, etc."
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nombramiento" className="text-xs">Nombramiento</Label>
+                <Select value={analisisForm.nombramiento} onValueChange={v => handleAnalisisFormChange('nombramiento', v)}>
+                  <SelectTrigger id="nombramiento" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Propiedad">Propiedad</SelectItem>
+                    <SelectItem value="Interino">Interino</SelectItem>
+                    <SelectItem value="De paso">De paso</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
