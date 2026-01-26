@@ -360,8 +360,12 @@ class CreditController extends Controller
             'monto_credito' => 'nullable|numeric',
             'tasa_anual' => 'nullable|numeric',
             'poliza' => 'nullable|boolean',
-              'poliza_actual' => 'nullable|numeric',
-             // ... resto de campos si es necesario editar
+            'poliza_actual' => 'nullable|numeric',
+            'cargos_adicionales' => 'nullable|array',
+            'cargos_adicionales.comision' => 'nullable|numeric|min:0',
+            'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
+            'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
+            'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
         ]);
 
         $credit->update($validated);
