@@ -213,38 +213,20 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="grid md:grid-cols-2 gap-4">
-                            <div id="institucionWrapper">
-                                <label class="block text-sm font-medium text-foreground mb-1">Institución en la que labora *</label>
-                                <div id="institucionContainer" class="relative">
-                                    <button type="button" id="institucionTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
-                                        <span id="institucionLabel" class="truncate text-muted-foreground">Selecciona institución</span>
-                                        <span class="text-xs text-muted-foreground">▼</span>
-                                    </button>
-                                    <div id="institucionDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
-                                        <div class="p-2 border-b">
-                                            <input id="institucionSearch" type="text" placeholder="Buscar institución" class="w-full px-2 py-1 text-sm border rounded-md" aria-label="Buscar institución">
-                                        </div>
-                                        <div id="institucionList" class="max-h-40 overflow-y-auto"></div>
+                        <div id="institucionWrapper">
+                            <label class="block text-sm font-medium text-foreground mb-1">Institución en la que labora *</label>
+                            <div id="institucionContainer" class="relative">
+                                <button type="button" id="institucionTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
+                                    <span id="institucionLabel" class="truncate text-muted-foreground">Selecciona institución</span>
+                                    <span class="text-xs text-muted-foreground">▼</span>
+                                </button>
+                                <div id="institucionDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
+                                    <div class="p-2 border-b">
+                                        <input id="institucionSearch" type="text" placeholder="Buscar institución" class="w-full px-2 py-1 text-sm border rounded-md" aria-label="Buscar institución">
                                     </div>
-                                    <input type="hidden" id="institucionValue" name="institucion" value="">
+                                    <div id="institucionList" class="max-h-40 overflow-y-auto"></div>
                                 </div>
-                            </div>
-                            <div id="empresaWrapper">
-                                <label class="block text-sm font-medium text-foreground mb-1">Empresa en la que Labora</label>
-                                <div id="companyContainer" class="relative">
-                                    <button type="button" id="companyTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
-                                        <span id="companyLabel" class="truncate text-muted-foreground">Selecciona</span>
-                                        <span class="text-xs text-muted-foreground">▼</span>
-                                    </button>
-                                    <div id="companyDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
-                                        <div class="p-2 border-b">
-                                            <input id="companySearch" type="text" placeholder="Buscar empresa" class="w-full px-2 py-1 text-sm border rounded-md" aria-label="Buscar empresa">
-                                        </div>
-                                        <div id="companyList" class="max-h-40 overflow-y-auto"></div>
-                                    </div>
-                                    <input type="hidden" id="companyValue" name="situacion_laboral" value="">
-                                </div>
+                                <input type="hidden" id="institucionValue" name="institucion" value="">
                             </div>
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
@@ -779,151 +761,6 @@
             }
         }
 
-        const companyOptions = [
-            'A.N.E.P.',
-            'ARCHIVO NACIONAL',
-            'ASAMBLEA LEGISLATIVA',
-            'AVIACION CIVIL',
-            'AYA',
-            'C.C.S.S',
-            'C.N.P.',
-            'CEN-CINAI',
-            'CN MUSICA',
-            'CNC',
-            'CONAVI',
-            'CONTROL DE MIGRACIÓN Y EXTRANJERÍA',
-            'CORONADO',
-            'COSEVI',
-            'DEFENSORÍA DE LOS HABITANTES',
-            'DESARROLLO DE LA COMUNIDAD',
-            'DIRECCIÓN GENERAL DE SERVICIO CIVIL',
-            'DIRECCIÓN NACIONAL DE PENSIONES',
-            'FANAL',
-            'FITOSANITARIO',
-            'FONAFIFO',
-            'GOBIERNO CENTRAL INTEGRA',
-            'I.A.F.A.',
-            'I.C.E.',
-            'I.C.O.D.E.R',
-            'I.M.A.S',
-            'ICE',
-            'ICE EMERGENCIAS 911',
-            'ICE ENERGIA Y TELEC.',
-            'IFAM',
-            'IMPRENTA NACIONAL',
-            'INA',
-            'INDER (IDA)',
-            'INTA',
-            'INVU',
-            'JUNTA ADM. REGISTRO NACIONAL',
-            'MIN DE AGRICULTURA Y GANADERÍA',
-            'MIN DE CIENCIA TECNOLOGÍA Y TELECOMUNICACIONES',
-            'MIN DE COMERCIO EXTERIOR',
-            'MIN DE CULT.JUV Y DEPORTES',
-            'MIN DE ECO.IND Y COMERCIO',
-            'MIN DE GOBERNACIÓN Y POLICÍA',
-            'MINAE',
-            'MINISTERIO DE AMBIENTE Y ENERGÍA',
-            'MINISTERIO DE EDUCACIÓN PÚBLICA',
-            'MINISTERIO DE HACIENDA',
-            'MINISTERIO DE JUSTICIA Y GRACIA',
-            'MINISTERIO DE LA PRESIDENCIA',
-            'MINISTERIO DE OBRAS PUBL. Y TRANSPORTE',
-            'MINISTERIO DE PLANIF.NAC Y POL.ECO',
-            'MINISTERIO DE RELACIONES EXTERIORES Y CULTO',
-            'MINISTERIO DE SALUD',
-            'MINISTERIO DE SEGURIDAD PÚBLICA',
-            'MINISTERIO DE TRAB. Y SEGUR. SOC',
-            'MINISTERIO DE VIVIENDA Y ASENT.HUMANOS',
-            'MUNICIPALIDAD DE ALVARADO',
-            'MUNICIPALIDAD DE ASERRI',
-            'MUNICIPALIDAD DE CORONADO',
-            'MUNICIPALIDAD DE CORREDORES',
-            'MUNICIPALIDAD DE DESAMPARADOS',
-            'MUNICIPALIDAD DE GOICOECHEA',
-            'MUNICIPALIDAD DE MORA',
-            'MUNICIPALIDAD DE MORAVIA',
-            'MUNICIPALIDAD DE NARANJO',
-            'MUNICIPALIDAD DE OREAMUNO',
-            'MUNICIPALIDAD DE OROTIÑA',
-            'MUNICIPALIDAD DE PALMARES',
-            'MUNICIPALIDAD DE PARRITA',
-            'MUNICIPALIDAD DE PUNTARENAS',
-            'MUNICIPALIDAD DE SAN MATEO',
-            'MUNICIPALIDAD DE SAN PABLO',
-            'MUNICIPALIDAD DE SAN VITO',
-            'MUNICIPALIDAD DE TIBÁS',
-            'MUNICIPALIDAD GRECIA',
-            'MUNICIPALIDAD SAN JOSÉ',
-            'MUSEO NACIONAL',
-            'O.T.M.',
-            'P.A.N.I',
-            'PENSIONADOS PODER JUDICIAL',
-            'PERSONA JOVEN',
-            'PODER JUDICIAL',
-            'PRESIDENCIA DE LA REPÚBLICA',
-            'PROCURADURÍA GENERAL DE LA REPÚBLICA',
-            'RECOPE',
-            'REGISTRO NACIONAL',
-            'SEC',
-            'SENASA',
-            'SERVICIO EXTERIOR',
-            'TEATRO NACIONAL',
-            'TRIBUNAL DE SERVICIO CIVIL',
-            'TRIBUNAL SUPREMO DE ELECCIONES',
-            'UCR',
-            'UCR UNIVERSIDAD DE COSTA RICA'
-        ];
-
-        function renderCompanyOptions(filter = '') {
-            const list = document.getElementById('companyList');
-            list.innerHTML = '';
-            const term = filter.trim().toLowerCase();
-            companyOptions.forEach(name => {
-                if (term && !name.toLowerCase().includes(term)) return;
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.textContent = name;
-                btn.className = 'w-full text-left px-3 py-2 text-sm hover:bg-gray-100';
-                btn.addEventListener('click', () => selectCompany(name));
-                list.appendChild(btn);
-            });
-            if (!list.children.length) {
-                const empty = document.createElement('div');
-                empty.className = 'px-3 py-2 text-sm text-muted-foreground';
-                empty.textContent = 'Sin resultados';
-                list.appendChild(empty);
-            }
-        }
-
-        function selectCompany(name) {
-            const hidden = document.getElementById('companyValue');
-            const label = document.getElementById('companyLabel');
-            hidden.value = name || '';
-            label.textContent = name || 'Selecciona';
-            label.classList.toggle('text-muted-foreground', !name);
-            closeCompanyDropdown();
-        }
-
-        function openCompanyDropdown() {
-            document.getElementById('companyDropdown').classList.remove('hidden');
-            renderCompanyOptions(document.getElementById('companySearch').value || '');
-            document.getElementById('companySearch').focus();
-        }
-
-        function closeCompanyDropdown() {
-            document.getElementById('companyDropdown').classList.add('hidden');
-        }
-
-        function toggleCompanyDropdown() {
-            const dropdown = document.getElementById('companyDropdown');
-            if (dropdown.classList.contains('hidden')) {
-                openCompanyDropdown();
-            } else {
-                closeCompanyDropdown();
-            }
-        }
-
         // --- Instituciones Dropdown ---
         let institucionOptions = [];
 
@@ -1005,7 +842,7 @@
                     const tipoCredito = document.querySelector('input[name="tipo_credito"]:checked')?.value;
                     const monto = document.querySelector('select[name="monto"]').value;
                     const uso = document.querySelector('select[name="uso_credito"]').value;
-                    const situacion = document.getElementById('companyValue').value;
+                    const institucion = document.getElementById('institucionValue').value;
                     const ingreso = document.getElementById('ingresoSelect').value;
                     const salario = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
 
@@ -1013,7 +850,7 @@
                         showAlert('Selecciona el tipo de crédito (Microcrédito o Regular).');
                         return false;
                     }
-                    if (!monto || !uso || !situacion || !ingreso || !salario) {
+                    if (!monto || !uso || !institucion || !ingreso || !salario) {
                         showAlert('Completa todos los datos de crédito.');
                         return false;
                     }
@@ -1074,7 +911,7 @@
                 data.tipo_credito = document.querySelector('input[name="tipo_credito"]:checked')?.value || '';
                 data.monto = document.querySelector('select[name="monto"]').value;
                 data.uso_credito = document.querySelector('select[name="uso_credito"]').value;
-                data.situacion_laboral = document.getElementById('companyValue').value;
+                data.institucion_labora = document.getElementById('institucionValue').value;
                 data.ingreso = document.getElementById('ingresoSelect').value;
                 data.salario_exacto = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
                 data.tiene_deudas = document.querySelector('select[name="tiene_deudas"]').value;
@@ -1383,7 +1220,6 @@
             loadLoanConfigurations();
 
             showStep(currentStep);
-            renderCompanyOptions();
             document.querySelectorAll('input[name="interes"]').forEach(input => {
                 input.addEventListener('change', (e) => {
                     // Si crédito está bloqueado y selecciona crédito o ambos, prevenir
@@ -1414,14 +1250,6 @@
                 validateSalario();
                 checkSalarioBajo();
             });
-            document.getElementById('companyTrigger').addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleCompanyDropdown();
-            });
-            document.getElementById('companySearch').addEventListener('input', (e) => {
-                renderCompanyOptions(e.target.value || '');
-            });
-
             // Institución dropdown event listeners
             loadInstituciones();
             document.getElementById('institucionTrigger').addEventListener('click', (e) => {
@@ -1433,13 +1261,6 @@
             });
 
             document.addEventListener('click', (e) => {
-                // Cerrar company dropdown
-                const companyDropdown = document.getElementById('companyDropdown');
-                const companyContainer = document.getElementById('companyContainer');
-                if (!companyContainer.contains(e.target)) {
-                    companyDropdown.classList.add('hidden');
-                }
-
                 // Cerrar institucion dropdown
                 const institucionDropdown = document.getElementById('institucionDropdown');
                 const institucionContainer = document.getElementById('institucionContainer');
