@@ -86,7 +86,6 @@ export default function AnalisisPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [estadoPepFilter, setEstadoPepFilter] = useState('all');
   const [estadoClienteFilter, setEstadoClienteFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -125,9 +124,6 @@ export default function AnalisisPage() {
       }
       if (estadoClienteFilter !== 'all') {
         analisisParams.estado_cliente = estadoClienteFilter;
-      }
-      if (categoryFilter !== 'all') {
-        analisisParams.category = categoryFilter;
       }
       if (dateFrom) {
         analisisParams.date_from = dateFrom;
@@ -180,7 +176,7 @@ export default function AnalisisPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, perPage, searchQuery, estadoPepFilter, estadoClienteFilter, categoryFilter, dateFrom, dateTo]);
+  }, [currentPage, perPage, searchQuery, estadoPepFilter, estadoClienteFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchAll();
@@ -206,7 +202,6 @@ export default function AnalisisPage() {
     setSearchQuery('');
     setEstadoPepFilter('all');
     setEstadoClienteFilter('all');
-    setCategoryFilter('all');
     setDateFrom('');
     setDateTo('');
     setCurrentPage(1);
@@ -341,20 +336,20 @@ export default function AnalisisPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-              <Input placeholder="Referencia, cliente o cédula" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <Input placeholder="Referencia, cliente o cédula" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-56" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado PEP</Label>
               <Select value={estadoPepFilter} onValueChange={(v) => { setEstadoPepFilter(v); setCurrentPage(1); }}>
-                <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                <SelectTrigger className="w-auto min-w-[140px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="Pendiente">Pendiente</SelectItem>
                   <SelectItem value="Aceptado">Aceptado</SelectItem>
-                  <SelectItem value="Pendiente de cambios">Pendiente de cambios</SelectItem>
+                  <SelectItem value="Pendiente de cambios">Pend. cambios</SelectItem>
                   <SelectItem value="Rechazado">Rechazado</SelectItem>
                 </SelectContent>
               </Select>
@@ -362,33 +357,21 @@ export default function AnalisisPage() {
             <div className="space-y-1">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado Cliente</Label>
               <Select value={estadoClienteFilter} onValueChange={(v) => { setEstadoClienteFilter(v); setCurrentPage(1); }}>
-                <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                <SelectTrigger className="w-auto min-w-[120px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="Aprobado">Aprobado</SelectItem>
                   <SelectItem value="Rechazado">Rechazado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Producto</Label>
-              <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setCurrentPage(1); }}>
-                <SelectTrigger><SelectValue placeholder="Todos los productos" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los productos</SelectItem>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por página</Label>
               <Select value={String(perPage)} onValueChange={(value) => {
                 setPerPage(Number(value));
                 setCurrentPage(1);
               }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-auto min-w-[70px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="30">30</SelectItem>
