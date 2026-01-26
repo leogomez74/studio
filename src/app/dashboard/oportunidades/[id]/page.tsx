@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -22,7 +22,8 @@ import {
   FolderInput,
   Download,
   CreditCard,
-  Receipt
+  Receipt,
+  PlusCircle
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,11 +34,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import api from "@/lib/axios";
 import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { CaseChat } from "@/components/case-chat";
 import { Label } from "@/components/ui/label";
+import { DEDUCCIONES_TIPOS, EditableDeduccion } from "@/lib/analisis";
 
 // Tipo para archivos del filesystem
 interface OpportunityFile {
@@ -65,9 +71,31 @@ export default function OpportunityDetailPage() {
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
+
+  // Analisis Dialog State
+  const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
+  const [analisisForm, setAnalisisForm] = useState({
+    reference: "",
+    title: "",
+    category: "Crédito",
+    monto_credito: "",
+    ingreso_bruto: "",
+    ingreso_neto: "",
+    propuesta: "",
+    leadId: "",
+    opportunityId: "",
+    assignedTo: "",
+    openedAt: new Date().toISOString().split('T')[0],
+    divisa: "CRC",
+    plazo: "36",
+  });
+  const [deducciones, setDeducciones] = useState<EditableDeduccion[]>(
+    DEDUCCIONES_TIPOS.map(nombre => ({ nombre, monto: 0, activo: false }))
+  );
 
   // Estados para archivos
   const [heredados, setHeredados] = useState<OpportunityFile[]>([]);
@@ -92,9 +120,10 @@ export default function OpportunityDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [opportunityRes, productsRes] = await Promise.all([
+        const [opportunityRes, productsRes, usersRes] = await Promise.all([
           api.get(`/api/opportunities/${id}`),
           api.get('/api/products'),
+          api.get('/api/agents'),
         ]);
 
         const opportunityData = opportunityRes.data.data || opportunityRes.data;
@@ -102,6 +131,7 @@ export default function OpportunityDetailPage() {
 
         setOpportunity(opportunityData);
         setProducts(productsData);
+        setUsers(usersRes.data);
 
         // Cargar archivos
         fetchFiles();
@@ -299,6 +329,82 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  // Analisis Logic
+  const handleOpenAnalisisDialog = () => {
+    if (!opportunity) return;
+
+    setAnalisisForm({
+      reference: String(opportunity.id),
+      title: opportunity.opportunity_type || "",
+      category: "Crédito",
+      monto_credito: opportunity.amount ? String(opportunity.amount) : "",
+      ingreso_bruto: "",
+      ingreso_neto: "",
+      propuesta: "",
+      leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
+      opportunityId: String(opportunity.id),
+      assignedTo: "",
+      openedAt: new Date().toISOString().split('T')[0],
+      divisa: "CRC",
+      plazo: "36",
+    });
+    setDeducciones(DEDUCCIONES_TIPOS.map(nombre => ({ nombre, monto: 0, activo: false })));
+    setIsAnalisisDialogOpen(true);
+  };
+
+  const handleAnalisisFormChange = (field: string, value: string) => {
+    setAnalisisForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const toggleDeduccion = (index: number) => {
+    setDeducciones(prev => prev.map((d, i) =>
+      i === index ? { ...d, activo: !d.activo, monto: !d.activo ? d.monto : 0 } : d
+    ));
+  };
+
+  const updateDeduccionMonto = (index: number, monto: number) => {
+    setDeducciones(prev => prev.map((d, i) =>
+      i === index ? { ...d, monto } : d
+    ));
+  };
+
+  const handleAnalisisSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      const deduccionesActivas = deducciones
+        .filter(d => d.activo && d.monto > 0)
+        .map(d => ({ nombre: d.nombre, monto: d.monto }));
+
+      const payload: Record<string, any> = {
+        title: analisisForm.title,
+        status: "Pendiente",
+        category: analisisForm.category,
+        monto_credito: parseFloat(analisisForm.monto_credito) || 0,
+        ingreso_bruto: parseFloat(analisisForm.ingreso_bruto) || 0,
+        ingreso_neto: parseFloat(analisisForm.ingreso_neto) || 0,
+        deducciones: deduccionesActivas.length > 0 ? deduccionesActivas : null,
+        propuesta: analisisForm.propuesta || null,
+        lead_id: parseInt(analisisForm.leadId),
+        opportunity_id: analisisForm.opportunityId,
+        plazo: parseInt(analisisForm.plazo) || 36,
+        divisa: analisisForm.divisa,
+        opened_at: analisisForm.openedAt,
+        assigned_to: analisisForm.assignedTo || null,
+      };
+
+      await api.post('/api/analisis', payload);
+      toast({ title: "Éxito", description: "Análisis creado correctamente." });
+      setIsAnalisisDialogOpen(false);
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        toast({ title: "Análisis existente", description: "Ya existe un análisis para esta oportunidad." });
+        setIsAnalisisDialogOpen(false);
+      } else {
+        toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+      }
+    }
+  };
+
   if (loading) {
     return <div className="flex h-full items-center justify-center p-8">Cargando...</div>;
   }
@@ -364,14 +470,24 @@ export default function OpportunityDetailPage() {
                         onClick={() => handleStatusChange(status)}
                         disabled={updatingStatus}
                         className={`h-8 text-xs ${
-                          opportunity.status === status 
-                            ? "bg-slate-900 text-white hover:bg-slate-800" 
+                          opportunity.status === status
+                            ? "bg-slate-900 text-white hover:bg-slate-800"
                             : "text-slate-600 border-slate-200"
                         }`}
                       >
                         {status}
                       </Button>
                     ))}
+                    {opportunity.status === "Analizada" && (
+                      <Button
+                        variant="default"
+                        onClick={handleOpenAnalisisDialog}
+                        className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
+                      >
+                        <PlusCircle className="h-3.5 w-3.5" />
+                        Crear Análisis
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="pt-6">
@@ -705,6 +821,128 @@ export default function OpportunityDetailPage() {
           <CaseChat conversationId={id} />
         </div>
       </div>
+
+      {/* Analisis Creation Dialog */}
+      <Dialog open={isAnalisisDialogOpen} onOpenChange={setIsAnalisisDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Nuevo Análisis</DialogTitle>
+            <DialogDescription>Completa la información del análisis.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAnalisisSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="reference" className="text-xs">Referencia</Label>
+                <Input
+                  id="reference"
+                  value={analisisForm.reference}
+                  readOnly
+                  className="bg-muted h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="title" className="text-xs">Título</Label>
+                <Input id="title" className="h-8 text-sm" value={analisisForm.title} onChange={e => handleAnalisisFormChange('title', e.target.value)} required />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="category" className="text-xs">Categoría</Label>
+                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
+                  <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="divisa" className="text-xs">Divisa</Label>
+                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)}>
+                  <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
+                <Input id="monto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.monto_credito} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_bruto" className="text-xs">Ingreso Bruto</Label>
+                <Input id="ingreso_bruto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_bruto} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_neto" className="text-xs">Ingreso Neto</Label>
+                <Input id="ingreso_neto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_neto} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
+                <Select value={analisisForm.plazo} onValueChange={v => handleAnalisisFormChange('plazo', v)}>
+                  <SelectTrigger id="plazo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    {["36", "60", "120"].map(p => <SelectItem key={p} value={p}>{p} meses</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="assignedTo" className="text-xs">Responsable</Label>
+                <Select value={analisisForm.assignedTo} onValueChange={v => handleAnalisisFormChange('assignedTo', v)}>
+                  <SelectTrigger id="assignedTo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="openedAt" className="text-xs">Fecha Apertura</Label>
+                <Input id="openedAt" className="h-8 text-sm" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
+              </div>
+              {/* Deducciones Checklist */}
+              <div className="sm:col-span-2 space-y-2">
+                <Label className="text-xs">Deducciones al Salario</Label>
+                <div className="grid gap-1.5 sm:grid-cols-2 border rounded-md p-2 bg-muted/30 max-h-[140px] overflow-y-auto">
+                  {deducciones.map((deduccion, index) => (
+                    <div key={deduccion.nombre} className="flex items-center gap-1.5">
+                      <Checkbox
+                        id={`deduccion-${index}`}
+                        checked={deduccion.activo}
+                        onCheckedChange={() => toggleDeduccion(index)}
+                        className="h-3.5 w-3.5"
+                      />
+                      <label
+                        htmlFor={`deduccion-${index}`}
+                        className="text-xs font-medium leading-none cursor-pointer truncate flex-1"
+                        title={deduccion.nombre}
+                      >
+                        {deduccion.nombre}
+                      </label>
+                      {deduccion.activo && (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="₡"
+                          className="w-20 h-6 text-xs px-1.5"
+                          value={deduccion.monto || ""}
+                          onChange={e => updateDeduccionMonto(index, parseFloat(e.target.value) || 0)}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2 space-y-1">
+                <Label htmlFor="propuesta" className="text-xs">Propuesta de Análisis</Label>
+                <Textarea id="propuesta" rows={2} className="text-sm" placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
+              </div>
+            </div>
+          </form>
+          <DialogFooter className="flex-shrink-0 pt-2 border-t">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
+            <Button type="submit" size="sm" onClick={handleAnalisisSubmit}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
