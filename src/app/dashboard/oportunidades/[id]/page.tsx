@@ -19,7 +19,10 @@ import {
   Upload,
   Loader2,
   FolderOpen,
-  FolderInput
+  FolderInput,
+  Download,
+  CreditCard,
+  Receipt
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -115,7 +118,43 @@ export default function OpportunityDetailPage() {
     }
   }, [id, toast]);
 
-  // Subir archivo específico
+  // Estados para uploads individuales
+  const [uploadingCedula, setUploadingCedula] = useState(false);
+  const [uploadingRecibo, setUploadingRecibo] = useState(false);
+
+  // Subir archivo con prefijo específico
+  const handleFileUploadWithType = async (e: React.ChangeEvent<HTMLInputElement>, type: 'cedula' | 'recibo') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const setUploadingState = type === 'cedula' ? setUploadingCedula : setUploadingRecibo;
+    const prefix = type === 'cedula' ? 'cedula' : 'recibo';
+
+    // Renombrar archivo con prefijo
+    const ext = file.name.split('.').pop();
+    const newFileName = `${prefix}_${opportunity?.lead_cedula || 'unknown'}.${ext}`;
+    const renamedFile = new File([file], newFileName, { type: file.type });
+
+    const formData = new FormData();
+    formData.append('file', renamedFile);
+
+    try {
+      setUploadingState(true);
+      await api.post(`/api/opportunities/${id}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast({ title: "Éxito", description: `${type === 'cedula' ? 'Cédula' : 'Recibo'} subido correctamente.` });
+      fetchFiles();
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+    } finally {
+      setUploadingState(false);
+      e.target.value = '';
+    }
+  };
+
+  // Subir archivo específico (genérico)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -137,6 +176,37 @@ export default function OpportunityDetailPage() {
       setUploading(false);
       e.target.value = '';
     }
+  };
+
+  // Descargar archivo
+  const handleDownloadFile = (file: OpportunityFile) => {
+    const link = document.createElement('a');
+    link.href = file.url;
+    link.download = file.name;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Verificar si un archivo es imagen
+  const isImageFile = (fileName: string) => {
+    return fileName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+  };
+
+  // Verificar si un archivo es PDF
+  const isPdfFile = (fileName: string) => {
+    return fileName.toLowerCase().endsWith('.pdf');
+  };
+
+  // Obtener archivo de cédula
+  const getCedulaFile = () => {
+    return heredados.find(f => f.name.toLowerCase().startsWith('cedula'));
+  };
+
+  // Obtener archivo de recibo
+  const getReciboFile = () => {
+    return heredados.find(f => f.name.toLowerCase().startsWith('recibo'));
   };
 
   // Eliminar archivo
@@ -379,80 +449,170 @@ export default function OpportunityDetailPage() {
 
             <TabsContent value="archivos">
               <div className="space-y-4">
-                {/* Subir archivo específico */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Upload className="h-4 w-4" />
-                      Subir Archivo
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4">
-                      <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad</Label>
-                        <Input
-                          id="file-upload"
-                          type="file"
-                          onChange={handleFileUpload}
-                          disabled={uploading}
-                          className="cursor-pointer"
-                        />
-                      </div>
-                      {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
-                    </div>
-                  </CardContent>
-                </Card>
-
                 {loadingFiles ? (
                   <div className="flex justify-center p-8">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Archivos Heredados */}
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <FolderInput className="h-4 w-4 text-blue-500" />
-                          Documentos Personales
-                          <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
-                        </CardTitle>
-                        <p className="text-xs text-muted-foreground">Documentos copiados del buzón del cliente</p>
-                      </CardHeader>
-                      <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
-                        {heredados.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-4">Sin archivos heredados</p>
-                        ) : (
-                          heredados.map((file) => {
-                            const { icon: FileIcon, label, color } = getFileTypeInfo(file.name);
-                            return (
-                              <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                                  <div className="min-w-0">
-                                    <a
-                                      href={file.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-sm font-medium hover:underline truncate block"
-                                    >
-                                      {file.name}
-                                    </a>
-                                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                  <>
+                    {/* Documentos Requeridos: Cédula y Recibo */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Cédula */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-blue-500" />
+                            Cédula
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const cedulaFile = getCedulaFile();
+                            if (cedulaFile) {
+                              return (
+                                <div className="space-y-3">
+                                  {/* Miniatura */}
+                                  <div className="relative w-full h-48 bg-muted rounded-lg overflow-hidden border">
+                                    {isImageFile(cedulaFile.name) ? (
+                                      <img
+                                        src={cedulaFile.url}
+                                        alt="Cédula"
+                                        className="w-full h-full object-contain"
+                                      />
+                                    ) : isPdfFile(cedulaFile.name) ? (
+                                      <iframe
+                                        src={cedulaFile.url}
+                                        className="w-full h-full"
+                                        title="Cédula PDF"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <FileText className="h-16 w-16 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* Info y acciones */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-sm">
+                                      <p className="font-medium truncate">{cedulaFile.name}</p>
+                                      <p className="text-xs text-muted-foreground">{formatFileSize(cedulaFile.size)}</p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button variant="outline" size="sm" onClick={() => handleDownloadFile(cedulaFile)}>
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(cedulaFile.name)}>
+                                        <Trash className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(file.name)}>
-                                  <Trash className="h-4 w-4 text-destructive" />
-                                </Button>
+                              );
+                            }
+                            return (
+                              <div className="space-y-3">
+                                <div className="w-full h-48 bg-muted/50 rounded-lg border-2 border-dashed flex items-center justify-center">
+                                  <div className="text-center text-muted-foreground">
+                                    <CreditCard className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">Sin cédula</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    id="cedula-upload"
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    onChange={(e) => handleFileUploadWithType(e, 'cedula')}
+                                    disabled={uploadingCedula}
+                                    className="cursor-pointer"
+                                  />
+                                  {uploadingCedula && <Loader2 className="h-4 w-4 animate-spin" />}
+                                </div>
                               </div>
                             );
-                          })
-                        )}
-                      </CardContent>
-                    </Card>
+                          })()}
+                        </CardContent>
+                      </Card>
 
-                    {/* Archivos Específicos */}
+                      {/* Recibo de Servicio */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Receipt className="h-4 w-4 text-green-500" />
+                            Recibo de Servicio
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const reciboFile = getReciboFile();
+                            if (reciboFile) {
+                              return (
+                                <div className="space-y-3">
+                                  {/* Miniatura */}
+                                  <div className="relative w-full h-48 bg-muted rounded-lg overflow-hidden border">
+                                    {isImageFile(reciboFile.name) ? (
+                                      <img
+                                        src={reciboFile.url}
+                                        alt="Recibo"
+                                        className="w-full h-full object-contain"
+                                      />
+                                    ) : isPdfFile(reciboFile.name) ? (
+                                      <iframe
+                                        src={reciboFile.url}
+                                        className="w-full h-full"
+                                        title="Recibo PDF"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <FileText className="h-16 w-16 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* Info y acciones */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-sm">
+                                      <p className="font-medium truncate">{reciboFile.name}</p>
+                                      <p className="text-xs text-muted-foreground">{formatFileSize(reciboFile.size)}</p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button variant="outline" size="sm" onClick={() => handleDownloadFile(reciboFile)}>
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(reciboFile.name)}>
+                                        <Trash className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="space-y-3">
+                                <div className="w-full h-48 bg-muted/50 rounded-lg border-2 border-dashed flex items-center justify-center">
+                                  <div className="text-center text-muted-foreground">
+                                    <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">Sin recibo</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    id="recibo-upload"
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    onChange={(e) => handleFileUploadWithType(e, 'recibo')}
+                                    disabled={uploadingRecibo}
+                                    className="cursor-pointer"
+                                  />
+                                  {uploadingRecibo && <Loader2 className="h-4 w-4 animate-spin" />}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Específicos de Oportunidad */}
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2">
@@ -462,38 +622,78 @@ export default function OpportunityDetailPage() {
                         </CardTitle>
                         <p className="text-xs text-muted-foreground">Documentos subidos directamente aquí</p>
                       </CardHeader>
-                      <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                      <CardContent className="space-y-4">
+                        {/* Upload para documentos específicos */}
+                        <div className="flex items-center gap-4 pb-3 border-b">
+                          <div className="grid w-full max-w-sm items-center gap-1.5">
+                            <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad</Label>
+                            <Input
+                              id="file-upload"
+                              type="file"
+                              onChange={handleFileUpload}
+                              disabled={uploading}
+                              className="cursor-pointer"
+                            />
+                          </div>
+                          {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                        </div>
+
+                        {/* Lista de archivos específicos */}
                         {especificos.length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-4">Sin archivos específicos</p>
                         ) : (
-                          especificos.map((file) => {
-                            const { icon: FileIcon, label, color } = getFileTypeInfo(file.name);
-                            return (
-                              <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                                  <div className="min-w-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto">
+                            {especificos.map((file) => {
+                              const { icon: FileIcon, color } = getFileTypeInfo(file.name);
+                              return (
+                                <div key={file.path} className="border rounded-lg overflow-hidden">
+                                  {/* Miniatura */}
+                                  <div className="h-32 bg-muted flex items-center justify-center">
+                                    {isImageFile(file.name) ? (
+                                      <img
+                                        src={file.url}
+                                        alt={file.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : isPdfFile(file.name) ? (
+                                      <iframe
+                                        src={file.url}
+                                        className="w-full h-full pointer-events-none"
+                                        title={file.name}
+                                      />
+                                    ) : (
+                                      <FileIcon className={`h-12 w-12 ${color}`} />
+                                    )}
+                                  </div>
+                                  {/* Info */}
+                                  <div className="p-2">
                                     <a
                                       href={file.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-sm font-medium hover:underline truncate block"
+                                      className="text-xs font-medium hover:underline truncate block"
                                     >
                                       {file.name}
                                     </a>
                                     <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                                    <div className="flex gap-1 mt-2">
+                                      <Button variant="outline" size="sm" className="h-7 flex-1" onClick={() => handleDownloadFile(file)}>
+                                        <Download className="h-3 w-3 mr-1" />
+                                        <span className="text-xs">Descargar</span>
+                                      </Button>
+                                      <Button variant="ghost" size="sm" className="h-7" onClick={() => handleDeleteFile(file.name)}>
+                                        <Trash className="h-3 w-3 text-destructive" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(file.name)}>
-                                  <Trash className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            );
-                          })
+                              );
+                            })}
+                          </div>
                         )}
                       </CardContent>
                     </Card>
-                  </div>
+                  </>
                 )}
               </div>
             </TabsContent>
