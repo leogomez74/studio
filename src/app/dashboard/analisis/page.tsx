@@ -86,6 +86,7 @@ export default function AnalisisPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [estadoPepFilter, setEstadoPepFilter] = useState('all');
   const [estadoClienteFilter, setEstadoClienteFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -124,6 +125,9 @@ export default function AnalisisPage() {
       }
       if (estadoClienteFilter !== 'all') {
         analisisParams.estado_cliente = estadoClienteFilter;
+      }
+      if (categoryFilter !== 'all') {
+        analisisParams.category = categoryFilter;
       }
       if (dateFrom) {
         analisisParams.date_from = dateFrom;
@@ -176,7 +180,7 @@ export default function AnalisisPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, perPage, searchQuery, estadoPepFilter, estadoClienteFilter, dateFrom, dateTo]);
+  }, [currentPage, perPage, searchQuery, estadoPepFilter, estadoClienteFilter, categoryFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchAll();
@@ -202,6 +206,7 @@ export default function AnalisisPage() {
     setSearchQuery('');
     setEstadoPepFilter('all');
     setEstadoClienteFilter('all');
+    setCategoryFilter('all');
     setDateFrom('');
     setDateTo('');
     setCurrentPage(1);
@@ -362,6 +367,18 @@ export default function AnalisisPage() {
                   <SelectItem value="all">Todos los estados</SelectItem>
                   <SelectItem value="Aprobado">Aprobado</SelectItem>
                   <SelectItem value="Rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Producto</Label>
+              <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger><SelectValue placeholder="Todos los productos" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los productos</SelectItem>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
