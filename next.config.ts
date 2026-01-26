@@ -42,6 +42,27 @@ const nextConfig: NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } } = {
         source: '/api/:path*',
         destination: 'http://127.0.0.1:8000/api/:path*',
       },
+      // Servir archivos HTML estáticos sin extensión
+      {
+        source: '/registro',
+        destination: '/registro/index.html',
+      },
+      {
+        source: '/cuestionario/publico',
+        destination: '/cuestionario/publico/index.html',
+      },
+      {
+        source: '/cuestionario/privado',
+        destination: '/cuestionario/privado/index.html',
+      },
+      {
+        source: '/cuestionario/pensionados',
+        destination: '/cuestionario/pensionados/index.html',
+      },
+      {
+        source: '/cuestionario/propio',
+        destination: '/cuestionario/propio/index.html',
+      },
     ];
   },
 };
