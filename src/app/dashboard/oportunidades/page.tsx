@@ -57,7 +57,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -79,11 +78,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
 
-import {
-  DEDUCCIONES_TIPOS,
-  EditableDeduccion,
-  filterActiveDeduccionesForSave,
-} from "@/lib/analisis";
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
 
 const opportunitySchema = z.object({
@@ -280,11 +274,6 @@ export default function DealsPage() {
     divisa: "CRC",
     plazo: "36",
   });
-
-  // Deducciones state para el dialog de análisis
-  const [deducciones, setDeducciones] = useState<EditableDeduccion[]>(
-    DEDUCCIONES_TIPOS.map(nombre => ({ nombre, monto: 0, activo: false }))
-  );
 
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
@@ -629,8 +618,6 @@ export default function DealsPage() {
       divisa: "CRC",
       plazo: "36",
     });
-    // Reset deducciones
-    setDeducciones(DEDUCCIONES_TIPOS.map(nombre => ({ nombre, monto: 0, activo: false })));
     setIsAnalisisDialogOpen(true);
   };
 
@@ -656,36 +643,17 @@ export default function DealsPage() {
     }
   };
 
-  // Toggle deducción activa/inactiva
-  const toggleDeduccion = (index: number) => {
-    setDeducciones(prev => prev.map((d, i) =>
-      i === index ? { ...d, activo: !d.activo, monto: !d.activo ? d.monto : 0 } : d
-    ));
-  };
-
-  // Actualizar monto de deducción
-  const updateDeduccionMonto = (index: number, monto: number) => {
-    setDeducciones(prev => prev.map((d, i) =>
-      i === index ? { ...d, monto } : d
-    ));
-  };
-
   const handleAnalisisSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      // Filtrar solo deducciones activas con monto > 0
-      const deduccionesActivas = deducciones
-        .filter(d => d.activo && d.monto > 0)
-        .map(d => ({ nombre: d.nombre, monto: d.monto }));
-
       const payload: Record<string, any> = {
+        reference: analisisForm.reference, // ID de la oportunidad como referencia
         title: analisisForm.title,
         status: "Pendiente", // Default status para análisis nuevo
         category: analisisForm.category,
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
         ingreso_bruto: parseFloat(analisisForm.ingreso_bruto) || 0,
         ingreso_neto: parseFloat(analisisForm.ingreso_neto) || 0,
-        deducciones: deduccionesActivas.length > 0 ? deduccionesActivas : null,
         propuesta: analisisForm.propuesta || null,
         lead_id: parseInt(analisisForm.leadId),
         opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
@@ -694,7 +662,6 @@ export default function DealsPage() {
         opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
       };
-      // reference se auto-genera en backend con formato YY-XXXXX-EPP-AN
 
       await api.post('/api/analisis', payload);
       toast({ title: "Éxito", description: "Análisis creado correctamente." });
@@ -1498,42 +1465,6 @@ export default function DealsPage() {
                 <Label htmlFor="openedAt" className="text-xs">Fecha Apertura</Label>
                 <Input id="openedAt" className="h-8 text-sm" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
               </div>
-              {/* Deducciones Checklist */}
-              <div className="sm:col-span-2 space-y-2">
-                <Label className="text-xs">Deducciones al Salario</Label>
-                <div className="grid gap-1.5 sm:grid-cols-2 border rounded-md p-2 bg-muted/30 max-h-[140px] overflow-y-auto">
-                  {deducciones.map((deduccion, index) => (
-                    <div key={deduccion.nombre} className="flex items-center gap-1.5">
-                      <Checkbox
-                        id={`deduccion-${index}`}
-                        checked={deduccion.activo}
-                        onCheckedChange={() => toggleDeduccion(index)}
-                        className="h-3.5 w-3.5"
-                      />
-                      <label
-                        htmlFor={`deduccion-${index}`}
-                        className="text-xs font-medium leading-none cursor-pointer truncate flex-1"
-                        title={deduccion.nombre}
-                      >
-                        {deduccion.nombre}
-                      </label>
-                      {deduccion.activo && (
-                        <div className="relative">
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            className="w-24 h-6 text-xs pl-5 pr-1.5"
-                            value={deduccion.monto ? formatCurrency(deduccion.monto) : ""}
-                            onChange={e => updateDeduccionMonto(index, parseInt(parseCurrency(e.target.value)) || 0)}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="sm:col-span-2 space-y-1">
                 <Label htmlFor="propuesta" className="text-xs">Propuesta de Análisis</Label>
                 <Textarea id="propuesta" rows={2} className="text-sm" placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />

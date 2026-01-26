@@ -1,7 +1,7 @@
 'use client';
 
 import api from '@/lib/axios';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -109,8 +109,31 @@ export default function AnalisisPage() {
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Construir params con filtros server-side
+      const analisisParams: Record<string, string | number> = {
+        page: currentPage,
+        per_page: perPage,
+      };
+
+      if (searchQuery.trim()) {
+        analisisParams.search = searchQuery.trim();
+      }
+      if (estadoPepFilter !== 'all') {
+        analisisParams.estado_pep = estadoPepFilter;
+      }
+      if (estadoClienteFilter !== 'all') {
+        analisisParams.estado_cliente = estadoClienteFilter;
+      }
+      if (dateFrom) {
+        analisisParams.date_from = dateFrom;
+      }
+      if (dateTo) {
+        analisisParams.date_to = dateTo;
+      }
+
       const [analisisRes, oppsRes, leadsRes, productsRes] = await Promise.all([
-        api.get('/api/analisis', { params: { page: currentPage, per_page: perPage } }),
+        api.get('/api/analisis', { params: analisisParams }),
         api.get('/api/opportunities'),
         api.get('/api/leads'),
         api.get('/api/products'),
@@ -153,7 +176,7 @@ export default function AnalisisPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, perPage]);
+  }, [currentPage, perPage, searchQuery, estadoPepFilter, estadoClienteFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchAll();
@@ -175,62 +198,23 @@ export default function AnalisisPage() {
     router.push(`/dashboard/analisis/${item.id}`);
   };
 
-  // Filter data
-  const filteredData = useMemo(() => {
-    return analisisList.filter(item => {
-      // Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesReference = item.reference?.toLowerCase().includes(query);
-        const matchesClient = item.lead?.name?.toLowerCase().includes(query);
-        const matchesCedula = item.lead?.cedula?.toLowerCase().includes(query);
-        if (!matchesReference && !matchesClient && !matchesCedula) return false;
-      }
-
-      // Estado PEP filter
-      if (estadoPepFilter !== 'all') {
-        if (item.estado_pep !== estadoPepFilter) return false;
-      }
-
-      // Estado Cliente filter
-      if (estadoClienteFilter !== 'all') {
-        if (item.estado_cliente !== estadoClienteFilter) return false;
-      }
-
-      // Date range filter
-      if (dateFrom || dateTo) {
-        const itemDate = new Date(item.created_at);
-        if (dateFrom) {
-          const from = new Date(dateFrom);
-          if (itemDate < from) return false;
-        }
-        if (dateTo) {
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59, 999);
-          if (itemDate > to) return false;
-        }
-      }
-
-      return true;
-    });
-  }, [analisisList, searchQuery, estadoPepFilter, estadoClienteFilter, dateFrom, dateTo]);
-
   const handleClearFilters = () => {
     setSearchQuery('');
     setEstadoPepFilter('all');
     setEstadoClienteFilter('all');
     setDateFrom('');
     setDateTo('');
+    setCurrentPage(1);
   };
 
   const handleExportCSV = () => {
-    if (filteredData.length === 0) {
+    if (analisisList.length === 0) {
       toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
       return;
     }
 
     const headers = ["Referencia", "Cliente", "Cédula", "Profesión", "Puesto", "Estado Puesto", "Monto", "Estado PEP", "Estado Cliente", "Fecha"];
-    const rows = filteredData.map(item => [
+    const rows = analisisList.map(item => [
       item.reference || "-",
       item.lead?.name || "-",
       item.lead?.cedula || "-",
@@ -259,7 +243,7 @@ export default function AnalisisPage() {
   };
 
   const handleExportPDF = () => {
-    if (filteredData.length === 0) {
+    if (analisisList.length === 0) {
       toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
       return;
     }
@@ -284,7 +268,7 @@ export default function AnalisisPage() {
     });
     y += 10;
 
-    filteredData.forEach(item => {
+    analisisList.forEach(item => {
       if (y > 180) {
         doc.addPage();
         y = 20;
@@ -328,11 +312,11 @@ export default function AnalisisPage() {
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
-                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-10 w-36" />
+                  <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }} className="h-10 w-36" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
-                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-10 w-36" />
+                  <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }} className="h-10 w-36" />
                 </div>
               </div>
               <Button variant="outline" onClick={handleClearFilters}>Limpiar filtros</Button>
@@ -359,7 +343,7 @@ export default function AnalisisPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado PEP</Label>
-              <Select value={estadoPepFilter} onValueChange={setEstadoPepFilter}>
+              <Select value={estadoPepFilter} onValueChange={(v) => { setEstadoPepFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
@@ -372,7 +356,7 @@ export default function AnalisisPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado Cliente</Label>
-              <Select value={estadoClienteFilter} onValueChange={setEstadoClienteFilter}>
+              <Select value={estadoClienteFilter} onValueChange={(v) => { setEstadoClienteFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
@@ -417,8 +401,8 @@ export default function AnalisisPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredData.length > 0 ? (
-                  filteredData.map((item) => (
+                {analisisList.length > 0 ? (
+                  analisisList.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900">
                     <button

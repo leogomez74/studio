@@ -40,9 +40,39 @@ class AnalisisController extends Controller
     {
         $perPage = min((int) $request->input('per_page', 10), 100);
 
-        $analisis = Analisis::with(['opportunity', 'lead'])
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+        $query = Analisis::with(['opportunity', 'lead']);
+
+        // Filtro de búsqueda (referencia, nombre del lead, cédula)
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('reference', 'like', "%{$search}%")
+                  ->orWhereHas('lead', function ($leadQuery) use ($search) {
+                      $leadQuery->where('name', 'like', "%{$search}%")
+                                ->orWhere('cedula', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // Filtro por estado PEP
+        if ($estadoPep = $request->input('estado_pep')) {
+            $query->where('estado_pep', $estadoPep);
+        }
+
+        // Filtro por estado Cliente
+        if ($estadoCliente = $request->input('estado_cliente')) {
+            $query->where('estado_cliente', $estadoCliente);
+        }
+
+        // Filtro por rango de fechas
+        if ($dateFrom = $request->input('date_from')) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+
+        if ($dateTo = $request->input('date_to')) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+
+        $analisis = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         return response()->json($analisis);
     }
