@@ -112,14 +112,6 @@ Route::post('quotes/send', [\App\Http\Controllers\Api\QuoteController::class, 's
 Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'index']);
 Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
 
-// Analisis CRUD
-Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
-
-// Analisis - Archivos
-Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
-Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
-Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
-
 // KPIs
 Route::prefix('kpis')->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\KpiController::class, 'all']);
@@ -189,6 +181,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
+
+    // Analisis CRUD (Protegido)
+    Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
+    Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
+    Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
+    Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
 
     // --- Admin Gamificación ---
     Route::prefix('admin/gamification')->group(function () {
