@@ -1135,7 +1135,7 @@ export default function ClientesPage() {
                         <SelectContent>
                           <SelectItem value="publico">Público</SelectItem>
                           <SelectItem value="privado">Privado</SelectItem>
-                          <SelectItem value="otro">Otro</SelectItem>
+                          <SelectItem value="propio">Propio</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
