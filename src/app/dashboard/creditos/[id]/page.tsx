@@ -1,25 +1,23 @@
 'use client';
 
 /**
- * TODO: Cargos Adicionales - Próxima Implementación
- * ==================================================
+ * Cargos Adicionales - Implementación Frontend
+ * =============================================
  *
- * Funcionalidad planificada para gestionar cargos adicionales del crédito:
- *
- * Tipos de cargos:
+ * Tipos de cargos implementados:
  * - Comisión
  * - Transporte
  * - Respaldo deudor
- * - Descuento por factura
+ * - Descuento factura
  *
- * Funcionalidades:
- * [ ] CRUD de cargos adicionales por crédito
+ * Estado actual:
+ * [x] UI de cargos adicionales en sección Detalles Financieros
+ * [x] Edición de montos por tipo de cargo
+ * [x] Cálculo de total de cargos
+ * [ ] Backend: migración y modelo (pendiente)
  * [ ] Asociar cargo a cuota específica o distribuir en plan de pagos
- * [ ] Calcular total de cargos por crédito
  * [ ] Mostrar desglose en balance general
  * [ ] Historial de cargos aplicados
- *
- * Ubicación sugerida: Sección en pestaña "Crédito" o nueva pestaña "Cargos"
  */
 
 import React, { useState, useEffect, use } from 'react';
@@ -174,6 +172,28 @@ interface ClientOption {
   departamento_cargo?: string;
 }
 
+// Tipos de cargos adicionales disponibles
+const TIPOS_CARGOS_ADICIONALES = [
+  { key: 'comision', label: 'Comisión' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'respaldo_deudor', label: 'Respaldo deudor' },
+  { key: 'descuento_factura', label: 'Descuento factura' },
+] as const;
+
+type TipoCargoAdicional = typeof TIPOS_CARGOS_ADICIONALES[number]['key'];
+
+interface CargoAdicional {
+  tipo: TipoCargoAdicional;
+  monto: number;
+}
+
+interface CargosAdicionales {
+  comision: number;
+  transporte: number;
+  respaldo_deudor: number;
+  descuento_factura: number;
+}
+
 interface CreditItem {
   id: number;
   reference: string;
@@ -218,6 +238,8 @@ interface CreditItem {
   // saldo_a_favor removed
   proceso?: string | null;
   poliza?: boolean | null;
+  // Cargos adicionales
+  cargos_adicionales?: CargosAdicionales | null;
 }
 
 // --- Helpers ---
@@ -258,6 +280,14 @@ function CreditDetailClient({ id }: { id: string }) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<CreditItem>>({});
   const [saving, setSaving] = useState(false);
+
+  // Cargos Adicionales State
+  const [cargosAdicionales, setCargosAdicionales] = useState<CargosAdicionales>({
+    comision: 0,
+    transporte: 0,
+    respaldo_deudor: 0,
+    descuento_factura: 0,
+  });
   
   // Combobox/Select Data
   const [users, setUsers] = useState<{id: number, name: string}[]>([]);
@@ -311,6 +341,10 @@ function CreditDetailClient({ id }: { id: string }) {
 
       setCredit(data);
       setFormData(data);
+      // Inicializar cargos adicionales
+      if (data.cargos_adicionales) {
+        setCargosAdicionales(data.cargos_adicionales);
+      }
     } catch (error) {
       console.error("Error fetching credit:", error);
       toast({ title: "Error", description: "No se pudo cargar el crédito", variant: "destructive" });
@@ -325,10 +359,10 @@ function CreditDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     const editParam = searchParams.get('edit');
-    if (editParam === 'true') {
+    if (editParam === 'true' && credit?.status !== 'Formalizado') {
       setIsEditMode(true);
     }
-  }, [searchParams]);
+  }, [searchParams, credit?.status]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -374,15 +408,39 @@ function CreditDetailClient({ id }: { id: string }) {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleCargoChange = (tipo: TipoCargoAdicional, value: number) => {
+    setCargosAdicionales(prev => ({ ...prev, [tipo]: value }));
+  };
+
+  const getTotalCargos = () => {
+    return Object.values(cargosAdicionales).reduce((sum, val) => sum + (val || 0), 0);
+  };
+
   const handleSave = async () => {
     if (!credit) return;
 
     const previousStatus = credit.status;
+
+    // No permitir editar un crédito ya formalizado
+    if (previousStatus === 'Formalizado') {
+      toast({
+        title: "Error",
+        description: "No se puede editar un crédito formalizado",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const isFormalizingCredit = formData.status === 'Formalizado' && previousStatus !== 'Formalizado';
 
     setSaving(true);
     try {
-      const response = await api.put(`/api/credits/${credit.id}`, formData);
+      // Incluir cargos adicionales en el payload
+      const payload = {
+        ...formData,
+        cargos_adicionales: cargosAdicionales,
+      };
+      const response = await api.put(`/api/credits/${credit.id}`, payload);
       setCredit(response.data);
       setFormData(response.data);
       setIsEditMode(false);
@@ -411,6 +469,17 @@ function CreditDetailClient({ id }: { id: string }) {
 
   const handleCancel = () => {
     setFormData(credit || {});
+    // Resetear cargos adicionales al valor original
+    if (credit?.cargos_adicionales) {
+      setCargosAdicionales(credit.cargos_adicionales);
+    } else {
+      setCargosAdicionales({
+        comision: 0,
+        transporte: 0,
+        respaldo_deudor: 0,
+        descuento_factura: 0,
+      });
+    }
     setIsEditMode(false);
   };
 
@@ -449,7 +518,12 @@ function CreditDetailClient({ id }: { id: string }) {
         <div className="flex items-center gap-2">
           {!isEditMode ? (
             <>
-              <Button variant="outline" onClick={() => setIsEditMode(true)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsEditMode(true)}
+                disabled={credit?.status === 'Formalizado'}
+                title={credit?.status === 'Formalizado' ? 'No se puede editar un crédito formalizado' : 'Editar crédito'}
+              >
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
               </Button>
@@ -670,6 +744,38 @@ function CreditDetailClient({ id }: { id: string }) {
                             </p>
                           </div>
                         </div>
+
+                        {/* Cargos Adicionales - Subsección */}
+                        <div className="mt-6 pt-6 border-t">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-sm font-medium text-muted-foreground">Cargos Adicionales</h4>
+                            <div className="text-sm font-semibold text-primary">
+                              Total: ₡{formatCurrency(getTotalCargos())}
+                            </div>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                            {TIPOS_CARGOS_ADICIONALES.map((cargo) => (
+                              <div key={cargo.key} className="space-y-1">
+                                <Label className="text-xs">{cargo.label}</Label>
+                                {isEditMode ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={cargosAdicionales[cargo.key] || ""}
+                                    onChange={(e) => handleCargoChange(cargo.key, parseFloat(e.target.value) || 0)}
+                                    placeholder="0.00"
+                                    className="h-9"
+                                  />
+                                ) : (
+                                  <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                                    ₡{formatCurrency(cargosAdicionales[cargo.key])}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Dates and Terms */}
@@ -686,7 +792,14 @@ function CreditDetailClient({ id }: { id: string }) {
                                   if (f) {
                                     return f instanceof Date ? f.toISOString().split('T')[0] : String(f).split('T')[0];
                                   }
-                                  return new Date(credit.opened_at || "").toISOString().split('T')[0];
+                                  if (credit.opened_at) {
+                                    try {
+                                      return new Date(credit.opened_at).toISOString().split('T')[0];
+                                    } catch {
+                                      return "";
+                                    }
+                                  }
+                                  return "";
                                 })()}
                                 onChange={(e) => handleInputChange("opened_at", e.target.value)}
                               />
@@ -697,7 +810,14 @@ function CreditDetailClient({ id }: { id: string }) {
                                   if (f) {
                                     return f instanceof Date ? f.toISOString().split('T')[0] : String(f).split('T')[0];
                                   }
-                                  return new Date(credit.opened_at || "").toISOString().split('T')[0];
+                                  if (credit.opened_at) {
+                                    try {
+                                      return new Date(credit.opened_at).toISOString().split('T')[0];
+                                    } catch {
+                                      return "-";
+                                    }
+                                  }
+                                  return "-";
                                 })()}
                               </p>
                             )}

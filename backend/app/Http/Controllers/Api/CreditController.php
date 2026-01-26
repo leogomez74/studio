@@ -360,8 +360,12 @@ class CreditController extends Controller
             'monto_credito' => 'nullable|numeric',
             'tasa_anual' => 'nullable|numeric',
             'poliza' => 'nullable|boolean',
-              'poliza_actual' => 'nullable|numeric',
-             // ... resto de campos si es necesario editar
+            'poliza_actual' => 'nullable|numeric',
+            'cargos_adicionales' => 'nullable|array',
+            'cargos_adicionales.comision' => 'nullable|numeric|min:0',
+            'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
+            'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
+            'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
         ]);
 
         $credit->update($validated);
@@ -439,5 +443,30 @@ class CreditController extends Controller
         Storage::disk('public')->delete($doc->path);
         $doc->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Cambiar Lead a Cliente si el estado es Aprobado
+     */
+    public function updateStatus(Request $request, $id)
+    {
+        $credit = Credit::findOrFail($id);
+
+        // Cambiar el estado del crédito
+        $credit->status = $request->status;
+        $credit->save();
+
+        // Verificar si el estado es Aprobado
+        if ($credit->status === 'Aprobado') {
+            // Buscar el Lead asociado
+            $lead = Lead::where('id', $credit->lead_id)->first();
+            if ($lead) {
+                // Cambiar a Cliente
+                $lead->person_type_id = 2; // Asumiendo que 2 es el ID para Clientes
+                $lead->save();
+            }
+        }
+
+        return response()->json($credit);
     }
 }

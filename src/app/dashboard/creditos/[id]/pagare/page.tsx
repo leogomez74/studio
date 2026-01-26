@@ -361,16 +361,14 @@ export default function PagarePage() {
         <div style={{ marginBottom: '5mm' }}>
           <p style={{ fontWeight: 'bold', marginBottom: '2mm' }}>Forma de pago:</p>
           <p style={{ textAlign: 'justify', fontSize: '8pt' }}>
-            Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables y meses".
-            Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este
+            Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables meses", anuales y consecutivas de principal e intereses de {divisaSymbol} {formatCurrency(cuotaMensual)} cada una, pagaderas los días primero de cada mes. Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este
             PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José,
             San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca
             de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en
             Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago
             se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones
             costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento
-            determinado y en porcentajes señalados como "tasa de interés corriente" Los pagos incluyen el
-            capital más intereses y pagaré con la periodicidad de pago indicada. Renuncio a mi domicilio y
+            determinado y en los porcentajes señalados como "tasa de interés corriente". Los pagos mensuales de capital más intereses se pagarán con la periodicidad de pago indicada. Renuncio a mi domicilio y
             requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique.
             Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho
             al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título

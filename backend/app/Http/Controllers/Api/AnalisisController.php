@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAnalisisRequest;
 use App\Http\Requests\UpdateAnalisisRequest;
 use App\Models\Analisis;
+use App\Models\Lead;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -79,6 +80,13 @@ class AnalisisController extends Controller
 
         $analisis = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
+        // Agregar información de si tiene crédito asociado y su ID
+        $analisis->getCollection()->transform(function ($item) {
+            $item->has_credit = $item->has_credit;
+            $item->credit_id = $item->credit_id;
+            return $item;
+        });
+
         return response()->json($analisis);
     }
 
@@ -140,6 +148,20 @@ class AnalisisController extends Controller
         }
 
         $analisis->update($validated);
+
+        // Si estado_cliente cambia a "Aprobado", convertir Lead a Cliente
+        if (isset($validated['estado_cliente']) && $validated['estado_cliente'] === 'Aprobado') {
+            // Buscar el Lead asociado (sin el Global Scope)
+            if ($analisis->lead_id) {
+                $lead = Lead::withoutGlobalScopes()->find($analisis->lead_id);
+                if ($lead && $lead->person_type_id === 1) {
+                    $lead->person_type_id = 2; // Convertir a Cliente
+                    $lead->save();
+                    Log::info('Lead convertido a Cliente', ['lead_id' => $lead->id, 'analisis_id' => $analisis->id]);
+                }
+            }
+        }
+
         return response()->json($analisis);
     }
 
