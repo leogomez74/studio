@@ -36,7 +36,8 @@ import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
 import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
-import { CaseChat } from "@/components/case-chat";
+// COMENTADO TEMPORALMENTE
+// import { CaseChat } from "@/components/case-chat";
 import { Label } from "@/components/ui/label";
 
 // Tipo para archivos del filesystem
@@ -359,9 +360,9 @@ export default function OpportunityDetailPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        {/* Main Content - Left Column (Refactored with Archivos as main tab) */}
-        <div className="lg:col-span-3 space-y-6">
+      <div className="grid grid-cols-1 gap-6">
+        {/* Main Content - Full Width (Chat panel commented out) */}
+        <div className="space-y-6">
           <Tabs defaultValue="resumen" className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
@@ -719,9 +720,11 @@ export default function OpportunityDetailPage() {
         </div>
 
         {/* Side Panel - Chat lateral igual que leads */}
+        {/* COMENTADO TEMPORALMENTE
         <div className="space-y-1 lg:col-span-1">
           <CaseChat conversationId={id} />
         </div>
+        */}
       </div>
     </div>
   );
