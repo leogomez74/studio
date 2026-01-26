@@ -61,4 +61,41 @@ class Analisis extends Model
     {
         return $this->belongsTo(Opportunity::class);
     }
+
+    /**
+     * Verificar si ya existe un crédito asociado a este análisis
+     * Un crédito puede estar vinculado por opportunity_id o lead_id
+     */
+    public function credit()
+    {
+        return $this->hasOne(Credit::class, 'opportunity_id', 'opportunity_id');
+    }
+
+    /**
+     * Accessor para saber si tiene crédito asociado
+     */
+    public function getHasCreditAttribute(): bool
+    {
+        return Credit::where('opportunity_id', $this->opportunity_id)
+            ->orWhere(function ($query) {
+                $query->where('lead_id', $this->lead_id)
+                      ->whereNotNull('lead_id');
+            })
+            ->exists();
+    }
+
+    /**
+     * Accessor para obtener el ID del crédito asociado
+     */
+    public function getCreditIdAttribute(): ?int
+    {
+        $credit = Credit::where('opportunity_id', $this->opportunity_id)
+            ->orWhere(function ($query) {
+                $query->where('lead_id', $this->lead_id)
+                      ->whereNotNull('lead_id');
+            })
+            ->first();
+
+        return $credit?->id;
+    }
 }

@@ -440,4 +440,29 @@ class CreditController extends Controller
         $doc->delete();
         return response()->json(null, 204);
     }
+
+    /**
+     * Cambiar Lead a Cliente si el estado es Aprobado
+     */
+    public function updateStatus(Request $request, $id)
+    {
+        $credit = Credit::findOrFail($id);
+
+        // Cambiar el estado del crédito
+        $credit->status = $request->status;
+        $credit->save();
+
+        // Verificar si el estado es Aprobado
+        if ($credit->status === 'Aprobado') {
+            // Buscar el Lead asociado
+            $lead = Lead::where('id', $credit->lead_id)->first();
+            if ($lead) {
+                // Cambiar a Cliente
+                $lead->person_type_id = 2; // Asumiendo que 2 es el ID para Clientes
+                $lead->save();
+            }
+        }
+
+        return response()->json($credit);
+    }
 }

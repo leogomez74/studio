@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Eye } from 'lucide-react';
 import { Opportunity, Lead } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -43,6 +43,8 @@ type AnalisisItem = {
   created_at: string;
   opportunity_id?: string;
   lead_id?: string;
+  has_credit?: boolean; // Indica si ya tiene un crédito asociado
+  credit_id?: number; // ID del crédito si existe
   // Campos del análisis
   category?: string;
   title?: string;
@@ -524,7 +526,7 @@ export default function AnalisisPage() {
                   {/* Acciones */}
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center gap-2 justify-end">
-                      {item.estado_cliente === 'Aprobado' && (
+                      {item.estado_cliente === 'Aprobado' && !item.has_credit && (
                         <Button
                           variant="outline"
                           className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
@@ -559,6 +561,17 @@ export default function AnalisisPage() {
                           }}
                         >
                           Crear Crédito
+                        </Button>
+                      )}
+                      {item.has_credit && item.credit_id && (
+                        <Button
+                          variant="outline"
+                          className="border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                          title="Ver Crédito"
+                          onClick={() => router.push(`/dashboard/creditos/${item.credit_id}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Ver Crédito
                         </Button>
                       )}
                     </div>

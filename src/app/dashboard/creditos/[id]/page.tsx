@@ -702,7 +702,14 @@ function CreditDetailClient({ id }: { id: string }) {
                                   if (f) {
                                     return f instanceof Date ? f.toISOString().split('T')[0] : String(f).split('T')[0];
                                   }
-                                  return new Date(credit.opened_at || "").toISOString().split('T')[0];
+                                  if (credit.opened_at) {
+                                    try {
+                                      return new Date(credit.opened_at).toISOString().split('T')[0];
+                                    } catch {
+                                      return "";
+                                    }
+                                  }
+                                  return "";
                                 })()}
                                 onChange={(e) => handleInputChange("opened_at", e.target.value)}
                               />
@@ -713,7 +720,14 @@ function CreditDetailClient({ id }: { id: string }) {
                                   if (f) {
                                     return f instanceof Date ? f.toISOString().split('T')[0] : String(f).split('T')[0];
                                   }
-                                  return new Date(credit.opened_at || "").toISOString().split('T')[0];
+                                  if (credit.opened_at) {
+                                    try {
+                                      return new Date(credit.opened_at).toISOString().split('T')[0];
+                                    } catch {
+                                      return "-";
+                                    }
+                                  }
+                                  return "-";
                                 })()}
                               </p>
                             )}

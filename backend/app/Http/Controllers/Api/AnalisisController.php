@@ -79,6 +79,13 @@ class AnalisisController extends Controller
 
         $analisis = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
+        // Agregar información de si tiene crédito asociado y su ID
+        $analisis->getCollection()->transform(function ($item) {
+            $item->has_credit = $item->has_credit;
+            $item->credit_id = $item->credit_id;
+            return $item;
+        });
+
         return response()->json($analisis);
     }
 
