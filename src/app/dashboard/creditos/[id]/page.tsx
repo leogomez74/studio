@@ -1,20 +1,24 @@
 'use client';
 
 /**
- * Cargos Adicionales - Implementación Frontend
- * =============================================
+ * Cargos Adicionales - Implementación
+ * ====================================
  *
- * Tipos de cargos implementados:
- * - Comisión
- * - Transporte
- * - Respaldo deudor
- * - Descuento factura
+ * Tipos de cargos:
+ * - Comisión (3% del monto, vendedores externos)
+ * - Transporte (₡10,000 fijos)
+ * - Respaldo deudor (₡4,950 fijos, solo créditos regulares)
+ * - Descuento factura (monto variable)
  *
  * Estado actual:
  * [x] UI de cargos adicionales en sección Detalles Financieros
  * [x] Edición de montos por tipo de cargo
- * [x] Cálculo de total de cargos
- * [ ] Backend: migración y modelo (pendiente)
+ * [x] Cálculo de total de cargos y monto neto
+ * [x] CARGOS_CONFIG con reglas de negocio
+ * [x] Aplicar valores por defecto según config
+ * [x] Backend: migración cargos_adicionales (JSON)
+ * [x] Backend: modelo Credit con cast a array
+ * [x] Backend: validación en CreditController
  * [ ] Asociar cargo a cuota específica o distribuir en plan de pagos
  * [ ] Mostrar desglose en balance general
  * [ ] Historial de cargos aplicados
@@ -172,20 +176,43 @@ interface ClientOption {
   departamento_cargo?: string;
 }
 
-// Tipos de cargos adicionales disponibles
-const TIPOS_CARGOS_ADICIONALES = [
-  { key: 'comision', label: 'Comisión' },
-  { key: 'transporte', label: 'Transporte' },
-  { key: 'respaldo_deudor', label: 'Respaldo deudor' },
-  { key: 'descuento_factura', label: 'Descuento factura' },
-] as const;
+// Configuración de cargos adicionales con reglas de negocio
+// - Comisión: 3% del monto (vendedores externos)
+// - Respaldo deudor: ₡4,950 fijos (solo créditos regulares)
+// - Transporte: ₡10,000 fijos
+// - Los cargos se restan del monto del crédito
+const CARGOS_CONFIG = {
+  comision: {
+    label: 'Comisión (3%)',
+    porcentaje: 0.03,
+    fijo: null as number | null,
+    soloRegular: false,
+    descripcion: '3% del monto para vendedores externos'
+  },
+  transporte: {
+    label: 'Transporte',
+    porcentaje: null as number | null,
+    fijo: 10000,
+    soloRegular: false,
+    descripcion: '₡10,000 fijos'
+  },
+  respaldo_deudor: {
+    label: 'Respaldo deudor',
+    porcentaje: null as number | null,
+    fijo: 4950,
+    soloRegular: true,
+    descripcion: '₡4,950 solo para créditos regulares'
+  },
+  descuento_factura: {
+    label: 'Descuento factura',
+    porcentaje: null as number | null,
+    fijo: null as number | null,
+    soloRegular: false,
+    descripcion: 'Monto variable'
+  },
+};
 
-type TipoCargoAdicional = typeof TIPOS_CARGOS_ADICIONALES[number]['key'];
-
-interface CargoAdicional {
-  tipo: TipoCargoAdicional;
-  monto: number;
-}
+type TipoCargoAdicional = keyof typeof CARGOS_CONFIG;
 
 interface CargosAdicionales {
   comision: number;
@@ -402,6 +429,29 @@ function CreditDetailClient({ id }: { id: string }) {
     fetchAgents();
   }, []);
 
+  // Recalcular cargos cuando cambia el tipo de crédito
+  useEffect(() => {
+    if (!isEditMode || !formData.category) return;
+
+    const esRegular = formData.category === 'Regular';
+
+    setCargosAdicionales(prev => {
+      const nuevosCargos = { ...prev };
+
+      if (esRegular) {
+        // Si es Regular y respaldo_deudor está en 0, aplicar valor por defecto
+        if (prev.respaldo_deudor === 0) {
+          nuevosCargos.respaldo_deudor = CARGOS_CONFIG.respaldo_deudor.fijo || 0;
+        }
+      } else {
+        // Si no es Regular, respaldo_deudor debe ser 0
+        nuevosCargos.respaldo_deudor = 0;
+      }
+
+      return nuevosCargos;
+    });
+  }, [formData.category, isEditMode]);
+
   // --- Handlers: Edit ---
 
   const handleInputChange = (field: keyof CreditItem, value: any) => {
@@ -414,6 +464,48 @@ function CreditDetailClient({ id }: { id: string }) {
 
   const getTotalCargos = () => {
     return Object.values(cargosAdicionales).reduce((sum, val) => sum + (val || 0), 0);
+  };
+
+  // Calcular comisión sugerida (3% del monto)
+  const getComisionSugerida = () => {
+    const monto = formData.monto_credito || credit?.monto_credito || 0;
+    return monto * 0.03;
+  };
+
+  // Calcular monto neto (monto - cargos)
+  const getMontoNeto = () => {
+    const monto = formData.monto_credito || credit?.monto_credito || 0;
+    return monto - getTotalCargos();
+  };
+
+  // Aplicar valores por defecto según CARGOS_CONFIG
+  const aplicarCargosDefecto = () => {
+    const monto = formData.monto_credito || credit?.monto_credito || 0;
+    const esRegular = (formData.category || credit?.category) === 'Regular';
+
+    const nuevosCargos: CargosAdicionales = {
+      comision: 0,
+      transporte: 0,
+      respaldo_deudor: 0,
+      descuento_factura: 0,
+    };
+
+    (Object.entries(CARGOS_CONFIG) as [TipoCargoAdicional, typeof CARGOS_CONFIG[TipoCargoAdicional]][]).forEach(([key, config]) => {
+      // Si es solo para Regular y no es Regular, dejar en 0
+      if (config.soloRegular && !esRegular) {
+        nuevosCargos[key] = 0;
+        return;
+      }
+
+      // Calcular según porcentaje o fijo
+      if (config.porcentaje) {
+        nuevosCargos[key] = monto * config.porcentaje;
+      } else if (config.fijo) {
+        nuevosCargos[key] = config.fijo;
+      }
+    });
+
+    setCargosAdicionales(nuevosCargos);
   };
 
   const handleSave = async () => {
@@ -747,33 +839,83 @@ function CreditDetailClient({ id }: { id: string }) {
 
                         {/* Cargos Adicionales - Subsección */}
                         <div className="mt-6 pt-6 border-t">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-medium text-muted-foreground">Cargos Adicionales</h4>
-                            <div className="text-sm font-semibold text-primary">
-                              Total: ₡{formatCurrency(getTotalCargos())}
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h4 className="text-sm font-medium text-muted-foreground">Cargos Adicionales</h4>
+                              <p className="text-xs text-muted-foreground">Estos montos se restan del crédito</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              {isEditMode && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={aplicarCargosDefecto}
+                                  className="text-xs"
+                                >
+                                  Aplicar valores por defecto
+                                </Button>
+                              )}
                             </div>
                           </div>
-                          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                            {TIPOS_CARGOS_ADICIONALES.map((cargo) => (
-                              <div key={cargo.key} className="space-y-1">
-                                <Label className="text-xs">{cargo.label}</Label>
-                                {isEditMode ? (
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={cargosAdicionales[cargo.key] || ""}
-                                    onChange={(e) => handleCargoChange(cargo.key, parseFloat(e.target.value) || 0)}
-                                    placeholder="0.00"
-                                    className="h-9"
-                                  />
-                                ) : (
-                                  <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                    ₡{formatCurrency(cargosAdicionales[cargo.key])}
-                                  </p>
-                                )}
+                          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+                            {(Object.entries(CARGOS_CONFIG) as [TipoCargoAdicional, typeof CARGOS_CONFIG[TipoCargoAdicional]][]).map(([key, config]) => {
+                              const esRegular = (formData.category || credit?.category) === 'Regular';
+                              const deshabilitado = config.soloRegular && !esRegular;
+                              const monto = formData.monto_credito || credit?.monto_credito || 0;
+
+                              // Calcular placeholder según configuración
+                              const getPlaceholder = () => {
+                                if (config.porcentaje) {
+                                  return `Sugerido: ${formatCurrency(monto * config.porcentaje)}`;
+                                }
+                                if (config.fijo) {
+                                  return formatCurrency(config.fijo);
+                                }
+                                return '0.00';
+                              };
+
+                              return (
+                                <div key={key} className="space-y-1">
+                                  <Label className={`text-xs ${deshabilitado ? 'text-muted-foreground/50' : ''}`} title={config.descripcion}>
+                                    {config.label}
+                                    {config.soloRegular && !esRegular && (
+                                      <span className="ml-1 text-[10px] text-orange-500">(solo Regular)</span>
+                                    )}
+                                  </Label>
+                                  {isEditMode ? (
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={cargosAdicionales[key] || ""}
+                                      onChange={(e) => handleCargoChange(key, parseFloat(e.target.value) || 0)}
+                                      placeholder={getPlaceholder()}
+                                      className={`h-9 ${deshabilitado ? 'opacity-50' : ''}`}
+                                      disabled={deshabilitado}
+                                      title={config.descripcion}
+                                    />
+                                  ) : (
+                                    <p className={`text-sm bg-muted px-3 py-2 rounded-md ${deshabilitado ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
+                                      ₡{formatCurrency(cargosAdicionales[key])}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Resumen de cargos */}
+                          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-4 text-sm">
+                                <span className="text-muted-foreground">Total cargos:</span>
+                                <span className="font-medium text-destructive">-₡{formatCurrency(getTotalCargos())}</span>
                               </div>
-                            ))}
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs text-muted-foreground block">Monto neto a recibir</span>
+                              <span className="text-lg font-bold text-primary">₡{formatCurrency(getMontoNeto())}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
