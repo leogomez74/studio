@@ -23,7 +23,8 @@ import {
   Download,
   CreditCard,
   Receipt,
-  PlusCircle
+  PlusCircle,
+  Eye
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,8 @@ export default function OpportunityDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
 
-  // Analisis Dialog State
+  // Analisis state
+  const [existingAnalisis, setExistingAnalisis] = useState<any>(null);
   const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
   const [analisisForm, setAnalisisForm] = useState({
     reference: "",
@@ -115,6 +117,18 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  // Verificar si existe un análisis para esta oportunidad
+  const fetchExistingAnalisis = async () => {
+    try {
+      const res = await api.get('/api/analisis');
+      const analisisList = res.data.data || res.data;
+      const analisis = analisisList.find((a: any) => String(a.opportunity_id) === String(id));
+      setExistingAnalisis(analisis || null);
+    } catch (error) {
+      console.error("Error fetching análisis:", error);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -131,8 +145,9 @@ export default function OpportunityDetailPage() {
         setProducts(productsData);
         setUsers(usersRes.data);
 
-        // Cargar archivos
+        // Cargar archivos y verificar análisis existente
         fetchFiles();
+        fetchExistingAnalisis();
       } catch (error) {
         console.error("Error fetching data:", error);
         toast({ title: "Error", description: "No se pudo cargar la información.", variant: "destructive" });
@@ -419,9 +434,12 @@ export default function OpportunityDetailPage() {
         await api.put(`/api/leads/${analisisForm.leadId}`, leadUpdateData);
       }
 
-      await api.post('/api/analisis', payload);
+      const response = await api.post('/api/analisis', payload);
       toast({ title: "Éxito", description: "Análisis creado correctamente." });
       setIsAnalisisDialogOpen(false);
+
+      // Actualizar el análisis existente para que el botón cambie
+      fetchExistingAnalisis();
     } catch (error: any) {
       if (error.response?.status === 409) {
         toast({ title: "Análisis existente", description: "Ya existe un análisis para esta oportunidad." });
@@ -506,14 +524,25 @@ export default function OpportunityDetailPage() {
                       </Button>
                     ))}
                     {opportunity.status === "Analizada" && (
-                      <Button
-                        variant="default"
-                        onClick={handleOpenAnalisisDialog}
-                        className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
-                      >
-                        <PlusCircle className="h-3.5 w-3.5" />
-                        Crear Análisis
-                      </Button>
+                      existingAnalisis ? (
+                        <Button
+                          variant="default"
+                          onClick={() => router.push(`/dashboard/analisis/${existingAnalisis.id}`)}
+                          className="h-8 text-xs bg-green-600 text-white hover:bg-green-700 gap-1"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Ver Análisis
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="default"
+                          onClick={handleOpenAnalisisDialog}
+                          className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                          Crear Análisis
+                        </Button>
+                      )
                     )}
                   </div>
                 </CardHeader>
