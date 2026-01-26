@@ -157,17 +157,16 @@ const formatAmount = (value: number | null | undefined): string => {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "-";
   }
-  return new Intl.NumberFormat("es-CR", {
-    style: "currency",
-    currency: "CRC",
+  return "₡" + new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 };
 
 const formatAmountForExport = (amount: number | null | undefined): string => {
   const resolved = resolveEstimatedOpportunityAmount(amount);
   if (resolved == null) return "-";
-  return new Intl.NumberFormat("es-CR", {
+  return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(resolved);
@@ -637,8 +636,26 @@ export default function DealsPage() {
     setIsAnalisisDialogOpen(true);
   };
 
+  // Formatear número con separadores de miles (coma)
+  const formatCurrency = (value: string | number): string => {
+    const num = typeof value === 'string' ? value.replace(/[^\d]/g, '') : String(value);
+    if (!num) return '';
+    return Number(num).toLocaleString('en-US');
+  };
+
+  // Parsear valor formateado a número
+  const parseCurrency = (value: string): string => {
+    return value.replace(/[^\d]/g, '');
+  };
+
   const handleAnalisisFormChange = (field: string, value: string) => {
-    setAnalisisForm(prev => ({ ...prev, [field]: value }));
+    // Para campos de moneda, guardar solo el valor numérico
+    if (['monto_credito', 'ingreso_bruto', 'ingreso_neto'].includes(field)) {
+      const numericValue = parseCurrency(value);
+      setAnalisisForm(prev => ({ ...prev, [field]: numericValue }));
+    } else {
+      setAnalisisForm(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   // Toggle deducción activa/inactiva
@@ -810,30 +827,6 @@ export default function DealsPage() {
 
   // --- Export ---
 
-  const handleExportSinglePDF = useCallback((opportunity: Opportunity) => {
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(12);
-    doc.text(`Detalle de Oportunidad #${opportunity.id}`, 14, 16);
-
-    autoTable(doc, {
-      startY: 22,
-      head: [["Referencia", "Lead", "Correo", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"]],
-      body: [[
-        formatOpportunityReference(opportunity.id),
-        opportunity.lead?.name ?? "Lead desconocido",
-        opportunity.lead?.email ?? "Sin correo",
-        opportunity.status ?? "Pendiente",
-        opportunity.opportunity_type ?? "Sin tipo",
-        formatAmountForExport(opportunity.amount),
-        formatDate(opportunity.expected_close_date),
-        formatDate(opportunity.created_at),
-      ]],
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [220, 53, 69] },
-    });
-    doc.save(`oportunidad_${opportunity.id}.pdf`);
-  }, []);
-
   const handleExportCSV = useCallback(() => {
     if (visibleOpportunities.length === 0) {
       toast({ title: "Sin datos", description: "No hay datos para exportar.", variant: "destructive" });
@@ -938,6 +931,10 @@ export default function DealsPage() {
               </div>
             </div>
             <Button variant="outline" onClick={handleClearFilters} disabled={!hasActiveFilters}>Limpiar filtros</Button>
+            <Button variant="default" onClick={handleExportPDF} className="gap-2">
+              <Download className="h-4 w-4" />
+              Exportar PDF
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -1125,17 +1122,6 @@ export default function DealsPage() {
                               </Link>
                             </TooltipTrigger>
                             <TooltipContent>Ver detalles</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0" onClick={() => handleExportSinglePDF(opportunity)}>
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Exportar PDF</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
 
@@ -1538,24 +1524,28 @@ export default function DealsPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
-                <Input id="monto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.monto_credito} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="monto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.monto_credito)} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="ingreso_bruto" className="text-xs">Ingreso Bruto</Label>
-                <Input id="ingreso_bruto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_bruto} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_bruto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto)} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="ingreso_neto" className="text-xs">Ingreso Neto</Label>
-                <Input id="ingreso_neto" className="h-8 text-sm" type="number" step="0.01" min="0" value={analisisForm.ingreso_neto} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_neto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto)} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
-                <Select value={analisisForm.plazo} onValueChange={v => handleAnalisisFormChange('plazo', v)}>
-                  <SelectTrigger id="plazo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {["36", "60", "120"].map(p => <SelectItem key={p} value={p}>{p} meses</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Input id="plazo" className="h-8 text-sm" type="number" min="1" max="120" value={analisisForm.plazo} onChange={e => handleAnalisisFormChange('plazo', e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="assignedTo" className="text-xs">Responsable</Label>
@@ -1590,15 +1580,16 @@ export default function DealsPage() {
                         {deduccion.nombre}
                       </label>
                       {deduccion.activo && (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="₡"
-                          className="w-20 h-6 text-xs px-1.5"
-                          value={deduccion.monto || ""}
-                          onChange={e => updateDeduccionMonto(index, parseFloat(e.target.value) || 0)}
-                        />
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            className="w-24 h-6 text-xs pl-5 pr-1.5"
+                            value={deduccion.monto ? formatCurrency(deduccion.monto) : ""}
+                            onChange={e => updateDeduccionMonto(index, parseInt(parseCurrency(e.target.value)) || 0)}
+                          />
+                        </div>
                       )}
                     </div>
                   ))}
