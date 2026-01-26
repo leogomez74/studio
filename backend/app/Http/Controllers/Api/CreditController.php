@@ -169,7 +169,11 @@ class CreditController extends Controller
      */
     private function generateAmortizationSchedule(Credit $credit)
     {
-        $monto = (float) $credit->monto_credito;
+        // Calcular monto neto: monto_credito - cargos_adicionales
+        $montoCredito = (float) $credit->monto_credito;
+        $totalCargos = array_sum($credit->cargos_adicionales ?? []);
+        $monto = $montoCredito - $totalCargos;
+
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
 
