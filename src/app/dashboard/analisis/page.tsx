@@ -524,41 +524,43 @@ export default function AnalisisPage() {
                   {/* Acciones */}
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center gap-2 justify-end">
-                      <Button
-                        variant="outline"
-                        className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
-                        title="Crear Crédito"
-                        onClick={async () => {
-                          try {
-                            // Obtener la próxima referencia del servidor
-                            const refResponse = await api.get('/api/credits/next-reference');
-                            const nextReference = refResponse.data.reference;
+                      {item.estado_pep === 'Aceptado' && (
+                        <Button
+                          variant="outline"
+                          className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+                          title="Crear Crédito"
+                          onClick={async () => {
+                            try {
+                              // Obtener la próxima referencia del servidor
+                              const refResponse = await api.get('/api/credits/next-reference');
+                              const nextReference = refResponse.data.reference;
 
-                            setCreditForm({
-                              reference: nextReference,
-                              title: item.title || '',
-                              status: 'Activo',
-                              category: item.category || 'Regular',
-                              monto_credito: item.monto_credito ? String(item.monto_credito) : '',
-                              leadId: item.lead_id ? String(item.lead_id) : (item.lead?.id ? String(item.lead.id) : ''),
-                              clientName: item.lead?.name || '',
-                              description: item.description || '',
-                              divisa: item.divisa || 'CRC',
-                              plazo: item.plazo ? String(item.plazo) : '36',
-                              poliza: false,
-                            });
-                            setIsCreditDialogOpen(true);
-                          } catch (err) {
-                            toast({
-                              variant: "destructive",
-                              title: "Error",
-                              description: "No se pudo obtener la referencia del crédito",
-                            });
-                          }
-                        }}
-                      >
-                        Crear Crédito
-                      </Button>
+                              setCreditForm({
+                                reference: nextReference,
+                                title: item.title || '',
+                                status: 'Activo',
+                                category: item.category || 'Regular',
+                                monto_credito: item.monto_credito ? String(item.monto_credito) : '',
+                                leadId: item.lead_id ? String(item.lead_id) : (item.lead?.id ? String(item.lead.id) : ''),
+                                clientName: item.lead?.name || '',
+                                description: item.description || '',
+                                divisa: item.divisa || 'CRC',
+                                plazo: item.plazo ? String(item.plazo) : '36',
+                                poliza: false,
+                              });
+                              setIsCreditDialogOpen(true);
+                            } catch (err) {
+                              toast({
+                                variant: "destructive",
+                                title: "Error",
+                                description: "No se pudo obtener la referencia del crédito",
+                              });
+                            }
+                          }}
+                        >
+                          Crear Crédito
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
