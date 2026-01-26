@@ -26,6 +26,7 @@ return new class extends Migration
             'CN MUSICA',
             'CNC',
             'CNE',
+            'CNP',
             'CONAVI',
             'CONTROL DE MIGRACIÓN Y EXTRANJERÍA',
             'COOPEJOVO',

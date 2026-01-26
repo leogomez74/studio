@@ -17,6 +17,7 @@ import { Download, Loader2, Eye } from 'lucide-react';
 import { Opportunity, Lead } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Funciones para formateo de moneda (Colones)
 const formatCurrency = (value: string | number): string => {
@@ -251,41 +252,33 @@ export default function AnalisisPage() {
     }
 
     const doc = new jsPDF({ orientation: 'landscape' });
-    doc.setFontSize(16);
-    doc.text('Listado de Analizados', 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Fecha de exportación: ${new Date().toLocaleDateString('es-CR')}`, 14, 22);
+    doc.setFontSize(12);
+    doc.text('Reporte de Analizados', 14, 16);
 
-    const headers = ["Referencia", "Cliente", "Monto", "Estado PEP", "Estado Cliente"];
-    let y = 35;
-    const colWidths = [40, 60, 50, 50, 50];
-    let x = 14;
+    const formatAmountForPDF = (amount: number | null | undefined): string => {
+      if (amount == null) return "-";
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount);
+    };
 
-    doc.setFillColor(240, 240, 240);
-    doc.rect(14, y - 5, 270, 8, 'F');
-    doc.setFontSize(9);
-    headers.forEach((h, i) => {
-      doc.text(h, x, y);
-      x += colWidths[i];
-    });
-    y += 10;
-
-    analisisList.forEach(item => {
-      if (y > 180) {
-        doc.addPage();
-        y = 20;
-      }
-      x = 14;
-      doc.text(item.reference || "-", x, y);
-      x += colWidths[0];
-      doc.text((item.lead?.name || "-").substring(0, 25), x, y);
-      x += colWidths[1];
-      doc.text(`₡${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.monto_credito || 0)}`, x, y);
-      x += colWidths[2];
-      doc.text(item.estado_pep || "-", x, y);
-      x += colWidths[3];
-      doc.text(item.estado_cliente || "-", x, y);
-      y += 7;
+    autoTable(doc, {
+      startY: 22,
+      head: [["Referencia", "Cliente", "Profesión", "Puesto", "Nombramiento", "Salario Bruto", "Monto", "Estado PEP", "Estado Cliente"]],
+      body: analisisList.map((item) => [
+        item.reference || "-",
+        item.lead?.name || "Sin asignar",
+        item.lead?.profesion || "-",
+        item.lead?.puesto || "-",
+        item.lead?.estado_puesto || "-",
+        formatAmountForPDF(item.ingreso_bruto),
+        formatAmountForPDF(item.monto_credito),
+        item.estado_pep || "Pendiente",
+        item.estado_cliente || "-",
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [220, 53, 69] },
     });
 
     doc.save(`analizados_${Date.now()}.pdf`);
