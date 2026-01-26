@@ -216,18 +216,26 @@ export default function AnalisisPage() {
       return;
     }
 
-    const headers = ["Referencia", "Cliente", "Cédula", "Profesión", "Puesto", "Nombramiento", "Monto", "Estado PEP", "Estado Cliente", "Fecha"];
+    const formatAmountForCSV = (amount: number | null | undefined): string => {
+      if (amount == null) return "-";
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount);
+    };
+
+    const headers = ["Referencia", "Cédula", "Cliente", "Profesión", "Puesto", "Nombramiento", "Salario Bruto", "Monto", "Estado PEP", "Estado Cliente"];
     const rows = analisisList.map(item => [
       item.reference || "-",
-      item.lead?.name || "-",
       item.lead?.cedula || "-",
-      (item.lead as any)?.profesion || "-",
-      (item.lead as any)?.puesto || "-",
-      (item.lead as any)?.estado_puesto || "-",
-      item.monto_credito ? `₡${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.monto_credito)}` : "-",
-      item.estado_pep || "-",
+      item.lead?.name || "Sin asignar",
+      item.lead?.profesion || "-",
+      item.lead?.puesto || "-",
+      item.lead?.estado_puesto || "-",
+      formatAmountForCSV(item.ingreso_bruto),
+      formatAmountForCSV(item.monto_credito),
+      item.estado_pep || "Pendiente",
       item.estado_cliente || "-",
-      item.created_at ? new Date(item.created_at).toLocaleDateString('es-CR') : "-"
     ]);
 
     const csvContent = [
@@ -265,9 +273,10 @@ export default function AnalisisPage() {
 
     autoTable(doc, {
       startY: 22,
-      head: [["Referencia", "Cliente", "Profesión", "Puesto", "Nombramiento", "Salario Bruto", "Monto", "Estado PEP", "Estado Cliente"]],
+      head: [["Referencia", "Cédula", "Cliente", "Profesión", "Puesto", "Nombramiento", "Salario Bruto", "Monto", "Estado PEP", "Estado Cliente"]],
       body: analisisList.map((item) => [
         item.reference || "-",
+        item.lead?.cedula || "-",
         item.lead?.name || "Sin asignar",
         item.lead?.profesion || "-",
         item.lead?.puesto || "-",
