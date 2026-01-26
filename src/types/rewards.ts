@@ -126,7 +126,7 @@ export interface CatalogItem {
   category: CatalogCategory;
   cost: number;
   currency: string;
-  stock: number; // -1 = unlimited
+  stock: number | null; // -1 or null = unlimited
   imageUrl: string | null;
   levelRequired: number;
   availableFrom: string | null;
@@ -134,6 +134,14 @@ export interface CatalogItem {
   isActive: boolean;
   canRedeem: boolean;
   reason?: string;
+  // Alternative property names for API compatibility
+  pointsCost?: number;
+  isAvailable?: boolean;
+  isFeatured?: boolean;
+  requirements?: {
+    minLevel?: number;
+    badgeId?: number;
+  };
 }
 
 export type CatalogCategory = 'digital' | 'physical' | 'experience' | 'donation';
@@ -153,6 +161,13 @@ export interface Redemption {
   createdAt: string;
   approvedAt: string | null;
   deliveredAt: string | null;
+  // Alternative property name for API compatibility
+  catalogItem?: {
+    id: number;
+    name: string;
+    imageUrl: string | null;
+    category: string;
+  };
 }
 
 export type RedemptionStatus = 'pending' | 'approved' | 'rejected' | 'delivered' | 'cancelled';
@@ -168,6 +183,10 @@ export interface LeaderboardEntry {
   };
   value: number;
   change?: number;
+  // Alternative property names for API compatibility
+  level?: number;
+  rankChange?: number;
+  score?: number;
 }
 
 export interface LeaderboardData {

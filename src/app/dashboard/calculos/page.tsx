@@ -2,12 +2,11 @@
 'use client';
 
 // Importamos los hooks y componentes necesarios de React y de nuestra biblioteca de UI.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -22,14 +21,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 // Importamos los íconos que usaremos.
-import { Calculator, Search, RefreshCw, MessageSquare, Mail, CheckCircle } from 'lucide-react';
-// $$$ CONECTOR MYSQL: Se importan los datos de ejemplo de créditos, leads y la configuración de créditos.
-// En el futuro, estos datos vendrán de la base de datos y del sistema de configuración.
-import { credits, Credit, leads, Lead, creditConfigs } from '@/lib/data';
+import { Calculator, Search, RefreshCw, MessageSquare, Mail } from 'lucide-react';
+// $$$ CONECTOR MYSQL: Se importan la configuración de créditos.
+// Los créditos y leads ahora se obtienen de la API en tiempo real.
+import { Credit, creditConfigs, type Lead } from '@/lib/data';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import api from '@/lib/axios';
+import { type Opportunity } from '@/lib/data';
 
 /**
  * Componente principal de la página de Cálculos.
@@ -45,6 +46,8 @@ export default function CalculosPage() {
   const [term, setTerm] = useState('36'); // Plazo en meses
   const [monthlyPayment, setMonthlyPayment] = useState<number | null>(null); // Cuota mensual calculada
   const [selectedLead, setSelectedLead] = useState<string | undefined>(undefined); // Lead seleccionado para enviarle la cotización
+  const [leads, setLeads] = useState<Lead[]>([]); // Lista de leads desde la API
+  const [loadingLeads, setLoadingLeads] = useState(false); // Estado de carga de leads
 
   // --- Estados para la Calculadora de Arreglos de Pago ---
   const [operationNumber, setOperationNumber] = useState(''); // Número de operación a buscar
@@ -52,6 +55,102 @@ export default function CalculosPage() {
   const [newTerm, setNewTerm] = useState('12'); // Nuevo plazo para el arreglo
   const [newMonthlyPayment, setNewMonthlyPayment] = useState<number | null>(null); // Nueva cuota calculada
   const [searchError, setSearchError] = useState<string | null>(null); // Mensaje de error si no se encuentra el crédito
+  const [searchingCredit, setSearchingCredit] = useState(false); // Estado de carga para la búsqueda
+
+  // --- Opportunity Search State ---
+  const [opportunitySearch, setOpportunitySearch] = useState('');
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState('');
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(false);
+
+  useEffect(() => {
+    const fetchOpportunities = async () => {
+      setIsLoadingOpportunities(true);
+      try {
+        const response = await api.get('/api/opportunities');
+        const data = response.data.data || response.data;
+        setOpportunities(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error fetching opportunities:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las oportunidades.",
+          variant: "destructive",
+        });
+        setOpportunities([]);
+      } finally {
+        setIsLoadingOpportunities(false);
+      }
+    };
+    fetchOpportunities();
+  }, [toast]);
+
+  const filteredOpportunities = useMemo(() =>
+    opportunities.filter(o => {
+      const ref = o.id ? String(o.id) : '';
+      const type = o.opportunity_type || '';
+      return ref.toLowerCase().includes(opportunitySearch.toLowerCase()) ||
+        type.toLowerCase().includes(opportunitySearch.toLowerCase());
+    }),
+    [opportunitySearch, opportunities]
+  );
+
+  /**
+   * Efecto que carga los datos de la oportunidad seleccionada en el formulario de cálculo.
+   */
+  useEffect(() => {
+    if (!selectedOpportunityId) return;
+
+    const selectedOpportunity = opportunities.find(o => String(o.id) === selectedOpportunityId);
+    if (!selectedOpportunity) return;
+
+    // Cargar el monto de la oportunidad
+    if (selectedOpportunity.amount) {
+      setAmount(String(selectedOpportunity.amount));
+    }
+
+    // Determinar el tipo de crédito basado en opportunity_type
+    const oppType = selectedOpportunity.opportunity_type?.toLowerCase() || '';
+    if (oppType.includes('micro')) {
+      setCreditType('micro');
+    } else {
+      setCreditType('regular');
+    }
+
+    // Resetear el cálculo previo
+    setMonthlyPayment(null);
+    setSelectedLead(undefined);
+
+    toast({
+      title: "Oportunidad cargada",
+      description: `Datos de la oportunidad #${selectedOpportunity.id} cargados en la calculadora.`,
+    });
+  }, [selectedOpportunityId, opportunities, toast]);
+
+  /**
+   * Efecto que carga los leads desde la API al montar el componente.
+   */
+  useEffect(() => {
+    const fetchLeads = async () => {
+      setLoadingLeads(true);
+      try {
+        const response = await api.get('/api/leads');
+        const leadsList = Array.isArray(response.data) ? response.data : response.data.data || [];
+        setLeads(leadsList);
+      } catch (error) {
+        console.error('Error cargando leads:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los leads.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingLeads(false);
+      }
+    };
+
+    fetchLeads();
+  }, [toast]);
 
   /**
    * Efecto que se ejecuta cuando el tipo de crédito cambia.
@@ -98,19 +197,62 @@ export default function CalculosPage() {
   };
 
   /**
-   * Busca un crédito existente en los datos de ejemplo por su número de operación.
+   * Busca un crédito existente en la base de datos por su número de operación.
    */
-  const handleSearchCredit = () => {
-    setSearchError(null); // Limpiamos cualquier error previo.
-    setNewMonthlyPayment(null); // Limpiamos cualquier cálculo de arreglo previo.
-    // $$$ CONECTOR MYSQL: En el futuro, esta búsqueda se hará directamente a la base de datos de créditos.
-    // Buscamos el crédito ignorando mayúsculas/minúsculas.
-    const credit = credits.find(c => c.operationNumber.toLowerCase() === operationNumber.toLowerCase());
-    if (credit) {
-      setFoundCredit(credit); // Si lo encontramos, lo guardamos en el estado.
-    } else {
-      setFoundCredit(null); // Si no, reseteamos el crédito encontrado.
-      setSearchError(`No se encontró ningún crédito con el número de operación "${operationNumber}".`); // Y mostramos un error.
+  const handleSearchCredit = async () => {
+    if (!operationNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa un número de operación.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSearchError(null);
+    setNewMonthlyPayment(null);
+    setFoundCredit(null);
+    setSearchingCredit(true);
+
+    try {
+      // Llamamos a la API para obtener todos los créditos
+      const response = await api.get('/api/credits');
+      const creditsList = Array.isArray(response.data) ? response.data : response.data.data || [];
+
+      // Buscamos el crédito por número de operación (ignorando mayúsculas/minúsculas)
+      // El campo principal es 'reference', pero mantenemos compatibilidad con 'numero_operacion'
+      const credit = creditsList.find((c: Credit) =>
+        c.reference?.toLowerCase() === operationNumber.toLowerCase() ||
+        c.numero_operacion?.toLowerCase() === operationNumber.toLowerCase()
+      );
+
+      if (credit) {
+        setFoundCredit(credit);
+        const debtorName = credit.lead?.name || 'Cliente sin nombre';
+        toast({
+          title: "Crédito encontrado",
+          description: `Crédito de ${debtorName} cargado correctamente.`,
+        });
+      } else {
+        setFoundCredit(null);
+        setSearchError(`No se encontró ningún crédito con el número de operación "${operationNumber}".`);
+        toast({
+          title: "No encontrado",
+          description: `No existe un crédito con el número "${operationNumber}".`,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error searching credit:', error);
+      setFoundCredit(null);
+      setSearchError('Error al buscar el crédito. Por favor intenta de nuevo.');
+      toast({
+        title: "Error de conexión",
+        description: error?.response?.data?.message || "No se pudo conectar con el servidor.",
+        variant: "destructive",
+      });
+    } finally {
+      setSearchingCredit(false);
     }
   };
 
@@ -118,11 +260,11 @@ export default function CalculosPage() {
    * Calcula la nueva cuota para un arreglo de pago sobre un crédito existente.
    */
   const handleCalculateSettlement = () => {
-      if (!foundCredit) return; // Si no hay un crédito cargado, no hacemos nada.
+      if (!foundCredit) return;
 
       // Tomamos los datos del crédito encontrado y el nuevo plazo.
-      const principal = foundCredit.balance;
-      const annualInterestRate = foundCredit.rate / 100;
+      const principal = foundCredit.saldo || 0;
+      const annualInterestRate = (foundCredit.tasa_anual || 0) / 100;
       const numberOfMonths = parseInt(newTerm, 10);
 
       // Validamos los datos.
@@ -130,41 +272,118 @@ export default function CalculosPage() {
         setNewMonthlyPayment(null);
         return;
       }
-      
+
       // Aplicamos la misma fórmula de cálculo de cuota.
       const monthlyInterestRate = annualInterestRate / 12;
       const power = Math.pow(1 + monthlyInterestRate, numberOfMonths);
       const payment = principal * ((monthlyInterestRate * power) / (power - 1));
-      
-      setNewMonthlyPayment(payment); // Guardamos el resultado.
+
+      setNewMonthlyPayment(payment);
   };
 
   /**
-   * Simula el envío de la cotización a un lead y muestra una notificación.
+   * Envía la cotización a un lead por email o comunicaciones.
    * @param {'comunicaciones' | 'email'} method - El método de envío.
    */
-  const handleSendQuote = (method: 'comunicaciones' | 'email') => {
-    const lead = leads.find(l => l.id === selectedLead);
+  const handleSendQuote = async (method: 'comunicaciones' | 'email') => {
+    const lead = leads.find(l => String(l.id) === selectedLead);
     if (!lead || !monthlyPayment) return;
 
-    // $$$ CONECTOR: Aquí se integraría la lógica para enviar el mensaje por el sistema de comunicaciones o por email.
-    console.log(`Enviando cotización a ${lead.name} via ${method}.`);
-    
-    // Muestra una notificación de éxito.
-    toast({
-      title: (
-        <div className="flex items-center gap-2">
-          <CheckCircle className="h-5 w-5 text-green-500" />
-          <span className="font-semibold">Cotización Enviada</span>
-        </div>
-      ),
-      description: `La cotización ha sido enviada a ${lead.name} por ${method === 'email' ? 'correo electrónico' : 'el sistema de comunicaciones'}.`,
-      duration: 4000,
-    });
+    // Validar que el lead tenga email antes de continuar
+    if (!lead.email) {
+      toast({
+        title: "Error de validación",
+        description: `El lead ${lead.name} no tiene un correo electrónico registrado.`,
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+
+    try {
+      const payload = {
+        lead_id: String(lead.id),
+        lead_name: lead.name,
+        lead_email: lead.email,
+        amount: parseFloat(amount),
+        rate: parseFloat(rate),
+        term: parseInt(term, 10),
+        monthly_payment: monthlyPayment,
+        credit_type: creditType,
+        method: method,
+      };
+
+      const response = await api.post('/api/quotes/send', payload);
+
+      if (response.data.success) {
+        toast({
+          title: "Cotización Enviada",
+          description: response.data.message || `La cotización ha sido enviada a ${lead.name} por ${method === 'email' ? 'correo electrónico' : 'el sistema de comunicaciones'}.`,
+          duration: 4000,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error enviando cotización:', error);
+      console.error('Detalles del error:', error?.response?.data);
+
+      const errorMessage = error?.response?.data?.errors
+        ? Object.values(error.response.data.errors).flat().join(', ')
+        : error?.response?.data?.message || "No se pudo enviar la cotización. Por favor intenta de nuevo.";
+
+      toast({
+        title: "Error al enviar",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
   };
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
+      {/* --- Opportunity Search Input --- */}
+      <Card className="col-span-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Cargar desde Oportunidad</CardTitle>
+          <CardDescription>Selecciona una oportunidad para cargar sus datos en la calculadora</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 items-center">
+            <Input
+              placeholder="Buscar por ID o tipo..."
+              value={opportunitySearch}
+              onChange={e => setOpportunitySearch(e.target.value)}
+              className="max-w-xs"
+            />
+            <Select value={selectedOpportunityId} onValueChange={setSelectedOpportunityId}>
+              <SelectTrigger className="w-[350px]">
+                <SelectValue placeholder={isLoadingOpportunities ? 'Cargando...' : 'Selecciona una oportunidad'} />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredOpportunities.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground text-center">
+                    {isLoadingOpportunities ? "Cargando..." : "No hay oportunidades disponibles"}
+                  </div>
+                ) : (
+                  filteredOpportunities.map(o => (
+                    <SelectItem key={o.id} value={String(o.id)}>
+                      <span className="font-medium">#{o.id}</span>
+                      <span className="mx-2 text-muted-foreground">|</span>
+                      <span>{o.opportunity_type || 'Sin tipo'}</span>
+                      {o.amount && (
+                        <>
+                          <span className="mx-2 text-muted-foreground">|</span>
+                          <span className="text-green-600">₡{Number(o.amount).toLocaleString('de-DE')}</span>
+                        </>
+                      )}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
       {/* --- Tarjeta de Calculadora de Cuotas --- */}
       <Card>
         <CardHeader>
@@ -262,17 +481,22 @@ export default function CalculosPage() {
                     <h4 className="font-medium">Enviar Cotización a Lead</h4>
                      <div className="space-y-2">
                         <Label htmlFor="select-lead">Seleccionar Lead</Label>
-                        {/* $$$ CONECTOR MYSQL: La lista de leads vendrá de la base de datos. */}
-                        <Select value={selectedLead} onValueChange={setSelectedLead}>
+                        <Select value={selectedLead} onValueChange={setSelectedLead} disabled={loadingLeads}>
                             <SelectTrigger id="select-lead">
-                                <SelectValue placeholder="Selecciona un lead..." />
+                                <SelectValue placeholder={loadingLeads ? "Cargando leads..." : "Selecciona un lead..."} />
                             </SelectTrigger>
                             <SelectContent>
-                                {leads.map(lead => (
-                                    <SelectItem key={lead.id} value={lead.id}>
-                                        {lead.name} ({lead.cedula})
-                                    </SelectItem>
-                                ))}
+                                {leads.length === 0 ? (
+                                    <div className="p-2 text-sm text-muted-foreground text-center">
+                                        {loadingLeads ? "Cargando..." : "No hay leads disponibles"}
+                                    </div>
+                                ) : (
+                                    leads.map(lead => (
+                                        <SelectItem key={lead.id} value={String(lead.id)}>
+                                            {lead.name} ({lead.cedula})
+                                        </SelectItem>
+                                    ))
+                                )}
                             </SelectContent>
                         </Select>
                     </div>
@@ -310,12 +534,27 @@ export default function CalculosPage() {
                 id="operation-number"
                 value={operationNumber}
                 onChange={(e) => setOperationNumber(e.target.value)}
-                placeholder="Ej: CR-002"
+                placeholder="Ej: 25-00001-CR"
+                disabled={searchingCredit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !searchingCredit) {
+                    handleSearchCredit();
+                  }
+                }}
                 />
             </div>
-            <Button onClick={handleSearchCredit}>
-                <Search className="mr-2 h-4 w-4" />
-                Buscar
+            <Button onClick={handleSearchCredit} disabled={searchingCredit}>
+                {searchingCredit ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Buscando...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Buscar
+                  </>
+                )}
             </Button>
           </div>
 
@@ -331,17 +570,17 @@ export default function CalculosPage() {
           {foundCredit && (
               <div className="space-y-4 rounded-lg border bg-muted/50 p-4">
                   <div>
-                      <h4 className="font-semibold">{foundCredit.debtorName}</h4>
-                      <p className="text-sm text-muted-foreground">{foundCredit.operationNumber}</p>
+                      <h4 className="font-semibold">{foundCredit.lead?.name || 'Cliente sin nombre'}</h4>
+                      <p className="text-sm text-muted-foreground">{foundCredit.reference || foundCredit.numero_operacion}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                           <p className="text-muted-foreground">Saldo Actual</p>
-                          <p className="font-medium">₡{foundCredit.balance.toLocaleString('de-DE')}</p>
+                          <p className="font-medium">₡{(foundCredit.saldo || 0).toLocaleString('de-DE')}</p>
                       </div>
                        <div>
                           <p className="text-muted-foreground">Tasa de Interés</p>
-                          <p className="font-medium">{foundCredit.rate}%</p>
+                          <p className="font-medium">{foundCredit.tasa_anual}%</p>
                       </div>
                   </div>
                   <div className="space-y-2">

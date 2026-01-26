@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('opportunity_type')->nullable();
             $table->string('vertical')->nullable();
             $table->decimal('amount', 15, 2)->nullable();
-            $table->string('status')->default('Abierta');
+            $table->string('status')->default('Pendiente');
             $table->date('expected_close_date')->nullable();
             $table->text('comments')->nullable();
 

@@ -12,8 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('credit_payments', function (Blueprint $table) {
-            $table->decimal('monto', 15, 2)->nullable()->after('cuota');
-            //
+            if (! Schema::hasColumn('credit_payments', 'monto')) {
+                $table->decimal('monto', 15, 2)->nullable()->after('cuota');
+            }
         });
     }
 
@@ -23,8 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('credit_payments', function (Blueprint $table) {
-            $table->dropColumn('cuota');
-            //
+            if (Schema::hasColumn('credit_payments', 'monto')) {
+                $table->dropColumn('monto');
+            }
         });
     }
 };

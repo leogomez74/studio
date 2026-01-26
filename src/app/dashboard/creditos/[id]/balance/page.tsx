@@ -59,14 +59,27 @@ function formatDate(dateString?: string | null): string {
 function CreditBalanceClient({ id }: { id: string }) {
   const [balance, setBalance] = useState<BalanceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{ type: 'not_found' | 'server' | 'network'; message: string } | null>(null);
 
   useEffect(() => {
     const fetchBalance = async () => {
+      setError(null);
       try {
         const response = await api.get(`/api/credits/${id}/balance`);
         setBalance(response.data);
-      } catch (error) {
-        console.error("Error fetching balance:", error);
+      } catch (err: any) {
+        console.error("Error fetching balance:", err);
+        const status = err.response?.status;
+
+        if (status === 404) {
+          setError({ type: 'not_found', message: 'Este crédito no tiene información de balance disponible.' });
+        } else if (status === 401 || status === 403) {
+          setError({ type: 'server', message: 'No tiene permisos para ver esta información.' });
+        } else if (!navigator.onLine) {
+          setError({ type: 'network', message: 'Sin conexión a internet. Verifique su conexión e intente nuevamente.' });
+        } else {
+          setError({ type: 'server', message: 'Error al cargar el balance. Intente nuevamente más tarde.' });
+        }
       } finally {
         setLoading(false);
       }
@@ -78,10 +91,12 @@ function CreditBalanceClient({ id }: { id: string }) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
-  if (!balance) {
+  if (error || !balance) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-lg">Información de balance no disponible</p>
+        <p className="text-lg text-muted-foreground">
+          {error?.message || 'Información de balance no disponible'}
+        </p>
         <Button asChild>
           <Link href={`/dashboard/creditos/${id}`}>Volver al Crédito</Link>
         </Button>

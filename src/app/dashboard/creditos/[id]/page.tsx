@@ -1,6 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, use } from 'react';
+// --- Agent Option ---
+interface AgentOption {
+  id: number;
+  name: string;
+}
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
@@ -39,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,6 +55,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  ScrollableTableContainer,
 } from '@/components/ui/table';
 import api from '@/lib/axios';
 import { useToast } from "@/hooks/use-toast";
@@ -79,7 +86,6 @@ interface CreditPayment {
   fecha_cuota: string;
   fecha_pago: string | null;
   cuota: number;
-  cargos: number;
   poliza: number;
   interes_corriente: number;
   interes_moratorio: number;
@@ -89,6 +95,7 @@ interface CreditPayment {
   estado: string;
   fecha_movimiento: string | null;
   movimiento_total: number;
+  movimiento_amortizacion?: number;
   // New fields
   linea?: string | null;
   fecha_inicio?: string | null;
@@ -105,13 +112,12 @@ interface PlanDePago {
   linea: string | null;
   numero_cuota: number;
   proceso: string | null;
-  fecha_inicio: string | null;
+  fecha_inicio: Date | null;
   fecha_corte: string | null;
   fecha_pago: string | null;
   tasa_actual: number;
   plazo_actual: number;
   cuota: number;
-  cargos: number;
   poliza: number;
   interes_corriente: number;
   interes_moratorio: number;
@@ -123,11 +129,11 @@ interface PlanDePago {
   dias_mora: number;
   fecha_movimiento: string | null;
   movimiento_total: number;
-  movimiento_cargos: number;
   movimiento_poliza: number;
   movimiento_interes_corriente: number;
   movimiento_interes_moratorio: number;
   movimiento_principal: number;
+  movimiento_amortizacion?: number;
   movimiento_caja_usuario: string | null;
   tipo_documento: string | null;
   numero_documento: string | null;
@@ -152,7 +158,6 @@ interface CreditItem {
   title: string;
   status: string | null;
   category: string | null;
-  assigned_to: string | null;
   progress: number;
   opened_at: string | null;
   description: string | null;
@@ -162,6 +167,8 @@ interface CreditItem {
     name: string;
     institucion_labora?: string | null;
     documents?: CreditDocument[];
+    deductora_id?: number,
+    assigned_to_id: number,
   } | null;
   opportunity_id: string | null;
   client?: ClientOption | null;
@@ -188,6 +195,7 @@ interface CreditItem {
   saldo?: number | null;
   // saldo_a_favor removed
   proceso?: string | null;
+  poliza?: boolean | null;
 }
 
 // --- Helpers ---
@@ -211,6 +219,11 @@ function formatCurrency(amount?: number | null): string {
 
 // --- Main Component ---
 
+interface DeductoraOption {
+  id: string | number;
+  nombre: string;
+}
+
 function CreditDetailClient({ id }: { id: string }) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -218,7 +231,7 @@ function CreditDetailClient({ id }: { id: string }) {
   const [credit, setCredit] = useState<CreditItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPanelVisible, setIsPanelVisible] = useState(true);
-  
+
   // Edit State
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<CreditItem>>({});
@@ -228,13 +241,54 @@ function CreditDetailClient({ id }: { id: string }) {
   const [users, setUsers] = useState<{id: number, name: string}[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
+  // Agents (for Responsable display)
+  const [agents, setAgents] = useState<AgentOption[]>([]);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(true);
+  // Deductoras
+  const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
+  const [isLoadingDeductoras, setIsLoadingDeductoras] = useState(true);
+  // Fetch Deductoras
+  const fetchDeductoras = async () => {
+    try {
+      setIsLoadingDeductoras(true);
+      const response = await api.get('/api/deductoras');
+      let data = response.data;
+      if (!Array.isArray(data)) {
+        data = data.data || [];
+      }
+      if (!Array.isArray(data)) {
+        data = [];
+      }
+      setDeductoras(data);
+    } catch (error) {
+      setDeductoras([]);
+      console.error("Error fetching deductoras:", error);
+    } finally {
+      setIsLoadingDeductoras(false);
+    }
+  };
+
+
   // --- Fetch Data ---
 
   const fetchCredit = async () => {
     try {
       const response = await api.get(`/api/credits/${id}`);
-      setCredit(response.data);
-      setFormData(response.data);
+      const data = response.data;
+
+      // Use backend-provided fecha_ultimo_pago if available
+      // Note: This computation should ideally be done on the backend for consistency
+      if (!data.fecha_ultimo_pago && Array.isArray(data.payments) && data.payments.length > 0) {
+        const paidPayments = data.payments
+          .filter((p: any) => p.fecha_pago)
+          .sort((a: any, b: any) => new Date(b.fecha_pago).getTime() - new Date(a.fecha_pago).getTime());
+        if (paidPayments.length > 0) {
+          data.fecha_ultimo_pago = paidPayments[0].fecha_pago;
+        }
+      }
+
+      setCredit(data);
+      setFormData(data);
     } catch (error) {
       console.error("Error fetching credit:", error);
       toast({ title: "Error", description: "No se pudo cargar el crédito", variant: "destructive" });
@@ -267,6 +321,29 @@ function CreditDetailClient({ id }: { id: string }) {
       }
     };
     fetchUsers();
+    fetchDeductoras();
+
+    // Fetch agents for Responsable display
+    const fetchAgents = async () => {
+      try {
+        setIsLoadingAgents(true);
+        const response = await api.get('/api/agents');
+        let data = response.data;
+        if (!Array.isArray(data)) {
+          data = data.data || [];
+        }
+        if (!Array.isArray(data)) {
+          data = [];
+        }
+        setAgents(data);
+      } catch (error) {
+        setAgents([]);
+        console.error("Error fetching agents:", error);
+      } finally {
+        setIsLoadingAgents(false);
+      }
+    };
+    fetchAgents();
   }, []);
 
   // --- Handlers: Edit ---
@@ -277,13 +354,31 @@ function CreditDetailClient({ id }: { id: string }) {
 
   const handleSave = async () => {
     if (!credit) return;
-    
+
+    const previousStatus = credit.status;
+    const isFormalizingCredit = formData.status === 'Formalizado' && previousStatus !== 'Formalizado';
+
     setSaving(true);
     try {
-      await api.put(`/api/credits/${credit.id}`, formData);
-      setCredit({ ...credit, ...formData });
+      const response = await api.put(`/api/credits/${credit.id}`, formData);
+      setCredit(response.data);
+      setFormData(response.data);
       setIsEditMode(false);
-      toast({ title: "Éxito", description: "Crédito actualizado correctamente" });
+
+      if (isFormalizingCredit) {
+        toast({
+          title: "Crédito formalizado",
+          description: "El plan de pagos se ha generado correctamente."
+        });
+      } else {
+        toast({
+          title: "Éxito",
+          description: "Crédito actualizado correctamente"
+        });
+      }
+
+      // Recargar el crédito para obtener el plan de pagos actualizado
+      await fetchCredit();
     } catch (error) {
       console.error("Error saving credit:", error);
       toast({ title: "Error", description: "No se pudo guardar los cambios", variant: "destructive" });
@@ -431,21 +526,7 @@ function CreditDetailClient({ id }: { id: string }) {
                             )}
                           </div>
                           <div className="space-y-2">
-                            <Label>Tipo de Crédito</Label>
-                            {isEditMode ? (
-                              <Input
-                                value={formData.tipo_credito || ""}
-                                onChange={(e) => handleInputChange("tipo_credito", e.target.value)}
-                                placeholder="Tipo de crédito"
-                              />
-                            ) : (
-                              <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {credit.tipo_credito || "-"}
-                              </p>
-                            )}
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Categoría</Label>
+                            <Label>Tipo de credito</Label>
                             {isEditMode ? (
                               <Select value={formData.category || ""} onValueChange={(value) => handleInputChange("category", value)}>
                                 <SelectTrigger>
@@ -557,7 +638,13 @@ function CreditDetailClient({ id }: { id: string }) {
                           <div className="space-y-2">
                             <Label>Entidad Deductora</Label>
                             <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                              {credit.deductora?.nombre || "-"}
+                              {(() => {
+                                // Always use lead's deductora_id for lookup
+                                const idDeductora = credit.lead?.deductora_id;
+                                if (!idDeductora) return "-";
+                                const encontrada = deductoras.find(d => String(d.id) === String(idDeductora));
+                                return encontrada ? encontrada.nombre : idDeductora;
+                              })()}
                             </p>
                           </div>
                         </div>
@@ -572,12 +659,24 @@ function CreditDetailClient({ id }: { id: string }) {
                             {isEditMode ? (
                               <Input
                                 type="date"
-                                value={formData.opened_at ? new Date(formData.opened_at).toISOString().split('T')[0] : ""}
+                                value={(() => {
+                                  const f = formData.plan_de_pagos?.find(p => p.numero_cuota === 0)?.fecha_inicio;
+                                  if (f) {
+                                    return f instanceof Date ? f.toISOString().split('T')[0] : String(f).split('T')[0];
+                                  }
+                                  return new Date(credit.opened_at || "").toISOString().split('T')[0];
+                                })()}
                                 onChange={(e) => handleInputChange("opened_at", e.target.value)}
                               />
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {formatDate(credit.opened_at)}
+                                {(() => {
+                                  const f = formData.plan_de_pagos?.find(p => p.numero_cuota === 0)?.fecha_inicio;
+                                  if (f) {
+                                    return f instanceof Date ? f.toISOString().split('T')[0] : String(f).split('T')[0];
+                                  }
+                                  return new Date(credit.opened_at || "").toISOString().split('T')[0];
+                                })()}
                               </p>
                             )}
                           </div>
@@ -668,6 +767,8 @@ function CreditDetailClient({ id }: { id: string }) {
                                   <SelectValue placeholder="Seleccionar estado" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                  <SelectItem value="Aprobado">Aprobado</SelectItem>
+                                  <SelectItem value="Formalizado">Formalizado</SelectItem>
                                   <SelectItem value="Activo">Activo</SelectItem>
                                   <SelectItem value="Mora">Mora</SelectItem>
                                   <SelectItem value="Cerrado">Cerrado</SelectItem>
@@ -681,21 +782,43 @@ function CreditDetailClient({ id }: { id: string }) {
                             )}
                           </div>
                           <div className="space-y-2">
+                            <Label>¿Tiene póliza?</Label>
+                            {isEditMode ? (
+                              <div className="flex items-center space-x-2 pt-2">
+                                <Switch
+                                  id="poliza-switch"
+                                  checked={!!formData.poliza}
+                                  onCheckedChange={(checked) => handleInputChange("poliza", checked)}
+                                />
+                                <Label htmlFor="poliza-switch" className="font-normal cursor-pointer">
+                                  {formData.poliza ? "Sí" : "No"}
+                                </Label>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                                {credit.poliza ? "Sí" : "No"}
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
                             <Label>Responsable</Label>
                             {isEditMode ? (
-                              <Select value={formData.assigned_to || ""} onValueChange={(value) => handleInputChange("assigned_to", value)}>
+                              <Select
+                                value={String(formData.lead?.assigned_to_id ?? "")}
+                                onValueChange={value => handleInputChange('lead', { ...(formData.lead || {}), assigned_to_id: parseInt(value) }) }
+                              >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Seleccionar responsable" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {users.map(user => (
-                                    <SelectItem key={user.id} value={user.name}>{user.name}</SelectItem>
+                                    <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {credit.assigned_to || "-"}
+                                {agents.find(a => a.id === (formData as any).assigned_to_id)?.name || "-"}
                               </p>
                             )}
                           </div>
@@ -800,8 +923,52 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardTitle>Plan de Pagos</CardTitle>
                     <CardDescription>Detalle de cuotas y movimientos históricos</CardDescription>
                   </div>
+                  {credit.status === 'Formalizado' && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={credit.plan_de_pagos?.some(p => p.estado === 'Pagado')}
+                              onClick={async () => {
+                                if (!confirm('¿Estás seguro de que deseas regenerar el plan de pagos? Esto eliminará las cuotas pendientes y creará un nuevo plan.')) return;
+                                try {
+                                  setLoading(true);
+                                  await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
+                                  toast({
+                                    title: 'Plan de pagos regenerado',
+                                    description: 'El plan de pagos se ha regenerado correctamente.',
+                                  });
+                                  await fetchCredit();
+                                } catch (error) {
+                                  console.error('Error regenerando plan de pagos:', error);
+                                  toast({
+                                    title: 'Error',
+                                    description: 'No se pudo regenerar el plan de pagos.',
+                                    variant: 'destructive',
+                                  });
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }}
+                            >
+                              Regenerar Plan
+                            </Button>
+                          </div>
+                        </TooltipTrigger>
+                        {credit.plan_de_pagos?.some(p => p.estado === 'Pagado') && (
+                          <TooltipContent>
+                            <p>No se puede regenerar el plan porque existen cuotas pagadas.</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent>
+                  <ScrollableTableContainer className="max-h-[70vh]">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -813,7 +980,6 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs">Tasa Actual</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Plazo Actual</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Cuota</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Cargos</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Corriente</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Moratorio</TableHead>
@@ -825,10 +991,10 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs">Mora (Días)</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Fecha Mov.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Total</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Mov. Cargos</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Corr.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Mora.</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Mov. Amortización</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Principal</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Mov. Caja/Usuario</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Tipo Doc.</TableHead>
@@ -842,13 +1008,12 @@ function CreditDetailClient({ id }: { id: string }) {
                           <TableRow key={payment.id} className="hover:bg-muted/50">
                             <TableCell className="text-xs text-center">{payment.numero_cuota}</TableCell>
                             <TableCell className="text-xs">{payment.proceso || "-"}</TableCell>
-                            <TableCell className="text-xs">{formatDate(payment.fecha_inicio)}</TableCell>
+                            <TableCell className="text-xs">{formatDate(payment.fecha_inicio ? new Date(payment.fecha_inicio).toISOString() : null)}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_corte)}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_pago)}</TableCell>
                             <TableCell className="text-xs text-center">{payment.tasa_actual || "-"}</TableCell>
                             <TableCell className="text-xs text-center">{payment.plazo_actual || "-"}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.cuota)}</TableCell>
-                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.cargos)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_corriente)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_moratorio)}</TableCell>
@@ -864,11 +1029,12 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-center">{payment.dias_mora || "0"}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_movimiento)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_total)}</TableCell>
-                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_cargos)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_corriente)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_moratorio)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_amortizacion)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_principal)}</TableCell>
+                            
                             <TableCell className="text-xs">{payment.movimiento_caja_usuario || "-"}</TableCell>
                             <TableCell className="text-xs">{payment.tipo_documento || "-"}</TableCell>
                             <TableCell className="text-xs">{payment.numero_documento || "-"}</TableCell>
@@ -877,13 +1043,53 @@ function CreditDetailClient({ id }: { id: string }) {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={30} className="text-center py-8 text-muted-foreground">
-                            No hay movimientos registrados para este crédito.
+                          <TableCell colSpan={30} className="text-center py-12">
+                            <div className="flex flex-col items-center gap-4">
+                              <div className="text-muted-foreground">
+                                {credit.status !== 'Formalizado' ? (
+                                  <>
+                                    <p className="font-medium mb-2">El plan de pagos se generará al formalizar el crédito</p>
+                                    <p className="text-sm">Cambia el estado a "Formalizado" para generar el plan automáticamente.</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="font-medium mb-2">No hay plan de pagos generado</p>
+                                    <p className="text-sm mb-4">Haz clic en el botón para generar el plan de pagos.</p>
+                                    <Button
+                                      size="sm"
+                                      onClick={async () => {
+                                        try {
+                                          setLoading(true);
+                                          await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
+                                          toast({
+                                            title: 'Plan de pagos generado',
+                                            description: 'El plan de pagos se ha generado correctamente.',
+                                          });
+                                          await fetchCredit();
+                                        } catch (error: any) {
+                                          console.error('Error generando plan de pagos:', error);
+                                          toast({
+                                            title: 'Error',
+                                            description: error?.response?.data?.message || 'No se pudo generar el plan de pagos.',
+                                            variant: 'destructive',
+                                          });
+                                        } finally {
+                                          setLoading(false);
+                                        }
+                                      }}
+                                    >
+                                      Generar Plan de Pagos
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
+                  </ScrollableTableContainer>
                 </CardContent>
               </Card>
             </TabsContent>

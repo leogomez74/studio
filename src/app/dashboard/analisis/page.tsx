@@ -1,318 +1,544 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useMemo, FormEvent, useCallback } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { leads as mockLeads, opportunities as mockOpportunities, Lead, Opportunity } from "@/lib/data";
-import { AlertTriangle, ShieldCheck, PlusCircle, ChevronsUpDown, Check } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import api from "@/lib/axios";
+import api from '@/lib/axios';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Opportunity, Lead } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
 
-// --- Interfaces y Constantes copiadas de Creditos ---
-
-interface ClientOption {
-  id: string;
-  name: string;
-  cedula: string;
-  email: string;
-}
-
-interface OpportunityOption {
-  id: string;
-  title: string;
-  lead_id: number;
-  credit?: { id: number } | null;
-}
-
-interface CreditFormValues {
-  reference: string;
-  title: string;
-  status: string;
-  category: string;
-  monto_credito: string;
-  leadId: string;
-  opportunityId: string;
-  assignedTo: string;
-  openedAt: string;
-  description: string;
-  divisa: string;
-  plazo: string;
-}
-
-const CREDIT_STATUS_OPTIONS = ["Activo", "Mora", "Cerrado", "Legal"] as const;
-const CREDIT_CATEGORY_OPTIONS = ["Regular", "Micro-crédito", "Hipotecario", "Personal"] as const;
-const CURRENCY_OPTIONS = [
-  { value: "CRC", label: "Colón Costarricense (CRC)" },
-  { value: "USD", label: "Dólar Estadounidense (USD)" },
-  { value: "EUR", label: "Euro (EUR)" },
-  { value: "GBP", label: "Libra Esterlina (GBP)" },
-] as const;
-
-// --- Funciones auxiliares de visualización ---
-
-const getPuestoVariant = (puesto: Lead['puesto']) => {
-  return puesto === 'En Propiedad' ? 'default' : 'secondary';
+// Funciones para formateo de moneda (Colones)
+const formatCurrency = (value: string | number): string => {
+  const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : value;
+  if (isNaN(num)) return '';
+  return new Intl.NumberFormat('es-CR', {
+    style: 'currency',
+    currency: 'CRC',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
 };
 
-const getStatusVariant = (status: Opportunity['status'] | 'Sin Iniciar') => {
-    switch (status) {
-        case 'Convertido': return 'default';
-        case 'Aceptada': return 'default';
-        case 'En proceso': return 'secondary';
-        case 'Rechazada': return 'destructive';
-        default: return 'outline';
-    }
-}
+const parseCurrencyToNumber = (value: string): string => {
+  return value.replace(/[^\d.]/g, '');
+};
+
+type AnalisisItem = {
+  id: number;
+  reference: string;
+  monto_credito: number;
+  estado_pep: string;
+  estado_cliente?: string | null;
+  created_at: string;
+  opportunity_id?: string;
+  lead_id?: string;
+  // Campos del análisis
+  category?: string;
+  title?: string;
+  description?: string;
+  divisa?: string;
+  plazo?: number;
+  ingreso_bruto?: number;
+  ingreso_neto?: number;
+  propuesta?: string;
+  // Relaciones
+  opportunity?: Opportunity;
+  lead?: Lead;
+};
+
+type Product = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+};
 
 export default function AnalisisPage() {
+  const router = useRouter();
   const { toast } = useToast();
+  const [analisisList, setAnalisisList] = useState<AnalisisItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  // Estados para el formulario de creación de créditos
-  const [dialogState, setDialogState] = useState<"create" | null>(null);
-  const [formValues, setFormValues] = useState<CreditFormValues>({
-    reference: "",
-    title: "",
-    status: CREDIT_STATUS_OPTIONS[0],
-    category: CREDIT_CATEGORY_OPTIONS[0],
-    monto_credito: "",
-    leadId: "",
-    opportunityId: "",
-    assignedTo: "",
-    openedAt: new Date().toISOString().split('T')[0],
-    description: "",
-    divisa: "CRC",
-    plazo: "36",
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [perPage, setPerPage] = useState(10);
+
+  const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
+
+  const [creditForm, setCreditForm] = useState({
+    reference: '',
+    title: '',
+    status: 'Activo',
+    category: 'Crédito',
+    monto_credito: '',
+    leadId: '',
+    clientName: '',
+    description: '',
+    divisa: 'CRC',
+    plazo: '36',
+    poliza: false,
   });
-  
-  // Datos dinámicos para el formulario (Selects)
-  const [fetchedLeads, setFetchedLeads] = useState<ClientOption[]>([]);
-  const [fetchedOpportunities, setFetchedOpportunities] = useState<OpportunityOption[]>([]);
-  const [users, setUsers] = useState<{id: number, name: string}[]>([]);
-  
   const [isSaving, setIsSaving] = useState(false);
-  const [openCombobox, setOpenCombobox] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
-  // --- Lógica de filtrado para el formulario ---
-
-  const currentLead = useMemo(() => {
-    return formValues.leadId ? fetchedLeads.find((lead) => lead.id === formValues.leadId) : null;
-  }, [formValues.leadId, fetchedLeads]);
-
-  const filteredLeads = useMemo(() => {
-    if (!searchQuery) return fetchedLeads;
-    const lowerQuery = searchQuery.toLowerCase();
-    return fetchedLeads.filter(lead =>
-      lead.name.toLowerCase().includes(lowerQuery) ||
-      (lead.cedula && lead.cedula.includes(lowerQuery))
-    );
-  }, [fetchedLeads, searchQuery]);
-
-  const availableOpportunities = useMemo(() => {
-    return fetchedOpportunities.filter((opportunity) => {
-      const belongsToLead = formValues.leadId ? opportunity.lead_id === parseInt(formValues.leadId, 10) : true;
-      const isFree = !opportunity.credit;
-      return belongsToLead && isFree;
-    });
-  }, [fetchedOpportunities, formValues.leadId]);
-
-  // --- Fetch de datos para los desplegables del formulario ---
-
-  const fetchFormData = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     try {
-        const [leadsRes, oppsRes, usersRes] = await Promise.all([
-            api.get('/api/leads'),
-            api.get('/api/opportunities'),
-            api.get('/api/agents')
-        ]);
+      setLoading(true);
+      const [analisisRes, oppsRes, leadsRes, productsRes] = await Promise.all([
+        api.get('/api/analisis', { params: { page: currentPage, per_page: perPage } }),
+        api.get('/api/opportunities'),
+        api.get('/api/leads'),
+        api.get('/api/products'),
+      ]);
 
-        const leadsData = leadsRes.data.data || leadsRes.data;
-        setFetchedLeads(leadsData.map((l: any) => ({ id: l.id, name: l.name, email: l.email, cedula: l.cedula })));
+      const isPaginated = analisisRes.data.data && analisisRes.data.current_page;
+      const analisisData = isPaginated ? analisisRes.data.data as AnalisisItem[] : analisisRes.data as AnalisisItem[];
 
-        const oppsData = oppsRes.data.data || oppsRes.data;
-        setFetchedOpportunities(oppsData.map((o: any) => ({
-            id: o.id,
-            title: `${o.id} - ${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`,
-            lead_id: o.lead?.id
-        })));
+      if (isPaginated) {
+        setCurrentPage(analisisRes.data.current_page);
+        setTotalPages(analisisRes.data.last_page);
+        setTotalItems(analisisRes.data.total);
+      }
 
-        setUsers(usersRes.data);
-    } catch (error) {
-        console.error("Error fetching form data:", error);
+      const oppsData = Array.isArray(oppsRes.data.data) ? oppsRes.data.data : oppsRes.data;
+      const leadsData = Array.isArray(leadsRes.data.data) ? leadsRes.data.data : leadsRes.data;
+      const productsData = productsRes.data as Product[];
+      setOpportunities(oppsData);
+      setLeads(leadsData);
+      setProducts(productsData);
+
+      const mapped = analisisData.map((item) => {
+        const opportunity = oppsData.find((o: Opportunity) => String(o.id) === String(item.opportunity_id));
+        let lead: Lead | undefined = item.lead;
+        if (!lead && item.lead_id) {
+          lead = leadsData.find((l: Lead) => String(l.id) === String(item.lead_id));
+        } else if (!lead && opportunity?.lead) {
+          lead = opportunity.lead;
+        }
+        return {
+          ...item,
+          opportunity,
+          lead,
+        };
+      });
+      setAnalisisList(mapped);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudieron cargar los datos.');
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [currentPage, perPage]);
 
   useEffect(() => {
-    fetchFormData();
-  }, [fetchFormData]);
+    fetchAll();
+  }, [fetchAll]);
 
-  // --- Handlers ---
-
-  const handleCreate = () => {
-    setFormValues({
-      reference: "",
-      title: "",
-      status: CREDIT_STATUS_OPTIONS[0],
-      category: CREDIT_CATEGORY_OPTIONS[0],
-      monto_credito: "",
-      leadId: "",
-      opportunityId: "",
-      assignedTo: "",
-      openedAt: new Date().toISOString().split('T')[0],
-      description: "",
-      divisa: "CRC",
-      plazo: "36",
-    });
-    setDialogState("create");
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    try {
-      const body = {
-        reference: formValues.reference,
-        title: formValues.title,
-        status: formValues.status,
-        category: formValues.category,
-        monto_credito: parseFloat(formValues.monto_credito) || 0,
-        lead_id: parseInt(formValues.leadId),
-        opportunity_id: formValues.opportunityId || null,
-        assigned_to: formValues.assignedTo,
-        opened_at: formValues.openedAt,
-        description: formValues.description,
-        divisa: formValues.divisa,
-        plazo: parseInt(formValues.plazo) || 36,
-      };
-
-      await api.post('/api/credits', body);
-
-      toast({ title: "Éxito", description: "Crédito creado correctamente." });
-      setDialogState(null);
-      // Opcional: Recargar datos si la tabla dependiera de la API
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
   };
 
+  const handlePreviousPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
+
+  const handleOpenDetail = (item: AnalisisItem) => {
+    router.push(`/dashboard/analisis/${item.id}`);
+  };
+
+  // 3. RENDERIZADO CONDICIONAL (Carga / Error)
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen text-gray-500">
+        Cargando análisis...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-screen text-red-500">
+        {error}
+      </div>
+    );
+  }
+
+  // 4. TABLA PRINCIPAL
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Análisis de Crédito</CardTitle>
-            <CardDescription>
-              Analiza el riesgo crediticio de los leads para la toma de decisiones.
-            </CardDescription>
-          </div>
-          <Button onClick={handleCreate}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Nuevo Crédito
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Cédula</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Puesto</TableHead>
-                <TableHead>Ocupación</TableHead>
-                <TableHead>Institución</TableHead>
-                <TableHead>Responsable</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Notas</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {/* $$$ CONECTOR MYSQL: Iteración sobre datos de prueba */}
-              {mockLeads.map((lead) => {
-                return (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.name}</TableCell>
-                    <TableCell>{lead.cedula}</TableCell>
-                    <TableCell>{lead.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={getPuestoVariant(lead.puesto)}>
-                        {lead.puesto === 'En Propiedad' && <ShieldCheck className="mr-1 h-3 w-3"/>}
-                        {lead.puesto || '-' }
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{lead.ocupacion || '-'}</TableCell>
-                    <TableCell>{lead.institucion_labora || '-'}</TableCell>
-                    <TableCell>{lead.responsable || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={lead.is_active === false ? 'secondary' : 'default'}>
-                        {typeof lead.lead_status === 'object' ? lead.lead_status.name : (lead.lead_status || lead.status || 'Activo')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{lead.notes ? lead.notes.slice(0, 32) : '-'}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    <div className="container mx-auto p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Listado de Analizados</h1>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="perPage" className="text-sm font-medium">Registros por página:</Label>
+          <Select value={String(perPage)} onValueChange={(value) => {
+            setPerPage(Number(value));
+            setCurrentPage(1);
+          }}>
+            <SelectTrigger id="perPage" className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="30">30</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-      {/* --- Diálogo de Creación de Crédito --- */}
-      <Dialog open={!!dialogState} onOpenChange={(open) => !open && setDialogState(null)}>
-        <DialogContent className="max-w-3xl">
+      <div className="overflow-x-auto bg-white shadow-md rounded-lg border border-gray-200">
+        <table className="min-w-full text-sm text-left">
+          <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+            <tr>
+              <th className="px-6 py-3">Referencia</th>
+              <th className="px-6 py-3">Cliente (Lead)</th>
+              
+              {/* NUEVAS COLUMNAS SOLICITADAS */}
+              <th className="px-6 py-3 bg-blue-50 text-blue-800">Profesión</th>
+              <th className="px-6 py-3 bg-blue-50 text-blue-800">Puesto</th>
+              <th className="px-6 py-3 bg-blue-50 text-blue-800">Estado Puesto</th>
+              
+              <th className="px-6 py-3">Monto</th>
+              <th className="px-6 py-3">Estado PEP</th>
+              <th className="px-6 py-3">Estado Cliente</th>
+              <th className="px-6 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {analisisList.length > 0 ? (
+              analisisList.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-gray-900">
+                    <button
+                      className="text-blue-600 hover:underline"
+                      onClick={() => handleOpenDetail(item)}
+                    >
+                      {item.reference}
+                    </button>
+                  </td>
+
+                  {/* Nombre del Lead */}
+                  <td className="px-6 py-4 text-gray-700">
+                    {item.lead?.name || 'Sin Asignar'}
+                  </td>
+
+                  {/* COLUMNA: Profesión (Acceso anidado) */}
+                  <td className="px-6 py-4 text-gray-600">
+                    {item.lead?.profesion || '-'}
+                  </td>
+
+                  {/* COLUMNA: Puesto */}
+                  <td className="px-6 py-4 text-gray-600">
+                    {item.lead?.puesto || '-'}
+                  </td>
+
+                  {/* COLUMNA: Estado Puesto */}
+                  <td className="px-6 py-4 text-gray-600">
+                    <span className={`px-2 py-1 rounded text-xs font-semibold
+                      ${item.lead?.estado_puesto === 'Fijo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
+                    `}>
+                      {item.lead?.estado_puesto || 'N/A'}
+                    </span>
+                  </td>
+
+                  {/* Monto (Formateado) */}
+                  <td className="px-6 py-4 text-gray-700">
+                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(item.monto_credito)}
+                  </td>
+
+                  {/* Estado PEP - Clickeable para cambiar */}
+                  <td className="px-6 py-4">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
+                          ${item.estado_pep === 'Aceptado' ? 'bg-green-100 text-green-700' :
+                            item.estado_pep === 'Rechazado' ? 'bg-red-100 text-red-700' :
+                            item.estado_pep === 'Pendiente de cambios' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {item.estado_pep || 'Pendiente'}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48 p-2">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Cambiar Estado PEP:</p>
+                          {['Pendiente', 'Aceptado', 'Pendiente de cambios', 'Rechazado'].map((estado) => (
+                            <button
+                              key={estado}
+                              className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_pep === estado ? 'bg-gray-100 font-medium' : ''}`}
+                              onClick={async () => {
+                                try {
+                                  await api.put(`/api/analisis/${item.id}`, { estado_pep: estado });
+                                  setAnalisisList(prev => prev.map(a =>
+                                    a.id === item.id ? { ...a, estado_pep: estado, estado_cliente: estado !== 'Aceptado' ? null : a.estado_cliente } : a
+                                  ));
+                                  toast({ title: "Estado actualizado", description: `Estado PEP cambiado a "${estado}"` });
+                                } catch (err) {
+                                  toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
+                                }
+                              }}
+                            >
+                              {estado}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </td>
+
+                  {/* Estado Cliente - Solo visible si estado_pep es Aceptado */}
+                  <td className="px-6 py-4">
+                    {item.estado_pep === 'Aceptado' ? (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
+                            ${item.estado_cliente === 'Aprobado' ? 'bg-green-100 text-green-700' :
+                              item.estado_cliente === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {item.estado_cliente || 'Sin definir'}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-40 p-2">
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium text-gray-500 mb-2">Estado Cliente:</p>
+                            {['Aprobado', 'Rechazado'].map((estado) => (
+                              <button
+                                key={estado}
+                                className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_cliente === estado ? 'bg-gray-100 font-medium' : ''}`}
+                                onClick={async () => {
+                                  try {
+                                    await api.put(`/api/analisis/${item.id}`, { estado_cliente: estado });
+                                    setAnalisisList(prev => prev.map(a =>
+                                      a.id === item.id ? { ...a, estado_cliente: estado } : a
+                                    ));
+                                    toast({ title: "Estado actualizado", description: `Estado Cliente cambiado a "${estado}"` });
+                                  } catch (err) {
+                                    toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
+                                  }
+                                }}
+                              >
+                                {estado}
+                              </button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+
+                  {/* Acciones */}
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button
+                        variant="outline"
+                        className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+                        title="Crear Crédito"
+                        onClick={async () => {
+                          try {
+                            // Obtener la próxima referencia del servidor
+                            const refResponse = await api.get('/api/credits/next-reference');
+                            const nextReference = refResponse.data.reference;
+
+                            setCreditForm({
+                              reference: nextReference,
+                              title: item.title || '',
+                              status: 'Activo',
+                              category: item.category || 'Regular',
+                              monto_credito: item.monto_credito ? String(item.monto_credito) : '',
+                              leadId: item.lead_id ? String(item.lead_id) : (item.lead?.id ? String(item.lead.id) : ''),
+                              clientName: item.lead?.name || '',
+                              description: item.description || '',
+                              divisa: item.divisa || 'CRC',
+                              plazo: item.plazo ? String(item.plazo) : '36',
+                              poliza: false,
+                            });
+                            setIsCreditDialogOpen(true);
+                          } catch (err) {
+                            toast({
+                              variant: "destructive",
+                              title: "Error",
+                              description: "No se pudo obtener la referencia del crédito",
+                            });
+                          }
+                        }}
+                      >
+                        Crear Crédito
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  No hay análisis registrados aún.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {totalItems > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} analizados
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                  Anterior
+                </Button>
+                <div className="flex items-center gap-1">
+                  {currentPage > 3 && (
+                    <>
+                      <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
+                        1
+                      </Button>
+                      {currentPage > 4 && <span className="px-2 text-gray-500">...</span>}
+                    </>
+                  )}
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => Math.abs(page - currentPage) <= 2)
+                    .map(page => (
+                      <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
+                        {page}
+                      </Button>
+                    ))}
+                  {currentPage < totalPages - 2 && (
+                    <>
+                      {currentPage < totalPages - 3 && <span className="px-2 text-gray-500">...</span>}
+                      <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
+                        {totalPages}
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                  Siguiente
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Dialog for creating credit */}
+      <Dialog open={isCreditDialogOpen} onOpenChange={setIsCreditDialogOpen}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Nuevo Crédito</DialogTitle>
             <DialogDescription>Completa la información del crédito.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            className="space-y-6"
+            onSubmit={async (e) => {
+              e.preventDefault();
+
+              // Validaciones previas
+              const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
+              const leadIdNumerico = parseInt(creditForm.leadId);
+              const plazoNumerico = parseInt(creditForm.plazo);
+
+              if (!creditForm.leadId || isNaN(leadIdNumerico)) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "No hay un cliente asociado al análisis",
+                });
+                return;
+              }
+              if (isNaN(montoNumerico) || montoNumerico < 2) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "El monto debe ser un número mayor a 2",
+                });
+                return;
+              }
+              if (isNaN(plazoNumerico) || plazoNumerico < 1 || plazoNumerico > 120) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "El plazo debe ser un número entre 1 y 120",
+                });
+                return;
+              }
+
+              setIsSaving(true);
+              const payload = {
+                reference: creditForm.reference,
+                title: creditForm.title,
+                status: creditForm.status,
+                category: creditForm.category,
+                monto_credito: montoNumerico,
+                lead_id: leadIdNumerico,
+                description: creditForm.description,
+                divisa: creditForm.divisa,
+                plazo: plazoNumerico,
+                poliza: creditForm.poliza,
+              };
+              console.log('Enviando payload:', payload);
+
+              try {
+                const response = await api.post('/api/credits', payload);
+                console.log('Respuesta:', response.data);
+                setIsCreditDialogOpen(false);
+                toast({
+                  variant: "success",
+                  title: "Crédito creado",
+                  description: `El crédito ${response.data.reference} se ha creado exitosamente.`,
+                });
+                fetchAll();
+              } catch (err: any) {
+                console.error('Error completo:', err);
+                console.error('Response:', err?.response);
+                console.error('Response data:', err?.response?.data);
+                console.error('Response status:', err?.response?.status);
+
+                let mensaje = 'Error al crear crédito';
+                if (err?.response?.data?.message) {
+                  mensaje = err.response.data.message;
+                } else if (err?.response?.data?.errors) {
+                  mensaje = Object.values(err.response.data.errors).flat().join(', ');
+                } else if (err?.message) {
+                  mensaje = err.message;
+                }
+                toast({
+                  variant: "destructive",
+                  title: "Error al crear crédito",
+                  description: mensaje,
+                });
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="reference">Referencia</Label>
                 <Input
                   id="reference"
-                  placeholder="Ej: CRED-ABC12345"
-                  value={formValues.reference}
-                  onChange={e => setFormValues({ ...formValues, reference: e.target.value })}
-                  required
+                  placeholder="Se genera automáticamente (YY-XXXXX-CR)"
+                  value={creditForm.reference}
+                  disabled
                 />
               </div>
               <div className="space-y-2">
@@ -320,35 +546,44 @@ export default function AnalisisPage() {
                 <Input
                   id="title"
                   placeholder="Crédito Hipotecario..."
-                  value={formValues.title}
-                  onChange={e => setFormValues({ ...formValues, title: e.target.value })}
+                  value={creditForm.title}
+                  onChange={e => setCreditForm(f => ({ ...f, title: e.target.value }))}
                   required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>
-                <Select value={formValues.status} onValueChange={v => setFormValues({ ...formValues, status: v })}>
+                <Select value={creditForm.status} onValueChange={v => setCreditForm(f => ({ ...f, status: v }))}>
                   <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
                   <SelectContent>
-                    {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    <SelectItem value="Activo">Activo</SelectItem>
+                    <SelectItem value="Mora">Mora</SelectItem>
+                    <SelectItem value="Cerrado">Cerrado</SelectItem>
+                    <SelectItem value="Legal">Legal</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>
-                <Select value={formValues.category} onValueChange={v => setFormValues({ ...formValues, category: v })}>
+                <Select value={creditForm.category} onValueChange={v => setCreditForm(f => ({ ...f, category: v }))}>
                   <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
                   <SelectContent>
-                    {CREDIT_CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.name}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="divisa">Divisa</Label>
-                <Select value={formValues.divisa} onValueChange={v => setFormValues({ ...formValues, divisa: v })}>
+                <Select value={creditForm.divisa} onValueChange={v => setCreditForm(f => ({ ...f, divisa: v }))}>
                   <SelectTrigger id="divisa"><SelectValue placeholder="Selecciona la divisa" /></SelectTrigger>
                   <SelectContent>
-                    {CURRENCY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                    <SelectItem value="CRC">CRC - Colón Costarricense</SelectItem>
+                    <SelectItem value="USD">USD - Dólar Estadounidense</SelectItem>
+                    <SelectItem value="EUR">EUR - Euro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -356,146 +591,72 @@ export default function AnalisisPage() {
                 <Label htmlFor="monto">Monto</Label>
                 <Input
                   id="monto"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={formValues.monto_credito}
-                  onChange={e => setFormValues({ ...formValues, monto_credito: e.target.value })}
+                  type="text"
+                  placeholder="₡0.00"
+                  value={creditForm.monto_credito ? formatCurrency(creditForm.monto_credito) : ''}
+                  onChange={e => {
+                    const rawValue = parseCurrencyToNumber(e.target.value);
+                    setCreditForm(f => ({ ...f, monto_credito: rawValue }));
+                  }}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="plazo">Plazo (Meses)</Label>
-                <Select value={formValues.plazo} onValueChange={v => setFormValues({ ...formValues, plazo: v })}>
-                  <SelectTrigger id="plazo"><SelectValue placeholder="Selecciona el plazo" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="36">36 meses</SelectItem>
-                    <SelectItem value="60">60 meses</SelectItem>
-                    <SelectItem value="120">120 meses</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 flex flex-col">
-                <Label htmlFor="lead">Lead</Label>
-                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openCombobox}
-                      className="justify-between font-normal w-full"
-                    >
-                      {formValues.leadId
-                        ? fetchedLeads.find((lead) => String(lead.id) === formValues.leadId)?.name
-                        : "Selecciona un lead..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="p-0 w-[400px]" align="start">
-                    <div className="p-2 border-b">
-                      <Input
-                        placeholder="Buscar por nombre o cédula..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8"
-                      />
-                    </div>
-                    <div className="max-h-[200px] overflow-y-auto p-1">
-                      {filteredLeads.length === 0 ? (
-                        <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron leads.</div>
-                      ) : (
-                        filteredLeads.map((lead) => (
-                          <div
-                            key={lead.id}
-                            className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(lead.id) === formValues.leadId ? "bg-accent text-accent-foreground" : ""}`}
-                            onClick={() => {
-                              setFormValues({ ...formValues, leadId: String(lead.id) });
-                              setOpenCombobox(false);
-                            }}
-                          >
-                            <Check
-                              className={`mr-2 h-4 w-4 ${String(lead.id) === formValues.leadId ? "opacity-100" : "opacity-0"
-                                }`}
-                            />
-                            <div className="flex flex-col">
-                              <span>{lead.name}</span>
-                              {lead.cedula && <span className="text-xs text-muted-foreground">{lead.cedula}</span>}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="opportunity">Oportunidad (Opcional)</Label>
-                <Select value={formValues.opportunityId} onValueChange={v => setFormValues({ ...formValues, opportunityId: v })}>
-                  <SelectTrigger id="opportunity"><SelectValue placeholder="Selecciona una oportunidad" /></SelectTrigger>
-                  <SelectContent>
-                    {availableOpportunities.map(o => (
-                      <SelectItem key={o.id} value={String(o.id)}>{o.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="assignedTo">Responsable</Label>
-                <Select value={formValues.assignedTo} onValueChange={v => setFormValues({ ...formValues, assignedTo: v })}>
-                  <SelectTrigger id="assignedTo">
-                    <SelectValue placeholder="Selecciona un responsable" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map(user => (
-                      <SelectItem key={user.id} value={user.name}>{user.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="openedAt">Fecha Apertura</Label>
                 <Input
-                  id="openedAt"
-                  type="date"
-                  value={formValues.openedAt}
-                  onChange={e => setFormValues({ ...formValues, openedAt: e.target.value })}
+                  id="plazo"
+                  type="number"
+                  min="1"
+                  max="120"
+                  placeholder="1 - 120"
+                  value={creditForm.plazo}
+                  onChange={e => {
+                    const valor = parseInt(e.target.value);
+                    if (e.target.value === '') {
+                      setCreditForm(f => ({ ...f, plazo: '' }));
+                    } else if (!isNaN(valor) && valor >= 1 && valor <= 120) {
+                      setCreditForm(f => ({ ...f, plazo: String(valor) }));
+                    }
+                  }}
                 />
               </div>
-              <div className="sm:col-span-2 space-y-2">
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea
-                  id="description"
-                  className="min-h-[120px]"
-                  placeholder="Describe el contexto del crédito..."
-                  value={formValues.description}
-                  onChange={e => setFormValues({ ...formValues, description: e.target.value })}
+              <div className="space-y-2">
+                <Label htmlFor="poliza">Póliza</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="poliza"
+                    checked={creditForm.poliza}
+                    onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
+                  />
+                  <Label htmlFor="poliza" className="text-sm text-muted-foreground">
+                    {creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza'}
+                  </Label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cliente">Cliente</Label>
+                <Input
+                  id="cliente"
+                  value={creditForm.clientName}
+                  disabled
+                  placeholder="Cliente del análisis"
                 />
               </div>
             </div>
-
-            {currentLead ? (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Información del lead</CardTitle>
-                  <CardDescription>Resumen del lead relacionado con este crédito.</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <span className="font-medium">Nombre:</span> {currentLead.name}
-                    </div>
-                    <div>
-                      <span className="font-medium">Correo:</span> {currentLead.email ?? "-"}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogState(null)}>Cancelar</Button>
-              <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
-            </DialogFooter>
+            <div className="space-y-2">
+              <Label htmlFor="description">Descripción</Label>
+              <Textarea
+                id="description"
+                className="min-h-[80px]"
+                placeholder="Describe el contexto del crédito..."
+                value={creditForm.description}
+                onChange={e => setCreditForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSaving} className="bg-green-600 text-white hover:bg-green-700">
+                {isSaving ? 'Guardando...' : 'Crear Crédito'}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

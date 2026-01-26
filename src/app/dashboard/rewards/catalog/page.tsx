@@ -77,8 +77,9 @@ function CatalogItemCard({
 }) {
   const category = categoryConfig[item.category as keyof typeof categoryConfig] || categoryConfig.general;
   const CategoryIcon = category.icon;
-  const canAfford = userPoints >= item.pointsCost;
-  const isAvailable = item.isAvailable && (item.stock === null || item.stock > 0);
+  const itemCost = item.pointsCost ?? item.cost;
+  const canAfford = userPoints >= itemCost;
+  const isAvailable = (item.isAvailable ?? item.isActive) && (item.stock === null || item.stock > 0);
 
   return (
     <Card className={cn(
@@ -149,14 +150,14 @@ function CatalogItemCard({
             "text-2xl font-bold",
             !canAfford && "text-muted-foreground"
           )}>
-            {item.pointsCost.toLocaleString()}
+            {itemCost.toLocaleString()}
           </span>
           <span className="text-sm text-muted-foreground">puntos</span>
         </div>
 
         {!canAfford && (
           <p className="text-xs text-red-500 mt-1">
-            Te faltan {(item.pointsCost - userPoints).toLocaleString()} puntos
+            Te faltan {(itemCost - userPoints).toLocaleString()} puntos
           </p>
         )}
       </CardContent>
@@ -245,7 +246,8 @@ function ItemDetailDialog({
 
   const category = categoryConfig[item.category as keyof typeof categoryConfig] || categoryConfig.general;
   const CategoryIcon = category.icon;
-  const canAfford = userPoints >= item.pointsCost;
+  const itemCost = item.pointsCost ?? item.cost;
+  const canAfford = userPoints >= itemCost;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -306,7 +308,7 @@ function ItemDetailDialog({
               <div className="flex items-center gap-2">
                 <Star className="h-5 w-5 text-amber-500" />
                 <span className="text-2xl font-bold">
-                  {item.pointsCost.toLocaleString()}
+                  {itemCost.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -321,7 +323,7 @@ function ItemDetailDialog({
             </div>
             {!canAfford && (
               <p className="text-sm text-red-500 mt-2">
-                Te faltan {(item.pointsCost - userPoints).toLocaleString()} puntos
+                Te faltan {(itemCost - userPoints).toLocaleString()} puntos
               </p>
             )}
           </div>
@@ -371,16 +373,14 @@ export default function CatalogPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
 
-  const { data: catalogData, isLoading: loadingCatalog, refetch: refetchCatalog } = useCatalog();
-  const { data: redemptionsData, isLoading: loadingRedemptions, refetch: refetchRedemptions } = useRedemptions();
-  const { data: balanceData } = useRewardsBalance();
+  const { items, userPoints, isLoading: loadingCatalog, refetch: refetchCatalog, redeemItem } = useCatalog();
+  const { redemptions, isLoading: loadingRedemptions, refetch: refetchRedemptions } = useRedemptions();
+  const { balance: balanceData } = useRewardsBalance();
 
-  const items = catalogData?.items || [];
-  const redemptions = redemptionsData?.redemptions || [];
-  const userPoints = balanceData?.totalPoints || 0;
+  const effectiveUserPoints = balanceData?.totalPoints ?? userPoints;
 
   // Filter items
-  const filteredItems = items.filter(item => {
+  const filteredItems = items.filter((item: CatalogItem) => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          item.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
@@ -388,8 +388,8 @@ export default function CatalogPage() {
   });
 
   // Separate featured
-  const featuredItems = filteredItems.filter(item => item.isFeatured);
-  const regularItems = filteredItems.filter(item => !item.isFeatured);
+  const featuredItems = filteredItems.filter((item: CatalogItem) => item.isFeatured);
+  const regularItems = filteredItems.filter((item: CatalogItem) => !item.isFeatured);
 
   const handleItemClick = (item: CatalogItem) => {
     setSelectedItem(item);
@@ -585,7 +585,7 @@ export default function CatalogPage() {
             <AlertDialogTitle>Confirmar canje</AlertDialogTitle>
             <AlertDialogDescription>
               ¿Estás seguro de que deseas canjear <strong>{selectedItem?.name}</strong> por{" "}
-              <strong>{selectedItem?.pointsCost.toLocaleString()}</strong> puntos?
+              <strong>{(selectedItem?.pointsCost ?? selectedItem?.cost ?? 0).toLocaleString()}</strong> puntos?
               <br /><br />
               Esta acción no se puede deshacer.
             </AlertDialogDescription>

@@ -30,8 +30,8 @@ class GamificationConfigController extends Controller
                 'challenges' => [
                     'total' => RewardChallenge::count(),
                     'active' => RewardChallenge::where('is_active', true)
-                        ->where('start_date', '<=', now())
-                        ->where('end_date', '>=', now())
+                        ->where('starts_at', '<=', now())
+                        ->where('ends_at', '>=', now())
                         ->count(),
                 ],
                 'catalog' => [

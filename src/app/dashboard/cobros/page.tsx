@@ -32,8 +32,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
-import { credits as mockCredits, Credit, Payment } from '@/lib/data';
+import { Credit, Payment } from '@/lib/data';
 import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 
 // Interfaz extendida para el objeto de pago que viene del backend
 interface PaymentWithRelations extends Payment {
@@ -58,21 +59,24 @@ const getStatusVariantCobros = (status: Credit['status']) => {
   }
 };
 
-const filterCreditsByArrears = (daysStart: number, daysEnd: number | null = null) => {
-  return mockCredits.filter(c => {
-    if (c.status !== 'En mora') return false;
-    return true; 
-  });
+// Helper function to calculate days in arrears from last payment date
+const calculateDaysInArrears = (credit: Credit): number => {
+  if (!credit.fecha_ultimo_pago) return 0;
+  const lastPayment = new Date(credit.fecha_ultimo_pago);
+  const today = new Date();
+  const diffTime = today.getTime() - lastPayment.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays - 30); // Assuming 30-day payment cycle
 };
 
-const alDiaCredits = mockCredits.filter((c) => c.status === 'Al día');
-const mora30 = filterCreditsByArrears(1, 30);
-const mora60 = filterCreditsByArrears(31, 60);
-const mora90 = filterCreditsByArrears(61, 90);
-const mora180 = filterCreditsByArrears(91, 180);
-const mas180 = filterCreditsByArrears(181);
-
-const CobrosTable = React.memo(function CobrosTable({ credits }: { credits: Credit[] }) {
+const CobrosTable = React.memo(function CobrosTable({ credits, isLoading }: { credits: Credit[], isLoading?: boolean }) {
+  if (isLoading) {
+    return (
+      <div className="p-8 flex justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
   if (credits.length === 0) {
     return <div className="p-4 text-center text-sm text-muted-foreground">No hay créditos en esta categoría.</div>
   }
@@ -90,36 +94,45 @@ const CobrosTable = React.memo(function CobrosTable({ credits }: { credits: Cred
           </TableRow>
         </TableHeader>
         <TableBody>
-          {credits.map((credit) => (
-            <TableRow key={credit.id} className="hover:bg-muted/50">
-              <TableCell className="font-medium">
-                <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline">
-                  {credit.id}
-                </Link>
-              </TableCell>
+          {credits.map((credit) => {
+            const diasAtraso = calculateDaysInArrears(credit);
+            return (
+              <TableRow key={credit.id} className="hover:bg-muted/50">
+                <TableCell className="font-medium">
+                  <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                    {credit.reference || credit.numero_operacion || credit.id}
+                  </Link>
+                </TableCell>
                 <TableCell>{credit.lead?.name || "-"}</TableCell>
-              <TableCell className="hidden md:table-cell">
-                ₡{credit.cuota ? credit.cuota.toLocaleString('de-DE') : '0'}
-              </TableCell>
-              <TableCell>
-                <Badge variant={getStatusVariantCobros(credit.status)}>{credit.status}</Badge>
-              </TableCell>
-              <TableCell className="hidden font-medium md:table-cell">{credit.fecha_ultimo_pago || 0}</TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                    <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
-                    <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Enviar a Cobro Judicial</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))}
+                <TableCell className="hidden md:table-cell">
+                  ₡{credit.cuota ? Number(credit.cuota).toLocaleString('de-DE') : '0'}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getStatusVariantCobros(credit.status)}>{credit.status}</Badge>
+                </TableCell>
+                <TableCell className="hidden font-medium md:table-cell">
+                  {diasAtraso > 0 ? (
+                    <span className="text-destructive">{diasAtraso} días</span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                      <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
+                      <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">Enviar a Cobro</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -204,6 +217,9 @@ export default function CobrosPage() {
   const [tipoCobro, setTipoCobro] = useState('normal');
   const [monto, setMonto] = useState('');
   const [fecha, setFecha] = useState('');
+  // Para adelanto de cobro: cuotas seleccionadas
+  const [cuotasDisponibles, setCuotasDisponibles] = useState<any[]>([]);
+  const [cuotasSeleccionadas, setCuotasSeleccionadas] = useState<number[]>([]);
   
   // --- NUEVO: Estado para estrategia de Abono Extraordinario ---
   // 'reduce_amount' = Bajar Cuota | 'reduce_term' = Bajar Plazo
@@ -215,20 +231,49 @@ export default function CobrosPage() {
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
   const [paymentsState, setPaymentsState] = useState<PaymentWithRelations[]>([]);
   const [creditsList, setCreditsList] = useState<Credit[]>([]);
+  const [isLoadingCredits, setIsLoadingCredits] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoadingCredits(true);
       try {
         const paymentsRes = await api.get('/api/credit-payments');
         setPaymentsState(paymentsRes.data);
         const creditsRes = await api.get('/api/credits');
-        setCreditsList(creditsRes.data);
+        const creditsData = Array.isArray(creditsRes.data) ? creditsRes.data : creditsRes.data?.data || [];
+        setCreditsList(creditsData);
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching cobros data:', err);
+        toast({ title: 'Error', description: 'No se pudieron cargar los datos de cobros.', variant: 'destructive' });
+      } finally {
+        setIsLoadingCredits(false);
       }
     };
     fetchData();
-  }, [planRefreshKey]);
+  }, [planRefreshKey, toast]);
+
+  // Dynamic filtering of credits by arrears - using live API data
+  const filterCreditsByArrearsRange = useCallback((credits: Credit[], daysStart: number, daysEnd: number | null = null) => {
+    return credits.filter(credit => {
+      if (credit.status !== 'En mora') return false;
+      const diasAtraso = calculateDaysInArrears(credit);
+      if (daysEnd === null) {
+        return diasAtraso >= daysStart;
+      }
+      return diasAtraso >= daysStart && diasAtraso <= daysEnd;
+    });
+  }, []);
+
+  // Filtered credit lists using live data
+  const alDiaCredits = useMemo(() =>
+    creditsList.filter(c => c.status === 'Al día' || c.status === 'Formalizado'),
+    [creditsList]
+  );
+  const mora30 = useMemo(() => filterCreditsByArrearsRange(creditsList, 1, 30), [creditsList, filterCreditsByArrearsRange]);
+  const mora60 = useMemo(() => filterCreditsByArrearsRange(creditsList, 31, 60), [creditsList, filterCreditsByArrearsRange]);
+  const mora90 = useMemo(() => filterCreditsByArrearsRange(creditsList, 61, 90), [creditsList, filterCreditsByArrearsRange]);
+  const mora180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 91, 180), [creditsList, filterCreditsByArrearsRange]);
+  const mas180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 181, null), [creditsList, filterCreditsByArrearsRange]);
 
   const uniqueLeads = useMemo(() => {
     const leadsMap = new Map();
@@ -244,6 +289,10 @@ export default function CobrosPage() {
     if (!selectedLeadId) return [];
     return creditsList.filter(c => c.lead && String(c.lead.id) === selectedLeadId);
   }, [creditsList, selectedLeadId]);
+
+  const selectedCredit = useMemo(() => {
+    return creditsList.find(c => String(c.id) === selectedCreditId);
+  }, [creditsList, selectedCreditId]);
 
   const openAbonoModal = useCallback(() => setAbonoModalOpen(true), []);
   const closeAbonoModal = useCallback(() => {
@@ -264,13 +313,19 @@ export default function CobrosPage() {
         return;
       }
 
+      // Para adelanto de cobro, validar cuotas seleccionadas
+      if (tipoCobro === 'adelanto' && cuotasSeleccionadas.length === 0) {
+        toast({ title: 'Seleccione cuotas', description: 'Debe seleccionar al menos una cuota para adelanto.', variant: 'destructive' });
+        return;
+      }
+
       await api.post('/api/credit-payments/adelanto', {
         credit_id: selectedCreditId,
         tipo: tipoCobro,
         monto: parseFloat(monto),
         fecha: fecha,
-        // Enviamos la estrategia si es extraordinario, sino enviamos null
-        extraordinary_strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : null
+        extraordinary_strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : null,
+        cuotas: tipoCobro === 'adelanto' ? cuotasSeleccionadas : undefined
       });
 
       toast({ title: 'Éxito', description: `Abono registrado.` });
@@ -335,12 +390,12 @@ export default function CobrosPage() {
                             <TabsTrigger value="mas-180-dias">+180 días ({mas180.length})</TabsTrigger>
                         </TabsList>
                     </CardHeader>
-                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} /></CardContent></TabsContent>
-                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} /></CardContent></TabsContent>
-                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} /></CardContent></TabsContent>
-                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} /></CardContent></TabsContent>
-                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} /></CardContent></TabsContent>
-                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} /></CardContent></TabsContent>
+                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} /></CardContent></TabsContent>
                 </Card>
             </Tabs>
         </TabsContent>
@@ -389,7 +444,7 @@ export default function CobrosPage() {
 
                         <div>
                           <label className="block text-sm font-medium mb-1">Crédito Asociado</label>
-                          <Select 
+                          <Select   
                             value={selectedCreditId} 
                             onValueChange={setSelectedCreditId}
                             disabled={!selectedLeadId}
@@ -401,7 +456,7 @@ export default function CobrosPage() {
                               {availableCredits.length > 0 ? (
                                 availableCredits.map((c: any) => (
                                   <SelectItem key={c.id} value={String(c.id)}>
-                                    {c.reference || c.numero_operacion || `ID: ${c.id}`} - Saldo: ₡{Number(c.saldo || 0).toLocaleString()}
+                                    {c.reference || c.numero_operacion || `ID: ${c.id}`} - Saldo: ₡{Number(c.saldo ).toLocaleString()}
                                   </SelectItem>
                                 ))
                               ) : (
@@ -409,12 +464,33 @@ export default function CobrosPage() {
                               )}
                             </SelectContent>
                           </Select>
+                          
+                          {selectedCredit && selectedCredit.status !== 'Formalizado' && (
+                            <div className="mt-3 p-4 text-[14px] leading-tight bg-amber-50 border border-amber-200 text-red-700 rounded-md flex items-start gap-2">
+                              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                              <span>Este crédito no está <strong>Formalizado</strong> (Estado: {selectedCredit.status}). No se pueden registrar abonos manuales hasta que el crédito sea formalizado y tenga un plan de pagos.</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium mb-1">Tipo de Cobro</label>
-                                <Select value={tipoCobro} onValueChange={setTipoCobro}>
+                                <Select value={tipoCobro} onValueChange={val => {
+                                  setTipoCobro(val);
+                                  // Si cambia a adelanto, cargar cuotas disponibles
+                                  if (val === 'adelanto' && selectedCreditId) {
+                                    api.get(`/api/credits/${selectedCreditId}`)
+                                      .then(res => {
+                                        // Filtrar cuotas pendientes
+                                        const cuotas = res.data.plan_de_pagos?.filter((c: any) => c.estado !== 'Pagado');
+                                        setCuotasDisponibles(cuotas || []);
+                                      });
+                                  } else {
+                                    setCuotasDisponibles([]);
+                                    setCuotasSeleccionadas([]);
+                                  }
+                                  }}>
                                     <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                     <SelectItem value="normal">Normal</SelectItem>
@@ -429,6 +505,34 @@ export default function CobrosPage() {
                                 <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required />
                             </div>
                         </div>
+
+                        {/* Mostrar checkboxes de cuotas si es adelanto */}
+                        {tipoCobro === 'adelanto' && cuotasDisponibles.length > 0 && (
+                          <div className="bg-muted/50 p-3 rounded-md border border-dashed border-primary/50 space-y-2">
+                            <div className="text-sm font-medium mb-2">Seleccione cuotas a adelantar:</div>
+                            <div className="flex flex-col gap-1 max-h-40 overflow-y-auto pr-2">
+                              {cuotasDisponibles.map((cuota: any) => (
+                                <label key={cuota.id} className="flex items-center gap-2 cursor-pointer py-1">
+                                  <input
+                                    type="checkbox"
+                                    value={cuota.id}
+                                    checked={cuotasSeleccionadas.includes(cuota.id)}
+                                    onChange={e => {
+                                      const id = cuota.id;
+                                      setCuotasSeleccionadas(sel =>
+                                        e.target.checked
+                                          ? [...sel, id]
+                                          : sel.filter(cid => cid !== id)
+                                      );
+                                    }}
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="text-xs">Cuota #{cuota.numero_cuota} - Vence: {cuota.fecha_corte ? new Date(cuota.fecha_corte).toLocaleDateString() : ''} - ₡{Number(cuota.cuota || 0).toLocaleString()}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* --- LÓGICA VISUAL PARA ABONO EXTRAORDINARIO --- */}
                         {tipoCobro === 'extraordinario' && (
@@ -471,7 +575,7 @@ export default function CobrosPage() {
                         </div>
 
                         <DialogFooter>
-                          <Button type="submit" disabled={!selectedCreditId}>Aplicar Pago</Button>
+                          <Button type="submit" disabled={!selectedCreditId || selectedCredit?.status !== 'Formalizado'}>Aplicar Pago</Button>
                           <Button type="button" variant="outline" onClick={closeAbonoModal}>Cancelar</Button>
                         </DialogFooter>
                       </form>

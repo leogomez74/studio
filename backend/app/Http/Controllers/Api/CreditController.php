@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Credit;
 use App\Models\CreditDocument;
-use App\Models\PlanDePago; // Importante: Modelo del plan
+use App\Models\PlanDePago;
 use App\Models\Lead;
+use App\Models\LoanConfiguration;
+use App\Helpers\NumberToWords;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +21,7 @@ class CreditController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Credit::with(['lead', 'opportunity', 'documents']);
+        $query = Credit::with(['lead', 'opportunity', 'documents','planDePagos']);
 
         if ($request->has('lead_id')) {
             $query->where('lead_id', $request->lead_id);
@@ -29,13 +31,45 @@ class CreditController extends Controller
     }
 
     /**
-     * Crear Crédito y Generar Tabla de Amortización (Sistema Francés)
+     * Obtener la próxima referencia disponible
+     */
+    public function nextReference()
+    {
+        return response()->json(['reference' => $this->generateReference()]);
+    }
+
+    /**
+     * Generar referencia automática con formato YY-XXXXX-01-CRED (para preview)
+     */
+    private function generateReference(): string
+    {
+        $year = date('y'); // Año en 2 dígitos (26 para 2026)
+
+        // Obtener el último ID de la tabla credits y sumarle 1
+        $lastId = Credit::max('id') ?? 0;
+        $nextId = $lastId + 1;
+
+        // Formatear con padding de 5 dígitos + sufijo 01 por defecto
+        return sprintf('%s-%05d-01-CRED', $year, $nextId);
+    }
+
+    /**
+     * Generar referencia con el ID real del crédito
+     */
+    private function generateReferenceWithId(int $id): string
+    {
+        $year = date('y'); // Año en 2 dígitos (26 para 2026)
+        return sprintf('%s-%05d-01-CRED', $year, $id);
+    }
+
+    /**
+     * Crear Crédito y Generar Tabla de Amortización INICIAL
      */
     public function store(Request $request)
     {
-        // 1. Validaciones
+        // 1. Validaciones (Sincronizadas con tu nuevo modelo Credit)
         $validated = $request->validate([
-            'reference' => 'required|unique:credits,reference',
+            'reference' => 'nullable|unique:credits,reference',
             'title' => 'required|string',
             'status' => 'required|string',
             'category' => 'nullable|string',
@@ -44,46 +78,85 @@ class CreditController extends Controller
             'assigned_to' => 'nullable|string',
             'opened_at' => 'nullable|date',
             'description' => 'nullable|string',
+
+            // Campos Nuevos
             'tipo_credito' => 'nullable|string',
             'numero_operacion' => 'nullable|string|unique:credits,numero_operacion',
-            'deductora_id' => 'nullable|exists:deductoras,id',
+            'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
             'divisa' => 'nullable|string',
-            // Campos requeridos para el cálculo financiero
-            'monto_credito' => 'required|numeric|min:1',
+            'garantia' => 'nullable|string',
+
+            // Campos Financieros
+            'monto_credito' => 'required|numeric|min:2',
             'plazo' => 'required|integer|min:1',
             'tasa_anual' => 'nullable|numeric',
             'fecha_primera_cuota' => 'nullable|date',
+            'poliza' => 'nullable|boolean',
+            'poliza_actual' => 'nullable|numeric',
         ]);
 
-        // 2. Definir Tasa por defecto si no viene (33.5% anual según ejemplo)
+        // Tasa por defecto
         if (!isset($validated['tasa_anual'])) {
             $validated['tasa_anual'] = 33.50;
         }
 
-        // 3. Transacción de Base de Datos
-        $credit = DB::transaction(function () use ($validated) {
+        // Referencia temporal (se actualiza después con el ID real)
+        $validated['reference'] = 'TEMP-' . time();
 
-            // A. Crear la Cabecera del Crédito
+        $credit = DB::transaction(function () use ($validated) {
+            // A. Crear Cabecera
             $credit = Credit::create($validated);
 
-            // B. Generar la Tabla de Amortización (Lógica Francesa)
-            $this->generateAmortizationSchedule($credit);
+            // B. Generar referencia con el ID real del crédito
+            $credit->reference = $this->generateReferenceWithId($credit->id);
+            $credit->save();
 
-            // C. Copiar documentos del Lead al Crédito
-            $lead = Lead::with('documents')->find($validated['lead_id']);
-            if ($lead && $lead->documents->count() > 0) {
-                foreach ($lead->documents as $leadDocument) {
-                    $credit->documents()->create([
-                        'name' => $leadDocument->name,
-                        'notes' => $leadDocument->notes,
-                        'path' => $leadDocument->path,
-                        'url' => $leadDocument->url,
-                        'mime_type' => $leadDocument->mime_type,
-                        'size' => $leadDocument->size,
-                    ]);
-                }
+            // Validar estado antes de crear plan de pagos
+            if (strtolower($credit->status) === 'formalizado') {
+                // B. Generar la Tabla de Amortización Inicial (Cuotas 1 a N)
+                $this->generateAmortizationSchedule($credit);
             }
 
+            // C. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
+            $lead = Lead::with('documents')->find($validated['lead_id']);
+            if ($lead && $lead->documents->count() > 0) {
+                foreach ($lead->documents as $personDocument) {
+                    // 1. Definir nueva ruta
+                    $fileName = basename($personDocument->path);
+                    $newPath = "credit-docs/{$credit->id}/{$fileName}";
+
+                    // 2. Mover archivo físico
+                    if (Storage::disk('public')->exists($personDocument->path)) {
+                        // Crear directorio si no existe
+                        if (!Storage::disk('public')->exists("credit-docs/{$credit->id}")) {
+                            Storage::disk('public')->makeDirectory("credit-docs/{$credit->id}");
+                        }
+
+                        // Si el archivo destino ya existe, renombrar (timestamp)
+                        if (Storage::disk('public')->exists($newPath)) {
+                            $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+                            $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
+                            $timestamp = now()->format('Ymd_His');
+                            $newPath = "credit-docs/{$credit->id}/{$nameWithoutExt}_{$timestamp}.{$extension}";
+                        }
+
+                        Storage::disk('public')->move($personDocument->path, $newPath);
+
+                        // 3. Crear CreditDocument
+                        $credit->documents()->create([
+                            'name' => $personDocument->name,
+                            'notes' => $personDocument->notes,
+                            'path' => $newPath,
+                            'url' => asset(Storage::url($newPath)),
+                            'mime_type' => $personDocument->mime_type,
+                            'size' => $personDocument->size,
+                        ]);
+
+                        // 4. Eliminar del Buzón (PersonDocument)
+                        $personDocument->delete();
+                    }
+                }
+            }
             return $credit;
         });
 
@@ -91,8 +164,8 @@ class CreditController extends Controller
     }
 
     /**
-     * MOTOR DE CÁLCULO: Genera las cuotas niveladas.
-     * Llena todas las columnas requeridas por el Frontend (tsx).
+     * MOTOR DE CÁLCULO INICIAL
+     * Genera la línea de inicialización (cuota 0) y las cuotas desde la 1 hasta el Plazo final.
      */
     private function generateAmortizationSchedule(Credit $credit)
     {
@@ -100,105 +173,134 @@ class CreditController extends Controller
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
 
-        // Tasa Mensual Decimal (Ej: 29.75% -> 0.2975 -> /12)
+        // Obtener el monto de póliza solo si el crédito tiene póliza activa
+        $polizaPorCuota = 0;
+        if ($credit->poliza) {
+            // Obtener monto de póliza desde la configuración global
+            $loanConfig = LoanConfiguration::where('tipo', 'regular')->first();
+            $polizaPorCuota = (float) ($loanConfig->monto_poliza ?? 0);
+        }
+
         $tasaMensual = ($tasaAnual / 100) / 12;
 
-        // --- 1. Cálculo de Cuota Fija (PMT) ---
+        // 0. Crear línea de inicialización (cuota 0) - Desembolso Inicial
+        $existsInitialization = $credit->planDePagos()->where('numero_cuota', 0)->exists();
+        if (!$existsInitialization) {
+            PlanDePago::create([
+                'credit_id' => $credit->id,
+                'linea' => '1',
+                'numero_cuota' => 0,
+                'proceso' => ($credit->opened_at ?? now())->format('Ym'),
+                'fecha_inicio' => $credit->opened_at ?? now(),
+                'fecha_corte' => null,
+                'fecha_pago' => null,
+                'tasa_actual' => $tasaAnual,
+                'plazo_actual' => $plazo,
+                'cuota' => 0,
+                'poliza' => 0,
+                'interes_corriente' => 0,
+                'interes_moratorio' => 0,
+                'amortizacion' => 0,
+                'saldo_anterior' => 0,
+                'saldo_nuevo' => $monto,
+                'dias' => 0,
+                'estado' => 'Vigente',
+                'dias_mora' => 0,
+                'fecha_movimiento' => $credit->opened_at ?? now(),
+                'movimiento_total' => $monto,
+                'movimiento_poliza' => 0,
+                'movimiento_interes_corriente' => 0,
+                'movimiento_interes_moratorio' => 0,
+                'movimiento_principal' => $monto,
+                'movimiento_amortizacion' => 0,
+                'movimiento_caja_usuario' => 'Sistema',
+                'tipo_documento' => 'Formalización',
+                'numero_documento' => $credit->numero_operacion,
+                'concepto' => 'Desembolso Inicial',
+            ]);
+        }
+
+        // 1. Cálculo PMT (Cuota Fija)
         if ($tasaMensual > 0) {
             $potencia = pow(1 + $tasaMensual, $plazo);
             $cuotaFija = $monto * ($tasaMensual * $potencia) / ($potencia - 1);
         } else {
-            // Caso borde: tasa 0%
             $cuotaFija = $monto / $plazo;
         }
-
-        // Redondeo financiero estándar
         $cuotaFija = round($cuotaFija, 2);
 
-        // Guardar la cuota calculada en el padre
-        if (!$credit->cuota) {
+        // 2. Configurar y Guardar Fechas en el Crédito
+        $fechaInicio = $credit->fecha_primera_cuota
+            ? Carbon::parse($credit->fecha_primera_cuota)
+            : ($credit->opened_at ? Carbon::parse($credit->opened_at) : now());
+
+        // Calculamos fecha fin estimada
+        $fechaFinEstimada = $fechaInicio->copy()->addMonths($plazo);
+
+        // Actualizamos el modelo Credit con los datos calculados
+        if (!$credit->cuota || !$credit->fecha_culminacion_credito) {
             $credit->cuota = $cuotaFija;
+            $credit->fecha_culminacion_credito = $fechaFinEstimada;
+            // No tocamos 'saldo' aquí porque ya viene lleno del create()
             $credit->save();
         }
 
         $saldoPendiente = $monto;
-        // Fecha base: o la seleccionada o la de apertura o hoy
+
+        // Fecha de cobro de la primera cuota (Cuota #1)
         $fechaCobro = $credit->fecha_primera_cuota
             ? Carbon::parse($credit->fecha_primera_cuota)
-            : ($credit->opened_at ? Carbon::parse($credit->opened_at) : now());
+            : ($credit->opened_at ? Carbon::parse($credit->opened_at)->addMonths(2) : now()->addMonths(2));
 
-        // --- 2. Generación del Bucle ---
+        // 3. Bucle de Generación (Empezamos en 1, la 0 ya existe por el Modelo)
         for ($i = 1; $i <= $plazo; $i++) {
-
-            // Cálculos del periodo
             $interesMes = round($saldoPendiente * $tasaMensual, 2);
-
-            // Ajuste final para la última cuota (Evitar saldo -0.01 o 0.01)
             if ($i == $plazo) {
                 $amortizacionMes = $saldoPendiente;
-                $cuotaFija = $saldoPendiente + $interesMes; // La última cuota absorbe la diferencia
+                $cuotaFija = $saldoPendiente + $interesMes;
             } else {
                 $amortizacionMes = $cuotaFija - $interesMes;
             }
-
             $nuevoSaldo = round($saldoPendiente - $amortizacionMes, 2);
-
-            // Manejo de fechas (Mes a mes)
-            $fechaInicio = $fechaCobro->copy();
-            $fechaCobro->addMonth();
-
-            // Crear registro en plan_de_pagos con TODAS las columnas del frontend
+            // Crear registro en plan_de_pagos usando las columnas nuevas
             PlanDePago::create([
                 'credit_id' => $credit->id,
                 'numero_cuota' => $i,
-                'linea' => $credit->category ?? 'General',
-
-                // Datos de Proceso
-                'proceso' => 'Generado',
-                'fecha_inicio' => $fechaInicio,
-                'fecha_corte' => $fechaCobro,
-                'fecha_pago' => null, // null para que el front muestre "-"
-
-                // Valores Financieros Planificados
+                'linea' => $credit->category ?? '1',
+                'proceso' => ($credit->opened_at ?? now())->format('Ym'),
+                'fecha_inicio' => $fechaCobro->copy()->subMonth(),
+                'fecha_corte' => $fechaCobro->copy(),
+                'fecha_pago' => null,
                 'tasa_actual' => $tasaAnual,
                 'plazo_actual' => $plazo,
-                'cuota' => $cuotaFija,
-                'cargos' => 0,
-                'poliza' => 0,
+                'cuota' => $cuotaFija + $polizaPorCuota,
+                // Desglose financiero
                 'interes_corriente' => $interesMes,
-                'interes_moratorio' => 0,
                 'amortizacion' => $amortizacionMes,
+                'poliza' => $polizaPorCuota,
+                'interes_moratorio' => 0,
                 'saldo_anterior' => $saldoPendiente,
-                'saldo_nuevo' => max(0, $nuevoSaldo), // Seguridad visual
-
-                // Estado
+                'saldo_nuevo' => max(0, $nuevoSaldo),
                 'dias' => 30,
                 'estado' => 'Pendiente',
                 'dias_mora' => 0,
-
-                // Columnas de Movimiento (Inicializadas en 0/null)
-                'fecha_movimiento' => null,
+                // Inicializar movimientos en 0 (Limpio para futuros pagos)
                 'movimiento_total' => 0,
-                'movimiento_cargos' => 0,
                 'movimiento_poliza' => 0,
                 'movimiento_interes_corriente' => 0,
                 'movimiento_interes_moratorio' => 0,
                 'movimiento_principal' => 0,
-                'movimiento_caja_usuario' => null,
-
-                // Metadatos
-                'tipo_documento' => null,
-                'numero_documento' => null,
+                'movimiento_amortizacion' => 0,
                 'concepto' => 'Cuota Mensual',
             ]);
-
-            // Actualizar saldo para la siguiente iteración
+            // Ya no se guarda primera_deduccion en el modelo Credit
             $saldoPendiente = $nuevoSaldo;
+            $fechaCobro->addMonth();
         }
     }
 
     /**
-     * Mostrar Crédito con relaciones (Plan ordenado)
+     * Mostrar Crédito
      */
     public function show($id)
     {
@@ -207,146 +309,135 @@ class CreditController extends Controller
             'opportunity',
             'documents',
             'payments',
-            // Ordenar el plan para que salga 1, 2, 3... en la tabla
             'planDePagos' => function($q) {
                 $q->orderBy('numero_cuota', 'asc');
             }
         ])->findOrFail($id);
 
-        // Recalcular saldo actual basado en pagos
-        $lastPayment = $credit->payments()
-            ->where('estado', 'Pagado')
-            ->orderBy('numero_cuota', 'desc')
-            ->first();
+        // Agregar monto en letras
+        $response = $credit->toArray();
+        $moneda = $credit->divisa === 'USD' ? 'DOLARES' : 'COLONES';
+        $response['monto_letras'] = NumberToWords::convert((float) $credit->monto_credito, $moneda);
 
-        $credit->saldo = $lastPayment ? $lastPayment->nuevo_saldo : $credit->monto_credito;
-
-        return response()->json($credit);
+        return response()->json($response);
     }
 
     /**
-     * Resumen de Saldos (Dashboard)
+     * Resumen de Saldos (Dashboard del Crédito)
      */
     public function balance($id)
     {
         $credit = Credit::with(['payments', 'lead'])->findOrFail($id);
 
-        $payments = $credit->payments;
-        $paidPayments = $payments->where('estado', 'Pagado');
+        // Filtramos solo los pagos realizados
+        $paidPayments = $credit->payments->where('estado', 'Aplicado'); // O 'Pagado' según tu estandar
 
-        $totalPrincipalPaid = $paidPayments->sum('amortizacion');
-        $totalInterestPaid = $paidPayments->sum('interes_corriente') + $paidPayments->sum('interes_moratorio');
-        $totalPaid = $paidPayments->sum('cuota');
-
-        $lastPayment = $paidPayments->sortByDesc('numero_cuota')->first();
-        $currentBalance = $lastPayment ? $lastPayment->nuevo_saldo : $credit->monto_credito;
-
-        $nextPayment = $payments->where('estado', '!=', 'Pagado')->sortBy('numero_cuota')->first();
+        // Totales históricos
+        $totalCapital = $paidPayments->sum('amortizacion');
+        $totalInteres = $paidPayments->sum('interes_corriente') + $paidPayments->sum('interes_moratorio');
 
         return response()->json([
             'credit_id' => $credit->id,
             'numero_operacion' => $credit->numero_operacion,
             'client_name' => $credit->lead ? $credit->lead->name : 'N/A',
             'monto_original' => $credit->monto_credito,
-            'saldo_actual' => $currentBalance,
-            'total_capital_pagado' => $totalPrincipalPaid,
-            'total_intereses_pagados' => $totalInterestPaid,
-            'total_pagado' => $totalPaid,
-            'fecha_ultimo_pago' => $lastPayment ? $lastPayment->fecha_pago : null,
-            'proximo_pago' => $nextPayment ? [
-                'fecha' => $nextPayment->fecha_cuota,
-                'monto' => $nextPayment->cuota
-            ] : null,
+            'saldo_actual' => $credit->saldo, // Usamos el campo directo del modelo
+            'total_capital_pagado' => $totalCapital,
+            'total_intereses_pagados' => $totalInteres,
+            'total_pagado' => $paidPayments->sum('monto'),
             'progreso_pagos' => $credit->plazo > 0 ? round(($paidPayments->count() / $credit->plazo) * 100, 2) : 0,
         ]);
     }
 
-    /**
-     * Actualizar Cabecera de Crédito
-     */
     public function update(Request $request, $id)
     {
         $credit = Credit::findOrFail($id);
+        $previousStatus = $credit->status;
 
         $validated = $request->validate([
             'reference' => 'sometimes|required|unique:credits,reference,' . $id,
-            'title' => 'sometimes|required|string',
             'status' => 'sometimes|required|string',
-            'category' => 'nullable|string',
-            'progress' => 'integer|min:0|max:100',
-            'lead_id' => 'sometimes|required|exists:persons,id',
-            'opportunity_id' => 'nullable|exists:opportunities,id',
-            'assigned_to' => 'nullable|string',
-            'opened_at' => 'nullable|date',
-            'description' => 'nullable|string',
-            'tipo_credito' => 'nullable|string',
-            'numero_operacion' => 'nullable|string|unique:credits,numero_operacion,' . $id,
             'monto_credito' => 'nullable|numeric',
-            'cuota' => 'nullable|numeric',
-            'fecha_ultimo_pago' => 'nullable|date',
-            'garantia' => 'nullable|string',
-            'fecha_culminacion_credito' => 'nullable|date',
             'tasa_anual' => 'nullable|numeric',
-            'plazo' => 'nullable|integer',
-            'cuotas_atrasadas' => 'nullable|integer',
-            'deductora_id' => 'nullable|exists:deductoras,id',
+            'poliza' => 'nullable|boolean',
+              'poliza_actual' => 'nullable|numeric',
+             // ... resto de campos si es necesario editar
         ]);
 
         $credit->update($validated);
 
-        return response()->json($credit);
+        // Si el estado cambió a "Formalizado" y no hay plan de pagos, generarlo
+        if (isset($validated['status']) &&
+            strtolower($validated['status']) === 'formalizado' &&
+            strtolower($previousStatus) !== 'formalizado') {
+
+            $existingPlan = $credit->planDePagos()->where('numero_cuota', '>', 0)->exists();
+            if (!$existingPlan) {
+                $this->generateAmortizationSchedule($credit);
+            }
+        }
+
+        return response()->json($credit->load('planDePagos'));
     }
 
-    public function destroy($id)
+    /**
+     * Generar o regenerar el plan de pagos para un crédito
+     */
+    public function generatePlanDePagos($id)
     {
+        $credit = Credit::findOrFail($id);
+
+        // Validar que el crédito tenga los datos necesarios
+        if (!$credit->monto_credito || !$credit->plazo) {
+            return response()->json([
+                'message' => 'El crédito debe tener monto y plazo definidos.'
+            ], 422);
+        }
+
+        // Eliminar plan de pagos existente (excepto pagos aplicados)
+        $credit->planDePagos()
+            ->where('estado', '!=', 'Pagado')
+            ->delete();
+
+        // Generar nuevo plan
+        $this->generateAmortizationSchedule($credit);
+
+        return response()->json([
+            'message' => 'Plan de pagos generado correctamente.',
+            'plan_de_pagos' => $credit->fresh()->planDePagos()->orderBy('numero_cuota')->get()
+        ]);
+    }
+
+    public function destroy($id) {
         $credit = Credit::findOrFail($id);
         $credit->delete();
         return response()->json(null, 204);
     }
 
-    // --- Gestión de Documentos ---
-
-    public function documents($id)
-    {
-        $credit = Credit::findOrFail($id);
-        return response()->json($credit->documents);
+    // ... (Métodos de documentos se mantienen igual)
+    public function documents($id) {
+        return response()->json(Credit::findOrFail($id)->documents);
     }
 
-    public function storeDocument(Request $request, $id)
-    {
+    public function storeDocument(Request $request, $id) {
         $credit = Credit::findOrFail($id);
-
-        $request->validate([
-            'file' => 'required|file|max:10240', // 10MB max
-            'name' => 'required|string',
-            'notes' => 'nullable|string',
-        ]);
-
-        $file = $request->file('file');
-        $path = $file->store('credit-documents/' . $credit->id, 'public');
-
-        $document = $credit->documents()->create([
+        $request->validate(['file' => 'required|file', 'name' => 'required']);
+        $path = $request->file('file')->store('credit-docs/' . $id, 'public');
+        $doc = $credit->documents()->create([
             'name' => $request->name,
             'notes' => $request->notes,
             'path' => $path,
             'url' => asset(Storage::url($path)),
-            'mime_type' => $file->getClientMimeType(),
-            'size' => $file->getSize(),
+            'mime_type' => $request->file('file')->getClientMimeType(),
+            'size' => $request->file('file')->getSize(),
         ]);
-
-        return response()->json($document, 201);
+        return response()->json($doc, 201);
     }
 
-    public function destroyDocument($id, $documentId)
-    {
-        $document = CreditDocument::where('credit_id', $id)->findOrFail($documentId);
-
-        if (Storage::disk('public')->exists($document->path)) {
-            Storage::disk('public')->delete($document->path);
-        }
-
-        $document->delete();
-
+    public function destroyDocument($id, $documentId) {
+        $doc = CreditDocument::where('credit_id', $id)->findOrFail($documentId);
+        Storage::disk('public')->delete($doc->path);
+        $doc->delete();
         return response()->json(null, 204);
     }
 }

@@ -2,15 +2,24 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  ArrowLeft, 
-  RefreshCw, 
-  Paperclip, 
-  Smile, 
-  Send, 
-  List, 
-  MessageSquare, 
-  MessageCircle 
+import {
+  ArrowLeft,
+  RefreshCw,
+  Paperclip,
+  Smile,
+  Send,
+  List,
+  MessageSquare,
+  MessageCircle,
+  FileText,
+  File,
+  Image as ImageIcon,
+  FileSpreadsheet,
+  Trash,
+  Upload,
+  Loader2,
+  FolderOpen,
+  FolderInput
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +32,27 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
-import { Opportunity, chatMessages, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
+import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
+import { CaseChat } from "@/components/case-chat";
+import { Label } from "@/components/ui/label";
+
+// Tipo para archivos del filesystem
+interface OpportunityFile {
+  name: string;
+  path: string;
+  url: string;
+  size: number;
+  last_modified: number;
+}
+
+type Product = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+};
 
 export default function OpportunityDetailPage() {
   const params = useParams();
@@ -32,43 +61,144 @@ export default function OpportunityDetailPage() {
   const id = params.id as string;
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
 
+  // Estados para archivos
+  const [heredados, setHeredados] = useState<OpportunityFile[]>([]);
+  const [especificos, setEspecificos] = useState<OpportunityFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Cargar archivos de la oportunidad
+  const fetchFiles = async () => {
+    try {
+      setLoadingFiles(true);
+      const res = await api.get(`/api/opportunities/${id}/files`);
+      setHeredados(res.data.heredados || []);
+      setEspecificos(res.data.especificos || []);
+    } catch (error) {
+      console.error("Error fetching files:", error);
+    } finally {
+      setLoadingFiles(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchOpportunity = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get(`/api/opportunities/${id}`);
-        const data = response.data.data || response.data;
-        setOpportunity(data);
+        const [opportunityRes, productsRes] = await Promise.all([
+          api.get(`/api/opportunities/${id}`),
+          api.get('/api/products'),
+        ]);
+
+        const opportunityData = opportunityRes.data.data || opportunityRes.data;
+        const productsData = productsRes.data as Product[];
+
+        setOpportunity(opportunityData);
+        setProducts(productsData);
+
+        // Cargar archivos
+        fetchFiles();
       } catch (error) {
-        console.error("Error fetching opportunity:", error);
-        toast({ title: "Error", description: "No se pudo cargar la oportunidad.", variant: "destructive" });
+        console.error("Error fetching data:", error);
+        toast({ title: "Error", description: "No se pudo cargar la información.", variant: "destructive" });
       } finally {
         setLoading(false);
       }
     };
 
     if (id) {
-      fetchOpportunity();
+      fetchData();
     }
   }, [id, toast]);
 
+  // Subir archivo específico
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setUploading(true);
+      await api.post(`/api/opportunities/${id}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast({ title: "Éxito", description: "Archivo subido correctamente." });
+      fetchFiles();
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // Eliminar archivo
+  const handleDeleteFile = async (filename: string) => {
+    if (!confirm(`¿Eliminar el archivo "${filename}"?`)) return;
+
+    try {
+      await api.delete(`/api/opportunities/${id}/files/${encodeURIComponent(filename)}`);
+      toast({ title: "Éxito", description: "Archivo eliminado." });
+      fetchFiles();
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      toast({ title: "Error", description: "No se pudo eliminar el archivo.", variant: "destructive" });
+    }
+  };
+
+  // Helper para obtener info del tipo de archivo
+  const getFileTypeInfo = (fileName: string) => {
+    const name = fileName.toLowerCase();
+    if (name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+      return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600' };
+    }
+    if (name.endsWith('.pdf')) {
+      return { icon: FileText, label: 'PDF', color: 'text-red-600' };
+    }
+    if (name.match(/\.(xls|xlsx|csv)$/)) {
+      return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600' };
+    }
+    if (name.match(/\.(doc|docx)$/)) {
+      return { icon: FileText, label: 'Word', color: 'text-blue-600' };
+    }
+    if (name.match(/\.(html|htm)$/)) {
+      return { icon: FileText, label: 'HTML', color: 'text-orange-600' };
+    }
+    return { icon: File, label: 'Archivo', color: 'text-slate-600' };
+  };
+
+  // Formatear tamaño de archivo
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const handleStatusChange = async (newStatus: string) => {
     if (!opportunity) return;
-    
+
+    const previousStatus = opportunity.status; // Save previous value for rollback
+
     try {
       setUpdatingStatus(true);
       // Optimistic update
       setOpportunity(prev => prev ? { ...prev, status: newStatus } : null);
-      
+
       // API call
       await api.put(`/api/opportunities/${opportunity.id}`, { status: newStatus });
-      
+
       toast({ title: "Estado actualizado", description: `La oportunidad ahora está ${newStatus}.` });
     } catch (error) {
       console.error("Error updating status:", error);
+      // Revert optimistic update on failure
+      setOpportunity(prev => prev ? { ...prev, status: previousStatus } : null);
       toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
     } finally {
       setUpdatingStatus(false);
@@ -77,18 +207,22 @@ export default function OpportunityDetailPage() {
 
   const handleTypeChange = async (newType: string) => {
     if (!opportunity) return;
-    
+
+    const previousType = opportunity.opportunity_type; // Save previous value for rollback
+
     try {
       setUpdatingType(true);
       // Optimistic update
       setOpportunity(prev => prev ? { ...prev, opportunity_type: newType } : null);
-      
+
       // API call
       await api.put(`/api/opportunities/${opportunity.id}`, { opportunity_type: newType });
-      
+
       toast({ title: "Tipo actualizado", description: `La oportunidad ahora es de tipo ${newType}.` });
     } catch (error) {
       console.error("Error updating type:", error);
+      // Revert optimistic update on failure
+      setOpportunity(prev => prev ? { ...prev, opportunity_type: previousType } : null);
       toast({ title: "Error", description: "No se pudo actualizar el tipo.", variant: "destructive" });
     } finally {
       setUpdatingType(false);
@@ -138,26 +272,17 @@ export default function OpportunityDetailPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Main Content - Left Column */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        {/* Main Content - Left Column (Refactored with Archivos as main tab) */}
+        <div className="lg:col-span-3 space-y-6">
           <Tabs defaultValue="resumen" className="w-full">
-            <TabsList className="w-full justify-start bg-transparent p-0 border-b rounded-none h-auto">
-              <TabsTrigger 
-                value="resumen" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
-              >
-                Resumen
-              </TabsTrigger>
-              <TabsTrigger 
-                value="tareas" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
-              >
-                Tareas
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="resumen">Resumen</TabsTrigger>
+              <TabsTrigger value="tareas">Tareas</TabsTrigger>
+              <TabsTrigger value="archivos">Archivos</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="resumen" className="mt-6">
+            <TabsContent value="resumen">
               <Card className="border shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 border-b">
                   <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
@@ -181,78 +306,69 @@ export default function OpportunityDetailPage() {
                 </CardHeader>
                 <CardContent className="pt-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
-                    
                     {/* Left Column of Details */}
                     <div className="space-y-6">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CÉDULA</p>
                         <p className="text-sm font-medium text-slate-900">{opportunity.lead_cedula}</p>
                       </div>
-                      
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground uppercase mb-1">VERTICAL</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase mb-1">INSTITUCIÓN</p>
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-0">
                           {opportunity.vertical}
                         </Badge>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">NOMBRE COMPLETO</p>
                         <p className="text-sm font-medium text-slate-900">
-                          {opportunity.lead ? `${opportunity.lead.name} ${opportunity.lead.apellido1}` : 'N/A'}
+                          {`${opportunity.lead?.name ? opportunity.lead?.name : ''} ${opportunity.lead?.apellido1 ? opportunity.lead?.apellido1 : ''}`}
                         </p>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">TIPO</p>
                         <div className="flex flex-wrap gap-2">
-                          {OPPORTUNITY_TYPES.map((type) => (
+                          {products.map((product) => (
                             <Button
-                              key={type}
-                              variant={opportunity.opportunity_type === type ? "default" : "outline"}
-                              onClick={() => handleTypeChange(type)}
+                              key={product.id}
+                              variant={opportunity.opportunity_type === product.name ? "default" : "outline"}
+                              onClick={() => handleTypeChange(product.name)}
                               disabled={updatingType}
                               className={`h-7 text-xs ${
-                                opportunity.opportunity_type === type 
-                                  ? "bg-slate-900 text-white hover:bg-slate-800" 
+                                opportunity.opportunity_type === product.name
+                                  ? "bg-slate-900 text-white hover:bg-slate-800"
                                   : "text-slate-600 border-slate-200"
                               }`}
                             >
-                              {type}
+                              {product.name}
                             </Button>
                           ))}
                         </div>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">MONTO ESTIMADO</p>
                         <p className="text-sm font-medium text-slate-900">{formatCurrency(opportunity.amount)}</p>
                       </div>
                     </div>
-
                     {/* Right Column of Details */}
                     <div className="space-y-6">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CIERRE ESPERADO</p>
                         <p className="text-sm font-medium text-slate-900">{formatDate(opportunity.expected_close_date)}</p>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CREADA</p>
                         <p className="text-sm font-medium text-slate-900">{formatDateTime(opportunity.created_at)}</p>
                       </div>
-
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">ACTUALIZADA</p>
                         <p className="text-sm font-medium text-slate-900">{formatDateTime(opportunity.updated_at)}</p>
                       </div>
                     </div>
-
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="tareas">
               <Card>
                 <CardContent className="p-6 text-center text-muted-foreground">
@@ -260,75 +376,133 @@ export default function OpportunityDetailPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="archivos">
+              <div className="space-y-4">
+                {/* Subir archivo específico */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      Subir Archivo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4">
+                      <div className="grid w-full max-w-sm items-center gap-1.5">
+                        <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad</Label>
+                        <Input
+                          id="file-upload"
+                          type="file"
+                          onChange={handleFileUpload}
+                          disabled={uploading}
+                          className="cursor-pointer"
+                        />
+                      </div>
+                      {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {loadingFiles ? (
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Archivos Heredados */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <FolderInput className="h-4 w-4 text-blue-500" />
+                          Documentos Personales
+                          <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground">Documentos copiados del buzón del cliente</p>
+                      </CardHeader>
+                      <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                        {heredados.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">Sin archivos heredados</p>
+                        ) : (
+                          heredados.map((file) => {
+                            const { icon: FileIcon, label, color } = getFileTypeInfo(file.name);
+                            return (
+                              <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                                  <div className="min-w-0">
+                                    <a
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm font-medium hover:underline truncate block"
+                                    >
+                                      {file.name}
+                                    </a>
+                                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                                  </div>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(file.name)}>
+                                  <Trash className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Archivos Específicos */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-green-500" />
+                          Específicos de Oportunidad
+                          <Badge variant="secondary" className="ml-auto">{especificos.length}</Badge>
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground">Documentos subidos directamente aquí</p>
+                      </CardHeader>
+                      <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                        {especificos.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">Sin archivos específicos</p>
+                        ) : (
+                          especificos.map((file) => {
+                            const { icon: FileIcon, label, color } = getFileTypeInfo(file.name);
+                            return (
+                              <div key={file.path} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                                  <div className="min-w-0">
+                                    <a
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm font-medium hover:underline truncate block"
+                                    >
+                                      {file.name}
+                                    </a>
+                                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                                  </div>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(file.name)}>
+                                  <Trash className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
 
-        {/* Side Panel - Right Column */}
-        <div className="lg:col-span-1 space-y-6">
-          <Tabs defaultValue="comunicaciones" className="w-full">
-            <TabsList className="w-full grid grid-cols-2 bg-white p-1 border rounded-lg h-auto">
-              <TabsTrigger value="comunicaciones" className="data-[state=active]:bg-slate-100">Comunicaciones</TabsTrigger>
-              <TabsTrigger value="archivos" className="data-[state=active]:bg-slate-100">Archivos</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="comunicaciones" className="mt-4">
-              <Card className="border shadow-sm h-[600px] flex flex-col">
-                <div className="p-3 border-b">
-                  <div className="flex gap-2 bg-slate-100 p-1 rounded-md w-fit">
-                    <Button variant="ghost" size="sm" className="h-7 px-3 bg-white shadow-sm text-xs font-medium">
-                      <List className="h-3 w-3 mr-1.5" />
-                      Todo
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-3 text-muted-foreground text-xs font-medium hover:bg-white/50">
-                      <MessageSquare className="h-3 w-3 mr-1.5" />
-                      Mensajes
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-3 text-muted-foreground text-xs font-medium hover:bg-white/50">
-                      <MessageCircle className="h-3 w-3 mr-1.5" />
-                      Comentarios
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="p-4 border-b bg-slate-50/30">
-                  <div className="relative rounded-lg border bg-white shadow-sm focus-within:ring-1 focus-within:ring-primary">
-                    <Input 
-                      className="border-0 focus-visible:ring-0 px-4 py-3 h-auto text-sm" 
-                      placeholder="Escribe tu mensaje..." 
-                    />
-                    <div className="flex items-center justify-between px-2 pb-2 pt-1">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                          <Paperclip className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                          <Smile className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <Button size="icon" className="h-8 w-8 bg-slate-400 hover:bg-slate-500">
-                        <Send className="h-4 w-4 text-white" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/30">
-                   {/* Placeholder for empty state or messages */}
-                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm">
-                      <p>No hay comunicaciones recientes</p>
-                   </div>
-                </div>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="archivos" className="mt-4">
-               <Card className="border shadow-sm h-[600px]">
-                 <CardContent className="p-6 text-center text-muted-foreground">
-                   No hay archivos adjuntos.
-                 </CardContent>
-               </Card>
-            </TabsContent>
-          </Tabs>
+        {/* Side Panel - Chat lateral igual que leads */}
+        <div className="space-y-1 lg:col-span-1">
+          <CaseChat conversationId={id} />
         </div>
       </div>
     </div>

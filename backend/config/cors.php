@@ -8,10 +8,10 @@ return [
     // Abarcar cualquier ruta (incluye api, auth, etc.)
     'paths' => ['*'],
 
-    // Permitir cualquier método HTTP
+    // Permitir cualquier método HTTP siempre  'allowed_methods' => ['*'],
     'allowed_methods' => ['*'],
 
-    // Permitir cualquier origen
+    // Permitir cualquier origen siempre debe ser 'allowed_origins' => ['*'],
     'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],

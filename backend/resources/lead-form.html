@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background: 220 13% 97%;
+            --foreground: 224 71.4% 4.1%;
+            --card: 0 0% 100%;
+            --card-foreground: 224 71.4% 4.1%;
+            --primary: 209 78% 34%;
+            --primary-foreground: 0 0% 100%;
+            --secondary: 220 13% 91%;
+            --secondary-foreground: 220 9% 38%;
+            --muted: 220 13% 91%;
+            --muted-foreground: 220 9% 45%;
+            --accent: 220 14% 96%;
+            --border: 220 13% 85%;
+            --input: 220 13% 85%;
+            --ring: 209 78% 34%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+        }
+
+        /* Custom switch styles to match dashboard UI */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: hsl(var(--secondary));
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: hsl(var(--primary));
+        }
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        .hidden {
+          display: none;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        headline: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        background: 'hsl(var(--background))',
+                        foreground: 'hsl(var(--foreground))',
+                        card: 'hsl(var(--card))',
+                        'card-foreground': 'hsl(var(--card-foreground))',
+                        primary: 'hsl(var(--primary))',
+                        'primary-foreground': 'hsl(var(--primary-foreground))',
+                        secondary: 'hsl(var(--secondary))',
+                        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+                        muted: 'hsl(var(--muted))',
+                        'muted-foreground': 'hsl(var(--muted-foreground))',
+                        accent: 'hsl(var(--accent))',
+                        border: 'hsl(var(--border))',
+                        input: 'hsl(var(--input))',
+                        ring: 'hsl(var(--ring))',
+                    },
+                    borderRadius: {
+                        lg: 'var(--radius)',
+                        md: 'calc(var(--radius) - 2px)',
+                        sm: 'calc(var(--radius) - 4px)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-2 md:p-4">
+    <div class="w-full max-w-lg">
+        <div id="alert" class="hidden p-4 mb-4 text-sm rounded-lg" role="alert"></div>
+
+        <div class="bg-card text-card-foreground rounded-xl border shadow-lg">
+            <div class="p-4 md:p-6">
+                <div class="text-center">
+                    <h1 class="text-xl md:text-2xl font-headline font-bold text-primary">Planilla de Registro</h1>
+                    <p class="text-muted-foreground text-xs md:text-sm mt-1">Complete los datos para iniciar el proceso.</p>
+                </div>
+            </div>
+
+            <form id="leadForm" class="p-4 md:p-6 pt-0">
+                <div class="space-y-4">
+                    <div class="form-group">
+                        <label for="cedula" class="block text-sm font-medium text-foreground mb-1">Cédula *</label>
+                        <input type="text" id="cedula" name="cedula" placeholder="Digite su cedula" minlength="6" maxlength="9" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                        <p id="cedula-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        <p id="tseLoading" class="hidden text-xs text-primary mt-1">Buscando en TSE...</p>
+                    </div>
+
+                    <div id="tseInfo" class="hidden p-3 bg-accent rounded-md border">
+                        <p class="text-sm font-medium"><strong>Nombre:</strong> <span id="tseNombre"></span></p>
+                        <p class="text-sm font-medium"><strong>Apellidos:</strong> <span id="tseApellidos"></span></p>
+                    </div>
+
+                    <div id="tseConfirmation" class="hidden flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border rounded-lg bg-background">
+                         <span class="text-sm font-medium text-foreground text-center sm:text-left" id="tseConfirmationLabel"></span>
+                         <div class="flex items-center gap-2 flex-shrink-0">
+                            <button type="button" id="tseConfirmNoBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md shadow-sm">No</button>
+                            <button type="button" id="tseConfirmYesBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm">Sí</button>
+                         </div>
+                    </div>
+
+
+                    <div id="notFoundPrompt" class="hidden flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border rounded-lg bg-background">
+                        <span class="text-sm font-medium text-foreground text-center sm:text-left">No se encontró en TSE. ¿Es extranjero?</span>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <input type="hidden" id="isExtranjero" value="false">
+                            <button type="button" id="notExtranjeroBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-gray-500 hover:bg-gray-600 rounded-md shadow-sm">No</button>
+                            <button type="button" id="siExtranjeroBtn" class="px-4 py-1.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-md shadow-sm">Sí</button>
+                        </div>
+                    </div>
+
+                    <div id="extranjeroFields" class="hidden space-y-4">
+                        <div class="form-group">
+                            <label for="nombre" class="block text-sm font-medium text-foreground mb-1">Nombre *</label>
+                            <input type="text" id="nombre" name="nombre" placeholder="Nombre completo" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <p id="nombre-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label for="apellido1" class="block text-sm font-medium text-foreground mb-1">Primer Apellido *</label>
+                                <input type="text" id="apellido1" name="apellido1" placeholder="Primer apellido" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <p id="apellido1-error" class="hidden text-xs text-red-500 mt-1"></p>
+                            </div>
+                            <div class="form-group">
+                                <label for="apellido2" class="block text-sm font-medium text-foreground mb-1">Segundo Apellido</label>
+                                <input type="text" id="apellido2" name="apellido2" placeholder="Segundo apellido" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                 <p id="apellido2-error" class="hidden text-xs text-red-500 mt-1"></p>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="genero" class="block text-sm font-medium text-foreground mb-1">Género</label>
+                            <select id="genero" name="genero" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Seleccione el género</option>
+                                <option value="Masculino">Masculino</option>
+                                <option value="Femenino">Femenino</option>
+                            </select>
+                            <p id="genero-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email" class="block text-sm font-medium text-foreground mb-1">Correo Electrónico *</label>
+                        <input type="email" id="email" name="email" placeholder="correo@ejemplo.com" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                        <p id="email-error" class="hidden text-xs text-red-500 mt-1"></p>
+                    </div>
+
+                     <div class="grid md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label for="phone" class="block text-sm font-medium text-foreground mb-1">Teléfono (WhatsApp) *</label>
+                            <div class="flex gap-2">
+                                <div id="phonePrefixContainer" class="hidden w-28 flex-shrink-0 relative">
+                                    <button type="button" id="phonePrefixTrigger" class="w-full h-9 px-2 bg-background border border-input rounded-md text-xs text-left flex items-center justify-between">
+                                        <span id="phonePrefixLabel" class="truncate">Prefijo</span>
+                                        <span class="text-[9px] text-muted-foreground">▼</span>
+                                    </button>
+                                    <div id="phonePrefixDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
+                                        <div class="p-2 border-b">
+                                            <input id="phonePrefixSearch" type="text" placeholder="Buscar prefijo" class="w-full px-2 py-1 text-xs border rounded-md" aria-label="Buscar prefijo">
+                                        </div>
+                                        <div id="phonePrefixList" class="max-h-40 overflow-y-auto"></div>
+                                    </div>
+                                    <input type="hidden" id="phonePrefix" value="">
+                                </div>
+                                <input type="tel" id="phone" name="phone" placeholder="88887777" minlength="7" maxlength="15" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            </div>
+                            <p id="phone-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
+                        <div class="form-group">
+                            <label for="sector" class="block text-sm font-medium text-foreground mb-1">Sector Laboral *</label>
+                            <select id="sector" name="sector" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Seleccione un sector</option>
+                                <option value="publico">Sector Público</option>
+                                <option value="privado">Sector Privado</option>
+                                <option value="pensionado">Pensionado</option>
+                                <option value="propio">Independiente / Propio</option>
+                            </select>
+                            <p id="sector-error" class="hidden text-xs text-red-500 mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 pb-2">
+                    <div class="flex items-start gap-2 p-3 bg-accent/50 rounded-lg border border-border/50">
+                        <svg class="w-4 h-4 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        <p class="text-xs text-muted-foreground leading-relaxed">
+                            <strong class="text-foreground">Protección de datos:</strong> Todos los datos recolectados están protegidos y serán utilizados exclusivamente para procesar su solicitud. Cumplimos con la normativa de protección de datos personales.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="pt-2">
+                     <button type="submit" id="submitBtn" class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                        Registrar Lead
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success Dialog -->
+    <div id="successDialog" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="fixed inset-0 bg-black/50" onclick="closeSuccessDialog()"></div>
+        <div class="relative bg-card rounded-xl shadow-2xl p-6 md:p-8 max-w-md mx-4 text-center" style="animation: fadeIn 0.2s ease-out;">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-headline font-bold text-foreground mb-2">Registro Exitoso</h2>
+            <p class="text-muted-foreground mb-6">Pronto nos comunicaremos con usted, revise su WhatsApp y correo.</p>
+            <button onclick="closeSuccessDialog()" class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+        const TSE_API_URL = 'https://www.dsf.cr/tse/';
+
+        let tseData = null;
+        let tseLookupDone = false;
+        let lastCedulaLookup = '';
+        let userConfirmedTse = false;
+
+        const countryCallingCodes = [
+            { code: '+1', country: 'Estados Unidos / Canadá (NANP)' },
+            { code: '+7', country: 'Rusia / Kazajistán' },
+            { code: '+20', country: 'Egipto' },
+            { code: '+27', country: 'Sudáfrica' },
+            { code: '+30', country: 'Grecia' },
+            { code: '+31', country: 'Países Bajos' },
+            { code: '+32', country: 'Bélgica' },
+            { code: '+33', country: 'Francia' },
+            { code: '+34', country: 'España' },
+            { code: '+36', country: 'Hungría' },
+            { code: '+39', country: 'Italia' },
+            { code: '+40', country: 'Rumania' },
+            { code: '+41', country: 'Suiza' },
+            { code: '+43', country: 'Austria' },
+            { code: '+44', country: 'Reino Unido' },
+            { code: '+45', country: 'Dinamarca' },
+            { code: '+46', country: 'Suecia' },
+            { code: '+47', country: 'Noruega' },
+            { code: '+48', country: 'Polonia' },
+            { code: '+49', country: 'Alemania' },
+            { code: '+51', country: 'Perú' },
+            { code: '+52', country: 'México' },
+            { code: '+53', country: 'Cuba' },
+            { code: '+54', country: 'Argentina' },
+            { code: '+55', country: 'Brasil' },
+            { code: '+56', country: 'Chile' },
+            { code: '+57', country: 'Colombia' },
+            { code: '+58', country: 'Venezuela' },
+            { code: '+60', country: 'Malasia' },
+            { code: '+61', country: 'Australia' },
+            { code: '+62', country: 'Indonesia' },
+            { code: '+63', country: 'Filipinas' },
+            { code: '+64', country: 'Nueva Zelanda' },
+            { code: '+65', country: 'Singapur' },
+            { code: '+66', country: 'Tailandia' },
+            { code: '+81', country: 'Japón' },
+            { code: '+82', country: 'Corea del Sur' },
+            { code: '+84', country: 'Vietnam' },
+            { code: '+86', country: 'China' },
+            { code: '+90', country: 'Turquía' },
+            { code: '+91', country: 'India' },
+            { code: '+92', country: 'Pakistán' },
+            { code: '+93', country: 'Afganistán' },
+            { code: '+94', country: 'Sri Lanka' },
+            { code: '+95', country: 'Myanmar' },
+            { code: '+98', country: 'Irán' },
+            { code: '+211', country: 'Sudán del Sur' },
+            { code: '+212', country: 'Marruecos' },
+            { code: '+213', country: 'Argelia' },
+            { code: '+216', country: 'Túnez' },
+            { code: '+218', country: 'Libia' },
+            { code: '+220', country: 'Gambia' },
+            { code: '+221', country: 'Senegal' },
+            { code: '+222', country: 'Mauritania' },
+            { code: '+223', country: 'Mali' },
+            { code: '+224', country: 'Guinea' },
+            { code: '+225', country: 'Costa de Marfil' },
+            { code: '+226', country: 'Burkina Faso' },
+            { code: '+227', country: 'Níger' },
+            { code: '+228', country: 'Togo' },
+            { code: '+229', country: 'Benín' },
+            { code: '+230', country: 'Mauricio' },
+            { code: '+231', country: 'Liberia' },
+            { code: '+232', country: 'Sierra Leona' },
+            { code: '+233', country: 'Ghana' },
+            { code: '+234', country: 'Nigeria' },
+            { code: '+235', country: 'Chad' },
+            { code: '+236', country: 'República Centroafricana' },
+            { code: '+237', country: 'Camerún' },
+            { code: '+238', country: 'Cabo Verde' },
+            { code: '+239', country: 'Santo Tomé y Príncipe' },
+            { code: '+240', country: 'Guinea Ecuatorial' },
+            { code: '+241', country: 'Gabón' },
+            { code: '+242', country: 'República del Congo' },
+            { code: '+243', country: 'República Democrática del Congo' },
+            { code: '+244', country: 'Angola' },
+            { code: '+245', country: 'Guinea-Bisáu' },
+            { code: '+246', country: 'Diego García' },
+            { code: '+248', country: 'Seychelles' },
+            { code: '+249', country: 'Sudán' },
+            { code: '+250', country: 'Ruanda' },
+            { code: '+251', country: 'Etiopía' },
+            { code: '+252', country: 'Somalia' },
+            { code: '+253', country: 'Yibuti' },
+            { code: '+254', country: 'Kenia' },
+            { code: '+255', country: 'Tanzania' },
+            { code: '+256', country: 'Uganda' },
+            { code: '+257', country: 'Burundi' },
+            { code: '+258', country: 'Mozambique' },
+            { code: '+260', country: 'Zambia' },
+            { code: '+261', country: 'Madagascar' },
+            { code: '+262', country: 'Reunión / Mayotte' },
+            { code: '+263', country: 'Zimbabue' },
+            { code: '+264', country: 'Namibia' },
+            { code: '+265', country: 'Malaui' },
+            { code: '+266', country: 'Lesoto' },
+            { code: '+267', country: 'Botsuana' },
+            { code: '+268', country: 'Esuatini' },
+            { code: '+269', country: 'Comoras' },
+            { code: '+290', country: 'Santa Elena' },
+            { code: '+291', country: 'Eritrea' },
+            { code: '+297', country: 'Aruba' },
+            { code: '+298', country: 'Islas Feroe' },
+            { code: '+299', country: 'Groenlandia' },
+            { code: '+350', country: 'Gibraltar' },
+            { code: '+351', country: 'Portugal' },
+            { code: '+352', country: 'Luxemburgo' },
+            { code: '+353', country: 'Irlanda' },
+            { code: '+354', country: 'Islandia' },
+            { code: '+355', country: 'Albania' },
+            { code: '+356', country: 'Malta' },
+            { code: '+357', country: 'Chipre' },
+            { code: '+358', country: 'Finlandia' },
+            { code: '+359', country: 'Bulgaria' },
+            { code: '+370', country: 'Lituania' },
+            { code: '+371', country: 'Letonia' },
+            { code: '+372', country: 'Estonia' },
+            { code: '+373', country: 'Moldavia' },
+            { code: '+374', country: 'Armenia' },
+            { code: '+375', country: 'Bielorrusia' },
+            { code: '+376', country: 'Andorra' },
+            { code: '+377', country: 'Mónaco' },
+            { code: '+378', country: 'San Marino' },
+            { code: '+380', country: 'Ucrania' },
+            { code: '+381', country: 'Serbia' },
+            { code: '+382', country: 'Montenegro' },
+            { code: '+385', country: 'Croacia' },
+            { code: '+386', country: 'Eslovenia' },
+            { code: '+387', country: 'Bosnia y Herzegovina' },
+            { code: '+389', country: 'Macedonia del Norte' },
+            { code: '+420', country: 'Chequia' },
+            { code: '+421', country: 'Eslovaquia' },
+            { code: '+423', country: 'Liechtenstein' },
+            { code: '+500', country: 'Islas Malvinas' },
+            { code: '+501', country: 'Belice' },
+            { code: '+502', country: 'Guatemala' },
+            { code: '+503', country: 'El Salvador' },
+            { code: '+504', country: 'Honduras' },
+            { code: '+505', country: 'Nicaragua' },
+            { code: '+506', country: 'Costa Rica' },
+            { code: '+507', country: 'Panamá' },
+            { code: '+508', country: 'San Pedro y Miquelón' },
+            { code: '+509', country: 'Haití' },
+            { code: '+590', country: 'Guadalupe / San Martín' },
+            { code: '+591', country: 'Bolivia' },
+            { code: '+592', country: 'Guyana' },
+            { code: '+593', country: 'Ecuador' },
+            { code: '+594', country: 'Guayana Francesa' },
+            { code: '+595', country: 'Paraguay' },
+            { code: '+596', country: 'Martinica' },
+            { code: '+597', country: 'Surinam' },
+            { code: '+598', country: 'Uruguay' },
+            { code: '+599', country: 'Caribe Neerlandés / Curazao' },
+            { code: '+670', country: 'Timor Oriental' },
+            { code: '+672', country: 'Antártida / Islas Norfolk' },
+            { code: '+673', country: 'Brunéi' },
+            { code: '+674', country: 'Nauru' },
+            { code: '+675', country: 'Papúa Nueva Guinea' },
+            { code: '+676', country: 'Tonga' },
+            { code: '+677', country: 'Islas Salomón' },
+            { code: '+678', country: 'Vanuatu' },
+            { code: '+679', country: 'Fiyi' },
+            { code: '+680', country: 'Palaos' },
+            { code: '+681', country: 'Wallis y Futuna' },
+            { code: '+682', country: 'Islas Cook' },
+            { code: '+683', country: 'Niue' },
+            { code: '+685', country: 'Samoa' },
+            { code: '+686', country: 'Kiribati' },
+            { code: '+687', country: 'Nueva Caledonia' },
+            { code: '+688', country: 'Tuvalu' },
+            { code: '+689', country: 'Polinesia Francesa' },
+            { code: '+690', country: 'Tokelau' },
+            { code: '+691', country: 'Micronesia' },
+            { code: '+692', country: 'Islas Marshall' },
+            { code: '+850', country: 'Corea del Norte' },
+            { code: '+852', country: 'Hong Kong' },
+            { code: '+853', country: 'Macao' },
+            { code: '+855', country: 'Camboya' },
+            { code: '+856', country: 'Laos' },
+            { code: '+880', country: 'Bangladés' },
+            { code: '+886', country: 'Taiwán' },
+            { code: '+960', country: 'Maldivas' },
+            { code: '+961', country: 'Líbano' },
+            { code: '+962', country: 'Jordania' },
+            { code: '+963', country: 'Siria' },
+            { code: '+964', country: 'Irak' },
+            { code: '+965', country: 'Kuwait' },
+            { code: '+966', country: 'Arabia Saudita' },
+            { code: '+967', country: 'Yemen' },
+            { code: '+968', country: 'Omán' },
+            { code: '+970', country: 'Palestina' },
+            { code: '+971', country: 'Emiratos Árabes Unidos' },
+            { code: '+972', country: 'Israel' },
+            { code: '+973', country: 'Baréin' },
+            { code: '+974', country: 'Catar' },
+            { code: '+975', country: 'Bután' },
+            { code: '+976', country: 'Mongolia' },
+            { code: '+977', country: 'Nepal' },
+            { code: '+992', country: 'Tayikistán' },
+            { code: '+993', country: 'Turkmenistán' },
+            { code: '+994', country: 'Azerbaiyán' },
+            { code: '+995', country: 'Georgia' },
+            { code: '+996', country: 'Kirguistán' },
+            { code: '+998', country: 'Uzbekistán' }
+        ];
+
+        function sanitizePhone(raw) {
+            return (raw || '').replace(/\D/g, '');
+        }
+
+        function buildPhoneNumber(raw, { isForeign = false, prefix = '' } = {}) {
+            const digits = sanitizePhone(raw);
+            if (!digits) return '';
+            if (isForeign) {
+                const prefixDigits = sanitizePhone(prefix);
+                return `${prefixDigits}${digits}`;
+            }
+            if (digits.startsWith('506')) return digits;
+            if (digits.length <= 8) return `506${digits}`;
+            return digits;
+        }
+
+        function getSelectedPrefixDigits() {
+            return sanitizePhone(document.getElementById('phonePrefix').value || '');
+        }
+
+        function renderPhonePrefixOptions(filter = '') {
+            const list = document.getElementById('phonePrefixList');
+            list.innerHTML = '';
+            const term = filter.replace(/\s+/g, '').toLowerCase();
+            countryCallingCodes.forEach(entry => {
+                const digits = entry.code.replace(/\D/g, '').toLowerCase();
+                if (term && !digits.includes(term)) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = entry.code;
+                btn.className = 'w-full text-left px-3 py-2 text-sm hover:bg-gray-100';
+                btn.dataset.code = entry.code;
+                btn.addEventListener('click', () => selectPhonePrefix(entry.code));
+                list.appendChild(btn);
+            });
+        }
+
+        function selectPhonePrefix(code) {
+            const hidden = document.getElementById('phonePrefix');
+            const label = document.getElementById('phonePrefixLabel');
+            hidden.value = code || '';
+            label.textContent = code || 'Prefijo';
+            closePhonePrefixDropdown();
+        }
+
+        function openPhonePrefixDropdown() {
+            document.getElementById('phonePrefixDropdown').classList.remove('hidden');
+            renderPhonePrefixOptions(document.getElementById('phonePrefixSearch').value || '');
+            document.getElementById('phonePrefixSearch').focus();
+        }
+
+        function closePhonePrefixDropdown() {
+            document.getElementById('phonePrefixDropdown').classList.add('hidden');
+        }
+
+        function togglePhonePrefixDropdown() {
+            const dropdown = document.getElementById('phonePrefixDropdown');
+            if (dropdown.classList.contains('hidden')) {
+                openPhonePrefixDropdown();
+            } else {
+                closePhonePrefixDropdown();
+            }
+        }
+
+        function togglePhonePrefix(isForeign) {
+            const container = document.getElementById('phonePrefixContainer');
+            const hidden = document.getElementById('phonePrefix');
+            const label = document.getElementById('phonePrefixLabel');
+            document.getElementById('phonePrefixSearch').value = '';
+            renderPhonePrefixOptions();
+            if (isForeign) {
+                container.classList.remove('hidden');
+                hidden.value = '';
+                label.textContent = 'Prefijo';
+                return;
+            }
+            container.classList.add('hidden');
+            hidden.value = '+506';
+            label.textContent = 'Prefijo';
+            closePhonePrefixDropdown();
+        }
+
+        const formFieldsToManage = ['nombre', 'apellido1', 'apellido2', 'email', 'phone', 'sector', 'genero', 'phonePrefix'];
+
+        function setFieldsDisabled(disabled) {
+            formFieldsToManage.forEach(id => {
+                const field = document.getElementById(id);
+                if (field) {
+                    field.disabled = disabled;
+                    field.classList.toggle('disabled:opacity-70', disabled);
+                }
+            });
+            document.getElementById('submitBtn').disabled = disabled;
+            document.getElementById('submitBtn').classList.toggle('disabled:opacity-70', disabled);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderPhonePrefixOptions();
+            togglePhonePrefix(false);
+            setFieldsDisabled(true);
+            document.getElementById('extranjeroFields').classList.add('hidden');
+        });
+
+        document.getElementById('phonePrefixTrigger').addEventListener('click', function(e) {
+            e.stopPropagation();
+            togglePhonePrefixDropdown();
+        });
+
+        document.getElementById('phonePrefixSearch').addEventListener('input', function(e) {
+            renderPhonePrefixOptions(e.target.value || '');
+        });
+
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('phonePrefixDropdown');
+            const container = document.getElementById('phonePrefixContainer');
+            if (!container.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // Sanitize input while typing
+        document.getElementById('cedula').addEventListener('input', function(e) {
+            const rawCedula = e.target.value.replace(/[^0-9]/g, '');
+            e.target.value = rawCedula;
+            
+            // If user clears the input, reset the form state
+            if (rawCedula === '') {
+                resetForm();
+            } else if (rawCedula !== lastCedulaLookup && (tseData || userConfirmedTse)) {
+                // If user changes value after a successful lookup, reset previous match
+                resetForm(false); 
+                e.target.value = rawCedula;
+            }
+        });
+
+        // Trigger lookup on blur (losing focus)
+        document.getElementById('cedula').addEventListener('blur', function(e) {
+            const rawCedula = e.target.value;
+            if (rawCedula.length >= 6 && rawCedula !== lastCedulaLookup) {
+                lastCedulaLookup = rawCedula;
+                lookupTSE(rawCedula);
+            }
+        });
+
+        // Trigger lookup on Enter key
+        document.getElementById('cedula').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent form submission
+                document.getElementById('cedula').blur(); // Trigger blur to start lookup
+            }
+        });
+
+        async function lookupTSE(cedula) {
+            resetForm(false);
+            document.getElementById('tseLoading').classList.remove('hidden');
+
+            try {
+                const response = await fetch(TSE_API_URL + cedula);
+                const data = await response.json();
+                document.getElementById('tseLoading').classList.add('hidden');
+
+                if (data.success && data.nombre) {
+                    tseData = {
+                        nombre: data.nombre,
+                        apellido1: data.apellido1,
+                        apellido2: data.apellido2,
+                        fechaNacimiento: data['fecha-nacimiento'],
+                        genero: data.sexo
+                    };
+                    tseLookupDone = true;
+                    document.getElementById('tseNombre').textContent = data.nombre;
+                    document.getElementById('tseApellidos').textContent = (data.apellido1 || '') + ' ' + (data.apellido2 || '');
+                    document.getElementById('tseInfo').classList.remove('hidden');
+                    document.getElementById('tseConfirmationLabel').textContent = `¿Eres ${data.nombre} ${data.apellido1}?`;
+                    document.getElementById('tseConfirmation').classList.remove('hidden');
+                } else {
+                    tseLookupDone = true;
+                    document.getElementById('notFoundPrompt').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error consultando TSE:', error);
+                document.getElementById('tseLoading').classList.add('hidden');
+                tseLookupDone = true;
+                document.getElementById('notFoundPrompt').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('tseConfirmYesBtn').addEventListener('click', function() {
+            userConfirmedTse = true;
+            document.getElementById('isExtranjero').value = 'false';
+            document.getElementById('tseConfirmation').classList.add('hidden');
+            ['email', 'phone', 'sector'].forEach(id => document.getElementById(id).disabled = false);
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('extranjeroFields').classList.add('hidden');
+            togglePhonePrefix(false);
+            ['nombre', 'apellido1', 'apellido2'].forEach(id => document.getElementById(id).disabled = true);
+        });
+
+        document.getElementById('tseConfirmNoBtn').addEventListener('click', function() {
+            userConfirmedTse = false;
+            tseData = null;
+            document.getElementById('isExtranjero').value = 'false';
+            document.getElementById('tseInfo').classList.add('hidden');
+            document.getElementById('tseConfirmation').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('hidden');
+            togglePhonePrefix(false);
+            setFieldsDisabled(false);
+        });
+
+        // Botón "Sí" - es extranjero
+        document.getElementById('siExtranjeroBtn').addEventListener('click', function() {
+            document.getElementById('isExtranjero').value = 'true';
+            document.getElementById('notFoundPrompt').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('hidden');
+            togglePhonePrefix(true);
+            setFieldsDisabled(false);
+        });
+
+        // Botón "No" - no es extranjero, pero igual permite llenar manualmente
+        document.getElementById('notExtranjeroBtn').addEventListener('click', function() {
+            document.getElementById('isExtranjero').value = 'false';
+            document.getElementById('notFoundPrompt').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.remove('hidden');
+            togglePhonePrefix(false);
+            setFieldsDisabled(false);
+        });
+
+        document.getElementById('phone').addEventListener('input', function(e) {
+            const isForeign = document.getElementById('isExtranjero').value === 'true';
+            const rawDigits = sanitizePhone(e.target.value);
+            const prefixLength = isForeign ? getSelectedPrefixDigits().length : 0;
+            const maxLength = Math.max(4, 15 - prefixLength);
+            e.target.value = rawDigits.slice(0, maxLength);
+        });
+
+        document.getElementById('phone').addEventListener('blur', function(e) {
+            const isForeign = document.getElementById('isExtranjero').value === 'true';
+            if (isForeign) {
+                e.target.value = sanitizePhone(e.target.value);
+                return;
+            }
+            e.target.value = buildPhoneNumber(e.target.value, { isForeign: false }).slice(0, 15);
+        });
+
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `p-4 mb-4 text-sm rounded-lg ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+            alert.classList.remove('hidden');
+            if (type === 'success') {
+                setTimeout(() => alert.classList.add('hidden'), 5000);
+            }
+        }
+
+        function showFieldError(field, message) {
+            const errorEl = document.getElementById(field + '-error');
+            if (errorEl) {
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+            }
+            const inputEl = document.getElementById(field);
+            if (inputEl) {
+                 inputEl.classList.add('border-red-500');
+            }
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('[id$="-error"]').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('input, select').forEach(el => el.classList.remove('border-red-500'));
+             document.getElementById('alert').classList.add('hidden');
+        }
+
+        function validateForm(data) {
+            let isValid = true;
+            clearErrors();
+            if (!/^\d{6,9}$/.test(data.cedula.replace(/[^0-9]/g, ''))) {
+                showFieldError('cedula', 'La cédula debe tener entre 6 y 9 dígitos.');
+                isValid = false;
+            }
+            // Si no se usaron datos del TSE, requerir campos manuales
+            if (!userConfirmedTse) {
+                if (!data.name || data.name.trim() === '') {
+                    showFieldError('nombre', 'El nombre es requerido.');
+                    isValid = false;
+                }
+                if (!data.apellido1 || data.apellido1.trim() === '') {
+                    showFieldError('apellido1', 'El primer apellido es requerido.');
+                    isValid = false;
+                }
+            }
+             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+                showFieldError('email', 'Ingrese un correo válido.');
+                isValid = false;
+            }
+            const phoneDigits = (data.phone || '').replace(/\D/g, '');
+            if (data.isExtranjero && !data.phonePrefix) {
+                showFieldError('phone', 'Seleccione un prefijo internacional.');
+                isValid = false;
+            }
+            if (!/^\d{7,15}$/.test(phoneDigits)) {
+                showFieldError('phone', 'El teléfono debe tener entre 7 y 15 dígitos.');
+                isValid = false;
+            }
+            if (!data.sector) {
+                showFieldError('sector', 'Seleccione un sector laboral.');
+                isValid = false;
+            }
+            return isValid;
+        }
+
+        function resetForm(fullReset = true) {
+            if (fullReset) {
+                document.getElementById('leadForm').reset();
+                lastCedulaLookup = '';
+            }
+            clearErrors();
+            setFieldsDisabled(true);
+            tseData = null;
+            userConfirmedTse = false;
+            tseLookupDone = false;
+            document.getElementById('tseInfo').classList.add('hidden');
+            document.getElementById('tseLoading').classList.add('hidden');
+            document.getElementById('tseConfirmation').classList.add('hidden');
+            document.getElementById('notFoundPrompt').classList.add('hidden');
+            document.getElementById('extranjeroFields').classList.add('hidden');
+            togglePhonePrefix(false);
+            document.getElementById('phonePrefix').value = '+506';
+            document.getElementById('isExtranjero').value = 'false';
+        }
+
+        function showSuccessDialog() {
+            document.getElementById('successDialog').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSuccessDialog() {
+            document.getElementById('successDialog').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('leadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const phoneInput = document.getElementById('phone');
+            const isForeign = document.getElementById('isExtranjero').value === 'true';
+            const phonePrefix = document.getElementById('phonePrefix').value;
+            const normalizedPhone = buildPhoneNumber(phoneInput.value, { isForeign, prefix: phonePrefix });
+            phoneInput.value = isForeign ? sanitizePhone(phoneInput.value) : normalizedPhone;
+            const formData = {
+                cedula: document.getElementById('cedula').value,
+                email: document.getElementById('email').value,
+                phone: normalizedPhone,
+                sector: document.getElementById('sector').value,
+                whatsapp: normalizedPhone
+            };
+            if (userConfirmedTse && tseData) {
+                formData.name = tseData.nombre;
+                formData.apellido1 = tseData.apellido1;
+                formData.apellido2 = tseData.apellido2;
+                formData.genero = tseData.genero;
+                if (tseData.fechaNacimiento && tseData.fechaNacimiento !== 'fallecido') {
+                    formData.fecha_nacimiento = tseData.fechaNacimiento;
+                }
+            } else {
+                formData.name = document.getElementById('nombre').value;
+                formData.apellido1 = document.getElementById('apellido1').value;
+                formData.apellido2 = document.getElementById('apellido2').value;
+                formData.genero = document.getElementById('genero').value;
+            }
+
+            const validationData = { ...formData, isExtranjero: isForeign, phonePrefix };
+
+            if (!validateForm(validationData)) return;
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Registrando...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/leads`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+                const result = await response.json();
+                                if (response.ok) {
+                                    resetForm(true);
+                                    showSuccessDialog();
+
+                                    // Generate sector-specific link
+                                    let sectorPath = '';
+                                    switch (formData.sector) {
+                                        case 'publico':
+                                            sectorPath = '/publico';
+                                            break;
+                                        case 'privado':
+                                            sectorPath = '/privado';
+                                            break;
+                                        case 'propio':
+                                            sectorPath = '/propio';
+                                            break;
+                                        case 'pensionado':
+                                            sectorPath = '/pensionado';
+                                            break;
+                                            
+                                        default:
+                                            sectorPath = '/registro'; // Fallback
+                                    }
+                                    // Encode cedula in base64 for the link
+                                    const cedulaHash = btoa(formData.cedula);
+                                    const questionnaireLink = `${API_BASE_URL}${sectorPath}?${cedulaHash}`;
+                                    
+                                    // Add link to webhook payload
+                                    const webhookData = { ...formData, link: questionnaireLink };
+
+                                    // --- Secondary POST request to n8n webhook ---
+                                    try {
+                                        const n8nResponse = await fetch('https://n8n.webhook.ssc.cr/webhook/estado', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                                            body: JSON.stringify(webhookData)
+                                        });
+                                        if (n8nResponse.ok) {
+                                            console.log('Successfully sent data to n8n webhook.');
+                                        } else {
+                                            console.error('Failed to send data to n8n webhook:', n8nResponse.status, n8nResponse.statusText);
+                                        }
+                                    } catch (n8nError) {
+                                        console.error('Error sending data to n8n webhook:', n8nError);
+                                    }
+                                    // --- End Secondary POST request ---
+                
+                                } else {
+                                     if (result.errors) {
+                                        Object.keys(result.errors).forEach(field => showFieldError(field, result.errors[field][0]));
+                                        showAlert('Por favor corrija los errores en el formulario.', 'error');
+                                    } else {
+                                        showAlert(result.message || 'Error al registrar el lead.', 'error');
+                                    }
+                                }            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Error de conexión. Intente nuevamente.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Registrar Lead';
+            }
+        });
+    </script>
+</body>
+</html>
+

@@ -9,10 +9,11 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
+.github/copilot-instructions.md
+/.github/
 # testing
 /coverage
-
+*.txt
 # next.js
 /.next/
 /out/
@@ -33,13 +34,14 @@ yarn-error.log*
 
 # vercel
 .vercel
-
+# .txt
+*.txt
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
 .genkit/*
-.env*
+.env.local
 
 # firebase
 firebase-debug.log
@@ -48,3 +50,6 @@ firestore-debug.log
 # local images
 
 *.jpg
+GEMINI.md
+
+CLAUDE.md

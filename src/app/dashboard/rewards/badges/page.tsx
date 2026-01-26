@@ -205,7 +205,7 @@ function BadgeDetailDialog({
 
           {badge.category && (
             <div className="text-sm text-muted-foreground">
-              Categoría: <span className="font-medium">{badge.category.name}</span>
+              Categoría: <span className="font-medium">{typeof badge.category === 'string' ? badge.category : badge.category}</span>
             </div>
           )}
         </div>
@@ -238,15 +238,15 @@ export default function BadgesPage() {
   const [selectedBadge, setSelectedBadge] = useState<BadgeType | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: badgesData, isLoading: loadingBadges } = useBadges();
-  const { data: progressData } = useBadgeProgress();
+  const { earnedBadges, availableBadges, isLoading: loadingBadges } = useBadges();
+  const { progress: progressData } = useBadgeProgress();
 
-  const allBadges = badgesData?.badges || [];
-  const earnedBadgeIds = new Set(badgesData?.earned?.map(b => b.id) || []);
-  const earnedBadgesMap = new Map(badgesData?.earned?.map(b => [b.id, b.earnedAt]) || []);
+  const allBadges: BadgeType[] = [...earnedBadges, ...availableBadges];
+  const earnedBadgeIds = new Set(earnedBadges.map((b: BadgeType) => b.id));
+  const earnedBadgesMap = new Map(earnedBadges.map((b: BadgeType) => [b.id, b.earnedAt]));
 
   // Filter badges
-  const filteredBadges = allBadges.filter(badge => {
+  const filteredBadges = allBadges.filter((badge: BadgeType) => {
     const matchesSearch = badge.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          badge.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRarity = rarityFilter === "all" || badge.rarity === rarityFilter;
@@ -254,8 +254,8 @@ export default function BadgesPage() {
   });
 
   // Separate earned and unearned
-  const earnedBadges = filteredBadges.filter(b => earnedBadgeIds.has(b.id));
-  const unearnedBadges = filteredBadges.filter(b => !earnedBadgeIds.has(b.id));
+  const filteredEarnedBadges = filteredBadges.filter((b: BadgeType) => earnedBadgeIds.has(b.id));
+  const filteredUnearnedBadges = filteredBadges.filter((b: BadgeType) => !earnedBadgeIds.has(b.id));
 
   const handleBadgeClick = (badge: BadgeType) => {
     setSelectedBadge(badge);
@@ -347,10 +347,10 @@ export default function BadgesPage() {
               Todos ({filteredBadges.length})
             </TabsTrigger>
             <TabsTrigger value="earned">
-              Obtenidos ({earnedBadges.length})
+              Obtenidos ({filteredEarnedBadges.length})
             </TabsTrigger>
             <TabsTrigger value="unearned">
-              Por obtener ({unearnedBadges.length})
+              Por obtener ({filteredUnearnedBadges.length})
             </TabsTrigger>
           </TabsList>
 
@@ -364,12 +364,12 @@ export default function BadgesPage() {
               </Card>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {filteredBadges.map((badge) => (
+                {filteredBadges.map((badge: BadgeType) => (
                   <BadgeCard
                     key={badge.id}
                     badge={badge}
                     isEarned={earnedBadgeIds.has(badge.id)}
-                    progress={progressData?.progress?.[badge.id]}
+                    progress={badge.progress}
                     onClick={() => handleBadgeClick(badge)}
                   />
                 ))}
@@ -378,7 +378,7 @@ export default function BadgesPage() {
           </TabsContent>
 
           <TabsContent value="earned">
-            {earnedBadges.length === 0 ? (
+            {filteredEarnedBadges.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <Medal className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -390,7 +390,7 @@ export default function BadgesPage() {
               </Card>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {earnedBadges.map((badge) => (
+                {filteredEarnedBadges.map((badge: BadgeType) => (
                   <BadgeCard
                     key={badge.id}
                     badge={badge}
@@ -403,7 +403,7 @@ export default function BadgesPage() {
           </TabsContent>
 
           <TabsContent value="unearned">
-            {unearnedBadges.length === 0 ? (
+            {filteredUnearnedBadges.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
@@ -412,12 +412,12 @@ export default function BadgesPage() {
               </Card>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {unearnedBadges.map((badge) => (
+                {filteredUnearnedBadges.map((badge: BadgeType) => (
                   <BadgeCard
                     key={badge.id}
                     badge={badge}
                     isEarned={false}
-                    progress={progressData?.progress?.[badge.id]}
+                    progress={badge.progress}
                     onClick={() => handleBadgeClick(badge)}
                   />
                 ))}

@@ -1,7 +1,7 @@
 // 'use client' indica que es un Componente de Cliente, lo que permite el uso de interactividad y estado.
 'use client';
 
-import React from 'react';
+import { useState, useEffect } from 'react';
 import {
   List,
   MessageCircle,
@@ -15,11 +15,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  chatMessages,
   internalNotes,
   type ChatMessage,
   type InternalNote,
 } from '@/lib/data'; // Importamos los datos de ejemplo.
+import api from '@/lib/axios';
+import { useToast } from '@/hooks/use-toast';
 
 /**
  * Componente para renderizar la lista de mensajes de un chat.
@@ -155,16 +156,20 @@ function CombinedChatList({
       {/* Iteramos sobre el array combinado y renderizamos cada item según su tipo. */}
       {combined.map((item, index) => {
         if (item.type === 'message') {
-          const msg = item as ChatMessage & { date: Date };
-          return <ChatMessagesList key={`msg-${index}`} messages={[msg]} />;
+          // Extraemos las propiedades del mensaje original (sin 'type' y 'date')
+          const { type, date, ...msgProps } = item;
+          return <ChatMessagesList key={`msg-${index}`} messages={[msgProps as ChatMessage]} />;
         } else {
-          const note = item as InternalNote & { date: Date };
-          return <InternalNotesList key={`note-${index}`} notes={[note]} />;
+          // Extraemos las propiedades de la nota original (sin 'type' y 'date')
+          const { type, date, ...noteProps } = item;
+          return <InternalNotesList key={`note-${index}`} notes={[noteProps as InternalNote]} />;
         }
       })}
     </div>
   );
 }
+
+import { getAuthUser } from '@/lib/auth';
 
 /**
  * Componente principal del panel de chat de un caso.
@@ -172,75 +177,169 @@ function CombinedChatList({
  * @param {{ conversationId: string }} props - El ID de la conversación a mostrar.
  */
 export function CaseChat({ conversationId }: { conversationId: string }) {
-  // Filtramos los mensajes y notas que pertenecen a la conversación actual.
-  const relevantMessages = chatMessages.filter(
-    (msg) => msg.conversationId === conversationId
-  );
+  const { toast } = useToast();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const user = getAuthUser();
+
+  // Función para cargar mensajes
+  const fetchMessages = async () => {
+    // Solo mostramos loading si no hay mensajes previos (carga inicial)
+    if (messages.length === 0) setLoading(true);
+    try {
+      const response = await api.get('/api/chat-messages', {
+        params: { conversation_id: conversationId }
+      });
+
+      if (response.data.success && Array.isArray(response.data.data)) {
+        const mappedMessages: ChatMessage[] = response.data.data.map((msg: any) => ({
+          id: String(msg.id),
+          conversationId: msg.conversation_id,
+          senderType: msg.sender_type,
+          senderName: msg.sender_name || 'Sistema',
+          avatarUrl: '', // Podríamos generar un avatar por defecto
+          text: msg.text,
+          time: new Date(msg.created_at).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+        }));
+        setMessages(mappedMessages);
+      }
+    } catch (error) {
+      console.error('Error cargando mensajes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar mensajes iniciales
+  useEffect(() => {
+    if (conversationId) {
+      fetchMessages();
+    }
+  }, [conversationId]);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || isSending) return;
+
+    setIsSending(true);
+    try {
+      const payload = {
+        conversation_id: conversationId,
+        sender_type: 'agent',
+        sender_name: user?.name || 'Agente',
+        text: newMessage,
+        message_type: 'text'
+      };
+
+      const response = await api.post('/api/chat-messages', payload);
+
+      if (response.data.success) {
+        setNewMessage("");
+        await fetchMessages();
+      }
+    } catch (error) {
+      console.error('Error enviando mensaje:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo enviar el mensaje.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Filtrar notas internas (todavía usando datos mock)
   const relevantNotes = internalNotes.filter(
     (note) => note.conversationId === conversationId
   );
 
   return (
-    <div className="flex h-full flex-col p-2">
-        <Tabs defaultValue="all" className="flex flex-1 flex-col">
+    <div className="flex flex-col rounded-lg border bg-card overflow-hidden h-full">
+        <Tabs defaultValue="all" className="flex flex-col h-full min-h-0">
           {/* Lista de pestañas para cambiar entre vistas. */}
-          <TabsList className="mx-2 mt-2">
-            <TabsTrigger value="all" className="gap-1">
-              <List className="h-4 w-4" />
-              Todo
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-1">
-              <MessagesSquare className="h-4 w-4" />
-              Mensajes
-            </TabsTrigger>
-            <TabsTrigger value="comments" className="gap-1">
-              <MessageCircle className="h-4 w-4" />
-              Comentarios
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex-shrink-0 overflow-x-auto px-2 pt-2">
+            <TabsList className="w-full sm:w-auto inline-flex">
+              <TabsTrigger value="all" className="gap-1 text-xs sm:text-sm flex-1 sm:flex-none">
+                <List className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span>Todo</span>
+              </TabsTrigger>
+              <TabsTrigger value="messages" className="gap-1 text-xs sm:text-sm flex-1 sm:flex-none">
+                <MessagesSquare className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span>Mensajes</span>
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="gap-1 text-xs sm:text-sm flex-1 sm:flex-none">
+                <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span>Comentarios</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
           {/* Contenido de la pestaña "Todo". */}
           <TabsContent
             value="all"
-            className="flex-1 space-y-4 overflow-y-auto p-4"
+            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0 mt-0"
           >
-            <CombinedChatList
-              messages={relevantMessages}
-              notes={relevantNotes}
-            />
+            {loading ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">Cargando mensajes...</div>
+            ) : (
+              <CombinedChatList
+                messages={messages}
+                notes={relevantNotes}
+              />
+            )}
           </TabsContent>
           {/* Contenido de la pestaña "Mensajes". */}
           <TabsContent
             value="messages"
-            className="flex-1 space-y-4 overflow-y-auto p-4"
+            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0 mt-0"
           >
-            <ChatMessagesList messages={relevantMessages} />
+            {loading ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">Cargando mensajes...</div>
+            ) : (
+              <ChatMessagesList messages={messages} />
+            )}
           </TabsContent>
           {/* Contenido de la pestaña "Comentarios". */}
           <TabsContent
             value="comments"
-            className="flex-1 space-y-4 overflow-y-auto p-4"
+            className="flex-1 space-y-4 overflow-y-auto p-4 min-h-0 mt-0"
           >
             <InternalNotesList notes={relevantNotes} />
           </TabsContent>
 
           {/* Área para escribir y enviar un nuevo mensaje. */}
-          <div className="border-t bg-background p-2">
+          <div className="flex-shrink-0 border-t bg-background p-2">
             <div className="relative">
               <Textarea
                 placeholder="Escribe tu mensaje..."
-                className="pr-20"
+                className="pr-20 resize-none"
                 rows={2}
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isSending}
               />
               <div className="absolute bottom-2 right-2 flex items-center gap-1">
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" disabled={isSending}>
                   <Paperclip className="h-4 w-4" />
                   <span className="sr-only">Adjuntar</span>
                 </Button>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" disabled={isSending}>
                   <Smile className="h-4 w-4" />
                   <span className="sr-only">Emoji</span>
                 </Button>
-                <Button size="icon">
+                <Button size="icon" onClick={handleSendMessage} disabled={isSending || !newMessage.trim()}>
                   <Send className="h-4 w-4" />
                   <span className="sr-only">Enviar</span>
                 </Button>

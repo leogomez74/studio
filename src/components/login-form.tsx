@@ -104,7 +104,7 @@ export function LoginForm() {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
           <ShieldCheck className="h-6 w-6 text-primary" />
         </div>
-        <CardTitle className="text-2xl font-semibold">Panel Administrativo DSF</CardTitle>
+        <CardTitle className="text-2xl font-semibold">Panel Administrativo Credipep</CardTitle>
         <CardDescription>
           Inicia sesión para acceder al panel de gestión.
         </CardDescription>

@@ -15,8 +15,12 @@ class PersonDocument extends Model
         'url',
         'mime_type',
         'size',
+        'file_created_at',
     ];
 
+    protected $casts = [
+        'file_created_at' => 'datetime',
+    ];
     public function person()
     {
         return $this->belongsTo(Person::class);

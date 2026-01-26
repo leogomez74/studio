@@ -14,6 +14,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 // Importamos el icono de configuración.
 import {
@@ -33,7 +34,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     // 'SidebarProvider' envuelve todo para que los componentes internos puedan acceder al estado de la barra lateral.
     <SidebarProvider>
       {/* 'Sidebar' es el contenedor principal de la barra lateral. */}
-      <Sidebar>
+      <Sidebar collapsible="icon">
         {/* 'SidebarHeader' contiene la parte superior de la barra lateral, como el logo. */}
         <SidebarHeader>
           <Logo />
@@ -46,7 +47,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild>
+              <SidebarMenuButton asChild tooltip="CONFIGURACIÓN">
                 <Link href="/dashboard/configuracion">
                   <Settings />
                   CONFIGURACIÓN
@@ -55,6 +56,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
+        {/* Barra de riel para colapsar/expandir el sidebar */}
+        <SidebarRail />
       </Sidebar>
       {/* 'SidebarInset' es el área principal de contenido que se ajusta al lado de la barra lateral. */}
       <SidebarInset>

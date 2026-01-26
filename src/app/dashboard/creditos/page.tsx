@@ -1,12 +1,15 @@
-"use client";
+  "use client";
 
-import type { ChangeEvent, FormEvent } from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, Filter } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +18,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import {
   Card,
   CardContent,
@@ -46,13 +58,55 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+
 import api from "@/lib/axios";
-import { credits as mockCredits } from "@/lib/data";
+
+// Funciones para formateo de moneda (Colones)
+const formatCurrency = (value: string | number): string => {
+  const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : value;
+  if (isNaN(num) || num === 0) return '';
+  return new Intl.NumberFormat('es-CR', {
+    style: 'currency',
+    currency: 'CRC',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+};
+
+const parseCurrencyToNumber = (value: string): number => {
+  const cleaned = value.replace(/[^\d.]/g, '');
+  return parseFloat(cleaned) || 0;
+};
+
+const creditSchema = z.object({
+  reference: z.string().min(1, "La referencia es requerida"),
+  title: z.string().min(1, "El título es requerido"),
+  status: z.string(),
+  category: z.string(),
+  monto_credito: z.coerce.number().min(0, "El monto debe ser positivo"),
+  clientId: z.string().min(1, "Debes seleccionar un cliente"),
+  opportunityId: z.string().optional(),
+  assignedTo: z.string().optional(),
+  openedAt: z.string(),
+  description: z.string().optional(),
+  divisa: z.string(),
+  plazo: z.coerce.number().min(1, "El plazo mínimo es 1 mes").max(120, "El plazo máximo es 120 meses"),
+  poliza: z.boolean().default(false),
+});
+
+type CreditFormValues = z.infer<typeof creditSchema>;
+
+interface DeductoraOption {
+  id: string | number;
+  nombre: string;
+}
+
 
 interface ClientOption {
   id: string;
@@ -90,7 +144,7 @@ interface ClientOption {
   telefono3?: string;
   institucion_labora?: string;
   departamento_cargo?: string;
-  deductora_id?: string | number;
+  deductora_id?: number | null;
   lead_status_id?: number;
   assigned_to_id?: number;
   person_type_id?: number;
@@ -101,6 +155,7 @@ interface OpportunityOption {
   id: string;
   title: string;
   lead_id: number;
+  status?: string;
   credit?: {
     id: number;
   } | null;
@@ -123,10 +178,9 @@ interface CreditPayment {
   id: number;
   credit_id: number;
   numero_cuota: number;
-  fecha_cuota: string;
+  fecha_corte: string;
   fecha_pago: string | null;
   cuota: number;
-  cargos: number;
   poliza: number;
   interes_corriente: number;
   interes_moratorio: number;
@@ -136,6 +190,8 @@ interface CreditPayment {
   estado: string;
   fecha_movimiento: string | null;
   movimiento_total: number;
+  movimiento_amortizacion?: number;
+  tasa_actual?: number; // Agregado para leer la tasa del plan
 }
 
 interface CreditItem {
@@ -156,7 +212,7 @@ interface CreditItem {
   created_at?: string | null;
   updated_at?: string | null;
   documents?: CreditDocument[];
-  payments?: CreditPayment[];
+  plan_de_pagos?: CreditPayment[];
   // New fields
   tipo_credito?: string | null;
   numero_operacion?: string | null;
@@ -167,47 +223,33 @@ interface CreditItem {
   fecha_culminacion_credito?: string | null;
   plazo?: number | null;
   cuotas_atrasadas?: number | null;
-  deductora?: { id: number; nombre: string } | null;
+  deductora_id: number | null;
   divisa?: string | null;
   linea?: string | null;
-  primera_deduccion?: string | null;
   saldo?: number | null;
   proceso?: string | null;
   documento_id?: string | null;
-}
-
-interface CreditFormValues {
-  reference: string;
-  title: string;
-  status: string;
-  category: string;
-  monto_credito: string;
-  leadId: string;
-  opportunityId: string;
-  assignedTo: string;
-  openedAt: string;
-  description: string;
-  divisa: string;
-  plazo: string;
+  poliza?: boolean | null;
+  tasa_anual?: number | null;
+  primera_deduccion?: string | null;
 }
 
 const CREDIT_STATUS_OPTIONS = [
   "Activo",
   "Mora",
   "Cerrado",
-  "Legal"
+  "Legal",
+  "Aprobado",
+  "Formalizado"
 ] as const;
-const CREDIT_CATEGORY_OPTIONS = ["Regular", "Micro-crédito", "Hipotecario", "Personal"] as const;
 const CURRENCY_OPTIONS = [
   { value: "CRC", label: "Colón Costarricense (CRC)" },
-  { value: "USD", label: "Dólar Estadounidense (USD)" },
-  { value: "EUR", label: "Euro (EUR)" },
-  { value: "GBP", label: "Libra Esterlina (GBP)" },
 ] as const;
 
 const CREDIT_STATUS_TAB_CONFIG = [
   { value: "all", label: "Todos" },
   { value: "activo", label: "Activo" },
+  { value: "formalizado", label: "Formalizado" },
   { value: "mora", label: "En Mora" },
   { value: "cerrado", label: "Cerrado" },
   { value: "legal", label: "Cobro Judicial" },
@@ -215,6 +257,7 @@ const CREDIT_STATUS_TAB_CONFIG = [
 
 const TAB_STATUS_FILTERS: Record<string, string[]> = {
   "activo": ["activo", "al día"],
+  "formalizado": ["formalizado"],
   "mora": ["mora", "en mora"],
   "cerrado": ["cerrado", "cancelado"],
   "legal": ["legal", "en cobro judicial"],
@@ -228,6 +271,39 @@ const TRACKED_STATUS_SET = new Set(
 
 const normalizeStatus = (status?: string | null): string => (status ?? "").trim().toLowerCase();
 
+const formatAmount = (amount?: number | null): string => {
+  if (amount === null || amount === undefined) return "0.00";
+  return new Intl.NumberFormat('es-CR', {
+    style: 'decimal',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+
+const getStatusBadgeStyle = (status?: string | null): { variant: "default" | "secondary" | "destructive" | "outline"; className?: string } => {
+  const normalized = normalizeStatus(status);
+  switch (normalized) {
+    case "formalizado":
+      return { variant: "default", className: "bg-emerald-600 hover:bg-emerald-700 text-white" };
+    case "activo":
+    case "al día":
+      return { variant: "default", className: "bg-blue-600 hover:bg-blue-700 text-white" };
+    case "mora":
+    case "en mora":
+      return { variant: "destructive" };
+    case "cerrado":
+    case "cancelado":
+      return { variant: "secondary" };
+    case "legal":
+    case "en cobro judicial":
+      return { variant: "destructive", className: "bg-red-800 hover:bg-red-900" };
+    case "aprobado":
+      return { variant: "default", className: "bg-green-500 hover:bg-green-600 text-white" };
+    default:
+      return { variant: "secondary" };
+  }
+};
+
 function formatDate(dateString?: string | null): string {
   if (!dateString) return "-";
   const date = new Date(dateString);
@@ -240,30 +316,16 @@ function formatDate(dateString?: string | null): string {
   }).format(date);
 }
 
-function formatDateTime(dateString?: string | null): string {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("es-CR", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 export default function CreditsPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
 
   const [credits, setCredits] = useState<CreditItem[]>([]);
-  const [leads, setLeads] = useState<ClientOption[]>([]);
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityOption[]>([]);
-  const [users, setUsers] = useState<{id: number, name: string}[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingLeads, setIsLoadingLeads] = useState(true);
-  const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [users, setUsers] = useState<{ id: number, name: string }[]>([]);
+  const [products, setProducts] = useState<{ id: number, name: string }[]>([]);
   const [tabValue, setTabValue] = useState("all");
   const [filters, setFilters] = useState({
     monto: "",
@@ -272,163 +334,178 @@ export default function CreditsPage() {
     documentoId: ""
   });
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Combobox state
   const [openCombobox, setOpenCombobox] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [dialogState, setDialogState] = useState<"create" | "edit" | null>(null);
   const [dialogCredit, setDialogCredit] = useState<CreditItem | null>(null);
-  const [formValues, setFormValues] = useState<CreditFormValues>({
-    reference: "",
-    title: "",
-    status: CREDIT_STATUS_OPTIONS[0],
-    category: CREDIT_CATEGORY_OPTIONS[0],
-    monto_credito: "",
-    leadId: "",
-    opportunityId: "",
-    assignedTo: "",
-    openedAt: "",
-    description: "",
-    divisa: "CRC",
-    plazo: "36",
-  });
-  const [isSaving, setIsSaving] = useState(false);
 
-  const [isStatusOpen, setIsStatusOpen] = useState(false);
-  const [statusCredit, setStatusCredit] = useState<CreditItem | null>(null);
-  const [statusForm, setStatusForm] = useState({ status: CREDIT_STATUS_OPTIONS[0] as string });
+  // Form definition
+  const form = useForm<CreditFormValues>({
+    resolver: zodResolver(creditSchema),
+    defaultValues: {
+      reference: "",
+      title: "",
+      status: CREDIT_STATUS_OPTIONS[0],
+      category: "",
+      monto_credito: 0,
+      clientId: "",
+      opportunityId: "",
+      assignedTo: "",
+      openedAt: new Date().toISOString().split('T')[0],
+      description: "",
+      divisa: "CRC",
+      plazo: 36,
+      poliza: false,
+    },
+  });
+
+  const [isSaving, setIsSaving] = useState(false);
 
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [documentsCredit, setDocumentsCredit] = useState<CreditItem | null>(null);
 
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [detailCredit, setDetailCredit] = useState<CreditItem | null>(null);
+  const currentClientId = form.watch("clientId");
+  const currentClient = useMemo(() => {
+    return currentClientId ? clients.find((client) => String(client.id) === currentClientId) : null;
+  }, [currentClientId, clients]);
 
-  // Drag scroll state 
-  
-
-  const currentLead = useMemo(() => {
-    return formValues.leadId ? leads.find((lead) => lead.id === formValues.leadId) : null;
-  }, [formValues.leadId, leads]);
-
-  const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads;
+  const filteredClients = useMemo(() => {
+    if (!searchQuery) return clients;
     const lowerQuery = searchQuery.toLowerCase();
-    return leads.filter(lead =>
-      lead.name.toLowerCase().includes(lowerQuery) ||
-      (lead.cedula && lead.cedula.includes(lowerQuery))
-    );
-  }, [leads, searchQuery]);
+    // Normalizar query removiendo símbolos para búsqueda por cédula
+    const normalizedQuery = searchQuery.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+    return clients.filter(client => {
+      // Buscar por nombre
+      const matchesName = client.name.toLowerCase().includes(lowerQuery);
+
+      // Buscar por cédula (ignorando símbolos)
+      const normalizedCedula = client.cedula ? client.cedula.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+      const matchesCedula = normalizedCedula.includes(normalizedQuery);
+
+      return matchesName || matchesCedula;
+    });
+  }, [clients, searchQuery]);
 
   const availableOpportunities = useMemo(() => {
     return opportunities.filter((opportunity) => {
-      const belongsToLead = formValues.leadId ? opportunity.lead_id === parseInt(formValues.leadId, 10) : true;
+      const belongsToClient = currentClientId ? opportunity.lead_id === parseInt(currentClientId, 10) : true;
+      const isAnalizada = opportunity.status === 'Analizada';
       const canSelectExistingCredit = dialogCredit?.opportunity_id === opportunity.id;
       const isFree = !opportunity.credit;
-      return belongsToLead && (canSelectExistingCredit || isFree);
+      return belongsToClient && isAnalizada && (canSelectExistingCredit || isFree);
     });
-  }, [opportunities, formValues.leadId, dialogCredit]);
+  }, [opportunities, currentClientId, dialogCredit]);
 
   // Mock permission for now
   const canDownloadDocuments = true;
+  const fetchDeductoras = useCallback(async () => {
+    try {
+      const response = await api.get('/api/deductoras');
+      let data = response.data;
+      if (!Array.isArray(data)) {
+        // Try to extract array if wrapped in {data: [...]}
+        data = data.data || [];
+      }
+      if (!Array.isArray(data)) {
+        data = [];
+      }
+      setDeductoras(data);
+    } catch (error) {
+      setDeductoras([]);
+      console.error("Error fetching deductoras:", error);
+    }
+  }, []);
 
   const fetchCredits = useCallback(async () => {
     try {
-      setIsLoading(true);
       const response = await api.get('/api/credits');
 
-      // Combine API data with mock data for testing
-      const apiData = response.data;
-      const apiIds = new Set(apiData.map((c: any) => c.id));
-
-      const formattedMockCredits = mockCredits
-        .filter(c => !c.id || !apiIds.has(c.id))
-        .map(c => ({
-          ...c,
-          id: c.id || Math.floor(Math.random() * 10000) + 10000, // Ensure no collision if id is missing
-          assigned_to: c.assigned_to ? String(c.assigned_to) : null,
-          lead: c.lead ? { ...c.lead, email: c.lead.email || null } : null,
-          opportunity: c.opportunity ? { ...c.opportunity, title: c.opportunity.title || null } : null
-        })) as unknown as CreditItem[];
-
-      setCredits([...apiData, ...formattedMockCredits]);
+      // Handle both paginated response { data: [...] } and direct array response
+      const apiData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      setCredits(apiData);
     } catch (error) {
       console.error("Error fetching credits:", error);
-
-      // Fallback to mock data
-      const formattedMockCredits = mockCredits.map(c => ({
-        ...c,
-        id: c.id || Math.floor(Math.random() * 10000),
-        assigned_to: c.assigned_to ? String(c.assigned_to) : null,
-        lead: c.lead ? { ...c.lead, email: c.lead.email || null } : null,
-        opportunity: c.opportunity ? { ...c.opportunity, title: c.opportunity.title || null } : null
-      })) as unknown as CreditItem[];
-
-      setCredits(formattedMockCredits);
-      toast({ title: "Info", description: "Mostrando datos de prueba.", variant: "default" });
-    } finally {
-      setIsLoading(false);
+      toast({ title: "Error", description: "No se pudieron cargar los créditos. Intente nuevamente.", variant: "destructive" });
+      setCredits([]);
     }
   }, [toast]);
 
-  const fetchLeads = useCallback(async () => {
+  const fetchClients = useCallback(async () => {
     try {
-      setIsLoadingLeads(true);
-      const response = await api.get('/api/leads');
+      const response = await api.get('/api/clients');
       const data = response.data.data || response.data;
-      setLeads(data.map((l: any) => ({ id: l.id, name: l.name, email: l.email, cedula: l.cedula })));
+      setClients(data.map((c: any) => ({ id: c.id, name: c.name, email: c.email, cedula: c.cedula, deductora_id: c.deductora_id })));
     } catch (error) {
-      console.error("Error fetching leads:", error);
-    } finally {
-      setIsLoadingLeads(false);
+      console.error("Error fetching clients:", error);
     }
   }, []);
 
   const fetchOpportunities = useCallback(async () => {
     try {
-      setIsLoadingOpportunities(true);
       const response = await api.get('/api/opportunities');
       const data = response.data.data || response.data;
       setOpportunities(data.map((o: any) => ({
         id: o.id,
         title: `${o.id} - ${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`,
-        lead_id: o.lead?.id
+        lead_id: o.lead?.id,
+        status: o.status,
+        credit: o.credit
       })));
     } catch (error) {
       console.error("Error fetching opportunities:", error);
-    } finally {
-      setIsLoadingOpportunities(false);
     }
   }, []);
 
   const fetchUsers = useCallback(async () => {
     try {
-      setIsLoadingUsers(true);
       const response = await api.get('/api/agents');
       setUsers(response.data);
     } catch (error) {
       console.error("Error fetching users:", error);
-    } finally {
-      setIsLoadingUsers(false);
+    }
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await api.get('/api/products');
+      setProducts(response.data);
+    } catch (error) {
+      console.error("Error fetching products:", error);
     }
   }, []);
 
   useEffect(() => {
     fetchCredits();
-    fetchLeads();
+    fetchClients();
     fetchOpportunities();
     fetchUsers();
-  }, [fetchCredits, fetchLeads, fetchOpportunities, fetchUsers]);
+    fetchDeductoras();
+    fetchProducts();
+  }, [fetchCredits, fetchClients, fetchOpportunities, fetchUsers, fetchDeductoras, fetchProducts]);
 
-  // Cleanup drag event listeners on unmount
-
-  // Populate lead objects on credits based on lead_id
+  // Populate client objects on credits based on lead_id
   useEffect(() => {
-    setCredits(prevCredits => prevCredits.map(credit => ({
-      ...credit,
-      lead: leads.find(l => String(l.id) === String(credit.lead_id)) || credit.lead
-    })));
-  }, [leads]);
+    setCredits(prevCredits => prevCredits.map(credit => {
+      const matchedClient = clients.find(c => String(c.id) === String(credit.lead_id));
+      return {
+        ...credit,
+        client: matchedClient || credit.client,
+        lead: matchedClient || credit.lead
+      };
+    }));
+  }, [clients]);
+
+  // Reset page when filters or tab change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tabValue, filters]);
 
   const getCreditsForTab = useCallback(
     (value: string): CreditItem[] => {
@@ -452,19 +529,19 @@ export default function CreditsPage() {
         filtered = filtered.filter(c => c.monto_credito?.toString().includes(filters.monto));
       }
       if (filters.numeroOperacion) {
-        filtered = filtered.filter(c => 
+        filtered = filtered.filter(c =>
           (c.numero_operacion?.toLowerCase().includes(filters.numeroOperacion.toLowerCase())) ||
           (c.reference?.toLowerCase().includes(filters.numeroOperacion.toLowerCase()))
         );
       }
       if (filters.leadName) {
-        filtered = filtered.filter(c => 
+        filtered = filtered.filter(c =>
           (c.lead?.name?.toLowerCase().includes(filters.leadName.toLowerCase())) ||
           (c.client?.name?.toLowerCase().includes(filters.leadName.toLowerCase()))
         );
       }
       if (filters.documentoId) {
-         filtered = filtered.filter(c => c.documento_id?.toLowerCase().includes(filters.documentoId.toLowerCase()));
+        filtered = filtered.filter(c => c.documento_id?.toLowerCase().includes(filters.documentoId.toLowerCase()));
       }
 
       return filtered;
@@ -472,61 +549,74 @@ export default function CreditsPage() {
     [credits, filters]
   );
 
-  const handleCreate = () => {
-    setFormValues({
-      reference: "",
+  // Get paginated credits for the current tab
+  const getPaginatedCredits = useCallback(
+    (value: string) => {
+      const filtered = getCreditsForTab(value);
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedItems = filtered.slice(startIndex, endIndex);
+
+      return {
+        items: paginatedItems,
+        totalItems,
+        totalPages,
+        currentPage,
+        startIndex: startIndex + 1,
+        endIndex: Math.min(endIndex, totalItems),
+      };
+    },
+    [getCreditsForTab, currentPage, itemsPerPage]
+  );
+
+  const handleCreate = async () => {
+    // Obtener la siguiente referencia del backend
+    let nextReference = "";
+    try {
+      const refResponse = await api.get('/api/credits/next-reference');
+      nextReference = refResponse.data.reference;
+    } catch (err) {
+      console.error('Error al obtener referencia:', err);
+    }
+
+    form.reset({
+      reference: nextReference,
       title: "",
       status: CREDIT_STATUS_OPTIONS[0],
-      category: CREDIT_CATEGORY_OPTIONS[0],
-      monto_credito: "",
-      leadId: "",
+      category: products.length > 0 ? products[0].name : "",
+      monto_credito: 0,
+      clientId: "",
       opportunityId: "",
       assignedTo: "",
       openedAt: new Date().toISOString().split('T')[0],
       description: "",
       divisa: "CRC",
-      plazo: "36",
+      plazo: 36,
+      poliza: false,
     });
     setDialogCredit(null);
     setDialogState("create");
   };
 
-  const handleEdit = (credit: CreditItem) => {
-    setFormValues({
-      reference: credit.reference,
-      title: credit.title,
-      status: credit.status || CREDIT_STATUS_OPTIONS[0],
-      category: credit.category || CREDIT_CATEGORY_OPTIONS[0],
-      monto_credito: String(credit.monto_credito || ""),
-      leadId: String(credit.lead_id),
-      opportunityId: credit.opportunity_id ? String(credit.opportunity_id) : "",
-      assignedTo: credit.assigned_to || "",
-      openedAt: credit.opened_at ? credit.opened_at.split('T')[0] : "",
-      description: credit.description || "",
-      divisa: credit.divisa || "CRC",
-      plazo: credit.plazo ? String(credit.plazo) : "36",
-    });
-    setDialogCredit(credit);
-    setDialogState("edit");
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (values: CreditFormValues) => {
     setIsSaving(true);
     try {
       const body = {
-        reference: formValues.reference,
-        title: formValues.title,
-        status: formValues.status,
-        category: formValues.category,
-        monto_credito: parseFloat(formValues.monto_credito) || 0,
-        lead_id: parseInt(formValues.leadId),
-        opportunity_id: formValues.opportunityId || null,
-        assigned_to: formValues.assignedTo,
-        opened_at: formValues.openedAt,
-        description: formValues.description,
-        divisa: formValues.divisa,
-        plazo: parseInt(formValues.plazo) || 36,
+        reference: values.reference,
+        title: values.title,
+        status: values.status,
+        category: values.category,
+        monto_credito: values.monto_credito,
+        lead_id: parseInt(values.clientId),
+        opportunity_id: values.opportunityId || null,
+        assigned_to: values.assignedTo,
+        opened_at: values.openedAt,
+        description: values.description,
+        divisa: values.divisa,
+        plazo: values.plazo,
+        poliza: values.poliza,
       };
 
       if (dialogState === "create") {
@@ -545,41 +635,34 @@ export default function CreditsPage() {
     }
   };
 
-  const handleStatusUpdate = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!statusCredit) return;
-    setIsSaving(true);
-    try {
-      await api.put(`/api/credits/${statusCredit.id}`, {
-        status: statusForm.status
-      });
-      toast({ title: "Éxito", description: "Estado actualizado." });
-      setIsStatusOpen(false);
-      fetchCredits();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleExportCSV = (credit: CreditItem) => {
+    // Helper function to escape CSV values
+    const escapeCSV = (value: string | number | null | undefined): string => {
+      if (value === null || value === undefined) return "";
+      const str = String(value);
+      // If value contains comma, quote, or newline, wrap in quotes and escape existing quotes
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const headers = [
-      "Referencia", "Título", "Estado", "Categoría", "Lead", "Monto", "Saldo", "Cuota", "Divisa"
+      "Referencia", "Título", "Estado", "Categoría", "Cliente", "Monto", "Saldo", "Cuota", "Divisa"
     ];
     const row = [
-      credit.reference,
-      credit.title,
-      credit.status,
-      credit.category,
-      credit.client?.name || "",
-      credit.monto_credito,
-      credit.saldo,
-      credit.cuota,
-      credit.divisa
+      escapeCSV(credit.reference),
+      escapeCSV(credit.title),
+      escapeCSV(credit.status),
+      escapeCSV(credit.category),
+      escapeCSV(credit.client?.name || credit.lead?.name || ""),
+      escapeCSV(credit.monto_credito),
+      escapeCSV(credit.saldo),
+      escapeCSV(credit.cuota),
+      escapeCSV(credit.divisa)
     ];
 
-    const csvContent = "data:text/csv;charset=utf-8,"
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
       + headers.join(",") + "\n"
       + row.join(",");
 
@@ -590,6 +673,42 @@ export default function CreditsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleGenerateDocuments = async (credit: CreditItem) => {
+    try {
+      let fullCredit = credit;
+      try {
+        const res = await api.get(`/api/credits/${credit.id}`);
+        fullCredit = res.data;
+      } catch (error) {
+        console.error('Error fetching full credit for pagaré, using list data', error);
+      }
+
+      const doc = new jsPDF();
+      const today = new Date().toLocaleDateString('es-CR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const img = new Image();
+      img.src = '/logopepweb.png';
+      img.onload = () => {
+        doc.addImage(img, 'PNG', 15, 10, 40, 15);
+        generatePagareDocument(doc, fullCredit, today);
+      };
+      img.onerror = () => {
+        generatePagareDocument(doc, fullCredit, today);
+      };
+    } catch (error) {
+      console.error('Error generating pagaré PDF', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo generar el pagaré.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleExportPDF = async (credit: CreditItem) => {
@@ -687,7 +806,7 @@ export default function CreditsPage() {
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
       "0.00", // Morosidad
-      credit.primera_deduccion || "01/2022",
+      credit.primera_deduccion || "-", // PRI.DED (Primera Deducción)
       new Date().toISOString().split('T')[0], // Ult Mov
       credit.fecha_culminacion_credito || "2032-01-01",
       credit.status || "NORMAL"
@@ -716,10 +835,10 @@ export default function CreditsPage() {
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
+   
 
     // Plan de Pagos (Detailed Installments)
-    if (credit.payments && credit.payments.length > 0) {
+    if (credit.plan_de_pagos && credit.plan_de_pagos.length > 0) {
       finalY = finalY + 20;
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
@@ -727,9 +846,9 @@ export default function CreditsPage() {
       doc.text("Plan de Pagos", 14, finalY);
       doc.setTextColor(0, 0, 0);
 
-      const paymentRows = credit.payments.map(p => [
+      const paymentRows = credit.plan_de_pagos.map(p => [
         p.numero_cuota,
-        formatDate(p.fecha_cuota),
+        formatDate(p.fecha_corte),
         formatDate(p.fecha_pago),
         new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.cuota),
         new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.interes_corriente),
@@ -746,9 +865,144 @@ export default function CreditsPage() {
         styles: { fontSize: 7, cellPadding: 1 },
         headStyles: { fontStyle: 'bold', textColor: [0, 0, 0], fillColor: [220, 220, 220] },
       });
+    } else {
+      doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
     }
 
     doc.save(`estado_cuenta_${credit.lead_id}.pdf`);
+  };
+
+  const generatePagareDocument = (doc: jsPDF, credit: CreditItem, prettyDate: string) => {
+    // Configurar para UTF-8 support
+    doc.setLanguage("es");
+
+    const debtor = credit.client || credit.lead || null;
+    const nombre = (debtor?.name || '').toUpperCase();
+    const cedula = (debtor as any)?.cedula || '';
+    const estadoCivil = ((debtor as any)?.estado_civil || '').toUpperCase();
+    const profesion = (debtor?.ocupacion || '').toUpperCase();
+    const direccion = [
+      (debtor as any)?.direccion1,
+      (debtor as any)?.direccion2,
+    ].filter(Boolean).join(', ').toUpperCase();
+
+    let y = 35;
+
+    // Encabezado operación (esquina superior derecha)
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('OPERACIÓN N°', 160, 15);
+    doc.text(credit.numero_operacion || credit.reference || '', 188, 15);
+
+    // Título principal
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAGARE', 105, 25, { align: 'center' });
+
+    // Lugar y fecha
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`San José, Costa Rica, el día ${prettyDate.toUpperCase()}`, 20, y);
+    y += 8;
+
+    // Sección DEUDOR
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DEUDOR', 20, y);
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+
+    // Nombre
+    doc.text('Nombre y apellidos del deudor:', 30, y);
+    doc.text(nombre, 90, y);
+    y += 4;
+
+    // Cédula
+    doc.text('Número de cédula de identidad:', 30, y);
+    doc.text(cedula, 90, y);
+    y += 4;
+
+    // Estado civil
+    doc.text('Estado civil:', 30, y);
+    doc.text(estadoCivil, 90, y);
+    y += 4;
+
+    // Profesión
+    doc.text('Profesión/Oficio:', 30, y);
+    doc.text(profesion, 90, y);
+    y += 4;
+
+    // Dirección
+    doc.text('Dirección de domicilio:', 30, y);
+    if (direccion) {
+      const direccionLines = doc.splitTextToSize(direccion, 105);
+      doc.text(direccionLines, 90, y);
+      y += direccionLines.length * 3.5 + 2;
+    } else {
+      y += 4;
+    }
+    y += 5;
+
+    // Monto en números
+    const monto = Number(credit.monto_credito ?? 0);
+    const plazo = Number(credit.plazo ?? 0);
+    const tasaNumber = Number(credit.tasa_anual ?? 0);
+    const tasaMensual = (tasaNumber / 12).toFixed(2);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Monto en números:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    const divisaCode = credit.divisa || 'CRC';
+    doc.text(`${divisaCode}  ${formatAmount(monto)}`, 85, y);
+    y += 5;
+
+    // Monto en letras
+    doc.setFont('helvetica', 'bold');
+    doc.text('Monto en letras:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('____________________________________________ DE COLONES EXACTOS', 85, y);
+    y += 5;
+
+    // Tasas de interés
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tasa de interés corriente:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Tasa fija mensual del ${tasaMensual}%`, 85, y);
+    y += 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tasa de interés moratoria:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    const tasaMoratoria = ((tasaNumber / 12) * 1.3).toFixed(2);
+    doc.text(`Tasa mensual del ${tasaMoratoria}%`, 85, y);
+    y += 6;
+
+    // Forma de pago
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Forma de pago:', 30, y);
+    y += 4;
+
+    doc.setFont('helvetica', 'normal');
+    const formaPago = `Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables y meses". Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José, San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento determinado y en porcentajes señalados como "tasa de interés corriente" Los pagos incluyen el capital más intereses y pagaré con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden para representación de un compromiso incondicional de pago de sumas de dinero.`;
+    const formaPagoLines = doc.splitTextToSize(formaPago, 175);
+    doc.text(formaPagoLines, 30, y);
+    y += formaPagoLines.length * 3.5 + 5;
+
+    // Abonos extraordinarios
+    doc.setFont('helvetica', 'bold');
+    doc.text('SOBRE LOS ABONOS EXTRAORDINARIOS Y CANCELACIÓN ANTICIPADA:', 30, y);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    const abonosTexto = `Se indica y aclara al deudor de este pagaré, que, por los abonos extraordinarios y cancelación anticipada antes de los primeros doce meses naturales a partir del primer día siguiente a la firma de este crédito se penalizará con tres meses de intereses corrientes, (los cuales tendrá como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).`;
+    const abonosLines = doc.splitTextToSize(abonosTexto, 175);
+    doc.text(abonosLines, 30, y);
+
+    doc.save(`pagare_${credit.numero_operacion || credit.reference}.pdf`);
   };
 
   return (
@@ -758,80 +1012,83 @@ export default function CreditsPage() {
           <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
           <p className="text-muted-foreground">Gestiona los créditos y sus documentos.</p>
         </div>
-        <div className="flex gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <Filter className="mr-2 h-4 w-4" />
-                Filtros
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80">
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">Filtros</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Filtra los créditos por los siguientes criterios.
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-monto">Monto</Label>
-                    <Input
-                      id="filter-monto"
-                      className="col-span-2 h-8"
-                      value={filters.monto}
-                      onChange={(e) => setFilters({ ...filters, monto: e.target.value })}
-                      placeholder="Ej: 100000"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-op">No. Op.</Label>
-                    <Input
-                      id="filter-op"
-                      className="col-span-2 h-8"
-                      value={filters.numeroOperacion}
-                      onChange={(e) => setFilters({ ...filters, numeroOperacion: e.target.value })}
-                      placeholder="Ej: CRED-123"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-lead">Lead</Label>
-                    <Input
-                      id="filter-lead"
-                      className="col-span-2 h-8"
-                      value={filters.leadName}
-                      onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
-                      placeholder="Nombre del cliente"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="filter-doc">No. Doc.</Label>
-                    <Input
-                      id="filter-doc"
-                      className="col-span-2 h-8"
-                      value={filters.documentoId}
-                      onChange={(e) => setFilters({ ...filters, documentoId: e.target.value })}
-                      placeholder="ID Documento"
-                    />
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "" })}
-                    className="mt-2"
-                  >
-                    Limpiar Filtros
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-          <Button onClick={handleCreate}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Nuevo Crédito
-          </Button>
+        <Button onClick={handleCreate}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nuevo Crédito
+        </Button>
+      </div>
+
+      {/* Filtros visibles */}
+      <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-monto" className="text-sm whitespace-nowrap">Monto:</Label>
+          <Input
+            id="filter-monto"
+            className="w-[140px] h-9"
+            value={filters.monto}
+            onChange={(e) => setFilters({ ...filters, monto: e.target.value })}
+            placeholder="Ej: 100000"
+          />
         </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-op" className="text-sm whitespace-nowrap">No. Op.:</Label>
+          <Input
+            id="filter-op"
+            className="w-[140px] h-9"
+            value={filters.numeroOperacion}
+            onChange={(e) => setFilters({ ...filters, numeroOperacion: e.target.value })}
+            placeholder="Ej: CRED-123"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-client" className="text-sm whitespace-nowrap">Cliente:</Label>
+          <Input
+            id="filter-client"
+            className="w-[180px] h-9"
+            value={filters.leadName}
+            onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
+            placeholder="Nombre del cliente"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="filter-doc" className="text-sm whitespace-nowrap">No. Doc.:</Label>
+          <Input
+            id="filter-doc"
+            className="w-[140px] h-9"
+            value={filters.documentoId}
+            onChange={(e) => setFilters({ ...filters, documentoId: e.target.value })}
+            placeholder="ID Documento"
+          />
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <Label htmlFor="items-per-page" className="text-sm whitespace-nowrap">Mostrar:</Label>
+          <Select
+            value={String(itemsPerPage)}
+            onValueChange={(value) => {
+              setItemsPerPage(Number(value));
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger id="items-per-page" className="w-[80px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {(filters.monto || filters.numeroOperacion || filters.leadName || filters.documentoId) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "" })}
+          >
+            Limpiar Filtros
+          </Button>
+        )}
       </div>
 
       <Tabs value={tabValue} onValueChange={setTabValue}>
@@ -843,16 +1100,18 @@ export default function CreditsPage() {
           ))}
         </TabsList>
 
-        {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+        {CREDIT_STATUS_TAB_CONFIG.map((tab) => {
+          const paginationData = getPaginatedCredits(tab.value);
+          return (
           <TabsContent key={tab.value} value={tab.value}>
             <Card>
-              <CardContent>
-                <DraggableScrollContainer className="overflow-x-auto select-none">
-                  <Table className="min-w-max">
+              <CardContent className="p-0">
+                <DraggableScrollContainer className="overflow-x-auto select-none p-6">
+                  <Table className="min-w-[1800px]">
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="text-right sticky left-0 bg-background z-10">Acciones</TableHead>
                         <TableHead>Estado</TableHead>
-                        <TableHead>ID Documento</TableHead>
                         <TableHead>Nombre</TableHead>
                         <TableHead>No. Operación</TableHead>
                         <TableHead>Divisa</TableHead>
@@ -868,99 +1127,232 @@ export default function CreditsPage() {
                         <TableHead>Tasa</TableHead>
                         <TableHead>Cuotas Atrasadas</TableHead>
                         <TableHead>Deductora</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getCreditsForTab(tab.value).map((credit) => (
-                        <TableRow key={credit.id}>
-                          <TableCell><Badge variant="secondary">{credit.status}</Badge></TableCell>
-                          <TableCell>{credit.documento_id || "-"}</TableCell>
-                          <TableCell>{credit.client?.name || credit.lead?.name || "-"}</TableCell>
-                          <TableCell className="font-medium">
-                            <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
-                              {credit.numero_operacion || credit.reference || "-"}
-                            </Link>
-                          </TableCell>
-                          <TableCell>{credit.divisa || "CRC"}</TableCell>
-                          <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
-                          <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
-                          <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
-                          <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
-                          <TableCell>{credit.linea || "-"}</TableCell>
-                          <TableCell>{formatDate(credit.primera_deduccion)}</TableCell>
-                          <TableCell>{credit.garantia || "-"}</TableCell>
-                          <TableCell>{formatDate(credit.fecha_culminacion_credito)}</TableCell>
-                          <TableCell>{credit.proceso || "-"}</TableCell>
-                          <TableCell>{credit.cuotas_atrasadas || 0}</TableCell>
-                          <TableCell>{credit.deductora?.nombre || "-"}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                asChild
-                                title="Ver detalle"
-                                className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
-                              >
-                                <Link href={`/dashboard/creditos/${credit.id}`}>
-                                  <Eye className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                asChild
-                                title="Editar crédito"
-                                className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
-                              >
-                                <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
-                                  <Pencil className="h-4 w-4" />
-                                </Link>
-                              </Button>
+                      {paginationData.items.map((credit) => {
+                        // --- LÓGICA CALCULADA EN FRONTEND ---
+                        const pagosOrdenados = credit.plan_de_pagos?.length
+                          ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
+                          : [];
 
-                              {/* Export visible button with dropdown (CSV / PDF) */}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0">
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleExportCSV(credit)}>
-                                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                                    Exportar CSV
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleExportPDF(credit)}>
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    Exportar PDF
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
 
-                              {/* Remaining More menu (only Gestionar documentos) */}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                  <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
-                                    Gestionar documentos
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                        // 1. Primera Deducción: Tomar siempre la primera cuota del plan_de_pagos
+                        const fechaInicio = pagosOrdenados.length > 0 ? pagosOrdenados[0].fecha_corte : null;
+
+                        // 2. Vencimiento: De cabecera o la última cuota
+                        const fechaFin = credit.fecha_culminacion_credito;
+
+                        // 3. Tasa: De cabecera o del primer pago
+                        const tasa = credit.tasa_anual || (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null);
+
+                        // 4. Fallbacks para Línea y Proceso
+                        const linea = credit.linea || credit.category || "-";
+                        const proceso = credit.proceso || credit.status || "-";
+
+                        return (
+                          <TableRow key={credit.id}>
+                            <TableCell className="text-right sticky left-0 bg-background z-10">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  asChild
+                                  title="Ver detalle"
+                                  className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <Link href={`/dashboard/creditos/${credit.id}`}>
+                                    <Eye className="h-4 w-4" />
+                                  </Link>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  
+                                  asChild
+                                  title="Editar crédito"
+                                  className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                >
+                                  <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Link>
+                                </Button>
+
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0">
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleExportCSV(credit)}>
+                                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                      Exportar CSV
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExportPDF(credit)}>
+                                      <FileText className="mr-2 h-4 w-4" />
+                                      Exportar PDF
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                    {credit.status !== 'Formalizado' && (
+                                      <DropdownMenuItem
+                                        onClick={async () => {
+                                          try {
+                                            await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
+                                            toast({
+                                              title: 'Crédito formalizado',
+                                              description: 'El plan de pagos se ha generado correctamente.',
+                                            });
+                                            fetchCredits();
+                                          } catch (error) {
+                                            console.error('Error formalizando crédito:', error);
+                                            toast({
+                                              title: 'Error',
+                                              description: 'No se pudo formalizar el crédito.',
+                                              variant: 'destructive',
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        Formalizar crédito
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem
+                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                    >
+                                      Exportar pagaré
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
+                                      Gestionar documentos
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {(() => {
+                                const badgeStyle = getStatusBadgeStyle(credit.status);
+                                return (
+                                  <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
+                                    {credit.status}
+                                  </Badge>
+                                );
+                              })()}
+                            </TableCell>
+                            <TableCell>{credit.client?.name || credit.lead?.name}</TableCell>
+                            <TableCell className="font-medium">
+                              <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                                {credit.numero_operacion || credit.reference || "-"}
+                              </Link>
+                            </TableCell>
+                            <TableCell>{credit.divisa || "CRC"}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
+                            <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
+                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
+
+                            {/* Columnas Calculadas / Fallbacks */}
+                            <TableCell>{linea}</TableCell>
+                            <TableCell>{formatDate(fechaInicio)}</TableCell>
+                            <TableCell>{credit.garantia || "-"}</TableCell>
+                            <TableCell>{formatDate(fechaFin)}</TableCell>
+                            <TableCell>{proceso}</TableCell>
+                            <TableCell>{tasa ? `${tasa}%` : "-"}</TableCell>
+
+                            <TableCell>{credit.cuotas_atrasadas || 0}</TableCell>
+                            <TableCell>
+                              {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "-"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </DraggableScrollContainer>
+
+                {/* Pagination Controls */}
+                {paginationData.totalPages > 0 && (
+                  <div className="flex items-center justify-between px-6 py-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {paginationData.startIndex} a {paginationData.endIndex} de {paginationData.totalItems} registros
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        Primera
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+
+                      {/* Page numbers */}
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, paginationData.totalPages) }, (_, i) => {
+                          let pageNum: number;
+                          if (paginationData.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= paginationData.totalPages - 2) {
+                            pageNum = paginationData.totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="w-9"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, paginationData.totalPages))}
+                        disabled={currentPage === paginationData.totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(paginationData.totalPages)}
+                        disabled={currentPage === paginationData.totalPages}
+                      >
+                        Última
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
-        ))}
+        );
+        })}
       </Tabs>
 
       {/* Create/Edit Dialog */}
@@ -970,224 +1362,352 @@ export default function CreditsPage() {
             <DialogTitle>{dialogState === 'create' ? 'Nuevo Crédito' : 'Editar Crédito'}</DialogTitle>
             <DialogDescription>Completa la información del crédito.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="reference">Referencia</Label>
-                <Input
-                  id="reference"
-                  placeholder="Ej: CRED-ABC12345"
-                  value={formValues.reference}
-                  onChange={e => setFormValues({ ...formValues, reference: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="title">Título</Label>
-                <Input
-                  id="title"
-                  placeholder="Crédito Hipotecario..."
-                  value={formValues.title}
-                  onChange={e => setFormValues({ ...formValues, title: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Estado</Label>
-                <Select value={formValues.status} onValueChange={v => setFormValues({ ...formValues, status: v })}>
-                  <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
-                  <SelectContent>
-                    {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Categoría</Label>
-                <Select value={formValues.category} onValueChange={v => setFormValues({ ...formValues, category: v })}>
-                  <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
-                  <SelectContent>
-                    {CREDIT_CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="divisa">Divisa</Label>
-                <Select value={formValues.divisa} onValueChange={v => setFormValues({ ...formValues, divisa: v })}>
-                  <SelectTrigger id="divisa"><SelectValue placeholder="Selecciona la divisa" /></SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="monto">Monto</Label>
-                <Input
-                  id="monto"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={formValues.monto_credito}
-                  onChange={e => setFormValues({ ...formValues, monto_credito: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="plazo">Plazo (Meses)</Label>
-                <Select value={formValues.plazo} onValueChange={v => setFormValues({ ...formValues, plazo: v })}>
-                  <SelectTrigger id="plazo"><SelectValue placeholder="Selecciona el plazo" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="36">36 meses</SelectItem>
-                    <SelectItem value="60">60 meses</SelectItem>
-                    <SelectItem value="120">120 meses</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 flex flex-col">
-                <Label htmlFor="lead">Lead</Label>
-                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openCombobox}
-                      className="justify-between font-normal w-full"
-                    >
-                      {formValues.leadId
-                        ? leads.find((lead) => String(lead.id) === formValues.leadId)?.name
-                        : "Selecciona un lead..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="p-0 w-[400px]" align="start">
-                    <div className="p-2 border-b">
-                      <Input
-                        placeholder="Buscar por nombre o cédula..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <ScrollArea className="h-[60vh] pr-4">
+                <div className="space-y-6 p-1">
+                  {/* 1. Datos Generales */}
+                  <div>
+                    <h3 className="text-lg font-medium">Datos Generales</h3>
+                    <Separator className="my-2" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Título</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Crédito Hipotecario..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="reference"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Referencia</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Se genera automáticamente" {...field} disabled />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="clientId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cliente</FormLabel>
+                            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={openCombobox}
+                                    className="justify-between font-normal w-full h-10"
+                                  >
+                                    {field.value
+                                      ? clients.find((client) => String(client.id) === field.value)?.name
+                                      : "Selecciona un cliente..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="p-0 w-[400px]" align="start">
+                                <div className="p-2 border-b">
+                                  <Input
+                                    placeholder="Buscar por nombre o cédula..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div className="max-h-[200px] overflow-y-auto p-1">
+                                  {filteredClients.length === 0 ? (
+                                    <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron clientes.</div>
+                                  ) : (
+                                    filteredClients.map((client) => (
+                                      <div
+                                        key={client.id}
+                                        className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(client.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
+                                        onClick={() => {
+                                          form.setValue("clientId", String(client.id));
+                                          setOpenCombobox(false);
+                                        }}
+                                      >
+                                        <Check
+                                          className={`mr-2 h-4 w-4 ${String(client.id) === field.value ? "opacity-100" : "opacity-0"
+                                            }`}
+                                        />
+                                        <div className="flex flex-col">
+                                          <span>{client.name}</span>
+                                          {client.cedula && <span className="text-xs text-muted-foreground">{client.cedula}</span>}
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="assignedTo"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Responsable</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona un responsable" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {users.map(user => (
+                                  <SelectItem key={user.id} value={user.name}>{user.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="opportunityId"
+                        render={({ field }) => (
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel>Oportunidad (Opcional)</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona una oportunidad" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {availableOpportunities.map(o => (
+                                  <SelectItem key={o.id} value={String(o.id)}>{o.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
                     </div>
-                    <div className="max-h-[200px] overflow-y-auto p-1">
-                      {filteredLeads.length === 0 ? (
-                        <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron leads.</div>
-                      ) : (
-                        filteredLeads.map((lead) => (
-                          <div
-                            key={lead.id}
-                            className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(lead.id) === formValues.leadId ? "bg-accent text-accent-foreground" : ""}`}
-                            onClick={() => {
-                              setFormValues({ ...formValues, leadId: String(lead.id) });
-                              setOpenCombobox(false);
-                            }}
-                          >
-                            <Check
-                              className={`mr-2 h-4 w-4 ${String(lead.id) === formValues.leadId ? "opacity-100" : "opacity-0"
-                                }`}
-                            />
-                            <div className="flex flex-col">
-                              <span>{lead.name}</span>
-                              {lead.cedula && <span className="text-xs text-muted-foreground">{lead.cedula}</span>}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="opportunity">Oportunidad (Opcional)</Label>
-                <Select value={formValues.opportunityId} onValueChange={v => setFormValues({ ...formValues, opportunityId: v })}>
-                  <SelectTrigger id="opportunity"><SelectValue placeholder="Selecciona una oportunidad" /></SelectTrigger>
-                  <SelectContent>
-                    {availableOpportunities.map(o => (
-                      <SelectItem key={o.id} value={String(o.id)}>{o.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="assignedTo">Responsable</Label>
-                <Select value={formValues.assignedTo} onValueChange={v => setFormValues({ ...formValues, assignedTo: v })}>
-                  <SelectTrigger id="assignedTo">
-                    <SelectValue placeholder="Selecciona un responsable" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map(user => (
-                      <SelectItem key={user.id} value={user.name}>{user.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="openedAt">Fecha Apertura</Label>
-                <Input
-                  id="openedAt"
-                  type="date"
-                  value={formValues.openedAt}
-                  onChange={e => setFormValues({ ...formValues, openedAt: e.target.value })}
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-2">
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea
-                  id="description"
-                  className="min-h-[120px]"
-                  placeholder="Describe el contexto del crédito..."
-                  value={formValues.description}
-                  onChange={e => setFormValues({ ...formValues, description: e.target.value })}
-                />
-              </div>
-            </div>
+                  </div>
 
-            {currentLead ? (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Información del lead</CardTitle>
-                  <CardDescription>Resumen del lead relacionado con este crédito.</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <span className="font-medium">Nombre:</span> {currentLead.name}
-                    </div>
-                    <div>
-                      <span className="font-medium">Correo:</span> {currentLead.email ?? "-"}
+                  {/* 2. Condiciones Financieras */}
+                  <div>
+                    <h3 className="text-lg font-medium">Condiciones Financieras</h3>
+                    <Separator className="my-2" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="monto_credito"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Monto Solicitado</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="text"
+                                placeholder="₡0.00"
+                                value={field.value ? formatCurrency(field.value) : ''}
+                                onChange={(e) => {
+                                  const numericValue = parseCurrencyToNumber(e.target.value);
+                                  field.onChange(numericValue);
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="plazo"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Plazo (Meses)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="1"
+                                max="120"
+                                placeholder="1 - 120"
+                                value={field.value}
+                                onChange={(e) => {
+                                  const valor = parseInt(e.target.value);
+                                  if (e.target.value === '') {
+                                    field.onChange(0);
+                                  } else if (!isNaN(valor) && valor >= 1 && valor <= 120) {
+                                    field.onChange(valor);
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="divisa"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Divisa</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona la divisa" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {CURRENCY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="openedAt"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fecha Apertura</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ) : null}
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogState(null)}>Cancelar</Button>
-              <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                  {/* 3. Configuración Adicional */}
+                  <div>
+                    <h3 className="text-lg font-medium">Configuración Adicional</h3>
+                    <Separator className="my-2" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="category"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Categoría</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona la categoría" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {products.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="poliza"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>¿Tiene póliza?</FormLabel>
+                            <FormControl>
+                              <div className="flex items-center space-x-2 h-10 px-3 border rounded-md">
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  {field.value ? "Sí posee póliza" : "No posee póliza"}
+                                </span>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel>Estado Inicial</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona el estado" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel>Descripción</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                className="min-h-[120px]"
+                                placeholder="Describe el contexto del crédito..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
 
-      {/* Status Dialog */}
-      <Dialog open={isStatusOpen} onOpenChange={setIsStatusOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Actualizar Estado</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleStatusUpdate} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Estado</Label>
-              <Select value={statusForm.status} onValueChange={v => setStatusForm({ ...statusForm, status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsStatusOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={isSaving}>Actualizar</Button>
-            </DialogFooter>
-          </form>
+                  {currentClient ? (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Información del cliente</CardTitle>
+                        <CardDescription>Resumen del cliente relacionado con este crédito.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="text-sm">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <span className="font-medium">Nombre:</span> {currentClient.name}
+                          </div>
+                          <div>
+                            <span className="font-medium">Correo:</span> {currentClient.email ?? "-"}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+                </div>
+              </ScrollArea>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialogState(null)}>Cancelar</Button>
+                <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
@@ -1197,51 +1717,68 @@ export default function CreditsPage() {
         credit={documentsCredit}
         onClose={() => setIsDocumentsOpen(false)}
         canDownloadDocuments={canDownloadDocuments}
+        deductoras={deductoras}
       />
-
-      {/* Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Detalle del Crédito</DialogTitle>
-          </DialogHeader>
-          {detailCredit && (
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label className="text-muted-foreground">Referencia</Label><p>{detailCredit.reference}</p></div>
-              <div><Label className="text-muted-foreground">Título</Label><p>{detailCredit.title}</p></div>
-              <div><Label className="text-muted-foreground">Estado</Label><p>{detailCredit.status}</p></div>
-              <div><Label className="text-muted-foreground">Categoría</Label><p>{detailCredit.category}</p></div>
-              <div><Label className="text-muted-foreground">Lead</Label><p>{detailCredit.client?.name}</p></div>
-              <div><Label className="text-muted-foreground">Responsable</Label><p>{detailCredit.assigned_to}</p></div>
-              <div className="col-span-2"><Label className="text-muted-foreground">Descripción</Label><p>{detailCredit.description}</p></div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
-function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }: any) {
+interface CreditDocumentsDialogProps {
+  isOpen: boolean;
+  credit: CreditItem | null;
+  onClose: () => void;
+  canDownloadDocuments: boolean;
+  deductoras: DeductoraOption[];
+}
+
+function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }: CreditDocumentsDialogProps) {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<CreditDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Create state
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
+  // Edit state
+  const [editingDoc, setEditingDoc] = useState<CreditDocument | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Delete state
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fetchDocuments = useCallback(async () => {
     if (!credit) return;
+    setIsLoading(true);
     try {
       const res = await api.get(`/api/credits/${credit.id}/documents`);
       setDocuments(res.data);
-    } catch (e) { console.error(e); }
-  }, [credit]);
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Error", description: "No se pudieron cargar los documentos.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [credit, toast]);
 
   useEffect(() => {
-    if (isOpen) fetchDocuments();
+    if (isOpen) {
+      fetchDocuments();
+      // Reset form state
+      setFile(null);
+      setName("");
+      setNotes("");
+      setEditingDoc(null);
+      setDeletingDocId(null);
+    }
   }, [isOpen, fetchDocuments]);
 
+  // CREATE - Upload new document
   const handleUpload = async (e: FormEvent) => {
     e.preventDefault();
     if (!credit || !file) return;
@@ -1249,142 +1786,371 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("name", name);
+      formData.append("name", name || file.name);
       formData.append("notes", notes);
 
       await api.post(`/api/credits/${credit.id}/documents`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      toast({ title: "Documento subido" });
-      setName(""); setNotes(""); setFile(null);
+      toast({ title: "Documento subido", description: "El documento se ha subido correctamente." });
+      setName("");
+      setNotes("");
+      setFile(null);
+      // Reset file input
+      const fileInput = document.getElementById('doc-file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
       fetchDocuments();
-    } catch (e) {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.response?.data?.message || "No se pudo subir el documento.", variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleDelete = async (docId: number) => {
-    if (!credit) return;
+  // READ - Download document
+  const handleDownload = async (doc: CreditDocument) => {
+    if (!credit || !canDownloadDocuments) return;
     try {
-      await api.delete(`/api/credits/${credit.id}/documents/${docId}`);
+      const response = await api.get(`/api/credits/${credit.id}/documents/${doc.id}/download`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', doc.name || `documento-${doc.id}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast({ title: "Error", description: "No se pudo descargar el documento.", variant: "destructive" });
+    }
+  };
+
+  // UPDATE - Edit document
+  const handleStartEdit = (doc: CreditDocument) => {
+    setEditingDoc(doc);
+    setEditName(doc.name);
+    setEditNotes(doc.notes || "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDoc(null);
+    setEditName("");
+    setEditNotes("");
+  };
+
+  const handleUpdate = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!credit || !editingDoc) return;
+    setIsUpdating(true);
+    try {
+      await api.put(`/api/credits/${credit.id}/documents/${editingDoc.id}`, {
+        name: editName,
+        notes: editNotes
+      });
+
+      toast({ title: "Documento actualizado", description: "Los cambios se han guardado correctamente." });
+      handleCancelEdit();
       fetchDocuments();
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.response?.data?.message || "No se pudo actualizar el documento.", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // DELETE - Remove document
+  const handleConfirmDelete = async () => {
+    if (!credit || !deletingDocId) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/api/credits/${credit.id}/documents/${deletingDocId}`);
+      toast({ title: "Documento eliminado", description: "El documento se ha eliminado correctamente." });
+      setDeletingDocId(null);
+      fetchDocuments();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.response?.data?.message || "No se pudo eliminar el documento.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const formatFileSize = (bytes?: number | null) => {
+    if (!bytes) return "-";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>Documentos</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <form onSubmit={handleUpload} className="space-y-4 border p-4 rounded">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Nombre</Label>
-                <Input value={name} onChange={e => setName(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Archivo</Label>
-                <Input type="file" onChange={e => setFile(e.target.files?.[0] || null)} required />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label>Notas</Label>
-                <Input value={notes} onChange={e => setNotes(e.target.value)} />
-              </div>
-            </div>
-            <Button type="submit" disabled={isUploading}>{isUploading ? "Subiendo..." : "Subir Documento"}</Button>
-          </form>
+    <>
+      <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Gestionar Documentos</DialogTitle>
+            <DialogDescription>
+              {credit ? `Documentos del crédito ${credit.reference || credit.numero_operacion || credit.id}` : "Documentos del crédito"}
+            </DialogDescription>
+          </DialogHeader>
 
-          <Table>
-            <TableHeader>
-              <TableRow><TableHead>Nombre</TableHead><TableHead>Notas</TableHead><TableHead>Acciones</TableHead></TableRow>
-            </TableHeader>
-            <TableBody>
-              {documents.map(doc => (
-                <TableRow key={doc.id}>
-                  <TableCell>
-                    {doc.url ? <a href={doc.url} target="_blank" className="text-primary hover:underline">{doc.name}</a> : doc.name}
-                  </TableCell>
-                  <TableCell>{doc.notes}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} className="text-destructive">Eliminar</Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </DialogContent>
-    </Dialog>
+          <div className="flex-1 overflow-y-auto space-y-6">
+            {/* Upload Form */}
+            <form onSubmit={handleUpload} className="space-y-4 border p-4 rounded-lg bg-muted/30">
+              <h4 className="font-medium text-sm">Subir nuevo documento</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="doc-name">Nombre del documento</Label>
+                  <Input
+                    id="doc-name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Ej: Contrato firmado"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="doc-file-input">Archivo</Label>
+                  <Input
+                    id="doc-file-input"
+                    type="file"
+                    onChange={e => setFile(e.target.files?.[0] || null)}
+                    required
+                  />
+                </div>
+                <div className="sm:col-span-2 space-y-2">
+                  <Label htmlFor="doc-notes">Notas (opcional)</Label>
+                  <Input
+                    id="doc-notes"
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Observaciones sobre el documento..."
+                  />
+                </div>
+              </div>
+              <Button type="submit" disabled={isUploading || !file} size="sm">
+                {isUploading ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Subiendo...
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Subir Documento
+                  </>
+                )}
+              </Button>
+            </form>
+
+            {/* Documents List */}
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Documentos ({documents.length})</h4>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : documents.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay documentos adjuntos a este crédito.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Notas</TableHead>
+                      <TableHead>Tamaño</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.map(doc => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            {doc.name}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                          {doc.notes || "-"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatFileSize(doc.size)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatDate(doc.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {canDownloadDocuments && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDownload(doc)}
+                                title="Descargar"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleStartEdit(doc)}
+                              title="Editar"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingDocId(doc.id)}
+                              className="text-destructive hover:text-destructive"
+                              title="Eliminar"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                              </svg>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingDoc} onOpenChange={open => !open && handleCancelEdit()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Documento</DialogTitle>
+            <DialogDescription>Modifica los datos del documento.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Nombre</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notas</Label>
+              <Textarea
+                id="edit-notes"
+                value={editNotes}
+                onChange={e => setEditNotes(e.target.value)}
+                placeholder="Observaciones sobre el documento..."
+                rows={3}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCancelEdit}>Cancelar</Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deletingDocId} onOpenChange={open => !open && setDeletingDocId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar Documento</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingDocId(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+              {isDeleting ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 function DraggableScrollContainer({ children, className }: { children: React.ReactNode, className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isGrabbing, setIsGrabbing] = useState(false);
+  const dragState = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
 
-  useLayoutEffect(() => {
-    const slider = ref.current;
-    if (!slider) return;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    let isDown = false;
-    let startX = 0;
-    let scrollLeft = 0;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, input, select, textarea, [role="button"], [role="menuitem"], svg')) {
+        return;
+      }
 
-    const onMouseDown = (e: MouseEvent) => {
-      isDown = true;
-      slider.classList.add("active");
-      slider.style.cursor = "grabbing";
-      startX = e.pageX - slider.offsetLeft;
-      scrollLeft = slider.scrollLeft;
+      dragState.current = {
+        isDown: true,
+        startX: e.clientX,
+        scrollLeft: container.scrollLeft,
+      };
+      setIsGrabbing(true);
+      container.setPointerCapture(e.pointerId);
     };
 
-    const onMouseLeave = () => {
-      isDown = false;
-      slider.classList.remove("active");
-      slider.style.cursor = "grab";
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!dragState.current.isDown) return;
+
+      const deltaX = e.clientX - dragState.current.startX;
+      container.scrollLeft = dragState.current.scrollLeft - deltaX;
     };
 
-    const onMouseUp = () => {
-      isDown = false;
-      slider.classList.remove("active");
-      slider.style.cursor = "grab";
+    const handlePointerUp = (e: PointerEvent) => {
+      if (dragState.current.isDown) {
+        dragState.current.isDown = false;
+        setIsGrabbing(false);
+        container.releasePointerCapture(e.pointerId);
+      }
     };
 
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDown) return;
-      e.preventDefault();
-      const x = e.pageX - slider.offsetLeft;
-      const walk = (x - startX) * 2; // Scroll-fast
-      slider.scrollLeft = scrollLeft - walk;
-    };
-
-    // Add listeners to window for mouseup/leave to handle dragging outside the container
-    slider.addEventListener("mousedown", onMouseDown);
-    slider.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    
-    // We still keep mouseleave on slider or window? 
-    // If we drag outside, we want to keep dragging usually, but let's stick to the requested logic first.
-    // The requested logic had mouseleave on slider.
-    slider.addEventListener("mouseleave", onMouseLeave);
-    slider.addEventListener("mouseup", onMouseUp);
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('pointercancel', handlePointerUp);
 
     return () => {
-      slider.removeEventListener("mousedown", onMouseDown);
-      slider.removeEventListener("mousemove", onMouseMove);
-      slider.removeEventListener("mouseleave", onMouseLeave);
-      slider.removeEventListener("mouseup", onMouseUp);
-      window.removeEventListener("mouseup", onMouseUp);
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('pointercancel', handlePointerUp);
     };
   }, []);
 
   return (
     <div
-      ref={ref}
+      ref={containerRef}
       className={className}
-      style={{ scrollbarWidth: 'thin', cursor: 'grab' }}
+      style={{
+        cursor: isGrabbing ? 'grabbing' : 'grab',
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        touchAction: 'pan-y',
+      }}
     >
       {children}
     </div>

@@ -213,7 +213,7 @@ function JudicialCaseDetailClient({ judicialCase }: { judicialCase: Credit | und
               <div className="grid gap-1">
                 <h3 className="font-medium">Saldo en Mora</h3>
                 <p className="font-semibold text-primary">
-                  ₡{judicialCase.balance.toLocaleString('de-DE')}
+                  ₡{(judicialCase.balance ?? 0).toLocaleString('de-DE')}
                 </p>
               </div>
                <div className="grid gap-1">
@@ -314,10 +314,10 @@ function JudicialCaseDetailClient({ judicialCase }: { judicialCase: Credit | und
                   value="comunicaciones"
                   className="flex-1 overflow-y-auto"
                 >
-                  <CaseChat conversationId={judicialCase.operationNumber} />
+                  <CaseChat conversationId={judicialCase.operationNumber ?? ''} />
                 </TabsContent>
                 <TabsContent value="tareas" className="flex-1 overflow-y-auto">
-                  <JudicialCaseTasks caseId={judicialCase.operationNumber} />
+                  <JudicialCaseTasks caseId={judicialCase.operationNumber ?? ''} />
                 </TabsContent>
               </Tabs>
             </Card>

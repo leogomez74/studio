@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\LeadStatus;
+use App\Models\Opportunity;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LeadController extends Controller
 {
@@ -15,7 +18,15 @@ class LeadController extends Controller
         $activeFilter = $this->resolveActiveFilter($request);
 
         $query = Lead::query()
-            ->with(['assignedAgent', 'leadStatus']);
+            ->select([
+                'id', 'name', 'apellido1', 'apellido2', 'cedula',
+                'email', 'phone', 'lead_status_id', 'is_active',
+                'assigned_to_id', 'deductora_id', 'created_at', 'updated_at'
+            ])
+            ->with([
+                'assignedAgent:id,name',
+                'leadStatus:id,name,slug'
+            ]);
 
         // Filter by Active Status
         if ($activeFilter !== null) {
@@ -54,11 +65,19 @@ class LeadController extends Controller
         // Search by Name, Cedula, Email, Phone
         if ($request->has('q') && !empty($request->input('q'))) {
             $search = $request->input('q');
-            $query->where(function ($q) use ($search) {
+            // Strip non-numeric characters for cedula search
+            $strippedSearch = preg_replace('/[^0-9]/', '', $search);
+
+            $query->where(function ($q) use ($search, $strippedSearch) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('cedula', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
+
+                // Also search stripped cedula if it differs from original
+                if (!empty($strippedSearch) && $strippedSearch !== $search) {
+                    $q->orWhereRaw("REPLACE(REPLACE(cedula, '-', ''), ' ', '') LIKE ?", ["%{$strippedSearch}%"]);
+                }
             });
         }
 
@@ -70,7 +89,8 @@ class LeadController extends Controller
             $query->whereDate('created_at', '<=', $request->input('date_to'));
         }
 
-        $leads = $query->latest()->paginate(20);
+        $perPage = min((int) $request->input('per_page', 10), 100);
+        $leads = $query->latest()->paginate($perPage);
 
         return response()->json($leads);
     }
@@ -78,12 +98,12 @@ class LeadController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
             'apellido1' => 'nullable|string|max:255',
             'apellido2' => 'nullable|string|max:255',
-            'cedula' => 'nullable|string|max:20|unique:persons,cedula',
+            'cedula' => 'required|string|max:20|unique:persons,cedula',
             'email' => 'required|email|max:255|unique:persons,email',
-            'phone' => 'nullable|string|max:20',
+            'phone' => 'required|string|max:20',
             'status' => 'nullable|string|max:100',
             'lead_status_id' => 'nullable|integer|exists:lead_statuses,id',
             'assigned_to_id' => 'nullable|exists:users,id',
@@ -110,7 +130,7 @@ class LeadController extends Controller
             'telefono3' => 'nullable|string|max:50',
             'institucion_labora' => 'nullable|string|max:255',
             'departamento_cargo' => 'nullable|string|max:255',
-            'deductora_id' => 'nullable|exists:deductoras,id',
+            'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
             'nivel_academico' => 'nullable|string|max:255',
             'profesion' => 'nullable|string|max:255',
             'sector' => 'nullable|string|max:255',
@@ -124,17 +144,60 @@ class LeadController extends Controller
             'actividad_economica' => 'nullable|string|max:255',
             'tipo_sociedad' => 'nullable|string|max:255',
             'nombramientos' => 'nullable|string',
+            // Campos opcionales para oportunidad (si se proporcionan)
+            'monto' => 'nullable|numeric|min:0',
+            'vertical' => 'nullable|string|max:255',
+            'opportunity_type' => 'nullable|string|max:255',
+            'create_opportunity' => 'nullable|boolean',
         ]);
 
+        // Extraer datos de oportunidad antes de crear el lead
+        $monto = $validated['monto'] ?? null;
+        $vertical = $validated['vertical'] ?? null;
+        $opportunityType = $validated['opportunity_type'] ?? null;
+        $createOpportunity = $validated['create_opportunity'] ?? true; // Por defecto crear oportunidad
+        unset($validated['monto'], $validated['vertical'], $validated['opportunity_type'], $validated['create_opportunity']);
+
         $leadStatus = $this->resolveStatus($validated['lead_status_id'] ?? null);
-        $validated['lead_status_id'] = $leadStatus?->value;
+        $validated['lead_status_id'] = $leadStatus?->id;
         $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? 'Activo';
         $validated['is_active'] = $validated['is_active'] ?? true;
 
-        $lead = Lead::create($validated);
-        $lead->load(['assignedAgent', 'leadStatus']);
+        // Usar transacción para asegurar consistencia
+        $result = DB::transaction(function () use ($validated, $monto, $vertical, $opportunityType, $createOpportunity) {
+            $lead = Lead::create($validated);
+            $opportunity = null;
 
-        return response()->json($lead, 201);
+            // Crear oportunidad automáticamente si tiene cédula y no se desactivó explícitamente
+            if ($createOpportunity && !empty($validated['cedula'])) {
+                $opportunity = Opportunity::create([
+                    'lead_cedula' => $validated['cedula'],
+                    'amount' => $monto, // Puede ser null
+                    'status' => 'Pendiente',
+                    'vertical' => $vertical ?? 'General',
+                    'opportunity_type' => $opportunityType ?? 'Estándar',
+                    'assigned_to_id' => $validated['assigned_to_id'] ?? null,
+                ]);
+
+                Log::info('Oportunidad creada automáticamente con lead', [
+                    'lead_id' => $lead->id,
+                    'opportunity_id' => $opportunity->id,
+                    'monto' => $monto
+                ]);
+            }
+
+            return [
+                'lead' => $lead,
+                'opportunity' => $opportunity
+            ];
+        });
+
+        $result['lead']->load(['assignedAgent', 'leadStatus']);
+
+        return response()->json([
+            'lead' => $result['lead'],
+            'opportunity' => $result['opportunity'],
+        ], 201);
     }
 
     public function show($id)
@@ -180,7 +243,7 @@ class LeadController extends Controller
             'telefono3' => 'sometimes|nullable|string|max:50',
             'institucion_labora' => 'sometimes|nullable|string|max:255',
             'departamento_cargo' => 'sometimes|nullable|string|max:255',
-            'deductora_id' => 'sometimes|nullable|exists:deductoras,id',
+            'deductora_id' => ['sometimes', 'nullable', 'integer', 'in:1,2,3'],
             'nivel_academico' => 'sometimes|nullable|string|max:255',
             'profesion' => 'sometimes|nullable|string|max:255',
             'sector' => 'sometimes|nullable|string|max:255',

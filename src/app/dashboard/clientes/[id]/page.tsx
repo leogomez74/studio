@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { CaseChat } from "@/components/case-chat";
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
@@ -46,6 +47,16 @@ export default function ClientDetailPage() {
   const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
   const [deductoras, setDeductoras] = useState<{id: string, nombre: string}[]>([]);
   const [leads, setLeads] = useState<{id: number, name: string}[]>([]);
+
+  // Credits and Payments state
+  const [credits, setCredits] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loadingCredits, setLoadingCredits] = useState(false);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+
+  // Refresh key to trigger data re-fetch without full page reload
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshData = React.useCallback(() => setRefreshKey(k => k + 1), []);
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -89,13 +100,45 @@ export default function ClientDetailPage() {
         }
     };
 
+    const fetchCredits = async () => {
+        setLoadingCredits(true);
+        try {
+            const response = await api.get(`/api/credits?lead_id=${id}`);
+            setCredits(response.data || []);
+        } catch (error) {
+            console.error("Error fetching credits:", error);
+            setCredits([]);
+        } finally {
+            setLoadingCredits(false);
+        }
+    };
+
+    const fetchPayments = async () => {
+        setLoadingPayments(true);
+        try {
+            // Use server-side filtering by passing client_id parameter
+            const response = await api.get('/api/credit-payments', {
+                params: { client_id: id }
+            });
+            const paymentsData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+            setPayments(paymentsData);
+        } catch (error) {
+            console.error("Error fetching payments:", error);
+            setPayments([]);
+        } finally {
+            setLoadingPayments(false);
+        }
+    };
+
     if (id) {
       fetchClient();
       fetchAgents();
       fetchDeductoras();
       fetchLeads();
+      fetchCredits();
+      fetchPayments();
     }
-  }, [id, toast]);
+  }, [id, toast, refreshKey]);
 
   const leadName = React.useMemo(() => {
       if (!client || leads.length === 0) return null;
@@ -192,6 +235,25 @@ export default function ClientDetailPage() {
     }
   };
 
+  const handleArchive = async () => {
+    if (!client) return;
+    if (!confirm(`¿Archivar a ${client.name}?`)) return;
+    try {
+      await api.patch(`/api/clients/${id}/toggle-active`);
+      toast({ title: "Archivado", description: "Cliente archivado correctamente." });
+      router.push('/dashboard/clientes');
+    } catch (error) {
+      console.error("Error archiving client:", error);
+      toast({ title: "Error", description: "No se pudo archivar el cliente.", variant: "destructive" });
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState("datos");
+
+  const handleViewExpediente = () => {
+    setActiveTab("archivos");
+  };
+
   if (loading) {
     return <div className="flex h-full items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -246,9 +308,23 @@ export default function ClientDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className={isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'}>
-          <Tabs defaultValue="datos" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="datos">Datos</TabsTrigger>
+              <TabsTrigger value="creditos" className="flex items-center gap-1">
+                <CreditCard className="h-3.5 w-3.5" />
+                Créditos
+                {credits.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{credits.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="pagos" className="flex items-center gap-1">
+                <Banknote className="h-3.5 w-3.5" />
+                Pagos
+                {payments.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{payments.length}</Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="archivos">Archivos</TabsTrigger>
             </TabsList>
             
@@ -303,7 +379,11 @@ export default function ClientDetailPage() {
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button size="icon" className="h-9 w-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 border-0">
+                                        <Button
+                                            size="icon"
+                                            className="h-9 w-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 border-0"
+                                            onClick={handleViewExpediente}
+                                        >
                                             <FileText className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
@@ -314,7 +394,11 @@ export default function ClientDetailPage() {
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button size="icon" className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0">
+                                        <Button
+                                            size="icon"
+                                            className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0"
+                                            onClick={handleArchive}
+                                        >
                                             <Archive className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
@@ -889,6 +973,262 @@ export default function ClientDetailPage() {
       </Card>
             </TabsContent>
 
+            {/* Credits Tab */}
+            <TabsContent value="creditos">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <CreditCard className="h-5 w-5" />
+                        Historial de Créditos
+                      </CardTitle>
+                      <CardDescription>Todos los créditos asociados a este cliente</CardDescription>
+                    </div>
+                    <Link href="/dashboard/creditos">
+                      <Button variant="outline" size="sm">
+                        <Plus className="h-4 w-4 mr-1" />
+                        Nuevo Crédito
+                      </Button>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingCredits ? (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : credits.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                      <p>No hay créditos registrados para este cliente.</p>
+                      <Link href="/dashboard/creditos">
+                        <Button variant="outline" size="sm" className="mt-4">
+                          Crear primer crédito
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Summary Cards */}
+                      <div className="grid gap-4 md:grid-cols-4">
+                        <Card className="bg-blue-50 border-blue-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-blue-600 font-medium">Total Créditos</div>
+                            <div className="text-2xl font-bold text-blue-700">{credits.length}</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-green-50 border-green-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-green-600 font-medium">Monto Total</div>
+                            <div className="text-2xl font-bold text-green-700">
+                              {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(
+                                credits.reduce((sum, c) => sum + (c.monto_credito || 0), 0)
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-amber-50 border-amber-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-amber-600 font-medium">Activos</div>
+                            <div className="text-2xl font-bold text-amber-700">
+                              {credits.filter(c => c.status !== 'Cancelado' && c.status !== 'Rechazado').length}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-purple-50 border-purple-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-purple-600 font-medium">Saldo Pendiente</div>
+                            <div className="text-2xl font-bold text-purple-700">
+                              {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(
+                                credits.reduce((sum, c) => sum + (c.saldo || 0), 0)
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Credits Table */}
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Referencia</TableHead>
+                              <TableHead>Tipo</TableHead>
+                              <TableHead>Monto</TableHead>
+                              <TableHead>Saldo</TableHead>
+                              <TableHead>Plazo</TableHead>
+                              <TableHead>Tasa</TableHead>
+                              <TableHead>Estado</TableHead>
+                              <TableHead>Fecha</TableHead>
+                              <TableHead></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {credits.map((credit) => (
+                              <TableRow key={credit.id} className="hover:bg-muted/50">
+                                <TableCell className="font-medium">{credit.reference || credit.numero_operacion || `#${credit.id}`}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{credit.tipo_credito || credit.category || 'Regular'}</Badge>
+                                </TableCell>
+                                <TableCell className="font-mono">
+                                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(credit.monto_credito || 0)}
+                                </TableCell>
+                                <TableCell className="font-mono">
+                                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(credit.saldo || 0)}
+                                </TableCell>
+                                <TableCell>{credit.plazo} meses</TableCell>
+                                <TableCell>{credit.tasa_anual || 0}%</TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={credit.status === 'Formalizado' || credit.status === 'Al día' ? 'default' :
+                                             credit.status === 'En mora' ? 'destructive' :
+                                             credit.status === 'Cancelado' ? 'secondary' : 'outline'}
+                                    className={credit.status === 'Al día' ? 'bg-green-500' :
+                                               credit.status === 'Formalizado' ? 'bg-blue-500' : ''}
+                                  >
+                                    {credit.status === 'Al día' && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                    {credit.status === 'En mora' && <AlertCircle className="h-3 w-3 mr-1" />}
+                                    {credit.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-sm">
+                                  {credit.opened_at ? new Date(credit.opened_at).toLocaleDateString('es-CR') : '-'}
+                                </TableCell>
+                                <TableCell>
+                                  <Link href={`/dashboard/creditos/${credit.id}`}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                  </Link>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Payments Tab */}
+            <TabsContent value="pagos">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Banknote className="h-5 w-5" />
+                    Historial de Pagos
+                  </CardTitle>
+                  <CardDescription>Todos los pagos realizados por este cliente</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingPayments ? (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : payments.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Banknote className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                      <p>No hay pagos registrados para este cliente.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Payment Summary */}
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <Card className="bg-green-50 border-green-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-green-600 font-medium">Total Pagado</div>
+                            <div className="text-2xl font-bold text-green-700">
+                              {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(
+                                payments.reduce((sum, p) => sum + (p.monto || 0), 0)
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-blue-50 border-blue-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-blue-600 font-medium">Número de Pagos</div>
+                            <div className="text-2xl font-bold text-blue-700">{payments.length}</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-purple-50 border-purple-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-purple-600 font-medium">Último Pago</div>
+                            <div className="text-2xl font-bold text-purple-700">
+                              {payments.length > 0
+                                ? new Date(payments[0].fecha || payments[0].created_at).toLocaleDateString('es-CR')
+                                : '-'}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Payments Table */}
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Fecha</TableHead>
+                              <TableHead>Crédito</TableHead>
+                              <TableHead>Monto</TableHead>
+                              <TableHead>Capital</TableHead>
+                              <TableHead>Interés</TableHead>
+                              <TableHead>Mora</TableHead>
+                              <TableHead>Origen</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {payments.map((payment) => (
+                              <TableRow key={payment.id} className="hover:bg-muted/50">
+                                <TableCell className="font-medium">
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                    {payment.fecha
+                                      ? new Date(payment.fecha).toLocaleDateString('es-CR')
+                                      : new Date(payment.created_at).toLocaleDateString('es-CR')}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Link href={`/dashboard/creditos/${payment.credit_id}`} className="text-primary hover:underline">
+                                    {payment.credit?.reference || `#${payment.credit_id}`}
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="font-mono font-medium text-green-600">
+                                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(payment.monto || 0)}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(payment.capital_aplicado || 0)}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(payment.interes_aplicado || 0)}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {payment.mora_aplicada > 0 ? (
+                                    <span className="text-red-500">
+                                      {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(payment.mora_aplicada || 0)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="font-normal">
+                                    {payment.origen || 'Ventanilla'}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="archivos">
               <Card>
                 <CardHeader>
@@ -1043,15 +1383,14 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      <CreateOpportunityDialog 
-        open={isOpportunityDialogOpen} 
+      <CreateOpportunityDialog
+        open={isOpportunityDialogOpen}
         onOpenChange={setIsOpportunityDialogOpen}
         leads={client ? [client as unknown as Lead] : []}
         defaultLeadId={client ? String(client.id) : undefined}
         onSuccess={() => {
             // Refresh client data to show new opportunity
-            // Ideally we would refetch here, but for now we rely on page reload or optimistic updates if implemented
-            window.location.reload();
+            refreshData();
         }}
       />
     </div>

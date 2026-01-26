@@ -1,7 +1,7 @@
 // Importamos los componentes e íconos necesarios para la página de comunicaciones.
 // 'use client' indica que es un Componente de Cliente, lo que permite usar estado y efectos.
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,37 +27,180 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  conversations,
-  chatMessages,
-  internalNotes,
   ChatMessage,
   InternalNote,
-  credits,
-} from "@/lib/data"; // Importamos datos de ejemplo.
+  internalNotes,
+  type Lead,
+} from "@/lib/data"; // Importamos tipos de datos.
 import { cn } from "@/lib/utils"; // Utilidad para combinar clases de Tailwind.
 import Link from "next/link";
+import api from "@/lib/axios";
+import { useToast } from "@/hooks/use-toast";
+
+// Tipo para representar una conversación
+type Conversation = {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  caseId: string;
+  lastMessage: string;
+  time: string;
+  status: 'Abierto' | 'Resuelto';
+  email?: string;
+};
 
 /**
  * Esta es la función principal que define la página de Comunicaciones.
  * Presenta un diseño de tres columnas: cajas de entrada, lista de conversaciones y el chat activo.
  */
 export default function CommunicationsPage() {
-  // Estado para mantener la conversación que está seleccionada actualmente.
-  const [selectedConversation, setSelectedConversation] = React.useState(
-    conversations[0]
-  );
-  
+  const { toast } = useToast();
+
+  // Estados para las conversaciones
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+
+  // Estados para los mensajes
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  // Estados para envío de mensajes
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Cargar conversaciones (leads) desde la API
+  useEffect(() => {
+    const fetchConversations = async () => {
+      setLoadingConversations(true);
+      try {
+        const response = await api.get('/api/leads');
+        const leadsList = Array.isArray(response.data) ? response.data : response.data.data || [];
+
+        // Convertir leads a conversaciones
+        const conversationsFromLeads: Conversation[] = leadsList.map((lead: Lead) => ({
+          id: String(lead.id),
+          name: lead.name || 'Sin nombre',
+          avatarUrl: '',
+          caseId: String(lead.id),
+          lastMessage: 'Conversación con lead',
+          time: 'Ahora',
+          status: 'Abierto' as const,
+          email: lead.email,
+        }));
+
+        setConversations(conversationsFromLeads);
+
+        // Seleccionar la primera conversación por defecto
+        if (conversationsFromLeads.length > 0 && !selectedConversation) {
+          setSelectedConversation(conversationsFromLeads[0]);
+        }
+      } catch (error) {
+        console.error('Error cargando conversaciones:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las conversaciones.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingConversations(false);
+      }
+    };
+
+    fetchConversations();
+  }, []);
+
+  // Cargar mensajes cuando se selecciona una conversación
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const fetchMessages = async () => {
+      setLoadingMessages(true);
+      try {
+        const response = await api.get('/api/chat-messages', {
+          params: { conversation_id: selectedConversation.id }
+        });
+
+        if (response.data.success && Array.isArray(response.data.data)) {
+          const mappedMessages: ChatMessage[] = response.data.data.map((msg: any) => ({
+            id: String(msg.id),
+            conversationId: msg.conversation_id,
+            senderType: msg.sender_type,
+            senderName: msg.sender_name || 'Sistema',
+            avatarUrl: '',
+            text: msg.text,
+            time: new Date(msg.created_at).toLocaleTimeString('es-ES', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+          }));
+          setMessages(mappedMessages);
+        }
+      } catch (error) {
+        console.error('Error cargando mensajes:', error);
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+
+    fetchMessages();
+  }, [selectedConversation]);
+
+  // Enviar un nuevo mensaje
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+
+    setSendingMessage(true);
+    try {
+      const response = await api.post('/api/chat-messages', {
+        conversation_id: selectedConversation.id,
+        sender_type: 'agent',
+        sender_name: 'Agente', // TODO: Obtener del usuario actual
+        text: newMessage,
+        message_type: 'text',
+      });
+
+      if (response.data.success) {
+        // Agregar el mensaje a la lista
+        const newMsg: ChatMessage = {
+          id: String(response.data.data.id),
+          conversationId: selectedConversation.id,
+          senderType: 'agent',
+          senderName: 'Agente',
+          avatarUrl: '',
+          text: newMessage,
+          time: new Date().toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+        };
+
+        setMessages([...messages, newMsg]);
+        setNewMessage('');
+
+        toast({
+          title: "Mensaje enviado",
+          description: "El mensaje ha sido enviado correctamente.",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error enviando mensaje:', error);
+      toast({
+        title: "Error",
+        description: error?.response?.data?.message || "No se pudo enviar el mensaje.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   /**
-   * Función para obtener la ruta correcta al detalle de un crédito.
-   * @param {string} creditId - El ID de la operación del crédito.
-   * @returns {string} La URL a la página de detalle del crédito.
+   * Función para obtener la ruta correcta al detalle de un lead.
    */
-  const getCreditPath = (creditId: string) => {
-    // La nueva lógica es más simple, solo enlaza al detalle del crédito.
-    const credit = credits.find(c => c.operationNumber === creditId);
-    if (!credit) return '/dashboard/creditos'; // Si no lo encuentra, va a la lista principal.
-    return `/dashboard/creditos/${creditId}`;
-  }
+  const getLeadPath = (leadId: string) => {
+    return `/dashboard/leads/${leadId}`;
+  };
 
 
   return (
@@ -111,71 +254,81 @@ export default function CommunicationsPage() {
           </div>
         </div>
         <CardContent className="p-0 flex-1 overflow-y-auto">
-          <nav className="space-y-1">
-            {/* Iteramos sobre las conversaciones para mostrar cada una en la lista. */}
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => setSelectedConversation(conv)} // Al hacer clic, se actualiza la conversación seleccionada.
-                className={cn(
-                  "w-full text-left p-3 hover:bg-muted/50 transition-colors flex items-start gap-3",
-                  selectedConversation.id === conv.id && "bg-muted" // Resaltamos la conversación activa.
-                )}
-              >
-                <Avatar className="h-10 w-10 border">
-                  <AvatarImage src={conv.avatarUrl} />
-                  <AvatarFallback>{conv.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-semibold text-sm">{conv.name}</h4>
-                    <span className="text-xs text-muted-foreground">
-                      {conv.time}
-                    </span>
+          {loadingConversations ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">Cargando conversaciones...</div>
+          ) : conversations.length === 0 ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">No hay conversaciones disponibles</div>
+          ) : (
+            <nav className="space-y-1">
+              {/* Iteramos sobre las conversaciones para mostrar cada una en la lista. */}
+              {conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => setSelectedConversation(conv)}
+                  className={cn(
+                    "w-full text-left p-3 hover:bg-muted/50 transition-colors flex items-start gap-3",
+                    selectedConversation?.id === conv.id && "bg-muted"
+                  )}
+                >
+                  <Avatar className="h-10 w-10 border">
+                    <AvatarImage src={conv.avatarUrl} />
+                    <AvatarFallback>{conv.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-semibold text-sm">{conv.name}</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {conv.time}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {conv.lastMessage}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {conv.lastMessage}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </nav>
+                </button>
+              ))}
+            </nav>
+          )}
         </CardContent>
       </Card>
 
       {/* Columna 3: Panel del Chat Activo */}
       <Card className="flex flex-col">
-        <div className="p-4 border-b flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 border">
-              <AvatarImage src={selectedConversation.avatarUrl} />
-              <AvatarFallback>
-                {selectedConversation.name.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h3 className="font-semibold">
-                <Link href="/dashboard/clientes" className="hover:underline">
-                    {selectedConversation.name}
-                </Link>
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                <Link href={getCreditPath(selectedConversation.caseId)} className="hover:underline">
-                    ID del Crédito: {selectedConversation.caseId}
-                </Link>
-              </p>
-            </div>
+        {!selectedConversation ? (
+          <div className="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground">
+            Selecciona una conversación para comenzar
           </div>
-          <Badge
-            variant={
-              selectedConversation.status === "Abierto"
-                ? "default"
-                : "secondary"
-            }
-          >
-            {selectedConversation.status}
-          </Badge>
-        </div>
+        ) : (
+          <>
+            <div className="p-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10 border">
+                  <AvatarImage src={selectedConversation.avatarUrl} />
+                  <AvatarFallback>
+                    {selectedConversation.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-semibold">
+                    <Link href={getLeadPath(selectedConversation.id)} className="hover:underline">
+                        {selectedConversation.name}
+                    </Link>
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Lead ID: {selectedConversation.caseId}
+                  </p>
+                </div>
+              </div>
+              <Badge
+                variant={
+                  selectedConversation.status === "Abierto"
+                    ? "default"
+                    : "secondary"
+                }
+              >
+                {selectedConversation.status}
+              </Badge>
+            </div>
         <Tabs defaultValue="all" className="flex-1 flex flex-col">
             <TabsList className="mx-4 mt-4">
                 <TabsTrigger value="all" className="gap-1">
@@ -193,18 +346,26 @@ export default function CommunicationsPage() {
             </TabsList>
             {/* Pestaña para mostrar mensajes y notas combinados y ordenados. */}
             <TabsContent value="all" className="flex-1 p-4 space-y-4 overflow-y-auto">
-                 <CombinedChatList 
-                    messages={chatMessages.filter(msg => msg.conversationId === selectedConversation.id)} 
-                    notes={internalNotes.filter(note => note.conversationId === selectedConversation.id)}
-                 />
+                 {loadingMessages ? (
+                   <div className="p-4 text-center text-sm text-muted-foreground">Cargando mensajes...</div>
+                 ) : (
+                   <CombinedChatList
+                      messages={messages}
+                      notes={internalNotes.filter((note: InternalNote) => note.conversationId === selectedConversation.id)}
+                   />
+                 )}
             </TabsContent>
             {/* Pestaña para mostrar solo los mensajes del chat. */}
             <TabsContent value="messages" className="flex-1 p-4 space-y-4 overflow-y-auto">
-                 <ChatMessagesList messages={chatMessages.filter(msg => msg.conversationId === selectedConversation.id)} />
+                 {loadingMessages ? (
+                   <div className="p-4 text-center text-sm text-muted-foreground">Cargando mensajes...</div>
+                 ) : (
+                   <ChatMessagesList messages={messages} />
+                 )}
             </TabsContent>
             {/* Pestaña para mostrar solo las notas internas. */}
             <TabsContent value="comments" className="flex-1 p-4 space-y-4 overflow-y-auto">
-                 <InternalNotesList notes={internalNotes.filter(note => note.conversationId === selectedConversation.id)} />
+                 <InternalNotesList notes={internalNotes.filter((note: InternalNote) => note.conversationId === selectedConversation.id)} />
             </TabsContent>
         
             {/* Área para escribir y enviar un nuevo mensaje. */}
@@ -214,6 +375,15 @@ export default function CommunicationsPage() {
                   placeholder="Escribe tu mensaje..."
                   className="pr-20"
                   rows={2}
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  disabled={sendingMessage}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !sendingMessage) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
                 />
                 <div className="absolute bottom-2 right-2 flex items-center gap-2">
                   <Button variant="ghost" size="icon">
@@ -224,7 +394,7 @@ export default function CommunicationsPage() {
                     <Smile className="h-4 w-4" />
                     <span className="sr-only">Emoji</span>
                   </Button>
-                  <Button size="icon">
+                  <Button size="icon" onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()}>
                     <Send className="h-4 w-4" />
                     <span className="sr-only">Enviar</span>
                   </Button>
@@ -232,6 +402,8 @@ export default function CommunicationsPage() {
               </div>
             </div>
         </Tabs>
+          </>
+        )}
       </Card>
     </div>
   );
@@ -301,76 +473,43 @@ function InternalNotesList({ notes }: { notes: InternalNote[] }) {
  * Componente que combina mensajes de chat y notas internas, y los muestra en orden cronológico.
  * @param {{ messages: ChatMessage[], notes: InternalNote[] }} props - Los mensajes y notas.
  */
-function CombinedChatList({ messages, notes }: { messages: ChatMessage[], notes: InternalNote[] }) {
-    // Función auxiliar para convertir una cadena de tiempo (ej: "10:15 AM") en un objeto Date para poder ordenar.
-    const parseTime = (timeStr: string) => {
-        const today = new Date();
-        const [time, modifier] = timeStr.split(' ');
-        let [hours, minutes] = time.split(':').map(Number);
-      
-        if (hours === 12) {
-          hours = modifier === 'AM' ? 0 : 12;
-        } else {
-          hours = modifier === 'PM' ? hours + 12 : hours;
-        }
-      
-        return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
-    };
+function CombinedChatList({
+  messages,
+  notes,
+}: {
+  messages: ChatMessage[];
+  notes: InternalNote[];
+}) {
+  // Combina mensajes y notas, asignando un campo 'type' para distinguirlos
+  const combined = [
+    ...messages.map((msg) => ({
+      ...msg,
+      type: "message" as const,
+      timestamp: msg.time,
+    })),
+    ...notes.map((note) => ({
+      ...note,
+      type: "note" as const,
+      timestamp: note.time,
+    })),
+  ];
 
-    // Combinamos los arrays de mensajes y notas, añadiendo un campo 'type' para distinguirlos.
-    const combined = [
-        ...messages.map(m => ({ ...m, type: 'message', date: parseTime(m.time) })),
-        ...notes.map(n => ({ ...n, type: 'note', date: parseTime(n.time) }))
-    ];
+  // Ordena por timestamp (asumiendo formato HH:MM, puedes ajustar si tienes fecha completa)
+  combined.sort((a, b) => {
+    // Si tienes fecha completa, usa new Date(a.timestamp) - new Date(b.timestamp)
+    return a.timestamp.localeCompare(b.timestamp);
+  });
 
-    // Ordenamos el array combinado por fecha/hora.
-    combined.sort((a, b) => a.date.getTime() - b.date.getTime());
-    
-    return (
-        <div className="space-y-4">
-            {/* Iteramos sobre el array combinado y renderizamos cada item según su tipo. */}
-            {combined.map((item, index) => {
-                if (item.type === 'message') {
-                    const msg = item as ChatMessage & { date: Date };
-                    return (
-                        <div key={`msg-${index}`} className={`flex items-start gap-3 ${msg.senderType === 'agent' ? 'justify-end' : ''}`}>
-                            {msg.senderType === 'client' && (
-                            <Avatar className="h-9 w-9 border">
-                                <AvatarImage src={msg.avatarUrl} />
-                                <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            )}
-                            <div className={`flex flex-col ${msg.senderType === 'agent' ? 'items-end' : 'items-start'}`}>
-                            <div className={`max-w-md rounded-lg px-3 py-2 ${msg.senderType === 'agent' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                                <p className="text-sm">{msg.text}</p>
-                            </div>
-                            <span className="text-xs text-muted-foreground mt-1">{msg.time}</span>
-                            </div>
-                            {msg.senderType === 'agent' && (
-                            <Avatar className="h-9 w-9 border">
-                                <AvatarImage src={msg.avatarUrl} />
-                                <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            )}
-                        </div>
-                    );
-                } else {
-                    const note = item as InternalNote & { date: Date };
-                    return (
-                        <div key={`note-${index}`} className="flex items-start gap-3">
-                            <Avatar className="h-9 w-9 border">
-                                <AvatarImage src={note.avatarUrl} />
-                                <AvatarFallback>{note.senderName.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                <p className="text-sm font-semibold">{note.senderName}</p>
-                                <p className="text-sm text-gray-700 mt-1">{note.text}</p>
-                                <p className="text-xs text-muted-foreground mt-2">{note.time}</p>
-                            </div>
-                        </div>
-                    );
-                }
-            })}
-        </div>
-    );
+  return (
+    <div className="space-y-4">
+      {combined.map((item, index) =>
+        item.type === "message" ? (
+          <ChatMessagesList key={`msg-${index}`} messages={[item]} />
+        ) : (
+          <InternalNotesList key={`note-${index}`} notes={[item]} />
+        )
+      )}
+    </div>
+  );
 }
+

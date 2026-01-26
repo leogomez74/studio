@@ -27,18 +27,20 @@ import {
   FileText,
   GraduationCap,
   Trophy,
+  BarChart3,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'REPORTES' },
-  { href: '/dashboard/ventas', icon: DollarSign, label: 'VENTAS' },
-  { href: '/dashboard/oportunidades', icon: Handshake, label: 'OPORTUNIDADES' },
-  { href: '/dashboard/analisis', icon: FileSearch, label: 'ANÁLISIS' },
+  { href: '/dashboard/kpis', icon: BarChart3, label: 'KPIs' },
   { href: '/dashboard/clientes', icon: UserCheck, label: 'CRM' },
+  { href: '/dashboard/oportunidades', icon: Handshake, label: 'OPORTUNIDADES' },
+  { href: '/dashboard/analisis', icon: FileSearch, label: 'ANALIZADOS' },
   { href: '/dashboard/creditos', icon: Landmark, label: 'CRÉDITOS' },
   { href: '/dashboard/calculos', icon: Calculator, label: 'CÁLCULOS' },
   { href: '/dashboard/cobros', icon: Banknote, label: 'COBROS' },
   { href: '/dashboard/cobro-judicial', icon: Gavel, label: 'COBRO JUDICIAL' },
+  { href: '/dashboard/ventas', icon: DollarSign, label: 'VENTAS' },
   { href: '/dashboard/inversiones', icon: PiggyBank, label: 'INVERSIONES' },
   { href: '/dashboard/rutas', icon: Route, label: 'RUTAS' },
   { href: '/dashboard/tareas', icon: ClipboardCheck, label: 'PROYECTOS' },
@@ -66,6 +68,7 @@ export function DashboardNav() {
                 ? pathname === item.href
                 : pathname.startsWith(item.href)
             }
+            tooltip={item.label}
           >
             <Link href={item.href}>
                 <item.icon />

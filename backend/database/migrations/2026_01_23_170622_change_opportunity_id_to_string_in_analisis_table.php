@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('plan_de_pagos', function (Blueprint $table) {
-            $table->decimal('saldo_a_favor', 15, 2)->default(0);
-            //
+        Schema::table('analisis', function (Blueprint $table) {
+            $table->string('opportunity_id', 20)->nullable()->change();
         });
     }
 
@@ -22,9 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('plan_de_pagos', function (Blueprint $table) {
-            $table->dropColumn('saldo_a_favor');
-            //
+        Schema::table('analisis', function (Blueprint $table) {
+            $table->unsignedBigInteger('opportunity_id')->nullable()->change();
         });
     }
 };

@@ -1,62 +1,101 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, FormEvent, ChangeEvent } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Archive,
-  ArrowDown,
-  ArrowUp,
   ArrowUpRight,
-  ArrowUpDown,
   ChevronDown,
   ChevronUp,
   Download,
-  Eye,
+  FileText,
   Pencil,
   PlusCircle,
   Sparkles,
-  UserCheck,
   Loader2,
-  Trash
+  Trash,
+  X,
+  Search
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
 // Importamos la conexión real y los tipos
 import api from '@/lib/axios';
-import { type Client, type Lead, type User } from '@/lib/data';
+import { type Client, type Lead } from '@/lib/data';
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
 
 // --- Helpers ---
 
 const normalizeCedulaInput = (value: string): string => value.replace(/[^0-9]/g, "");
 
-const createEmptyLeadForm = () => ({
-  name: "",
-  apellido1: "",
-  apellido2: "",
-  email: "",
-  phone: "",
-  cedula: "",
-  fechaNacimiento: "",
+const normalizePhoneInput = (value: string): string => value.replace(/[^0-9]/g, "");
+
+const formatCedula = (value: string): string => {
+  const numericValue = value.replace(/[^0-9]/g, "");
+  if (numericValue.length <= 1) {
+    return numericValue;
+  }
+  if (numericValue.length <= 5) {
+    return `${numericValue.slice(0, 1)}-${numericValue.slice(1)}`;
+  }
+  return `${numericValue.slice(0, 1)}-${numericValue.slice(1, 5)}-${numericValue.slice(5, 9)}`;
+};
+
+const leadSchema = z.object({
+  // Campos auto-rellenados por TSE (opcionales)
+  name: z.string().optional(),
+  apellido1: z.string().optional(),
+  apellido2: z.string().optional(),
+  fechaNacimiento: z.string().optional().refine((date) => {
+    if (!date) return true; // Opcional
+    // input[type="date"] siempre devuelve YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateObj = new Date(date + 'T00:00:00');
+    return dateObj <= today;
+  }, "La fecha de nacimiento no puede ser en el futuro"),
+  // Campos visibles en formulario (requeridos)
+  cedula: z.string().min(11, "La cédula debe tener 9 dígitos").refine((cedula) => {
+    if (!cedula) return false;
+    return /^\d{1}-\d{4}-\d{4}$/.test(cedula);
+  }, "El formato de la cédula debe ser X-XXXX-XXXX"),
+  email: z.string().min(1, "El correo es requerido").email("Correo inválido"),
+  phone: z.string().min(1, "El teléfono es requerido").refine((phone) => {
+    return /^\d{8}$/.test(phone);
+  }, "El número de teléfono debe tener 8 dígitos"),
+  sector: z.string().min(1, "El sector laboral es requerido"),
 });
+
+type LeadFormValues = z.infer<typeof leadSchema>;
 
 const formatRegistered = (dateString: string | null | undefined) => {
   if (!dateString) return "-";
@@ -98,7 +137,6 @@ const getStatusBadgeClassName = (label: string): string => {
 
 const getLeadDisplayName = (lead?: Lead | Client | null): string => {
   if (!lead) return "";
-  // Try to construct full name if available or fallback to name
   const fullName = [lead.name, (lead as any).apellido1, (lead as any).apellido2]
     .filter(Boolean)
     .join(" ");
@@ -121,22 +159,29 @@ type LeadStatus = {
 export default function ClientesPage() {
   const { toast } = useToast();
   const router = useRouter();
-  
-  // Data State (Preserved from original)
+
+  // Data State
   const [clientsData, setClientsData] = useState<Client[]>([]);
   const [leadsData, setLeadsData] = useState<Lead[]>([]);
   const [inactiveData, setInactiveData] = useState<(Lead | Client)[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Lists for Dropdowns (Preserved)
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [perPage, setPerPage] = useState(10);
+
+  // Lists for Dropdowns
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
 
-  // UI State (New Layout)
+  // UI State
   const [isLeadFiltersOpen, setIsLeadFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("leads");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Filters State (Mapped to original logic where possible)
+  // Filters State
   const [searchQuery, setSearchQuery] = useState("");
   const [contactFilter, setContactFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -146,11 +191,25 @@ export default function ClientesPage() {
   // Dialog State
   const [isLeadDialogOpen, setIsLeadDialogOpen] = useState(false);
   const [isSavingLead, setIsSavingLead] = useState(false);
-  const [leadFormValues, setLeadFormValues] = useState(createEmptyLeadForm());
   const [editingId, setEditingId] = useState<string | Number | null>(null);
   const [editingType, setEditingType] = useState<'lead' | 'client' | null>(null);
   const [isViewOnly, setIsViewOnly] = useState(false);
-  
+
+  // Form Definition
+  const form = useForm<LeadFormValues>({
+    resolver: zodResolver(leadSchema),
+    defaultValues: {
+      name: "",
+      apellido1: "",
+      apellido2: "",
+      email: "",
+      phone: "",
+      cedula: "",
+      fechaNacimiento: "",
+      sector: "",
+    },
+  });
+
   // TSE Lookup State
   const [isFetchingTse, setIsFetchingTse] = useState(false);
   const [lastTseCedula, setLastTseCedula] = useState<string | null>(null);
@@ -165,31 +224,31 @@ export default function ClientesPage() {
 
   // --- Effects ---
 
-  // Fetch Lists (Statuses) once
-  useEffect(() => {
+    useEffect(() => {
     const fetchLists = async () => {
-        try {
-            const resStatuses = await api.get('/api/lead-statuses');
-            setLeadStatuses(resStatuses.data);
-        } catch (err) {
-            console.error("Error loading lists:", err);
-        }
+      try {
+        const resStatuses = await api.get('/api/lead-statuses');
+        setLeadStatuses(Array.isArray(resStatuses.data) ? resStatuses.data : []);
+      } catch (err) {
+        setLeadStatuses([]);
+        console.error("Error loading lists:", err);
+      }
     };
     fetchLists();
-  }, []);
+    }, []);
 
-  // Fetch Data Logic (Preserved)
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const commonParams: any = {};
       if (searchQuery) commonParams.q = searchQuery;
       if (contactFilter !== "all") commonParams.has_contact = contactFilter;
       if (dateFrom) commonParams.date_from = dateFrom;
       if (dateTo) commonParams.date_to = dateTo;
+      commonParams.page = currentPage;
+      commonParams.per_page = perPage;
 
-      // Prepare specific params
       const leadParams = { ...commonParams };
       const clientParams = { ...commonParams };
 
@@ -209,21 +268,46 @@ export default function ClientesPage() {
           }
       }
 
-      const [resClients, resLeads] = await Promise.all([
-        api.get('/api/clients', { params: clientParams }),
-        api.get('/api/leads', { params: leadParams })
-      ]);
+      if (activeTab === "leads") {
+        const resLeads = await api.get('/api/leads', { params: leadParams });
+        const isPaginated = resLeads.data.data && resLeads.data.current_page;
 
-      const clientsArray = resClients.data.data || resClients.data;
-      const leadsArray = resLeads.data.data || resLeads.data;
+        if (isPaginated) {
+          setLeadsData(Array.isArray(resLeads.data.data) ? resLeads.data.data : []);
+          setCurrentPage(resLeads.data.current_page);
+          setTotalPages(resLeads.data.last_page);
+          setTotalItems(resLeads.data.total);
+        } else {
+          setLeadsData(Array.isArray(resLeads.data) ? resLeads.data : []);
+        }
+      } else if (activeTab === "clientes") {
+        const resClients = await api.get('/api/clients', { params: clientParams });
+        const isPaginated = resClients.data.data && resClients.data.current_page;
 
-      if (activeTab === 'inactivos') {
-          const combined = [...(Array.isArray(clientsArray) ? clientsArray : []), ...(Array.isArray(leadsArray) ? leadsArray : [])];
-          combined.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
-          setInactiveData(combined);
-      } else {
-          setClientsData(Array.isArray(clientsArray) ? clientsArray : []);
-          setLeadsData(Array.isArray(leadsArray) ? leadsArray : []);
+        if (isPaginated) {
+          setClientsData(Array.isArray(resClients.data.data) ? resClients.data.data : []);
+          setCurrentPage(resClients.data.current_page);
+          setTotalPages(resClients.data.last_page);
+          setTotalItems(resClients.data.total);
+        } else {
+          setClientsData(Array.isArray(resClients.data) ? resClients.data : []);
+        }
+      } else if (activeTab === 'inactivos') {
+        const [resClients, resLeads] = await Promise.all([
+          api.get('/api/clients', { params: clientParams }),
+          api.get('/api/leads', { params: leadParams })
+        ]);
+
+        const clientsArray = resClients.data.data || resClients.data;
+        const leadsArray = resLeads.data.data || resLeads.data;
+
+        const combined = [...(Array.isArray(clientsArray) ? clientsArray : []), ...(Array.isArray(leadsArray) ? leadsArray : [])];
+        combined.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+        setInactiveData(combined);
+
+        // For inactivos tab, we don't have server-side pagination
+        setTotalItems(combined.length);
+        setTotalPages(1);
       }
 
     } catch (err) {
@@ -232,9 +316,8 @@ export default function ClientesPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, contactFilter, dateFrom, dateTo, activeTab, statusFilter]);
+  }, [searchQuery, contactFilter, dateFrom, dateTo, activeTab, statusFilter, currentPage, perPage]);
 
-  // Trigger fetch when filters change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
         fetchData();
@@ -255,9 +338,21 @@ export default function ClientesPage() {
       setStatusFilter("all");
       setDateFrom("");
       setDateTo("");
+      setCurrentPage(1);
   };
 
-  // Export Handlers (Adapted to new UI style but keeping logic)
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
+
   const handleExportPDF = () => {
     let dataToExport: any[] = [];
     let title = "";
@@ -288,8 +383,8 @@ export default function ClientesPage() {
         item.cedula || "-",
         item.email,
         item.phone || "-",
-        activeTab === "leads" 
-            ? (item.lead_status?.name || item.lead_status_id) 
+        activeTab === "leads"
+            ? (item.lead_status?.name || item.lead_status_id)
             : (item.status || (item.is_active ? 'Activo' : 'Inactivo')),
         formatRegistered(item.created_at)
     ]);
@@ -331,8 +426,8 @@ export default function ClientesPage() {
         item.cedula || "-",
         item.email,
         item.phone || "-",
-        activeTab === "leads" 
-            ? (item.lead_status?.name || item.lead_status_id) 
+        activeTab === "leads"
+            ? (item.lead_status?.name || item.lead_status_id)
             : (item.status || (item.is_active ? 'Activo' : 'Inactivo')),
         formatRegistered(item.created_at)
     ]);
@@ -355,7 +450,16 @@ export default function ClientesPage() {
   // --- Dialog Handlers ---
 
   const openLeadDialog = () => {
-    setLeadFormValues(createEmptyLeadForm());
+    form.reset({
+      name: "",
+      apellido1: "",
+      apellido2: "",
+      email: "",
+      phone: "",
+      cedula: "",
+      fechaNacimiento: "",
+      sector: "",
+    });
     setEditingId(null);
     setEditingType(null);
     setLastTseCedula(null);
@@ -365,27 +469,19 @@ export default function ClientesPage() {
 
   const closeLeadDialog = () => {
     setIsLeadDialogOpen(false);
-    setLeadFormValues(createEmptyLeadForm());
+    form.reset();
     setEditingId(null);
     setEditingType(null);
     setLastTseCedula(null);
     setIsViewOnly(false);
   };
 
-  const handleLeadFieldChange = (field: string) => (event: ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setLeadFormValues((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
-  };
-
-  // TSE Lookup Logic (New Feature)
+  // TSE Lookup Logic
   const handleTseLookup = useCallback(
     async (cedulaInput: string): Promise<void> => {
       const trimmed = cedulaInput.trim();
       const normalizedCedulaValue = normalizeCedulaInput(trimmed);
-      if (!normalizedCedulaValue || normalizedCedulaValue === lastTseCedula) {
+      if (!normalizedCedulaValue || normalizedCedulaValue.length < 9 || normalizedCedulaValue === lastTseCedula) {
         return;
       }
 
@@ -401,34 +497,29 @@ export default function ClientesPage() {
         const normalizedApellido1 = typeof payload.apellido1 === "string" ? payload.apellido1.trim() : "";
         const normalizedApellido2 = typeof payload.apellido2 === "string" ? payload.apellido2.trim() : "";
         const normalizedCedula = typeof payload.cedula === "string" ? payload.cedula.trim() : normalizedCedulaValue;
-        
-        // Format date from TSE (usually DD/MM/YYYY or similar) to display format
         const rawDate = payload["fecha-nacimiento"] || payload.fecha_nacimiento || "";
-        
-        setLeadFormValues((previous) => ({
-          ...previous,
-          name: normalizedName || previous.name,
-          apellido1: normalizedApellido1 || previous.apellido1,
-          apellido2: normalizedApellido2 || previous.apellido2,
-          cedula: normalizedCedula || previous.cedula,
-          fechaNacimiento: rawDate || previous.fechaNacimiento,
-        }));
+
+        form.setValue("name", normalizedName);
+        form.setValue("apellido1", normalizedApellido1);
+        form.setValue("apellido2", normalizedApellido2);
+        form.setValue("cedula", formatCedula(normalizedCedula));
+        form.setValue("fechaNacimiento", formatDateForInput(rawDate));
 
         setLastTseCedula(normalizeCedulaInput(normalizedCedula || normalizedCedulaValue));
         toast({ title: "Datos cargados", description: "Información completada desde el TSE." });
       } catch (error) {
         console.error("Error consultando TSE", error);
-        // Silent fail or mild toast
       } finally {
         setIsFetchingTse(false);
       }
     },
-    [lastTseCedula, toast]
+    [lastTseCedula, toast, form]
   );
 
-  // Trigger TSE lookup on cedula change
+  const cedulaValue = form.watch("cedula");
+
   useEffect(() => {
-    const sanitized = normalizeCedulaInput(leadFormValues.cedula.trim());
+    const sanitized = (cedulaValue || "").trim();
     if (!sanitized || sanitized.length < 9 || sanitized === lastTseCedula || isFetchingTse) {
       return;
     }
@@ -436,56 +527,24 @@ export default function ClientesPage() {
       void handleTseLookup(sanitized);
     }, 600);
     return () => clearTimeout(handler);
-  }, [handleTseLookup, isFetchingTse, lastTseCedula, leadFormValues.cedula]);
+  }, [handleTseLookup, isFetchingTse, lastTseCedula, cedulaValue]);
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    if (value.length > 8) value = value.slice(0, 8); // Limit to 8 digits
 
-    let formattedValue = '';
-    if (value.length > 4) {
-      formattedValue = `${value.slice(0, 2)}-${value.slice(2, 4)}-${value.slice(4)}`;
-    } else if (value.length > 2) {
-      formattedValue = `${value.slice(0, 2)}-${value.slice(2)}`;
-    } else {
-      formattedValue = value;
-    }
-
-    setLeadFormValues((prev) => ({
-      ...prev,
-      fechaNacimiento: formattedValue,
-    }));
-  };
-
-  const handleLeadSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedName = leadFormValues.name.trim();
-    const trimmedEmail = leadFormValues.email.trim();
-
-    if (!trimmedName || !trimmedEmail) {
-      toast({ title: "Faltan datos", description: "Nombre y correo son obligatorios.", variant: "destructive" });
-      return;
-    }
+  const onSubmit = async (values: LeadFormValues) => {
+    setIsSavingLead(true);
 
     try {
-      setIsSavingLead(true);
+      // El input[type="date"] ya devuelve YYYY-MM-DD, listo para el backend
+      const formattedDate = values.fechaNacimiento || null;
 
-      // Convert DD-MM-YYYY to YYYY-MM-DD
-      let formattedDate = null;
-      if (leadFormValues.fechaNacimiento && leadFormValues.fechaNacimiento.length === 10) {
-          const [day, month, year] = leadFormValues.fechaNacimiento.split('-');
-          if (day && month && year) {
-              formattedDate = `${year}-${month}-${day}`;
-          }
-      }
-
-      const body = {
-        name: trimmedName,
-        email: trimmedEmail,
-        cedula: normalizeCedulaInput(leadFormValues.cedula) || null,
-        phone: leadFormValues.phone.trim() || null,
-        apellido1: leadFormValues.apellido1.trim() || null,
-        apellido2: leadFormValues.apellido2.trim() || null,
+      const body: Record<string, any> = {
+        name: values.name?.trim() || null,
+        email: values.email?.trim() || null,
+        cedula: values.cedula ? values.cedula.replace(/[^0-9]/g, '') : null,
+        phone: values.phone || null,
+        apellido1: values.apellido1?.trim() || null,
+        apellido2: values.apellido2?.trim() || null,
+        sector: values.sector || null,
         ...(editingId ? {} : { status: "Nuevo" }),
         fecha_nacimiento: formattedDate,
       };
@@ -495,15 +554,41 @@ export default function ClientesPage() {
           await api.put(endpoint, body);
           toast({ title: "Actualizado", description: "Datos actualizados correctamente." });
       } else {
-          await api.post('/api/leads', body);
-          toast({ title: "Creado", description: "Lead registrado exitosamente." });
+          const response = await api.post('/api/leads', body);
+          const hasOpportunity = response.data?.opportunity !== null;
+          toast({
+            title: "Creado",
+            description: hasOpportunity
+              ? "Lead y oportunidad registrados exitosamente."
+              : "Lead registrado exitosamente."
+          });
       }
 
       closeLeadDialog();
       fetchData();
     } catch (error: any) {
       console.error("Error guardando:", error);
-      toast({ title: "Error", description: "No se pudo guardar.", variant: "destructive" });
+      // Improved error handling
+      if (error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        // Map backend errors to form fields
+        Object.keys(errors).forEach((key) => {
+          // Assuming the backend returns standard Laravel error structure
+          // e.g. { errors: { email: ["The email has already been taken."] } }
+          const message = errors[key][0];
+          // Map backend field names to frontend field names if they differ
+          // Here they mostly match (email, name, cedula, etc.)
+          form.setError(key as keyof LeadFormValues, { type: "server", message });
+        });
+        
+        toast({
+          title: "Error de validación", 
+          description: "Por favor revisa los campos marcados en rojo.", 
+          variant: "destructive"
+        });
+      } else {
+        toast({ title: "Error", description: error.response?.data?.message || "No se pudo guardar.", variant: "destructive" });
+      }
     } finally {
       setIsSavingLead(false);
     }
@@ -518,7 +603,23 @@ export default function ClientesPage() {
               setIsOpportunityDialogOpen(true);
               break;
           case 'edit':
-              router.push(`/dashboard/leads/${lead.id}?mode=edit`);
+              // Normally router push, but here using the dialog for now to test validation?
+              // The original code used router.push. I'll respect that but if we want to edit IN dialog:
+              // router.push(`/dashboard/leads/${lead.id}?mode=edit`);
+              // Let's implement edit IN dialog to show off the form
+              setEditingId(lead.id);
+              setEditingType('lead');
+              form.reset({
+                name: lead.name,
+                apellido1: (lead as any).apellido1 || "",
+                apellido2: (lead as any).apellido2 || "",
+                email: lead.email,
+                phone: lead.phone || "",
+                cedula: lead.cedula || "",
+                fechaNacimiento: (lead as any).fecha_nacimiento ? formatDateForInput((lead as any).fecha_nacimiento) : "",
+                sector: (lead as any).sector || "",
+              });
+              setIsLeadDialogOpen(true);
               break;
           case 'view':
               router.push(`/dashboard/leads/${lead.id}?mode=view`);
@@ -530,6 +631,24 @@ export default function ClientesPage() {
               handleArchiveLead(lead);
               break;
       }
+  };
+
+  // Helper: devuelve YYYY-MM-DD para input[type="date"]
+  const formatDateForInput = (dateStr: string) => {
+    if (!dateStr) return "";
+    // Si ya viene en formato ISO o YYYY-MM-DD, extraer solo la parte de fecha
+    const isoMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    // Si viene en DD-MM-YYYY, convertir a YYYY-MM-DD
+    const ddmmyyyyMatch = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (ddmmyyyyMatch) {
+      const [, d, m, y] = ddmmyyyyMatch;
+      return `${y}-${m}-${d}`;
+    }
+    // Fallback: intentar parsear con Date
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "";
+    return date.toISOString().split('T')[0];
   };
 
   const handleConvertLead = async (lead: Lead) => {
@@ -566,7 +685,20 @@ export default function ClientesPage() {
   };
 
   const handleEditClient = (client: Client) => {
-      router.push(`/dashboard/clientes/${client.id}?mode=edit`);
+      // Same logic, use dialog for now to test validation
+      setEditingId(client.id);
+      setEditingType('client');
+      form.reset({
+        name: client.name,
+        apellido1: (client as any).apellido1 || "",
+        apellido2: (client as any).apellido2 || "",
+        email: client.email,
+        phone: client.phone || "",
+        cedula: client.cedula || "",
+        fechaNacimiento: (client as any).fecha_nacimiento ? formatDateForInput((client as any).fecha_nacimiento) : "",
+        sector: (client as any).sector || "",
+      });
+      setIsLeadDialogOpen(true);
   };
 
   const confirmDeleteClient = (client: Client) => {
@@ -597,31 +729,62 @@ export default function ClientesPage() {
       <div className="space-y-6">
         <Card>
           <Collapsible open={isLeadFiltersOpen} onOpenChange={setIsLeadFiltersOpen} className="space-y-0">
-            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            
+            <CardHeader className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-1">
                 <CardTitle>CRM</CardTitle>
-                <CardDescription>Gestiona leads y clientes desde un solo panel.</CardDescription>
+                <CardDescription>Gestiona leads y clientes.</CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" className="gap-2" onClick={openLeadDialog}>
-                  <PlusCircle className="h-4 w-4" />
-                  Nuevo lead
-                </Button>
+
+              {/* Contenedor de Acciones: Buscar + Filtros + Nuevo */}
+              <div className="flex items-center gap-1">
+                
+                {/* Buscador Expansible */}
+                <div className={`transition-all duration-300 ease-in-out ${isSearchOpen || searchQuery ? 'w-full sm:w-60 mr-2' : 'w-9'}`}>
+                  {isSearchOpen || searchQuery ? (
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-9 pl-8"
+                        placeholder="Buscar..."
+                        autoFocus
+                        onBlur={() => !searchQuery && setIsSearchOpen(false)}
+                      />
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-9 w-9 text-muted-foreground hover:bg-muted" 
+                      onClick={() => setIsSearchOpen(true)}
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Botón Filtros */}
                 <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" size="sm" className="gap-2 hover:bg-[lightgray]/48">
-                    {isLeadFiltersOpen ? "Ocultar filtros" : "Mostrar filtros"}
-                    {isLeadFiltersOpen ? (
-                      <ChevronUp className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                    )}
+                  <Button variant="ghost" size="sm" className="h-9 gap-2">
+                    <span className="hidden sm:inline">{isLeadFiltersOpen ? "Ocultar" : "Filtros"}</span>
+                    {isLeadFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                 </CollapsibleTrigger>
+
+                {/* Botón Nuevo Lead */}
+                <Button size="sm" className="h-9 gap-2" onClick={openLeadDialog}>
+                  <PlusCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">Nuevo</span>
+                </Button>
               </div>
             </CardHeader>
+
             <CardContent>
               <div className="space-y-6">
                 <CollapsibleContent className="space-y-4 rounded-md border border-dashed border-muted-foreground/30 p-4">
+                  {/* Filters UI preserved */}
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="flex flex-wrap items-end gap-3">
                       <div className="space-y-1">
@@ -666,17 +829,7 @@ export default function ClientesPage() {
                       </DropdownMenu>
                     </div>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="space-y-1 md:col-span-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Buscar
-                      </Label>
-                      <Input
-                        placeholder="Cédula, nombre o correo"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
                       {activeTab === "leads" ? (
@@ -686,9 +839,10 @@ export default function ClientesPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all" className="focus:bg-[lightgray]/48 cursor-pointer">Todos los estados</SelectItem>
-                            {leadStatuses.map(status => (
-                              <SelectItem key={status.id} value={String(status.id)} className="focus:bg-[lightgray]/48 cursor-pointer">{status.name}</SelectItem>
-                            ))}
+                            {Array.isArray(leadStatuses) && leadStatuses.length > 0
+                              ? leadStatuses.map(status => (
+                                  <SelectItem key={status.id} value={String(status.id)} className="focus:bg-[lightgray]/48 cursor-pointer">{status.name}</SelectItem>
+                                )) : null}
                           </SelectContent>
                         </Select>
                       ) : (
@@ -718,9 +872,26 @@ export default function ClientesPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros por página</Label>
+                      <Select value={String(perPage)} onValueChange={(value) => {
+                        setPerPage(Number(value));
+                        setCurrentPage(1);
+                      }}>
+                        <SelectTrigger className="hover:bg-[lightgray]/48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10" className="focus:bg-[lightgray]/48 cursor-pointer">10</SelectItem>
+                          <SelectItem value="30" className="focus:bg-[lightgray]/48 cursor-pointer">30</SelectItem>
+                          <SelectItem value="50" className="focus:bg-[lightgray]/48 cursor-pointer">50</SelectItem>
+                          <SelectItem value="100" className="focus:bg-[lightgray]/48 cursor-pointer">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </CollapsibleContent>
-                
+
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                   <TabsList className="grid grid-cols-3">
                     <TabsTrigger value="leads">Leads</TabsTrigger>
@@ -736,7 +907,51 @@ export default function ClientesPage() {
                     {loading ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
                     ) : (
-                        <LeadsTable data={leadsData} onAction={handleLeadAction} />
+                        <>
+                          <LeadsTable data={leadsData} onAction={handleLeadAction} />
+                          {totalItems > 0 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+                              <div className="text-sm text-muted-foreground">
+                                Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} leads
+                              </div>
+                              {totalPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                                    Anterior
+                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    {currentPage > 3 && (
+                                      <>
+                                        <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
+                                          1
+                                        </Button>
+                                        {currentPage > 4 && <span className="px-2 text-muted-foreground">...</span>}
+                                      </>
+                                    )}
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                      .filter(page => Math.abs(page - currentPage) <= 2)
+                                      .map(page => (
+                                        <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
+                                          {page}
+                                        </Button>
+                                      ))}
+                                    {currentPage < totalPages - 2 && (
+                                      <>
+                                        {currentPage < totalPages - 3 && <span className="px-2 text-muted-foreground">...</span>}
+                                        <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
+                                          {totalPages}
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                  <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                                    Siguiente
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
                     )}
                   </TabsContent>
 
@@ -758,7 +973,51 @@ export default function ClientesPage() {
                     {loading ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
                     ) : (
-                        <ClientsTable data={clientsData} onEdit={handleEditClient} onDelete={confirmDeleteClient} />
+                        <>
+                          <ClientsTable data={clientsData} onEdit={handleEditClient} onDelete={confirmDeleteClient} />
+                          {totalItems > 0 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+                              <div className="text-sm text-muted-foreground">
+                                Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} clientes
+                              </div>
+                              {totalPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                                    Anterior
+                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    {currentPage > 3 && (
+                                      <>
+                                        <Button variant={currentPage === 1 ? "default" : "outline"} size="sm" onClick={() => handlePageChange(1)} className="w-9 h-9 p-0">
+                                          1
+                                        </Button>
+                                        {currentPage > 4 && <span className="px-2 text-muted-foreground">...</span>}
+                                      </>
+                                    )}
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                      .filter(page => Math.abs(page - currentPage) <= 2)
+                                      .map(page => (
+                                        <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => handlePageChange(page)} className="w-9 h-9 p-0">
+                                          {page}
+                                        </Button>
+                                      ))}
+                                    {currentPage < totalPages - 2 && (
+                                      <>
+                                        {currentPage < totalPages - 3 && <span className="px-2 text-muted-foreground">...</span>}
+                                        <Button variant={currentPage === totalPages ? "default" : "outline"} size="sm" onClick={() => handlePageChange(totalPages)} className="w-9 h-9 p-0">
+                                          {totalPages}
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                  <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                                    Siguiente
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
                     )}
                   </TabsContent>
 
@@ -781,103 +1040,126 @@ export default function ClientesPage() {
       </div>
 
       {/* Dialogs */}
-      
+
       <Dialog open={isLeadDialogOpen} onOpenChange={(open) => !open && closeLeadDialog()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {isViewOnly 
-                ? 'Detalles del contacto' 
+              {isViewOnly
+                ? 'Detalles del contacto'
                 : (editingId ? (editingType === 'client' ? 'Editar Cliente' : 'Editar Lead') : 'Registrar nuevo lead')}
             </DialogTitle>
             <DialogDescription>
-              {isViewOnly 
-                ? 'Información registrada del contacto.' 
+              {isViewOnly
+                ? 'Información registrada del contacto.'
                 : (editingId ? 'Modifica los datos del contacto.' : 'Captura los datos del contacto para comenzar el seguimiento.')}
             </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4" onSubmit={handleLeadSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="lead-cedula">Cédula</Label>
-              <Input
-                id="lead-cedula"
-                value={leadFormValues.cedula}
-                onChange={handleLeadFieldChange("cedula")}
-                placeholder="0-0000-0000"
-                disabled={isViewOnly}
-              />
-              {!isViewOnly && <p className="text-xs text-muted-foreground">Al ingresar la cédula completaremos los datos desde el TSE.</p>}
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
+          <Form {...form}>
+            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
               <div className="space-y-2">
-                <Label htmlFor="lead-name">Nombre</Label>
-                <Input id="lead-name" value={leadFormValues.name} onChange={handleLeadFieldChange("name")} required disabled={isViewOnly} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lead-apellido1">Primer apellido</Label>
-                <Input
-                  id="lead-apellido1"
-                  value={leadFormValues.apellido1}
-                  onChange={handleLeadFieldChange("apellido1")}
-                  disabled={isViewOnly}
+                <FormField
+                  control={form.control}
+                  name="cedula"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cédula</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="0-0000-0000"
+                          required
+                          disabled={isViewOnly}
+                          {...field}
+                          onChange={(e) => {
+                            const formattedValue = formatCedula(e.target.value);
+                            field.onChange(formattedValue);
+                          }}
+                        />
+                      </FormControl>
+                      {!isViewOnly && <p className="text-xs text-muted-foreground">Al ingresar la cédula completaremos los datos desde el TSE.</p>}
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="lead-apellido2">Segundo apellido</Label>
-                <Input
-                  id="lead-apellido2"
-                  value={leadFormValues.apellido2}
-                  onChange={handleLeadFieldChange("apellido2")}
-                  disabled={isViewOnly}
+              <div className="grid gap-4 md:grid-cols-2">
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Correo</FormLabel>
+                      <FormControl>
+                        <Input type="email" disabled={isViewOnly} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teléfono (Whatsapp)</FormLabel>
+                      <FormControl>
+                        <Input
+                          required
+                          disabled={isViewOnly}
+                          maxLength={8}
+                          {...field}
+                          onChange={(e) => {
+                            const formattedValue = normalizePhoneInput(e.target.value);
+                            field.onChange(formattedValue);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="sector"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sector Laboral</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isViewOnly}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un sector" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="publico">Público</SelectItem>
+                          <SelectItem value="privado">Privado</SelectItem>
+                          <SelectItem value="otro">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="lead-email">Correo</Label>
-                <Input
-                  id="lead-email"
-                  type="email"
-                  value={leadFormValues.email}
-                  onChange={handleLeadFieldChange("email")}
-                  required
-                  disabled={isViewOnly}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lead-phone">Teléfono</Label>
-                <Input id="lead-phone" value={leadFormValues.phone} onChange={handleLeadFieldChange("phone")} disabled={isViewOnly} />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="lead-birthdate">Fecha de nacimiento</Label>
-                <Input
-                  id="lead-birthdate"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="DD-MM-AAAA"
-                  value={leadFormValues.fechaNacimiento}
-                  onChange={handleDateChange}
-                  disabled={isViewOnly}
-                  maxLength={10}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeLeadDialog} disabled={isSavingLead}>
-                {isViewOnly ? "Cerrar" : "Cancelar"}
-              </Button>
-              {!isViewOnly && (
-                <Button type="submit" disabled={isSavingLead}>
-                  {isSavingLead ? "Guardando..." : "Crear lead"}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeLeadDialog} disabled={isSavingLead}>
+                  {isViewOnly ? "Cerrar" : "Cancelar"}
                 </Button>
-              )}
-            </DialogFooter>
-          </form>
+                {!isViewOnly && (
+                  <Button type="submit" disabled={isSavingLead}>
+                    {isSavingLead ? "Guardando..." : "Crear lead"}
+                  </Button>
+                )}
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
-      <CreateOpportunityDialog 
-        open={isOpportunityDialogOpen} 
+      <CreateOpportunityDialog
+        open={isOpportunityDialogOpen}
         onOpenChange={setIsOpportunityDialogOpen}
         leads={leadForOpportunity ? [leadForOpportunity] : []}
         defaultLeadId={leadForOpportunity ? String(leadForOpportunity.id) : undefined}
@@ -889,7 +1171,7 @@ export default function ClientesPage() {
             <DialogHeader>
                 <DialogTitle>¿Eliminar cliente?</DialogTitle>
                 <DialogDescription>
-                    Esta acción eliminará permanentemente a {clientToDelete?.name}. 
+                    Esta acción eliminará permanentemente a {clientToDelete?.name}.
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -902,103 +1184,86 @@ export default function ClientesPage() {
   );
 }
 
-// --- Table Components (Updated with new UI styles) ---
 
-function LeadsTable({ data, onAction }: { data: Lead[], onAction: (action: string, lead: Lead) => void }) {
-    if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
+type LeadsTableProps = {
+  data: Lead[];
+  onAction: (action: string, lead: Lead) => void;
+};
 
-    return (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[11rem]">Cédula</TableHead>
-              <TableHead>Lead</TableHead>
-              <TableHead className="w-[7.5rem]">Estado</TableHead>
-              <TableHead className="w-[10.5rem]">Contacto</TableHead>
-              <TableHead className="text-right">Registrado</TableHead>
-              <TableHead className="w-[20rem] text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((lead) => {
-                const displayName = getLeadDisplayName(lead);
-                const statusLabel = (typeof lead.lead_status === 'object' ? lead.lead_status?.name : lead.lead_status) || 'Nuevo';
-                const badgeClassName = getStatusBadgeClassName(statusLabel);
-                
-                return (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-mono text-sm">
-                        {lead.cedula ? (
-                            <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="text-primary hover:underline">
-                                {lead.cedula}
-                            </Link>
-                        ) : <span className="text-muted-foreground">-</span>}
-                    </TableCell>
-                    <TableCell>
-                        <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
-                            {displayName}
-                        </Link>
-                    </TableCell>
-                    <TableCell>
-                        <Badge className={badgeClassName}>{statusLabel}</Badge>
-                    </TableCell>
-                    <TableCell>
-                        <div className="text-sm text-muted-foreground">{lead.email || "Sin correo"}</div>
-                        <div className="text-sm text-muted-foreground">{lead.phone || "Sin teléfono"}</div>
-                    </TableCell>
-                    <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" className="bg-sky-100 text-sky-700 hover:bg-sky-200" onClick={() => onAction('edit', lead)}>
-                                <Pencil className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Editar</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" className="bg-rose-100 text-rose-700 hover:bg-rose-200" onClick={() => onAction('view', lead)}>
-                                <Eye className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Ver detalle</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" onClick={() => onAction('create_opportunity', lead)}>
-                                <Sparkles className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Crear oportunidad</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => onAction('convert', lead)}>
-                                <UserCheck className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Convertir a cliente</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
-                                <Archive className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Archivar</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-            })}
-          </TableBody>
-        </Table>
-    );
+function LeadsTable({ data, onAction }: LeadsTableProps) {
+  const { toast } = useToast();
+
+  if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
+
+  return (
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[11rem]">Cédula</TableHead>
+            <TableHead>Lead</TableHead>
+            <TableHead className="w-[7.5rem]">Estado</TableHead>
+            <TableHead className="w-[10.5rem]">Contacto</TableHead>
+            <TableHead className="text-right">Registrado</TableHead>
+            <TableHead className="w-[20rem] text-right">Acciones</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((lead) => {
+            const displayName = getLeadDisplayName(lead);
+            const statusLabel = (typeof lead.lead_status === 'object' ? lead.lead_status?.name : lead.lead_status) || 'Nuevo';
+            const badgeClassName = getStatusBadgeClassName(statusLabel);
+            return (
+              <TableRow key={lead.id}>
+                <TableCell className="font-mono text-sm">
+                  {lead.cedula ? (
+                    <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="text-primary hover:underline">
+                      {lead.cedula}
+                    </Link>
+                  ) : <span className="text-muted-foreground">-</span>}
+                </TableCell>
+                <TableCell>
+                  <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
+                    {displayName}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <Badge className={badgeClassName}>{statusLabel}</Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm text-muted-foreground">{lead.email || "Sin correo"}</div>
+                  <div className="text-sm text-muted-foreground">{lead.phone || "Sin teléfono"}</div>
+                </TableCell>
+                <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" onClick={() => onAction('create_opportunity', lead)}>
+                          <Sparkles className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Crear oportunidad</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Archivar</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </>
+  );
 }
-
 function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (client: Client) => void, onDelete: (client: Client) => void }) {
     if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos clientes con los filtros seleccionados.</div>;
 

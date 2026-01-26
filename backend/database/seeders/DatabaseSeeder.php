@@ -17,10 +17,12 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             CrmSeeder::class,
-            CreditSeeder::class,
+            EnterpriseSeeder::class,
             DeductoraSeeder::class,
-            DetailedCreditSeeder::class,
-            PlanDePagoSeeder::class,
+            ProductSeeder::class,
+            CreditSeeder::class,
+            KpiSeeder::class,
+            LoanConfigurationSeeder::class,
         ]);
     }
 }

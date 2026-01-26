@@ -16,6 +16,9 @@ use App\Http\Controllers\Api\Rewards\ChallengeController;
 use App\Http\Controllers\Api\Rewards\CatalogController;
 use App\Http\Controllers\Api\Rewards\RedemptionController;
 use App\Http\Controllers\Api\Rewards\Admin\GamificationConfigController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\QuestionnaireController;
+use App\Http\Controllers\Api\InstitucionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,35 +46,88 @@ Route::get('/lead-statuses', function () {
     return response()->json(\App\Models\LeadStatus::select('id', 'name')->orderBy('order_column')->get());
 });
 
+// Products
+Route::apiResource('products', ProductController::class);
+
+// Instituciones
+Route::apiResource('instituciones', InstitucionController::class);
+
 // Leads
 Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
 Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::apiResource('leads', LeadController::class);
 
+// Questionnaires
+Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
+Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
+
 // Clientes
 Route::apiResource('clients', ClientController::class);
+Route::post('/opportunities/{id}/move-files', [OpportunityController::class, 'moveFiles']);
+Route::get('/opportunities/{id}/files', [OpportunityController::class, 'getFiles']);
+Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadFile']);
+Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile']);
+Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
 
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
 
 // Créditos
+Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
 Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
 Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
+Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos']);
 Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
 Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
 Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
 
-// Deductoras
-Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class);
+// Deductoras (solo lectura - datos hardcodeados en config/deductoras.php)
+Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show']);
 
-// Documentos de Personas (Leads/Clientes)
+// Configuración de Préstamos
+Route::prefix('loan-configurations')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'index']);
+    Route::get('/activas', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'activas']);
+    Route::get('/rangos', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'rangosParaFormulario']);
+    Route::get('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'porTipo']);
+    Route::put('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'update']);
+});
+
+// Documentos de Personas (Leads/Clientes) - Unificado
+Route::get('/person-documents', [PersonDocumentController::class, 'index']);
 Route::post('/person-documents', [PersonDocumentController::class, 'store']);
 Route::delete('/person-documents/{id}', [PersonDocumentController::class, 'destroy']);
+Route::get('/person-documents/check-cedula-folder', [PersonDocumentController::class, 'checkCedulaFolder']);
+Route::post('/person-documents/sync-to-opportunity', [PersonDocumentController::class, 'syncToOpportunity']);
 
 // Pagos de Crédito
 Route::apiResource('credit-payments', CreditPaymentController::class);
 Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
 Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
+
+// Cotizaciones
+Route::post('quotes/send', [\App\Http\Controllers\Api\QuoteController::class, 'sendQuote']);
+
+// Chat Messages
+Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'index']);
+Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
+
+// KPIs
+Route::prefix('kpis')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\KpiController::class, 'all']);
+    Route::get('/leads', [\App\Http\Controllers\Api\KpiController::class, 'leads']);
+    Route::get('/opportunities', [\App\Http\Controllers\Api\KpiController::class, 'opportunities']);
+    Route::get('/credits', [\App\Http\Controllers\Api\KpiController::class, 'credits']);
+    Route::get('/collections', [\App\Http\Controllers\Api\KpiController::class, 'collections']);
+    Route::get('/agents', [\App\Http\Controllers\Api\KpiController::class, 'agents']);
+    Route::get('/gamification', [\App\Http\Controllers\Api\KpiController::class, 'gamification']);
+    Route::get('/business', [\App\Http\Controllers\Api\KpiController::class, 'business']);
+    Route::get('/trends', [\App\Http\Controllers\Api\KpiController::class, 'trends']);
+});
+
+// Enterprises CRUD
+// GET /api/enterprises?business_name=NombreEmpresa para filtrar por empresa
+Route::apiResource('enterprises', \App\Http\Controllers\Api\EnterpriseEmployeeDocumentController::class);
 
 // --- Rewards / Gamificación (Público temporalmente) ---
 Route::prefix('rewards')->group(function () {
@@ -125,6 +181,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
+
+    // Analisis CRUD (Protegido)
+    Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
+    Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
+    Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
+    Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
 
     // --- Admin Gamificación ---
     Route::prefix('admin/gamification')->group(function () {

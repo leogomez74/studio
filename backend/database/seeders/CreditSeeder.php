@@ -37,6 +37,9 @@ class CreditSeeder extends Seeder
                 'progress' => rand(10, 90),
                 'opened_at' => now()->subDays(rand(1, 30))->toDateString(),
                 'description' => 'Crédito generado automáticamente para la oportunidad ' . $opportunity->id,
+                'monto_credito' => rand(100000, 5000000),
+                'plazo' => rand(12, 60),
+                'tasa_anual' => 33.50,
             ]);
         }
     }

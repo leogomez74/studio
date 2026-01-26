@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class CreditPayment extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'credit_id',
         'numero_cuota',
@@ -14,7 +17,6 @@ class CreditPayment extends Model
         'fecha_pago',
         'cuota',           // Cuota exigible (Snapshot del momento)
         'monto',           // Dinero real pagado
-        'cargos',
         'poliza',
         'interes_corriente', // Informativo: cuánto de este pago fue a interés
         'interes_moratorio', // Informativo: cuánto de este pago fue a mora
@@ -24,6 +26,7 @@ class CreditPayment extends Model
         'estado',
         'fecha_movimiento',
         'movimiento_total',  // Usado si hubo excedente
+        'movimiento_amortizacion',
         'linea',
         'fecha_inicio',
         'fecha_corte',
@@ -43,7 +46,6 @@ class CreditPayment extends Model
         'fecha_corte' => 'date',
         'cuota' => 'decimal:2',
         'monto' => 'decimal:2',
-        'cargos' => 'decimal:2',
         'poliza' => 'decimal:2',
         'interes_corriente' => 'decimal:2',
         'interes_moratorio' => 'decimal:2',
@@ -51,6 +53,7 @@ class CreditPayment extends Model
         'saldo_anterior' => 'decimal:2',
         'saldo_nuevo' => 'decimal:2',
         'movimiento_total' => 'decimal:2',
+        'movimiento_amortizacion' => 'decimal:2',
         'tasa_actual' => 'decimal:2',
     ];
 

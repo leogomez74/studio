@@ -29,7 +29,8 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       {/* En el body, aplicamos una clase para la tipografía base. */}
-      <body className="font-body antialiased">
+      <body className="font-body antialiased
+      suppressHydrationWarning={true}">
         {/* Aquí se renderizará el contenido de la página actual. */}
         {children}
         {/* 'Toaster' se coloca aquí para que las notificaciones puedan aparecer en cualquier parte de la aplicación. */}

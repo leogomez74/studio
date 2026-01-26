@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
@@ -13,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -45,11 +46,1076 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { patronos, Patrono, deductoras, Deductora, creditConfigs, credits } from '@/lib/data';
+import { patronos } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/env';
 import { useAuth } from '@/components/auth-guard';
 import api from '@/lib/axios';
-import CreditsPage from '../creditos/page';
+import { EMPRESAS_MOCK, Empresa, Requirement } from '@/lib/empresas-mock';
+
+// ----------------------------------------------------------------------
+// 1. COMPONENTES Y CONSTANTES AUXILIARES (Definidos FUERA del componente principal)
+// ----------------------------------------------------------------------
+
+const extensionOptions = [
+  { label: 'PDF', value: 'pdf' },
+  { label: 'Imagen (JPG/JPEG)', value: 'jpg' },
+  { label: 'Imagen (PNG)', value: 'png' },
+  { label: 'HTML', value: 'html' },
+];
+
+const EmpresasCRUD: React.FC = () => {
+  const { toast } = useToast();
+  const { token } = useAuth();
+  const [empresas, setEmpresas] = useState<Empresa[]>(EMPRESAS_MOCK);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [usingMock, setUsingMock] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
+  
+  // Estado del formulario
+  const [businessName, setBusinessName] = useState('');
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+
+  const fetchEmpresas = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/enterprises', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const apiData = res.data;
+
+      // Si la API tiene más datos que el mock, usar API; si no, usar mock
+      if (apiData.length > EMPRESAS_MOCK.length) {
+        setEmpresas(apiData);
+        setUsingMock(false);
+      } else {
+        setEmpresas(EMPRESAS_MOCK);
+        setUsingMock(true);
+      }
+    } catch (err) {
+      console.error('Error fetching empresas, using mock data:', err);
+      setEmpresas(EMPRESAS_MOCK);
+      setUsingMock(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmpresas();
+  }, [token]);
+
+  const openCreateDialog = () => {
+    setEditingEmpresa(null);
+    setBusinessName('');
+    setRequirements([{ name: 'Constancia', file_extension: 'pdf', quantity: 1 }]); // Default
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (empresa: Empresa) => {
+    setEditingEmpresa(empresa);
+    setBusinessName(empresa.business_name);
+    // Cargar requisitos existentes o poner uno por defecto si no tiene
+    setRequirements(empresa.requirements.length > 0 
+      ? empresa.requirements.map(r => ({ ...r })) 
+      : [{ name: '', file_extension: 'pdf', quantity: 1 }]
+    );
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingEmpresa(null);
+    setBusinessName('');
+    setRequirements([]);
+  };
+
+  // Manejo de requisitos dinámicos
+  const addRequirement = () => {
+    setRequirements([...requirements, { name: '', file_extension: 'pdf', quantity: 1 }]);
+  };
+
+  const removeRequirement = (index: number) => {
+    const newReqs = [...requirements];
+    newReqs.splice(index, 1);
+    setRequirements(newReqs);
+  };
+
+  const updateRequirement = (index: number, field: keyof Requirement, value: any) => {
+    const newReqs = [...requirements];
+    newReqs[index] = { ...newReqs[index], [field]: value };
+    setRequirements(newReqs);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessName.trim()) {
+      toast({ title: 'Error', description: 'El nombre es obligatorio.', variant: 'destructive' });
+      return;
+    }
+    if (requirements.length === 0) {
+      toast({ title: 'Error', description: 'Agrega al menos un requisito.', variant: 'destructive' });
+      return;
+    }
+
+    // Validar campos vacíos
+    for (const req of requirements) {
+      if (!req.name.trim()) {
+        toast({ title: 'Error', description: 'Todos los documentos deben tener nombre.', variant: 'destructive' });
+        return;
+      }
+    }
+
+    setSaving(true);
+
+    const newRequirements = requirements.map(r => ({
+      name: r.name,
+      file_extension: r.file_extension,
+      quantity: r.quantity || 1,
+    }));
+
+    if (usingMock) {
+      // Operación local con mock
+      if (editingEmpresa) {
+        setEmpresas(prev => prev.map(emp =>
+          emp.id === editingEmpresa.id
+            ? { ...emp, business_name: businessName.trim(), requirements: newRequirements }
+            : emp
+        ));
+        toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
+      } else {
+        const newId = Math.max(...empresas.map(e => e.id), 0) + 1;
+        setEmpresas(prev => [...prev, {
+          id: newId,
+          business_name: businessName.trim(),
+          requirements: newRequirements
+        }]);
+        toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
+      }
+      closeDialog();
+      setSaving(false);
+    } else {
+      // Operación con API
+      try {
+        const now = new Date().toISOString();
+        const requirementsPayload = requirements.map(r => ({
+          name: r.name,
+          file_extension: r.file_extension,
+          quantity: r.quantity || 1,
+          upload_date: now,
+          last_updated: now,
+        }));
+
+        const payload = {
+          business_name: businessName.trim(),
+          requirements: requirementsPayload,
+        };
+
+        if (editingEmpresa) {
+          await api.put(`/api/enterprises/${editingEmpresa.id}`, payload, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
+        } else {
+          await api.post('/api/enterprises', payload, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
+        }
+
+        closeDialog();
+        fetchEmpresas();
+      } catch (err: any) {
+        console.error(err);
+        const msg = err?.response?.data?.message || 'No se pudo guardar la empresa.';
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const handleDelete = async (empresa: Empresa) => {
+    if (!confirm(`¿Eliminar la empresa "${empresa.business_name}"?`)) return;
+
+    if (usingMock) {
+      setEmpresas(prev => prev.filter(e => e.id !== empresa.id));
+      toast({ title: 'Eliminado', description: 'Empresa eliminada correctamente.' });
+    } else {
+      try {
+        await api.delete(`/api/enterprises/${empresa.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        toast({ title: 'Eliminado', description: 'Empresa eliminada correctamente.' });
+        fetchEmpresas();
+      } catch (err) {
+        console.error('Error deleting empresa:', err);
+        toast({ title: 'Error', description: 'No se pudo eliminar la empresa.', variant: 'destructive' });
+      }
+    }
+  };
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Empresas y Requisitos</CardTitle>
+            <CardDescription>Configura los documentos necesarios por cada institución.</CardDescription>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1" onClick={openCreateDialog}>
+                <PlusCircle className="h-4 w-4" />
+                Nueva Empresa
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingEmpresa ? 'Editar Empresa' : 'Crear Empresa'}</DialogTitle>
+                <DialogDescription>
+                  Define el nombre y los documentos que se deben solicitar.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="empresa-name">Nombre de la Empresa</Label>
+                  <Input
+                    id="empresa-name"
+                    value={businessName}
+                    onChange={e => setBusinessName(e.target.value)}
+                    placeholder="Ej: Ministerio de Educación (MEP)"
+                    required
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Documentos Requeridos</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addRequirement} disabled={saving}>
+                      <PlusCircle className="h-3 w-3 mr-1" /> Agregar
+                    </Button>
+                  </div>
+                  
+                  {requirements.map((req, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row gap-3 items-start sm:items-end p-3 border rounded-md bg-muted/20">
+                      <div className="flex-1 w-full space-y-1">
+                        <Label className="text-xs">Nombre del Documento</Label>
+                        <Input
+                          value={req.name}
+                          onChange={e => updateRequirement(idx, 'name', e.target.value)}
+                          placeholder="Ej: Constancia Salarial"
+                          className="h-8"
+                          disabled={saving}
+                        />
+                      </div>
+                      <div className="w-full sm:w-32 space-y-1">
+                        <Label className="text-xs">Formato</Label>
+                        <Select 
+                          value={req.file_extension} 
+                          onValueChange={v => updateRequirement(idx, 'file_extension', v)}
+                          disabled={saving}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {extensionOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-full sm:w-20 space-y-1">
+                        <Label className="text-xs">Cant.</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={req.quantity}
+                          onChange={e => updateRequirement(idx, 'quantity', parseInt(e.target.value) || 1)}
+                          className="h-8"
+                          disabled={saving}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive/90"
+                        onClick={() => removeRequirement(idx)}
+                        disabled={requirements.length === 1 || saving}
+                      >
+                        <MoreHorizontal className="h-4 w-4 rotate-45" /> {/* Using generic icon as X */}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeDialog} disabled={saving}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Guardar
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">ID</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Requerimientos</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {empresas.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    No hay empresas registradas.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                empresas.map((empresa) => (
+                  <TableRow key={empresa.id}>
+                    <TableCell>{empresa.id}</TableCell>
+                    <TableCell className="font-medium">{empresa.business_name}</TableCell>
+                    <TableCell>
+                      {empresa.requirements && empresa.requirements.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {empresa.requirements.map((req, idx) => (
+                            <div key={idx} className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm">
+                              <span className="font-medium text-foreground">{req.name}</span>
+                              <span className="text-[10px] uppercase bg-secondary px-1 rounded">{req.file_extension}</span>
+                              {req.quantity > 1 && (
+                                <span className="font-bold text-primary">x{req.quantity}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sin requerimientos</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menú</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openEditDialog(empresa)}>Editar</DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(empresa)}>Eliminar</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// Productos CRUD Component
+interface Product {
+  id?: number;
+  name: string;
+  slug?: string;
+  description: string | null;
+  is_default: boolean;
+  order_column: number;
+}
+
+// ==================================================================================
+// INSTITUCIONES CRUD
+// ==================================================================================
+
+interface Institucion {
+  id?: number;
+  nombre: string;
+  activa: boolean;
+}
+
+const InstitucionesCRUD: React.FC = () => {
+  const { toast } = useToast();
+  const [instituciones, setInstituciones] = useState<Institucion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingInstitucion, setEditingInstitucion] = useState<Institucion | null>(null);
+  const [institucionForm, setInstitucionForm] = useState<Institucion>({
+    nombre: '',
+    activa: true,
+  });
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [perPage, setPerPage] = useState(10);
+
+  const fetchInstituciones = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/instituciones', {
+        params: {
+          page: currentPage,
+          per_page: perPage,
+        }
+      });
+
+      // Detectar si la respuesta está paginada
+      if (res.data.data && res.data.current_page) {
+        setInstituciones(res.data.data);
+        setCurrentPage(res.data.current_page);
+        setTotalPages(res.data.last_page);
+        setTotalItems(res.data.total);
+      } else {
+        setInstituciones(res.data);
+      }
+    } catch (err) {
+      console.error('Error fetching instituciones:', err);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar las instituciones.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInstituciones();
+  }, [currentPage, perPage]);
+
+  const openCreateDialog = () => {
+    setEditingInstitucion(null);
+    setInstitucionForm({
+      nombre: '',
+      activa: true,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (institucion: Institucion) => {
+    setEditingInstitucion(institucion);
+    setInstitucionForm({ ...institucion });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingInstitucion(null);
+    setInstitucionForm({
+      nombre: '',
+      activa: true,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!institucionForm.nombre.trim()) {
+      toast({
+        title: 'Error',
+        description: 'El nombre de la institución es obligatorio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        nombre: institucionForm.nombre.trim(),
+        activa: institucionForm.activa,
+      };
+
+      if (editingInstitucion) {
+        await api.put(`/api/instituciones/${editingInstitucion.id}`, payload);
+        toast({ title: 'Actualizado', description: 'Institución actualizada correctamente.' });
+      } else {
+        await api.post('/api/instituciones', payload);
+        toast({ title: 'Creado', description: 'Institución creada correctamente.' });
+      }
+
+      closeDialog();
+      fetchInstituciones();
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.response?.data?.message || 'No se pudo guardar la institución.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (institucion: Institucion) => {
+    if (!confirm(`¿Eliminar la institución "${institucion.nombre}"?`)) return;
+
+    try {
+      await api.delete(`/api/instituciones/${institucion.id}`);
+      toast({ title: 'Eliminado', description: 'Institución eliminada correctamente.' });
+      fetchInstituciones();
+    } catch (err) {
+      console.error('Error deleting institucion:', err);
+      toast({ title: 'Error', description: 'No se pudo eliminar la institución.', variant: 'destructive' });
+    }
+  };
+
+  // Handlers de paginación
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Instituciones</CardTitle>
+            <CardDescription>Gestiona la lista de instituciones disponibles para oportunidades y cuestionarios.</CardDescription>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs whitespace-nowrap">Registros:</Label>
+              <Select value={String(perPage)} onValueChange={(value) => {
+                setPerPage(Number(value));
+                setCurrentPage(1);
+              }}>
+                <SelectTrigger className="h-8 w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1" onClick={openCreateDialog}>
+                <PlusCircle className="h-4 w-4" />
+                Nueva Institución
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingInstitucion ? 'Editar Institución' : 'Crear Institución'}</DialogTitle>
+                <DialogDescription>
+                  Define el nombre de la institución.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="institucion-nombre">Nombre</Label>
+                  <Input
+                    id="institucion-nombre"
+                    value={institucionForm.nombre}
+                    onChange={(e) => setInstitucionForm({ ...institucionForm, nombre: e.target.value })}
+                    placeholder="Ej: I.M.A.S"
+                    required
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="institucion-activa"
+                    checked={institucionForm.activa}
+                    onChange={(e) => setInstitucionForm({ ...institucionForm, activa: e.target.checked })}
+                    disabled={saving}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="institucion-activa" className="text-sm font-normal">
+                    Activa
+                  </Label>
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeDialog} disabled={saving}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {editingInstitucion ? 'Actualizar' : 'Crear'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead className="w-[100px]">Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {instituciones.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground">
+                    No hay instituciones registradas.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                instituciones.map((institucion) => (
+                  <TableRow key={institucion.id}>
+                    <TableCell className="font-medium">{institucion.nombre}</TableCell>
+                    <TableCell>
+                      {institucion.activa ? (
+                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                          Activa
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                          Inactiva
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menú</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openEditDialog(institucion)}>
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => handleDelete(institucion)}
+                          >
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+
+        {/* Paginación */}
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-between px-2 py-4 border-t">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {instituciones.length} de {totalItems} instituciones
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+              >
+                Anterior
+              </Button>
+              <div className="text-sm">
+                Página {currentPage} de {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// ==================================================================================
+// PRODUCTOS CRUD
+// ==================================================================================
+
+const ProductosCRUD: React.FC = () => {
+  const { toast } = useToast();
+  const { token } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Form state
+  const [productForm, setProductForm] = useState<Product>({
+    name: '',
+    description: '',
+    is_default: false,
+    order_column: 0,
+  });
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/products');
+      setProducts(res.data);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar los créditos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const openCreateDialog = () => {
+    setEditingProduct(null);
+    setProductForm({
+      name: '',
+      description: '',
+      is_default: false,
+      order_column: products.length + 1,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (product: Product) => {
+    setEditingProduct(product);
+    setProductForm({ ...product });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingProduct(null);
+    setProductForm({
+      name: '',
+      description: '',
+      is_default: false,
+      order_column: 0,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!productForm.name.trim()) {
+      toast({
+        title: 'Error',
+        description: 'El nombre del crédito es obligatorio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        name: productForm.name.trim(),
+        description: productForm.description || '',
+        is_default: productForm.is_default,
+        order_column: productForm.order_column,
+      };
+
+      if (editingProduct) {
+        await api.put(`/api/products/${editingProduct.id}`, payload);
+        toast({
+          title: 'Actualizado',
+          description: 'Crédito actualizado correctamente.',
+        });
+      } else {
+        await api.post('/api/products', payload);
+        toast({
+          title: 'Creado',
+          description: 'Crédito creado correctamente.',
+        });
+      }
+
+      closeDialog();
+      fetchProducts();
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.response?.data?.message || 'No se pudo guardar el crédito.';
+      toast({
+        title: 'Error',
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (product: Product) => {
+    if (!confirm(`¿Eliminar el crédito "${product.name}"?`)) return;
+
+    try {
+      await api.delete(`/api/products/${product.id}`);
+      toast({
+        title: 'Eliminado',
+        description: 'Crédito eliminado correctamente.',
+      });
+      fetchProducts();
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      toast({
+        title: 'Error',
+        description: 'No se pudo eliminar el crédito.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Tipos de Créditos</CardTitle>
+            <CardDescription>
+              Gestiona los tipos de créditos y servicios ofrecidos por la empresa.
+            </CardDescription>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1" onClick={openCreateDialog}>
+                <PlusCircle className="h-4 w-4" />
+                Nuevo Crédito
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingProduct ? 'Editar Crédito' : 'Crear Crédito'}
+                </DialogTitle>
+                <DialogDescription>
+                  Define el nombre y descripción del tipo de crédito.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="product-name">Nombre del Crédito</Label>
+                  <Input
+                    id="product-name"
+                    value={productForm.name}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, name: e.target.value })
+                    }
+                    placeholder="Ej: Micro Crédito"
+                    required
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-description">Descripción</Label>
+                  <Input
+                    id="product-description"
+                    value={productForm.description || ''}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: Préstamos pequeños de rápida aprobación"
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-order">Orden</Label>
+                  <Input
+                    id="product-order"
+                    type="number"
+                    min="1"
+                    value={productForm.order_column}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        order_column: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="product-default"
+                    checked={productForm.is_default}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        is_default: e.target.checked,
+                      })
+                    }
+                    disabled={saving}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="product-default" className="text-sm font-normal">
+                    Marcar como crédito por defecto
+                  </Label>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeDialog}
+                    disabled={saving}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Guardar
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">Orden</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead className="w-[100px]">Por Defecto</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {products.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No hay créditos registrados.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                products.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-mono">{product.order_column}</TableCell>
+                    <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {product.description || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {product.is_default ? (
+                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                          Sí
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menú</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openEditDialog(product)}>
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => handleDelete(product)}
+                          >
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// ----------------------------------------------------------------------
+// 2. COMPONENTE PRINCIPAL
+// ----------------------------------------------------------------------
+
+interface Deductora {
+  id: number;
+  nombre: string;
+  fecha_reporte_pago: string | null;
+  comision: number | null;
+}
 
 export default function ConfiguracionPage() {
   const { toast } = useToast();
@@ -116,11 +1182,11 @@ export default function ConfiguracionPage() {
       setDeductorasList(response.data);
     } catch (error) {
       console.error('Error fetching deductoras from API, using static data:', error);
-      // Fall back to static data from data.ts
-      setDeductorasList(deductoras);
+      // Fall back to static data from data.ts if API fails
+      // setDeductorasList(deductorasData); 
       toast({
         title: "Usando datos locales",
-        description: "No se pudo conectar con el servidor, mostrando datos de ejemplo.",
+        description: "No se pudo conectar con el servidor.",
         variant: "default",
       });
     } finally {
@@ -287,10 +1353,10 @@ export default function ConfiguracionPage() {
         });
         setIsCreateUserOpen(false);
         setEditingUser(null);
-        setNewUser({ 
-          name: '', 
-          email: '', 
-          password: '', 
+        setNewUser({
+          name: '',
+          email: '',
+          password: '',
           password_confirmation: '',
           role: 'Sin Rol Asignado',
           status: 'Activo'
@@ -334,59 +1400,164 @@ export default function ConfiguracionPage() {
     }
   };
 
-  // Estado para el Crédito Regular
+  // Estado para configuraciones de préstamos
   const [regularConfig, setRegularConfig] = useState({
-    minAmount: '500000',
-    maxAmount: '10000000',
-    interestRate: creditConfigs.regular.interestRate.toString(),
-    minTerm: '12',
-    maxTerm: '72',
+    minAmount: '',
+    maxAmount: '',
+    interestRate: '',
+    minTerm: '',
+    maxTerm: '',
   });
 
-  // Estado para el Micro-Crédito
   const [microConfig, setMicroConfig] = useState({
-    minAmount: '100000',
-    maxAmount: '1000000',
-    interestRate: creditConfigs.micro.interestRate.toString(),
-    minTerm: '6',
-    maxTerm: '24',
+    minAmount: '',
+    maxAmount: '',
+    interestRate: '',
+    minTerm: '',
+    maxTerm: '',
   });
+
+  const [loadingLoanConfigs, setLoadingLoanConfigs] = useState(false);
+  const [savingRegular, setSavingRegular] = useState(false);
+  const [savingMicro, setSavingMicro] = useState(false);
+
+  // Función para formatear número a colones con comas
+  const formatColones = (value: string | number): string => {
+    const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
+    if (isNaN(num) || num === 0) return '';
+    // Usar formato con comas como separador de miles
+    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  };
+
+  // Función para parsear colones a número
+  const parseColones = (value: string): string => {
+    return value.replace(/,/g, '');
+  };
+
+  // Cargar configuraciones de préstamos desde la API
+  const fetchLoanConfigurations = useCallback(async () => {
+    setLoadingLoanConfigs(true);
+    try {
+      const response = await api.get('/api/loan-configurations');
+      const configs = response.data;
+
+      const regular = configs.find((c: any) => c.tipo === 'regular');
+      const micro = configs.find((c: any) => c.tipo === 'microcredito');
+
+      if (regular) {
+        setRegularConfig({
+          minAmount: regular.monto_minimo?.toString() || '',
+          maxAmount: regular.monto_maximo?.toString() || '',
+          interestRate: regular.tasa_anual?.toString() || '',
+          minTerm: regular.plazo_minimo?.toString() || '',
+          maxTerm: regular.plazo_maximo?.toString() || '',
+        });
+      }
+
+      if (micro) {
+        setMicroConfig({
+          minAmount: micro.monto_minimo?.toString() || '',
+          maxAmount: micro.monto_maximo?.toString() || '',
+          interestRate: micro.tasa_anual?.toString() || '',
+          minTerm: micro.plazo_minimo?.toString() || '',
+          maxTerm: micro.plazo_maximo?.toString() || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching loan configurations:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar las configuraciones de préstamos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingLoanConfigs(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchLoanConfigurations();
+  }, [fetchLoanConfigurations]);
 
   const handleRegularChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setRegularConfig((prev) => ({ ...prev, [id]: value }));
+    // Para montos, guardar sin formato
+    if (id === 'minAmount' || id === 'maxAmount') {
+      setRegularConfig((prev) => ({ ...prev, [id]: parseColones(value) }));
+    } else {
+      setRegularConfig((prev) => ({ ...prev, [id]: value }));
+    }
   };
 
   const handleMicroChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setMicroConfig((prev) => ({ ...prev, [id]: value }));
+    // Para montos, guardar sin formato
+    if (id === 'minAmount' || id === 'maxAmount') {
+      setMicroConfig((prev) => ({ ...prev, [id]: parseColones(value) }));
+    } else {
+      setMicroConfig((prev) => ({ ...prev, [id]: value }));
+    }
   };
 
-  const handleSave = (creditType: 'Crédito Regular' | 'Micro-crédito') => {
-    toast({
-      title: "Parámetros Guardados",
-      description: `La configuración para ${creditType} ha sido actualizada.`,
-      duration: 3000,
-    });
+  const handleSave = async (creditType: 'regular' | 'microcredito') => {
+    const config = creditType === 'regular' ? regularConfig : microConfig;
+    const setLoading = creditType === 'regular' ? setSavingRegular : setSavingMicro;
+    const label = creditType === 'regular' ? 'Crédito Regular' : 'Micro-crédito';
+
+    setLoading(true);
+    try {
+      await api.put(`/api/loan-configurations/${creditType}`, {
+        monto_minimo: parseFloat(config.minAmount) || 0,
+        monto_maximo: parseFloat(config.maxAmount) || 0,
+        tasa_anual: parseFloat(config.interestRate) || 0,
+        plazo_minimo: parseInt(config.minTerm) || 1,
+        plazo_maximo: parseInt(config.maxTerm) || 1,
+      });
+
+      toast({
+        title: "Parámetros Guardados",
+        description: `La configuración para ${label} ha sido actualizada.`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error saving loan configuration:', error);
+      toast({
+        title: 'Error',
+        description: `No se pudo guardar la configuración de ${label}.`,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const [tasaActual, setTasaActual] = useState<string>('33.5');
   const [tasaLoading, setTasaLoading] = useState(false);
   const [tasaSaving, setTasaSaving] = useState(false);
   const [tasaCreditId, setTasaCreditId] = useState<number | null>(null);
+  const [polizaActual, setPolizaActual] = useState<string>('0');
+  const [polizaLoading, setPolizaLoading] = useState(false);
+  const [polizaSaving, setPolizaSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('prestamos');
+
+  const fetchReferenceCredit = useCallback(async () => {
+    const res = await api.get('/api/credits');
+    const list = res.data;
+    if (Array.isArray(list) && list.length > 0) {
+      return list[0];
+    }
+    return null;
+  }, []);
 
   const loadTasa = useCallback(async () => {
     setTasaLoading(true);
     try {
-      const res = await api.get('/api/credits');
-      const list = res.data;
-      if (Array.isArray(list) && list.length > 0) {
-        const first = list[0];
-        setTasaCreditId(first.id);
-        setTasaActual(first.tasa_actual ? String(first.tasa_actual) : '33.5');
+      const credit = await fetchReferenceCredit();
+      if (credit) {
+        setTasaCreditId(credit.id);
+        const tasaValue = credit.tasa_actual ?? credit.tasa_anual;
+        setTasaActual(tasaValue ? String(tasaValue) : '33.5');
       } else {
-        // No credits yet, keep default
         setTasaActual('33.5');
         setTasaCreditId(null);
       }
@@ -396,14 +1567,33 @@ export default function ConfiguracionPage() {
     } finally {
       setTasaLoading(false);
     }
+  }, [fetchReferenceCredit, toast]);
+
+  const loadPoliza = useCallback(async () => {
+    setPolizaLoading(true);
+    try {
+      const res = await api.get('/api/loan-configurations/regular');
+      const config = res.data;
+      setPolizaActual(String(config.monto_poliza ?? 0));
+    } catch (err) {
+      console.error('Failed to load monto_poliza from loan_configurations:', err);
+      toast({ title: 'Error', description: 'No se pudo obtener la póliza.', variant: 'destructive' });
+    } finally {
+      setPolizaLoading(false);
+    }
   }, [toast]);
 
   useEffect(() => {
-    // Load when the component mounts and whenever the tasa tab becomes active
     if (activeTab === 'tasa_actual') {
       loadTasa();
     }
   }, [activeTab, loadTasa]);
+
+  useEffect(() => {
+    if (activeTab === 'poliza') {
+      loadPoliza();
+    }
+  }, [activeTab, loadPoliza]);
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
@@ -412,9 +1602,27 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
         <TabsTrigger value="patronos">Patronos</TabsTrigger>
         <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
+        <TabsTrigger value="empresas">Empresas</TabsTrigger>
+        <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
+        <TabsTrigger value="productos">Créditos</TabsTrigger>
         <TabsTrigger value="api">API ERP</TabsTrigger>
         <TabsTrigger value="tasa_actual">Tasa Actual</TabsTrigger>
+        <TabsTrigger value="poliza">Póliza</TabsTrigger>
       </TabsList>
+
+
+      <TabsContent value="empresas">
+        <EmpresasCRUD />
+      </TabsContent>
+
+      <TabsContent value="instituciones">
+        <InstitucionesCRUD />
+      </TabsContent>
+
+      <TabsContent value="productos">
+        <ProductosCRUD />
+      </TabsContent>
+
       <TabsContent value="tasa_actual">
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
@@ -438,7 +1646,6 @@ export default function ConfiguracionPage() {
                   try {
                     await api.put(`/api/credits/${tasaCreditId}`, { tasa_anual: parseFloat(tasaActual) || 0 });
                     toast({ title: 'Guardado', description: 'Tasa actualizada correctamente.' });
-                    // Refresh the displayed value from the server
                     await loadTasa();
                   } catch (err) {
                     console.error('Failed to save tasa_actual:', err);
@@ -455,151 +1662,223 @@ export default function ConfiguracionPage() {
           </div>
         </div>
       </TabsContent>
-      <TabsContent value="prestamos">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Crédito Regular</CardTitle>
-              <CardDescription>
-                Parámetros para los créditos regulares de deducción de planilla.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="regular-minAmount">Monto Mínimo (₡)</Label>
-                  <Input
-                    id="minAmount"
-                    type="number"
-                    value={regularConfig.minAmount}
-                    onChange={handleRegularChange}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="regular-maxAmount">Monto Máximo (₡)</Label>
-                  <Input
-                    id="maxAmount"
-                    type="number"
-                    value={regularConfig.maxAmount}
-                    onChange={handleRegularChange}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="regular-interestRate">
-                  Tasa Anual (%)
-                </Label>
-                <Input
-                  id="interestRate"
-                  type="number"
-                  value={regularConfig.interestRate}
 
-                  onChange={handleRegularChange}
-                  className="font-mono"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="regular-minTerm">Plazo Mínimo (meses)</Label>
-                  <Input
-                    id="minTerm"
-                    type="number"
-                    value={regularConfig.minTerm}
-                    onChange={handleRegularChange}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="regular-maxTerm">Plazo Máximo (meses)</Label>
-                  <Input
-                    id="maxTerm"
-                    type="number"
-                    value={regularConfig.maxTerm}
-                    onChange={handleRegularChange}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={() => handleSave('Crédito Regular')}>Guardar Cambios</Button>
-            </CardFooter>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Micro-crédito</CardTitle>
-              <CardDescription>
-                Parámetros para micro-créditos de rápida aprobación.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="micro-minAmount">Monto Mínimo (₡)</Label>
-                  <Input
-                    id="minAmount"
-                    type="number"
-                    value={microConfig.minAmount}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="micro-maxAmount">Monto Máximo (₡)</Label>
-                  <Input
-                    id="maxAmount"
-                    type="number"
-                    value={microConfig.maxAmount}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="micro-interestRate">
-                  Tasa de Interés Anual (%)
-                </Label>
-                <Input
-                  id="interestRate"
-                  type="number"
-                  value={microConfig.interestRate}
-                  onChange={handleMicroChange}
-                  className="font-mono"
-                  placeholder='35.5'
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="micro-minTerm">Plazo Mínimo (meses)</Label>
-                  <Input
-                    id="minTerm"
-                    type="number"
-                    value={microConfig.minTerm}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="micro-maxTerm">Plazo Máximo (meses)</Label>
-                  <Input
-                    id="maxTerm"
-                    type="number"
-                    value={microConfig.maxTerm}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={() => handleSave('Micro-crédito')}>Guardar Cambios</Button>
-            </CardFooter>
-          </Card>
+      <TabsContent value="poliza">
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-3">
+            <Label htmlFor="poliza-actual" className="text-center">Monto de Póliza por Cuota (₡)</Label>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Este monto fijo se aplicará a cada cuota del plan de pagos cuando el crédito tenga póliza activa.
+            </p>
+            <Input
+              id="poliza-actual"
+              type="number"
+              value={polizaActual}
+              onChange={(e) => setPolizaActual(e.target.value)}
+              className="max-w-xs text-center font-mono"
+              disabled={polizaLoading}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={async () => {
+                  setPolizaSaving(true);
+                  try {
+                    await api.put('/api/loan-configurations/regular', { monto_poliza: parseFloat(polizaActual) || 0 });
+                    toast({ title: 'Guardado', description: 'Póliza actualizada correctamente.' });
+                    await loadPoliza();
+                  } catch (err) {
+                    console.error('Failed to save monto_poliza:', err);
+                    toast({ title: 'Error', description: 'No se pudo guardar la póliza.', variant: 'destructive' });
+                  } finally {
+                    setPolizaSaving(false);
+                  }
+                }}
+                disabled={polizaLoading || polizaSaving}
+              >
+                {polizaSaving ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
         </div>
       </TabsContent>
+
+      <TabsContent value="prestamos">
+        {loadingLoanConfigs ? (
+          <div className="flex justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Crédito Regular</CardTitle>
+                <CardDescription>
+                  Parámetros para los créditos regulares de deducción de planilla.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-minAmount">Monto Mínimo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="minAmount"
+                        type="text"
+                        value={formatColones(regularConfig.minAmount)}
+                        onChange={handleRegularChange}
+                        className="font-mono pl-7"
+                        disabled={savingRegular}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-maxAmount">Monto Máximo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="maxAmount"
+                        type="text"
+                        value={formatColones(regularConfig.maxAmount)}
+                        onChange={handleRegularChange}
+                        className="font-mono pl-7"
+                        disabled={savingRegular}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="regular-interestRate">Tasa Anual (%)</Label>
+                  <Input
+                    id="interestRate"
+                    type="number"
+                    step="0.01"
+                    value={regularConfig.interestRate}
+                    onChange={handleRegularChange}
+                    className="font-mono"
+                    disabled={savingRegular}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-minTerm">Plazo Mínimo (meses)</Label>
+                    <Input
+                      id="minTerm"
+                      type="number"
+                      value={regularConfig.minTerm}
+                      onChange={handleRegularChange}
+                      className="font-mono"
+                      disabled={savingRegular}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="regular-maxTerm">Plazo Máximo (meses)</Label>
+                    <Input
+                      id="maxTerm"
+                      type="number"
+                      value={regularConfig.maxTerm}
+                      onChange={handleRegularChange}
+                      className="font-mono"
+                      disabled={savingRegular}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={() => handleSave('regular')} disabled={savingRegular}>
+                  {savingRegular && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Guardar Cambios
+                </Button>
+              </CardFooter>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Micro-crédito</CardTitle>
+                <CardDescription>
+                  Parámetros para micro-créditos de rápida aprobación.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-minAmount">Monto Mínimo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="minAmount"
+                        type="text"
+                        value={formatColones(microConfig.minAmount)}
+                        onChange={handleMicroChange}
+                        className="font-mono pl-7"
+                        disabled={savingMicro}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-maxAmount">Monto Máximo</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₡</span>
+                      <Input
+                        id="maxAmount"
+                        type="text"
+                        value={formatColones(microConfig.maxAmount)}
+                        onChange={handleMicroChange}
+                        className="font-mono pl-7"
+                        disabled={savingMicro}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual (%)</Label>
+                  <Input
+                    id="interestRate"
+                    type="number"
+                    step="0.01"
+                    value={microConfig.interestRate}
+                    onChange={handleMicroChange}
+                    className="font-mono"
+                    placeholder="35.5"
+                    disabled={savingMicro}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-minTerm">Plazo Mínimo (meses)</Label>
+                    <Input
+                      id="minTerm"
+                      type="number"
+                      value={microConfig.minTerm}
+                      onChange={handleMicroChange}
+                      className="font-mono"
+                      disabled={savingMicro}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="micro-maxTerm">Plazo Máximo (meses)</Label>
+                    <Input
+                      id="maxTerm"
+                      type="number"
+                      value={microConfig.maxTerm}
+                      onChange={handleMicroChange}
+                      className="font-mono"
+                      disabled={savingMicro}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={() => handleSave('microcredito')} disabled={savingMicro}>
+                  {savingMicro && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Guardar Cambios
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        )}
+      </TabsContent>
+
       <TabsContent value="usuarios">
         <Card>
           <CardHeader>
@@ -732,9 +2011,8 @@ export default function ConfiguracionPage() {
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{user.role || 'Sin Rol Asignado'}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          user.status === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${user.status === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
                           {user.status || 'Activo'}
                         </span>
                       </TableCell>
@@ -758,7 +2036,7 @@ export default function ConfiguracionPage() {
                   ))}
                   {users.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
                         No hay usuarios registrados.
                       </TableCell>
                     </TableRow>
@@ -834,19 +2112,19 @@ export default function ConfiguracionPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                  <CardTitle>Patronos</CardTitle>
-                  <CardDescription>
-                    Gestiona la lista de instituciones y patronos para deducción de planilla.
-                  </CardDescription>
+                <CardTitle>Patronos</CardTitle>
+                <CardDescription>
+                  Gestiona la lista de instituciones y patronos para deducción de planilla.
+                </CardDescription>
               </div>
-               <Button size="sm" className="gap-1">
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar Patrono
-                </Button>
+              <Button size="sm" className="gap-1">
+                <PlusCircle className="h-4 w-4" />
+                Agregar Patrono
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
-             <Table>
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre del Patrono</TableHead>
@@ -891,20 +2169,21 @@ export default function ConfiguracionPage() {
           </CardContent>
         </Card>
       </TabsContent>
-       <TabsContent value="deductoras">
+
+      <TabsContent value="deductoras">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                  <CardTitle>Entidades Deductoras</CardTitle>
-                  <CardDescription>
-                    Gestiona las cooperativas y entidades que procesan las deducciones.
-                  </CardDescription>
+                <CardTitle>Entidades Deductoras</CardTitle>
+                <CardDescription>
+                  Gestiona las cooperativas y entidades que procesan las deducciones.
+                </CardDescription>
               </div>
-               <Button size="sm" className="gap-1" onClick={openCreateDeductoraDialog}>
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar Deductora
-                </Button>
+              <Button size="sm" className="gap-1" onClick={openCreateDeductoraDialog}>
+                <PlusCircle className="h-4 w-4" />
+                Agregar Deductora
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -913,60 +2192,61 @@ export default function ConfiguracionPage() {
                 <Loader2 className="animate-spin" />
               </div>
             ) : (
-             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre de la Deductora</TableHead>
-                  <TableHead>Fecha de Cobro</TableHead>
-                  <TableHead className="text-right">Comisión (%)</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Acciones</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {deductorasList.length === 0 ? (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      No hay deductoras registradas.
-                    </TableCell>
+                    <TableHead>Nombre de la Deductora</TableHead>
+                    <TableHead>Fecha de Cobro</TableHead>
+                    <TableHead className="text-right">Comisión (%)</TableHead>
+                    <TableHead>
+                      <span className="sr-only">Acciones</span>
+                    </TableHead>
                   </TableRow>
-                ) : (
-                  deductorasList.map((deductora) => (
-                    <TableRow key={deductora.id}>
-                      <TableCell className="font-medium">{deductora.nombre}</TableCell>
-                      <TableCell>{deductora.fecha_reporte_pago ? new Date(deductora.fecha_reporte_pago).toLocaleDateString('es-CR') : '-'}</TableCell>
-                      <TableCell className="text-right font-mono">{(parseFloat(deductora.comision?.toString() || '0')).toFixed(2)}%</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              aria-haspopup="true"
-                              size="icon"
-                              variant="ghost"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Alternar menú</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => openEditDeductoraDialog(deductora)}>Editar</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteDeductora(deductora)}>
-                              Eliminar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                </TableHeader>
+                <TableBody>
+                  {deductorasList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No hay deductoras registradas.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    deductorasList.map((deductora) => (
+                      <TableRow key={deductora.id}>
+                        <TableCell className="font-medium">{deductora.nombre}</TableCell>
+                        <TableCell>{deductora.fecha_reporte_pago ? new Date(deductora.fecha_reporte_pago).toLocaleDateString('es-CR') : '-'}</TableCell>
+                        <TableCell className="text-right font-mono">{(parseFloat(deductora.comision?.toString() || '0')).toFixed(2)}%</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                aria-haspopup="true"
+                                size="icon"
+                                variant="ghost"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Alternar menú</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => openEditDeductoraDialog(deductora)}>Editar</DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteDeductora(deductora)}>
+                                Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
       </TabsContent>
+
       <TabsContent value="api">
         <Card>
           <CardHeader>
