@@ -30,7 +30,7 @@ class UpdateAnalisisRequest extends FormRequest
             'opened_at' => 'nullable|date',
             'description' => 'nullable|string|max:2000',
             'divisa' => 'nullable|string|max:10',
-            'plazo' => 'nullable|integer|min:1|max:360',
+            'plazo' => 'nullable|integer|min:1|max:120',
             'ingreso_bruto' => 'nullable|numeric|min:0|max:999999999.99',
             'ingreso_neto' => 'nullable|numeric|min:0|max:999999999.99',
             'deducciones' => 'nullable|array|max:20',
@@ -45,7 +45,7 @@ class UpdateAnalisisRequest extends FormRequest
         return [
             'monto_credito.min' => 'El monto de crédito debe ser mayor o igual a 0',
             'plazo.min' => 'El plazo debe ser al menos 1 mes',
-            'plazo.max' => 'El plazo no puede exceder 360 meses',
+            'plazo.max' => 'El plazo no puede exceder 120 meses',
             'lead_id.exists' => 'El lead especificado no existe',
             'opportunity_id.exists' => 'La oportunidad especificada no existe',
             'deducciones.max' => 'No puede haber más de 20 deducciones',

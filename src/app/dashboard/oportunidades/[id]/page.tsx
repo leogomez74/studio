@@ -467,6 +467,11 @@ export default function OpportunityDetailPage() {
     if (['monto_credito', 'ingreso_bruto', 'ingreso_neto'].includes(field)) {
       const numericValue = parseFormattedNumber(value);
       setAnalisisForm(prev => ({ ...prev, [field]: numericValue }));
+    } else if (field === 'plazo') {
+      // Limitar plazo a máximo 120 meses
+      const plazoNum = parseInt(value) || 0;
+      const limitedValue = Math.min(Math.max(plazoNum, 0), 120).toString();
+      setAnalisisForm(prev => ({ ...prev, [field]: plazoNum > 120 ? limitedValue : value }));
     } else {
       setAnalisisForm(prev => ({ ...prev, [field]: value }));
     }
@@ -474,6 +479,18 @@ export default function OpportunityDetailPage() {
 
   const handleAnalisisSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    // Validar plazo máximo de 120 meses
+    const plazoValue = parseInt(analisisForm.plazo) || 36;
+    if (plazoValue > 120) {
+      toast({ title: "Error", description: "El plazo no puede ser mayor a 120 meses.", variant: "destructive" });
+      return;
+    }
+    if (plazoValue < 1) {
+      toast({ title: "Error", description: "El plazo debe ser al menos 1 mes.", variant: "destructive" });
+      return;
+    }
+
     try {
       const payload: Record<string, any> = {
         reference: analisisForm.reference,
