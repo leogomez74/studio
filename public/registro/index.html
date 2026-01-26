@@ -270,6 +270,7 @@
 
     <script>
         const API_BASE_URL = 'https://backend.pep.cr';
+        const FRONTEND_URL = 'https://nuevo.pep.cr';
         const TSE_API_URL = 'https://www.dsf.cr/tse/';
 
         let tseData = null;
@@ -876,24 +877,24 @@
                                     let sectorPath = '';
                                     switch (formData.sector) {
                                         case 'publico':
-                                            sectorPath = '/publico';
+                                            sectorPath = '/cuestionario/publico';
                                             break;
                                         case 'privado':
-                                            sectorPath = '/privado';
+                                            sectorPath = '/cuestionario/privado';
                                             break;
                                         case 'propio':
-                                            sectorPath = '/propio';
+                                            sectorPath = '/cuestionario/propio';
                                             break;
                                         case 'pensionado':
-                                            sectorPath = '/pensionado';
+                                            sectorPath = '/cuestionario/pensionados';
                                             break;
-                                            
+
                                         default:
                                             sectorPath = '/registro'; // Fallback
                                     }
                                     // Encode cedula in base64 for the link
                                     const cedulaHash = btoa(formData.cedula);
-                                    const questionnaireLink = `${API_BASE_URL}${sectorPath}?${cedulaHash}`;
+                                    const questionnaireLink = `${FRONTEND_URL}${sectorPath}?${cedulaHash}`;
                                     
                                     // Add link to webhook payload
                                     const webhookData = { ...formData, link: questionnaireLink };
