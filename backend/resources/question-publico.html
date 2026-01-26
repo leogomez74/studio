@@ -115,6 +115,61 @@
                             </div>
                         </label>
                     </div>
+
+                    <!-- Selección de servicios legales específicos -->
+                    <div id="serviciosLegalesStep1" class="hidden space-y-3 mt-4 p-4 border rounded-lg bg-muted/30">
+                        <p class="text-sm font-semibold text-foreground">¿Qué servicio legal necesitas?</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="divorcio" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Divorcio</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="pension_alimenticia" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Pensión alimenticia</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="sucesion" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Sucesión</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="notariado" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Notariado</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="testamento" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Testamento</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="traspaso" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Traspaso</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="contrato" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Contrato</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="otro" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Otro</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="step-2" class="space-y-4 hidden">
@@ -159,6 +214,22 @@
                             </div>
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
+                            <div id="institucionWrapper">
+                                <label class="block text-sm font-medium text-foreground mb-1">Institución en la que labora *</label>
+                                <div id="institucionContainer" class="relative">
+                                    <button type="button" id="institucionTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
+                                        <span id="institucionLabel" class="truncate text-muted-foreground">Selecciona institución</span>
+                                        <span class="text-xs text-muted-foreground">▼</span>
+                                    </button>
+                                    <div id="institucionDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
+                                        <div class="p-2 border-b">
+                                            <input id="institucionSearch" type="text" placeholder="Buscar institución" class="w-full px-2 py-1 text-sm border rounded-md" aria-label="Buscar institución">
+                                        </div>
+                                        <div id="institucionList" class="max-h-40 overflow-y-auto"></div>
+                                    </div>
+                                    <input type="hidden" id="institucionValue" name="institucion" value="">
+                                </div>
+                            </div>
                             <div id="empresaWrapper">
                                 <label class="block text-sm font-medium text-foreground mb-1">Empresa en la que Labora</label>
                                 <div id="companyContainer" class="relative">
@@ -175,6 +246,8 @@
                                     <input type="hidden" id="companyValue" name="situacion_laboral" value="">
                                 </div>
                             </div>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-foreground mb-1">Tiempo laborando</label>
                                 <select name="antiguedad_laboral" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
@@ -697,6 +770,12 @@
             const showLegales = interes === 'servicios_legales' || interes === 'ambos';
             document.getElementById('creditoFields').classList.toggle('hidden', !showCredito);
             document.getElementById('legalesFields').classList.toggle('hidden', !showLegales);
+
+            // Mostrar/ocultar servicios legales en step-1
+            const serviciosLegalesStep1 = document.getElementById('serviciosLegalesStep1');
+            if (serviciosLegalesStep1) {
+                serviciosLegalesStep1.classList.toggle('hidden', !showLegales);
+            }
         }
 
         const companyOptions = [
@@ -841,6 +920,72 @@
                 openCompanyDropdown();
             } else {
                 closeCompanyDropdown();
+            }
+        }
+
+        // --- Instituciones Dropdown ---
+        let institucionOptions = [];
+
+        async function loadInstituciones() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instituciones?activas_only=true`);
+                if (response.ok) {
+                    const data = await response.json();
+                    institucionOptions = data.map(inst => inst.nombre);
+                    renderInstitucionOptions();
+                }
+            } catch (error) {
+                console.error('Error loading instituciones:', error);
+            }
+        }
+
+        function renderInstitucionOptions(filter = '') {
+            const list = document.getElementById('institucionList');
+            if (!list) return;
+            list.innerHTML = '';
+            const term = filter.trim().toLowerCase();
+            institucionOptions.forEach(name => {
+                if (term && !name.toLowerCase().includes(term)) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = name;
+                btn.className = 'w-full text-left px-3 py-2 text-sm hover:bg-gray-100';
+                btn.addEventListener('click', () => selectInstitucion(name));
+                list.appendChild(btn);
+            });
+            if (!list.children.length) {
+                const empty = document.createElement('div');
+                empty.className = 'px-3 py-2 text-sm text-muted-foreground';
+                empty.textContent = 'Sin resultados';
+                list.appendChild(empty);
+            }
+        }
+
+        function selectInstitucion(name) {
+            const hidden = document.getElementById('institucionValue');
+            const label = document.getElementById('institucionLabel');
+            hidden.value = name || '';
+            label.textContent = name || 'Selecciona institución';
+            label.classList.toggle('text-muted-foreground', !name);
+            closeInstitucionDropdown();
+        }
+
+        function openInstitucionDropdown() {
+            document.getElementById('institucionDropdown').classList.remove('hidden');
+            renderInstitucionOptions(document.getElementById('institucionSearch').value || '');
+            document.getElementById('institucionSearch').focus();
+        }
+
+        function closeInstitucionDropdown() {
+            document.getElementById('institucionDropdown').classList.add('hidden');
+        }
+
+        function toggleInstitucionDropdown() {
+            const dropdown = document.getElementById('institucionDropdown');
+            if (dropdown.classList.contains('hidden')) {
+                openInstitucionDropdown();
+            } else {
+                closeInstitucionDropdown();
             }
         }
 
@@ -1275,11 +1420,30 @@
             document.getElementById('companySearch').addEventListener('input', (e) => {
                 renderCompanyOptions(e.target.value || '');
             });
+
+            // Institución dropdown event listeners
+            loadInstituciones();
+            document.getElementById('institucionTrigger').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleInstitucionDropdown();
+            });
+            document.getElementById('institucionSearch').addEventListener('input', (e) => {
+                renderInstitucionOptions(e.target.value || '');
+            });
+
             document.addEventListener('click', (e) => {
-                const dropdown = document.getElementById('companyDropdown');
-                const container = document.getElementById('companyContainer');
-                if (!container.contains(e.target)) {
-                    dropdown.classList.add('hidden');
+                // Cerrar company dropdown
+                const companyDropdown = document.getElementById('companyDropdown');
+                const companyContainer = document.getElementById('companyContainer');
+                if (!companyContainer.contains(e.target)) {
+                    companyDropdown.classList.add('hidden');
+                }
+
+                // Cerrar institucion dropdown
+                const institucionDropdown = document.getElementById('institucionDropdown');
+                const institucionContainer = document.getElementById('institucionContainer');
+                if (institucionContainer && !institucionContainer.contains(e.target)) {
+                    institucionDropdown.classList.add('hidden');
                 }
             });
             document.getElementById('backBtn').addEventListener('click', () => {
