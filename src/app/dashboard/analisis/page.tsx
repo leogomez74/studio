@@ -760,7 +760,14 @@ export default function AnalisisPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>
-                <Select value={creditForm.category} onValueChange={v => setCreditForm(f => ({ ...f, category: v }))}>
+                <Select value={creditForm.category} onValueChange={v => {
+                  // Si es Micro Crédito, desactivar póliza automáticamente
+                  if (v === 'Micro Crédito') {
+                    setCreditForm(f => ({ ...f, category: v, poliza: false }));
+                  } else {
+                    setCreditForm(f => ({ ...f, category: v }));
+                  }
+                }}>
                   <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
                   <SelectContent>
                     {products.map((product) => (
@@ -821,9 +828,12 @@ export default function AnalisisPage() {
                     id="poliza"
                     checked={creditForm.poliza}
                     onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
+                    disabled={creditForm.category === 'Micro Crédito'}
                   />
                   <Label htmlFor="poliza" className="text-sm text-muted-foreground">
-                    {creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza'}
+                    {creditForm.category === 'Micro Crédito' 
+                      ? 'No disponible para Micro Crédito' 
+                      : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
                   </Label>
                 </div>
               </div>
