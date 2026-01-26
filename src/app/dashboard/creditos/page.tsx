@@ -1165,18 +1165,29 @@ export default function CreditsPage() {
                                     <Eye className="h-4 w-4" />
                                   </Link>
                                 </Button>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  
-                                  asChild
-                                  title="Editar crédito"
-                                  className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
-                                >
-                                  <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
+                                {credit.status === 'Formalizado' ? (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    disabled
+                                    title="No se puede editar un crédito formalizado"
+                                    className="border-gray-300 text-gray-400 cursor-not-allowed"
+                                  >
                                     <Pencil className="h-4 w-4" />
-                                  </Link>
-                                </Button>
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    asChild
+                                    title="Editar crédito"
+                                    className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                  >
+                                    <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Link>
+                                  </Button>
+                                )}
 
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>

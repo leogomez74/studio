@@ -325,10 +325,10 @@ function CreditDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     const editParam = searchParams.get('edit');
-    if (editParam === 'true') {
+    if (editParam === 'true' && credit?.status !== 'Formalizado') {
       setIsEditMode(true);
     }
-  }, [searchParams]);
+  }, [searchParams, credit?.status]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -378,6 +378,17 @@ function CreditDetailClient({ id }: { id: string }) {
     if (!credit) return;
 
     const previousStatus = credit.status;
+
+    // No permitir editar un crédito ya formalizado
+    if (previousStatus === 'Formalizado') {
+      toast({
+        title: "Error",
+        description: "No se puede editar un crédito formalizado",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const isFormalizingCredit = formData.status === 'Formalizado' && previousStatus !== 'Formalizado';
 
     setSaving(true);
@@ -449,7 +460,12 @@ function CreditDetailClient({ id }: { id: string }) {
         <div className="flex items-center gap-2">
           {!isEditMode ? (
             <>
-              <Button variant="outline" onClick={() => setIsEditMode(true)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsEditMode(true)}
+                disabled={credit?.status === 'Formalizado'}
+                title={credit?.status === 'Formalizado' ? 'No se puede editar un crédito formalizado' : 'Editar crédito'}
+              >
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
               </Button>

@@ -524,7 +524,7 @@ export default function AnalisisPage() {
                   {/* Acciones */}
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center gap-2 justify-end">
-                      {item.estado_pep === 'Aceptado' && (
+                      {item.estado_cliente === 'Aprobado' && (
                         <Button
                           variant="outline"
                           className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
