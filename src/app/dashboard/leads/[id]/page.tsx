@@ -663,14 +663,14 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Estado del Puesto</Label>
-                                        <Select 
-                                            value={(formData as any).estado_puesto || ""} 
+                                        <Label>Nombramiento</Label>
+                                        <Select
+                                            value={(formData as any).estado_puesto || ""}
                                             onValueChange={(value) => handleInputChange("estado_puesto" as keyof Lead, value)}
                                             disabled={!isEditMode}
                                         >
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Seleccionar estado" />
+                                                <SelectValue placeholder="Seleccionar nombramiento" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="Propiedad">Propiedad</SelectItem>

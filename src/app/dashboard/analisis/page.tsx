@@ -213,7 +213,7 @@ export default function AnalisisPage() {
       return;
     }
 
-    const headers = ["Referencia", "Cliente", "Cédula", "Profesión", "Puesto", "Estado Puesto", "Monto", "Estado PEP", "Estado Cliente", "Fecha"];
+    const headers = ["Referencia", "Cliente", "Cédula", "Profesión", "Puesto", "Nombramiento", "Monto", "Estado PEP", "Estado Cliente", "Fecha"];
     const rows = analisisList.map(item => [
       item.reference || "-",
       item.lead?.name || "-",
@@ -393,7 +393,7 @@ export default function AnalisisPage() {
                   <th className="px-6 py-3">Cliente (Lead)</th>
                   <th className="px-6 py-3 bg-blue-50 text-blue-800">Profesión</th>
                   <th className="px-6 py-3 bg-blue-50 text-blue-800">Puesto</th>
-                  <th className="px-6 py-3 bg-blue-50 text-blue-800">Estado Puesto</th>
+                  <th className="px-6 py-3 bg-blue-50 text-blue-800">Nombramiento</th>
                   <th className="px-6 py-3">Monto</th>
                   <th className="px-6 py-3">Estado PEP</th>
                   <th className="px-6 py-3">Estado Cliente</th>
@@ -428,7 +428,7 @@ export default function AnalisisPage() {
                     {item.lead?.puesto || '-'}
                   </td>
 
-                  {/* COLUMNA: Estado Puesto */}
+                  {/* COLUMNA: Nombramiento */}
                   <td className="px-6 py-4 text-gray-600">
                     <span className={`px-2 py-1 rounded text-xs font-semibold
                       ${item.lead?.estado_puesto === 'Fijo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}

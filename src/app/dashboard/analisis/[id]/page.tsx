@@ -360,7 +360,7 @@ export default function AnalisisDetailPage() {
               </div>
               <div>
                 <span className="font-semibold text-xs uppercase text-gray-500 block">Nombramiento</span>
-                <span className="text-base">{lead?.nombramientos || 'N/A'}</span>
+                <span className="text-base">{lead?.estado_puesto || 'N/A'}</span>
               </div>
             </CardContent>
           </Card>

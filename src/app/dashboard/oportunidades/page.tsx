@@ -273,6 +273,8 @@ export default function DealsPage() {
     openedAt: new Date().toISOString().split('T')[0],
     divisa: "CRC",
     plazo: "36",
+    cargo: "",
+    nombramiento: "",
   });
 
   // Combobox state
@@ -617,6 +619,8 @@ export default function DealsPage() {
       openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",
+      cargo: (opportunity.lead as any)?.puesto || "",
+      nombramiento: (opportunity.lead as any)?.estado_puesto || "",
     });
     setIsAnalisisDialogOpen(true);
   };
@@ -662,6 +666,15 @@ export default function DealsPage() {
         opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
       };
+
+      // Actualizar el lead con cargo y nombramiento si se proporcionaron
+      if (analisisForm.leadId && (analisisForm.cargo || analisisForm.nombramiento)) {
+        const leadUpdateData: Record<string, string> = {};
+        if (analisisForm.cargo) leadUpdateData.puesto = analisisForm.cargo;
+        if (analisisForm.nombramiento) leadUpdateData.estado_puesto = analisisForm.nombramiento;
+
+        await api.put(`/api/leads/${analisisForm.leadId}`, leadUpdateData);
+      }
 
       await api.post('/api/analisis', payload);
       toast({ title: "Éxito", description: "Análisis creado correctamente." });
@@ -1424,6 +1437,27 @@ export default function DealsPage() {
                   <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="cargo" className="text-xs">Cargo</Label>
+                <Input
+                  id="cargo"
+                  value={analisisForm.cargo}
+                  onChange={e => handleAnalisisFormChange('cargo', e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="Ej: Ingeniero, Docente, etc."
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nombramiento" className="text-xs">Nombramiento</Label>
+                <Select value={analisisForm.nombramiento} onValueChange={v => handleAnalisisFormChange('nombramiento', v)}>
+                  <SelectTrigger id="nombramiento" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Propiedad">Propiedad</SelectItem>
+                    <SelectItem value="Interino">Interino</SelectItem>
+                    <SelectItem value="De paso">De paso</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
