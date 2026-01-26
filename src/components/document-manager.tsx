@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { FileText, Paperclip, Trash, Upload, Loader2, File, Image as ImageIcon, FileSpreadsheet, FileCode, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FileText, Paperclip, Trash, Upload, Loader2, File, Image as ImageIcon, FileSpreadsheet, FileCode, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 interface Document {
   id: number;
@@ -25,10 +26,89 @@ interface DocumentManagerProps {
   readonly?: boolean;
 }
 
+// Helper function to determine file type info
+const getFileTypeInfo = (mimeType?: string | null, fileName?: string) => {
+  const type = mimeType || '';
+  const name = fileName?.toLowerCase() || '';
+
+  if (type.includes('image') || name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+    return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600', isImage: true, isPdf: false };
+  }
+  if (type.includes('pdf') || name.endsWith('.pdf')) {
+    return { icon: FileText, label: 'PDF', color: 'text-red-600', isImage: false, isPdf: true };
+  }
+  if (type.includes('spreadsheet') || type.includes('excel') || name.match(/\.(xls|xlsx|csv)$/)) {
+    return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600', isImage: false, isPdf: false };
+  }
+  if (type.includes('word') || name.match(/\.(doc|docx)$/)) {
+    return { icon: FileText, label: 'Word', color: 'text-blue-600', isImage: false, isPdf: false };
+  }
+
+  return { icon: File, label: 'Archivo', color: 'text-slate-600', isImage: false, isPdf: false };
+};
+
 export function DocumentManager({ personId, initialDocuments = [], readonly = false }: DocumentManagerProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxDoc, setLightboxDoc] = useState<Document | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [zoom, setZoom] = useState(1);
+
+  // Get viewable documents (images and PDFs)
+  const viewableDocs = documents.filter(doc => {
+    const { isImage, isPdf } = getFileTypeInfo(doc.mime_type, doc.name);
+    return isImage || isPdf;
+  });
+
+  const openLightbox = (doc: Document) => {
+    const index = viewableDocs.findIndex(d => d.id === doc.id);
+    setLightboxDoc(doc);
+    setLightboxIndex(index >= 0 ? index : 0);
+    setZoom(1);
+    setLightboxOpen(true);
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setLightboxDoc(null);
+    setZoom(1);
+  };
+
+  const goToPrevious = useCallback(() => {
+    if (viewableDocs.length <= 1) return;
+    const newIndex = lightboxIndex === 0 ? viewableDocs.length - 1 : lightboxIndex - 1;
+    setLightboxIndex(newIndex);
+    setLightboxDoc(viewableDocs[newIndex]);
+    setZoom(1);
+  }, [lightboxIndex, viewableDocs]);
+
+  const goToNext = useCallback(() => {
+    if (viewableDocs.length <= 1) return;
+    const newIndex = lightboxIndex === viewableDocs.length - 1 ? 0 : lightboxIndex + 1;
+    setLightboxIndex(newIndex);
+    setLightboxDoc(viewableDocs[newIndex]);
+    setZoom(1);
+  }, [lightboxIndex, viewableDocs]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') goToPrevious();
+      if (e.key === 'ArrowRight') goToNext();
+      if (e.key === '+' || e.key === '=') setZoom(z => Math.min(z + 0.25, 3));
+      if (e.key === '-') setZoom(z => Math.max(z - 0.25, 0.5));
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen, goToPrevious, goToNext]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,26 +176,6 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     return `${baseUrl}${path}`;
   };
 
-  const getFileTypeInfo = (mimeType?: string | null, fileName?: string) => {
-    const type = mimeType || '';
-    const name = fileName?.toLowerCase() || '';
-
-    if (type.includes('image') || name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-        return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600', isImage: true, isPdf: false };
-    }
-    if (type.includes('pdf') || name.endsWith('.pdf')) {
-        return { icon: FileText, label: 'PDF', color: 'text-red-600', isImage: false, isPdf: true };
-    }
-    if (type.includes('spreadsheet') || type.includes('excel') || name.match(/\.(xls|xlsx|csv)$/)) {
-        return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600', isImage: false, isPdf: false };
-    }
-    if (type.includes('word') || name.match(/\.(doc|docx)$/)) {
-        return { icon: FileText, label: 'Word', color: 'text-blue-600', isImage: false, isPdf: false };
-    }
-
-    return { icon: File, label: 'Archivo', color: 'text-slate-600', isImage: false, isPdf: false };
-  };
-
   return (
     <div className="space-y-4">
       {!readonly && (
@@ -146,21 +206,32 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                   {/* Miniatura */}
                   <div className="h-32 bg-muted flex items-center justify-center relative">
                     {isImage && fullUrl ? (
-                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full">
+                      <button
+                        type="button"
+                        onClick={() => openLightbox(doc)}
+                        className="w-full h-full cursor-pointer"
+                      >
                         <img
                           src={fullUrl}
                           alt={doc.name}
                           className="w-full h-full object-cover hover:opacity-90 transition-opacity"
                         />
-                      </a>
+                      </button>
                     ) : isPdf && fullUrl ? (
-                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full">
+                      <button
+                        type="button"
+                        onClick={() => openLightbox(doc)}
+                        className="w-full h-full cursor-pointer relative group"
+                      >
                         <iframe
                           src={fullUrl}
                           className="w-full h-full pointer-events-none"
                           title={doc.name}
                         />
-                      </a>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                          <Maximize2 className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                        </div>
+                      </button>
                     ) : (
                       <a href={fullUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full h-full hover:bg-muted/80 transition-colors">
                         <FileIcon className={`h-12 w-12 ${color}`} />
@@ -193,12 +264,24 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                       <div className="flex items-center gap-1 shrink-0">
                         {fullUrl && (
                           <>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <a href={fullUrl} target="_blank" rel="noopener noreferrer">
-                                <FileIcon className={`h-4 w-4 ${color}`} />
+                            {(isImage || isPdf) ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => openLightbox(doc)}
+                              >
+                                <Maximize2 className={`h-4 w-4 ${color}`} />
                                 <span className="sr-only">Ver</span>
-                              </a>
-                            </Button>
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                                <a href={fullUrl} target="_blank" rel="noopener noreferrer">
+                                  <FileIcon className={`h-4 w-4 ${color}`} />
+                                  <span className="sr-only">Ver</span>
+                                </a>
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
                               <a href={fullUrl} download={doc.name}>
                                 <Download className="h-4 w-4 text-blue-600" />
@@ -222,6 +305,132 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
           </div>
         )}
       </div>
+
+      {/* Lightbox Modal */}
+      <Dialog open={lightboxOpen} onOpenChange={(open) => !open && closeLightbox()}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] w-auto h-auto p-0 bg-black/95 border-none overflow-hidden">
+          <DialogTitle className="sr-only">
+            {lightboxDoc?.name || 'Vista previa del documento'}
+          </DialogTitle>
+
+          {/* Close button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-4 z-50 text-white hover:bg-white/20 h-10 w-10"
+            onClick={closeLightbox}
+          >
+            <X className="h-6 w-6" />
+          </Button>
+
+          {/* Navigation arrows */}
+          {viewableDocs.length > 1 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-50 text-white hover:bg-white/20 h-12 w-12"
+                onClick={goToPrevious}
+              >
+                <ChevronLeft className="h-8 w-8" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-50 text-white hover:bg-white/20 h-12 w-12"
+                onClick={goToNext}
+              >
+                <ChevronRight className="h-8 w-8" />
+              </Button>
+            </>
+          )}
+
+          {/* Document content */}
+          {lightboxDoc && (() => {
+            const { isImage, isPdf } = getFileTypeInfo(lightboxDoc.mime_type, lightboxDoc.name);
+            const fullUrl = lightboxDoc.url ? getFullUrl(lightboxDoc.url) : '';
+
+            if (isImage && fullUrl) {
+              return (
+                <div className="flex items-center justify-center w-full h-[85vh] p-4">
+                  <img
+                    src={fullUrl}
+                    alt={lightboxDoc.name}
+                    className="max-w-full max-h-full object-contain transition-transform duration-200"
+                    style={{ transform: `scale(${zoom})` }}
+                  />
+                </div>
+              );
+            }
+
+            if (isPdf && fullUrl) {
+              return (
+                <div className="w-[90vw] h-[85vh]">
+                  <iframe
+                    src={fullUrl}
+                    className="w-full h-full"
+                    title={lightboxDoc.name}
+                  />
+                </div>
+              );
+            }
+
+            return null;
+          })()}
+
+          {/* Bottom bar with file info and controls */}
+          <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-white p-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium truncate max-w-[300px]">
+                {lightboxDoc?.name}
+              </span>
+              {viewableDocs.length > 1 && (
+                <span className="text-sm text-white/60">
+                  {lightboxIndex + 1} / {viewableDocs.length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Zoom controls for images */}
+              {lightboxDoc && getFileTypeInfo(lightboxDoc.mime_type, lightboxDoc.name).isImage && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/20"
+                    onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))}
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm w-12 text-center">{Math.round(zoom * 100)}%</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/20"
+                    onClick={() => setZoom(z => Math.min(z + 0.25, 3))}
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              {/* Download button */}
+              {lightboxDoc?.url && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/20"
+                  asChild
+                >
+                  <a href={getFullUrl(lightboxDoc.url)} download={lightboxDoc.name}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Descargar
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

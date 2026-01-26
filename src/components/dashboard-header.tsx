@@ -1,26 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Bell,
-  Home,
-  ChevronRight,
-  Search,
-  User,
-  LogOut,
-  Settings,
-} from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Bell, Home, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import {
   Popover,
   PopoverContent,
@@ -29,8 +11,6 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { notifications } from '@/lib/data';
 import { cn } from '@/lib/utils';
-
-import { useAuth } from "@/components/auth-guard";
 
 /**
  * Componente que renderiza las "migas de pan" (breadcrumbs) para mostrar la ubicación actual del usuario en la aplicación.
@@ -81,11 +61,9 @@ function Breadcrumbs() {
 
 /**
  * Componente principal del encabezado del dashboard.
- * Contiene el disparador de la barra lateral para móviles, las migas de pan, la barra de búsqueda y los menús de usuario/notificaciones.
+ * Contiene el disparador de la barra lateral para móviles, las migas de pan y las notificaciones.
  */
 export function DashboardHeader() {
-  const { user, logout } = useAuth();
-
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm md:px-6">
       {/* Contenedor para el botón de la barra lateral y las migas de pan. */}
@@ -94,14 +72,8 @@ export function DashboardHeader() {
         <Breadcrumbs /> {/* Las migas de pan. */}
       </div>
 
-      {/* Contenedor para la búsqueda, notificaciones y menú de usuario, alineado a la derecha. */}
+      {/* Contenedor para notificaciones y menú de usuario, alineado a la derecha. */}
       <div className="flex flex-1 items-center justify-end gap-2 md:gap-4">
-        {/* Barra de búsqueda. */}
-        <div className="relative ml-auto w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Buscar..." className="pl-9" />
-        </div>
-
         {/* Popover para las notificaciones. */}
         <Popover>
           <PopoverTrigger asChild>
@@ -141,46 +113,6 @@ export function DashboardHeader() {
             </div>
           </PopoverContent>
         </Popover>
-
-        {/* Menú desplegable para el perfil del usuario. */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-              <Avatar className="h-9 w-9">
-                <AvatarImage
-                  src="https://picsum.photos/seed/admin-avatar/40/40"
-                  alt="Admin"
-                  data-ai-hint="professional person"
-                />
-                <AvatarFallback>AD</AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end">
-            <DropdownMenuLabel>
-              <p>{user?.name || "Usuario"}</p>
-              <p className="text-xs font-normal text-muted-foreground">
-                {user?.email || "cargando..."}
-              </p>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              <span>Perfil</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/configuracion">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Configuración</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => logout()}>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Cerrar sesión</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </header>
   );

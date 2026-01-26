@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save, Download } from 'lucide-react';
+import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ import {
   Requirement,
   Empresa
 } from '@/lib/empresas-mock';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   AnalisisItem,
   AnalisisFile,
@@ -54,6 +55,11 @@ export default function AnalisisDetailPage() {
 
   // Verificación manual de documentos (key: requirement name, value: boolean)
   const [manualVerifications, setManualVerifications] = useState<Record<string, boolean>>({});
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
 
   // Empresa encontrada basada en institucion_labora del lead
   const [empresaMatch, setEmpresaMatch] = useState<Empresa | undefined>(undefined);
@@ -256,6 +262,55 @@ export default function AnalisisDetailPage() {
       [reqName]: !prev[reqName]
     }));
   };
+
+  // Lightbox helper functions
+  const getViewableFiles = () => {
+    return heredados.filter(file => {
+      const name = file.name.toLowerCase();
+      return name.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/);
+    });
+  };
+
+  const openLightbox = (file: AnalisisFile) => {
+    const viewableFiles = getViewableFiles();
+    const index = viewableFiles.findIndex(f => f.path === file.path);
+    if (index !== -1) {
+      setLightboxIndex(index);
+      setLightboxZoom(1);
+      setLightboxOpen(true);
+    }
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setLightboxZoom(1);
+  };
+
+  const goToPrevious = () => {
+    const viewableFiles = getViewableFiles();
+    setLightboxIndex((prev) => (prev > 0 ? prev - 1 : viewableFiles.length - 1));
+    setLightboxZoom(1);
+  };
+
+  const goToNext = () => {
+    const viewableFiles = getViewableFiles();
+    setLightboxIndex((prev) => (prev < viewableFiles.length - 1 ? prev + 1 : 0));
+    setLightboxZoom(1);
+  };
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!lightboxOpen) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') goToPrevious();
+      if (e.key === 'ArrowRight') goToNext();
+      if (e.key === '+' || e.key === '=') setLightboxZoom(z => Math.min(z + 0.25, 3));
+      if (e.key === '-') setLightboxZoom(z => Math.max(z - 0.25, 0.5));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen]);
 
   // Requisitos por defecto si no hay empresa match
   const defaultRequirements: Requirement[] = [
@@ -475,19 +530,35 @@ export default function AnalisisDetailPage() {
                       {/* Miniatura más grande */}
                       <div className="h-36 bg-gray-100 flex items-center justify-center relative overflow-hidden">
                         {isImage ? (
-                          <img
-                            src={file.url}
-                            alt={file.name}
-                            className="w-full h-full object-cover"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => openLightbox(file)}
+                            className="w-full h-full relative group cursor-pointer"
+                          >
+                            <img
+                              src={file.url}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                              <Maximize2 className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </button>
                         ) : isPdf ? (
-                          <div className="w-full h-full relative bg-white">
+                          <button
+                            type="button"
+                            onClick={() => openLightbox(file)}
+                            className="w-full h-full relative bg-white group cursor-pointer"
+                          >
                             <iframe
                               src={`${file.url}#toolbar=0&navpanes=0&scrollbar=0`}
                               className="absolute inset-0 w-full h-full pointer-events-none"
                               title={file.name}
                             />
-                          </div>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                              <Maximize2 className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </button>
                         ) : (
                           <div className="flex flex-col items-center justify-center gap-2">
                             <FileIcon className={`h-12 w-12 ${color}`} />
@@ -525,6 +596,112 @@ export default function AnalisisDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lightbox Dialog */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none">
+          {(() => {
+            const viewableFiles = getViewableFiles();
+            const currentFile = viewableFiles[lightboxIndex];
+            if (!currentFile) return null;
+            const isImage = currentFile.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+            const isPdf = currentFile.name.toLowerCase().endsWith('.pdf');
+
+            return (
+              <div className="relative w-full h-[90vh] flex flex-col">
+                {/* Header con controles */}
+                <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
+                  <div className="text-white">
+                    <p className="text-sm font-medium truncate max-w-[300px]">{currentFile.name}</p>
+                    <p className="text-xs text-white/70">{lightboxIndex + 1} de {viewableFiles.length}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isImage && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/20"
+                          onClick={() => setLightboxZoom(z => Math.max(z - 0.25, 0.5))}
+                        >
+                          <ZoomOut className="h-5 w-5" />
+                        </Button>
+                        <span className="text-white text-sm min-w-[60px] text-center">{Math.round(lightboxZoom * 100)}%</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/20"
+                          onClick={() => setLightboxZoom(z => Math.min(z + 0.25, 3))}
+                        >
+                          <ZoomIn className="h-5 w-5" />
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-white hover:bg-white/20"
+                      asChild
+                    >
+                      <a href={currentFile.url} download={currentFile.name}>
+                        <Download className="h-5 w-5" />
+                      </a>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-white hover:bg-white/20"
+                      onClick={closeLightbox}
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Contenido principal */}
+                <div className="flex-1 flex items-center justify-center overflow-auto p-4 pt-20">
+                  {isImage ? (
+                    <img
+                      src={currentFile.url}
+                      alt={currentFile.name}
+                      className="max-w-full max-h-full object-contain transition-transform duration-200"
+                      style={{ transform: `scale(${lightboxZoom})` }}
+                    />
+                  ) : isPdf ? (
+                    <iframe
+                      src={currentFile.url}
+                      className="w-full h-full bg-white rounded"
+                      title={currentFile.name}
+                    />
+                  ) : null}
+                </div>
+
+                {/* Navegación */}
+                {viewableFiles.length > 1 && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 h-12 w-12"
+                      onClick={goToPrevious}
+                    >
+                      <ChevronLeft className="h-8 w-8" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 h-12 w-12"
+                      onClick={goToNext}
+                    >
+                      <ChevronRight className="h-8 w-8" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -97,7 +97,7 @@ export function DashboardNav() {
                         : pathname.startsWith(item.href)
                     }
                     tooltip={item.label}
-                    className="h-9 px-3 rounded-lg transition-all duration-200 data-[active=true]:bg-red-600 data-[active=true]:text-white data-[active=true]:shadow-sm hover:bg-muted"
+                    className="h-9 px-3 rounded-lg transition-all duration-200 data-[active=true]:bg-blue-900/50 data-[active=true]:text-white hover:bg-muted"
                   >
                     <Link href={item.href} className="flex items-center gap-3">
                       <item.icon className="h-4 w-4 shrink-0" />

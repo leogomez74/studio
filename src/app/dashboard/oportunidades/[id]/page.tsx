@@ -24,7 +24,13 @@ import {
   CreditCard,
   Receipt,
   PlusCircle,
-  Eye
+  Eye,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Maximize2
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -102,6 +108,12 @@ export default function OpportunityDetailPage() {
   const [especificos, setEspecificos] = useState<OpportunityFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxFile, setLightboxFile] = useState<OpportunityFile | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [zoom, setZoom] = useState(1);
 
   // Cargar archivos de la oportunidad
   const fetchFiles = async () => {
@@ -310,6 +322,61 @@ export default function OpportunityDetailPage() {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
+
+  // Lightbox functions
+  const getViewableFiles = () => {
+    const allFiles = [...heredados, ...especificos];
+    return allFiles.filter(f => isImageFile(f.name) || isPdfFile(f.name));
+  };
+
+  const openLightbox = (file: OpportunityFile) => {
+    const viewableFiles = getViewableFiles();
+    const index = viewableFiles.findIndex(f => f.path === file.path);
+    setLightboxFile(file);
+    setLightboxIndex(index >= 0 ? index : 0);
+    setZoom(1);
+    setLightboxOpen(true);
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setLightboxFile(null);
+    setZoom(1);
+  };
+
+  const goToPrevious = () => {
+    const viewableFiles = getViewableFiles();
+    if (viewableFiles.length <= 1) return;
+    const newIndex = lightboxIndex === 0 ? viewableFiles.length - 1 : lightboxIndex - 1;
+    setLightboxIndex(newIndex);
+    setLightboxFile(viewableFiles[newIndex]);
+    setZoom(1);
+  };
+
+  const goToNext = () => {
+    const viewableFiles = getViewableFiles();
+    if (viewableFiles.length <= 1) return;
+    const newIndex = lightboxIndex === viewableFiles.length - 1 ? 0 : lightboxIndex + 1;
+    setLightboxIndex(newIndex);
+    setLightboxFile(viewableFiles[newIndex]);
+    setZoom(1);
+  };
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') goToPrevious();
+      if (e.key === 'ArrowRight') goToNext();
+      if (e.key === '+' || e.key === '=') setZoom(z => Math.min(z + 0.25, 3));
+      if (e.key === '-') setZoom(z => Math.max(z - 0.25, 0.5));
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen, lightboxIndex]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (!opportunity) return;
@@ -644,17 +711,21 @@ export default function OpportunityDetailPage() {
                               return (
                                 <div className="space-y-3">
                                   {/* Miniatura */}
-                                  <div className="relative w-full h-48 bg-muted rounded-lg overflow-hidden border">
+                                  <button
+                                    type="button"
+                                    onClick={() => openLightbox(cedulaFile)}
+                                    className="relative w-full h-48 bg-muted rounded-lg overflow-hidden border cursor-pointer group"
+                                  >
                                     {isImageFile(cedulaFile.name) ? (
                                       <img
                                         src={cedulaFile.url}
                                         alt="Cédula"
-                                        className="w-full h-full object-contain"
+                                        className="w-full h-full object-contain group-hover:opacity-90 transition-opacity"
                                       />
                                     ) : isPdfFile(cedulaFile.name) ? (
                                       <iframe
                                         src={cedulaFile.url}
-                                        className="w-full h-full"
+                                        className="w-full h-full pointer-events-none"
                                         title="Cédula PDF"
                                       />
                                     ) : (
@@ -662,7 +733,10 @@ export default function OpportunityDetailPage() {
                                         <FileText className="h-16 w-16 text-muted-foreground" />
                                       </div>
                                     )}
-                                  </div>
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                      <Maximize2 className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                    </div>
+                                  </button>
                                   {/* Info y acciones */}
                                   <div className="flex items-center justify-between">
                                     <div className="text-sm">
@@ -721,17 +795,21 @@ export default function OpportunityDetailPage() {
                               return (
                                 <div className="space-y-3">
                                   {/* Miniatura */}
-                                  <div className="relative w-full h-48 bg-muted rounded-lg overflow-hidden border">
+                                  <button
+                                    type="button"
+                                    onClick={() => openLightbox(reciboFile)}
+                                    className="relative w-full h-48 bg-muted rounded-lg overflow-hidden border cursor-pointer group"
+                                  >
                                     {isImageFile(reciboFile.name) ? (
                                       <img
                                         src={reciboFile.url}
                                         alt="Recibo"
-                                        className="w-full h-full object-contain"
+                                        className="w-full h-full object-contain group-hover:opacity-90 transition-opacity"
                                       />
                                     ) : isPdfFile(reciboFile.name) ? (
                                       <iframe
                                         src={reciboFile.url}
-                                        className="w-full h-full"
+                                        className="w-full h-full pointer-events-none"
                                         title="Recibo PDF"
                                       />
                                     ) : (
@@ -739,7 +817,10 @@ export default function OpportunityDetailPage() {
                                         <FileText className="h-16 w-16 text-muted-foreground" />
                                       </div>
                                     )}
-                                  </div>
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                      <Maximize2 className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                    </div>
+                                  </button>
                                   {/* Info y acciones */}
                                   <div className="flex items-center justify-between">
                                     <div className="text-sm">
@@ -821,23 +902,34 @@ export default function OpportunityDetailPage() {
                               return (
                                 <div key={file.path} className="border rounded-lg overflow-hidden">
                                   {/* Miniatura */}
-                                  <div className="h-32 bg-muted flex items-center justify-center">
-                                    {isImageFile(file.name) ? (
-                                      <img
-                                        src={file.url}
-                                        alt={file.name}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : isPdfFile(file.name) ? (
-                                      <iframe
-                                        src={file.url}
-                                        className="w-full h-full pointer-events-none"
-                                        title={file.name}
-                                      />
-                                    ) : (
+                                  {(isImageFile(file.name) || isPdfFile(file.name)) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => openLightbox(file)}
+                                      className="h-32 w-full bg-muted flex items-center justify-center cursor-pointer relative group"
+                                    >
+                                      {isImageFile(file.name) ? (
+                                        <img
+                                          src={file.url}
+                                          alt={file.name}
+                                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                                        />
+                                      ) : (
+                                        <iframe
+                                          src={file.url}
+                                          className="w-full h-full pointer-events-none"
+                                          title={file.name}
+                                        />
+                                      )}
+                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                        <Maximize2 className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                      </div>
+                                    </button>
+                                  ) : (
+                                    <div className="h-32 bg-muted flex items-center justify-center">
                                       <FileIcon className={`h-12 w-12 ${color}`} />
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                   {/* Info */}
                                   <div className="p-2">
                                     <a
@@ -990,6 +1082,121 @@ export default function OpportunityDetailPage() {
             <Button type="button" variant="outline" size="sm" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
             <Button type="submit" size="sm" onClick={handleAnalisisSubmit}>Guardar</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox Modal */}
+      <Dialog open={lightboxOpen} onOpenChange={(open) => !open && closeLightbox()}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] w-auto h-auto p-0 bg-black/95 border-none overflow-hidden">
+          <DialogTitle className="sr-only">
+            {lightboxFile?.name || 'Vista previa del documento'}
+          </DialogTitle>
+
+          {/* Close button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-4 z-50 text-white hover:bg-white/20 h-10 w-10"
+            onClick={closeLightbox}
+          >
+            <X className="h-6 w-6" />
+          </Button>
+
+          {/* Navigation arrows */}
+          {getViewableFiles().length > 1 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-50 text-white hover:bg-white/20 h-12 w-12"
+                onClick={goToPrevious}
+              >
+                <ChevronLeft className="h-8 w-8" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-50 text-white hover:bg-white/20 h-12 w-12"
+                onClick={goToNext}
+              >
+                <ChevronRight className="h-8 w-8" />
+              </Button>
+            </>
+          )}
+
+          {/* Document content */}
+          {lightboxFile && (
+            <>
+              {isImageFile(lightboxFile.name) ? (
+                <div className="flex items-center justify-center w-full h-[85vh] p-4">
+                  <img
+                    src={lightboxFile.url}
+                    alt={lightboxFile.name}
+                    className="max-w-full max-h-full object-contain transition-transform duration-200"
+                    style={{ transform: `scale(${zoom})` }}
+                  />
+                </div>
+              ) : isPdfFile(lightboxFile.name) ? (
+                <div className="w-[90vw] h-[85vh]">
+                  <iframe
+                    src={lightboxFile.url}
+                    className="w-full h-full"
+                    title={lightboxFile.name}
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
+
+          {/* Bottom bar with file info and controls */}
+          <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-white p-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium truncate max-w-[300px]">
+                {lightboxFile?.name}
+              </span>
+              {getViewableFiles().length > 1 && (
+                <span className="text-sm text-white/60">
+                  {lightboxIndex + 1} / {getViewableFiles().length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Zoom controls for images */}
+              {lightboxFile && isImageFile(lightboxFile.name) && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/20"
+                    onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))}
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm w-12 text-center">{Math.round(zoom * 100)}%</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/20"
+                    onClick={() => setZoom(z => Math.min(z + 0.25, 3))}
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              {/* Download button */}
+              {lightboxFile && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/20"
+                  onClick={() => handleDownloadFile(lightboxFile)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar
+                </Button>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
