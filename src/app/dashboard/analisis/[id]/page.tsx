@@ -3,12 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save } from 'lucide-react';
+import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save, Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -36,8 +35,6 @@ export default function AnalisisDetailPage() {
   const [analisis, setAnalisis] = useState<AnalisisItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [activeTab, setActiveTab] = useState('resumen');
 
   // Estados para estado_pep y estado_cliente
   const [estadoPep, setEstadoPep] = useState<string | null>('Pendiente');
@@ -322,302 +319,212 @@ export default function AnalisisDetailPage() {
         </div>
       </div>
 
-      {/* Tabs Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="resumen">Resumen General</TabsTrigger>
-          <TabsTrigger value="financiero">Datos Financieros</TabsTrigger>
-          <TabsTrigger value="documentos">Documentacion</TabsTrigger>
-        </TabsList>
-
-        {/* TAB: RESUMEN GENERAL */}
-        <TabsContent value="resumen" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Informacion Personal</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div>
-                  <span className="font-semibold text-xs uppercase text-gray-500 block">Nombre</span>
-                  <span className="text-base">{lead?.name || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-xs uppercase text-gray-500 block">Cedula</span>
-                  <span className="text-base">{lead?.cedula || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-xs uppercase text-gray-500 block">Estado Civil</span>
-                  <span className="text-base">{lead?.estado_civil || 'N/A'}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Informacion Laboral</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div>
-                  <span className="font-semibold text-xs uppercase text-gray-500 block">Institucion</span>
-                  <span className="text-base">{lead?.institucion_labora || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-xs uppercase text-gray-500 block">Puesto</span>
-                  <span className="text-base">{lead?.puesto || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-xs uppercase text-gray-500 block">Nombramiento</span>
-                  <span className="text-base">{lead?.nombramientos || 'N/A'}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
+      {/* Contenido Principal - Todo en una sola vista */}
+      <div className="space-y-6">
+        {/* Fila 1: Info Personal + Info Laboral + Datos Financieros */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Info Personal */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Propuesta de Analisis</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-500">Informacion Personal</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div>
+                <span className="font-semibold text-xs uppercase text-gray-500 block">Nombre</span>
+                <span className="text-base">{lead?.name || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-xs uppercase text-gray-500 block">Cedula</span>
+                <span className="text-base">{lead?.cedula || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-xs uppercase text-gray-500 block">Estado Civil</span>
+                <span className="text-base">{lead?.estado_civil || 'N/A'}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Info Laboral */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Informacion Laboral</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div>
+                <span className="font-semibold text-xs uppercase text-gray-500 block">Institucion</span>
+                <span className="text-base">{lead?.institucion_labora || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-xs uppercase text-gray-500 block">Puesto</span>
+                <span className="text-base">{lead?.puesto || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-xs uppercase text-gray-500 block">Nombramiento</span>
+                <span className="text-base">{lead?.nombramientos || 'N/A'}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Monto Solicitado */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Monto Solicitado</CardTitle>
             </CardHeader>
             <CardContent>
               {isEditMode ? (
-                <Textarea
-                  value={editPropuesta}
-                  onChange={(e) => setEditPropuesta(e.target.value)}
-                  className="min-h-[100px] text-sm"
-                  placeholder="Escriba la propuesta de análisis..."
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editMontoCredito}
+                  onChange={(e) => setEditMontoCredito(parseFloat(e.target.value) || 0)}
+                  className="text-lg font-bold"
                 />
               ) : (
-                <div className="min-h-[100px] p-3 bg-gray-50 rounded border text-sm">
-                  {analisis.propuesta || <span className="text-muted-foreground italic">Sin propuesta definida</span>}
+                <div className="text-2xl font-bold text-blue-600">
+                  ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_credito || 0)}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Botón guardar en modo edición */}
-          {isEditMode && (
-            <div className="flex justify-end">
-              <Button onClick={handleSaveChanges} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                Guardar Cambios
-              </Button>
-            </div>
-          )}
-        </TabsContent>
+          {/* Ingreso Neto */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isEditMode ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editIngresoNeto}
+                  onChange={(e) => setEditIngresoNeto(parseFloat(e.target.value) || 0)}
+                  className="text-lg font-bold"
+                />
+              ) : (
+                <div className="text-2xl font-bold text-green-600">
+                  ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.ingreso_neto || 0)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* TAB: DATOS FINANCIEROS */}
-        <TabsContent value="financiero" className="space-y-4">
-          {/* Indicador de modo edición */}
-          {isEditMode && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+        {/* Fila 2: Propuesta de Análisis */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Propuesta de Analisis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isEditMode ? (
+              <Textarea
+                value={editPropuesta}
+                onChange={(e) => setEditPropuesta(e.target.value)}
+                className="min-h-[80px] text-sm"
+                placeholder="Escriba la propuesta de análisis..."
+              />
+            ) : (
+              <div className="min-h-[60px] p-3 bg-gray-50 rounded border text-sm">
+                {analisis.propuesta || <span className="text-muted-foreground italic">Sin propuesta definida</span>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Indicador de modo edición */}
+        {isEditMode && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <div className="flex items-center justify-between">
               <p className="text-sm text-amber-700">
-                <strong>Modo Edición:</strong> Los campos financieros son editables. Guarda los cambios cuando termines.
+                <strong>Modo Edición:</strong> Los campos son editables. Guarda los cambios cuando termines.
               </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Monto Solicitado</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isEditMode ? (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={editMontoCredito}
-                    onChange={(e) => setEditMontoCredito(parseFloat(e.target.value) || 0)}
-                    className="text-lg font-bold"
-                  />
-                ) : (
-                  <div className="text-2xl font-bold text-blue-600">
-                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.monto_credito)}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Ingreso Bruto</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isEditMode ? (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={editIngresoBruto}
-                    onChange={(e) => setEditIngresoBruto(parseFloat(e.target.value) || 0)}
-                    className="text-lg font-bold"
-                  />
-                ) : (
-                  <div className="text-2xl font-bold text-green-600">
-                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_bruto || 0)}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isEditMode ? (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={editIngresoNeto}
-                    onChange={(e) => setEditIngresoNeto(parseFloat(e.target.value) || 0)}
-                    className="text-lg font-bold"
-                  />
-                ) : (
-                  <div className="text-2xl font-bold text-green-600">
-                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_neto || 0)}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-          </div>
-
-          {/* Botón guardar en modo edición - Tab Financiero */}
-          {isEditMode && (
-            <div className="flex justify-end">
-              <Button onClick={handleSaveChanges} disabled={saving}>
+              <Button onClick={handleSaveChanges} disabled={saving} size="sm">
                 {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                 Guardar Cambios
               </Button>
             </div>
-          )}
-        </TabsContent>
+          </div>
+        )}
 
-        {/* TAB: DOCUMENTACION */}
-        <TabsContent value="documentos" className="space-y-4">
-          {/* Info de empresa detectada */}
-          {empresaMatch ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-blue-700">
-                <strong>Empresa detectada:</strong> {empresaMatch.business_name} - Se verificarán los requisitos específicos de esta institución.
-              </p>
-            </div>
-          ) : lead?.institucion_labora ? (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-yellow-700">
-                <strong>Institución:</strong> {lead.institucion_labora} - No se encontraron requisitos específicos, usando requisitos por defecto.
-              </p>
-            </div>
-          ) : null}
-
-          {/* Layout principal: 2 columnas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Columna izquierda: Verificación de Documentos */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Verificacion de Documentos</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Los documentos se verifican automáticamente por nombre. Si no coinciden, puede marcarlos manualmente.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {requirements.map((req, idx) => {
-                  const { fulfilled, autoMatch, matchedFiles } = isRequirementFulfilled(req);
+        {/* Fila 3: Documentos con Miniaturas */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderInput className="h-4 w-4 text-blue-500" />
+              Documentos
+              <Badge variant="secondary" className="ml-2">{heredados.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingFiles ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+            ) : heredados.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Sin documentos</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {heredados.map((file) => {
+                  const { icon: FileIcon, color } = getFileTypeInfo(file.name);
+                  const isImage = file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+                  const isPdf = file.name.toLowerCase().endsWith('.pdf');
 
                   return (
-                    <div key={idx} className="flex items-center justify-between p-3 border rounded bg-gray-50">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-blue-500" />
-                          <span className="text-sm font-medium">{req.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] uppercase bg-secondary px-1.5 py-0.5 rounded">{req.file_extension}</span>
-                          <span className="text-xs text-muted-foreground">x{req.quantity}</span>
-                          {matchedFiles.length > 0 && (
-                            <span className="text-xs text-green-600">({matchedFiles.length} encontrado{matchedFiles.length > 1 ? 's' : ''})</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {fulfilled ? (
-                          <Badge variant="default" className="bg-green-500">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            {autoMatch ? 'Auto' : 'Manual'}
-                          </Badge>
+                    <div
+                      key={file.path}
+                      className="rounded-lg border overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      {/* Miniatura más grande */}
+                      <div className="h-36 bg-gray-100 flex items-center justify-center relative overflow-hidden">
+                        {isImage ? (
+                          <img
+                            src={file.url}
+                            alt={file.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : isPdf ? (
+                          <div className="w-full h-full relative bg-white">
+                            <iframe
+                              src={`${file.url}#toolbar=0&navpanes=0&scrollbar=0`}
+                              className="absolute inset-0 w-full h-full pointer-events-none"
+                              title={file.name}
+                            />
+                          </div>
                         ) : (
-                          <>
-                            <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                              <AlertCircle className="h-3 w-3 mr-1" /> Pendiente
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => toggleManualVerification(req.name)}
-                            >
-                              Verificar
-                            </Button>
-                          </>
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <FileIcon className={`h-12 w-12 ${color}`} />
+                            <span className="text-[10px] uppercase font-medium text-gray-500">
+                              {file.name.split('.').pop()}
+                            </span>
+                          </div>
                         )}
-                        {fulfilled && !autoMatch && (
+                      </div>
+                      {/* Info y botón de descarga */}
+                      <div className="p-3">
+                        <p className="text-xs font-medium truncate mb-1" title={file.name}>
+                          {file.name}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground">{formatFileSize(file.size)}</span>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs text-red-500 hover:text-red-700"
-                            onClick={() => toggleManualVerification(req.name)}
+                            className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            asChild
                           >
-                            Desmarcar
+                            <a href={file.url} download={file.name}>
+                              <Download className="h-4 w-4 mr-1" />
+                              <span className="text-xs">Descargar</span>
+                            </a>
                           </Button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
-              </CardContent>
-            </Card>
-
-            {/* Columna derecha: Documentos */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FolderInput className="h-4 w-4 text-blue-500" />
-                  Documentos
-                  <Badge variant="secondary" className="ml-auto">{heredados.length}</Badge>
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Archivos asociados al análisis</p>
-              </CardHeader>
-              <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
-                {loadingFiles ? (
-                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-                ) : heredados.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Sin documentos</p>
-                ) : (
-                  heredados.map((file) => {
-                    const { icon: FileIcon, color } = getFileTypeInfo(file.name);
-                    return (
-                      <div key={file.path} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50">
-                        <FileIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                        <div className="min-w-0 flex-1">
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium hover:underline truncate block"
-                          >
-                            {file.name}
-                          </a>
-                          <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
