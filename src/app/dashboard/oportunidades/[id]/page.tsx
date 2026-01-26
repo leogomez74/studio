@@ -154,24 +154,41 @@ export default function OpportunityDetailPage() {
     }
   };
 
-  // Subir archivo específico (genérico)
+  // Subir archivo(s) específico(s) (genérico)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
 
     try {
-      setUploading(true);
-      await api.post(`/api/opportunities/${id}/files`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      toast({ title: "Éxito", description: "Archivo subido correctamente." });
-      fetchFiles();
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          await api.post(`/api/opportunities/${id}/files`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "Éxito",
+          description: `${successCount} archivo(s) subido(s) correctamente.${errorCount > 0 ? ` ${errorCount} fallaron.` : ''}`
+        });
+        fetchFiles();
+      } else {
+        toast({ title: "Error", description: "No se pudo subir ningún archivo.", variant: "destructive" });
+      }
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -630,6 +647,7 @@ export default function OpportunityDetailPage() {
                             <Input
                               id="file-upload"
                               type="file"
+                              multiple
                               onChange={handleFileUpload}
                               disabled={uploading}
                               className="cursor-pointer"

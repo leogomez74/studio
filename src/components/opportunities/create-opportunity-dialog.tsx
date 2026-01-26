@@ -111,9 +111,27 @@ export function CreateOpportunityDialog({
   const [instituciones, setInstituciones] = useState<Array<{ id: number; nombre: string; activa: boolean }>>([]);
   const [loadingInstituciones, setLoadingInstituciones] = useState(true);
 
+  // Estado para el monto formateado
+  const [displayAmount, setDisplayAmount] = useState("");
+
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
   const [searchVertical, setSearchVertical] = useState("");
+
+  // Funciones para formatear el monto en colones
+  const formatCurrency = (value: number): string => {
+    if (value === 0) return "";
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const parseCurrency = (value: string): number => {
+    const cleaned = value.replace(/[^\d.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
 
   const form = useForm<CreateOpportunityFormValues>({
     resolver: zodResolver(createOpportunitySchema),
@@ -188,6 +206,7 @@ export function CreateOpportunityDialog({
       // Reiniciar estados
       setHasDocuments(false);
       setIsUploading(false);
+      setDisplayAmount("");
     }
   }, [open, defaultLeadId, leads, products, instituciones, form]);
 
@@ -476,7 +495,22 @@ export function CreateOpportunityDialog({
                       <FormItem>
                         <FormLabel>Monto</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="0.00" {...field} />
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">₡</span>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="0"
+                              className="pl-7"
+                              value={displayAmount}
+                              onChange={(e) => {
+                                const rawValue = e.target.value.replace(/[^\d]/g, '');
+                                const numValue = rawValue ? parseInt(rawValue, 10) : 0;
+                                field.onChange(numValue);
+                                setDisplayAmount(rawValue ? formatCurrency(numValue) : '');
+                              }}
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
