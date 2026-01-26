@@ -6,7 +6,7 @@ export default function Home() {
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       <div className="flex min-h-screen flex-col justify-center px-6 py-12 sm:px-8 lg:px-12">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-12 lg:flex-row lg:items-start lg:gap-16">
-          <section className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
+          <section className="flex flex-1 flex-col items-center text-center lg:text-left">
             <div className="mb-8 lg:mb-12">
               <LoginLogo />
             </div>
