@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import {
@@ -22,16 +21,10 @@ import {
   Empresa
 } from '@/lib/empresas-mock';
 import {
-  DEDUCCIONES_TIPOS,
-  DeduccionItem,
-  EditableDeduccion,
   AnalisisItem,
   AnalisisFile,
   formatCurrency,
   formatFileSize,
-  initializeEditableDeducciones,
-  getActiveDeduccionesTotal,
-  filterActiveDeduccionesForSave,
 } from '@/lib/analisis';
 
 export default function AnalisisDetailPage() {
@@ -56,22 +49,7 @@ export default function AnalisisDetailPage() {
   const [editIngresoBruto, setEditIngresoBruto] = useState<number>(0);
   const [editIngresoNeto, setEditIngresoNeto] = useState<number>(0);
   const [editPropuesta, setEditPropuesta] = useState<string>('');
-  const [editDeducciones, setEditDeducciones] = useState<EditableDeduccion[]>([]);
   const [saving, setSaving] = useState(false);
-  const [netoManualOverride, setNetoManualOverride] = useState(false);
-
-  // Calcular total de deducciones activas
-  const totalDeduccionesActivas = editDeducciones
-    .filter(d => d.activo)
-    .reduce((sum, d) => sum + d.monto, 0);
-
-  // Auto-calcular ingreso neto cuando cambia bruto o deducciones (si no hay override manual)
-  useEffect(() => {
-    if (!netoManualOverride && editIngresoBruto > 0) {
-      const netoCalculado = editIngresoBruto - totalDeduccionesActivas;
-      setEditIngresoNeto(Math.max(0, netoCalculado));
-    }
-  }, [editIngresoBruto, totalDeduccionesActivas, netoManualOverride]);
 
   // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
@@ -100,10 +78,6 @@ export default function AnalisisDetailPage() {
         setEditIngresoBruto(data.ingreso_bruto || 0);
         setEditIngresoNeto(data.ingreso_neto || 0);
         setEditPropuesta(data.propuesta || '');
-        setNetoManualOverride(false);
-
-        // Inicializar deducciones editables (mapear existentes o crear vacías)
-        setEditDeducciones(initializeEditableDeducciones(data.deducciones));
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -168,36 +142,16 @@ export default function AnalisisDetailPage() {
     }
   };
 
-  // Toggle deducción activa/inactiva
-  const toggleDeduccion = (index: number) => {
-    setEditDeducciones(prev => prev.map((d, i) =>
-      i === index ? { ...d, activo: !d.activo, monto: !d.activo ? d.monto : 0 } : d
-    ));
-  };
-
-  // Actualizar monto de deducción
-  const updateDeduccionMonto = (index: number, monto: number) => {
-    setEditDeducciones(prev => prev.map((d, i) =>
-      i === index ? { ...d, monto } : d
-    ));
-  };
-
   // Handler para guardar cambios cuando estado_pep === 'Pendiente de cambios'
   const handleSaveChanges = async () => {
     try {
       setSaving(true);
-
-      // Filtrar solo deducciones activas con monto > 0
-      const deduccionesActivas = editDeducciones
-        .filter(d => d.activo && d.monto > 0)
-        .map(d => ({ nombre: d.nombre, monto: d.monto }));
 
       const payload = {
         monto_credito: editMontoCredito,
         ingreso_bruto: editIngresoBruto,
         ingreso_neto: editIngresoNeto,
         propuesta: editPropuesta,
-        deducciones: deduccionesActivas.length > 0 ? deduccionesActivas : null,
       };
 
       await api.put(`/api/analisis/${analisisId}`, payload);
@@ -209,7 +163,6 @@ export default function AnalisisDetailPage() {
         ingreso_bruto: editIngresoBruto,
         ingreso_neto: editIngresoNeto,
         propuesta: editPropuesta,
-        deducciones: deduccionesActivas.length > 0 ? deduccionesActivas : undefined,
       } : null);
 
       toast({ title: 'Guardado', description: 'Los cambios se guardaron correctamente.' });
@@ -512,30 +465,13 @@ export default function AnalisisDetailPage() {
               </CardHeader>
               <CardContent>
                 {isEditMode ? (
-                  <div className="space-y-1">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={editIngresoNeto}
-                      onChange={(e) => {
-                        setNetoManualOverride(true);
-                        setEditIngresoNeto(parseFloat(e.target.value) || 0);
-                      }}
-                      className="text-lg font-bold"
-                    />
-                    {netoManualOverride && (
-                      <button
-                        type="button"
-                        onClick={() => setNetoManualOverride(false)}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        Recalcular automático
-                      </button>
-                    )}
-                    {!netoManualOverride && (
-                      <p className="text-xs text-muted-foreground">Auto: Bruto - Deducciones</p>
-                    )}
-                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editIngresoNeto}
+                    onChange={(e) => setEditIngresoNeto(parseFloat(e.target.value) || 0)}
+                    className="text-lg font-bold"
+                  />
                 ) : (
                   <div className="text-2xl font-bold text-green-600">
                     {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(analisis.ingreso_neto || 0)}
@@ -544,21 +480,6 @@ export default function AnalisisDetailPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Total Deducciones</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">
-                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(
-                    isEditMode
-                      ? (editIngresoBruto - editIngresoNeto)
-                      : ((analisis.ingreso_bruto || 0) - (analisis.ingreso_neto || 0))
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Bruto - Neto</p>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Botón guardar en modo edición - Tab Financiero */}
@@ -570,80 +491,6 @@ export default function AnalisisDetailPage() {
               </Button>
             </div>
           )}
-
-          {/* Módulo de Deducciones Detalladas */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Desglose de Deducciones</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isEditMode ? (
-                /* Modo edición: mostrar todas las deducciones con checkboxes */
-                <div className="space-y-2">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {editDeducciones.map((deduccion, index) => (
-                      <div key={deduccion.nombre} className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
-                        <Checkbox
-                          id={`edit-deduccion-${index}`}
-                          checked={deduccion.activo}
-                          onCheckedChange={() => toggleDeduccion(index)}
-                        />
-                        <label
-                          htmlFor={`edit-deduccion-${index}`}
-                          className="text-sm font-medium cursor-pointer flex-1 truncate"
-                          title={deduccion.nombre}
-                        >
-                          {deduccion.nombre}
-                        </label>
-                        {deduccion.activo && (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="Monto"
-                            className="w-28 h-8 text-sm"
-                            value={deduccion.monto || ''}
-                            onChange={e => updateDeduccionMonto(index, parseFloat(e.target.value) || 0)}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {/* Total en modo edición */}
-                  <div className="flex items-center justify-between p-3 bg-red-50 rounded border border-red-200 mt-3">
-                    <span className="text-sm font-bold">Total Deducciones</span>
-                    <span className="text-lg font-bold text-red-600">
-                      {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(
-                        editDeducciones.filter(d => d.activo).reduce((sum, d) => sum + d.monto, 0)
-                      )}
-                    </span>
-                  </div>
-                </div>
-              ) : analisis.deducciones && analisis.deducciones.length > 0 ? (
-                /* Modo lectura: mostrar solo las deducciones existentes */
-                <div className="space-y-2">
-                  {analisis.deducciones.map((deduccion, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
-                      <span className="text-sm font-medium">{deduccion.nombre}</span>
-                      <span className="text-sm font-bold text-red-600">
-                        {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(deduccion.monto)}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between p-3 bg-red-50 rounded border border-red-200 mt-3">
-                    <span className="text-sm font-bold">Total Deducciones Registradas</span>
-                    <span className="text-lg font-bold text-red-600">
-                      {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(
-                        analisis.deducciones.reduce((sum, d) => sum + d.monto, 0)
-                      )}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">No se han registrado deducciones específicas</p>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* TAB: DOCUMENTACION */}

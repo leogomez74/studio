@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, Paperclip, Trash, Upload, Loader2, File, Image as ImageIcon, FileSpreadsheet, FileCode } from 'lucide-react';
+import { FileText, Paperclip, Trash, Upload, Loader2, File, Image as ImageIcon, FileSpreadsheet, FileCode, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -101,19 +101,19 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     const name = fileName?.toLowerCase() || '';
 
     if (type.includes('image') || name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-        return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600' };
+        return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600', isImage: true, isPdf: false };
     }
     if (type.includes('pdf') || name.endsWith('.pdf')) {
-        return { icon: FileText, label: 'PDF', color: 'text-red-600' };
+        return { icon: FileText, label: 'PDF', color: 'text-red-600', isImage: false, isPdf: true };
     }
     if (type.includes('spreadsheet') || type.includes('excel') || name.match(/\.(xls|xlsx|csv)$/)) {
-        return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600' };
+        return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600', isImage: false, isPdf: false };
     }
     if (type.includes('word') || name.match(/\.(doc|docx)$/)) {
-        return { icon: FileText, label: 'Word', color: 'text-blue-600' };
+        return { icon: FileText, label: 'Word', color: 'text-blue-600', isImage: false, isPdf: false };
     }
-    
-    return { icon: File, label: 'Archivo', color: 'text-slate-600' };
+
+    return { icon: File, label: 'Archivo', color: 'text-slate-600', isImage: false, isPdf: false };
   };
 
   return (
@@ -134,50 +134,92 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
             No hay archivos adjuntos.
           </div>
         ) : (
-          documents.map((doc) => {
-            const { icon: FileIcon, label, color } = getFileTypeInfo(doc.mime_type, doc.name);
-            return (
-            <div
-              key={doc.id}
-              className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <Checkbox id={`doc-${doc.id}`} />
-                <div className="grid gap-1.5 leading-none">
-                    <div className="flex items-center gap-2">
-                        <label
-                            htmlFor={`doc-${doc.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {documents.map((doc) => {
+              const { icon: FileIcon, label, color, isImage, isPdf } = getFileTypeInfo(doc.mime_type, doc.name);
+              const fullUrl = doc.url ? getFullUrl(doc.url) : '';
+              return (
+                <div
+                  key={doc.id}
+                  className="rounded-lg border overflow-hidden hover:shadow-md transition-shadow"
+                >
+                  {/* Miniatura */}
+                  <div className="h-32 bg-muted flex items-center justify-center relative">
+                    {isImage && fullUrl ? (
+                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full">
+                        <img
+                          src={fullUrl}
+                          alt={doc.name}
+                          className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                        />
+                      </a>
+                    ) : isPdf && fullUrl ? (
+                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full">
+                        <iframe
+                          src={fullUrl}
+                          className="w-full h-full pointer-events-none"
+                          title={doc.name}
+                        />
+                      </a>
+                    ) : (
+                      <a href={fullUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full h-full hover:bg-muted/80 transition-colors">
+                        <FileIcon className={`h-12 w-12 ${color}`} />
+                      </a>
+                    )}
+                  </div>
+                  {/* Info del archivo */}
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Checkbox id={`doc-${doc.id}`} className="shrink-0" />
+                          <a
+                            href={fullUrl || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium truncate hover:underline block"
+                            title={doc.name}
+                          >
                             {doc.name}
-                        </label>
-                        <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-normal ${color} border-current opacity-80`}>
+                          </a>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-normal ${color} border-current opacity-80`}>
                             {label}
-                        </Badge>
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{formatDate(doc.created_at)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {fullUrl && (
+                          <>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                              <a href={fullUrl} target="_blank" rel="noopener noreferrer">
+                                <FileIcon className={`h-4 w-4 ${color}`} />
+                                <span className="sr-only">Ver</span>
+                              </a>
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                              <a href={fullUrl} download={doc.name}>
+                                <Download className="h-4 w-4 text-blue-600" />
+                                <span className="sr-only">Descargar</span>
+                              </a>
+                            </Button>
+                          </>
+                        )}
+                        {!readonly && (
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(doc.id)}>
+                            <Trash className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Eliminar</span>
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        {formatDate(doc.created_at)}
-                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {doc.url && (
-                  <Button variant="ghost" size="sm" asChild>
-                    <a href={getFullUrl(doc.url)} target="_blank" rel="noopener noreferrer">
-                      <FileIcon className={`h-4 w-4 ${color}`} />
-                      <span className="sr-only">Ver</span>
-                    </a>
-                  </Button>
-                )}
-                {!readonly && (
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)}>
-                    <Trash className="h-4 w-4 text-destructive" />
-                    <span className="sr-only">Eliminar</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-          )})
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

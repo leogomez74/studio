@@ -91,6 +91,10 @@ class OpportunityController extends Controller
             $query->where('vertical', $request->input('vertical'));
         }
 
+        if ($request->filled('opportunity_type')) {
+            $query->where('opportunity_type', $request->input('opportunity_type'));
+        }
+
         $perPage = min((int) $request->input('per_page', 10), 100);
         $opportunities = $query->latest()->paginate($perPage);
 

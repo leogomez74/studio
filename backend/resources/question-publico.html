@@ -93,9 +93,9 @@
                 <div id="step-1" class="space-y-4">
                     <h2 class="text-lg font-semibold text-foreground">1. ¿Qué te interesa?</h2>
                     <div class="grid md:grid-cols-3 gap-4">
-                        <label class="block cursor-pointer group">
-                            <input type="radio" name="interes" value="credito" class="peer sr-only">
-                            <div class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
+                        <label id="creditoOption" class="block cursor-pointer group">
+                            <input type="radio" name="interes" value="credito" id="creditoRadio" class="peer sr-only">
+                            <div id="creditoCard" class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
                                 <p class="text-sm font-semibold text-foreground">Crédito</p>
                                 <p class="text-xs text-muted-foreground mt-1">Financia tus metas y obligaciones.</p>
                             </div>
@@ -107,13 +107,68 @@
                                 <p class="text-xs text-muted-foreground mt-1">Divorcios, traspasos, sucesiones u otros.</p>
                             </div>
                         </label>
-                        <label class="block cursor-pointer group">
-                            <input type="radio" name="interes" value="ambos" class="peer sr-only">
-                            <div class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
+                        <label id="ambosOption" class="block cursor-pointer group">
+                            <input type="radio" name="interes" value="ambos" id="ambosRadio" class="peer sr-only">
+                            <div id="ambosCard" class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
                                 <p class="text-sm font-semibold text-foreground">Ambos</p>
                                 <p class="text-xs text-muted-foreground mt-1">Necesito crédito y apoyo legal.</p>
                             </div>
                         </label>
+                    </div>
+
+                    <!-- Selección de servicios legales específicos -->
+                    <div id="serviciosLegalesStep1" class="hidden space-y-3 mt-4 p-4 border rounded-lg bg-muted/30">
+                        <p class="text-sm font-semibold text-foreground">¿Qué servicio legal necesitas?</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="divorcio" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Divorcio</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="pension_alimenticia" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Pensión alimenticia</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="sucesion" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Sucesión</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="notariado" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Notariado</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="testamento" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Testamento</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="traspaso" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Traspaso</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="contrato" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Contrato</p>
+                                </div>
+                            </label>
+                            <label class="block cursor-pointer">
+                                <input type="checkbox" name="tipo_servicio_legal" value="otro" class="peer sr-only">
+                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
+                                    <p class="text-sm font-medium text-foreground">Otro</p>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -159,6 +214,22 @@
                             </div>
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
+                            <div id="institucionWrapper">
+                                <label class="block text-sm font-medium text-foreground mb-1">Institución en la que labora *</label>
+                                <div id="institucionContainer" class="relative">
+                                    <button type="button" id="institucionTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
+                                        <span id="institucionLabel" class="truncate text-muted-foreground">Selecciona institución</span>
+                                        <span class="text-xs text-muted-foreground">▼</span>
+                                    </button>
+                                    <div id="institucionDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
+                                        <div class="p-2 border-b">
+                                            <input id="institucionSearch" type="text" placeholder="Buscar institución" class="w-full px-2 py-1 text-sm border rounded-md" aria-label="Buscar institución">
+                                        </div>
+                                        <div id="institucionList" class="max-h-40 overflow-y-auto"></div>
+                                    </div>
+                                    <input type="hidden" id="institucionValue" name="institucion" value="">
+                                </div>
+                            </div>
                             <div id="empresaWrapper">
                                 <label class="block text-sm font-medium text-foreground mb-1">Empresa en la que Labora</label>
                                 <div id="companyContainer" class="relative">
@@ -175,6 +246,8 @@
                                     <input type="hidden" id="companyValue" name="situacion_laboral" value="">
                                 </div>
                             </div>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-foreground mb-1">Tiempo laborando</label>
                                 <select name="antiguedad_laboral" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
@@ -419,6 +492,21 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Diálogo de salario bajo - bloquear crédito -->
+    <div id="salarioBajoDialog" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="fixed inset-0 bg-black/50"></div>
+        <div class="relative bg-card rounded-xl shadow-2xl p-6 md:p-8 max-w-md mx-4 text-center" style="animation: fadeIn 0.2s ease-out;">
+            <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-headline font-bold text-foreground mb-2">Información Importante</h2>
+            <p class="text-muted-foreground mb-6">Lamentamos informarte que actualmente no contamos con créditos para clientes del sector público cuyo salario sea menor a ₡300,000. Sin embargo, puedes optar por nuestros <strong>créditos para servicios legales</strong> (divorcios, notariado, testamentos, etc.).</p>
+            <button onclick="closeSalarioBajoDialog()" class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">Entendido</button>
         </div>
     </div>
 
@@ -682,6 +770,12 @@
             const showLegales = interes === 'servicios_legales' || interes === 'ambos';
             document.getElementById('creditoFields').classList.toggle('hidden', !showCredito);
             document.getElementById('legalesFields').classList.toggle('hidden', !showLegales);
+
+            // Mostrar/ocultar servicios legales en step-1
+            const serviciosLegalesStep1 = document.getElementById('serviciosLegalesStep1');
+            if (serviciosLegalesStep1) {
+                serviciosLegalesStep1.classList.toggle('hidden', !showLegales);
+            }
         }
 
         const companyOptions = [
@@ -829,6 +923,72 @@
             }
         }
 
+        // --- Instituciones Dropdown ---
+        let institucionOptions = [];
+
+        async function loadInstituciones() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instituciones?activas_only=true`);
+                if (response.ok) {
+                    const data = await response.json();
+                    institucionOptions = data.map(inst => inst.nombre);
+                    renderInstitucionOptions();
+                }
+            } catch (error) {
+                console.error('Error loading instituciones:', error);
+            }
+        }
+
+        function renderInstitucionOptions(filter = '') {
+            const list = document.getElementById('institucionList');
+            if (!list) return;
+            list.innerHTML = '';
+            const term = filter.trim().toLowerCase();
+            institucionOptions.forEach(name => {
+                if (term && !name.toLowerCase().includes(term)) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = name;
+                btn.className = 'w-full text-left px-3 py-2 text-sm hover:bg-gray-100';
+                btn.addEventListener('click', () => selectInstitucion(name));
+                list.appendChild(btn);
+            });
+            if (!list.children.length) {
+                const empty = document.createElement('div');
+                empty.className = 'px-3 py-2 text-sm text-muted-foreground';
+                empty.textContent = 'Sin resultados';
+                list.appendChild(empty);
+            }
+        }
+
+        function selectInstitucion(name) {
+            const hidden = document.getElementById('institucionValue');
+            const label = document.getElementById('institucionLabel');
+            hidden.value = name || '';
+            label.textContent = name || 'Selecciona institución';
+            label.classList.toggle('text-muted-foreground', !name);
+            closeInstitucionDropdown();
+        }
+
+        function openInstitucionDropdown() {
+            document.getElementById('institucionDropdown').classList.remove('hidden');
+            renderInstitucionOptions(document.getElementById('institucionSearch').value || '');
+            document.getElementById('institucionSearch').focus();
+        }
+
+        function closeInstitucionDropdown() {
+            document.getElementById('institucionDropdown').classList.add('hidden');
+        }
+
+        function toggleInstitucionDropdown() {
+            const dropdown = document.getElementById('institucionDropdown');
+            if (dropdown.classList.contains('hidden')) {
+                openInstitucionDropdown();
+            } else {
+                closeInstitucionDropdown();
+            }
+        }
+
         function validateStep(index) {
             clearAlert();
             if (index === 0) {
@@ -962,6 +1122,107 @@
         function closeSuccessDialog() {
             document.getElementById('successDialog').classList.add('hidden');
             document.body.style.overflow = '';
+        }
+
+        // Variable para rastrear si crédito está bloqueado
+        let creditoBloqueado = false;
+
+        // Obtener clave única para localStorage basada en la cédula
+        function getStorageKey() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const cedulaHash = Array.from(urlParams.keys())[0] || 'default';
+            return `creditoBloqueado_${cedulaHash}`;
+        }
+
+        // Verificar si el crédito está bloqueado en localStorage
+        function checkCreditoBloqueadoStorage() {
+            const key = getStorageKey();
+            const bloqueado = localStorage.getItem(key);
+            if (bloqueado === 'true') {
+                bloquearCredito(false); // false = no guardar de nuevo en localStorage
+            }
+        }
+
+        function showSalarioBajoDialog() {
+            document.getElementById('salarioBajoDialog').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSalarioBajoDialog() {
+            document.getElementById('salarioBajoDialog').classList.add('hidden');
+            document.body.style.overflow = '';
+
+            // Bloquear opción de crédito (y guardar en localStorage)
+            bloquearCredito(true);
+
+            // Volver al paso 1
+            currentStep = 0;
+            showStep(currentStep);
+
+            // Limpiar selección de interés
+            document.querySelectorAll('input[name="interes"]').forEach(input => {
+                input.checked = false;
+            });
+        }
+
+        function bloquearCredito(guardarEnStorage = true) {
+            creditoBloqueado = true;
+
+            // Guardar en localStorage para persistir después de recargar
+            if (guardarEnStorage) {
+                const key = getStorageKey();
+                localStorage.setItem(key, 'true');
+            }
+
+            // Bloquear opción Crédito
+            const creditoOption = document.getElementById('creditoOption');
+            const creditoRadio = document.getElementById('creditoRadio');
+            const creditoCard = document.getElementById('creditoCard');
+
+            creditoRadio.disabled = true;
+            creditoOption.classList.remove('cursor-pointer');
+            creditoOption.classList.add('cursor-not-allowed', 'opacity-50');
+            creditoCard.classList.add('bg-gray-100');
+            creditoCard.classList.remove('hover:shadow-md');
+
+            if (!document.getElementById('creditoBloqueadoMsg')) {
+                const msg = document.createElement('p');
+                msg.id = 'creditoBloqueadoMsg';
+                msg.className = 'text-xs text-red-500 mt-1';
+                msg.textContent = 'No disponible para tu rango salarial';
+                creditoCard.appendChild(msg);
+            }
+
+            // Bloquear opción Ambos
+            const ambosOption = document.getElementById('ambosOption');
+            const ambosRadio = document.getElementById('ambosRadio');
+            const ambosCard = document.getElementById('ambosCard');
+
+            ambosRadio.disabled = true;
+            ambosOption.classList.remove('cursor-pointer');
+            ambosOption.classList.add('cursor-not-allowed', 'opacity-50');
+            ambosCard.classList.add('bg-gray-100');
+            ambosCard.classList.remove('hover:shadow-md');
+
+            if (!document.getElementById('ambosBloqueadoMsg')) {
+                const msg = document.createElement('p');
+                msg.id = 'ambosBloqueadoMsg';
+                msg.className = 'text-xs text-red-500 mt-1';
+                msg.textContent = 'No disponible para tu rango salarial';
+                ambosCard.appendChild(msg);
+            }
+        }
+
+        function checkSalarioBajo() {
+            const ingresoSelect = document.getElementById('ingresoSelect');
+            const interes = document.querySelector('input[name="interes"]:checked')?.value;
+
+            // Solo verificar si el interés incluye crédito
+            if ((interes === 'credito' || interes === 'ambos') && ingresoSelect.value === '<300k') {
+                showSalarioBajoDialog();
+                return true;
+            }
+            return false;
         }
 
         function setupFileUpload(fieldName, acceptTypes) {
@@ -1114,13 +1375,25 @@
             // Verificar si el cuestionario ya fue completado
             checkQuestionnaireStatus();
 
+            // Verificar si el crédito está bloqueado (persistido en localStorage)
+            checkCreditoBloqueadoStorage();
+
             // Cargar configuraciones de préstamos desde la API
             loadLoanConfigurations();
 
             showStep(currentStep);
             renderCompanyOptions();
             document.querySelectorAll('input[name="interes"]').forEach(input => {
-                input.addEventListener('change', updateDynamicBlocks);
+                input.addEventListener('change', (e) => {
+                    // Si crédito está bloqueado y selecciona crédito o ambos, prevenir
+                    if (creditoBloqueado && (e.target.value === 'credito' || e.target.value === 'ambos')) {
+                        e.preventDefault();
+                        e.target.checked = false;
+                        showAlert('La opción de crédito no está disponible para tu rango salarial. Por favor selecciona Servicios Legales.');
+                        return;
+                    }
+                    updateDynamicBlocks();
+                });
             });
             // Tipo de crédito - actualizar montos
             const tipoCredInputs = document.querySelectorAll('input[name="tipo_credito"]');
@@ -1135,8 +1408,11 @@
                 e.target.value = formatted;
                 validateSalario();
             });
-            // Rango de ingreso - validar salario
-            document.getElementById('ingresoSelect').addEventListener('change', validateSalario);
+            // Rango de ingreso - validar salario y verificar salario bajo
+            document.getElementById('ingresoSelect').addEventListener('change', () => {
+                validateSalario();
+                checkSalarioBajo();
+            });
             document.getElementById('companyTrigger').addEventListener('click', (e) => {
                 e.stopPropagation();
                 toggleCompanyDropdown();
@@ -1144,11 +1420,30 @@
             document.getElementById('companySearch').addEventListener('input', (e) => {
                 renderCompanyOptions(e.target.value || '');
             });
+
+            // Institución dropdown event listeners
+            loadInstituciones();
+            document.getElementById('institucionTrigger').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleInstitucionDropdown();
+            });
+            document.getElementById('institucionSearch').addEventListener('input', (e) => {
+                renderInstitucionOptions(e.target.value || '');
+            });
+
             document.addEventListener('click', (e) => {
-                const dropdown = document.getElementById('companyDropdown');
-                const container = document.getElementById('companyContainer');
-                if (!container.contains(e.target)) {
-                    dropdown.classList.add('hidden');
+                // Cerrar company dropdown
+                const companyDropdown = document.getElementById('companyDropdown');
+                const companyContainer = document.getElementById('companyContainer');
+                if (!companyContainer.contains(e.target)) {
+                    companyDropdown.classList.add('hidden');
+                }
+
+                // Cerrar institucion dropdown
+                const institucionDropdown = document.getElementById('institucionDropdown');
+                const institucionContainer = document.getElementById('institucionContainer');
+                if (institucionContainer && !institucionContainer.contains(e.target)) {
+                    institucionDropdown.classList.add('hidden');
                 }
             });
             document.getElementById('backBtn').addEventListener('click', () => {

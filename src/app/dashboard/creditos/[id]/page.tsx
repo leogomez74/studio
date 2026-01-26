@@ -1,5 +1,27 @@
 'use client';
 
+/**
+ * TODO: Cargos Adicionales - Próxima Implementación
+ * ==================================================
+ *
+ * Funcionalidad planificada para gestionar cargos adicionales del crédito:
+ *
+ * Tipos de cargos:
+ * - Comisión
+ * - Transporte
+ * - Respaldo deudor
+ * - Descuento por factura
+ *
+ * Funcionalidades:
+ * [ ] CRUD de cargos adicionales por crédito
+ * [ ] Asociar cargo a cuota específica o distribuir en plan de pagos
+ * [ ] Calcular total de cargos por crédito
+ * [ ] Mostrar desglose en balance general
+ * [ ] Historial de cargos aplicados
+ *
+ * Ubicación sugerida: Sección en pestaña "Crédito" o nueva pestaña "Cargos"
+ */
+
 import React, { useState, useEffect, use } from 'react';
 // --- Agent Option ---
 interface AgentOption {

@@ -41,7 +41,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 import api from "@/lib/axios";
 import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
-import { CaseChat } from "@/components/case-chat";
+// COMENTADO TEMPORALMENTE
+// import { CaseChat } from "@/components/case-chat";
 import { Label } from "@/components/ui/label";
 import { DEDUCCIONES_TIPOS, EditableDeduccion } from "@/lib/analisis";
 
@@ -184,24 +185,41 @@ export default function OpportunityDetailPage() {
     }
   };
 
-  // Subir archivo específico (genérico)
+  // Subir archivo(s) específico(s) (genérico)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
 
     try {
-      setUploading(true);
-      await api.post(`/api/opportunities/${id}/files`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      toast({ title: "Éxito", description: "Archivo subido correctamente." });
-      fetchFiles();
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          await api.post(`/api/opportunities/${id}/files`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "Éxito",
+          description: `${successCount} archivo(s) subido(s) correctamente.${errorCount > 0 ? ` ${errorCount} fallaron.` : ''}`
+        });
+        fetchFiles();
+      } else {
+        toast({ title: "Error", description: "No se pudo subir ningún archivo.", variant: "destructive" });
+      }
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -448,9 +466,9 @@ export default function OpportunityDetailPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        {/* Main Content - Left Column (Refactored with Archivos as main tab) */}
-        <div className="lg:col-span-3 space-y-6">
+      <div className="grid grid-cols-1 gap-6">
+        {/* Main Content - Full Width (Chat panel commented out) */}
+        <div className="space-y-6">
           <Tabs defaultValue="resumen" className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
@@ -746,6 +764,7 @@ export default function OpportunityDetailPage() {
                             <Input
                               id="file-upload"
                               type="file"
+                              multiple
                               onChange={handleFileUpload}
                               disabled={uploading}
                               className="cursor-pointer"
@@ -817,9 +836,11 @@ export default function OpportunityDetailPage() {
         </div>
 
         {/* Side Panel - Chat lateral igual que leads */}
+        {/* COMENTADO TEMPORALMENTE
         <div className="space-y-1 lg:col-span-1">
           <CaseChat conversationId={id} />
         </div>
+        */}
       </div>
 
       {/* Analisis Creation Dialog */}
