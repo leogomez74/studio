@@ -376,10 +376,10 @@ export default function ClientesPage() {
     doc.setFontSize(12);
     doc.text(title, 14, 16);
 
-    const tableColumn = ["Nombre", "Cédula", "Email", "Teléfono", "Estado", "Registrado"];
+    const tableColumn = ["Cédula", "Nombre", "Email", "Teléfono", "Estado", "Registrado"];
     const tableRows = dataToExport.map((item: any) => [
-        getLeadDisplayName(item),
         item.cedula || "-",
+        getLeadDisplayName(item),
         item.email,
         item.phone || "-",
         activeTab === "leads"
@@ -419,10 +419,10 @@ export default function ClientesPage() {
         return;
     }
 
-    const headers = ["Nombre", "Cédula", "Email", "Teléfono", "Estado", "Registrado"];
+    const headers = ["Cédula", "Nombre", "Email", "Teléfono", "Estado", "Registrado"];
     const rows = dataToExport.map((item: any) => [
-        getLeadDisplayName(item),
         item.cedula || "-",
+        getLeadDisplayName(item),
         item.email,
         item.phone || "-",
         activeTab === "leads"

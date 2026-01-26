@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useSidebar } from "@/components/ui/sidebar";
-import { Building2 } from "lucide-react";
 
 export function Logo() {
   // Try to get sidebar context, but don't fail if it's not available
@@ -16,19 +15,29 @@ export function Logo() {
   }
 
   return (
-    <div className="flex h-16 items-center justify-center p-2">
+    <div className="flex items-center justify-center py-4 px-2">
       {isCollapsed ? (
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Building2 className="h-6 w-6" />
+        <div className="flex h-10 w-10 items-center justify-center">
+          <Image
+            src="/logopepweb.png"
+            alt="Credipep Logo"
+            width={36}
+            height={36}
+            priority
+            className="object-contain"
+          />
         </div>
       ) : (
-        <Image
-          src="/logopepweb.png"
-          alt="Credipep Logo"
-          width={227}
-          height={225}
-          priority
-        />
+        <div className="flex items-center gap-3 px-2">
+          <Image
+            src="/logopepweb.png"
+            alt="Credipep Logo"
+            width={140}
+            height={40}
+            priority
+            className="object-contain"
+          />
+        </div>
       )}
     </div>
   );

@@ -810,11 +810,11 @@ export default function DealsPage() {
       toast({ title: "Sin datos", description: "No hay datos para exportar.", variant: "destructive" });
       return;
     }
-    const headers = ["Referencia", "Lead", "Correo", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"];
+    const headers = ["Referencia", "Cédula", "Lead", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"];
     const rows = visibleOpportunities.map((opportunity) => [
       formatOpportunityReference(opportunity.id),
+      opportunity.lead?.cedula ?? "-",
       opportunity.lead?.name ?? "Lead desconocido",
-      opportunity.lead?.email ?? "Sin correo",
       opportunity.status ?? "Pendiente",
       opportunity.opportunity_type ?? "Sin tipo",
       formatAmountForExport(opportunity.amount),
@@ -847,11 +847,11 @@ export default function DealsPage() {
 
     autoTable(doc, {
       startY: 22,
-      head: [["Referencia", "Lead", "Correo", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"]],
+      head: [["Referencia", "Cédula", "Lead", "Estado", "Tipo", "Monto", "Cierre esperado", "Creada"]],
       body: visibleOpportunities.map((opportunity) => [
         formatOpportunityReference(opportunity.id),
+        opportunity.lead?.cedula ?? "-",
         opportunity.lead?.name ?? "Lead desconocido",
-        opportunity.lead?.email ?? "Sin correo",
         opportunity.status ?? "Pendiente",
         opportunity.opportunity_type ?? "Sin tipo",
         formatAmountForExport(opportunity.amount),

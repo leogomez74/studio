@@ -1,5 +1,5 @@
 import { LoginForm } from "@/components/login-form";
-import { Logo } from "@/components/logo";
+import { LoginLogo } from "@/components/login-logo";
 
 export default function Home() {
   return (
@@ -7,8 +7,8 @@ export default function Home() {
       <div className="flex min-h-screen flex-col justify-center px-6 py-12 sm:px-8 lg:px-12">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-12 lg:flex-row lg:items-start lg:gap-16">
           <section className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="mb-10 lg:mb-16">
-              <Logo />
+            <div className="mb-8 lg:mb-12">
+              <LoginLogo />
             </div>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
               Administración segura para el equipo CREDIPEP

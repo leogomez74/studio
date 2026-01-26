@@ -15,6 +15,7 @@ import {
   SidebarMenuButton,
   SidebarInset,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 // Importamos el icono de configuración.
 import {
@@ -34,23 +35,23 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     // 'SidebarProvider' envuelve todo para que los componentes internos puedan acceder al estado de la barra lateral.
     <SidebarProvider>
       {/* 'Sidebar' es el contenedor principal de la barra lateral. */}
-      <Sidebar collapsible="icon">
+      <Sidebar collapsible="icon" className="border-r border-border/40">
         {/* 'SidebarHeader' contiene la parte superior de la barra lateral, como el logo. */}
-        <SidebarHeader>
+        <SidebarHeader className="border-b border-border/40">
           <Logo />
         </SidebarHeader>
         {/* 'SidebarContent' contiene el menú de navegación principal. */}
-        <SidebarContent>
+        <SidebarContent className="py-2">
           <DashboardNav />
         </SidebarContent>
         {/* 'SidebarFooter' contiene la parte inferior, como el enlace a configuración. */}
-        <SidebarFooter>
+        <SidebarFooter className="border-t border-border/40 p-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="CONFIGURACIÓN">
-                <Link href="/dashboard/configuracion">
-                  <Settings />
-                  CONFIGURACIÓN
+              <SidebarMenuButton asChild tooltip="Configuración" className="h-9 px-3 rounded-lg hover:bg-muted">
+                <Link href="/dashboard/configuracion" className="flex items-center gap-3">
+                  <Settings className="h-4 w-4" />
+                  <span className="text-sm font-medium">Configuración</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
