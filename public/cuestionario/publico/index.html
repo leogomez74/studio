@@ -1187,6 +1187,12 @@
                 e.target.value = formatted;
                 validateSalario();
             });
+            // Auto-seleccionar "No aplica" si es primer crédito
+            document.querySelector('select[name="experiencia_crediticia"]').addEventListener('change', function() {
+                if (this.value === 'no') {
+                    document.querySelector('select[name="historial_mora"]').value = 'no_aplica';
+                }
+            });
             // Rango de ingreso - validar salario y verificar salario bajo
             document.getElementById('ingresoSelect').addEventListener('change', () => {
                 validateSalario();
