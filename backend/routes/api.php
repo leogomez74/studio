@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\Rewards\Admin\GamificationConfigController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\QuestionnaireController;
 use App\Http\Controllers\Api\InstitucionController;
+use App\Http\Controllers\Api\LeadAlertController;
 
 /*
 |--------------------------------------------------------------------------
@@ -111,6 +112,11 @@ Route::post('quotes/send', [\App\Http\Controllers\Api\QuoteController::class, 's
 // Chat Messages
 Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'index']);
 Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
+
+// Lead Alerts (Inactivity tracking)
+Route::get('/lead-alerts/count', [LeadAlertController::class, 'count']);
+Route::get('/lead-alerts', [LeadAlertController::class, 'index']);
+Route::patch('/lead-alerts/{id}/read', [LeadAlertController::class, 'markAsRead']);
 
 // KPIs
 Route::prefix('kpis')->group(function () {
