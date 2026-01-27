@@ -16,6 +16,7 @@ import {
   Route,
   MessageSquare,
   UserCheck,
+  Bell,
   Briefcase,
   ClipboardCheck,
   FileSearch,
