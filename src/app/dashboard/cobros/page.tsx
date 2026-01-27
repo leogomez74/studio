@@ -213,11 +213,6 @@ export default function CobrosPage() {
   const [uploading, setUploading] = useState(false);
   const [abonoModalOpen, setAbonoModalOpen] = useState(false);
 
-  // Estados para el Modal de Cargar Planilla
-  const [planillaModalOpen, setPlanillaModalOpen] = useState(false);
-  const [planillaMes, setPlanillaMes] = useState<string>('');
-  const [planillaAnio, setPlanillaAnio] = useState<string>(new Date().getFullYear().toString());
-  
   // Estados para el Formulario Manual
   const [tipoCobro, setTipoCobro] = useState('normal');
   const [monto, setMonto] = useState('');
@@ -342,23 +337,9 @@ export default function CobrosPage() {
     }
   };
 
-  const openPlanillaModal = () => {
-    setPlanillaMes('');
-    setPlanillaAnio(new Date().getFullYear().toString());
-    if (fileRef.current) fileRef.current.value = '';
-    setPlanillaModalOpen(true);
-  };
-
-  const handlePlanillaSubmit = async () => {
-    if (!planillaMes || !planillaAnio) {
-      toast({ title: 'Error', description: 'Selecciona mes y año.', variant: 'destructive' });
-      return;
-    }
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
-      toast({ title: 'Error', description: 'Adjunta un archivo.', variant: 'destructive' });
-      return;
-    }
+  const handleFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
     const name = file.name.toLowerCase();
     if (!name.endsWith('.xls') && !name.endsWith('.xlsx') && !name.endsWith('.csv') && !name.endsWith('.txt')) {
       toast({ title: 'Archivo inválido', description: 'Formato incorrecto. Usa .xls, .xlsx, .csv o .txt', variant: 'destructive' });
@@ -366,14 +347,11 @@ export default function CobrosPage() {
     }
     const form = new FormData();
     form.append('file', file);
-    form.append('mes', planillaMes);
-    form.append('anio', planillaAnio);
     try {
       setUploading(true);
       await api.post('/api/credit-payments/upload', form);
       toast({ title: 'Cargado', description: 'Planilla procesada.' });
       setPlanRefreshKey(k => k + 1);
-      setPlanillaModalOpen(false);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Error al subir.';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
@@ -381,7 +359,9 @@ export default function CobrosPage() {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
-  };
+  }, [toast]);
+
+  const triggerFile = useCallback(() => fileRef.current?.click(), []);
 
   return (
     <div className="space-y-6">
@@ -428,7 +408,8 @@ export default function CobrosPage() {
                   <CardDescription>Aplica abonos individuales o masivos.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={openPlanillaModal} disabled={uploading}>
+                  <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.txt" className="hidden" onChange={handleFileSelected} />
+                  <Button variant="outline" onClick={triggerFile} disabled={uploading}>
                     <Upload className="mr-2 h-4 w-4" />{uploading ? 'Subiendo...' : 'Cargar Planilla'}
                   </Button>
                   
@@ -597,62 +578,6 @@ export default function CobrosPage() {
                           <Button type="button" variant="outline" onClick={closeAbonoModal}>Cancelar</Button>
                         </DialogFooter>
                       </form>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Modal Cargar Planilla */}
-                  <Dialog open={planillaModalOpen} onOpenChange={setPlanillaModalOpen}>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Cargar Planilla de Pagos</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-2">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Mes *</label>
-                            <Select value={planillaMes} onValueChange={setPlanillaMes}>
-                              <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="01">Enero</SelectItem>
-                                <SelectItem value="02">Febrero</SelectItem>
-                                <SelectItem value="03">Marzo</SelectItem>
-                                <SelectItem value="04">Abril</SelectItem>
-                                <SelectItem value="05">Mayo</SelectItem>
-                                <SelectItem value="06">Junio</SelectItem>
-                                <SelectItem value="07">Julio</SelectItem>
-                                <SelectItem value="08">Agosto</SelectItem>
-                                <SelectItem value="09">Septiembre</SelectItem>
-                                <SelectItem value="10">Octubre</SelectItem>
-                                <SelectItem value="11">Noviembre</SelectItem>
-                                <SelectItem value="12">Diciembre</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Año *</label>
-                            <Select value={planillaAnio} onValueChange={setPlanillaAnio}>
-                              <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={(new Date().getFullYear() - 1).toString()}>{new Date().getFullYear() - 1}</SelectItem>
-                                <SelectItem value={new Date().getFullYear().toString()}>{new Date().getFullYear()}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Archivo Excel *</label>
-                          <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.txt" className="w-full text-sm border rounded-md p-2 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          La fecha de pago se construirá con el día actual ({new Date().getDate()}) + el mes y año seleccionados.
-                        </p>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setPlanillaModalOpen(false)}>Cancelar</Button>
-                        <Button onClick={handlePlanillaSubmit} disabled={uploading}>
-                          {uploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Procesando...</> : 'Procesar Planilla'}
-                        </Button>
-                      </DialogFooter>
                     </DialogContent>
                   </Dialog>
 

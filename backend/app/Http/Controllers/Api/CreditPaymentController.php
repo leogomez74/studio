@@ -448,17 +448,9 @@ class CreditPaymentController extends Controller
     {
         $validated = $request->validate([
             'file' => 'required|file',
-            'mes' => 'required|string|in:01,02,03,04,05,06,07,08,09,10,11,12',
-            'anio' => 'required|string|digits:4',
         ]);
 
-        // Construir fecha de pago: día actual + mes/año seleccionados
-        $dia = now()->day;
-        $mes = (int) $request->input('mes');
-        $anio = (int) $request->input('anio');
-        $diasEnMes = Carbon::create($anio, $mes, 1)->daysInMonth;
-        $dia = min($dia, $diasEnMes); // Si el día no existe en el mes, usar último día
-        $fechaPago = Carbon::create($anio, $mes, $dia);
+        $fechaPago = now();
 
         $file = $request->file('file');
         $path = $file->store('uploads/planillas', 'public');
