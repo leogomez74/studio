@@ -78,6 +78,13 @@
   }
 }
 
+/* Glassmorphism sidebar */
+[data-sidebar="sidebar"] {
+  background: hsla(209, 78%, 28%, 0.85) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
 /* Custom scrollbar styles for drag-to-scroll containers */
 @layer utilities {
   .scrollbar-thin {
