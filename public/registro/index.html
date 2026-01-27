@@ -209,6 +209,9 @@
                                 <input type="tel" id="phone" name="phone" placeholder="88887777" minlength="7" maxlength="15" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                             </div>
                             <p id="phone-error" class="hidden text-xs text-red-500 mt-1"></p>
+                            <p id="whatsappLoading" class="hidden text-xs text-primary mt-1">Verificando WhatsApp...</p>
+                            <p id="whatsappValid" class="hidden text-xs text-green-600 mt-1">✓ Número verificado en WhatsApp</p>
+                            <p id="whatsappInvalid" class="hidden text-xs text-red-500 mt-1">Este número no tiene WhatsApp. Verifique e intente de nuevo.</p>
                         </div>
                         <div class="form-group">
                             <label for="sector" class="block text-sm font-medium text-foreground mb-1">Sector Laboral *</label>
@@ -272,11 +275,16 @@
         const API_BASE_URL = 'https://backend.pep.cr';
         const FRONTEND_URL = 'https://nuevo.pep.cr';
         const TSE_API_URL = 'https://www.dsf.cr/tse/';
+        const EVOLUTION_API_URL = 'https://evolution.ssc.cr';
+        const EVOLUTION_API_KEY = '7E269F8C445B-4D63-B75B-BB59D7481AC7';
+        const EVOLUTION_INSTANCE = 'Informacion Pep';
 
         let tseData = null;
         let tseLookupDone = false;
         let lastCedulaLookup = '';
         let userConfirmedTse = false;
+        let whatsappVerified = false;
+        let lastPhoneChecked = '';
 
         const countryCallingCodes = [
             { code: '+1', country: 'Estados Unidos / Canadá (NANP)' },
@@ -501,6 +509,52 @@
             return digits;
         }
 
+        function setWhatsappStatus(status) {
+            document.getElementById('whatsappLoading').classList.add('hidden');
+            document.getElementById('whatsappValid').classList.add('hidden');
+            document.getElementById('whatsappInvalid').classList.add('hidden');
+            if (status === 'loading') {
+                document.getElementById('whatsappLoading').classList.remove('hidden');
+            } else if (status === 'valid') {
+                document.getElementById('whatsappValid').classList.remove('hidden');
+            } else if (status === 'invalid') {
+                document.getElementById('whatsappInvalid').classList.remove('hidden');
+            }
+        }
+
+        async function checkWhatsApp(fullNumber) {
+            if (!fullNumber || fullNumber.length < 7) return;
+            if (fullNumber === lastPhoneChecked && whatsappVerified) return;
+
+            whatsappVerified = false;
+            lastPhoneChecked = fullNumber;
+            setWhatsappStatus('loading');
+
+            try {
+                const response = await fetch(`${EVOLUTION_API_URL}/chat/whatsappNumbers/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': EVOLUTION_API_KEY
+                    },
+                    body: JSON.stringify({ numbers: [fullNumber] })
+                });
+                const data = await response.json();
+
+                if (Array.isArray(data) && data.length > 0 && data[0].exists) {
+                    whatsappVerified = true;
+                    setWhatsappStatus('valid');
+                } else {
+                    whatsappVerified = false;
+                    setWhatsappStatus('invalid');
+                }
+            } catch (error) {
+                console.error('Error verificando WhatsApp:', error);
+                whatsappVerified = false;
+                setWhatsappStatus('invalid');
+            }
+        }
+
         function getSelectedPrefixDigits() {
             return sanitizePhone(document.getElementById('phonePrefix').value || '');
         }
@@ -718,15 +772,25 @@
             const prefixLength = isForeign ? getSelectedPrefixDigits().length : 0;
             const maxLength = Math.max(4, 15 - prefixLength);
             e.target.value = rawDigits.slice(0, maxLength);
+            // Reset WhatsApp verification when number changes
+            whatsappVerified = false;
+            lastPhoneChecked = '';
+            setWhatsappStatus('none');
         });
 
         document.getElementById('phone').addEventListener('blur', function(e) {
             const isForeign = document.getElementById('isExtranjero').value === 'true';
+            const phonePrefix = document.getElementById('phonePrefix').value;
             if (isForeign) {
                 e.target.value = sanitizePhone(e.target.value);
-                return;
+            } else {
+                e.target.value = buildPhoneNumber(e.target.value, { isForeign: false }).slice(0, 15);
             }
-            e.target.value = buildPhoneNumber(e.target.value, { isForeign: false }).slice(0, 15);
+            // Verificar WhatsApp con el número completo
+            const fullNumber = buildPhoneNumber(e.target.value, { isForeign, prefix: phonePrefix });
+            if (fullNumber && fullNumber.length >= 7) {
+                checkWhatsApp(fullNumber);
+            }
         });
 
         function showAlert(message, type) {
@@ -788,6 +852,11 @@
                 showFieldError('phone', 'El teléfono debe tener entre 7 y 15 dígitos.');
                 isValid = false;
             }
+            if (isValid && !whatsappVerified) {
+                showFieldError('phone', 'El número no está registrado en WhatsApp.');
+                setWhatsappStatus('invalid');
+                isValid = false;
+            }
             if (!data.sector) {
                 showFieldError('sector', 'Seleccione un sector laboral.');
                 isValid = false;
@@ -813,6 +882,9 @@
             togglePhonePrefix(false);
             document.getElementById('phonePrefix').value = '+506';
             document.getElementById('isExtranjero').value = 'false';
+            whatsappVerified = false;
+            lastPhoneChecked = '';
+            setWhatsappStatus('none');
         }
 
         function showSuccessDialog() {
