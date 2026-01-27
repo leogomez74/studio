@@ -46,19 +46,21 @@ class CheckLeadInactivity extends Command
             ->toArray();
 
         // 2. Obtener oportunidades inactivas
-        $inactiveOpportunities = Opportunity::where('status', '!=', 'Perdido')
+        $inactiveOpportunities = Opportunity::whereNotIn('status', ['Perdido', 'Ganado'])
             ->where('updated_at', '<', Carbon::now()->subDays(self::INACTIVITY_DAYS))
             ->get()
             ->map(function ($opp) {
                 // Usar Person directamente para evitar el global scope de Lead
-                $person = Person::where('cedula', $opp->lead_cedula)->first();
-                $leadName = $person
-                    ? trim("{$person->name} {$person->apellido1} {$person->apellido2}")
-                    : 'Sin lead asociado';
+                $leadName = 'Sin lead asociado';
+                if ($opp->lead_cedula) {
+                    $person = Person::where('cedula', $opp->lead_cedula)->first();
+                    if ($person) {
+                        $leadName = trim("{$person->name} {$person->apellido1} {$person->apellido2}");
+                    }
+                }
 
                 return [
                     'id' => $opp->id,
-                    'reference' => $opp->id,
                     'lead_name' => $leadName,
                 ];
             })
@@ -77,6 +79,11 @@ class CheckLeadInactivity extends Command
         $lastAlert = LeadAlert::orderBy('created_at', 'desc')->first();
 
         if ($lastAlert && $lastAlert->alert_number >= self::MAX_ALERTS) {
+            // Si ya no hay inactivos, resetear el ciclo para futuros inactivos
+            if (empty($inactiveLeads) && empty($inactiveOpportunities)) {
+                $this->info('Ciclo completado y sin inactivos actuales. Listo para nuevo ciclo.');
+                return self::SUCCESS;
+            }
             $this->info('Ciclo de alertas completado (3/3). No se generan más alertas.');
             return self::SUCCESS;
         }
@@ -90,7 +97,7 @@ class CheckLeadInactivity extends Command
             // Primera alerta del ciclo
             $shouldCreate = true;
             $alertNumber = 1;
-            $message = 'Se detectaron leads y/o oportunidades con más de 10 días de inactividad.';
+            $message = 'Se detectaron leads y/o oportunidades con más de ' . self::INACTIVITY_DAYS . ' días de inactividad.';
         } elseif ($lastAlert->alert_number === 1) {
             // Verificar si pasaron 14 días desde la alerta 1
             $daysSinceAlert1 = Carbon::parse($lastAlert->created_at)->diffInDays(Carbon::now());
@@ -126,7 +133,7 @@ class CheckLeadInactivity extends Command
             'inactive_opportunities' => $inactiveOpportunities,
             'message' => $message,
             'is_read' => false,
-            'assigned_to_id' => null,
+            'assigned_to_id' => null, // Alertas globales, no asignadas a agente específico
         ]);
 
         Log::info("Alerta de inactividad #{$alertNumber} creada", [
@@ -146,7 +153,12 @@ class CheckLeadInactivity extends Command
 
     private function sendWebhook(LeadAlert $alert, array $inactiveLeads, array $inactiveOpportunities): void
     {
-        $webhookUrl = 'http://localhost:5678/webhook-test/462e36a0-8135-485a-89e6-9c7867d36e36';
+        $webhookUrl = config('services.lead_alerts.webhook_url');
+
+        if (empty($webhookUrl)) {
+            $this->warn('Webhook URL no configurada (LEAD_ALERTS_WEBHOOK_URL). Omitiendo envío.');
+            return;
+        }
 
         try {
             Http::timeout(10)->post($webhookUrl, [

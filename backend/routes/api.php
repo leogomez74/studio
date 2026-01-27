@@ -113,11 +113,6 @@ Route::post('quotes/send', [\App\Http\Controllers\Api\QuoteController::class, 's
 Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'index']);
 Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
 
-// Lead Alerts (Inactivity tracking)
-Route::get('/lead-alerts/count', [LeadAlertController::class, 'count']);
-Route::get('/lead-alerts', [LeadAlertController::class, 'index']);
-Route::patch('/lead-alerts/{id}/read', [LeadAlertController::class, 'markAsRead']);
-
 // KPIs
 Route::prefix('kpis')->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\KpiController::class, 'all']);
@@ -187,6 +182,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
+
+    // Lead Alerts (Inactivity tracking)
+    Route::get('/lead-alerts/count', [LeadAlertController::class, 'count']);
+    Route::get('/lead-alerts', [LeadAlertController::class, 'index']);
+    Route::patch('/lead-alerts/{id}/read', [LeadAlertController::class, 'markAsRead']);
 
     // Analisis CRUD (Protegido)
     Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
