@@ -446,7 +446,20 @@ class CreditPaymentController extends Controller
      */
     public function upload(Request $request)
     {
-        $validated = $request->validate([ 'file' => 'required|file' ]);
+        $validated = $request->validate([
+            'file' => 'required|file',
+            'mes' => 'required|string|in:01,02,03,04,05,06,07,08,09,10,11,12',
+            'anio' => 'required|string|digits:4',
+        ]);
+
+        // Construir fecha de pago: día actual + mes/año seleccionados
+        $dia = now()->day;
+        $mes = (int) $request->input('mes');
+        $anio = (int) $request->input('anio');
+        $diasEnMes = Carbon::create($anio, $mes, 1)->daysInMonth;
+        $dia = min($dia, $diasEnMes); // Si el día no existe en el mes, usar último día
+        $fechaPago = Carbon::create($anio, $mes, $dia);
+
         $file = $request->file('file');
         $path = $file->store('uploads/planillas', 'public');
         $fullPath = storage_path('app/public/' . $path);
@@ -494,8 +507,8 @@ class CreditPaymentController extends Controller
                 if ($credit) {
                     $montoPagado = (float) preg_replace('/[^0-9\.]/', '', str_replace(',', '.', $rawMonto));
                     if ($montoPagado > 0) {
-                        $payment = DB::transaction(function () use ($credit, $montoPagado, $rawCedula) {
-                            return $this->processPaymentTransaction($credit, $montoPagado, now(), 'Planilla', $rawCedula);
+                        $payment = DB::transaction(function () use ($credit, $montoPagado, $fechaPago, $rawCedula) {
+                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula);
                         });
                         if ($payment) {
                             $results[] = ['cedula' => $rawCedula, 'monto' => $montoPagado, 'status' => 'applied', 'lead' => $credit->lead->name ?? 'N/A'];

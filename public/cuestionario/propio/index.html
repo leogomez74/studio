@@ -71,7 +71,7 @@
         <div id="alert" class="hidden p-4 mb-4 text-sm rounded-lg" role="alert"></div>
 
         <div class="bg-card text-card-foreground rounded-xl border shadow-lg">
-            <div class="p-4 md:p-6">
+            <div id="questionnaireHeader" class="p-4 md:p-6">
                 <div class="text-center space-y-1">
                     <p class="text-xs font-semibold tracking-wide text-primary uppercase">Independiente / Propio</p>
                     <h1 class="text-2xl md:text-3xl font-headline font-bold text-primary">Cuestionario Propio</h1>
@@ -600,7 +600,18 @@
                 const response = await fetch(`${API_BASE_URL}/api/questionnaire/status?cedula=${encodeURIComponent(cedulaHash)}`);
                 const data = await response.json();
                 if (data.completed) {
-                    document.getElementById('questionnaireForm').innerHTML = `<div class="text-center p-8"><h2 class="text-2xl font-bold mb-2">Cuestionario ya completado</h2><p>Completado el ${new Date(data.completed_at).toLocaleDateString('es-ES')}</p></div>`;
+                    const header = document.getElementById('questionnaireHeader');
+                    if (header) header.style.display = 'none';
+                    document.getElementById('questionnaireForm').innerHTML = `
+                        <div class="text-center p-8">
+                            <svg class="mx-auto h-16 w-16 text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h2 class="text-2xl font-bold mb-2">Cuestionario ya completado</h2>
+                            <p class="mb-4">Este cuestionario fue completado el ${new Date(data.completed_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <p class="text-sm text-gray-600">Si necesitas actualizar tu información, por favor contacta a nuestro equipo.</p>
+                        </div>
+                    `;
                 }
             } catch (error) {
                 console.error('Error:', error);
