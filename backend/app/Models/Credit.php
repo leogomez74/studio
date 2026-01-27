@@ -74,9 +74,14 @@ class Credit extends Model
     protected static function booted()
     {
         static::creating(function ($credit) {
-            // Aseguramos que al crear, el saldo inicial sea igual al monto del crédito
+            // Calcular monto neto: monto_credito - cargos_adicionales
+            $montoCredito = (float) ($credit->monto_credito ?? 0);
+            $totalCargos = array_sum($credit->cargos_adicionales ?? []);
+            $montoNeto = $montoCredito - $totalCargos;
+
+            // Saldo inicial = monto neto (lo que realmente se desembolsa)
             if (!isset($credit->saldo)) {
-                $credit->saldo = $credit->monto_credito ?? 0;
+                $credit->saldo = $montoNeto;
             }
         });
 

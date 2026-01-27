@@ -54,7 +54,8 @@ class Analisis extends Model
     // Relationships
     public function lead()
     {
-        return $this->belongsTo(Lead::class);
+        // Usa Person en lugar de Lead para incluir tanto Leads (type=1) como Clientes (type=2)
+        return $this->belongsTo(Person::class, 'lead_id');
     }
 
     public function opportunity()
