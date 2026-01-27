@@ -505,7 +505,26 @@ class CreditPaymentController extends Controller
                     $q->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
                 })->first();
                 if ($credit) {
-                    $montoPagado = (float) preg_replace('/[^0-9\.]/', '', str_replace(',', '.', $rawMonto));
+                    // Detectar formato: europeo (8.167,97) vs americano (8,167.97)
+                    $lastComma = strrpos($rawMonto, ',');
+                    $lastDot = strrpos($rawMonto, '.');
+                    if ($lastComma !== false && $lastDot !== false) {
+                        if ($lastComma > $lastDot) {
+                            // Formato europeo: 8.167,97 → quitar puntos, coma a punto
+                            $cleanMonto = str_replace('.', '', $rawMonto);
+                            $cleanMonto = str_replace(',', '.', $cleanMonto);
+                        } else {
+                            // Formato americano: 8,167.97 → quitar comas
+                            $cleanMonto = str_replace(',', '', $rawMonto);
+                        }
+                    } elseif ($lastComma !== false && $lastDot === false) {
+                        // Solo coma: 8167,97 → coma a punto
+                        $cleanMonto = str_replace(',', '.', $rawMonto);
+                    } else {
+                        // Solo punto o sin separadores: 8167.97 o 8167
+                        $cleanMonto = $rawMonto;
+                    }
+                    $montoPagado = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
                     if ($montoPagado > 0) {
                         $payment = DB::transaction(function () use ($credit, $montoPagado, $fechaPago, $rawCedula) {
                             return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula);
