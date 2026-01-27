@@ -82,7 +82,7 @@ export function DashboardNav() {
     <div className="flex flex-col gap-1 px-2">
       {navGroups.map((group) => (
         <SidebarGroup key={group.label} className="p-0">
-          <SidebarGroupLabel className="text-xs font-semibold text-foreground/90 uppercase tracking-wider mb-1 px-2">
+          <SidebarGroupLabel className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-1 px-2">
             {group.label}
           </SidebarGroupLabel>
           <SidebarGroupContent>
