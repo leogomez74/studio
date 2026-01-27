@@ -116,60 +116,6 @@
                         </label>
                     </div>
 
-                    <!-- Selección de servicios legales específicos -->
-                    <div id="serviciosLegalesStep1" class="hidden space-y-3 mt-4 p-4 border rounded-lg bg-muted/30">
-                        <p class="text-sm font-semibold text-foreground">¿Qué servicio legal necesitas?</p>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="divorcio" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Divorcio</p>
-                                </div>
-                            </label>
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="pension_alimenticia" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Pensión alimenticia</p>
-                                </div>
-                            </label>
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="sucesion" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Sucesión</p>
-                                </div>
-                            </label>
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="notariado" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Notariado</p>
-                                </div>
-                            </label>
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="testamento" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Testamento</p>
-                                </div>
-                            </label>
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="traspaso" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Traspaso</p>
-                                </div>
-                            </label>
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="contrato" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Contrato</p>
-                                </div>
-                            </label>
-                            <label class="block cursor-pointer">
-                                <input type="checkbox" name="tipo_servicio_legal" value="otro" class="peer sr-only">
-                                <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center h-full">
-                                    <p class="text-sm font-medium text-foreground">Otro</p>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
                 </div>
 
                 <div id="step-2" class="space-y-4 hidden">
@@ -305,8 +251,8 @@
                                         <span>Traspaso de bienes</span>
                                     </label>
                                     <label class="flex items-center gap-2 text-sm text-foreground">
-                                        <input type="checkbox" name="tramites" value="sucesion" class="h-4 w-4 text-primary border-input rounded">
-                                        <span>Sucesiones</span>
+                                        <input type="checkbox" name="tramites" value="testamentos" class="h-4 w-4 text-primary border-input rounded">
+                                        <span>Testamentos</span>
                                     </label>
                                     <label class="flex items-center gap-2 text-sm text-foreground">
                                         <input type="checkbox" name="tramites" value="otros" class="h-4 w-4 text-primary border-input rounded">
@@ -770,12 +716,6 @@
             const showLegales = interes === 'servicios_legales' || interes === 'ambos';
             document.getElementById('creditoFields').classList.toggle('hidden', !showCredito);
             document.getElementById('legalesFields').classList.toggle('hidden', !showLegales);
-
-            // Mostrar/ocultar servicios legales en step-1
-            const serviciosLegalesStep1 = document.getElementById('serviciosLegalesStep1');
-            if (serviciosLegalesStep1) {
-                serviciosLegalesStep1.classList.toggle('hidden', !showLegales);
-            }
         }
 
         const companyOptions = [
