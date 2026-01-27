@@ -93,7 +93,26 @@ class CreditController extends Controller
             'fecha_primera_cuota' => 'nullable|date',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
+
+            // Cargos Adicionales
+            'cargos_adicionales' => 'nullable|array',
+            'cargos_adicionales.comision' => 'nullable|numeric|min:0',
+            'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
+            'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
+            'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
         ]);
+
+        // Validar que monto_neto > 0
+        $totalCargos = array_sum($validated['cargos_adicionales'] ?? []);
+        $montoNeto = $validated['monto_credito'] - $totalCargos;
+        if ($montoNeto <= 0) {
+            return response()->json([
+                'message' => 'El monto neto debe ser mayor a 0. Los cargos adicionales exceden el monto del crédito.',
+                'monto_credito' => $validated['monto_credito'],
+                'total_cargos' => $totalCargos,
+                'monto_neto' => $montoNeto,
+            ], 422);
+        }
 
         // Tasa por defecto
         if (!isset($validated['tasa_anual'])) {
@@ -169,7 +188,11 @@ class CreditController extends Controller
      */
     private function generateAmortizationSchedule(Credit $credit)
     {
-        $monto = (float) $credit->monto_credito;
+        // Calcular monto neto: monto_credito - cargos_adicionales
+        $montoCredito = (float) $credit->monto_credito;
+        $totalCargos = array_sum($credit->cargos_adicionales ?? []);
+        $monto = $montoCredito - $totalCargos;
+
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
 
@@ -367,6 +390,30 @@ class CreditController extends Controller
             'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
         ]);
+
+        // No permitir editar cargos_adicionales después de formalizar
+        if (isset($validated['cargos_adicionales']) && strtolower($credit->status) === 'formalizado') {
+            return response()->json([
+                'message' => 'No se pueden modificar los cargos adicionales después de formalizar el crédito.',
+            ], 422);
+        }
+
+        // Validar monto_neto > 0 si se actualizan cargos o monto
+        if (isset($validated['cargos_adicionales']) || isset($validated['monto_credito'])) {
+            $montoCredito = $validated['monto_credito'] ?? $credit->monto_credito;
+            $cargos = $validated['cargos_adicionales'] ?? $credit->cargos_adicionales ?? [];
+            $totalCargos = array_sum($cargos);
+            $montoNeto = $montoCredito - $totalCargos;
+
+            if ($montoNeto <= 0) {
+                return response()->json([
+                    'message' => 'El monto neto debe ser mayor a 0. Los cargos adicionales exceden el monto del crédito.',
+                    'monto_credito' => $montoCredito,
+                    'total_cargos' => $totalCargos,
+                    'monto_neto' => $montoNeto,
+                ], 422);
+            }
+        }
 
         $credit->update($validated);
 

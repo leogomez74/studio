@@ -106,7 +106,27 @@ export default function AnalisisPage() {
     divisa: 'CRC',
     plazo: '36',
     poliza: false,
+    conCargosAdicionales: false,
   });
+
+  // Configuración de cargos adicionales por defecto
+  const CARGOS_CONFIG = {
+    comision: { porcentaje: 0.03, fijo: null }, // 3% del monto
+    transporte: { porcentaje: null, fijo: 10000 },
+    respaldo_deudor: { porcentaje: null, fijo: 4950, soloRegular: true },
+    descuento_factura: { porcentaje: null, fijo: 0 },
+  };
+
+  // Calcular cargos por defecto basados en monto y categoría
+  const calcularCargosDefault = (monto: number, category: string) => {
+    const esRegular = category === 'Regular' || category === 'Personal (Diferentes usos)' || category === 'Refundición (Pagar deudas actuales)';
+    return {
+      comision: Math.round(monto * (CARGOS_CONFIG.comision.porcentaje || 0) * 100) / 100,
+      transporte: CARGOS_CONFIG.transporte.fijo || 0,
+      respaldo_deudor: esRegular ? (CARGOS_CONFIG.respaldo_deudor.fijo || 0) : 0,
+      descuento_factura: 0,
+    };
+  };
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchAll = useCallback(async () => {
@@ -551,6 +571,7 @@ export default function AnalisisPage() {
                                 divisa: item.divisa || 'CRC',
                                 plazo: item.plazo ? String(item.plazo) : '36',
                                 poliza: false,
+                                conCargosAdicionales: true, // Por defecto activo para créditos regulares
                               });
                               setIsCreditDialogOpen(true);
                             } catch (err) {
@@ -680,7 +701,13 @@ export default function AnalisisPage() {
               }
 
               setIsSaving(true);
-              const payload = {
+
+              // Calcular cargos adicionales si está habilitado
+              const cargosAdicionales = creditForm.conCargosAdicionales
+                ? calcularCargosDefault(montoNumerico, creditForm.category)
+                : undefined;
+
+              const payload: Record<string, any> = {
                 reference: creditForm.reference,
                 title: creditForm.title,
                 status: creditForm.status,
@@ -692,6 +719,11 @@ export default function AnalisisPage() {
                 plazo: plazoNumerico,
                 poliza: creditForm.poliza,
               };
+
+              if (cargosAdicionales) {
+                payload.cargos_adicionales = cargosAdicionales;
+              }
+
               console.log('Enviando payload:', payload);
 
               try {
@@ -830,12 +862,27 @@ export default function AnalisisPage() {
                     id="poliza"
                     checked={creditForm.poliza}
                     onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
-                    disabled={creditForm.category === 'Micro Crédito'}
+                    disabled={creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'}
                   />
                   <Label htmlFor="poliza" className="text-sm text-muted-foreground">
-                    {creditForm.category === 'Micro Crédito' 
-                      ? 'No disponible para Micro Crédito' 
+                    {creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'
+                      ? 'No disponible para Micro Crédito'
                       : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
+                  </Label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cargos">Cargos Adicionales</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="cargos"
+                    checked={creditForm.conCargosAdicionales}
+                    onCheckedChange={checked => setCreditForm(f => ({ ...f, conCargosAdicionales: checked }))}
+                  />
+                  <Label htmlFor="cargos" className="text-sm text-muted-foreground">
+                    {creditForm.conCargosAdicionales
+                      ? 'Aplicar cargos (editable en detalle)'
+                      : 'Sin cargos adicionales'}
                   </Label>
                 </div>
               </div>
