@@ -40,7 +40,7 @@ export default function LeadDetailPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState<Partial<Lead>>({});
-    const [isPanelVisible, setIsPanelVisible] = useState(true);
+    const [isPanelVisible, setIsPanelVisible] = useState(false);
     const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
     const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
     const [deductoras, setDeductoras] = useState<{id: string, nombre: string}[]>([]);

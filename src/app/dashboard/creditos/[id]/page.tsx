@@ -301,7 +301,7 @@ function CreditDetailClient({ id }: { id: string }) {
   
   const [credit, setCredit] = useState<CreditItem | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
 
   // Edit State
   const [isEditMode, setIsEditMode] = useState(false);

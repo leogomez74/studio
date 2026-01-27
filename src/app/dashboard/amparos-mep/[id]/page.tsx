@@ -122,7 +122,7 @@ function CaseTasks({ caseId }: { caseId: string }) {
 
 function AmparoMepDetailClient({ caseItem }: { caseItem: (typeof cases)[0] | undefined }) {
   // Estado para controlar la visibilidad del panel lateral de chat y tareas.
-  const [isChatVisible, setIsChatVisible] = useState(true);
+  const [isChatVisible, setIsChatVisible] = useState(false);
 
   // Si no se encuentra el caso, mostramos un mensaje y un botón para volver.
   if (!caseItem) {

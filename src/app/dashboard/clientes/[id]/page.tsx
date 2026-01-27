@@ -41,7 +41,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<Partial<Client>>({});
-  const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [isOpportunitiesOpen, setIsOpportunitiesOpen] = useState(true);
   const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
   const [agents, setAgents] = useState<{id: number, name: string}[]>([]);

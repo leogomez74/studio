@@ -127,7 +127,7 @@ function JudicialCaseTasks({ caseId }: { caseId: string }) {
 }
 
 function JudicialCaseDetailClient({ judicialCase }: { judicialCase: Credit | undefined }) {
-  const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
 
   if (!judicialCase) {
     return (
