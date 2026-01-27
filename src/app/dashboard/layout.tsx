@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarFooter className="p-2 space-y-1">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Configuración" className="h-9 px-3 rounded-lg hover:bg-muted">
+                <SidebarMenuButton asChild tooltip="Configuración" className="h-9 px-3 rounded-lg hover:bg-blue-900/30">
                   <Link href="/dashboard/configuracion" className="flex items-center gap-3">
                     <Settings className="h-4 w-4" />
                     <span className="text-sm font-medium">Configuración</span>

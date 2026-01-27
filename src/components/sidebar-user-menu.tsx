@@ -28,7 +28,7 @@ export function SidebarUserMenu() {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               tooltip={user?.name || 'Usuario'}
-              className="h-10 px-3 rounded-lg hover:bg-muted"
+              className="h-10 px-3 rounded-lg hover:bg-blue-900/30"
             >
               <div className="flex items-center gap-3 w-full">
                 <Avatar className="h-7 w-7">
