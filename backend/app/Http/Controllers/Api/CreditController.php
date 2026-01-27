@@ -132,6 +132,8 @@ class CreditController extends Controller
 
             // Validar estado antes de crear plan de pagos
             if (strtolower($credit->status) === 'formalizado') {
+                $credit->formalized_at = now();
+                $credit->save();
                 // B. Generar la Tabla de Amortización Inicial (Cuotas 1 a N)
                 $this->generateAmortizationSchedule($credit);
             }
@@ -436,6 +438,9 @@ class CreditController extends Controller
         if (isset($validated['status']) &&
             strtolower($validated['status']) === 'formalizado' &&
             strtolower($previousStatus) !== 'formalizado') {
+
+            $credit->formalized_at = now();
+            $credit->save();
 
             $existingPlan = $credit->planDePagos()->where('numero_cuota', '>', 0)->exists();
             if (!$existingPlan) {

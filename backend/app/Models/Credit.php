@@ -36,6 +36,7 @@ class Credit extends Model
         'poliza',
         'poliza_actual',
         'cargos_adicionales',
+        'formalized_at',
     ];
 
     protected $casts = [
@@ -51,6 +52,7 @@ class Credit extends Model
         'poliza_actual' => 'decimal:2',
         'poliza' => 'boolean',
         'cargos_adicionales' => 'array',
+        'formalized_at' => 'datetime',
     ];
 
     /**
