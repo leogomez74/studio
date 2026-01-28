@@ -459,13 +459,17 @@ class CreditPaymentController extends Controller
         $validated = $request->validate([
             'file' => 'required|file',
             'deductora_id' => 'required|exists:deductoras,id',
+            'fecha_test' => 'nullable|date', // Solo para pruebas en localhost
         ]);
 
         $deductoraId = $request->input('deductora_id');
-        $fechaPago = now();
+
+        // Usar fecha de prueba si se proporciona (solo para desarrollo/testing)
+        $fechaTest = $request->input('fecha_test');
+        $fechaPago = $fechaTest ? Carbon::parse($fechaTest) : now();
 
         // Mes que se está pagando (planillas llegan 1 mes después)
-        $mesPago = now()->subMonth();
+        $mesPago = $fechaPago->copy()->subMonth();
         $diasDelMes = $mesPago->daysInMonth;
 
         // Tasa de mora desde configuración (loan_configurations.tasa_anual)
@@ -627,14 +631,25 @@ class CreditPaymentController extends Controller
             }
 
             // Calcular mora: Capital × (Tasa/365) × Días del mes
-            $capital = (float) $credit->monto_credito;
-            $mora = $capital * ($tasaMora / 100 / 365) * $diasDelMes;
+            // IMPORTANTE: Usar el saldo ACTUAL del crédito, no el monto original
+            $capitalActual = (float) $credit->saldo;
+            $mora = $capitalActual * ($tasaMora / 100 / 365) * $diasDelMes;
             $moraRedondeada = round($mora, 2);
 
+            // Obtener tasa anual del crédito para recalcular intereses
+            $tasaAnual = (float) ($credit->tasa_anual ?? 33.5);
+
             // Guardar mora y cambiar estado de la cuota
+            // IMPORTANTE: El saldo NO debe bajar cuando hay mora (no hubo pago)
             $cuota->interes_moratorio = ($cuota->interes_moratorio ?? 0) + $moraRedondeada;
             $cuota->estado = 'Mora';
+            $cuota->saldo_anterior = $capitalActual;
+            $cuota->saldo_nuevo = $capitalActual;     // NO baja porque no hubo pago
+            $cuota->amortizacion = 0;                 // No hubo amortización
             $cuota->save();
+
+            // RECALCULAR CUOTAS SIGUIENTES basadas en el saldo real
+            $this->recalcularCuotasSiguientes($credit, $cuota->numero_cuota, $capitalActual, $tasaAnual);
 
             // Cambiar estado del crédito a "En Mora"
             Credit::where('id', $credit->id)->update(['status' => 'En Mora']);
@@ -644,13 +659,57 @@ class CreditPaymentController extends Controller
                 'lead' => $credit->lead->name ?? 'N/A',
                 'cuota_numero' => $cuota->numero_cuota,
                 'mora_calculada' => $moraRedondeada,
-                'capital_base' => $capital,
+                'capital_base' => $capitalActual,
                 'dias_mes' => $diasDelMes,
                 'status' => 'mora_aplicada'
             ];
         }
 
         return $moraResults;
+    }
+
+    /**
+     * Recalcula las cuotas siguientes cuando una cuota entra en mora
+     * IMPORTANTE: La cuota es FIJA (sistema francés), solo cambian los saldos
+     * El saldo no baja porque no hubo pago
+     */
+    private function recalcularCuotasSiguientes($credit, $numeroCuotaMora, $saldoActual, $tasaAnual)
+    {
+        // Obtener cuotas pendientes después de la cuota en mora
+        $cuotasSiguientes = $credit->planDePagos()
+            ->where('numero_cuota', '>', $numeroCuotaMora)
+            ->where('estado', 'Pendiente')
+            ->orderBy('numero_cuota')
+            ->get();
+
+        if ($cuotasSiguientes->isEmpty()) {
+            return;
+        }
+
+        $tasaMensual = $tasaAnual / 100 / 12;
+        $saldo = $saldoActual;
+
+        foreach ($cuotasSiguientes as $cuota) {
+            // LA CUOTA SE MANTIENE FIJA (no recalcular)
+            $cuotaFija = (float) $cuota->cuota;
+
+            // Calcular interés sobre el saldo ACTUAL
+            $interes = $saldo * $tasaMensual;
+
+            // Amortización = Cuota - Interés (puede ser menor si el saldo es mayor)
+            $amortizacion = max(0, $cuotaFija - $interes);
+            $nuevoSaldo = $saldo - $amortizacion;
+
+            // Actualizar la cuota con saldos reales
+            $cuota->saldo_anterior = round($saldo, 2);
+            $cuota->interes_corriente = round($interes, 2);
+            $cuota->amortizacion = round($amortizacion, 2);
+            // cuota NO se modifica - es FIJA
+            $cuota->saldo_nuevo = round(max(0, $nuevoSaldo), 2);
+            $cuota->save();
+
+            $saldo = max(0, $nuevoSaldo);
+        }
     }
 
     public function show(string $id) { return response()->json([], 200); }

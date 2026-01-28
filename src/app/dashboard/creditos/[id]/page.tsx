@@ -326,6 +326,136 @@ function CreditDetailClient({ id }: { id: string }) {
   // Deductoras
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
   const [isLoadingDeductoras, setIsLoadingDeductoras] = useState(true);
+
+  // Check if localhost (for dev tools)
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  // Helpers para formateo
+  const formatNumber = (n: number | string | null | undefined) => {
+    if (n === null || n === undefined) return '-';
+    return Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const formatDate = (d: string | null | undefined) => {
+    if (!d) return '-';
+    return new Date(d).toLocaleDateString('es-CR');
+  };
+
+  // Función para descargar plan de pagos como Markdown COMPLETO
+  const downloadPlanAsMarkdown = () => {
+    if (!credit?.plan_de_pagos) return;
+
+    let md = `# Plan de Pagos - ${credit.numero_operacion || credit.reference}\n\n`;
+    md += `## Información del Crédito\n\n`;
+    md += `| Campo | Valor |\n|-------|-------|\n`;
+    md += `| Cliente | ${credit.lead?.name || 'N/A'} |\n`;
+    md += `| Cédula | ${credit.lead?.cedula || 'N/A'} |\n`;
+    md += `| Monto Original | ₡${formatNumber(credit.monto_credito)} |\n`;
+    md += `| Saldo Actual | ₡${formatNumber(credit.saldo)} |\n`;
+    md += `| Estado Crédito | ${credit.status} |\n`;
+    md += `| Tasa Anual | ${credit.tasa_anual}% |\n`;
+    md += `| Plazo | ${credit.plazo} meses |\n`;
+    md += `| Cuota Fija | ₡${formatNumber(credit.cuota)} |\n`;
+    md += `| Deductora | ${credit.lead?.deductora_id || 'N/A'} |\n`;
+    md += `| Formalizado | ${formatDate(credit.formalized_at)} |\n\n`;
+
+    md += `## Tabla de Amortización\n\n`;
+    md += `| # | Estado | Fecha Corte | Cuota | Póliza | Int.Corr | Int.Mora | Amort | Saldo Ant | Saldo Nuevo |\n`;
+    md += `|---|--------|-------------|-------|--------|----------|----------|-------|-----------|-------------|\n`;
+
+    const sortedPlan = [...credit.plan_de_pagos].sort((a, b) => a.numero_cuota - b.numero_cuota);
+
+    for (const p of sortedPlan) {
+      md += `| ${p.numero_cuota} | ${p.estado || '-'} | ${formatDate(p.fecha_corte)} | ${formatNumber(p.cuota)} | ${formatNumber(p.poliza)} | ${formatNumber(p.interes_corriente)} | ${formatNumber(p.interes_moratorio)} | ${formatNumber(p.amortizacion)} | ${formatNumber(p.saldo_anterior)} | ${formatNumber(p.saldo_nuevo)} |\n`;
+    }
+
+    // Tabla de Movimientos
+    const hasMovimientos = sortedPlan.some(p => p.movimiento_total && Number(p.movimiento_total) > 0);
+    if (hasMovimientos) {
+      md += `\n## Movimientos Registrados\n\n`;
+      md += `| # | Fecha Mov | Mov.Total | Mov.Póliza | Mov.Int.Corr | Mov.Int.Mora | Mov.Amort | Concepto |\n`;
+      md += `|---|-----------|-----------|------------|--------------|--------------|-----------|----------|\n`;
+      for (const p of sortedPlan) {
+        if (p.movimiento_total && Number(p.movimiento_total) > 0) {
+          md += `| ${p.numero_cuota} | ${formatDate(p.fecha_movimiento)} | ${formatNumber(p.movimiento_total)} | ${formatNumber(p.movimiento_poliza)} | ${formatNumber(p.movimiento_interes_corriente)} | ${formatNumber(p.movimiento_interes_moratorio)} | ${formatNumber(p.movimiento_amortizacion)} | ${p.concepto || '-'} |\n`;
+        }
+      }
+    }
+
+    // Resumen
+    const cuotasPagadas = sortedPlan.filter(p => p.estado === 'Pagado').length;
+    const cuotasMora = sortedPlan.filter(p => p.estado === 'Mora').length;
+    const cuotasPendientes = sortedPlan.filter(p => p.estado === 'Pendiente' && p.numero_cuota > 0).length;
+    const totalMora = sortedPlan.reduce((sum, p) => sum + Number(p.interes_moratorio || 0), 0);
+
+    md += `\n## Resumen\n\n`;
+    md += `| Concepto | Valor |\n|----------|-------|\n`;
+    md += `| Cuotas Pagadas | ${cuotasPagadas} |\n`;
+    md += `| Cuotas en Mora | ${cuotasMora} |\n`;
+    md += `| Cuotas Pendientes | ${cuotasPendientes} |\n`;
+    md += `| Total Int. Moratorio | ₡${formatNumber(totalMora)} |\n`;
+
+    md += `\n---\n*Generado: ${new Date().toLocaleString('es-CR')}*\n`;
+
+    const blob = new Blob([md], { type: 'text/markdown; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plan_pagos_${credit.numero_operacion || credit.reference || id}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Función para descargar plan de pagos como PDF
+  const downloadPlanAsPDF = async () => {
+    if (!credit?.plan_de_pagos) return;
+
+    // Importar jsPDF dinámicamente
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const sortedPlan = [...credit.plan_de_pagos].sort((a, b) => a.numero_cuota - b.numero_cuota);
+
+    // Título
+    doc.setFontSize(16);
+    doc.text(`Plan de Pagos - ${credit.numero_operacion || credit.reference}`, 14, 15);
+
+    // Info del crédito
+    doc.setFontSize(10);
+    doc.text(`Cliente: ${credit.lead?.name || 'N/A'}`, 14, 25);
+    doc.text(`Monto: ${formatNumber(credit.monto_credito)}`, 14, 30);
+    doc.text(`Saldo: ${formatNumber(credit.saldo)}`, 80, 25);
+    doc.text(`Estado: ${credit.status}`, 80, 30);
+    doc.text(`Tasa: ${credit.tasa_anual}%`, 140, 25);
+    doc.text(`Plazo: ${credit.plazo} meses`, 140, 30);
+
+    // Tabla principal
+    const tableData = sortedPlan.map(p => [
+      p.numero_cuota,
+      p.estado || '-',
+      formatDate(p.fecha_corte),
+      formatNumber(p.cuota),
+      formatNumber(p.interes_corriente),
+      formatNumber(p.interes_moratorio),
+      formatNumber(p.amortizacion),
+      formatNumber(p.saldo_anterior),
+      formatNumber(p.saldo_nuevo)
+    ]);
+
+    autoTable(doc, {
+      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Int.Corr', 'Int.Mora', 'Amort', 'Saldo Ant', 'Saldo Nuevo']],
+      body: tableData,
+      startY: 35,
+      styles: { fontSize: 7, cellPadding: 1 },
+      headStyles: { fillColor: [41, 128, 185] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    doc.save(`plan_pagos_${credit.numero_operacion || credit.reference || id}.pdf`);
+  };
   // Fetch Deductoras
   const fetchDeductoras = async () => {
     try {
@@ -1207,49 +1337,72 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardTitle>Plan de Pagos</CardTitle>
                     <CardDescription>Detalle de cuotas y movimientos históricos</CardDescription>
                   </div>
-                  {credit.status === 'Formalizado' && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={credit.plan_de_pagos?.some(p => p.estado === 'Pagado')}
-                              onClick={async () => {
-                                if (!confirm('¿Estás seguro de que deseas regenerar el plan de pagos? Esto eliminará las cuotas pendientes y creará un nuevo plan.')) return;
-                                try {
-                                  setLoading(true);
-                                  await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
-                                  toast({
-                                    title: 'Plan de pagos regenerado',
-                                    description: 'El plan de pagos se ha regenerado correctamente.',
-                                  });
-                                  await fetchCredit();
-                                } catch (error) {
-                                  console.error('Error regenerando plan de pagos:', error);
-                                  toast({
-                                    title: 'Error',
-                                    description: 'No se pudo regenerar el plan de pagos.',
-                                    variant: 'destructive',
-                                  });
-                                } finally {
-                                  setLoading(false);
-                                }
-                              }}
-                            >
-                              Regenerar Plan
-                            </Button>
-                          </div>
-                        </TooltipTrigger>
-                        {credit.plan_de_pagos?.some(p => p.estado === 'Pagado') && (
-                          <TooltipContent>
-                            <p>No se puede regenerar el plan porque existen cuotas pagadas.</p>
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
+                  <div className="flex gap-2">
+                    {/* Botones descargar MD y PDF - Solo localhost */}
+                    {isLocalhost && credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={downloadPlanAsMarkdown}
+                          className="bg-yellow-50 border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+                        >
+                          📥 MD
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={downloadPlanAsPDF}
+                          className="bg-red-50 border-red-300 text-red-800 hover:bg-red-100"
+                        >
+                          📄 PDF
+                        </Button>
+                      </>
+                    )}
+                    {credit.status === 'Formalizado' && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={credit.plan_de_pagos?.some(p => p.estado === 'Pagado')}
+                                onClick={async () => {
+                                  if (!confirm('¿Estás seguro de que deseas regenerar el plan de pagos? Esto eliminará las cuotas pendientes y creará un nuevo plan.')) return;
+                                  try {
+                                    setLoading(true);
+                                    await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
+                                    toast({
+                                      title: 'Plan de pagos regenerado',
+                                      description: 'El plan de pagos se ha regenerado correctamente.',
+                                    });
+                                    await fetchCredit();
+                                  } catch (error) {
+                                    console.error('Error regenerando plan de pagos:', error);
+                                    toast({
+                                      title: 'Error',
+                                      description: 'No se pudo regenerar el plan de pagos.',
+                                      variant: 'destructive',
+                                    });
+                                  } finally {
+                                    setLoading(false);
+                                  }
+                                }}
+                              >
+                                Regenerar Plan
+                              </Button>
+                            </div>
+                          </TooltipTrigger>
+                          {credit.plan_de_pagos?.some(p => p.estado === 'Pagado') && (
+                            <TooltipContent>
+                              <p>No se puede regenerar el plan porque existen cuotas pagadas.</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <ScrollableTableContainer className="max-h-[70vh]">
@@ -1306,7 +1459,12 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.saldo_nuevo)}</TableCell>
                             <TableCell className="text-xs text-center">{payment.dias || "-"}</TableCell>
                             <TableCell className="text-xs">
-                              <Badge variant="outline" className={`text-[10px] h-5 ${payment.estado === 'Pagado' ? 'bg-green-50 text-green-700 border-green-200' : (payment.estado === 'Parcial' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : '')}`}>
+                              <Badge variant="outline" className={`text-[10px] h-5 ${
+                                payment.estado === 'Pagado' ? 'bg-green-50 text-green-700 border-green-200' :
+                                payment.estado === 'Mora' ? 'bg-red-50 text-red-700 border-red-200' :
+                                payment.estado === 'Parcial' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                'bg-gray-50 text-gray-700 border-gray-200'
+                              }`}>
                                 {payment.estado}
                               </Badge>
                             </TableCell>
