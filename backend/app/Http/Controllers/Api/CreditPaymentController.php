@@ -585,8 +585,8 @@ class CreditPaymentController extends Controller
     {
         $moraResults = [];
 
-        // Obtener créditos formalizados de ESTA deductora que NO pagaron
-        $creditosSinPago = Credit::where('status', 'Formalizado')
+        // Obtener créditos formalizados o en mora de ESTA deductora que NO pagaron
+        $creditosSinPago = Credit::whereIn('status', ['Formalizado', 'En Mora'])
             ->where('deductora_id', $deductoraId)
             ->whereNotNull('formalized_at')
             ->whereNotIn('id', $creditosQuePagaron)
@@ -631,10 +631,14 @@ class CreditPaymentController extends Controller
             $mora = $capital * ($tasaMora / 100 / 365) * $diasDelMes;
             $moraRedondeada = round($mora, 2);
 
-            // Guardar mora y cambiar estado
+            // Guardar mora y cambiar estado de la cuota
             $cuota->interes_moratorio = ($cuota->interes_moratorio ?? 0) + $moraRedondeada;
             $cuota->estado = 'Mora';
             $cuota->save();
+
+            // Cambiar estado del crédito a "En Mora"
+            $credit->status = 'En Mora';
+            $credit->save();
 
             $moraResults[] = [
                 'credit_id' => $credit->id,
