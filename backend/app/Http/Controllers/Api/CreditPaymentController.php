@@ -637,8 +637,7 @@ class CreditPaymentController extends Controller
             $cuota->save();
 
             // Cambiar estado del crédito a "En Mora"
-            $credit->status = 'En Mora';
-            $credit->save();
+            Credit::where('id', $credit->id)->update(['status' => 'En Mora']);
 
             $moraResults[] = [
                 'credit_id' => $credit->id,
