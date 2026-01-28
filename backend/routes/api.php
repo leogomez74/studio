@@ -188,6 +188,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/lead-alerts', [LeadAlertController::class, 'index']);
     Route::patch('/lead-alerts/{id}/read', [LeadAlertController::class, 'markAsRead']);
 
+    // Trigger manual de verificación de inactividad
+    Route::post('/admin/trigger-inactivity-check', function() {
+        \Illuminate\Support\Facades\Artisan::call('leads:check-inactivity');
+        $output = \Illuminate\Support\Facades\Artisan::output();
+
+        return response()->json([
+            'message' => 'Comando ejecutado exitosamente',
+            'output' => $output,
+            'timestamp' => now()->toIso8601String()
+        ]);
+    });
+
     // Analisis CRUD (Protegido)
     Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
