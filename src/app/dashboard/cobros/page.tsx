@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -35,6 +35,8 @@ import api from '@/lib/axios';
 import { Credit, Payment } from '@/lib/data';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Interfaz extendida para el objeto de pago que viene del backend
 interface PaymentWithRelations extends Payment {
@@ -363,6 +365,56 @@ export default function CobrosPage() {
 
   const triggerFile = useCallback(() => fileRef.current?.click(), []);
 
+  const handleExportPDF = () => {
+    if (paymentsState.length === 0) {
+      toast({ title: "Sin datos", description: "No hay pagos para exportar", variant: "destructive" });
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(12);
+    doc.text('Historial de Abonos Consolidado', 14, 16);
+
+    const formatAmountForPDF = (amount: number | null | undefined): string => {
+      if (amount == null) return "-";
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount);
+    };
+
+    autoTable(doc, {
+      startY: 22,
+      head: [["Operación", "Deudor", "Cédula", "Monto Pagado", "Diferencia", "Fecha Pago", "Fuente"]],
+      body: paymentsState.map((payment) => {
+        const credit = payment.credit;
+        const lead = credit?.lead;
+        const leadName = lead?.name || (payment.cedula ? String(payment.cedula) : 'Desconocido');
+        const operationNumber = credit?.numero_operacion || credit?.reference || '-';
+        const amount = parseFloat(String(payment.monto || 0));
+        const cuotaSnapshot = parseFloat(String(payment.cuota || amount));
+        const difference = cuotaSnapshot - amount;
+        const dateDisplay = payment.fecha_pago
+          ? new Date(payment.fecha_pago).toLocaleDateString()
+          : (payment.created_at ? new Date(payment.created_at).toLocaleDateString() : '-');
+
+        return [
+          operationNumber,
+          leadName,
+          lead?.cedula || payment.cedula || '-',
+          formatAmountForPDF(amount),
+          formatAmountForPDF(difference),
+          dateDisplay,
+          payment.source || '-',
+        ];
+      }),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [220, 53, 69] },
+    });
+
+    doc.save(`historial_abonos_${Date.now()}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       <CardHeader className="px-0">
@@ -412,7 +464,11 @@ export default function CobrosPage() {
                   <Button variant="outline" onClick={triggerFile} disabled={uploading}>
                     <Upload className="mr-2 h-4 w-4" />{uploading ? 'Subiendo...' : 'Cargar Planilla'}
                   </Button>
-                  
+
+                  <Button variant="outline" onClick={handleExportPDF}>
+                    <FileDown className="mr-2 h-4 w-4" />Exportar PDF
+                  </Button>
+
                   <Button onClick={openAbonoModal}>
                     <PlusCircle className="mr-2 h-4 w-4" />Registrar Abono
                   </Button>
