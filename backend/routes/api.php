@@ -73,14 +73,7 @@ Route::patch('/opportunities/update-status', [OpportunityController::class, 'upd
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
 
-// Créditos
-Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
-Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
-Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
-Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos']);
-Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
-Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
-Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
+// Créditos - MOVIDO A RUTAS PROTEGIDAS (ver línea ~178)
 
 // Deductoras (solo lectura - datos hardcodeados en config/deductoras.php)
 Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show']);
@@ -101,10 +94,7 @@ Route::delete('/person-documents/{id}', [PersonDocumentController::class, 'destr
 Route::get('/person-documents/check-cedula-folder', [PersonDocumentController::class, 'checkCedulaFolder']);
 Route::post('/person-documents/sync-to-opportunity', [PersonDocumentController::class, 'syncToOpportunity']);
 
-// Pagos de Crédito
-Route::apiResource('credit-payments', CreditPaymentController::class);
-Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
-Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
+// Pagos de Crédito - MOVIDO A RUTAS PROTEGIDAS (ver línea ~178)
 
 // Cotizaciones
 Route::post('quotes/send', [\App\Http\Controllers\Api\QuoteController::class, 'sendQuote']);
@@ -205,6 +195,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
     Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
     Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
+
+    // Créditos (Protegido)
+    Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
+    Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
+    Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
+    Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos']);
+    Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
+    Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
+    Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
+
+    // Pagos de Crédito (Protegido)
+    Route::apiResource('credit-payments', CreditPaymentController::class);
+    Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
+    Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
 
     // --- Admin Gamificación ---
     Route::prefix('admin/gamification')->group(function () {

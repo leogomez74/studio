@@ -425,8 +425,9 @@ class CreditController extends Controller
 
         $credit->update($validated);
 
-        // Recalcular saldo si se cambiaron cargos o monto (antes de formalizar)
-        if (isset($validated['cargos_adicionales']) || isset($validated['monto_credito'])) {
+        // Recalcular saldo SOLO si se cambiaron cargos o monto Y el crédito NO está formalizado
+        if ((isset($validated['cargos_adicionales']) || isset($validated['monto_credito']))
+            && strtolower($credit->status) !== 'formalizado') {
             $credit->refresh();
             $montoCredito = (float) $credit->monto_credito;
             $totalCargosActualizados = array_sum($credit->cargos_adicionales ?? []);
