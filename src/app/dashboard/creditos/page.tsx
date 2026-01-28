@@ -1165,12 +1165,12 @@ export default function CreditsPage() {
                                     <Eye className="h-4 w-4" />
                                   </Link>
                                 </Button>
-                                {credit.status === 'Formalizado' ? (
+                                {['Formalizado', 'En Mora'].includes(credit.status || '') ? (
                                   <Button
                                     variant="outline"
                                     size="icon"
                                     disabled
-                                    title="No se puede editar un crédito formalizado"
+                                    title={credit.status === 'En Mora' ? "No se puede editar un crédito en mora" : "No se puede editar un crédito formalizado"}
                                     className="border-gray-300 text-gray-400 cursor-not-allowed"
                                   >
                                     <Pencil className="h-4 w-4" />
@@ -1213,7 +1213,7 @@ export default function CreditsPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                    {credit.status !== 'Formalizado' && (
+                                    {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
                                       <DropdownMenuItem
                                         onClick={async () => {
                                           try {
