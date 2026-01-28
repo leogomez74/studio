@@ -1606,7 +1606,7 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
         <TabsTrigger value="productos">Créditos</TabsTrigger>
         <TabsTrigger value="api">API ERP</TabsTrigger>
-        <TabsTrigger value="tasa_actual">Tasa Actual</TabsTrigger>
+        <TabsTrigger value="tasa_actual">Tasa de Mora</TabsTrigger>
         <TabsTrigger value="poliza">Póliza</TabsTrigger>
       </TabsList>
 
@@ -1626,7 +1626,7 @@ export default function ConfiguracionPage() {
       <TabsContent value="tasa_actual">
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
-            <Label htmlFor="tasa-actual" className="text-center">Tasa de Interés Anual (%)</Label>
+            <Label htmlFor="tasa-actual" className="text-center">Tasa de Mora Anual (%)</Label>
             <Input
               id="tasa-actual"
               type="number"

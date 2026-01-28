@@ -43,7 +43,7 @@ export default function LeadDetailPage() {
     const [isPanelVisible, setIsPanelVisible] = useState(false);
     const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
     const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
-    const [deductoras, setDeductoras] = useState<{id: string, nombre: string}[]>([]);
+    const [deductoras, setDeductoras] = useState<{id: number, nombre: string}[]>([]);
     const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string}[]>([]);
     const [syncing, setSyncing] = useState(false);
 
@@ -690,25 +690,25 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Deductora</Label>
                                         {isEditMode ? (
-                                            <Select 
-                                                value={(formData as any).deductora_id || ""} 
-                                                onValueChange={(value) => handleInputChange("deductora_id" as keyof Lead, value)}
+                                            <Select
+                                                value={String((formData as any).deductora_id || "")}
+                                                onValueChange={(value) => handleInputChange("deductora_id" as keyof Lead, Number(value))}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Seleccionar deductora" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {deductoras.map((deductora) => (
-                                                        <SelectItem key={deductora.id} value={deductora.id}>
+                                                        <SelectItem key={deductora.id} value={String(deductora.id)}>
                                                             {deductora.nombre}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
                                         ) : (
-                                            <Input 
-                                                value={deductoras.find(d => d.id === (formData as any).deductora_id)?.nombre || ""} 
-                                                disabled 
+                                            <Input
+                                                value={deductoras.find(d => d.id === Number((formData as any).deductora_id))?.nombre || ""}
+                                                disabled
                                             />
                                         )}
                                     </div>

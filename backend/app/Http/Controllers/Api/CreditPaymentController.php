@@ -8,6 +8,7 @@ use App\Models\PlanDePago;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Credit;
+use App\Models\LoanConfiguration;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use Carbon\Carbon;
@@ -321,13 +322,18 @@ class CreditPaymentController extends Controller
     {
         $dineroDisponible = $montoEntrante;
 
+        // Obtener cuotas en orden: primero las que están en "Mora", luego "Pendiente" o "Parcial"
+        // Esto asegura que el pago se aplique primero a las deudas más antiguas/atrasadas
         $query = $credit->planDePagos()
-            ->where('estado', '!=', 'Pagado')
+            ->whereIn('estado', ['Mora', 'Pendiente', 'Parcial'])
             ->where('numero_cuota', '>', 0);
         if (is_array($cuotasSeleccionadas) && count($cuotasSeleccionadas) > 0) {
             $query->whereIn('id', $cuotasSeleccionadas);
         }
-        $cuotas = $query->orderBy('numero_cuota', 'asc')->get();
+        // Ordenar: Mora primero, luego Parcial, luego Pendiente, y dentro de cada grupo por numero_cuota
+        $cuotas = $query->orderByRaw("FIELD(estado, 'Mora', 'Parcial', 'Pendiente')")
+            ->orderBy('numero_cuota', 'asc')
+            ->get();
 
         $primerCuotaAfectada = null;
         $saldoAnteriorSnapshot = 0;
@@ -442,21 +448,38 @@ class CreditPaymentController extends Controller
     }
 
     /**
-     * Carga masiva (Se mantiene igual, utiliza processPaymentTransaction)
+     * Carga masiva de planilla con cálculo de mora
+     *
+     * Flujo:
+     * 1. Procesa pagos para personas EN la lista (de la deductora seleccionada)
+     * 2. Calcula mora para créditos de ESA deductora que NO están en la lista
      */
     public function upload(Request $request)
     {
         $validated = $request->validate([
             'file' => 'required|file',
+            'deductora_id' => 'required|exists:deductoras,id',
         ]);
 
+        $deductoraId = $request->input('deductora_id');
         $fechaPago = now();
+
+        // Mes que se está pagando (planillas llegan 1 mes después)
+        $mesPago = now()->subMonth();
+        $diasDelMes = $mesPago->daysInMonth;
+
+        // Tasa de mora desde configuración (loan_configurations.tasa_anual)
+        $config = LoanConfiguration::where('activo', true)->first();
+        $tasaMora = $config ? (float) $config->tasa_anual : 33.5;
 
         $file = $request->file('file');
         $path = $file->store('uploads/planillas', 'public');
         $fullPath = storage_path('app/public/' . $path);
         $results = [];
         $delimiter = ',';
+
+        // IDs de créditos que SÍ pagaron (para excluir del cálculo de mora)
+        $creditosQuePagaron = [];
 
         try {
             $readerType = IOFactory::identify($fullPath);
@@ -483,6 +506,8 @@ class CreditPaymentController extends Controller
             if (!$montoCol || !$cedulaCol || $montoCol === $cedulaCol) {
                 return response()->json(['message' => 'Error de columnas'], 422);
             }
+
+            // PASO 1: Procesar pagos de personas EN la lista
             $rowIndex = 0;
             foreach ($rows as $row) {
                 $rowIndex++;
@@ -493,27 +518,30 @@ class CreditPaymentController extends Controller
                 if ($cleanCedula === '' || $rawMonto === '') {
                     $results[] = ['cedula' => $rawCedula, 'status' => 'skipped']; continue;
                 }
-                $credit = Credit::whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
-                    $q->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
-                })->first();
+
+                // Buscar crédito SOLO de la deductora seleccionada
+                $credit = Credit::where('deductora_id', $deductoraId)
+                    ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
+                        $q->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                    })->first();
+
                 if ($credit) {
+                    // Registrar que este crédito SÍ pagó
+                    $creditosQuePagaron[] = $credit->id;
+
                     // Detectar formato: europeo (8.167,97) vs americano (8,167.97)
                     $lastComma = strrpos($rawMonto, ',');
                     $lastDot = strrpos($rawMonto, '.');
                     if ($lastComma !== false && $lastDot !== false) {
                         if ($lastComma > $lastDot) {
-                            // Formato europeo: 8.167,97 → quitar puntos, coma a punto
                             $cleanMonto = str_replace('.', '', $rawMonto);
                             $cleanMonto = str_replace(',', '.', $cleanMonto);
                         } else {
-                            // Formato americano: 8,167.97 → quitar comas
                             $cleanMonto = str_replace(',', '', $rawMonto);
                         }
                     } elseif ($lastComma !== false && $lastDot === false) {
-                        // Solo coma: 8167,97 → coma a punto
                         $cleanMonto = str_replace(',', '.', $rawMonto);
                     } else {
-                        // Solo punto o sin separadores: 8167.97 o 8167
                         $cleanMonto = $rawMonto;
                     }
                     $montoPagado = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
@@ -529,10 +557,97 @@ class CreditPaymentController extends Controller
                     } else { $results[] = ['cedula' => $rawCedula, 'status' => 'zero_amount']; }
                 } else { $results[] = ['cedula' => $rawCedula, 'status' => 'not_found']; }
             }
-            return response()->json(['message' => 'Proceso completado', 'results' => $results]);
+
+            // PASO 2: Calcular mora para créditos de ESTA deductora que NO pagaron
+            $moraResults = $this->calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora);
+
+            return response()->json([
+                'message' => 'Proceso completado',
+                'results' => $results,
+                'mora_aplicada' => $moraResults
+            ]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Calcula mora para créditos formalizados de una deductora que NO están en la planilla
+     *
+     * @param int $deductoraId ID de la deductora
+     * @param array $creditosQuePagaron IDs de créditos que SÍ pagaron
+     * @param Carbon $mesPago Mes que se está pagando (mes anterior)
+     * @param int $diasDelMes Días del mes para el cálculo
+     * @param float $tasaMora Tasa de mora anual (ej: 33.5)
+     * @return array Resultados del cálculo de mora
+     */
+    private function calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora)
+    {
+        $moraResults = [];
+
+        // Obtener créditos formalizados de ESTA deductora que NO pagaron
+        $creditosSinPago = Credit::where('status', 'Formalizado')
+            ->where('deductora_id', $deductoraId)
+            ->whereNotNull('formalized_at')
+            ->whereNotIn('id', $creditosQuePagaron)
+            ->get();
+
+        foreach ($creditosSinPago as $credit) {
+            // Verificar si ya comenzó período de mora
+            // Mora inicia el 1ro del mes SIGUIENTE a la formalización
+            $inicioMora = Carbon::parse($credit->formalized_at)
+                ->startOfMonth()
+                ->addMonth();
+
+            // Si el mes de pago es anterior al inicio de mora, no aplica
+            if ($mesPago->lt($inicioMora)) {
+                $moraResults[] = [
+                    'credit_id' => $credit->id,
+                    'lead' => $credit->lead->name ?? 'N/A',
+                    'status' => 'muy_nuevo',
+                    'mensaje' => 'Crédito muy nuevo, aún no genera mora'
+                ];
+                continue;
+            }
+
+            // Buscar cuota pendiente más antigua (no pagada)
+            $cuota = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->where('estado', 'Pendiente')
+                ->orderBy('numero_cuota')
+                ->first();
+
+            if (!$cuota) {
+                $moraResults[] = [
+                    'credit_id' => $credit->id,
+                    'lead' => $credit->lead->name ?? 'N/A',
+                    'status' => 'sin_cuotas_pendientes'
+                ];
+                continue;
+            }
+
+            // Calcular mora: Capital × (Tasa/365) × Días del mes
+            $capital = (float) $credit->monto_credito;
+            $mora = $capital * ($tasaMora / 100 / 365) * $diasDelMes;
+            $moraRedondeada = round($mora, 2);
+
+            // Guardar mora y cambiar estado
+            $cuota->interes_moratorio = ($cuota->interes_moratorio ?? 0) + $moraRedondeada;
+            $cuota->estado = 'Mora';
+            $cuota->save();
+
+            $moraResults[] = [
+                'credit_id' => $credit->id,
+                'lead' => $credit->lead->name ?? 'N/A',
+                'cuota_numero' => $cuota->numero_cuota,
+                'mora_calculada' => $moraRedondeada,
+                'capital_base' => $capital,
+                'dias_mes' => $diasDelMes,
+                'status' => 'mora_aplicada'
+            ];
+        }
+
+        return $moraResults;
     }
 
     public function show(string $id) { return response()->json([], 200); }
