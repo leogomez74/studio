@@ -39,9 +39,10 @@ class CreditPaymentController extends Controller
             'origen'    => 'nullable|string',
         ]);
 
-        $credit = Credit::findOrFail($validated['credit_id']);
+        $payment = DB::transaction(function () use ($validated) {
+            // 🔒 LOCK: Obtener crédito con bloqueo pesimista para prevenir race conditions
+            $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
 
-        $payment = DB::transaction(function () use ($credit, $validated) {
             return $this->processPaymentTransaction(
                 $credit,
                 $validated['monto'],
@@ -50,6 +51,9 @@ class CreditPaymentController extends Controller
                 $credit->lead->cedula ?? null
             );
         });
+
+        // Recargar el crédito actualizado
+        $credit = Credit::find($validated['credit_id']);
 
         return response()->json([
             'message' => 'Pago aplicado correctamente',
@@ -73,11 +77,12 @@ class CreditPaymentController extends Controller
             'cuotas'    => 'nullable|array', // IDs de cuotas seleccionadas para adelanto
         ]);
 
-        $credit = Credit::findOrFail($validated['credit_id']);
-
         // CASO 1: PAGO NORMAL / ADELANTO SIMPLE (Sin Recálculo)
         if (($validated['tipo'] ?? '') !== 'extraordinario') {
-            $result = DB::transaction(function () use ($credit, $validated) {
+            $result = DB::transaction(function () use ($validated) {
+                // 🔒 LOCK: Obtener crédito con bloqueo pesimista
+                $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
+
                 // Si es adelanto y hay cuotas seleccionadas, pasar IDs
                 $cuotasSeleccionadas = $validated['cuotas'] ?? null;
                 return $this->processPaymentTransaction(
@@ -89,15 +94,19 @@ class CreditPaymentController extends Controller
                     $cuotasSeleccionadas
                 );
             });
+
+            $credit = Credit::find($validated['credit_id']);
             return response()->json([
                 'message' => 'Pago aplicado correctamente.',
                 'payment' => $result,
-                'nuevo_saldo' => $credit->fresh()->saldo
+                'nuevo_saldo' => $credit->saldo
             ]);
         }
 
         // CASO 2: ABONO EXTRAORDINARIO (Recálculo de Tabla)
-        $result = DB::transaction(function () use ($credit, $validated) {
+        $result = DB::transaction(function () use ($validated) {
+            // 🔒 LOCK: Obtener crédito con bloqueo pesimista
+            $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
             $montoAbono = $validated['monto'];
             $fechaPago = $validated['fecha'];
             $strategy = $validated['extraordinary_strategy'];
@@ -259,20 +268,33 @@ class CreditPaymentController extends Controller
             $loops = 0;
 
             // Descontamos continuamente mes a mes hasta que saldo llegue a 0
-            while ($saldo > 0.05 && $loops < $maxLoops) {
+            while ($saldo > 0.01 && $loops < $maxLoops) {
                 $fechaIteracion->addMonth();
                 $loops++;
 
                 $interes = round($saldo * $tasaMensual, 2);
                 $amortizacion = $cuotaFijaActual - $interes;
 
-                if ($saldo <= $amortizacion) {
+                // Validar: Si la amortización es negativa o cero, ajustar
+                if ($amortizacion <= 0) {
+                    // La cuota no alcanza para cubrir ni el interés - liquidar en esta cuota
+                    $cuotaReal = $saldo + $interes;
+                    $amortizacion = $saldo;
+                    $nuevoSaldo = 0;
+                } elseif ($saldo <= $amortizacion) {
                     $amortizacion = $saldo;
                     $cuotaReal = $saldo + $interes; // Última cuota ajustada
                     $nuevoSaldo = 0;
                 } else {
                     $cuotaReal = $cuotaFijaActual;
                     $nuevoSaldo = round($saldo - $amortizacion, 2);
+                }
+
+                // Protección final: Si estamos cerca del límite y queda saldo residual, liquidarlo
+                if ($loops >= $maxLoops - 1 && $nuevoSaldo > 0) {
+                    $cuotaReal += $nuevoSaldo;
+                    $amortizacion += $nuevoSaldo;
+                    $nuevoSaldo = 0;
                 }
 
                 $this->crearCuota($credit->id, $contadorCuota, $fechaIteracion, $tasaAnual, $cuotaReal, $interes, $amortizacion, $saldo, $nuevoSaldo, $polizaOriginal);
@@ -546,7 +568,10 @@ class CreditPaymentController extends Controller
                     }
                     $montoPagado = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
                     if ($montoPagado > 0) {
-                        $payment = DB::transaction(function () use ($credit, $montoPagado, $fechaPago, $rawCedula) {
+                        $creditId = $credit->id;
+                        $payment = DB::transaction(function () use ($creditId, $montoPagado, $fechaPago, $rawCedula) {
+                            // 🔒 LOCK: Obtener crédito con bloqueo pesimista dentro de la transacción
+                            $credit = Credit::lockForUpdate()->findOrFail($creditId);
                             return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula);
                         });
                         if ($payment) {
