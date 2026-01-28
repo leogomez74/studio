@@ -233,6 +233,12 @@ export default function CobrosPage() {
   const [creditsList, setCreditsList] = useState<Credit[]>([]);
   const [isLoadingCredits, setIsLoadingCredits] = useState(true);
 
+  // Estados para el modal de Subir Planilla
+  const [planillaModalOpen, setPlanillaModalOpen] = useState(false);
+  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string; codigo: string }[]>([]);
+  const [selectedDeductora, setSelectedDeductora] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoadingCredits(true);
@@ -294,6 +300,23 @@ export default function CobrosPage() {
     return creditsList.find(c => String(c.id) === selectedCreditId);
   }, [creditsList, selectedCreditId]);
 
+  // Cargar deductoras cuando se abre el modal de planilla
+  useEffect(() => {
+    if (planillaModalOpen && deductoras.length === 0) {
+      api.get('/api/deductoras')
+        .then(res => setDeductoras(res.data))
+        .catch(err => console.error('Error cargando deductoras:', err));
+    }
+  }, [planillaModalOpen, deductoras.length]);
+
+  const openPlanillaModal = useCallback(() => setPlanillaModalOpen(true), []);
+  const closePlanillaModal = useCallback(() => {
+    setPlanillaModalOpen(false);
+    setSelectedDeductora('');
+    setSelectedFile(null);
+    if (fileRef.current) fileRef.current.value = '';
+  }, []);
+
   const openAbonoModal = useCallback(() => setAbonoModalOpen(true), []);
   const closeAbonoModal = useCallback(() => {
     setAbonoModalOpen(false);
@@ -337,7 +360,7 @@ export default function CobrosPage() {
     }
   };
 
-  const handleFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const name = file.name.toLowerCase();
@@ -345,21 +368,30 @@ export default function CobrosPage() {
       toast({ title: 'Archivo inválido', description: 'Formato incorrecto. Usa .xls, .xlsx, .csv o .txt', variant: 'destructive' });
       return;
     }
+    setSelectedFile(file);
+  }, [toast]);
+
+  const handleProcesarPlanilla = useCallback(async () => {
+    if (!selectedFile || !selectedDeductora) {
+      toast({ title: 'Datos incompletos', description: 'Seleccione deductora y archivo.', variant: 'destructive' });
+      return;
+    }
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', selectedFile);
+    form.append('deductora_id', selectedDeductora);
     try {
       setUploading(true);
       await api.post('/api/credit-payments/upload', form);
-      toast({ title: 'Cargado', description: 'Planilla procesada.' });
+      toast({ title: 'Cargado', description: 'Planilla procesada correctamente.' });
       setPlanRefreshKey(k => k + 1);
+      closePlanillaModal();
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al subir.';
+      const msg = err.response?.data?.message || 'Error al procesar planilla.';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
     }
-  }, [toast]);
+  }, [selectedFile, selectedDeductora, toast, closePlanillaModal]);
 
   const triggerFile = useCallback(() => fileRef.current?.click(), []);
 
@@ -409,13 +441,99 @@ export default function CobrosPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.txt" className="hidden" onChange={handleFileSelected} />
-                  <Button variant="outline" onClick={triggerFile} disabled={uploading}>
+                  <Button variant="outline" onClick={openPlanillaModal} disabled={uploading}>
                     <Upload className="mr-2 h-4 w-4" />{uploading ? 'Subiendo...' : 'Cargar Planilla'}
                   </Button>
                   
                   <Button onClick={openAbonoModal}>
                     <PlusCircle className="mr-2 h-4 w-4" />Registrar Abono
                   </Button>
+
+                  {/* Modal para Subir Planilla */}
+                  <Dialog open={planillaModalOpen} onOpenChange={setPlanillaModalOpen}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Cargar Planilla de Pagos</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        {/* Opción 1: Seleccionar Deductora */}
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Seleccionar Deductora</label>
+                          <Select value={selectedDeductora} onValueChange={setSelectedDeductora}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Seleccione una deductora..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {deductoras.map((d) => (
+                                <SelectItem key={d.id} value={String(d.id)}>
+                                  {d.nombre} ({d.codigo})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">y luego</span>
+                          </div>
+                        </div>
+
+                        {/* Opción 2: Subir Archivo */}
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Subir Archivo</label>
+                          <div
+                            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                              selectedDeductora ? 'border-primary/50 hover:border-primary hover:bg-primary/5' : 'border-muted-foreground/25 opacity-50 cursor-not-allowed'
+                            }`}
+                            onClick={() => selectedDeductora && triggerFile()}
+                          >
+                            <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                            <p className="text-sm text-muted-foreground">
+                              {selectedDeductora
+                                ? 'Click para seleccionar archivo (.xls, .xlsx, .csv, .txt)'
+                                : 'Primero seleccione una deductora'}
+                            </p>
+                          </div>
+                          {/* Mostrar archivo seleccionado */}
+                          {selectedFile && (
+                            <div className="mt-2 p-2 bg-muted rounded-md flex items-center justify-between">
+                              <span className="text-sm truncate">{selectedFile.name}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedFile(null);
+                                  if (fileRef.current) fileRef.current.value = '';
+                                }}
+                              >
+                                ✕
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={closePlanillaModal}>Cancelar</Button>
+                        <Button
+                          onClick={handleProcesarPlanilla}
+                          disabled={!selectedDeductora || !selectedFile || uploading}
+                        >
+                          {uploading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Procesando...
+                            </>
+                          ) : (
+                            'Procesar Planilla'
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
 
                   <Dialog open={abonoModalOpen} onOpenChange={setAbonoModalOpen}>
                     <DialogContent>
