@@ -51,6 +51,7 @@ import api from '@/lib/axios';
 import { type Client, type Lead } from '@/lib/data';
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
 import { PermissionButton } from "@/components/PermissionButton";
+import { ProtectedPage } from "@/components/ProtectedPage";
 
 // --- Helpers ---
 
@@ -722,10 +723,11 @@ export default function ClientesPage() {
 
 
 
-  if (error) return <div className="p-8 text-center text-destructive">{error}</div>;
+  if (error) return <ProtectedPage module="crm"><div className="p-8 text-center text-destructive">{error}</div></ProtectedPage>;
 
   return (
-    <TooltipProvider>
+    <ProtectedPage module="crm">
+      <TooltipProvider>
       <div className="space-y-6">
         <Card>
             <CardHeader>
@@ -1110,7 +1112,8 @@ export default function ClientesPage() {
             </DialogFooter>
         </DialogContent>
       </Dialog>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ProtectedPage>
   );
 }
 

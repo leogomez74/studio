@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
+import { ProtectedPage } from "@/components/ProtectedPage";
 import {
   LineChart,
   Line,
@@ -699,37 +700,40 @@ export default function KPIsPage() {
   // Error state
   if (error && !isLoading) {
     return (
-      <div className="space-y-6 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Dashboard de KPIs</h1>
-            <p className="text-muted-foreground">
-              Indicadores clave de rendimiento del negocio
-            </p>
-          </div>
-        </div>
-        <Card>
-          <CardContent className="p-8">
-            <div className="text-center text-muted-foreground">
-              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
-              <p className="font-medium text-destructive">{error}</p>
-              <Button
-                onClick={fetchKPIs}
-                variant="outline"
-                className="mt-4"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Intentar de nuevo
-              </Button>
+      <ProtectedPage module="kpis">
+        <div className="space-y-6 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Dashboard de KPIs</h1>
+              <p className="text-muted-foreground">
+                Indicadores clave de rendimiento del negocio
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <Card>
+            <CardContent className="p-8">
+              <div className="text-center text-muted-foreground">
+                <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+                <p className="font-medium text-destructive">{error}</p>
+                <Button
+                  onClick={fetchKPIs}
+                  variant="outline"
+                  className="mt-4"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Intentar de nuevo
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </ProtectedPage>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <ProtectedPage module="kpis">
+      <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -1334,6 +1338,7 @@ export default function KPIsPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </ProtectedPage>
   );
 }
