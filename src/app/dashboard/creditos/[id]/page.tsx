@@ -112,6 +112,7 @@ interface CreditPayment {
   cuota: number;
   poliza: number;
   interes_corriente: number;
+  int_corriente_vencido: number;
   interes_moratorio: number;
   amortizacion: number;
   saldo_anterior: number;
@@ -144,6 +145,7 @@ interface PlanDePago {
   cuota: number;
   poliza: number;
   interes_corriente: number;
+  int_corriente_vencido: number;
   interes_moratorio: number;
   amortizacion: number;
   saldo_anterior: number;
@@ -363,13 +365,13 @@ function CreditDetailClient({ id }: { id: string }) {
     md += `| Formalizado | ${formatDate(credit.formalized_at)} |\n\n`;
 
     md += `## Tabla de Amortización\n\n`;
-    md += `| # | Estado | Fecha Corte | Cuota | Póliza | Int.Corr | Int.Mora | Amort | Capital | Saldo por Pagar |\n`;
-    md += `|---|--------|-------------|-------|--------|----------|----------|-------|---------|----------------|\n`;
+    md += `| # | Estado | Fecha Corte | Cuota | Póliza | Int.Corr | Int.Corr.Venc | Int.Mora | Amort | Capital | Saldo por Pagar |\n`;
+    md += `|---|--------|-------------|-------|--------|----------|---------------|----------|-------|---------|----------------|\n`;
 
     const sortedPlan = [...credit.plan_de_pagos].sort((a, b) => a.numero_cuota - b.numero_cuota);
 
     for (const p of sortedPlan) {
-      md += `| ${p.numero_cuota} | ${p.estado || '-'} | ${formatDate(p.fecha_corte)} | ${formatNumber(p.cuota)} | ${formatNumber(p.poliza)} | ${formatNumber(p.interes_corriente)} | ${formatNumber(p.interes_moratorio)} | ${formatNumber(p.amortizacion)} | ${formatNumber(p.saldo_anterior)} | ${formatNumber(p.saldo_nuevo)} |\n`;
+      md += `| ${p.numero_cuota} | ${p.estado || '-'} | ${formatDate(p.fecha_corte)} | ${formatNumber(p.cuota)} | ${formatNumber(p.poliza)} | ${formatNumber(p.interes_corriente)} | ${formatNumber(p.int_corriente_vencido ?? 0)} | ${formatNumber(p.interes_moratorio)} | ${formatNumber(p.amortizacion)} | ${formatNumber(p.saldo_anterior)} | ${formatNumber(p.saldo_nuevo)} |\n`;
     }
 
     // Tabla de Movimientos
@@ -443,6 +445,7 @@ function CreditDetailClient({ id }: { id: string }) {
       formatDate(p.fecha_corte),
       formatNumber(p.cuota),
       formatNumber(p.interes_corriente),
+      formatNumber(p.int_corriente_vencido ?? 0),
       formatNumber(p.interes_moratorio),
       formatNumber(p.amortizacion),
       formatNumber(p.saldo_anterior),
@@ -450,7 +453,7 @@ function CreditDetailClient({ id }: { id: string }) {
     ]);
 
     autoTable(doc, {
-      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Int.Corr', 'Int.Mora', 'Amort', 'Capital', 'Saldo por Pagar']],
+      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Int.Corr', 'Int.C.Venc', 'Int.Mora', 'Amort', 'Capital', 'Saldo por Pagar']],
       body: tableData,
       startY: 35,
       styles: { fontSize: 7, cellPadding: 1 },
@@ -1423,6 +1426,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs text-right">Cuota</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Corriente</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Int. Corr. Vencido</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Moratorio</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Amortización</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Capital</TableHead>
@@ -1457,6 +1461,7 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.cuota)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_corriente)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.int_corriente_vencido ?? 0)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_moratorio)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.amortizacion)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.saldo_anterior)}</TableCell>
@@ -1489,7 +1494,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={30} className="text-center py-12">
+                          <TableCell colSpan={31} className="text-center py-12">
                             <div className="flex flex-col items-center gap-4">
                               <div className="text-muted-foreground">
                                 {credit.status !== 'Formalizado' ? (

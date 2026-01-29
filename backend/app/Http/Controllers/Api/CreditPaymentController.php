@@ -656,32 +656,45 @@ class CreditPaymentController extends Controller
                 continue;
             }
 
-            // Calcular mora: 33% del interés corriente de la cuota que se está pagando
-            $interesCorriente = (float) $cuota->interes_corriente;
-            $mora = $interesCorriente * 0.33;
-            $moraRedondeada = round($mora, 2);
+            // Obtener tasa y tasa_maxima del crédito
+            $creditConTasa = Credit::with('tasa')->find($credit->id);
+            $tasaBase = (float) ($creditConTasa->tasa->tasa ?? 0);
+            $tasaMaxima = (float) ($creditConTasa->tasa->tasa_maxima ?? 0);
 
-            // Mantener capitalActual para recalcular cuotas siguientes
+            $tasaMora = $tasaMaxima - $tasaBase;
+            $hayDiferencia = $tasaMora > 0;
+
             $capitalActual = (float) $credit->saldo;
+            $interesCorriente = (float) $cuota->interes_corriente;
 
-            // Obtener tasa anual del crédito para recalcular intereses
-            $tasaAnual = (float) ($credit->tasa_anual ?? 33.5);
+            // En ambos casos: mover interes_corriente a int_corriente_vencido
+            $cuota->int_corriente_vencido = ($cuota->int_corriente_vencido ?? 0) + $interesCorriente;
+            $cuota->interes_corriente = 0;
 
-            // Guardar mora y cambiar estado de la cuota
-            // IMPORTANTE: El capital NO debe bajar cuando hay mora (no hubo pago)
-            $cuota->interes_moratorio = ($cuota->interes_moratorio ?? 0) + $moraRedondeada;
+            if (!$hayDiferencia) {
+                // CASO 1: tasa = tasa_maxima (NO hay diferencia)
+                $cuota->interes_moratorio = 0;
+            } else {
+                // CASO 2: tasa < tasa_maxima (SÍ hay diferencia)
+                // Calcular interés moratorio con el porcentaje sobrante
+                $dias = 30;
+                $interesMoratorio = ($capitalActual * $tasaMora / 100 / 12) * ($dias / 30);
+                $cuota->interes_moratorio = ($cuota->interes_moratorio ?? 0) + round($interesMoratorio, 2);
+            }
+
+            // Obtener tasa anual para recalcular cuotas siguientes
+            $tasaAnual = $tasaBase;
+
             $cuota->estado = 'Mora';
-
-            // saldo_anterior = CAPITAL (solo el principal)
             $cuota->saldo_anterior = $capitalActual;
 
-            // saldo_nuevo = Capital + Int.Mora + Int.Corr + Póliza
+            // saldo_nuevo = Capital + int_corriente_vencido + interes_moratorio + póliza
+            $intCorrVencido = (float) $cuota->int_corriente_vencido;
             $intMora = (float) $cuota->interes_moratorio;
-            $intCorr = (float) $cuota->interes_corriente;
             $poliza = (float) ($cuota->poliza ?? 0);
-            $cuota->saldo_nuevo = round($capitalActual + $intMora + $intCorr + $poliza, 2);
+            $cuota->saldo_nuevo = round($capitalActual + $intCorrVencido + $intMora + $poliza, 2);
 
-            $cuota->amortizacion = 0;                 // No hubo amortización
+            $cuota->amortizacion = 0;
             $cuota->save();
 
             // RECALCULAR CUOTAS SIGUIENTES basadas en el saldo real
@@ -694,9 +707,11 @@ class CreditPaymentController extends Controller
                 'credit_id' => $credit->id,
                 'lead' => $credit->lead->name ?? 'N/A',
                 'cuota_numero' => $cuota->numero_cuota,
-                'interes_corriente' => $interesCorriente,
-                'mora_calculada' => $moraRedondeada,
-                'porcentaje_aplicado' => '33%',
+                'int_corriente_movido_a_vencido' => $interesCorriente,
+                'tasa_base' => $tasaBase,
+                'tasa_maxima' => $tasaMaxima,
+                'tasa_mora' => $tasaMora,
+                'interes_moratorio_calculado' => $hayDiferencia ? $cuota->interes_moratorio : 0,
                 'status' => 'mora_aplicada'
             ];
         }
@@ -743,12 +758,13 @@ class CreditPaymentController extends Controller
             $cuota->amortizacion = round($amortizacion, 2);
             // cuota NO se modifica - es FIJA
 
-            // saldo_nuevo = Capital + Int.Mora + Int.Corr + Póliza
+            // saldo_nuevo = Capital + Int.Corr + Int.Corr.Vencido + Int.Mora + Póliza
             $capital = round(max(0, $nuevoCapital), 2);
-            $intMora = (float) ($cuota->interes_moratorio ?? 0);
             $intCorr = (float) $cuota->interes_corriente;
+            $intCorrVencido = (float) ($cuota->int_corriente_vencido ?? 0);
+            $intMora = (float) ($cuota->interes_moratorio ?? 0);
             $poliza = (float) ($cuota->poliza ?? 0);
-            $cuota->saldo_nuevo = round($capital + $intMora + $intCorr + $poliza, 2);
+            $cuota->saldo_nuevo = round($capital + $intCorr + $intCorrVencido + $intMora + $poliza, 2);
 
             $cuota->save();
 
