@@ -1231,12 +1231,25 @@ const TasasCRUD: React.FC = () => {
 
   const handleToggleActivo = async (tasa: Tasa) => {
     try {
-      await api.patch(`/api/tasas/${tasa.id}/toggle-activo`);
-      toast({ title: 'Éxito', description: `Tasa ${!tasa.activo ? 'activada' : 'desactivada'} correctamente` });
-      fetchTasas();
+      const response = await api.patch(`/api/tasas/${tasa.id}/toggle-activo`);
+      const tasaActualizada = response.data.tasa;
+
+      // Actualizar solo la tasa específica en el estado local
+      setTasas(prev => prev.map(t =>
+        t.id === tasa.id ? tasaActualizada : t
+      ));
+
+      toast({
+        title: 'Éxito',
+        description: `Tasa ${tasaActualizada.activo ? 'activada' : 'desactivada'} correctamente`
+      });
     } catch (error) {
       console.error('Error toggling tasa:', error);
-      toast({ title: 'Error', description: 'No se pudo cambiar el estado de la tasa', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'No se pudo cambiar el estado de la tasa',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -1710,13 +1723,8 @@ export default function ConfiguracionPage() {
   const fetchLoanConfigurations = useCallback(async () => {
     setLoadingLoanConfigs(true);
     try {
-      const [configsResponse, tasasResponse] = await Promise.all([
-        api.get('/api/loan-configurations'),
-        api.get('/api/tasas')
-      ]);
-
-      const configs = configsResponse.data;
-      const tasas = tasasResponse.data;
+      const response = await api.get('/api/loan-configurations');
+      const configs = response.data;
 
       const regular = configs.find((c: any) => c.tipo === 'regular');
       const micro = configs.find((c: any) => c.tipo === 'microcredito');
