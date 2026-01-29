@@ -46,7 +46,6 @@ return new class extends Migration
         $tasasEstandar = [
             ['nombre' => 'Tasa Regular', 'tasa' => 33.50],
             ['nombre' => 'Tasa Micro Crédito', 'tasa' => 52.30],
-            ['nombre' => 'Tasa Mora', 'tasa' => 13.30],
         ];
 
         $tasaMap = [];
