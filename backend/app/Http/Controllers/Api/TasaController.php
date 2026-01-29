@@ -42,6 +42,7 @@ class TasaController extends Controller
         $validated = $request->validate([
             'nombre' => 'required|string|max:255|unique:tasas,nombre',
             'tasa' => 'required|numeric|min:0|max:100',
+            'tasa_maxima' => 'nullable|numeric|min:0|max:100',
             'inicio' => 'required|date',
             'fin' => 'nullable|date|after:inicio',
             'activo' => 'boolean',
@@ -81,6 +82,7 @@ class TasaController extends Controller
         $validated = $request->validate([
             'nombre' => 'sometimes|string|max:255|unique:tasas,nombre,' . $id,
             'tasa' => 'sometimes|numeric|min:0|max:100',
+            'tasa_maxima' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $tasa->update($validated);
