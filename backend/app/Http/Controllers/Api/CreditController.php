@@ -114,33 +114,37 @@ class CreditController extends Controller
             ], 422);
         }
 
-        // Tasa por defecto: obtener tasa vigente según tipo de crédito
+        // Tasa por defecto: obtener tasa vigente según tipo de crédito EN LA FECHA DEL CRÉDITO
+        $fechaCredito = $validated['opened_at'] ?? now();
+
         if (!isset($validated['tasa_id'])) {
             $tipoCredito = $validated['tipo_credito'] ?? null;
             $nombreTasa = ($tipoCredito === 'micro') ? 'Tasa Micro Crédito' : 'Tasa Regular';
 
-            $tasa = \App\Models\Tasa::obtenerPorNombre($nombreTasa);
+            // Buscar tasa vigente en la fecha del crédito, no HOY
+            $tasa = \App\Models\Tasa::obtenerPorNombre($nombreTasa, $fechaCredito);
             if ($tasa) {
                 $validated['tasa_id'] = $tasa->id;
             } else {
-                // Fallback: obtener primera tasa activa
-                $tasaFallback = \App\Models\Tasa::activa()->first();
+                // Fallback: obtener cualquier tasa vigente en esa fecha
+                $tasaFallback = \App\Models\Tasa::vigente($fechaCredito)->first();
                 if (!$tasaFallback) {
                     return response()->json([
-                        'message' => 'No hay tasas configuradas. Configure al menos una tasa activa antes de crear créditos.'
+                        'message' => 'No hay tasas vigentes para la fecha del crédito (' . Carbon::parse($fechaCredito)->format('d/m/Y') . '). Configure una tasa activa para ese período.',
+                        'fecha_credito' => Carbon::parse($fechaCredito)->format('d/m/Y'),
                     ], 422);
                 }
                 $validated['tasa_id'] = $tasaFallback->id;
             }
         } else {
-            // Si se proporciona tasa_id manualmente, validar que esté vigente HOY
+            // Si se proporciona tasa_id manualmente, validar que estuviera vigente EN LA FECHA DEL CRÉDITO
             $tasaProporcionada = \App\Models\Tasa::find($validated['tasa_id']);
-            if ($tasaProporcionada && !$tasaProporcionada->esVigente()) {
+            if ($tasaProporcionada && !$tasaProporcionada->esVigente($fechaCredito)) {
                 return response()->json([
-                    'message' => 'La tasa "' . $tasaProporcionada->nombre . '" no está vigente actualmente y no puede ser asignada a nuevos créditos.',
+                    'message' => 'La tasa "' . $tasaProporcionada->nombre . '" no estaba vigente en la fecha del crédito (' . Carbon::parse($fechaCredito)->format('d/m/Y') . '). Por favor, seleccione una tasa válida para esa fecha.',
                     'tasa_inicio' => $tasaProporcionada->inicio->format('d/m/Y'),
                     'tasa_fin' => $tasaProporcionada->fin ? $tasaProporcionada->fin->format('d/m/Y') : 'Sin límite',
-                    'fecha_hoy' => now()->format('d/m/Y'),
+                    'fecha_credito' => Carbon::parse($fechaCredito)->format('d/m/Y'),
                 ], 422);
             }
         }
