@@ -10,6 +10,7 @@ class Tasa extends Model
     protected $fillable = [
         'nombre',
         'tasa',
+        'tasa_maxima',
         'inicio',
         'fin',
         'activo',
@@ -17,6 +18,7 @@ class Tasa extends Model
 
     protected $casts = [
         'tasa' => 'decimal:2',
+        'tasa_maxima' => 'decimal:2',
         'inicio' => 'date',
         'fin' => 'date',
         'activo' => 'boolean',

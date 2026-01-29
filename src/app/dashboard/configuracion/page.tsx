@@ -1123,6 +1123,7 @@ interface Tasa {
   id: number;
   nombre: string;
   tasa: number;
+  tasa_maxima: number | null;
   inicio: string;
   fin: string | null;
   activo: boolean;
@@ -1139,6 +1140,7 @@ const TasasCRUD: React.FC = () => {
   const [formData, setFormData] = useState({
     nombre: '',
     tasa: '',
+    tasa_maxima: '',
     inicio: new Date().toISOString().split('T')[0],
     fin: '',
     activo: true,
@@ -1166,10 +1168,11 @@ const TasasCRUD: React.FC = () => {
 
     try {
       if (editingTasa) {
-        // Al editar, solo enviar nombre y tasa
+        // Al editar, solo enviar nombre, tasa y tasa_maxima
         const payload = {
           nombre: formData.nombre,
           tasa: parseFloat(formData.tasa),
+          tasa_maxima: formData.tasa_maxima ? parseFloat(formData.tasa_maxima) : null,
         };
         await api.put(`/api/tasas/${editingTasa.id}`, payload);
         toast({ title: 'Éxito', description: 'Tasa actualizada correctamente' });
@@ -1178,6 +1181,7 @@ const TasasCRUD: React.FC = () => {
         const payload = {
           nombre: formData.nombre,
           tasa: parseFloat(formData.tasa),
+          tasa_maxima: formData.tasa_maxima ? parseFloat(formData.tasa_maxima) : null,
           inicio: formData.inicio,
           fin: formData.fin || null,
           activo: formData.activo,
@@ -1188,7 +1192,7 @@ const TasasCRUD: React.FC = () => {
 
       setIsDialogOpen(false);
       setEditingTasa(null);
-      setFormData({ nombre: '', tasa: '', inicio: new Date().toISOString().split('T')[0], fin: '', activo: true });
+      setFormData({ nombre: '', tasa: '', tasa_maxima: '', inicio: new Date().toISOString().split('T')[0], fin: '', activo: true });
       fetchTasas();
     } catch (error: any) {
       console.error('Error saving tasa:', error);
@@ -1205,6 +1209,7 @@ const TasasCRUD: React.FC = () => {
     setFormData({
       nombre: tasa.nombre,
       tasa: tasa.tasa.toString(),
+      tasa_maxima: tasa.tasa_maxima?.toString() || '',
       inicio: tasa.inicio.split('T')[0], // Asegurar formato YYYY-MM-DD
       fin: tasa.fin ? tasa.fin.split('T')[0] : '',
       activo: tasa.activo,
@@ -1278,7 +1283,7 @@ const TasasCRUD: React.FC = () => {
       </CardHeader>
       <CardContent>
         <div className="flex justify-end mb-4">
-          <Button onClick={() => { setEditingTasa(null); setFormData({ nombre: '', tasa: '', inicio: new Date().toISOString().split('T')[0], fin: '', activo: true }); setIsDialogOpen(true); }}>
+          <Button onClick={() => { setEditingTasa(null); setFormData({ nombre: '', tasa: '', tasa_maxima: '', inicio: new Date().toISOString().split('T')[0], fin: '', activo: true }); setIsDialogOpen(true); }}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Nueva Tasa
           </Button>
@@ -1292,6 +1297,7 @@ const TasasCRUD: React.FC = () => {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Tasa (%)</TableHead>
+                <TableHead>Tasa Máxima (%)</TableHead>
                 <TableHead>Inicio Vigencia</TableHead>
                 <TableHead>Fin Vigencia</TableHead>
                 <TableHead>Estado</TableHead>
@@ -1303,6 +1309,7 @@ const TasasCRUD: React.FC = () => {
                 <TableRow key={tasa.id}>
                   <TableCell className="font-medium">{tasa.nombre}</TableCell>
                   <TableCell>{tasa.tasa}%</TableCell>
+                  <TableCell>{tasa.tasa_maxima ? `${tasa.tasa_maxima}%` : 'No definida'}</TableCell>
                   <TableCell>{new Date(tasa.inicio).toLocaleDateString()}</TableCell>
                   <TableCell>{tasa.fin ? new Date(tasa.fin).toLocaleDateString() : 'Indefinido'}</TableCell>
                   <TableCell>
@@ -1343,7 +1350,21 @@ const TasasCRUD: React.FC = () => {
                 <Input
                   id="nombre"
                   value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  onChange={(e) => {
+                    const nombre = e.target.value;
+                    let tasaMaxima = formData.tasa_maxima;
+
+                    // Establecer tasa máxima por defecto según el nombre
+                    if (!editingTasa && !formData.tasa_maxima) {
+                      if (nombre.toLowerCase().includes('micro')) {
+                        tasaMaxima = '51.21';
+                      } else if (nombre.toLowerCase().includes('regular') || nombre.toLowerCase().includes('crédito')) {
+                        tasaMaxima = '36.27';
+                      }
+                    }
+
+                    setFormData({ ...formData, nombre, tasa_maxima: tasaMaxima });
+                  }}
                   placeholder="Ej: Tasa Regular, Tasa Mora"
                   required
                   disabled={!!editingTasa}
@@ -1367,6 +1388,22 @@ const TasasCRUD: React.FC = () => {
                   placeholder="33.50"
                   required
                 />
+              </div>
+              <div>
+                <Label htmlFor="tasa_maxima">Tasa Máxima (%) - Opcional</Label>
+                <Input
+                  id="tasa_maxima"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={formData.tasa_maxima}
+                  onChange={(e) => setFormData({ ...formData, tasa_maxima: e.target.value })}
+                  placeholder="51.21"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tasa máxima permitida para este tipo de crédito
+                </p>
               </div>
               {!editingTasa && (
                 <>
