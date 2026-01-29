@@ -1600,6 +1600,7 @@ export default function ConfiguracionPage() {
       <TabsList className="mb-4">
         <TabsTrigger value="prestamos">Préstamos</TabsTrigger>
         <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
+        <TabsTrigger value="roles-permisos">Roles y Permisos</TabsTrigger>
         <TabsTrigger value="patronos">Patronos</TabsTrigger>
         <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
         <TabsTrigger value="empresas">Empresas</TabsTrigger>
@@ -2044,6 +2045,22 @@ export default function ConfiguracionPage() {
                 </TableBody>
               </Table>
             )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="roles-permisos">
+        <Card>
+          <CardHeader>
+            <CardTitle>Roles y Permisos</CardTitle>
+            <CardDescription>
+              Gestiona los roles y permisos del sistema.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              Contenido en construcción
+            </div>
           </CardContent>
         </Card>
       </TabsContent>
