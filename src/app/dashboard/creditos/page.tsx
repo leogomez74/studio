@@ -798,7 +798,7 @@ export default function CreditsPage() {
     doc.setTextColor(0, 0, 0);
 
     // Credit Data
-    const tasaValue = credit.tasa?.tasa || credit.tasa_anual || '0.00';
+    const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
     const creditRow = [
       credit.numero_operacion || credit.reference,
       credit.linea || "PEPITO ABIERTO",
@@ -950,7 +950,7 @@ export default function CreditsPage() {
     // Monto en números
     const monto = Number(credit.monto_credito ?? 0);
     const plazo = Number(credit.plazo ?? 0);
-    const tasaNumber = Number(credit.tasa?.tasa || credit.tasa_anual ?? 0);
+    const tasaNumber = Number(credit.tasa?.tasa ?? credit.tasa_anual ?? 0);
     const tasaMensual = (tasaNumber / 12).toFixed(2);
 
     doc.setFontSize(9);
@@ -1146,7 +1146,7 @@ export default function CreditsPage() {
                         const fechaFin = credit.fecha_culminacion_credito;
 
                         // 3. Tasa: De cabecera o del primer pago
-                        const tasa = credit.tasa?.tasa || credit.tasa_anual || (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null);
+                        const tasa = credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null);
 
                         // 4. Fallbacks para Línea y Proceso
                         const linea = credit.linea || credit.category || "-";

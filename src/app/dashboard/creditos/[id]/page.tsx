@@ -234,6 +234,7 @@ interface CreditItem {
   lead?: {
     id: number;
     name: string;
+    cedula?: string | null;
     institucion_labora?: string | null;
     documents?: CreditDocument[];
     deductora_id?: number,
@@ -254,7 +255,9 @@ interface CreditItem {
   fecha_ultimo_pago?: string | null;
   garantia?: string | null;
   fecha_culminacion_credito?: string | null;
+  formalized_at?: string | null;
   tasa_anual?: number | null;
+  tasa?: { id: number; tasa: number } | null;
   plazo?: number | null;
   cuotas_atrasadas?: number | null;
   deductora?: { id: number; nombre: string } | null;
@@ -353,7 +356,7 @@ function CreditDetailClient({ id }: { id: string }) {
     md += `| Monto Original | ₡${formatNumber(credit.monto_credito)} |\n`;
     md += `| Saldo Actual | ₡${formatNumber(credit.saldo)} |\n`;
     md += `| Estado Crédito | ${credit.status} |\n`;
-    md += `| Tasa Anual | ${credit.tasa?.tasa || credit.tasa_anual || '0.00'}% |\n`;
+    md += `| Tasa Anual | ${credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00'}% |\n`;
     md += `| Plazo | ${credit.plazo} meses |\n`;
     md += `| Cuota Fija | ₡${formatNumber(credit.cuota)} |\n`;
     md += `| Deductora | ${credit.lead?.deductora_id || 'N/A'} |\n`;
@@ -425,7 +428,7 @@ function CreditDetailClient({ id }: { id: string }) {
 
     // Info del crédito
     doc.setFontSize(10);
-    const tasaValue = credit.tasa?.tasa || credit.tasa_anual || '0.00';
+    const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
     doc.text(`Cliente: ${credit.lead?.name || 'N/A'}`, 14, 25);
     doc.text(`Monto: ${formatNumber(credit.monto_credito)}`, 14, 30);
     doc.text(`Saldo: ${formatNumber(credit.saldo)}`, 80, 25);
