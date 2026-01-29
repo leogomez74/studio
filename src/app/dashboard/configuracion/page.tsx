@@ -14,8 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash, Eye, EyeOff } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -1276,22 +1276,20 @@ const TasasCRUD: React.FC = () => {
                   <TableCell>{new Date(tasa.inicio).toLocaleDateString()}</TableCell>
                   <TableCell>{tasa.fin ? new Date(tasa.fin).toLocaleDateString() : 'Indefinido'}</TableCell>
                   <TableCell>
-                    <Badge variant={tasa.activo ? 'default' : 'secondary'}>
-                      {tasa.activo ? 'Activa' : 'Inactiva'}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={tasa.activo}
+                        onCheckedChange={() => handleToggleActivo(tasa)}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {tasa.activo ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(tasa)}>
                         <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleActivo(tasa)}
-                        title={tasa.activo ? 'Desactivar' : 'Activar'}
-                      >
-                        {tasa.activo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(tasa.id)}>
                         <Trash className="h-4 w-4 text-destructive" />
