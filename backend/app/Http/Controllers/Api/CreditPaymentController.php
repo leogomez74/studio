@@ -712,10 +712,8 @@ class CreditPaymentController extends Controller
             $cuota->estado = 'Mora';
             $cuota->saldo_anterior = $capitalActual;
 
-            // Calcular días de mora
-            $fechaCorte = Carbon::parse($cuota->fecha_corte);
-            $hoy = Carbon::now();
-            $cuota->dias_mora = max(0, $hoy->diffInDays($fechaCorte));
+            // Días de mora estándar (período mensual para cálculo)
+            $cuota->dias_mora = 30;
 
             // saldo_nuevo = Capital + int_corriente_vencido + interes_moratorio + póliza
             $intCorrVencido = (float) $cuota->int_corriente_vencido;
