@@ -81,9 +81,8 @@ return new class extends Migration
         // Mapear tasas existentes a las nuevas tasas con nombre
         foreach ($tasasUnicas as $item) {
             $tasaAnual = (float) $item->tasa_anual;
-            $tipoCredito = $item->tipo_credito;
 
-            // Determinar el nombre de la tasa según el tipo de crédito
+            // Determinar el nombre de la tasa según el valor de la tasa
             if ($tasaAnual >= 50) {
                 // Micro crédito (tasas altas)
                 $tasaId = $this->getTasaIdPorNombre('Tasa Micro Crédito', $tasaMap);
