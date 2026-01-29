@@ -132,6 +132,17 @@ class CreditController extends Controller
                 }
                 $validated['tasa_id'] = $tasaFallback->id;
             }
+        } else {
+            // Si se proporciona tasa_id manualmente, validar que esté vigente HOY
+            $tasaProporcionada = \App\Models\Tasa::find($validated['tasa_id']);
+            if ($tasaProporcionada && !$tasaProporcionada->esVigente()) {
+                return response()->json([
+                    'message' => 'La tasa "' . $tasaProporcionada->nombre . '" no está vigente actualmente y no puede ser asignada a nuevos créditos.',
+                    'tasa_inicio' => $tasaProporcionada->inicio->format('d/m/Y'),
+                    'tasa_fin' => $tasaProporcionada->fin ? $tasaProporcionada->fin->format('d/m/Y') : 'Sin límite',
+                    'fecha_hoy' => now()->format('d/m/Y'),
+                ], 422);
+            }
         }
 
         // Referencia temporal (se actualiza después con el ID real)
@@ -434,6 +445,19 @@ class CreditController extends Controller
                     'monto_credito' => $montoCredito,
                     'total_cargos' => $totalCargos,
                     'monto_neto' => $montoNeto,
+                ], 422);
+            }
+        }
+
+        // Validar que la tasa estaba vigente en la fecha de creación del crédito
+        if (isset($validated['tasa_id']) && $validated['tasa_id'] != $credit->tasa_id) {
+            $nuevaTasa = \App\Models\Tasa::find($validated['tasa_id']);
+
+            if ($nuevaTasa && !$nuevaTasa->esVigente($credit->created_at)) {
+                return response()->json([
+                    'message' => 'No se puede asignar esta tasa al crédito. La tasa "' . $nuevaTasa->nombre . '" no estaba vigente en la fecha de creación del crédito (' . $credit->created_at->format('d/m/Y') . ').',
+                    'tasa_inicio' => $nuevaTasa->inicio->format('d/m/Y'),
+                    'credito_creado' => $credit->created_at->format('d/m/Y'),
                 ], 422);
             }
         }
