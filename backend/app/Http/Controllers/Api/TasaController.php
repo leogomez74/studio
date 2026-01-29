@@ -40,13 +40,24 @@ class TasaController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'nombre' => 'required|string|max:255|unique:tasas,nombre',
+            'nombre' => 'required|string|max:255',
             'tasa' => 'required|numeric|min:0|max:100',
             'tasa_maxima' => 'nullable|numeric|min:0|max:100',
             'inicio' => 'required|date',
             'fin' => 'nullable|date|after:inicio',
             'activo' => 'boolean',
         ]);
+
+        // Validación custom: tasa_maxima debe ser mayor o igual que tasa
+        if (isset($validated['tasa_maxima']) && $validated['tasa_maxima'] !== null) {
+            if ($validated['tasa_maxima'] < $validated['tasa']) {
+                return response()->json([
+                    'message' => 'La tasa máxima debe ser mayor o igual que la tasa mínima.',
+                    'tasa' => $validated['tasa'],
+                    'tasa_maxima' => $validated['tasa_maxima'],
+                ], 422);
+            }
+        }
 
         // Si se crea desactivada sin fecha fin, establecer fin al día actual
         if (isset($validated['activo']) && $validated['activo'] === false) {
@@ -80,10 +91,22 @@ class TasaController extends Controller
         $tasa = Tasa::findOrFail($id);
 
         $validated = $request->validate([
-            'nombre' => 'sometimes|string|max:255|unique:tasas,nombre,' . $id,
+            'nombre' => 'sometimes|string|max:255',
             'tasa' => 'sometimes|numeric|min:0|max:100',
             'tasa_maxima' => 'nullable|numeric|min:0|max:100',
         ]);
+
+        // Validación custom: tasa_maxima debe ser mayor o igual que tasa
+        $tasaValue = $validated['tasa'] ?? $tasa->tasa;
+        $tasaMaximaValue = $validated['tasa_maxima'] ?? $tasa->tasa_maxima;
+
+        if ($tasaMaximaValue !== null && $tasaMaximaValue < $tasaValue) {
+            return response()->json([
+                'message' => 'La tasa máxima debe ser mayor o igual que la tasa mínima.',
+                'tasa' => $tasaValue,
+                'tasa_maxima' => $tasaMaximaValue,
+            ], 422);
+        }
 
         $tasa->update($validated);
 
