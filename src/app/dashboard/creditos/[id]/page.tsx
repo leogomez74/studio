@@ -353,15 +353,15 @@ function CreditDetailClient({ id }: { id: string }) {
     md += `| Monto Original | ₡${formatNumber(credit.monto_credito)} |\n`;
     md += `| Saldo Actual | ₡${formatNumber(credit.saldo)} |\n`;
     md += `| Estado Crédito | ${credit.status} |\n`;
-    md += `| Tasa Anual | ${credit.tasa_anual}% |\n`;
+    md += `| Tasa Anual | ${credit.tasa?.tasa || credit.tasa_anual || '0.00'}% |\n`;
     md += `| Plazo | ${credit.plazo} meses |\n`;
     md += `| Cuota Fija | ₡${formatNumber(credit.cuota)} |\n`;
     md += `| Deductora | ${credit.lead?.deductora_id || 'N/A'} |\n`;
     md += `| Formalizado | ${formatDate(credit.formalized_at)} |\n\n`;
 
     md += `## Tabla de Amortización\n\n`;
-    md += `| # | Estado | Fecha Corte | Cuota | Póliza | Int.Corr | Int.Mora | Amort | Saldo Ant | Saldo Nuevo |\n`;
-    md += `|---|--------|-------------|-------|--------|----------|----------|-------|-----------|-------------|\n`;
+    md += `| # | Estado | Fecha Corte | Cuota | Póliza | Int.Corr | Int.Mora | Amort | Capital | Saldo por Pagar |\n`;
+    md += `|---|--------|-------------|-------|--------|----------|----------|-------|---------|----------------|\n`;
 
     const sortedPlan = [...credit.plan_de_pagos].sort((a, b) => a.numero_cuota - b.numero_cuota);
 
@@ -425,11 +425,12 @@ function CreditDetailClient({ id }: { id: string }) {
 
     // Info del crédito
     doc.setFontSize(10);
+    const tasaValue = credit.tasa?.tasa || credit.tasa_anual || '0.00';
     doc.text(`Cliente: ${credit.lead?.name || 'N/A'}`, 14, 25);
     doc.text(`Monto: ${formatNumber(credit.monto_credito)}`, 14, 30);
     doc.text(`Saldo: ${formatNumber(credit.saldo)}`, 80, 25);
     doc.text(`Estado: ${credit.status}`, 80, 30);
-    doc.text(`Tasa: ${credit.tasa_anual}%`, 140, 25);
+    doc.text(`Tasa: ${tasaValue}%`, 140, 25);
     doc.text(`Plazo: ${credit.plazo} meses`, 140, 30);
 
     // Tabla principal
@@ -446,7 +447,7 @@ function CreditDetailClient({ id }: { id: string }) {
     ]);
 
     autoTable(doc, {
-      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Int.Corr', 'Int.Mora', 'Amort', 'Saldo Ant', 'Saldo Nuevo']],
+      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Int.Corr', 'Int.Mora', 'Amort', 'Capital', 'Saldo por Pagar']],
       body: tableData,
       startY: 35,
       styles: { fontSize: 7, cellPadding: 1 },
@@ -1421,8 +1422,8 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Corriente</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Moratorio</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Amortización</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Saldo Anterior</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Saldo Nuevo</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Capital</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Saldo por Pagar</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Días</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Estado</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Mora (Días)</TableHead>
