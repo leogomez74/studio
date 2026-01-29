@@ -15,7 +15,7 @@ class UserController extends Controller
      */
     public function index()
     {
-        return User::all();
+        return User::with('role')->get();
     }
 
     /**
@@ -27,7 +27,7 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => ['required', 'string', 'in:Sin Rol Asignado,Administrador,Colaborador'],
+            'role_id' => ['nullable', 'exists:roles,id'],
             'status' => ['required', 'string', 'in:Activo,Suspendido'],
         ]);
 
@@ -35,11 +35,11 @@ class UserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role,
+            'role_id' => $request->role_id,
             'status' => $request->status,
         ]);
 
-        return response()->json($user, 201);
+        return response()->json($user->load('role'), 201);
     }
 
     /**
@@ -47,7 +47,7 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        return User::findOrFail($id);
+        return User::with('role')->findOrFail($id);
     }
 
     /**
@@ -61,7 +61,7 @@ class UserController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'password' => ['sometimes', 'confirmed', Rules\Password::defaults()],
-            'role' => ['sometimes', 'string', 'in:Sin Rol Asignado,Administrador,Colaborador'],
+            'role_id' => ['sometimes', 'nullable', 'exists:roles,id'],
             'status' => ['sometimes', 'string', 'in:Activo,Suspendido'],
         ]);
 
@@ -74,8 +74,8 @@ class UserController extends Controller
         if ($request->has('password')) {
             $user->password = Hash::make($request->password);
         }
-        if ($request->has('role')) {
-            $user->role = $request->role;
+        if ($request->has('role_id')) {
+            $user->role_id = $request->role_id;
         }
         if ($request->has('status')) {
             $user->status = $request->status;
@@ -83,7 +83,7 @@ class UserController extends Controller
 
         $user->save();
 
-        return $user;
+        return $user->load('role');
     }
 
     /**

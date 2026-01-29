@@ -1692,10 +1692,14 @@ export default function ConfiguracionPage() {
     email: '',
     password: '',
     password_confirmation: '',
-    role: 'Sin Rol Asignado',
+    role_id: 'none',
     status: 'Activo',
   });
   const [editingUser, setEditingUser] = useState<any | null>(null);
+
+  // Roles state
+  const [availableRoles, setAvailableRoles] = useState<any[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
 
   // Deductoras state
   const [deductorasList, setDeductorasList] = useState<Deductora[]>([]);
@@ -1713,8 +1717,31 @@ export default function ConfiguracionPage() {
     if (token) {
       fetchUsers();
       fetchDeductoras();
+      fetchRoles();
     }
   }, [token]);
+
+  const fetchRoles = async () => {
+    setLoadingRoles(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/roles`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableRoles(data);
+      } else {
+        console.error('Failed to fetch roles');
+      }
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
@@ -1778,7 +1805,7 @@ export default function ConfiguracionPage() {
       email: '',
       password: '',
       password_confirmation: '',
-      role: 'Sin Rol Asignado',
+      role_id: 'none',
       status: 'Activo',
     });
     setIsCreateUserOpen(true);
@@ -1791,7 +1818,7 @@ export default function ConfiguracionPage() {
       email: user.email || '',
       password: '',
       password_confirmation: '',
-      role: user.role || 'Sin Rol Asignado',
+      role_id: user.role_id ? user.role_id.toString() : 'none',
       status: user.status || 'Activo',
     });
     setIsCreateUserOpen(true);
@@ -1899,6 +1926,12 @@ export default function ConfiguracionPage() {
       const method = editingUser ? 'PUT' : 'POST';
       const url = editingUser ? `${API_BASE_URL}/users/${editingUser.id}` : `${API_BASE_URL}/users`;
 
+      // Convertir 'none' a null para role_id
+      const payload = {
+        ...newUser,
+        role_id: newUser.role_id === 'none' ? null : parseInt(newUser.role_id)
+      };
+
       const res = await fetch(url, {
         method,
         headers: {
@@ -1906,7 +1939,7 @@ export default function ConfiguracionPage() {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify(newUser),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -1921,7 +1954,7 @@ export default function ConfiguracionPage() {
           email: '',
           password: '',
           password_confirmation: '',
-          role: 'Sin Rol Asignado',
+          role_id: 'none',
           status: 'Activo'
         });
         fetchUsers();
@@ -1960,6 +1993,46 @@ export default function ConfiguracionPage() {
     } catch (err) {
       console.error('Error deleting user', err);
       toast({ title: 'Error', description: 'No se pudo eliminar el usuario.', variant: 'destructive' });
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: number, roleId: string) => {
+    try {
+      const payload = {
+        role_id: roleId === 'none' ? null : parseInt(roleId)
+      };
+
+      const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toast({
+          title: "Rol actualizado",
+          description: "El rol del usuario ha sido actualizado correctamente.",
+        });
+        fetchUsers();
+      } else {
+        const errorData = await res.json();
+        toast({
+          title: "Error al actualizar rol",
+          description: errorData.message || "Ocurrió un error inesperado.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -2511,16 +2584,23 @@ export default function ConfiguracionPage() {
                       <div className="space-y-2">
                         <Label htmlFor="role">Rol</Label>
                         <Select
-                          value={newUser.role}
-                          onValueChange={(value) => setNewUser({ ...newUser, role: value })}
+                          value={newUser.role_id}
+                          onValueChange={(value) => setNewUser({ ...newUser, role_id: value })}
                         >
                           <SelectTrigger id="role">
                             <SelectValue placeholder="Seleccionar rol" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Sin Rol Asignado">Sin Rol Asignado</SelectItem>
-                            <SelectItem value="Administrador">Administrador</SelectItem>
-                            <SelectItem value="Colaborador">Colaborador</SelectItem>
+                            <SelectItem value="none">Sin Rol Asignado</SelectItem>
+                            {loadingRoles ? (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">Cargando roles...</div>
+                            ) : (
+                              availableRoles.map((role) => (
+                                <SelectItem key={role.id} value={role.id.toString()}>
+                                  {role.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -2573,7 +2653,25 @@ export default function ConfiguracionPage() {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.role || 'Sin Rol Asignado'}</TableCell>
+                      <TableCell>
+                        <Select
+                          value={user.role_id ? user.role_id.toString() : 'none'}
+                          onValueChange={(value) => handleUpdateUserRole(user.id, value)}
+                          disabled={loadingRoles}
+                        >
+                          <SelectTrigger className="w-[180px] h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin Rol Asignado</SelectItem>
+                            {availableRoles.map((role) => (
+                              <SelectItem key={role.id} value={role.id.toString()}>
+                                {role.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${user.status === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                           }`}>

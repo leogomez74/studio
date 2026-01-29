@@ -173,6 +173,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
 
+    // Roles and Permissions
+    Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class);
+
     // Lead Alerts (Inactivity tracking)
     Route::get('/lead-alerts/count', [LeadAlertController::class, 'count']);
     Route::get('/lead-alerts', [LeadAlertController::class, 'index']);
