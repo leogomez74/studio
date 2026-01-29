@@ -157,6 +157,7 @@ interface PlanDePago {
   movimiento_total: number;
   movimiento_poliza: number;
   movimiento_interes_corriente: number;
+  movimiento_int_corriente_vencido: number;
   movimiento_interes_moratorio: number;
   movimiento_principal: number;
   movimiento_amortizacion?: number;
@@ -378,11 +379,11 @@ function CreditDetailClient({ id }: { id: string }) {
     const hasMovimientos = sortedPlan.some(p => p.movimiento_total && Number(p.movimiento_total) > 0);
     if (hasMovimientos) {
       md += `\n## Movimientos Registrados\n\n`;
-      md += `| # | Fecha Mov | Mov.Total | Mov.Póliza | Mov.Int.Corr | Mov.Int.Mora | Mov.Amort | Concepto |\n`;
-      md += `|---|-----------|-----------|------------|--------------|--------------|-----------|----------|\n`;
+      md += `| # | Fecha Mov | Mov.Total | Mov.Póliza | Mov.Int.Corr | Mov.Int.C.Venc | Mov.Int.Mora | Mov.Amort | Concepto |\n`;
+      md += `|---|-----------|-----------|------------|--------------|----------------|--------------|-----------|----------|\n`;
       for (const p of sortedPlan) {
         if (p.movimiento_total && Number(p.movimiento_total) > 0) {
-          md += `| ${p.numero_cuota} | ${formatDate(p.fecha_movimiento)} | ${formatNumber(p.movimiento_total)} | ${formatNumber(p.movimiento_poliza)} | ${formatNumber(p.movimiento_interes_corriente)} | ${formatNumber(p.movimiento_interes_moratorio)} | ${formatNumber(p.movimiento_amortizacion)} | ${p.concepto || '-'} |\n`;
+          md += `| ${p.numero_cuota} | ${formatDate(p.fecha_movimiento)} | ${formatNumber(p.movimiento_total)} | ${formatNumber(p.movimiento_poliza)} | ${formatNumber(p.movimiento_interes_corriente)} | ${formatNumber(p.movimiento_int_corriente_vencido ?? 0)} | ${formatNumber(p.movimiento_interes_moratorio)} | ${formatNumber(p.movimiento_amortizacion)} | ${p.concepto || '-'} |\n`;
         }
       }
     }
@@ -433,7 +434,7 @@ function CreditDetailClient({ id }: { id: string }) {
     const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
     doc.text(`Cliente: ${credit.lead?.name || 'N/A'}`, 14, 25);
     doc.text(`Monto: ${formatNumber(credit.monto_credito)}`, 14, 30);
-    doc.text(`Saldo: ${formatNumber(credit.saldo)}`, 80, 25);
+    doc.text(`Saldo por Pagar: ${formatNumber(credit.saldo)}`, 80, 25);
     doc.text(`Estado: ${credit.status}`, 80, 30);
     doc.text(`Tasa: ${tasaValue}%`, 140, 25);
     doc.text(`Plazo: ${credit.plazo} meses`, 140, 30);
@@ -1438,6 +1439,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Total</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Corr.</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. C. Venc.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Mora.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Amortización</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Principal</TableHead>
@@ -1482,6 +1484,7 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_total)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_corriente)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_int_corriente_vencido ?? 0)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_moratorio)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_amortizacion)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_principal)}</TableCell>
@@ -1494,7 +1497,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={31} className="text-center py-12">
+                          <TableCell colSpan={32} className="text-center py-12">
                             <div className="flex flex-col items-center gap-4">
                               <div className="text-muted-foreground">
                                 {credit.status !== 'Formalizado' ? (

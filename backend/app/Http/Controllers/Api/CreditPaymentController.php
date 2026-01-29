@@ -379,7 +379,14 @@ class CreditPaymentController extends Controller
 
             // A. Pendientes
             $pendienteMora = max(0.0, $cuota->interes_moratorio - $cuota->movimiento_interes_moratorio);
-            $pendienteInteres = max(0.0, $cuota->interes_corriente - $cuota->movimiento_interes_corriente) + $carryInteres;
+
+            // Separar pendientes de interés corriente y vencido
+            $pendienteIntVencido = max(0.0, ($cuota->int_corriente_vencido ?? 0) - ($cuota->movimiento_int_corriente_vencido ?? 0));
+            $pendienteIntCorriente = max(0.0, ($cuota->interes_corriente ?? 0) - ($cuota->movimiento_interes_corriente ?? 0));
+
+            // Sumar carry de interés al pendiente vencido primero
+            $pendienteIntVencido += $carryInteres;
+
             $pendientePoliza = max(0.0, $cuota->poliza - $cuota->movimiento_poliza);
             $pendientePrincipal = max(0.0, $cuota->amortizacion - $cuota->movimiento_principal) + $carryAmort;
 
@@ -388,11 +395,20 @@ class CreditPaymentController extends Controller
             $cuota->movimiento_interes_moratorio += $pagoMora;
             $dineroDisponible -= $pagoMora;
 
-            $pagoInteres = 0;
-            if ($dineroDisponible > 0) {
-                $pagoInteres = min($dineroDisponible, $pendienteInteres);
-                $cuota->movimiento_interes_corriente += $pagoInteres;
-                $dineroDisponible -= $pagoInteres;
+            // Pagar primero interés corriente vencido
+            $pagoIntVencido = 0;
+            if ($dineroDisponible > 0 && $pendienteIntVencido > 0) {
+                $pagoIntVencido = min($dineroDisponible, $pendienteIntVencido);
+                $cuota->movimiento_int_corriente_vencido = ($cuota->movimiento_int_corriente_vencido ?? 0) + $pagoIntVencido;
+                $dineroDisponible -= $pagoIntVencido;
+            }
+
+            // Luego pagar interés corriente
+            $pagoIntCorriente = 0;
+            if ($dineroDisponible > 0 && $pendienteIntCorriente > 0) {
+                $pagoIntCorriente = min($dineroDisponible, $pendienteIntCorriente);
+                $cuota->movimiento_interes_corriente += $pagoIntCorriente;
+                $dineroDisponible -= $pagoIntCorriente;
             }
 
             $pagoPoliza = 0;
@@ -413,18 +429,21 @@ class CreditPaymentController extends Controller
             }
 
             // Calculate carry-over for next cuota
-            $leftInteres = $pendienteInteres - $pagoInteres;
+            $leftIntVencido = $pendienteIntVencido - $pagoIntVencido;
+            $leftIntCorriente = $pendienteIntCorriente - $pagoIntCorriente;
             $leftAmort = $pendientePrincipal - $pagoPrincipal;
+
             // Only carry to next cuota, not last
             if ($i < $cuotasCount - 1) {
-                $carryInteres = max(0.0, $leftInteres);
+                // Carry suma ambos tipos de interés pendientes
+                $carryInteres = max(0.0, $leftIntVencido + $leftIntCorriente);
                 $carryAmort = max(0.0, $leftAmort);
             } else {
                 $carryInteres = 0.0;
                 $carryAmort = 0.0;
             }
 
-            $totalPagadoEnEstaTransaccion = $pagoMora + $pagoInteres + $pagoPoliza + $pagoPrincipal;
+            $totalPagadoEnEstaTransaccion = $pagoMora + $pagoIntVencido + $pagoIntCorriente + $pagoPoliza + $pagoPrincipal;
             $cuota->movimiento_total += $totalPagadoEnEstaTransaccion;
             $cuota->movimiento_amortizacion += $pagoPrincipal;
             $cuota->fecha_movimiento = $fecha;
