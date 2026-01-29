@@ -81,28 +81,7 @@ class TasaController extends Controller
         $validated = $request->validate([
             'nombre' => 'sometimes|string|max:255|unique:tasas,nombre,' . $id,
             'tasa' => 'sometimes|numeric|min:0|max:100',
-            'inicio' => 'sometimes|date',
-            'fin' => 'nullable|date|after_or_equal:inicio',
-            'activo' => 'boolean',
         ]);
-
-        // Detectar si el estado activo cambió
-        $activoCambio = isset($validated['activo']) && $validated['activo'] !== $tasa->activo;
-
-        // Si cambió el estado activo, aplicar lógica de fecha fin automática
-        if ($activoCambio) {
-            if ($validated['activo'] === false) {
-                // Se desactiva: establecer fecha fin si no se proporcionó una
-                if (!isset($validated['fin']) || $validated['fin'] === null) {
-                    $validated['fin'] = now()->toDateString();
-                }
-            } else {
-                // Se reactiva: limpiar fecha fin si no se proporcionó una explícita
-                if (!$request->has('fin') || $validated['fin'] === null) {
-                    $validated['fin'] = null;
-                }
-            }
-        }
 
         $tasa->update($validated);
 

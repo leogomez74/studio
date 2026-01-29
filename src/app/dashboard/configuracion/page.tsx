@@ -1164,19 +1164,24 @@ const TasasCRUD: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const payload = {
-      nombre: formData.nombre,
-      tasa: parseFloat(formData.tasa),
-      inicio: formData.inicio,
-      fin: formData.fin || null,
-      activo: formData.activo,
-    };
-
     try {
       if (editingTasa) {
+        // Al editar, solo enviar nombre y tasa
+        const payload = {
+          nombre: formData.nombre,
+          tasa: parseFloat(formData.tasa),
+        };
         await api.put(`/api/tasas/${editingTasa.id}`, payload);
         toast({ title: 'Éxito', description: 'Tasa actualizada correctamente' });
       } else {
+        // Al crear, enviar todos los campos
+        const payload = {
+          nombre: formData.nombre,
+          tasa: parseFloat(formData.tasa),
+          inicio: formData.inicio,
+          fin: formData.fin || null,
+          activo: formData.activo,
+        };
         await api.post('/api/tasas', payload);
         toast({ title: 'Éxito', description: 'Tasa creada correctamente' });
       }
@@ -1313,7 +1318,13 @@ const TasasCRUD: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                   placeholder="Ej: Tasa Regular, Tasa Mora"
                   required
+                  disabled={!!editingTasa}
                 />
+                {editingTasa && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    El nombre no se puede modificar después de crear la tasa
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="tasa">Tasa (%)</Label>
@@ -1329,36 +1340,30 @@ const TasasCRUD: React.FC = () => {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="inicio">Inicio de Vigencia</Label>
-                <Input
-                  id="inicio"
-                  type="date"
-                  value={formData.inicio}
-                  onChange={(e) => setFormData({ ...formData, inicio: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="fin">Fin de Vigencia (opcional)</Label>
-                <Input
-                  id="fin"
-                  type="date"
-                  value={formData.fin}
-                  onChange={(e) => setFormData({ ...formData, fin: e.target.value })}
-                  min={formData.inicio}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="activo"
-                  checked={formData.activo}
-                  onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="activo">Activa</Label>
-              </div>
+              {!editingTasa && (
+                <>
+                  <div>
+                    <Label htmlFor="inicio">Inicio de Vigencia</Label>
+                    <Input
+                      id="inicio"
+                      type="date"
+                      value={formData.inicio}
+                      onChange={(e) => setFormData({ ...formData, inicio: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="activo"
+                      checked={formData.activo}
+                      onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="activo">Activa desde el inicio</Label>
+                  </div>
+                </>
+              )}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
