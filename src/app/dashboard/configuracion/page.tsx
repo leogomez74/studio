@@ -1849,6 +1849,7 @@ export default function ConfiguracionPage() {
       await api.put(`/api/loan-configurations/${creditType}`, {
         monto_minimo: parseFloat(config.minAmount) || 0,
         monto_maximo: parseFloat(config.maxAmount) || 0,
+        tasa_anual: parseFloat(config.interestRate) || 0,
         plazo_minimo: parseInt(config.minTerm) || 1,
         plazo_maximo: parseInt(config.maxTerm) || 1,
       });
