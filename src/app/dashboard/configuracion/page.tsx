@@ -1230,11 +1230,22 @@ const TasasCRUD: React.FC = () => {
   };
 
   const handleToggleActivo = async (tasa: Tasa) => {
+    const nuevoEstado = !tasa.activo;
+
+    // Optimistic update: actualizar UI inmediatamente
+    setTasas(prev => prev.map(t =>
+      t.id === tasa.id ? {
+        ...t,
+        activo: nuevoEstado,
+        fin: nuevoEstado ? null : new Date().toISOString().split('T')[0]
+      } : t
+    ));
+
     try {
       const response = await api.patch(`/api/tasas/${tasa.id}/toggle-activo`);
       const tasaActualizada = response.data.tasa;
 
-      // Actualizar solo la tasa específica en el estado local
+      // Confirmar con datos del servidor
       setTasas(prev => prev.map(t =>
         t.id === tasa.id ? tasaActualizada : t
       ));
@@ -1245,6 +1256,12 @@ const TasasCRUD: React.FC = () => {
       });
     } catch (error) {
       console.error('Error toggling tasa:', error);
+
+      // Revertir cambio en caso de error
+      setTasas(prev => prev.map(t =>
+        t.id === tasa.id ? tasa : t
+      ));
+
       toast({
         title: 'Error',
         description: 'No se pudo cambiar el estado de la tasa',
