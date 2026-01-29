@@ -29,7 +29,7 @@ class Credit extends Model
         'fecha_ultimo_pago',
         'garantia',
         'fecha_culminacion_credito',
-        'tasa_anual',
+        'tasa_id', // Cambiado de tasa_anual a FK
         'plazo',
         'cuotas_atrasadas',
         'deductora_id',
@@ -45,10 +45,9 @@ class Credit extends Model
         'fecha_ultimo_pago' => 'date',
         'fecha_culminacion_credito' => 'date',
         'monto_credito' => 'decimal:2',
-        'saldo' => 'decimal:2', // <--- AGREGADO: Para manejo preciso de moneda
+        'saldo' => 'decimal:2',
         'cuota' => 'decimal:2',
         'movimiento_amortizacion' => 'decimal:2',
-        'tasa_anual' => 'decimal:2',
         'poliza_actual' => 'decimal:2',
         'poliza' => 'boolean',
         'cargos_adicionales' => 'array',
@@ -122,5 +121,22 @@ class Credit extends Model
     public function documents()
     {
         return $this->hasMany(CreditDocument::class);
+    }
+
+    /**
+     * Relación: Tasa de interés del crédito
+     */
+    public function tasa()
+    {
+        return $this->belongsTo(Tasa::class, 'tasa_id');
+    }
+
+    /**
+     * Accessor: tasa_anual (para retrocompatibilidad)
+     * Devuelve el valor de la tasa desde la relación
+     */
+    public function getTasaAnualAttribute()
+    {
+        return $this->tasa ? $this->tasa->tasa : null;
     }
 }

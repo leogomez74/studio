@@ -210,6 +210,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
 
+    // Tasas (Protegido)
+    Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);
+    Route::get('tasas/nombre/{nombre}', [\App\Http\Controllers\Api\TasaController::class, 'porNombre']);
+    Route::patch('tasas/{id}/toggle-activo', [\App\Http\Controllers\Api\TasaController::class, 'toggleActivo']);
+
     // --- Admin Gamificación ---
     Route::prefix('admin/gamification')->group(function () {
         Route::get('/config', [GamificationConfigController::class, 'index']);

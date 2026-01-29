@@ -89,7 +89,7 @@ class CreditController extends Controller
             // Campos Financieros
             'monto_credito' => 'required|numeric|min:2',
             'plazo' => 'required|integer|min:1',
-            'tasa_anual' => 'nullable|numeric',
+            'tasa_id' => 'nullable|exists:tasas,id',
             'fecha_primera_cuota' => 'nullable|date',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
@@ -114,9 +114,24 @@ class CreditController extends Controller
             ], 422);
         }
 
-        // Tasa por defecto
-        if (!isset($validated['tasa_anual'])) {
-            $validated['tasa_anual'] = 33.50;
+        // Tasa por defecto: obtener tasa vigente según tipo de crédito
+        if (!isset($validated['tasa_id'])) {
+            $tipoCredito = $validated['tipo_credito'] ?? null;
+            $nombreTasa = ($tipoCredito === 'micro') ? 'Tasa Micro Crédito' : 'Tasa Regular';
+
+            $tasa = \App\Models\Tasa::obtenerPorNombre($nombreTasa);
+            if ($tasa) {
+                $validated['tasa_id'] = $tasa->id;
+            } else {
+                // Fallback: obtener primera tasa activa
+                $tasaFallback = \App\Models\Tasa::activa()->first();
+                if (!$tasaFallback) {
+                    return response()->json([
+                        'message' => 'No hay tasas configuradas. Configure al menos una tasa activa antes de crear créditos.'
+                    ], 422);
+                }
+                $validated['tasa_id'] = $tasaFallback->id;
+            }
         }
 
         // Referencia temporal (se actualiza después con el ID real)
@@ -389,7 +404,7 @@ class CreditController extends Controller
             'reference' => 'sometimes|required|unique:credits,reference,' . $id,
             'status' => 'sometimes|required|string',
             'monto_credito' => 'nullable|numeric',
-            'tasa_anual' => 'nullable|numeric',
+            'tasa_id' => 'nullable|exists:tasas,id',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
             'cargos_adicionales' => 'nullable|array',

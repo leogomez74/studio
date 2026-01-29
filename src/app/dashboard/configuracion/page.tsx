@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash, Eye, EyeOff } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -1117,6 +1118,263 @@ interface Deductora {
   comision: number | null;
 }
 
+// ====== TASAS CRUD ======
+interface Tasa {
+  id: number;
+  nombre: string;
+  tasa: number;
+  inicio: string;
+  fin: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+const TasasCRUD: React.FC = () => {
+  const { toast } = useToast();
+  const [tasas, setTasas] = useState<Tasa[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTasa, setEditingTasa] = useState<Tasa | null>(null);
+  const [formData, setFormData] = useState({
+    nombre: '',
+    tasa: '',
+    inicio: new Date().toISOString().split('T')[0],
+    fin: '',
+    activo: true,
+  });
+
+  const fetchTasas = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/api/tasas');
+      setTasas(response.data);
+    } catch (error) {
+      console.error('Error fetching tasas:', error);
+      toast({ title: 'Error', description: 'No se pudieron cargar las tasas', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasas();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const payload = {
+      nombre: formData.nombre,
+      tasa: parseFloat(formData.tasa),
+      inicio: formData.inicio,
+      fin: formData.fin || null,
+      activo: formData.activo,
+    };
+
+    try {
+      if (editingTasa) {
+        await api.put(`/api/tasas/${editingTasa.id}`, payload);
+        toast({ title: 'Éxito', description: 'Tasa actualizada correctamente' });
+      } else {
+        await api.post('/api/tasas', payload);
+        toast({ title: 'Éxito', description: 'Tasa creada correctamente' });
+      }
+
+      setIsDialogOpen(false);
+      setEditingTasa(null);
+      setFormData({ nombre: '', tasa: '', inicio: new Date().toISOString().split('T')[0], fin: '', activo: true });
+      fetchTasas();
+    } catch (error: any) {
+      console.error('Error saving tasa:', error);
+      toast({
+        title: 'Error',
+        description: error?.response?.data?.message || 'No se pudo guardar la tasa',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleEdit = (tasa: Tasa) => {
+    setEditingTasa(tasa);
+    setFormData({
+      nombre: tasa.nombre,
+      tasa: tasa.tasa.toString(),
+      inicio: tasa.inicio,
+      fin: tasa.fin || '',
+      activo: tasa.activo,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Está seguro de eliminar esta tasa?')) return;
+
+    try {
+      await api.delete(`/api/tasas/${id}`);
+      toast({ title: 'Éxito', description: 'Tasa eliminada correctamente' });
+      fetchTasas();
+    } catch (error: any) {
+      console.error('Error deleting tasa:', error);
+      toast({
+        title: 'Error',
+        description: error?.response?.data?.message || 'No se pudo eliminar la tasa',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleToggleActivo = async (tasa: Tasa) => {
+    try {
+      await api.patch(`/api/tasas/${tasa.id}/toggle-activo`);
+      toast({ title: 'Éxito', description: `Tasa ${!tasa.activo ? 'activada' : 'desactivada'} correctamente` });
+      fetchTasas();
+    } catch (error) {
+      console.error('Error toggling tasa:', error);
+      toast({ title: 'Error', description: 'No se pudo cambiar el estado de la tasa', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Gestión de Tasas</CardTitle>
+        <CardDescription>Configure las tasas de interés y mora para los créditos</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex justify-end mb-4">
+          <Button onClick={() => { setEditingTasa(null); setFormData({ nombre: '', tasa: '', inicio: new Date().toISOString().split('T')[0], fin: '', activo: true }); setIsDialogOpen(true); }}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Nueva Tasa
+          </Button>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-8">Cargando...</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Tasa (%)</TableHead>
+                <TableHead>Inicio Vigencia</TableHead>
+                <TableHead>Fin Vigencia</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tasas.map((tasa) => (
+                <TableRow key={tasa.id}>
+                  <TableCell className="font-medium">{tasa.nombre}</TableCell>
+                  <TableCell>{tasa.tasa}%</TableCell>
+                  <TableCell>{new Date(tasa.inicio).toLocaleDateString()}</TableCell>
+                  <TableCell>{tasa.fin ? new Date(tasa.fin).toLocaleDateString() : 'Indefinido'}</TableCell>
+                  <TableCell>
+                    <Badge variant={tasa.activo ? 'default' : 'secondary'}>
+                      {tasa.activo ? 'Activa' : 'Inactiva'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(tasa)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleToggleActivo(tasa)}
+                        title={tasa.activo ? 'Desactivar' : 'Activar'}
+                      >
+                        {tasa.activo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(tasa.id)}>
+                        <Trash className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingTasa ? 'Editar Tasa' : 'Nueva Tasa'}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="nombre">Nombre de la Tasa</Label>
+                <Input
+                  id="nombre"
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  placeholder="Ej: Tasa Regular, Tasa Mora"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="tasa">Tasa (%)</Label>
+                <Input
+                  id="tasa"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={formData.tasa}
+                  onChange={(e) => setFormData({ ...formData, tasa: e.target.value })}
+                  placeholder="33.50"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="inicio">Inicio de Vigencia</Label>
+                <Input
+                  id="inicio"
+                  type="date"
+                  value={formData.inicio}
+                  onChange={(e) => setFormData({ ...formData, inicio: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="fin">Fin de Vigencia (opcional)</Label>
+                <Input
+                  id="fin"
+                  type="date"
+                  value={formData.fin}
+                  onChange={(e) => setFormData({ ...formData, fin: e.target.value })}
+                  min={formData.inicio}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="activo"
+                  checked={formData.activo}
+                  onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="activo">Activa</Label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  {editingTasa ? 'Actualizar' : 'Crear'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+};
+
 export default function ConfiguracionPage() {
   const { toast } = useToast();
   const { token } = useAuth();
@@ -1599,6 +1857,7 @@ export default function ConfiguracionPage() {
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
       <TabsList className="mb-4">
         <TabsTrigger value="prestamos">Préstamos</TabsTrigger>
+        <TabsTrigger value="tasas">Tasas</TabsTrigger>
         <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
         <TabsTrigger value="patronos">Patronos</TabsTrigger>
         <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
@@ -1606,7 +1865,6 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
         <TabsTrigger value="productos">Créditos</TabsTrigger>
         <TabsTrigger value="api">API ERP</TabsTrigger>
-        <TabsTrigger value="tasa_actual">Tasa de Mora</TabsTrigger>
         <TabsTrigger value="poliza">Póliza</TabsTrigger>
       </TabsList>
 
@@ -1623,7 +1881,11 @@ export default function ConfiguracionPage() {
         <ProductosCRUD />
       </TabsContent>
 
-      <TabsContent value="tasa_actual">
+      <TabsContent value="tasas">
+        <TasasCRUD />
+      </TabsContent>
+
+      <TabsContent value="tasa_actual_old">
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
             <Label htmlFor="tasa-actual" className="text-center">Tasa de Mora Anual (%)</Label>
