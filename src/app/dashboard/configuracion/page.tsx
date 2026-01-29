@@ -1678,6 +1678,7 @@ export default function ConfiguracionPage() {
   const [loadingLoanConfigs, setLoadingLoanConfigs] = useState(false);
   const [savingRegular, setSavingRegular] = useState(false);
   const [savingMicro, setSavingMicro] = useState(false);
+  const [availableTasas, setAvailableTasas] = useState<Tasa[]>([]);
 
   // Función para formatear número a colones con comas
   const formatColones = (value: string | number): string => {
@@ -1692,21 +1693,40 @@ export default function ConfiguracionPage() {
     return value.replace(/,/g, '');
   };
 
+  // Cargar tasas disponibles desde la API
+  const fetchAvailableTasas = useCallback(async () => {
+    try {
+      const response = await api.get('/api/tasas');
+      setAvailableTasas(response.data);
+    } catch (error) {
+      console.error('Error fetching tasas:', error);
+    }
+  }, []);
+
   // Cargar configuraciones de préstamos desde la API
   const fetchLoanConfigurations = useCallback(async () => {
     setLoadingLoanConfigs(true);
     try {
-      const response = await api.get('/api/loan-configurations');
-      const configs = response.data;
+      const [configsResponse, tasasResponse] = await Promise.all([
+        api.get('/api/loan-configurations'),
+        api.get('/api/tasas')
+      ]);
+
+      const configs = configsResponse.data;
+      const tasas = tasasResponse.data;
 
       const regular = configs.find((c: any) => c.tipo === 'regular');
       const micro = configs.find((c: any) => c.tipo === 'microcredito');
+
+      // Buscar tasas por defecto por nombre
+      const tasaRegular = tasas.find((t: Tasa) => t.nombre === 'Tasa Regular');
+      const tasaMicro = tasas.find((t: Tasa) => t.nombre === 'Tasa Micro Crédito');
 
       if (regular) {
         setRegularConfig({
           minAmount: regular.monto_minimo?.toString() || '',
           maxAmount: regular.monto_maximo?.toString() || '',
-          interestRate: regular.tasa_anual?.toString() || '',
+          interestRate: tasaRegular?.tasa.toString() || regular.tasa_anual?.toString() || '',
           minTerm: regular.plazo_minimo?.toString() || '',
           maxTerm: regular.plazo_maximo?.toString() || '',
         });
@@ -1716,7 +1736,7 @@ export default function ConfiguracionPage() {
         setMicroConfig({
           minAmount: micro.monto_minimo?.toString() || '',
           maxAmount: micro.monto_maximo?.toString() || '',
-          interestRate: micro.tasa_anual?.toString() || '',
+          interestRate: tasaMicro?.tasa.toString() || micro.tasa_anual?.toString() || '',
           minTerm: micro.plazo_minimo?.toString() || '',
           maxTerm: micro.plazo_maximo?.toString() || '',
         });
@@ -1734,8 +1754,9 @@ export default function ConfiguracionPage() {
   }, [toast]);
 
   useEffect(() => {
+    fetchAvailableTasas();
     fetchLoanConfigurations();
-  }, [fetchLoanConfigurations]);
+  }, [fetchAvailableTasas, fetchLoanConfigurations]);
 
   const handleRegularChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -2010,16 +2031,27 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="regular-interestRate">Tasa Anual (%)</Label>
-                  <Input
-                    id="interestRate"
-                    type="number"
-                    step="0.01"
+                  <Label htmlFor="regular-interestRate">Tasa Anual</Label>
+                  <Select
                     value={regularConfig.interestRate}
-                    onChange={handleRegularChange}
-                    className="font-mono"
+                    onValueChange={(value) => {
+                      setRegularConfig(prev => ({ ...prev, interestRate: value }));
+                    }}
                     disabled={savingRegular}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione una tasa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTasas
+                        .filter(tasa => tasa.activo)
+                        .map((tasa) => (
+                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
+                            {tasa.nombre} - {tasa.tasa}%
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -2093,17 +2125,27 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual (%)</Label>
-                  <Input
-                    id="interestRate"
-                    type="number"
-                    step="0.01"
+                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual</Label>
+                  <Select
                     value={microConfig.interestRate}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                    placeholder="35.5"
+                    onValueChange={(value) => {
+                      setMicroConfig(prev => ({ ...prev, interestRate: value }));
+                    }}
                     disabled={savingMicro}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione una tasa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTasas
+                        .filter(tasa => tasa.activo)
+                        .map((tasa) => (
+                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
+                            {tasa.nombre} - {tasa.tasa}%
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
