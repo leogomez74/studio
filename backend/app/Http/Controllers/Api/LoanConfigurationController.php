@@ -13,7 +13,7 @@ class LoanConfigurationController extends Controller
      */
     public function index()
     {
-        return response()->json(LoanConfiguration::all());
+        return response()->json(LoanConfiguration::with('tasa')->get());
     }
 
     /**

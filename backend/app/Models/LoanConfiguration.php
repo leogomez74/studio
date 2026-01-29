@@ -13,6 +13,7 @@ class LoanConfiguration extends Model
         'monto_minimo',
         'monto_maximo',
         'tasa_id',
+        'tasa_anual',
         'plazo_minimo',
         'plazo_maximo',
         'activo',
@@ -42,6 +43,19 @@ class LoanConfiguration extends Model
     public function getTasaAnualAttribute()
     {
         return $this->tasa ? $this->tasa->tasa : null;
+    }
+
+    /**
+     * Mutator para setear tasa_id cuando se recibe tasa_anual
+     */
+    public function setTasaAnualAttribute($value)
+    {
+        if ($value !== null) {
+            $tasa = Tasa::where('tasa', $value)->where('activo', true)->first();
+            if ($tasa) {
+                $this->attributes['tasa_id'] = $tasa->id;
+            }
+        }
     }
 
     /**
