@@ -50,6 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import api from '@/lib/axios';
 import { type Client, type Lead } from '@/lib/data';
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
+import { PermissionButton } from "@/components/PermissionButton";
 
 // --- Helpers ---
 
@@ -757,10 +758,10 @@ export default function ClientesPage() {
                       <DropdownMenuItem onClick={handleExportPDF}>Descargar PDF</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button size="sm" className="gap-2" onClick={openLeadDialog}>
+                  <PermissionButton module="crm" action="create" size="sm" className="gap-2" onClick={openLeadDialog}>
                     <PlusCircle className="h-4 w-4" />
                     Nuevo
-                  </Button>
+                  </PermissionButton>
                 </div>
               </div>
             </CardHeader>
@@ -1168,18 +1169,18 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                   <div className="flex flex-wrap justify-end gap-2">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button size="icon" onClick={() => onAction('create_opportunity', lead)}>
+                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', lead)}>
                           <Sparkles className="h-4 w-4" />
-                        </Button>
+                        </PermissionButton>
                       </TooltipTrigger>
                       <TooltipContent>Crear oportunidad</TooltipContent>
                     </Tooltip>
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
+                        <PermissionButton module="crm" action="delete" size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
                           <Archive className="h-4 w-4" />
-                        </Button>
+                        </PermissionButton>
                       </TooltipTrigger>
                       <TooltipContent>Archivar</TooltipContent>
                     </Tooltip>
@@ -1237,17 +1238,17 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
                       <div className="flex flex-wrap justify-end gap-2">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button size="icon" className="bg-sky-100 text-sky-700 hover:bg-sky-200" onClick={() => onEdit(client)}>
+                            <PermissionButton module="crm" action="edit" size="icon" className="bg-sky-100 text-sky-700 hover:bg-sky-200" onClick={() => onEdit(client)}>
                               <Pencil className="h-4 w-4" />
-                            </Button>
+                            </PermissionButton>
                           </TooltipTrigger>
                           <TooltipContent>Editar</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button size="icon" variant="destructive" onClick={() => onDelete(client)}>
+                            <PermissionButton module="crm" action="delete" size="icon" variant="destructive" onClick={() => onDelete(client)}>
                               <Trash className="h-4 w-4" />
-                            </Button>
+                            </PermissionButton>
                           </TooltipTrigger>
                           <TooltipContent>Eliminar</TooltipContent>
                         </Tooltip>

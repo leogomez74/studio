@@ -12,6 +12,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { PermissionButton } from '@/components/PermissionButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
@@ -266,10 +267,10 @@ const EmpresasCRUD: React.FC = () => {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-1" onClick={openCreateDialog}>
+              <PermissionButton module="configuracion" action="create" size="sm" className="gap-1" onClick={openCreateDialog}>
                 <PlusCircle className="h-4 w-4" />
                 Nueva Empresa
-              </Button>
+              </PermissionButton>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -1158,6 +1159,7 @@ const MODULES: Module[] = [
 
 const RolesPermisosManager: React.FC = () => {
   const { toast } = useToast();
+  const { token } = useAuth();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1187,11 +1189,21 @@ const RolesPermisosManager: React.FC = () => {
   const fetchRoles = async () => {
     setLoading(true);
     try {
-      // TODO: Implementar API endpoint
-      // const res = await api.get('/api/roles');
-      // setRoles(res.data);
+      const res = await fetch(`${API_BASE_URL}/roles`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
 
-      // Mock data por ahora
+      if (res.ok) {
+        const data = await res.json();
+        setRoles(data);
+      } else {
+        throw new Error('Failed to fetch roles');
+      }
+
+      /* Mock data por ahora
       setRoles([
         {
           id: 1,
@@ -1252,7 +1264,7 @@ const RolesPermisosManager: React.FC = () => {
             configuracion: { view: false, create: false, edit: false, delete: false },
           } as RolePermissions,
         },
-      ]);
+      ]); */
     } catch (err) {
       console.error('Error fetching roles:', err);
       toast({
@@ -1372,12 +1384,26 @@ const RolesPermisosManager: React.FC = () => {
 
     setSaving(true);
     try {
-      // TODO: Implementar API endpoint
-      // if (editingRole) {
-      //   await api.put(`/api/roles/${editingRole.id}`, roleForm);
-      // } else {
-      //   await api.post('/api/roles', roleForm);
-      // }
+      const url = editingRole
+        ? `${API_BASE_URL}/roles/${editingRole.id}`
+        : `${API_BASE_URL}/roles`;
+
+      const method = editingRole ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(roleForm),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Error al guardar el rol');
+      }
 
       toast({
         title: editingRole ? 'Actualizado' : 'Creado',
@@ -1387,10 +1413,9 @@ const RolesPermisosManager: React.FC = () => {
       fetchRoles();
     } catch (err: any) {
       console.error(err);
-      const msg = err?.response?.data?.message || 'No se pudo guardar el rol.';
       toast({
         title: 'Error',
-        description: msg,
+        description: err.message || 'No se pudo guardar el rol.',
         variant: 'destructive',
       });
     } finally {
@@ -1402,18 +1427,29 @@ const RolesPermisosManager: React.FC = () => {
     if (!confirm(`¿Eliminar el rol "${role.name}"?`)) return;
 
     try {
-      // TODO: Implementar API endpoint
-      // await api.delete(`/api/roles/${role.id}`);
+      const res = await fetch(`${API_BASE_URL}/roles/${role.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Error al eliminar el rol');
+      }
+
       toast({
         title: 'Eliminado',
         description: 'Rol eliminado correctamente.',
       });
       fetchRoles();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting role:', err);
       toast({
         title: 'Error',
-        description: 'No se pudo eliminar el rol.',
+        description: err.message || 'No se pudo eliminar el rol.',
         variant: 'destructive',
       });
     }
@@ -1732,9 +1768,10 @@ export default function ConfiguracionPage() {
       });
       if (res.ok) {
         const data = await res.json();
+        console.log('Roles fetched for usuarios tab:', data);
         setAvailableRoles(data);
       } else {
-        console.error('Failed to fetch roles');
+        console.error('Failed to fetch roles, status:', res.status);
       }
     } catch (error) {
       console.error('Error fetching roles:', error);
@@ -1754,9 +1791,10 @@ export default function ConfiguracionPage() {
       });
       if (res.ok) {
         const data = await res.json();
+        console.log('Users fetched:', data);
         setUsers(data);
       } else {
-        console.error('Failed to fetch users');
+        console.error('Failed to fetch users, status:', res.status);
       }
     } catch (error) {
       console.error('Error fetching users:', error);

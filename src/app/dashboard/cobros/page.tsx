@@ -4,6 +4,7 @@ import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react'
 import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PermissionButton } from '@/components/PermissionButton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -501,9 +502,9 @@ export default function CobrosPage() {
                     <FileDown className="mr-2 h-4 w-4" />Exportar PDF
                   </Button>
 
-                  <Button onClick={openAbonoModal}>
+                  <PermissionButton module="cobros" action="create" onClick={openAbonoModal}>
                     <PlusCircle className="mr-2 h-4 w-4" />Registrar Abono
-                  </Button>
+                  </PermissionButton>
 
                   {/* Modal para Subir Planilla */}
                   <Dialog open={planillaModalOpen} onOpenChange={setPlanillaModalOpen}>

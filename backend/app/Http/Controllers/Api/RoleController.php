@@ -25,7 +25,7 @@ class RoleController extends Controller
                 'name' => $role->name,
                 'description' => $role->description,
                 'full_access' => $role->full_access,
-                'permissions' => $role->permissions_attribute ?? [],
+                'permissions' => $role->getFormattedPermissions(),
                 'created_at' => $role->created_at,
                 'updated_at' => $role->updated_at,
             ];
@@ -97,7 +97,7 @@ class RoleController extends Controller
             'name' => $role->name,
             'description' => $role->description,
             'full_access' => $role->full_access,
-            'permissions' => $role->permissions_attribute ?? [],
+            'permissions' => $role->getFormattedPermissions(),
             'created_at' => $role->created_at,
             'updated_at' => $role->updated_at,
         ]);

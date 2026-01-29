@@ -36,7 +36,7 @@ class Role extends Model
     /**
      * Obtener permisos en formato estructurado
      */
-    public function getPermissionsAttribute()
+    public function getFormattedPermissions()
     {
         if ($this->full_access) {
             // Si tiene acceso total, retornar todos los permisos como true
@@ -59,9 +59,10 @@ class Role extends Model
             return $permissions;
         }
 
-        // Si no tiene acceso total, obtener permisos específicos
+        // Si no tiene acceso total, obtener permisos específicos de la relación
         $permissions = [];
-        foreach ($this->permissions as $perm) {
+        $rolePermissions = $this->permissions()->get();
+        foreach ($rolePermissions as $perm) {
             $permissions[$perm->module_key] = [
                 'view' => $perm->can_view,
                 'create' => $perm->can_create,

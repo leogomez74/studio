@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CaseChat } from "@/components/case-chat";
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
 import { DocumentManager } from "@/components/document-manager";
+import { PermissionButton } from "@/components/PermissionButton";
 
 import api from "@/lib/axios";
 import { Lead } from "@/lib/data";
@@ -332,9 +333,15 @@ export default function LeadDetailPage() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button size="icon" className="h-9 w-9 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border-0" onClick={() => router.push(`/dashboard/leads/${id}?mode=edit`)}>
+                                                    <PermissionButton
+                                                        module="crm"
+                                                        action="edit"
+                                                        size="icon"
+                                                        className="h-9 w-9 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border-0"
+                                                        onClick={() => router.push(`/dashboard/leads/${id}?mode=edit`)}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
-                                                    </Button>
+                                                    </PermissionButton>
                                                 </TooltipTrigger>
                                                 <TooltipContent>Editar Lead</TooltipContent>
                                             </Tooltip>
@@ -343,13 +350,15 @@ export default function LeadDetailPage() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button 
-                                                        size="icon" 
+                                                    <PermissionButton
+                                                        module="oportunidades"
+                                                        action="create"
+                                                        size="icon"
                                                         className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
                                                         onClick={() => setIsOpportunityDialogOpen(true)}
                                                     >
                                                         <Sparkles className="h-4 w-4" />
-                                                    </Button>
+                                                    </PermissionButton>
                                                 </TooltipTrigger>
                                                 <TooltipContent>Crear Oportunidad</TooltipContent>
                                             </Tooltip>
@@ -358,13 +367,15 @@ export default function LeadDetailPage() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button
+                                                    <PermissionButton
+                                                        module="crm"
+                                                        action="delete"
                                                         size="icon"
                                                         className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0"
                                                         onClick={handleArchive}
                                                     >
                                                         <Archive className="h-4 w-4" />
-                                                    </Button>
+                                                    </PermissionButton>
                                                 </TooltipTrigger>
                                                 <TooltipContent>Archivar</TooltipContent>
                                             </Tooltip>

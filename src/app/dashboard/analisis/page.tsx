@@ -18,6 +18,7 @@ import { Opportunity, Lead } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 // Funciones para formateo de moneda (Colones)
 const formatCurrency = (value: string | number): string => {
@@ -72,6 +73,7 @@ type Product = {
 export default function AnalisisPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { hasPermission } = usePermissions();
   const [analisisList, setAnalisisList] = useState<AnalisisItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -468,67 +470,30 @@ export default function AnalisisPage() {
 
                   {/* Estado PEP - Clickeable para cambiar */}
                   <td className="px-6 py-4">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
-                          ${item.estado_pep === 'Aceptado' ? 'bg-green-100 text-green-700' :
-                            item.estado_pep === 'Rechazado' ? 'bg-red-100 text-red-700' :
-                            item.estado_pep === 'Pendiente de cambios' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-800'}`}>
-                          {item.estado_pep || 'Pendiente'}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-48 p-2">
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-gray-500 mb-2">Cambiar Estado PEP:</p>
-                          {['Pendiente', 'Aceptado', 'Pendiente de cambios', 'Rechazado'].map((estado) => (
-                            <button
-                              key={estado}
-                              className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_pep === estado ? 'bg-gray-100 font-medium' : ''}`}
-                              onClick={async () => {
-                                try {
-                                  await api.put(`/api/analisis/${item.id}`, { estado_pep: estado });
-                                  setAnalisisList(prev => prev.map(a =>
-                                    a.id === item.id ? { ...a, estado_pep: estado, estado_cliente: estado !== 'Aceptado' ? null : a.estado_cliente } : a
-                                  ));
-                                  toast({ title: "Estado actualizado", description: `Estado PEP cambiado a "${estado}"` });
-                                } catch (err) {
-                                  toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
-                                }
-                              }}
-                            >
-                              {estado}
-                            </button>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </td>
-
-                  {/* Estado Cliente - Solo visible si estado_pep es Aceptado */}
-                  <td className="px-6 py-4">
-                    {item.estado_pep === 'Aceptado' ? (
+                    {hasPermission('analizados', 'edit') ? (
                       <Popover>
                         <PopoverTrigger asChild>
                           <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
-                            ${item.estado_cliente === 'Aprobado' ? 'bg-green-100 text-green-700' :
-                              item.estado_cliente === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {item.estado_cliente || 'Sin definir'}
+                            ${item.estado_pep === 'Aceptado' ? 'bg-green-100 text-green-700' :
+                              item.estado_pep === 'Rechazado' ? 'bg-red-100 text-red-700' :
+                              item.estado_pep === 'Pendiente de cambios' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                            {item.estado_pep || 'Pendiente'}
                           </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-40 p-2">
+                        <PopoverContent className="w-48 p-2">
                           <div className="space-y-1">
-                            <p className="text-xs font-medium text-gray-500 mb-2">Estado Cliente:</p>
-                            {['Aprobado', 'Rechazado'].map((estado) => (
+                            <p className="text-xs font-medium text-gray-500 mb-2">Cambiar Estado PEP:</p>
+                            {['Pendiente', 'Aceptado', 'Pendiente de cambios', 'Rechazado'].map((estado) => (
                               <button
                                 key={estado}
-                                className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_cliente === estado ? 'bg-gray-100 font-medium' : ''}`}
+                                className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_pep === estado ? 'bg-gray-100 font-medium' : ''}`}
                                 onClick={async () => {
                                   try {
-                                    await api.put(`/api/analisis/${item.id}`, { estado_cliente: estado });
+                                    await api.put(`/api/analisis/${item.id}`, { estado_pep: estado });
                                     setAnalisisList(prev => prev.map(a =>
-                                      a.id === item.id ? { ...a, estado_cliente: estado } : a
+                                      a.id === item.id ? { ...a, estado_pep: estado, estado_cliente: estado !== 'Aceptado' ? null : a.estado_cliente } : a
                                     ));
-                                    toast({ title: "Estado actualizado", description: `Estado Cliente cambiado a "${estado}"` });
+                                    toast({ title: "Estado actualizado", description: `Estado PEP cambiado a "${estado}"` });
                                   } catch (err) {
                                     toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
                                   }
@@ -540,6 +505,60 @@ export default function AnalisisPage() {
                           </div>
                         </PopoverContent>
                       </Popover>
+                    ) : (
+                      <span className={`px-2 py-1 rounded text-xs font-semibold
+                        ${item.estado_pep === 'Aceptado' ? 'bg-green-100 text-green-700' :
+                          item.estado_pep === 'Rechazado' ? 'bg-red-100 text-red-700' :
+                          item.estado_pep === 'Pendiente de cambios' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                        {item.estado_pep || 'Pendiente'}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Estado Cliente - Solo visible si estado_pep es Aceptado */}
+                  <td className="px-6 py-4">
+                    {item.estado_pep === 'Aceptado' ? (
+                      hasPermission('analizados', 'edit') ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
+                              ${item.estado_cliente === 'Aprobado' ? 'bg-green-100 text-green-700' :
+                                item.estado_cliente === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {item.estado_cliente || 'Sin definir'}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-40 p-2">
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-gray-500 mb-2">Estado Cliente:</p>
+                              {['Aprobado', 'Rechazado'].map((estado) => (
+                                <button
+                                  key={estado}
+                                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_cliente === estado ? 'bg-gray-100 font-medium' : ''}`}
+                                  onClick={async () => {
+                                    try {
+                                      await api.put(`/api/analisis/${item.id}`, { estado_cliente: estado });
+                                      setAnalisisList(prev => prev.map(a =>
+                                        a.id === item.id ? { ...a, estado_cliente: estado } : a
+                                      ));
+                                      toast({ title: "Estado actualizado", description: `Estado Cliente cambiado a "${estado}"` });
+                                    } catch (err) {
+                                      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
+                                    }
+                                  }}
+                                >
+                                  {estado}
+                                </button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className={`px-2 py-1 rounded text-xs font-semibold
+                          ${item.estado_cliente === 'Aprobado' ? 'bg-green-100 text-green-700' :
+                            item.estado_cliente === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {item.estado_cliente || 'Sin definir'}
+                        </span>
+                      )
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}

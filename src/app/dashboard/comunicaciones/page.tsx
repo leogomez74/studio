@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { PermissionButton } from "@/components/PermissionButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -238,10 +239,10 @@ export default function CommunicationsPage() {
               Cerradas
             </Button>
           </div>
-          <Button variant="outline" className="w-full">
+          <PermissionButton module="comunicaciones" action="create" variant="outline" className="w-full">
             <PlusCircle className="mr-2 h-4 w-4" />
             Nueva Conversación
-          </Button>
+          </PermissionButton>
         </CardContent>
       </Card>
 

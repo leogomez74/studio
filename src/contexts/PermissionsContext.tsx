@@ -1,0 +1,154 @@
+'use client';
+
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useAuth } from '@/components/auth-guard';
+import { API_BASE_URL } from '@/lib/env';
+
+export interface ModulePermissions {
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  delete: boolean;
+}
+
+export interface UserPermissions {
+  [moduleKey: string]: ModulePermissions;
+}
+
+interface PermissionsContextType {
+  permissions: UserPermissions;
+  loading: boolean;
+  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete') => boolean;
+  canViewModule: (module: string) => boolean;
+  refreshPermissions: () => Promise<void>;
+}
+
+const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
+
+export function PermissionsProvider({ children }: { children: React.ReactNode }) {
+  const { token, user } = useAuth();
+  const [permissions, setPermissions] = useState<UserPermissions>({});
+  const [loading, setLoading] = useState(true);
+
+  const fetchPermissions = async () => {
+    if (!token || !user) {
+      setPermissions({});
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Obtener el usuario con su rol y permisos
+      const res = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (res.ok) {
+        const userData = await res.json();
+        console.log('User data received:', userData);
+
+        if (userData.role) {
+          // Si tiene rol, obtener los detalles del rol con permisos
+          const roleRes = await fetch(`${API_BASE_URL}/roles/${userData.role.id}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/json',
+            },
+          });
+
+          if (roleRes.ok) {
+            const roleData = await roleRes.json();
+            console.log('=== ROLE DATA DEBUG ===');
+            console.log('Full role data received:', roleData);
+            console.log('Role name:', roleData.name);
+            console.log('Full access:', roleData.full_access);
+            console.log('Role permissions attribute:', roleData.permissions);
+            console.log('Role permissions_attribute:', roleData.permissions_attribute);
+
+            // El backend devuelve 'permissions' en el atributo 'permissions_attribute' según Role.php
+            const perms = roleData.permissions || roleData.permissions_attribute || {};
+            console.log('=== PERMISSIONS BEING SET ===');
+            console.log('Permissions object:', perms);
+            console.log('CRM permissions:', perms.crm);
+            console.log('=======================');
+            setPermissions(perms);
+          } else {
+            console.error('Role fetch failed:', roleRes.status);
+            setPermissions({});
+          }
+        } else {
+          console.log('User has no role assigned');
+          // Sin rol asignado = sin permisos
+          setPermissions({});
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+      setPermissions({});
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPermissions();
+  }, [token, user?.id]);
+
+  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete'): boolean => {
+    // Mientras se cargan los permisos, permitir todo para evitar flickering
+    if (loading) return true;
+
+    if (!permissions[module]) return false;
+
+    const modulePerms = permissions[module];
+    switch (action) {
+      case 'view':
+        return modulePerms.view;
+      case 'create':
+        return modulePerms.create;
+      case 'edit':
+        return modulePerms.edit;
+      case 'delete':
+        return modulePerms.delete;
+      default:
+        return false;
+    }
+  };
+
+  const canViewModule = (module: string): boolean => {
+    // Mientras se cargan los permisos, permitir todo para evitar flickering
+    if (loading) return true;
+
+    return hasPermission(module, 'view');
+  };
+
+  const refreshPermissions = async () => {
+    setLoading(true);
+    await fetchPermissions();
+  };
+
+  return (
+    <PermissionsContext.Provider
+      value={{
+        permissions,
+        loading,
+        hasPermission,
+        canViewModule,
+        refreshPermissions,
+      }}
+    >
+      {children}
+    </PermissionsContext.Provider>
+  );
+}
+
+export function usePermissions() {
+  const context = useContext(PermissionsContext);
+  if (context === undefined) {
+    throw new Error('usePermissions must be used within a PermissionsProvider');
+  }
+  return context;
+}

@@ -79,6 +79,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
 
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
+import { PermissionButton } from "@/components/PermissionButton";
 
 const opportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
@@ -1046,14 +1047,16 @@ export default function DealsPage() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button
+                              <PermissionButton
+                                module="analizados"
+                                action="create"
                                 size="icon"
                                 className={`h-9 w-9 rounded-md text-white border-0 ${getAnalisisButtonProps(opportunity).color}`}
                                 onClick={() => handleOpenAnalisisDialog(opportunity)}
                                 disabled={getAnalisisButtonProps(opportunity).disabled}
                               >
                                 {getAnalisisButtonProps(opportunity).icon}
-                              </Button>
+                              </PermissionButton>
                             </TooltipTrigger>
                             <TooltipContent>{getAnalisisButtonProps(opportunity).label}</TooltipContent>
                           </Tooltip>

@@ -2,6 +2,7 @@
 import { MoreHorizontal, PlusCircle } from "lucide-react";
 import React from 'react';
 import { Button } from "@/components/ui/button";
+import { PermissionButton } from "@/components/PermissionButton";
 import {
   Card,
   CardContent,
@@ -42,10 +43,10 @@ export default function StaffPage() {
                 <CardTitle>Personal Interno</CardTitle>
                 <CardDescription>Gestiona los usuarios del sistema.</CardDescription>
             </div>
-            <Button size="sm" className="gap-1">
+            <PermissionButton module="staff" action="create" size="sm" className="gap-1">
                 <PlusCircle className="h-4 w-4" />
                 Agregar Usuario
-            </Button>
+            </PermissionButton>
         </div>
       </CardHeader>
       {/* El contenido de la tarjeta es la tabla con la lista de usuarios. */}
