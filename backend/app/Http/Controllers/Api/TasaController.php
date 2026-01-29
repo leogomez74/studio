@@ -43,7 +43,7 @@ class TasaController extends Controller
             'nombre' => 'required|string|max:255|unique:tasas,nombre',
             'tasa' => 'required|numeric|min:0|max:100',
             'inicio' => 'required|date',
-            'fin' => 'nullable|date|after_or_equal:inicio',
+            'fin' => 'nullable|date|after:inicio',
             'activo' => 'boolean',
         ]);
 

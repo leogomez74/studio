@@ -1723,15 +1723,11 @@ export default function ConfiguracionPage() {
       const regular = configs.find((c: any) => c.tipo === 'regular');
       const micro = configs.find((c: any) => c.tipo === 'microcredito');
 
-      // Buscar tasas por defecto por nombre
-      const tasaRegular = tasas.find((t: Tasa) => t.nombre === 'Tasa Regular');
-      const tasaMicro = tasas.find((t: Tasa) => t.nombre === 'Tasa Micro Crédito');
-
       if (regular) {
         setRegularConfig({
           minAmount: regular.monto_minimo?.toString() || '',
           maxAmount: regular.monto_maximo?.toString() || '',
-          interestRate: tasaRegular?.tasa.toString() || regular.tasa_anual?.toString() || '',
+          interestRate: regular.tasa_anual?.toString() || '',
           minTerm: regular.plazo_minimo?.toString() || '',
           maxTerm: regular.plazo_maximo?.toString() || '',
         });
@@ -1741,7 +1737,7 @@ export default function ConfiguracionPage() {
         setMicroConfig({
           minAmount: micro.monto_minimo?.toString() || '',
           maxAmount: micro.monto_maximo?.toString() || '',
-          interestRate: tasaMicro?.tasa.toString() || micro.tasa_anual?.toString() || '',
+          interestRate: micro.tasa_anual?.toString() || '',
           minTerm: micro.plazo_minimo?.toString() || '',
           maxTerm: micro.plazo_maximo?.toString() || '',
         });
@@ -1793,7 +1789,6 @@ export default function ConfiguracionPage() {
       await api.put(`/api/loan-configurations/${creditType}`, {
         monto_minimo: parseFloat(config.minAmount) || 0,
         monto_maximo: parseFloat(config.maxAmount) || 0,
-        tasa_anual: parseFloat(config.interestRate) || 0,
         plazo_minimo: parseInt(config.minTerm) || 1,
         plazo_maximo: parseInt(config.maxTerm) || 1,
       });
