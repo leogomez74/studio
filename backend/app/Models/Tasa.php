@@ -35,13 +35,14 @@ class Tasa extends Model
      */
     public function scopeVigente($query, $fecha = null)
     {
-        $fecha = $fecha ? Carbon::parse($fecha) : Carbon::now();
+        // Normalizar fecha a inicio del día (00:00:00) para comparaciones consistentes
+        $fecha = $fecha ? Carbon::parse($fecha)->startOfDay() : Carbon::now()->startOfDay();
 
         return $query->where('activo', true)
-            ->where('inicio', '<=', $fecha)
+            ->where('inicio', '<=', $fecha->format('Y-m-d'))
             ->where(function ($q) use ($fecha) {
                 $q->whereNull('fin')
-                  ->orWhere('fin', '>=', $fecha);
+                  ->orWhere('fin', '>=', $fecha->format('Y-m-d'));
             });
     }
 
@@ -74,14 +75,20 @@ class Tasa extends Model
      */
     public function esVigente($fecha = null): bool
     {
-        $fecha = $fecha ? Carbon::parse($fecha) : Carbon::now();
+        // Normalizar fecha a inicio del día (00:00:00) para comparaciones consistentes
+        $fecha = $fecha ? Carbon::parse($fecha)->startOfDay() : Carbon::now()->startOfDay();
 
         if (!$this->activo) {
             return false;
         }
 
-        $inicioValido = $this->inicio <= $fecha;
-        $finValido = !$this->fin || $this->fin >= $fecha;
+        // Comparar solo fechas (sin hora) usando formato string para evitar problemas de timezone
+        $fechaStr = $fecha->format('Y-m-d');
+        $inicioStr = $this->inicio->format('Y-m-d');
+        $finStr = $this->fin ? $this->fin->format('Y-m-d') : null;
+
+        $inicioValido = $inicioStr <= $fechaStr;
+        $finValido = !$finStr || $finStr >= $fechaStr;
 
         return $inicioValido && $finValido;
     }
