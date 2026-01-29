@@ -61,19 +61,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
           if (roleRes.ok) {
             const roleData = await roleRes.json();
-            console.log('=== ROLE DATA DEBUG ===');
-            console.log('Full role data received:', roleData);
-            console.log('Role name:', roleData.name);
-            console.log('Full access:', roleData.full_access);
-            console.log('Role permissions attribute:', roleData.permissions);
-            console.log('Role permissions_attribute:', roleData.permissions_attribute);
-
-            // El backend devuelve 'permissions' en el atributo 'permissions_attribute' según Role.php
-            const perms = roleData.permissions || roleData.permissions_attribute || {};
-            console.log('=== PERMISSIONS BEING SET ===');
-            console.log('Permissions object:', perms);
-            console.log('CRM permissions:', perms.crm);
-            console.log('=======================');
+            const perms = roleData.permissions || {};
             setPermissions(perms);
           } else {
             console.error('Role fetch failed:', roleRes.status);

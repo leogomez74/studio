@@ -13,6 +13,7 @@ import * as z from "zod";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PermissionButton } from "@/components/PermissionButton";
 import {
   Popover,
   PopoverContent,
@@ -1012,10 +1013,10 @@ export default function CreditsPage() {
           <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
           <p className="text-muted-foreground">Gestiona los créditos y sus documentos.</p>
         </div>
-        <Button onClick={handleCreate}>
+        <PermissionButton module="creditos" action="create" onClick={handleCreate}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Nuevo Crédito
-        </Button>
+        </PermissionButton>
       </div>
 
       {/* Filtros visibles */}

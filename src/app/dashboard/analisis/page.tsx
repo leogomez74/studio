@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { PermissionButton } from '@/components/PermissionButton';
 
 // Funciones para formateo de moneda (Colones)
 const formatCurrency = (value: string | number): string => {
@@ -568,7 +569,9 @@ export default function AnalisisPage() {
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center gap-2 justify-end">
                       {item.estado_cliente === 'Aprobado' && !item.has_credit && (
-                        <Button
+                        <PermissionButton
+                          module="creditos"
+                          action="create"
                           variant="outline"
                           className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
                           title="Crear Crédito"
@@ -603,7 +606,7 @@ export default function AnalisisPage() {
                           }}
                         >
                           Crear Crédito
-                        </Button>
+                        </PermissionButton>
                       )}
                       {item.has_credit && item.credit_id && (
                         <Button
