@@ -14,8 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash, Eye, EyeOff } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -1164,19 +1164,24 @@ const TasasCRUD: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const payload = {
-      nombre: formData.nombre,
-      tasa: parseFloat(formData.tasa),
-      inicio: formData.inicio,
-      fin: formData.fin || null,
-      activo: formData.activo,
-    };
-
     try {
       if (editingTasa) {
+        // Al editar, solo enviar nombre y tasa
+        const payload = {
+          nombre: formData.nombre,
+          tasa: parseFloat(formData.tasa),
+        };
         await api.put(`/api/tasas/${editingTasa.id}`, payload);
         toast({ title: 'Éxito', description: 'Tasa actualizada correctamente' });
       } else {
+        // Al crear, enviar todos los campos
+        const payload = {
+          nombre: formData.nombre,
+          tasa: parseFloat(formData.tasa),
+          inicio: formData.inicio,
+          fin: formData.fin || null,
+          activo: formData.activo,
+        };
         await api.post('/api/tasas', payload);
         toast({ title: 'Éxito', description: 'Tasa creada correctamente' });
       }
@@ -1200,8 +1205,8 @@ const TasasCRUD: React.FC = () => {
     setFormData({
       nombre: tasa.nombre,
       tasa: tasa.tasa.toString(),
-      inicio: tasa.inicio,
-      fin: tasa.fin || '',
+      inicio: tasa.inicio.split('T')[0], // Asegurar formato YYYY-MM-DD
+      fin: tasa.fin ? tasa.fin.split('T')[0] : '',
       activo: tasa.activo,
     });
     setIsDialogOpen(true);
@@ -1225,13 +1230,43 @@ const TasasCRUD: React.FC = () => {
   };
 
   const handleToggleActivo = async (tasa: Tasa) => {
+    const nuevoEstado = !tasa.activo;
+
+    // Optimistic update: actualizar UI inmediatamente
+    setTasas(prev => prev.map(t =>
+      t.id === tasa.id ? {
+        ...t,
+        activo: nuevoEstado,
+        fin: nuevoEstado ? null : new Date().toISOString().split('T')[0]
+      } : t
+    ));
+
     try {
-      await api.patch(`/api/tasas/${tasa.id}/toggle-activo`);
-      toast({ title: 'Éxito', description: `Tasa ${!tasa.activo ? 'activada' : 'desactivada'} correctamente` });
-      fetchTasas();
+      const response = await api.patch(`/api/tasas/${tasa.id}/toggle-activo`);
+      const tasaActualizada = response.data.tasa;
+
+      // Confirmar con datos del servidor
+      setTasas(prev => prev.map(t =>
+        t.id === tasa.id ? tasaActualizada : t
+      ));
+
+      toast({
+        title: 'Éxito',
+        description: `Tasa ${tasaActualizada.activo ? 'activada' : 'desactivada'} correctamente`
+      });
     } catch (error) {
       console.error('Error toggling tasa:', error);
-      toast({ title: 'Error', description: 'No se pudo cambiar el estado de la tasa', variant: 'destructive' });
+
+      // Revertir cambio en caso de error
+      setTasas(prev => prev.map(t =>
+        t.id === tasa.id ? tasa : t
+      ));
+
+      toast({
+        title: 'Error',
+        description: 'No se pudo cambiar el estado de la tasa',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -1271,22 +1306,20 @@ const TasasCRUD: React.FC = () => {
                   <TableCell>{new Date(tasa.inicio).toLocaleDateString()}</TableCell>
                   <TableCell>{tasa.fin ? new Date(tasa.fin).toLocaleDateString() : 'Indefinido'}</TableCell>
                   <TableCell>
-                    <Badge variant={tasa.activo ? 'default' : 'secondary'}>
-                      {tasa.activo ? 'Activa' : 'Inactiva'}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={tasa.activo}
+                        onCheckedChange={() => handleToggleActivo(tasa)}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {tasa.activo ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(tasa)}>
                         <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleActivo(tasa)}
-                        title={tasa.activo ? 'Desactivar' : 'Activar'}
-                      >
-                        {tasa.activo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(tasa.id)}>
                         <Trash className="h-4 w-4 text-destructive" />
@@ -1313,7 +1346,13 @@ const TasasCRUD: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                   placeholder="Ej: Tasa Regular, Tasa Mora"
                   required
+                  disabled={!!editingTasa}
                 />
+                {editingTasa && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    El nombre no se puede modificar después de crear la tasa
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="tasa">Tasa (%)</Label>
@@ -1329,36 +1368,30 @@ const TasasCRUD: React.FC = () => {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="inicio">Inicio de Vigencia</Label>
-                <Input
-                  id="inicio"
-                  type="date"
-                  value={formData.inicio}
-                  onChange={(e) => setFormData({ ...formData, inicio: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="fin">Fin de Vigencia (opcional)</Label>
-                <Input
-                  id="fin"
-                  type="date"
-                  value={formData.fin}
-                  onChange={(e) => setFormData({ ...formData, fin: e.target.value })}
-                  min={formData.inicio}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="activo"
-                  checked={formData.activo}
-                  onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="activo">Activa</Label>
-              </div>
+              {!editingTasa && (
+                <>
+                  <div>
+                    <Label htmlFor="inicio">Inicio de Vigencia</Label>
+                    <Input
+                      id="inicio"
+                      type="date"
+                      value={formData.inicio}
+                      onChange={(e) => setFormData({ ...formData, inicio: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="activo"
+                      checked={formData.activo}
+                      onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="activo">Activa desde el inicio</Label>
+                  </div>
+                </>
+              )}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
@@ -1678,6 +1711,7 @@ export default function ConfiguracionPage() {
   const [loadingLoanConfigs, setLoadingLoanConfigs] = useState(false);
   const [savingRegular, setSavingRegular] = useState(false);
   const [savingMicro, setSavingMicro] = useState(false);
+  const [availableTasas, setAvailableTasas] = useState<Tasa[]>([]);
 
   // Función para formatear número a colones con comas
   const formatColones = (value: string | number): string => {
@@ -1691,6 +1725,16 @@ export default function ConfiguracionPage() {
   const parseColones = (value: string): string => {
     return value.replace(/,/g, '');
   };
+
+  // Cargar tasas disponibles desde la API
+  const fetchAvailableTasas = useCallback(async () => {
+    try {
+      const response = await api.get('/api/tasas');
+      setAvailableTasas(response.data);
+    } catch (error) {
+      console.error('Error fetching tasas:', error);
+    }
+  }, []);
 
   // Cargar configuraciones de préstamos desde la API
   const fetchLoanConfigurations = useCallback(async () => {
@@ -1734,8 +1778,9 @@ export default function ConfiguracionPage() {
   }, [toast]);
 
   useEffect(() => {
+    fetchAvailableTasas();
     fetchLoanConfigurations();
-  }, [fetchLoanConfigurations]);
+  }, [fetchAvailableTasas, fetchLoanConfigurations]);
 
   const handleRegularChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -1767,7 +1812,6 @@ export default function ConfiguracionPage() {
       await api.put(`/api/loan-configurations/${creditType}`, {
         monto_minimo: parseFloat(config.minAmount) || 0,
         monto_maximo: parseFloat(config.maxAmount) || 0,
-        tasa_anual: parseFloat(config.interestRate) || 0,
         plazo_minimo: parseInt(config.minTerm) || 1,
         plazo_maximo: parseInt(config.maxTerm) || 1,
       });
@@ -2010,16 +2054,27 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="regular-interestRate">Tasa Anual (%)</Label>
-                  <Input
-                    id="interestRate"
-                    type="number"
-                    step="0.01"
+                  <Label htmlFor="regular-interestRate">Tasa Anual</Label>
+                  <Select
                     value={regularConfig.interestRate}
-                    onChange={handleRegularChange}
-                    className="font-mono"
+                    onValueChange={(value) => {
+                      setRegularConfig(prev => ({ ...prev, interestRate: value }));
+                    }}
                     disabled={savingRegular}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione una tasa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTasas
+                        .filter(tasa => tasa.activo)
+                        .map((tasa) => (
+                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
+                            {tasa.nombre} - {tasa.tasa}%
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -2093,17 +2148,27 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual (%)</Label>
-                  <Input
-                    id="interestRate"
-                    type="number"
-                    step="0.01"
+                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual</Label>
+                  <Select
                     value={microConfig.interestRate}
-                    onChange={handleMicroChange}
-                    className="font-mono"
-                    placeholder="35.5"
+                    onValueChange={(value) => {
+                      setMicroConfig(prev => ({ ...prev, interestRate: value }));
+                    }}
                     disabled={savingMicro}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione una tasa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTasas
+                        .filter(tasa => tasa.activo)
+                        .map((tasa) => (
+                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
+                            {tasa.nombre} - {tasa.tasa}%
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

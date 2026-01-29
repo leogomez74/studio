@@ -75,6 +75,11 @@ class Credit extends Model
     protected static function booted()
     {
         static::creating(function ($credit) {
+            // Validar que tasa_id esté presente
+            if (!$credit->tasa_id) {
+                throw new \InvalidArgumentException('El campo tasa_id es obligatorio. No se puede crear un crédito sin una tasa asignada.');
+            }
+
             // Calcular monto neto: monto_credito - cargos_adicionales
             $montoCredito = (float) ($credit->monto_credito ?? 0);
             $totalCargos = array_sum($credit->cargos_adicionales ?? []);
@@ -83,6 +88,13 @@ class Credit extends Model
             // Saldo inicial = monto neto (lo que realmente se desembolsa)
             if (!isset($credit->saldo)) {
                 $credit->saldo = $montoNeto;
+            }
+        });
+
+        static::updating(function ($credit) {
+            // Prevenir que se elimine tasa_id en una actualización
+            if ($credit->isDirty('tasa_id') && !$credit->tasa_id) {
+                throw new \InvalidArgumentException('No se puede establecer tasa_id como nulo. Todo crédito debe tener una tasa asignada.');
             }
         });
 

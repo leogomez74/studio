@@ -43,9 +43,16 @@ class TasaController extends Controller
             'nombre' => 'required|string|max:255|unique:tasas,nombre',
             'tasa' => 'required|numeric|min:0|max:100',
             'inicio' => 'required|date',
-            'fin' => 'nullable|date|after_or_equal:inicio',
+            'fin' => 'nullable|date|after:inicio',
             'activo' => 'boolean',
         ]);
+
+        // Si se crea desactivada sin fecha fin, establecer fin al día actual
+        if (isset($validated['activo']) && $validated['activo'] === false) {
+            if (!isset($validated['fin']) || $validated['fin'] === null) {
+                $validated['fin'] = now()->toDateString();
+            }
+        }
 
         $tasa = Tasa::create($validated);
 
@@ -74,9 +81,6 @@ class TasaController extends Controller
         $validated = $request->validate([
             'nombre' => 'sometimes|string|max:255|unique:tasas,nombre,' . $id,
             'tasa' => 'sometimes|numeric|min:0|max:100',
-            'inicio' => 'sometimes|date',
-            'fin' => 'nullable|date|after_or_equal:inicio',
-            'activo' => 'boolean',
         ]);
 
         $tasa->update($validated);
@@ -115,6 +119,15 @@ class TasaController extends Controller
     {
         $tasa = Tasa::findOrFail($id);
         $tasa->activo = !$tasa->activo;
+
+        // Si se desactiva, establecer fecha fin al día actual
+        if (!$tasa->activo) {
+            $tasa->fin = now()->toDateString();
+        } else {
+            // Si se reactiva, limpiar fecha fin (vuelve a ser indefinido)
+            $tasa->fin = null;
+        }
+
         $tasa->save();
 
         return response()->json([

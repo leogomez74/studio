@@ -12,7 +12,7 @@ class LoanConfiguration extends Model
         'descripcion',
         'monto_minimo',
         'monto_maximo',
-        'tasa_anual',
+        'tasa_id',
         'plazo_minimo',
         'plazo_maximo',
         'activo',
@@ -22,12 +22,27 @@ class LoanConfiguration extends Model
     protected $casts = [
         'monto_minimo' => 'decimal:2',
         'monto_maximo' => 'decimal:2',
-        'tasa_anual' => 'decimal:2',
         'plazo_minimo' => 'integer',
         'plazo_maximo' => 'integer',
         'activo' => 'boolean',
         'monto_poliza' => 'decimal:2',
     ];
+
+    /**
+     * Relación con Tasa
+     */
+    public function tasa()
+    {
+        return $this->belongsTo(Tasa::class, 'tasa_id');
+    }
+
+    /**
+     * Accessor para mantener compatibilidad con código legacy
+     */
+    public function getTasaAnualAttribute()
+    {
+        return $this->tasa ? $this->tasa->tasa : null;
+    }
 
     /**
      * Obtener configuración de microcrédito
