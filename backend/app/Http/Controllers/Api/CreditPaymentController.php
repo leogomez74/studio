@@ -448,7 +448,12 @@ class CreditPaymentController extends Controller
             $cuota->movimiento_amortizacion += $pagoPrincipal;
             $cuota->fecha_movimiento = $fecha;
 
-            $totalExigible = $cuota->cuota + $cuota->interes_moratorio + $cuota->poliza;
+            // Calcular total exigible incluyendo int_corriente_vencido
+            $totalExigible = $cuota->interes_corriente
+                           + $cuota->int_corriente_vencido
+                           + $cuota->interes_moratorio
+                           + $cuota->poliza
+                           + $cuota->amortizacion;
 
             if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
                 $cuota->estado = 'Pagado';
