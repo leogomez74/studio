@@ -1200,8 +1200,8 @@ const TasasCRUD: React.FC = () => {
     setFormData({
       nombre: tasa.nombre,
       tasa: tasa.tasa.toString(),
-      inicio: tasa.inicio,
-      fin: tasa.fin || '',
+      inicio: tasa.inicio.split('T')[0], // Asegurar formato YYYY-MM-DD
+      fin: tasa.fin ? tasa.fin.split('T')[0] : '',
       activo: tasa.activo,
     });
     setIsDialogOpen(true);
