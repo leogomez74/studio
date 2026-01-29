@@ -1787,7 +1787,7 @@ export default function ConfiguracionPage() {
         setRegularConfig({
           minAmount: regular.monto_minimo?.toString() || '',
           maxAmount: regular.monto_maximo?.toString() || '',
-          interestRate: regular.tasa_anual?.toString() || '',
+          interestRate: regular.tasa?.tasa?.toString() || '',
           minTerm: regular.plazo_minimo?.toString() || '',
           maxTerm: regular.plazo_maximo?.toString() || '',
         });
@@ -1797,7 +1797,7 @@ export default function ConfiguracionPage() {
         setMicroConfig({
           minAmount: micro.monto_minimo?.toString() || '',
           maxAmount: micro.monto_maximo?.toString() || '',
-          interestRate: micro.tasa_anual?.toString() || '',
+          interestRate: micro.tasa?.tasa?.toString() || '',
           minTerm: micro.plazo_minimo?.toString() || '',
           maxTerm: micro.plazo_maximo?.toString() || '',
         });
