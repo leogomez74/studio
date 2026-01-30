@@ -59,12 +59,13 @@ class DeduccionesSeeder extends Seeder
         $this->command->info("   ✅ {$totalPersonas} personas únicas encontradas");
         $this->command->newLine();
 
-        // PASO 2: Crear créditos (uno por persona)
-        $this->command->info("💳 Creando créditos...");
+        // PASO 2: Crear análisis y créditos (uno por persona)
+        $this->command->info("💳 Creando análisis y créditos...");
         $progressBar = $this->command->getOutput()->createProgressBar($totalPersonas);
         $progressBar->start();
 
-        $processed = 0;
+        $analisisCreados = 0;
+        $creditosCreados = 0;
         $errors = 0;
 
         foreach ($personasAgrupadas as $cedula => $datosPersona) {
@@ -119,12 +120,32 @@ class DeduccionesSeeder extends Seeder
                     'expected_close_date' => Carbon::now(),
                 ]);
 
-                // 3. Crear Análisis
-                Analisis::create([
+                // 3. Crear Análisis con aleatoridad
+                // estado_pep acepta: [Pendiente, Aceptado, Pendiente de cambios, Rechazado]
+                // Cuando estado_pep es "Aceptado", se activa estado_cliente con "Aprobado" o "Rechazado"
+                $rand = rand(1, 100);
+
+                if ($rand <= 60) {
+                    $estadoPep = 'Aceptado'; // 60% aceptado para tener datos
+                } elseif ($rand <= 75) {
+                    $estadoPep = 'Pendiente'; // 15% pendiente
+                } elseif ($rand <= 90) {
+                    $estadoPep = 'Pendiente de cambios'; // 15% pendiente de cambios
+                } else {
+                    $estadoPep = 'Rechazado'; // 10% rechazado
+                }
+
+                // Solo establecer estado_cliente cuando estado_pep es "Aceptado"
+                $estadoCliente = null;
+                if ($estadoPep === 'Aceptado') {
+                    $estadoCliente = rand(1, 10) > 2 ? 'Aprobado' : 'Rechazado'; // 80% Aprobado, 20% Rechazado
+                }
+
+                $analisis = Analisis::create([
                     'reference' => $opportunity->id,
                     'title' => "Análisis {$opportunity->id}",
-                    'estado_pep' => 'aprobado',
-                    'estado_cliente' => 'aprobado',
+                    'estado_pep' => $estadoPep,
+                    'estado_cliente' => $estadoCliente,
                     'category' => 'Micro Crédito',
                     'monto_credito' => $montoCredito,
                     'lead_id' => $lead->id,
@@ -135,7 +156,17 @@ class DeduccionesSeeder extends Seeder
                     'propuesta' => 'aprobado',
                 ]);
 
-                // 4. Crear Credit (primero con status pendiente)
+                $analisisCreados++;
+
+                // 4. Crear Credit solo si el análisis fue aprobado
+                // Solo crear crédito cuando estado_pep = "Aceptado" y estado_cliente = "Aprobado"
+                $debeCrearCredito = ($estadoPep === 'Aceptado' && $estadoCliente === 'Aprobado');
+
+                if (!$debeCrearCredito) {
+                    $progressBar->advance();
+                    continue; // Saltar creación de crédito
+                }
+
                 $credit = Credit::create([
                     'reference' => $opportunity->id,
                     'title' => "Crédito {$opportunity->id}",
@@ -170,7 +201,7 @@ class DeduccionesSeeder extends Seeder
                 $lead->person_type_id = 2;
                 $lead->save();
 
-                $processed++;
+                $creditosCreados++;
             } catch (\Exception $e) {
                 $errors++;
                 $this->command->newLine();
@@ -185,7 +216,8 @@ class DeduccionesSeeder extends Seeder
 
         $this->command->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         $this->command->info("📊 RESUMEN:");
-        $this->command->info("   ✅ Créditos creados: {$processed}");
+        $this->command->info("   📋 Análisis creados: {$analisisCreados}");
+        $this->command->info("   💳 Créditos creados: {$creditosCreados}");
         $this->command->info("   ❌ Errores: {$errors}");
         $this->command->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
