@@ -23,9 +23,9 @@ class CreditController extends Controller
     {
         // Eager load solo relaciones necesarias con campos específicos
         $query = Credit::with([
-            'lead:id,cedula,nombre,apellido1,apellido2,email,telefono,person_type_id',
-            'opportunity:id,title,status',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_inicial,interes_corriente,amortizacion,saldo_final,fecha_pago,estado'
+            'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id',
+            'opportunity:id,status,opportunity_type,vertical,amount',
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado'
         ]);
 
         if ($request->has('lead_id')) {
