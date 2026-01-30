@@ -50,6 +50,7 @@ import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 // COMENTADO TEMPORALMENTE
 // import { CaseChat } from "@/components/case-chat";
 import { Label } from "@/components/ui/label";
+import { usePermissions } from "@/contexts/PermissionsContext";
 
 // Tipo para archivos del filesystem
 interface OpportunityFile {
@@ -73,7 +74,12 @@ export default function OpportunityDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { hasPermission, loading: permsLoading } = usePermissions();
   const id = params.id as string;
+
+  const canEdit = hasPermission('oportunidades', 'edit');
+  const canViewAnalisis = hasPermission('analizados', 'view');
+  const canCreateAnalisis = hasPermission('analizados', 'create');
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -597,7 +603,7 @@ export default function OpportunityDetailPage() {
                         key={status}
                         variant={opportunity.status === status ? "default" : "outline"}
                         onClick={() => handleStatusChange(status)}
-                        disabled={updatingStatus}
+                        disabled={updatingStatus || !canEdit || permsLoading}
                         className={`h-8 text-xs ${
                           opportunity.status === status
                             ? "bg-slate-900 text-white hover:bg-slate-800"
@@ -609,23 +615,27 @@ export default function OpportunityDetailPage() {
                     ))}
                     {opportunity.status === "Analizada" && (
                       existingAnalisis ? (
-                        <Button
-                          variant="default"
-                          onClick={() => router.push(`/dashboard/analisis/${existingAnalisis.id}`)}
-                          className="h-8 text-xs bg-green-600 text-white hover:bg-green-700 gap-1"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Ver Análisis
-                        </Button>
+                        canViewAnalisis && (
+                          <Button
+                            variant="default"
+                            onClick={() => router.push(`/dashboard/analisis/${existingAnalisis.id}`)}
+                            className="h-8 text-xs bg-green-600 text-white hover:bg-green-700 gap-1"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Ver Análisis
+                          </Button>
+                        )
                       ) : (
-                        <Button
-                          variant="default"
-                          onClick={handleOpenAnalisisDialog}
-                          className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
-                        >
-                          <PlusCircle className="h-3.5 w-3.5" />
-                          Crear Análisis
-                        </Button>
+                        canCreateAnalisis && (
+                          <Button
+                            variant="default"
+                            onClick={handleOpenAnalisisDialog}
+                            className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
+                          >
+                            <PlusCircle className="h-3.5 w-3.5" />
+                            Crear Análisis
+                          </Button>
+                        )
                       )
                     )}
                   </div>
@@ -658,7 +668,7 @@ export default function OpportunityDetailPage() {
                               key={product.id}
                               variant={opportunity.opportunity_type === product.name ? "default" : "outline"}
                               onClick={() => handleTypeChange(product.name)}
-                              disabled={updatingType}
+                              disabled={updatingType || !canEdit || permsLoading}
                               className={`h-7 text-xs ${
                                 opportunity.opportunity_type === product.name
                                   ? "bg-slate-900 text-white hover:bg-slate-800"
