@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 // Preparación de los datos para el gráfico de barras de créditos.
 const creditChartData = [
@@ -226,6 +227,8 @@ function KPIWidget({ title, value, unit, change, target, icon: Icon, colorClass,
  * Muestra tarjetas con métricas clave y gráficos de resumen.
  */
 export default function DashboardPage() {
+  const { canViewModule } = usePermissions();
+
   // KPI State
   const [kpiData, setKpiData] = useState<{
     leads?: { conversionRate?: { value: number; change?: number; target?: number } };
@@ -274,74 +277,82 @@ export default function DashboardPage() {
       {/* Sección de tarjetas de métricas clave. */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         {/* Tarjeta 1: Saldo de Cartera */}
-        <Link href="/dashboard/creditos" className="lg:col-span-2">
-            <Card className="transition-all hover:ring-2 hover:ring-primary/50 h-full">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Saldo de Cartera</CardTitle>
-                    <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">
-                      {/* Formateamos el número como moneda local. */}
-                      ₡{totalBalance.toLocaleString('de-DE')}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                    +2.5% desde el mes pasado
-                    </p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('creditos') && (
+          <Link href="/dashboard/creditos" className="lg:col-span-2">
+              <Card className="transition-all hover:ring-2 hover:ring-primary/50 h-full">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Saldo de Cartera</CardTitle>
+                      <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">
+                        {/* Formateamos el número como moneda local. */}
+                        ₡{totalBalance.toLocaleString('de-DE')}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                      +2.5% desde el mes pasado
+                      </p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
         {/* Tarjeta 2: Cartera en Mora */}
-        <Link href="/dashboard/cobros">
-            <Card className="transition-all hover:ring-2 hover:ring-destructive/50 h-full">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Cartera en Mora</CardTitle>
-                    <TrendingDown className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold text-destructive">
-                      ₡{totalArrears.toLocaleString('de-DE')}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {credits.filter(c => c.status === 'En mora').length} créditos en mora
-                    </p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('cobros') && (
+          <Link href="/dashboard/cobros">
+              <Card className="transition-all hover:ring-2 hover:ring-destructive/50 h-full">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Cartera en Mora</CardTitle>
+                      <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold text-destructive">
+                        ₡{totalArrears.toLocaleString('de-DE')}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {credits.filter(c => c.status === 'En mora').length} créditos en mora
+                      </p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
         {/* Tarjeta 3: Ventas del Mes */}
-         <Link href="/dashboard/ventas">
-            <Card className="transition-all hover:ring-2 hover:ring-primary/50 h-full">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Ventas del Mes</CardTitle>
-                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">
-                      ₡{salesOfTheMonth.toLocaleString('de-DE')}
-                    </div>
-                     <p className="text-xs text-muted-foreground">
-                      Ventas para el mes actual
-                    </p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('ventas') && (
+          <Link href="/dashboard/ventas">
+              <Card className="transition-all hover:ring-2 hover:ring-primary/50 h-full">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Ventas del Mes</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">
+                        ₡{salesOfTheMonth.toLocaleString('de-DE')}
+                      </div>
+                       <p className="text-xs text-muted-foreground">
+                        Ventas para el mes actual
+                      </p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
          {/* Tarjeta 4: Intereses Recibidos */}
-         <Link href="/dashboard/cobros?tab=abonos">
-            <Card className="transition-all hover:ring-2 hover:ring-primary/50 h-full">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Intereses Recibidos</CardTitle>
-                    <Receipt className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">
-                      ₡{interestReceived.toLocaleString('de-DE')}
-                    </div>
-                     <p className="text-xs text-muted-foreground">
-                      Este mes (estimado)
-                    </p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('cobros') && (
+          <Link href="/dashboard/cobros?tab=abonos">
+              <Card className="transition-all hover:ring-2 hover:ring-primary/50 h-full">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Intereses Recibidos</CardTitle>
+                      <Receipt className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">
+                        ₡{interestReceived.toLocaleString('de-DE')}
+                      </div>
+                       <p className="text-xs text-muted-foreground">
+                        Este mes (estimado)
+                      </p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
         {/* Tarjeta 5: Gastos del Mes */}
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -360,153 +371,165 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Summary Widgets */}
-      <Card className="border-dashed">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">KPIs Clave</CardTitle>
+      {canViewModule('kpis') && (
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">KPIs Clave</CardTitle>
+              </div>
+              <Link href="/dashboard/kpis">
+                <Button variant="ghost" size="sm" className="text-xs">
+                  Ver todos los KPIs →
+                </Button>
+              </Link>
             </div>
-            <Link href="/dashboard/kpis">
-              <Button variant="ghost" size="sm" className="text-xs">
-                Ver todos los KPIs →
-              </Button>
-            </Link>
-          </div>
-          <CardDescription>Métricas de rendimiento del último mes</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <KPIWidget
-              title="Conversión Leads"
-              value={kpiData?.leads?.conversionRate?.value ?? 0}
-              unit="%"
-              change={kpiData?.leads?.conversionRate?.change}
-              target={kpiData?.leads?.conversionRate?.target ?? 30}
-              icon={Target}
-              colorClass="text-blue-500"
-              isLoading={kpiLoading}
-            />
-            <KPIWidget
-              title="Win Rate"
-              value={kpiData?.opportunities?.winRate?.value ?? 0}
-              unit="%"
-              change={kpiData?.opportunities?.winRate?.change}
-              target={kpiData?.opportunities?.winRate?.target ?? 40}
-              icon={CheckCircle}
-              colorClass="text-green-500"
-              isLoading={kpiLoading}
-            />
-            <KPIWidget
-              title="Tasa de Cobro"
-              value={kpiData?.collections?.collectionRate?.value ?? 0}
-              unit="%"
-              change={kpiData?.collections?.collectionRate?.change}
-              target={kpiData?.collections?.collectionRate?.target ?? 98}
-              icon={Percent}
-              colorClass="text-emerald-500"
-              isLoading={kpiLoading}
-            />
-            <KPIWidget
-              title="Cartera en Riesgo"
-              value={kpiData?.credits?.portfolioAtRisk?.value ?? 0}
-              unit="%"
-              change={kpiData?.credits?.portfolioAtRisk?.change}
-              target={kpiData?.credits?.portfolioAtRisk?.target ?? 5}
-              icon={AlertTriangle}
-              colorClass="text-amber-500"
-              isLoading={kpiLoading}
-              isInverse
-            />
-            <KPIWidget
-              title="Morosidad"
-              value={kpiData?.collections?.delinquencyRate?.value ?? 0}
-              unit="%"
-              change={kpiData?.collections?.delinquencyRate?.change}
-              target={kpiData?.collections?.delinquencyRate?.target ?? 5}
-              icon={TrendingDown}
-              colorClass="text-red-500"
-              isLoading={kpiLoading}
-              isInverse
-            />
-          </div>
-        </CardContent>
-      </Card>
+            <CardDescription>Métricas de rendimiento del último mes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+              <KPIWidget
+                title="Conversión Leads"
+                value={kpiData?.leads?.conversionRate?.value ?? 0}
+                unit="%"
+                change={kpiData?.leads?.conversionRate?.change}
+                target={kpiData?.leads?.conversionRate?.target ?? 30}
+                icon={Target}
+                colorClass="text-blue-500"
+                isLoading={kpiLoading}
+              />
+              <KPIWidget
+                title="Win Rate"
+                value={kpiData?.opportunities?.winRate?.value ?? 0}
+                unit="%"
+                change={kpiData?.opportunities?.winRate?.change}
+                target={kpiData?.opportunities?.winRate?.target ?? 40}
+                icon={CheckCircle}
+                colorClass="text-green-500"
+                isLoading={kpiLoading}
+              />
+              <KPIWidget
+                title="Tasa de Cobro"
+                value={kpiData?.collections?.collectionRate?.value ?? 0}
+                unit="%"
+                change={kpiData?.collections?.collectionRate?.change}
+                target={kpiData?.collections?.collectionRate?.target ?? 98}
+                icon={Percent}
+                colorClass="text-emerald-500"
+                isLoading={kpiLoading}
+              />
+              <KPIWidget
+                title="Cartera en Riesgo"
+                value={kpiData?.credits?.portfolioAtRisk?.value ?? 0}
+                unit="%"
+                change={kpiData?.credits?.portfolioAtRisk?.change}
+                target={kpiData?.credits?.portfolioAtRisk?.target ?? 5}
+                icon={AlertTriangle}
+                colorClass="text-amber-500"
+                isLoading={kpiLoading}
+                isInverse
+              />
+              <KPIWidget
+                title="Morosidad"
+                value={kpiData?.collections?.delinquencyRate?.value ?? 0}
+                unit="%"
+                change={kpiData?.collections?.delinquencyRate?.change}
+                target={kpiData?.collections?.delinquencyRate?.target ?? 5}
+                icon={TrendingDown}
+                colorClass="text-red-500"
+                isLoading={kpiLoading}
+                isInverse
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Tarjeta Nuevos Créditos */}
-        <Link href="/dashboard/creditos">
-            <Card className="transition-all hover:ring-2 hover:ring-primary/50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Nuevos Créditos</CardTitle>
-                    <FilePlus className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">+{newCredits}</div>
-                    <p className="text-xs text-muted-foreground">En los últimos 30 días</p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('creditos') && (
+          <Link href="/dashboard/creditos">
+              <Card className="transition-all hover:ring-2 hover:ring-primary/50">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Nuevos Créditos</CardTitle>
+                      <FilePlus className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">+{newCredits}</div>
+                      <p className="text-xs text-muted-foreground">En los últimos 30 días</p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
          {/* Tarjeta 3: Nuevas Oportunidades */}
-        <Link href="/dashboard/oportunidades">
-            <Card className="transition-all hover:ring-2 hover:ring-primary/50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Nuevas Oportunidades</CardTitle>
-                    <Handshake className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">+{opportunities.length}</div>
-                    <p className="text-xs text-muted-foreground">+10 este mes</p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('oportunidades') && (
+          <Link href="/dashboard/oportunidades">
+              <Card className="transition-all hover:ring-2 hover:ring-primary/50">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Nuevas Oportunidades</CardTitle>
+                      <Handshake className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">+{opportunities.length}</div>
+                      <p className="text-xs text-muted-foreground">+10 este mes</p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
         {/* Tarjeta 4: Clientes Totales */}
-        <Link href="/dashboard/clientes">
-            <Card className="transition-all hover:ring-2 hover:ring-primary/50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Clientes Totales</CardTitle>
-                    <UserCheck className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">
-                      {clients.length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Total de clientes históricos</p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('crm') && (
+          <Link href="/dashboard/clientes">
+              <Card className="transition-all hover:ring-2 hover:ring-primary/50">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Clientes Totales</CardTitle>
+                      <UserCheck className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">
+                        {clients.length}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Total de clientes históricos</p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
         {/* Tarjeta Créditos Activos */}
-        <Link href="/dashboard/creditos">
-            <Card className="transition-all hover:ring-2 hover:ring-primary/50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Créditos Activos</CardTitle>
-                    <Landmark className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">
-                      {credits.filter((c) => c.status !== 'Cancelado').length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">+5 nuevos esta semana</p>
-                </CardContent>
-            </Card>
-        </Link>
+        {canViewModule('creditos') && (
+          <Link href="/dashboard/creditos">
+              <Card className="transition-all hover:ring-2 hover:ring-primary/50">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Créditos Activos</CardTitle>
+                      <Landmark className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">
+                        {credits.filter((c) => c.status !== 'Cancelado').length}
+                      </div>
+                      <p className="text-xs text-muted-foreground">+5 nuevos esta semana</p>
+                  </CardContent>
+              </Card>
+          </Link>
+        )}
       </div>
 
 
       {/* Sección con el gráfico y la lista de actividad reciente. */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Tarjeta del Gráfico de Créditos */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Resumen de Estado de Créditos</CardTitle>
-            <CardDescription>
-              Un resumen de todos los créditos por su estado actual.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CreditStatusChart />
-          </CardContent>
-        </Card>
+        {canViewModule('creditos') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Resumen de Estado de Créditos</CardTitle>
+              <CardDescription>
+                Un resumen de todos los créditos por su estado actual.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CreditStatusChart />
+            </CardContent>
+          </Card>
+        )}
         {/* Tarjeta de Progreso de Proyectos */}
         <Card>
           <CardHeader>
