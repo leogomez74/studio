@@ -1143,7 +1143,7 @@ const MODULES: Module[] = [
   { key: 'kpis', label: 'KPIs', permissions: ['view'] },
   { key: 'crm', label: 'CRM (Leads)', permissions: ['view', 'create', 'edit', 'delete', 'archive'] },
   { key: 'oportunidades', label: 'Oportunidades', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'analizados', label: 'Analizados', permissions: ['view', 'edit'] },
+  { key: 'analizados', label: 'Analizados', permissions: ['view', 'create', 'edit'] },
   { key: 'creditos', label: 'Créditos', permissions: ['view', 'create', 'edit', 'delete'] },
   { key: 'calculos', label: 'Cálculos', permissions: ['view'] },
   { key: 'cobros', label: 'Cobros', permissions: ['view', 'create', 'edit'] },

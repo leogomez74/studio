@@ -397,6 +397,11 @@ export default function OpportunityDetailPage() {
       // API call
       await api.put(`/api/opportunities/${opportunity.id}`, { status: newStatus });
 
+      // Si el nuevo estado es "Analizada", verificar si existe un análisis
+      if (newStatus === "Analizada") {
+        await fetchExistingAnalisis();
+      }
+
       toast({ title: "Estado actualizado", description: `La oportunidad ahora está ${newStatus}.` });
     } catch (error) {
       console.error("Error updating status:", error);

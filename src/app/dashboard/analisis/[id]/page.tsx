@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,6 +64,65 @@ export default function AnalisisDetailPage() {
   // Empresa encontrada basada en institucion_labora del lead
   const [empresaMatch, setEmpresaMatch] = useState<Empresa | undefined>(undefined);
 
+  // Cargar archivos del filesystem
+  const fetchAnalisisFiles = useCallback(async () => {
+    try {
+      setLoadingFiles(true);
+      const res = await api.get(`/api/analisis/${analisisId}/files`);
+      // Combinar heredados y específicos en una sola lista
+      const allFiles = [...(res.data.heredados || []), ...(res.data.especificos || [])];
+      setHeredados(allFiles);
+    } catch (error) {
+      console.error('Error fetching analisis files:', error);
+    } finally {
+      setLoadingFiles(false);
+    }
+  }, [analisisId]);
+
+  // Lightbox helper functions - DEBEN estar ANTES de los returns condicionales
+  const getViewableFiles = useCallback(() => {
+    return heredados.filter(file => {
+      const name = file.name.toLowerCase();
+      return name.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/);
+    });
+  }, [heredados]);
+
+  const openLightbox = useCallback((file: AnalisisFile) => {
+    const viewableFiles = heredados.filter(f => {
+      const name = f.name.toLowerCase();
+      return name.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/);
+    });
+    const index = viewableFiles.findIndex(f => f.path === file.path);
+    if (index !== -1) {
+      setLightboxIndex(index);
+      setLightboxZoom(1);
+      setLightboxOpen(true);
+    }
+  }, [heredados]);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+    setLightboxZoom(1);
+  }, []);
+
+  const goToPrevious = useCallback(() => {
+    const viewableFiles = heredados.filter(file => {
+      const name = file.name.toLowerCase();
+      return name.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/);
+    });
+    setLightboxIndex((prev) => (prev > 0 ? prev - 1 : viewableFiles.length - 1));
+    setLightboxZoom(1);
+  }, [heredados]);
+
+  const goToNext = useCallback(() => {
+    const viewableFiles = heredados.filter(file => {
+      const name = file.name.toLowerCase();
+      return name.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/);
+    });
+    setLightboxIndex((prev) => (prev < viewableFiles.length - 1 ? prev + 1 : 0));
+    setLightboxZoom(1);
+  }, [heredados]);
+
   useEffect(() => {
     const fetchAnalisis = async () => {
       try {
@@ -101,22 +160,21 @@ export default function AnalisisDetailPage() {
     if (analisisId) {
       fetchAnalisis();
     }
-  }, [analisisId]);
+  }, [analisisId, fetchAnalisisFiles]);
 
-  // Cargar archivos del filesystem
-  const fetchAnalisisFiles = async () => {
-    try {
-      setLoadingFiles(true);
-      const res = await api.get(`/api/analisis/${analisisId}/files`);
-      // Combinar heredados y específicos en una sola lista
-      const allFiles = [...(res.data.heredados || []), ...(res.data.especificos || [])];
-      setHeredados(allFiles);
-    } catch (error) {
-      console.error('Error fetching analisis files:', error);
-    } finally {
-      setLoadingFiles(false);
-    }
-  };
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!lightboxOpen) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') goToPrevious();
+      if (e.key === 'ArrowRight') goToNext();
+      if (e.key === '+' || e.key === '=') setLightboxZoom(z => Math.min(z + 0.25, 3));
+      if (e.key === '-') setLightboxZoom(z => Math.max(z - 0.25, 0.5));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen, closeLightbox, goToPrevious, goToNext]);
 
   // Handler para actualizar estados
   const handleEstadoChange = async (field: 'estado_pep' | 'estado_cliente', value: string | null) => {
@@ -262,55 +320,6 @@ export default function AnalisisDetailPage() {
       [reqName]: !prev[reqName]
     }));
   };
-
-  // Lightbox helper functions
-  const getViewableFiles = () => {
-    return heredados.filter(file => {
-      const name = file.name.toLowerCase();
-      return name.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/);
-    });
-  };
-
-  const openLightbox = (file: AnalisisFile) => {
-    const viewableFiles = getViewableFiles();
-    const index = viewableFiles.findIndex(f => f.path === file.path);
-    if (index !== -1) {
-      setLightboxIndex(index);
-      setLightboxZoom(1);
-      setLightboxOpen(true);
-    }
-  };
-
-  const closeLightbox = () => {
-    setLightboxOpen(false);
-    setLightboxZoom(1);
-  };
-
-  const goToPrevious = () => {
-    const viewableFiles = getViewableFiles();
-    setLightboxIndex((prev) => (prev > 0 ? prev - 1 : viewableFiles.length - 1));
-    setLightboxZoom(1);
-  };
-
-  const goToNext = () => {
-    const viewableFiles = getViewableFiles();
-    setLightboxIndex((prev) => (prev < viewableFiles.length - 1 ? prev + 1 : 0));
-    setLightboxZoom(1);
-  };
-
-  // Keyboard navigation for lightbox
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!lightboxOpen) return;
-      if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowLeft') goToPrevious();
-      if (e.key === 'ArrowRight') goToNext();
-      if (e.key === '+' || e.key === '=') setLightboxZoom(z => Math.min(z + 0.25, 3));
-      if (e.key === '-') setLightboxZoom(z => Math.max(z - 0.25, 0.5));
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxOpen]);
 
   // Requisitos por defecto si no hay empresa match
   const defaultRequirements: Requirement[] = [
