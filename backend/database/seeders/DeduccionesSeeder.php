@@ -8,6 +8,7 @@ use App\Models\Analisis;
 use App\Models\Credit;
 use App\Models\LoanConfiguration;
 use App\Models\Deductora;
+use App\Models\PlanDePago;
 use Illuminate\Database\Seeder;
 use Carbon\Carbon;
 
@@ -123,11 +124,11 @@ class DeduccionesSeeder extends Seeder
                     'propuesta' => 'aprobado',
                 ]);
 
-                // 4. Crear Credit
-                Credit::create([
+                // 4. Crear Credit (primero con status pendiente)
+                $credit = Credit::create([
                     'reference' => $opportunity->id,
                     'title' => "Crédito {$opportunity->id}",
-                    'status' => 'activo',
+                    'status' => 'Pendiente',
                     'category' => 'microcredito',
                     'progress' => 100,
                     'lead_id' => $lead->id,
@@ -138,9 +139,17 @@ class DeduccionesSeeder extends Seeder
                     'cuota' => $cuotaMensual,
                     'tasa_id' => $tasa->id,
                     'plazo' => $plazoAleatorio,
+                    'saldo' => $montoCredito,
                     'deductora_id' => $deductoraId,
-                    'formalized_at' => Carbon::now(),
                 ]);
+
+                // Formalizar crédito y generar plan de pago
+                $credit->status = 'Formalizado';
+                $credit->formalized_at = Carbon::now();
+                $credit->save();
+
+                // Generar plan de pago
+                $this->generarPlanDePago($credit, $tasa->tasa, $plazoAleatorio);
 
                 // 5. Transformar Lead → Cliente
                 $lead->person_type_id = 2;
@@ -233,7 +242,7 @@ class DeduccionesSeeder extends Seeder
         $consolidado = [];
         foreach ($agrupadoPorDeductora as $deductora => $personas) {
             $personasLimitadas = array_slice($personas, 0, 50, true);
-            $consolidado = array_merge($consolidado, $personasLimitadas);
+            $consolidado = $consolidado + $personasLimitadas; // Usar + para preservar keys
 
             $this->command->info("   {$deductora}: " . count($personasLimitadas) . " personas (de " . count($personas) . " disponibles)");
         }
@@ -262,6 +271,79 @@ class DeduccionesSeeder extends Seeder
         $monto = $cuota * ($potencia - 1) / ($tasaMensual * $potencia);
 
         return round($monto, 2);
+    }
+
+    /**
+     * Genera el plan de pago (tabla de amortización) para un crédito
+     */
+    private function generarPlanDePago(Credit $credit, float $tasaAnual, int $plazo)
+    {
+        $monto = (float) $credit->monto_credito;
+        $cuota = (float) $credit->cuota;
+        $tasaMensual = ($tasaAnual / 100) / 12;
+        $fechaPrimeraCuota = Carbon::now()->addMonth()->startOfMonth();
+
+        // Cuota 0: Desembolso inicial
+        PlanDePago::create([
+            'credit_id' => $credit->id,
+            'linea' => '1',
+            'numero_cuota' => 0,
+            'proceso' => $credit->opened_at->format('Ym'),
+            'fecha_inicio' => $credit->opened_at,
+            'tasa_actual' => $tasaAnual,
+            'plazo_actual' => $plazo,
+            'cuota' => 0,
+            'poliza' => 0,
+            'interes_corriente' => 0,
+            'amortizacion' => 0,
+            'saldo_anterior' => 0,
+            'saldo_nuevo' => $monto,
+            'dias' => 0,
+            'estado' => 'Vigente',
+            'movimiento_total' => $monto,
+            'movimiento_principal' => $monto,
+            'concepto' => 'Desembolso Inicial',
+        ]);
+
+        // Generar cuotas mensuales
+        $saldoActual = $monto;
+        for ($i = 1; $i <= $plazo; $i++) {
+            $interesCorriente = $saldoActual * $tasaMensual;
+            $amortizacion = $cuota - $interesCorriente;
+            $saldoNuevo = $saldoActual - $amortizacion;
+
+            // Ajustar última cuota por diferencias de redondeo
+            if ($i === $plazo) {
+                $amortizacion = $saldoActual;
+                $cuota = $interesCorriente + $amortizacion;
+                $saldoNuevo = 0;
+            }
+
+            $fechaCuota = $fechaPrimeraCuota->copy()->addMonths($i - 1);
+
+            PlanDePago::create([
+                'credit_id' => $credit->id,
+                'linea' => (string) ($i + 1),
+                'numero_cuota' => $i,
+                'proceso' => $fechaCuota->format('Ym'),
+                'fecha_inicio' => $fechaCuota,
+                'fecha_corte' => $fechaCuota->copy()->endOfMonth(),
+                'fecha_pago' => $fechaCuota->copy()->endOfMonth(),
+                'tasa_actual' => $tasaAnual,
+                'plazo_actual' => $plazo,
+                'cuota' => round($cuota, 2),
+                'poliza' => 0,
+                'interes_corriente' => round($interesCorriente, 2),
+                'int_corriente_vencido' => 0,
+                'amortizacion' => round($amortizacion, 2),
+                'saldo_anterior' => round($saldoActual, 2),
+                'saldo_nuevo' => round($saldoNuevo, 2),
+                'dias' => 30,
+                'estado' => 'Pendiente',
+            ]);
+
+            $saldoActual = $saldoNuevo;
+        }
     }
 
 }
