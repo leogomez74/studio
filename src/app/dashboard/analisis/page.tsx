@@ -473,7 +473,7 @@ export default function AnalisisPage() {
 
                   {/* Estado PEP - Clickeable para cambiar */}
                   <td className="px-6 py-4">
-                    {hasPermission('analizados', 'edit') ? (
+                    {hasPermission('analizados', 'delete') ? (
                       <Popover>
                         <PopoverTrigger asChild>
                           <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
@@ -521,7 +521,7 @@ export default function AnalisisPage() {
                   {/* Estado Cliente - Solo visible si estado_pep es Aceptado */}
                   <td className="px-6 py-4">
                     {item.estado_pep === 'Aceptado' ? (
-                      hasPermission('analizados', 'edit') ? (
+                      hasPermission('analizados', 'archive') ? (
                         <Popover>
                           <PopoverTrigger asChild>
                             <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity

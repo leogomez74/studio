@@ -1151,7 +1151,15 @@ const MODULES: Module[] = [
   { key: 'kpis', label: 'KPIs', permissions: ['view'] },
   { key: 'crm', label: 'CRM (Leads)', permissions: ['view', 'create', 'edit', 'delete', 'archive'] },
   { key: 'oportunidades', label: 'Oportunidades', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'analizados', label: 'Analizados', permissions: ['view', 'create', 'edit'] },
+  {
+    key: 'analizados',
+    label: 'Analizados',
+    permissions: ['view', 'create', 'edit', 'delete', 'archive'],
+    customPermissionLabels: {
+      delete: 'Estado PEP',
+      archive: 'Estado Cliente'
+    }
+  },
   { key: 'creditos', label: 'Créditos', permissions: ['view', 'create', 'edit', 'delete'] },
   { key: 'calculos', label: 'Cálculos', permissions: ['view'] },
   {

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   findEmpresaByName,
   getFileExtension,
@@ -31,6 +32,7 @@ export default function AnalisisDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { hasPermission } = usePermissions();
   const analisisId = params.id as string;
 
   const [analisis, setAnalisis] = useState<AnalisisItem | null>(null);
@@ -344,7 +346,11 @@ export default function AnalisisDetailPage() {
           {/* Estado PEP */}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Estado PEP</Label>
-            <Select value={estadoPep || 'Pendiente'} onValueChange={(v) => handleEstadoChange('estado_pep', v)} disabled={updatingStatus}>
+            <Select
+              value={estadoPep || 'Pendiente'}
+              onValueChange={(v) => handleEstadoChange('estado_pep', v)}
+              disabled={updatingStatus || !hasPermission('analizados', 'delete')}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
               </SelectTrigger>
@@ -364,7 +370,7 @@ export default function AnalisisDetailPage() {
               <Select
                 value={estadoCliente || ''}
                 onValueChange={(v) => handleEstadoChange('estado_cliente', v)}
-                disabled={updatingStatus}
+                disabled={updatingStatus || !hasPermission('analizados', 'archive')}
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Sin definir" />
