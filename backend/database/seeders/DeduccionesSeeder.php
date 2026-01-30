@@ -37,15 +37,13 @@ class DeduccionesSeeder extends Seeder
             return;
         }
 
-        // Obtener deductora por defecto (la primera disponible)
-        $deductora = Deductora::first();
+        // Crear/obtener deductoras necesarias
+        $deductorasMap = $this->prepararDeductoras();
 
         $this->command->info("✅ Configuración cargada:");
-        $this->command->info("   Tasa: {$tasa->nombre} ({$tasa->tasa}%)\n");
+        $this->command->info("   Tasa: {$tasa->nombre} ({$tasa->tasa}%)");
         $this->command->info("   Plazo: {$microConfig->plazo_minimo} meses");
-        if ($deductora) {
-            $this->command->info("   Deductora: {$deductora->nombre}");
-        }
+        $this->command->info("   Deductoras preparadas: " . count($deductorasMap));
         $this->command->newLine();
 
         // PASO 1: Consolidar todos los archivos JSON y agrupar por cédula
@@ -69,6 +67,10 @@ class DeduccionesSeeder extends Seeder
                 // Usar el primer registro para obtener los datos de la persona
                 $primerRegistro = $datosPersona['registros'][0];
                 $cuotaMensual = $primerRegistro['cuota_mensual'];
+                $nombreDeductora = $primerRegistro['deductora'] ?? 'UNKNOWN';
+
+                // Obtener ID de la deductora
+                $deductoraId = $deductorasMap[$nombreDeductora] ?? null;
 
                 // Generar plazo aleatorio dentro del rango permitido
                 $plazoAleatorio = rand($microConfig->plazo_minimo, $microConfig->plazo_maximo);
@@ -91,6 +93,7 @@ class DeduccionesSeeder extends Seeder
                         'tipo_credito' => 'microcredito',
                         'monto' => $montoCredito,
                         'person_type_id' => 1,
+                        'deductora_id' => $deductoraId,
                     ]
                 );
 
@@ -135,7 +138,7 @@ class DeduccionesSeeder extends Seeder
                     'cuota' => $cuotaMensual,
                     'tasa_id' => $tasa->id,
                     'plazo' => $plazoAleatorio,
-                    'deductora_id' => $deductora?->id,
+                    'deductora_id' => $deductoraId,
                     'formalized_at' => Carbon::now(),
                 ]);
 
@@ -164,15 +167,42 @@ class DeduccionesSeeder extends Seeder
     }
 
     /**
+     * Preparar mapa de deductoras (nombre => ID)
+     * Crea las deductoras si no existen
+     */
+    private function prepararDeductoras(): array
+    {
+        $deductorasNecesarias = [
+            'CREDIPEP' => 'CREDIPEP',
+            'CoopeSanGabriel' => 'Cooperativa San Gabriel',
+            'CoopeServicios' => 'Cooperativa de Servicios',
+        ];
+
+        $deductorasMap = [];
+
+        foreach ($deductorasNecesarias as $nombreArchivo => $nombreCompleto) {
+            $deductora = Deductora::firstOrCreate(
+                ['nombre' => $nombreCompleto]
+            );
+
+            $deductorasMap[$nombreArchivo] = $deductora->id;
+        }
+
+        return $deductorasMap;
+    }
+
+    /**
      * Consolida todos los archivos JSON y agrupa por cédula
+     * Limita a 50 personas únicas por deductora
      *
      * @param array $files
      * @return array ['cedula' => ['registros' => [...], 'total_meses' => N]]
      */
     private function consolidarDatosPorCedula(array $files): array
     {
-        $agrupado = [];
+        $agrupadoPorDeductora = [];
 
+        // Primero agrupar por deductora y luego por cédula
         foreach ($files as $file) {
             $data = json_decode(file_get_contents($file), true);
             if (!$data) {
@@ -181,20 +211,34 @@ class DeduccionesSeeder extends Seeder
 
             foreach ($data as $item) {
                 $cedula = $item['cedula'];
+                $deductora = $item['deductora'] ?? 'UNKNOWN';
 
-                if (!isset($agrupado[$cedula])) {
-                    $agrupado[$cedula] = [
+                if (!isset($agrupadoPorDeductora[$deductora])) {
+                    $agrupadoPorDeductora[$deductora] = [];
+                }
+
+                if (!isset($agrupadoPorDeductora[$deductora][$cedula])) {
+                    $agrupadoPorDeductora[$deductora][$cedula] = [
                         'registros' => [],
                         'total_meses' => 0,
                     ];
                 }
 
-                $agrupado[$cedula]['registros'][] = $item;
-                $agrupado[$cedula]['total_meses']++;
+                $agrupadoPorDeductora[$deductora][$cedula]['registros'][] = $item;
+                $agrupadoPorDeductora[$deductora][$cedula]['total_meses']++;
             }
         }
 
-        return $agrupado;
+        // Limitar a 50 personas por deductora y consolidar en un solo array
+        $consolidado = [];
+        foreach ($agrupadoPorDeductora as $deductora => $personas) {
+            $personasLimitadas = array_slice($personas, 0, 50, true);
+            $consolidado = array_merge($consolidado, $personasLimitadas);
+
+            $this->command->info("   {$deductora}: " . count($personasLimitadas) . " personas (de " . count($personas) . " disponibles)");
+        }
+
+        return $consolidado;
     }
 
     /**
