@@ -540,10 +540,10 @@ function CreditDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     const editParam = searchParams.get('edit');
-    if (editParam === 'true' && credit?.status !== 'Formalizado') {
+    if (editParam === 'true' && !credit?.formalized_at) {
       setIsEditMode(true);
     }
-  }, [searchParams, credit?.status]);
+  }, [searchParams, credit?.formalized_at]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -667,14 +667,23 @@ function CreditDetailClient({ id }: { id: string }) {
 
     const previousStatus = credit.status;
 
-    // No permitir editar un crédito ya formalizado
-    if (previousStatus === 'Formalizado') {
-      toast({
-        title: "Error",
-        description: "No se puede editar un crédito formalizado",
-        variant: "destructive"
-      });
-      return;
+    // No permitir editar campos críticos si el crédito ya fue formalizado (tiene formalized_at)
+    if (credit.formalized_at) {
+      // Validar si se intentan cambiar campos protegidos
+      const camposProtegidos = ['tasa_anual', 'tasa_maxima', 'monto_credito', 'plazo'];
+      const cambiosProhibidos = camposProtegidos.filter(campo =>
+        formData[campo as keyof CreditItem] !== undefined &&
+        formData[campo as keyof CreditItem] !== credit[campo as keyof CreditItem]
+      );
+
+      if (cambiosProhibidos.length > 0) {
+        toast({
+          title: "Error",
+          description: `No se pueden modificar los siguientes campos en un crédito formalizado: ${cambiosProhibidos.join(', ')}`,
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     const isFormalizingCredit = formData.status === 'Formalizado' && previousStatus !== 'Formalizado';
@@ -767,8 +776,7 @@ function CreditDetailClient({ id }: { id: string }) {
               <Button
                 variant="outline"
                 onClick={() => setIsEditMode(true)}
-                disabled={credit?.status === 'Formalizado'}
-                title={credit?.status === 'Formalizado' ? 'No se puede editar un crédito formalizado' : 'Editar crédito'}
+                title={credit?.formalized_at ? 'Algunos campos no podrán modificarse porque el crédito ya fue formalizado' : 'Editar crédito'}
               >
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
@@ -903,6 +911,8 @@ function CreditDetailClient({ id }: { id: string }) {
                                 value={formData.monto_credito || ""}
                                 onChange={(e) => handleInputChange("monto_credito", parseFloat(e.target.value) || 0)}
                                 placeholder="Monto otorgado"
+                                disabled={!!credit.formalized_at}
+                                title={credit.formalized_at ? 'No se puede modificar en crédito formalizado' : ''}
                               />
                             ) : (
                               <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
@@ -951,6 +961,8 @@ function CreditDetailClient({ id }: { id: string }) {
                                 value={formData.tasa_anual || ""}
                                 onChange={(e) => handleInputChange("tasa_anual", parseFloat(e.target.value) || 0)}
                                 placeholder="Tasa anual (%)"
+                                disabled={!!credit.formalized_at}
+                                title={credit.formalized_at ? 'No se puede modificar en crédito formalizado' : ''}
                               />
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
@@ -1168,6 +1180,8 @@ function CreditDetailClient({ id }: { id: string }) {
                                 value={formData.plazo || ""}
                                 onChange={(e) => handleInputChange("plazo", parseInt(e.target.value) || 0)}
                                 placeholder="Plazo en meses"
+                                disabled={!!credit.formalized_at}
+                                title={credit.formalized_at ? 'No se puede modificar en crédito formalizado' : ''}
                               />
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">

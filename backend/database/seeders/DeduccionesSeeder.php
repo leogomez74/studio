@@ -207,8 +207,9 @@ class DeduccionesSeeder extends Seeder
                 $year = date('y');
                 $credit->numero_operacion = sprintf('%s-%05d-01-CRED', $year, $credit->id);
 
-                // Activar crédito y generar plan de pago
+                // Activar crédito, establecer fecha de formalización y generar plan de pago
                 $credit->status = 'Activo';
+                $credit->formalized_at = Carbon::now();
                 $credit->save();
 
                 // Generar plan de pago
