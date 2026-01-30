@@ -160,6 +160,13 @@ class CreditController extends Controller
             $validated['tasa_id'] = $tasaFallback->id;
         }
 
+        // Congelar valores de tasa en el crédito
+        $tasaObj = \App\Models\Tasa::find($validated['tasa_id']);
+        if ($tasaObj) {
+            $validated['tasa_anual'] = $tasaObj->tasa;
+            $validated['tasa_maxima'] = $tasaObj->tasa_maxima;
+        }
+
         // Referencia temporal (se actualiza después con el ID real)
         $validated['reference'] = 'TEMP-' . time();
 

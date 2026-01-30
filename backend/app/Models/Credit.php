@@ -29,7 +29,9 @@ class Credit extends Model
         'fecha_ultimo_pago',
         'garantia',
         'fecha_culminacion_credito',
-        'tasa_id', // Cambiado de tasa_anual a FK
+        'tasa_id',
+        'tasa_anual',
+        'tasa_maxima',
         'plazo',
         'cuotas_atrasadas',
         'deductora_id',

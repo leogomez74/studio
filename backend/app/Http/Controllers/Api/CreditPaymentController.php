@@ -682,10 +682,9 @@ class CreditPaymentController extends Controller
                 continue;
             }
 
-            // Obtener tasa y tasa_maxima del crédito
-            $creditConTasa = Credit::with('tasa')->find($credit->id);
-            $tasaBase = (float) ($creditConTasa->tasa->tasa ?? 0);
-            $tasaMaxima = (float) ($creditConTasa->tasa->tasa_maxima ?? 0);
+            // Usar tasa congelada del crédito (no de la tabla tasas)
+            $tasaBase = (float) ($credit->tasa_anual ?? 0);
+            $tasaMaxima = (float) ($credit->tasa_maxima ?? 0);
 
             $tasaMora = $tasaMaxima - $tasaBase;
             $hayDiferencia = $tasaMora > 0;
