@@ -19,14 +19,12 @@
         td.left { text-align: left; font-family: 'Helvetica', 'Arial', sans-serif; }
         tr:nth-child(even) { background-color: #f5f5f5; }
         tr.mora { background-color: #fde8e8; }
-        tr.pagado { background-color: #e8fde8; }
         tr.parcial { background-color: #fdf8e8; }
         .badge { display: inline-block; padding: 1px 4px; border-radius: 3px; font-size: 5.5pt; font-weight: bold; }
         .badge-pagado { background: #d4edda; color: #155724; }
         .badge-mora { background: #f8d7da; color: #721c24; }
         .badge-parcial { background: #fff3cd; color: #856404; }
         .badge-pendiente { background: #e2e3e5; color: #383d41; }
-        .badge-pagado-mora { background: #cce5ff; color: #004085; }
         .footer { margin-top: 10px; text-align: center; font-size: 6pt; color: #999; border-top: 1px solid #ddd; padding-top: 5px; }
         @page { size: landscape; margin: 8mm; }
     </style>
@@ -75,7 +73,7 @@
         </thead>
         <tbody>
             @foreach($planDePagos as $p)
-            <tr class="{{ $p->estado === 'Mora' ? 'mora' : ($p->estado === 'Pagado' ? 'pagado' : ($p->estado === 'Parcial' ? 'parcial' : '')) }}">
+            <tr class="{{ $p->estado === 'Mora' ? 'mora' : ($p->estado === 'Parcial' ? 'parcial' : '') }}">
                 <td class="center">{{ $p->numero_cuota }}</td>
                 <td class="center">
                     <span class="badge badge-{{ strtolower(str_replace(['/', ' '], '-', $p->estado ?? 'pendiente')) }}">

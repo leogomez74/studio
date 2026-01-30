@@ -1372,8 +1372,9 @@ function CreditDetailClient({ id }: { id: string }) {
                           const cleanBase = baseUrl.replace(/\/api\/?$/, '');
                           window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
                         }}
-                        className="bg-red-50 border-red-300 text-red-800 hover:bg-red-100"
+                        className="bg-red-600 border-red-700 text-white hover:bg-red-700"
                       >
+                        <FileText className="w-4 h-4 mr-1" />
                         Reporte Plan de Pagos
                       </Button>
                     )}
