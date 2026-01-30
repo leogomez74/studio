@@ -78,22 +78,40 @@ class DeduccionesSeeder extends Seeder
                 // Obtener ID de la deductora
                 $deductoraId = $deductorasMap[$nombreDeductora] ?? null;
 
-                // Generar plazo aleatorio dentro del rango permitido
-                $plazoAleatorio = rand($microConfig->plazo_minimo, $microConfig->plazo_maximo);
+                // Encontrar el plazo óptimo que resulte en un monto dentro de límites
+                // manteniendo la cuota fija de planilla
+                $plazoOptimo = null;
+                $montoCredito = null;
 
-                // Calcular monto del crédito usando la cuota y el plazo aleatorio
-                $montoCredito = $this->calcularMontoDesdeQuota(
-                    $cuotaMensual,
-                    $tasa->tasa,
-                    $plazoAleatorio
-                );
+                // Iterar desde plazo máximo hacia mínimo para maximizar el monto
+                for ($plazo = $microConfig->plazo_maximo; $plazo >= $microConfig->plazo_minimo; $plazo--) {
+                    $montoCalculado = $this->calcularMontoDesdeQuota(
+                        $cuotaMensual,
+                        $tasa->tasa,
+                        $plazo
+                    );
 
-                // Aplicar límites de configuración (mantener cuota fija de planilla)
-                if ($montoCredito > $microConfig->monto_maximo) {
-                    $montoCredito = $microConfig->monto_maximo;
-                } elseif ($montoCredito < $microConfig->monto_minimo) {
-                    $montoCredito = $microConfig->monto_minimo;
+                    // Verificar si el monto calculado está dentro de los límites
+                    if ($montoCalculado >= $microConfig->monto_minimo && $montoCalculado <= $microConfig->monto_maximo) {
+                        $plazoOptimo = $plazo;
+                        $montoCredito = $montoCalculado;
+                        break; // Encontramos el plazo óptimo
+                    }
                 }
+
+                // Si no se encontró plazo óptimo, usar límites y ajustar
+                if ($plazoOptimo === null) {
+                    $plazoOptimo = $microConfig->plazo_maximo;
+                    $montoCalculado = $this->calcularMontoDesdeQuota($cuotaMensual, $tasa->tasa, $plazoOptimo);
+
+                    if ($montoCalculado > $microConfig->monto_maximo) {
+                        $montoCredito = $microConfig->monto_maximo;
+                    } else {
+                        $montoCredito = $microConfig->monto_minimo;
+                    }
+                }
+
+                $plazoAleatorio = $plazoOptimo;
 
                 // 1. Crear/actualizar Lead
                 $lead = Lead::withoutGlobalScopes()->updateOrCreate(
@@ -197,6 +215,13 @@ class DeduccionesSeeder extends Seeder
                 // Generar plan de pago
                 $this->generarPlanDePago($credit, $tasa->tasa, $plazoAleatorio);
 
+                // Actualizar cuota del crédito con el valor real del plan generado
+                $primeraCuota = $credit->planDePagos()->where('numero_cuota', 1)->first();
+                if ($primeraCuota) {
+                    $credit->cuota = $primeraCuota->cuota;
+                    $credit->save();
+                }
+
                 // 5. Transformar Lead → Cliente
                 $lead->person_type_id = 2;
                 $lead->save();
@@ -274,7 +299,7 @@ class DeduccionesSeeder extends Seeder
     private function prepararDeductoras(): array
     {
         $deductorasNecesarias = [
-            'CREDIPEP' => 'CREDIPEP',
+            'CREDIPEP' => 'Cooperativa Nacional',
             'CoopeSanGabriel' => 'Cooperativa San Gabriel',
             'CoopeServicios' => 'Cooperativa de Servicios',
         ];
@@ -370,18 +395,29 @@ class DeduccionesSeeder extends Seeder
      */
     private function generarPlanDePago(Credit $credit, float $tasaAnual, int $plazo)
     {
+        // Guard: Verificar si ya existe un plan de pagos para este crédito
+        $existingCount = PlanDePago::where('credit_id', $credit->id)->count();
+        if ($existingCount > 0) {
+            $this->command->warn("⚠️  Plan de pagos ya existe para crédito {$credit->id} ({$existingCount} registros), saltando...");
+            return;
+        }
+
         $monto = (float) $credit->monto_credito;
         $cuota = (float) $credit->cuota;
         $tasaMensual = ($tasaAnual / 100) / 12;
         $fechaPrimeraCuota = Carbon::now()->addMonth()->startOfMonth();
 
         // Cuota 0: Desembolso inicial
+        // NOTA: El modelo PlanDePago tiene un evento 'created' que automáticamente
+        // genera todo el plan de pagos cuando se crea la cuota 0. No necesitamos
+        // el loop manual.
         PlanDePago::create([
             'credit_id' => $credit->id,
             'linea' => '1',
             'numero_cuota' => 0,
             'proceso' => $credit->opened_at->format('Ym'),
             'fecha_inicio' => $credit->opened_at,
+            'fecha_corte' => $credit->opened_at,
             'tasa_actual' => $tasaAnual,
             'plazo_actual' => $plazo,
             'cuota' => 0,
@@ -397,46 +433,8 @@ class DeduccionesSeeder extends Seeder
             'concepto' => 'Desembolso Inicial',
         ]);
 
-        // Generar cuotas mensuales
-        $saldoActual = $monto;
-        for ($i = 1; $i <= $plazo; $i++) {
-            $interesCorriente = $saldoActual * $tasaMensual;
-            $amortizacion = $cuota - $interesCorriente;
-            $saldoNuevo = $saldoActual - $amortizacion;
-            $cuotaActual = $cuota;
-
-            // Ajustar última cuota por diferencias de redondeo
-            if ($i === $plazo) {
-                $amortizacion = $saldoActual;
-                $cuotaActual = $interesCorriente + $amortizacion;
-                $saldoNuevo = 0;
-            }
-
-            $fechaCuota = $fechaPrimeraCuota->copy()->addMonths($i - 1);
-
-            PlanDePago::create([
-                'credit_id' => $credit->id,
-                'linea' => (string) ($i + 1),
-                'numero_cuota' => $i,
-                'proceso' => $fechaCuota->format('Ym'),
-                'fecha_inicio' => $fechaCuota,
-                'fecha_corte' => $fechaCuota->copy()->endOfMonth(),
-                'fecha_pago' => $fechaCuota->copy()->endOfMonth(),
-                'tasa_actual' => $tasaAnual,
-                'plazo_actual' => $plazo,
-                'cuota' => round($cuotaActual, 2),
-                'poliza' => 0,
-                'interes_corriente' => round($interesCorriente, 2),
-                'int_corriente_vencido' => 0,
-                'amortizacion' => round($amortizacion, 2),
-                'saldo_anterior' => round($saldoActual, 2),
-                'saldo_nuevo' => round($saldoNuevo, 2),
-                'dias' => 30,
-                'estado' => 'Pendiente',
-            ]);
-
-            $saldoActual = $saldoNuevo;
-        }
+        // El modelo PlanDePago se encarga automáticamente de generar
+        // las cuotas 1 a N mediante su evento 'created' (ver PlanDePago::booted())
     }
 
 }
