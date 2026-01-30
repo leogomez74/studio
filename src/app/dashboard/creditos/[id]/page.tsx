@@ -418,7 +418,6 @@ function CreditDetailClient({ id }: { id: string }) {
   const downloadPlanAsPDF = async () => {
     if (!credit?.plan_de_pagos) return;
 
-    // Importar jsPDF dinámicamente
     const { jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
 
@@ -434,32 +433,49 @@ function CreditDetailClient({ id }: { id: string }) {
     const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
     doc.text(`Cliente: ${credit.lead?.name || 'N/A'}`, 14, 25);
     doc.text(`Monto: ${formatNumber(credit.monto_credito)}`, 14, 30);
-    doc.text(`Saldo por Pagar: ${formatNumber(credit.saldo)}`, 80, 25);
-    doc.text(`Estado: ${credit.status}`, 80, 30);
-    doc.text(`Tasa: ${tasaValue}%`, 140, 25);
-    doc.text(`Plazo: ${credit.plazo} meses`, 140, 30);
+    doc.text(`Saldo por Pagar: ${formatNumber(credit.saldo)}`, 120, 25);
+    doc.text(`Estado: ${credit.status}`, 120, 30);
+    doc.text(`Tasa: ${tasaValue}%`, 200, 25);
+    doc.text(`Plazo: ${credit.plazo} meses`, 200, 30);
 
-    // Tabla principal
+    // Tabla principal con todas las columnas
     const tableData = sortedPlan.map(p => [
       p.numero_cuota,
       p.estado || '-',
       formatDate(p.fecha_corte),
       formatNumber(p.cuota),
+      formatNumber(p.poliza ?? 0),
       formatNumber(p.interes_corriente),
       formatNumber(p.int_corriente_vencido ?? 0),
       formatNumber(p.interes_moratorio),
       formatNumber(p.amortizacion),
       formatNumber(p.saldo_anterior),
-      formatNumber(p.saldo_nuevo)
+      formatNumber(p.saldo_nuevo),
+      p.dias_mora || '0',
+      formatDate(p.fecha_movimiento),
+      formatNumber(p.movimiento_total ?? 0),
+      formatNumber(p.movimiento_poliza ?? 0),
+      formatNumber(p.movimiento_interes_corriente ?? 0),
+      formatNumber(p.movimiento_int_corriente_vencido ?? 0),
+      formatNumber(p.movimiento_interes_moratorio ?? 0),
+      formatNumber(p.movimiento_amortizacion ?? 0),
+      formatNumber(p.movimiento_principal ?? 0),
     ]);
 
     autoTable(doc, {
-      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Int.Corr', 'Int.C.Venc', 'Int.Mora', 'Amort', 'Capital', 'Saldo por Pagar']],
+      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Póliza', 'Int.Corr', 'Int.C.Venc', 'Int.Mora', 'Amort', 'Capital', 'Saldo', 'Mora', 'F.Mov', 'Mov.Total', 'Mov.Pól', 'Mov.Int.C', 'Mov.Int.V', 'Mov.Int.M', 'Mov.Amort', 'Mov.Princ']],
       body: tableData,
       startY: 35,
-      styles: { fontSize: 7, cellPadding: 1 },
-      headStyles: { fillColor: [41, 128, 185] },
+      styles: { fontSize: 5.5, cellPadding: 0.8 },
+      headStyles: { fillColor: [41, 128, 185], fontSize: 5 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 16 },
+        2: { cellWidth: 16 },
+        11: { cellWidth: 8 },
+        12: { cellWidth: 14 },
+      },
     });
 
     doc.save(`plan_pagos_${credit.numero_operacion || credit.reference || id}.pdf`);
@@ -1346,26 +1362,20 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardDescription>Detalle de cuotas y movimientos históricos</CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    {/* Botones descargar MD y PDF - Solo localhost */}
-                    {isLocalhost && credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={downloadPlanAsMarkdown}
-                          className="bg-yellow-50 border-yellow-300 text-yellow-800 hover:bg-yellow-100"
-                        >
-                          📥 MD
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={downloadPlanAsPDF}
-                          className="bg-red-50 border-red-300 text-red-800 hover:bg-red-100"
-                        >
-                          📄 PDF
-                        </Button>
-                      </>
+                    {/* Botón Reporte PDF - Disponible siempre */}
+                    {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+                          const cleanBase = baseUrl.replace(/\/api\/?$/, '');
+                          window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
+                        }}
+                        className="bg-red-50 border-red-300 text-red-800 hover:bg-red-100"
+                      >
+                        Reporte Plan de Pagos
+                      </Button>
                     )}
                     {credit.status === 'Formalizado' && (
                       <TooltipProvider>

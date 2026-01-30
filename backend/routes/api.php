@@ -38,6 +38,9 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // --- Rutas de Negocio (Públicas) ---
 
+// PDF público del Plan de Pagos
+Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
+
 // Utilidades / Listas
 Route::get('/agents', function () {
     return response()->json(\App\Models\User::select('id', 'name')->get());

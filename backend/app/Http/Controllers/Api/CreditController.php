@@ -624,4 +624,27 @@ class CreditController extends Controller
 
         return response()->json($credit);
     }
+
+    /**
+     * Genera y descarga el PDF del Plan de Pagos (ruta pública, sin auth)
+     */
+    public function downloadPlanPDF($id)
+    {
+        $credit = Credit::with(['lead', 'tasa', 'planDePagos' => function($q) {
+            $q->orderBy('numero_cuota', 'asc');
+        }])->findOrFail($id);
+
+        $planDePagos = $credit->planDePagos;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.plan_de_pagos', [
+            'credit' => $credit,
+            'planDePagos' => $planDePagos,
+        ]);
+
+        $pdf->setPaper('a4', 'landscape');
+
+        $filename = 'plan_pagos_' . ($credit->numero_operacion ?? $credit->reference ?? $id) . '.pdf';
+
+        return $pdf->download($filename);
+    }
 }
