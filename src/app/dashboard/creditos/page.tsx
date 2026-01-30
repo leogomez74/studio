@@ -1,4 +1,4 @@
-  "use client";
+"use client";
 
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1552,23 +1552,44 @@ export default function CreditsPage() {
                       <FormField
                         control={form.control}
                         name="monto_credito"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Monto Solicitado</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="text"
-                                placeholder="₡0.00"
-                                value={field.value ? formatCurrency(field.value) : ''}
-                                onChange={(e) => {
-                                  const numericValue = parseCurrencyToNumber(e.target.value);
-                                  field.onChange(numericValue);
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const [displayValue, setDisplayValue] = useState(
+                            field.value ? formatCurrency(field.value) : ''
+                          );
+
+                          return (
+                            <FormItem>
+                              <FormLabel>Monto Solicitado</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="text"
+                                  placeholder="₡0.00"
+                                  value={displayValue}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setDisplayValue(value);
+                                    const numericValue = parseCurrencyToNumber(value);
+                                    field.onChange(numericValue);
+                                  }}
+                                  onBlur={() => {
+                                    // Format on blur
+                                    if (field.value) {
+                                      setDisplayValue(formatCurrency(field.value));
+                                    }
+                                  }}
+                                  onFocus={(e) => {
+                                    // Show raw number on focus
+                                    if (field.value) {
+                                      setDisplayValue(field.value.toString());
+                                      e.target.select();
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
                       <FormField
                         control={form.control}

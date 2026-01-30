@@ -10,8 +10,8 @@ use App\Models\LoanConfiguration;
 use App\Models\Deductora;
 use App\Models\PlanDePago;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-
 class DeduccionesSeeder extends Seeder
 {
     public function run()
@@ -41,9 +41,13 @@ class DeduccionesSeeder extends Seeder
         // Crear/obtener deductoras necesarias
         $deductorasMap = $this->prepararDeductoras();
 
+        // Limpiar datos existentes
+        $this->limpiarDatosExistentes();
+
         $this->command->info("✅ Configuración cargada:");
         $this->command->info("   Tasa: {$tasa->nombre} ({$tasa->tasa}%)");
-        $this->command->info("   Plazo: {$microConfig->plazo_minimo} meses");
+        $this->command->info("   Plazo: {$microConfig->plazo_minimo}-{$microConfig->plazo_maximo} meses");
+        $this->command->info("   Monto: ₡" . number_format($microConfig->monto_minimo) . " - ₡" . number_format($microConfig->monto_maximo));
         $this->command->info("   Deductoras preparadas: " . count($deductorasMap));
         $this->command->newLine();
 
@@ -55,12 +59,13 @@ class DeduccionesSeeder extends Seeder
         $this->command->info("   ✅ {$totalPersonas} personas únicas encontradas");
         $this->command->newLine();
 
-        // PASO 2: Crear créditos (uno por persona)
-        $this->command->info("💳 Creando créditos...");
+        // PASO 2: Crear análisis y créditos (uno por persona)
+        $this->command->info("💳 Creando análisis y créditos...");
         $progressBar = $this->command->getOutput()->createProgressBar($totalPersonas);
         $progressBar->start();
 
-        $processed = 0;
+        $analisisCreados = 0;
+        $creditosCreados = 0;
         $errors = 0;
 
         foreach ($personasAgrupadas as $cedula => $datosPersona) {
@@ -83,6 +88,13 @@ class DeduccionesSeeder extends Seeder
                     $plazoAleatorio
                 );
 
+                // Aplicar límites de configuración (mantener cuota fija de planilla)
+                if ($montoCredito > $microConfig->monto_maximo) {
+                    $montoCredito = $microConfig->monto_maximo;
+                } elseif ($montoCredito < $microConfig->monto_minimo) {
+                    $montoCredito = $microConfig->monto_minimo;
+                }
+
                 // 1. Crear/actualizar Lead
                 $lead = Lead::withoutGlobalScopes()->updateOrCreate(
                     ['cedula' => $cedula],
@@ -101,20 +113,40 @@ class DeduccionesSeeder extends Seeder
                 // 2. Crear Opportunity
                 $opportunity = Opportunity::create([
                     'lead_cedula' => $cedula,
-                    'opportunity_type' => 'microcredito',
+                    'opportunity_type' => 'Microcrédito (Hasta ₡690.000)',
                     'vertical' => 'credito',
                     'amount' => $montoCredito,
-                    'status' => 'won',
+                    'status' => 'Analizada',
                     'expected_close_date' => Carbon::now(),
                 ]);
 
-                // 3. Crear Análisis
-                Analisis::create([
+                // 3. Crear Análisis con aleatoridad
+                // estado_pep acepta: [Pendiente, Aceptado, Pendiente de cambios, Rechazado]
+                // Cuando estado_pep es "Aceptado", se activa estado_cliente con "Aprobado" o "Rechazado"
+                $rand = rand(1, 100);
+
+                if ($rand <= 60) {
+                    $estadoPep = 'Aceptado'; // 60% aceptado para tener datos
+                } elseif ($rand <= 75) {
+                    $estadoPep = 'Pendiente'; // 15% pendiente
+                } elseif ($rand <= 90) {
+                    $estadoPep = 'Pendiente de cambios'; // 15% pendiente de cambios
+                } else {
+                    $estadoPep = 'Rechazado'; // 10% rechazado
+                }
+
+                // Solo establecer estado_cliente cuando estado_pep es "Aceptado"
+                $estadoCliente = null;
+                if ($estadoPep === 'Aceptado') {
+                    $estadoCliente = rand(1, 10) > 2 ? 'Aprobado' : 'Rechazado'; // 80% Aprobado, 20% Rechazado
+                }
+
+                $analisis = Analisis::create([
                     'reference' => $opportunity->id,
                     'title' => "Análisis {$opportunity->id}",
-                    'estado_pep' => 'aprobado',
-                    'estado_cliente' => 'aprobado',
-                    'category' => 'microcredito',
+                    'estado_pep' => $estadoPep,
+                    'estado_cliente' => $estadoCliente,
+                    'category' => 'Micro Crédito',
                     'monto_credito' => $montoCredito,
                     'lead_id' => $lead->id,
                     'opportunity_id' => $opportunity->id,
@@ -124,12 +156,22 @@ class DeduccionesSeeder extends Seeder
                     'propuesta' => 'aprobado',
                 ]);
 
-                // 4. Crear Credit (primero con status pendiente)
+                $analisisCreados++;
+
+                // 4. Crear Credit solo si el análisis fue aprobado
+                // Solo crear crédito cuando estado_pep = "Aceptado" y estado_cliente = "Aprobado"
+                $debeCrearCredito = ($estadoPep === 'Aceptado' && $estadoCliente === 'Aprobado');
+
+                if (!$debeCrearCredito) {
+                    $progressBar->advance();
+                    continue; // Saltar creación de crédito
+                }
+
                 $credit = Credit::create([
                     'reference' => $opportunity->id,
                     'title' => "Crédito {$opportunity->id}",
                     'status' => 'Pendiente',
-                    'category' => 'microcredito',
+                    'category' => 'Micro Crédito',
                     'progress' => 100,
                     'lead_id' => $lead->id,
                     'opportunity_id' => $opportunity->id,
@@ -143,6 +185,10 @@ class DeduccionesSeeder extends Seeder
                     'deductora_id' => $deductoraId,
                 ]);
 
+                // Generar número de operación con formato YY-XXXXX-01-CRED
+                $year = date('y');
+                $credit->numero_operacion = sprintf('%s-%05d-01-CRED', $year, $credit->id);
+
                 // Formalizar crédito y generar plan de pago
                 $credit->status = 'Formalizado';
                 $credit->formalized_at = Carbon::now();
@@ -155,7 +201,7 @@ class DeduccionesSeeder extends Seeder
                 $lead->person_type_id = 2;
                 $lead->save();
 
-                $processed++;
+                $creditosCreados++;
             } catch (\Exception $e) {
                 $errors++;
                 $this->command->newLine();
@@ -170,9 +216,55 @@ class DeduccionesSeeder extends Seeder
 
         $this->command->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         $this->command->info("📊 RESUMEN:");
-        $this->command->info("   ✅ Créditos creados: {$processed}");
+        $this->command->info("   📋 Análisis creados: {$analisisCreados}");
+        $this->command->info("   💳 Créditos creados: {$creditosCreados}");
         $this->command->info("   ❌ Errores: {$errors}");
         $this->command->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+    /**
+     * Limpiar datos existentes - Wipe completo de tablas
+     * Elimina TODOS los registros de las tablas relacionadas antes de hacer el seed
+     */
+    private function limpiarDatosExistentes(): void
+    {
+        $this->command->info("🧹 Limpiando datos existentes (wipe completo)...");
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
+        // 1. Limpiar pagos de créditos
+        $deletedPayments = \App\Models\CreditPayment::count();
+        \App\Models\CreditPayment::truncate();
+        $this->command->info("   ✓ {$deletedPayments} pagos eliminados (tabla limpiada)");
+
+        // 2. Limpiar plan de pago
+        $deletedPlan = \App\Models\PlanDePago::count();
+        \App\Models\PlanDePago::truncate();
+        $this->command->info("   ✓ {$deletedPlan} entradas de plan de pago eliminadas (tabla limpiada)");
+
+        // 3. Limpiar créditos
+        $deletedCredits = \App\Models\Credit::count();
+        \App\Models\Credit::truncate();
+        $this->command->info("   ✓ {$deletedCredits} créditos eliminados (tabla limpiada)");
+
+        // 4. Limpiar análisis
+        $deletedAnalisis = \App\Models\Analisis::count();
+        \App\Models\Analisis::truncate();
+        $this->command->info("   ✓ {$deletedAnalisis} análisis eliminados (tabla limpiada)");
+
+        // 5. Limpiar oportunidades
+        $deletedOpportunities = \App\Models\Opportunity::count();
+        \App\Models\Opportunity::truncate();
+        $this->command->info("   ✓ {$deletedOpportunities} oportunidades eliminadas (tabla limpiada)");
+
+        // 6. Limpiar personas (solo leads y clientes, no inversores)
+        $deletedPersons = Lead::withoutGlobalScopes()->where('person_type_id', '!=', 3)->count();
+        Lead::withoutGlobalScopes()->where('person_type_id', '!=', 3)->delete();
+        $this->command->info("   ✓ {$deletedPersons} personas eliminadas (preservando inversores)");
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        $this->command->newLine();
     }
 
     /**
@@ -311,11 +403,12 @@ class DeduccionesSeeder extends Seeder
             $interesCorriente = $saldoActual * $tasaMensual;
             $amortizacion = $cuota - $interesCorriente;
             $saldoNuevo = $saldoActual - $amortizacion;
+            $cuotaActual = $cuota;
 
             // Ajustar última cuota por diferencias de redondeo
             if ($i === $plazo) {
                 $amortizacion = $saldoActual;
-                $cuota = $interesCorriente + $amortizacion;
+                $cuotaActual = $interesCorriente + $amortizacion;
                 $saldoNuevo = 0;
             }
 
@@ -331,7 +424,7 @@ class DeduccionesSeeder extends Seeder
                 'fecha_pago' => $fechaCuota->copy()->endOfMonth(),
                 'tasa_actual' => $tasaAnual,
                 'plazo_actual' => $plazo,
-                'cuota' => round($cuota, 2),
+                'cuota' => round($cuotaActual, 2),
                 'poliza' => 0,
                 'interes_corriente' => round($interesCorriente, 2),
                 'int_corriente_vencido' => 0,
