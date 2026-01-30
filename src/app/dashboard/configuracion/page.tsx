@@ -1163,7 +1163,7 @@ const MODULES: Module[] = [
       delete: 'Exportar'
     }
   },
-  { key: 'cobro_judicial', label: 'Cobro Judicial', permissions: ['view', 'create', 'edit', 'delete'] },
+  { key: 'cobro_judicial', label: 'Cobro Judicial', permissions: ['view'] },
   { key: 'ventas', label: 'Ventas', permissions: ['view'] },
   { key: 'inversiones', label: 'Inversiones', permissions: ['view', 'create', 'edit', 'delete'] },
   { key: 'rutas', label: 'Rutas', permissions: ['view', 'create', 'edit', 'delete'] },
