@@ -1166,13 +1166,82 @@ const TasasCRUD: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validaciones
+    const tasa = parseFloat(formData.tasa);
+    const tasaMaxima = formData.tasa_maxima ? parseFloat(formData.tasa_maxima) : null;
+
+    // Validar que la tasa sea un número válido
+    if (isNaN(tasa) || tasa <= 0) {
+      toast({
+        title: 'Tasa inválida',
+        description: 'La tasa debe ser un número mayor a cero.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validar rango de tasa (0-100%)
+    if (tasa > 100) {
+      toast({
+        title: 'Tasa inválida',
+        description: 'La tasa no puede ser mayor a 100%.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validar que tasa <= tasa_maxima (si está definida)
+    if (tasaMaxima !== null) {
+      if (isNaN(tasaMaxima) || tasaMaxima <= 0) {
+        toast({
+          title: 'Tasa máxima inválida',
+          description: 'La tasa máxima debe ser un número mayor a cero.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (tasaMaxima > 100) {
+        toast({
+          title: 'Tasa máxima inválida',
+          description: 'La tasa máxima no puede ser mayor a 100%.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (tasa > tasaMaxima) {
+        toast({
+          title: 'Rangos inválidos',
+          description: 'La tasa no puede ser mayor a la tasa máxima.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Validar fechas al crear
+    if (!editingTasa) {
+      const inicioDate = new Date(formData.inicio);
+      const finDate = formData.fin ? new Date(formData.fin) : null;
+
+      if (finDate && inicioDate >= finDate) {
+        toast({
+          title: 'Fechas inválidas',
+          description: 'La fecha de inicio debe ser anterior a la fecha de fin.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     try {
       if (editingTasa) {
         // Al editar, solo enviar nombre, tasa y tasa_maxima
         const payload = {
           nombre: formData.nombre,
-          tasa: parseFloat(formData.tasa),
-          tasa_maxima: formData.tasa_maxima ? parseFloat(formData.tasa_maxima) : null,
+          tasa,
+          tasa_maxima: tasaMaxima,
         };
         await api.put(`/api/tasas/${editingTasa.id}`, payload);
         toast({ title: 'Éxito', description: 'Tasa actualizada correctamente' });
@@ -1180,8 +1249,8 @@ const TasasCRUD: React.FC = () => {
         // Al crear, enviar todos los campos
         const payload = {
           nombre: formData.nombre,
-          tasa: parseFloat(formData.tasa),
-          tasa_maxima: formData.tasa_maxima ? parseFloat(formData.tasa_maxima) : null,
+          tasa,
+          tasa_maxima: tasaMaxima,
           inicio: formData.inicio,
           fin: formData.fin || null,
           activo: formData.activo,
@@ -1844,14 +1913,78 @@ export default function ConfiguracionPage() {
     const setLoading = creditType === 'regular' ? setSavingRegular : setSavingMicro;
     const label = creditType === 'regular' ? 'Crédito Regular' : 'Micro-crédito';
 
+    // Validaciones de rangos
+    const minAmount = parseFloat(config.minAmount);
+    const maxAmount = parseFloat(config.maxAmount);
+    const minTerm = parseInt(config.minTerm);
+    const maxTerm = parseInt(config.maxTerm);
+    const interestRate = parseFloat(config.interestRate);
+
+    // Validar que los campos no estén vacíos
+    if (!config.minAmount || !config.maxAmount || !config.interestRate || !config.minTerm || !config.maxTerm) {
+      toast({
+        title: 'Campos incompletos',
+        description: 'Todos los campos son obligatorios.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validar valores positivos
+    if (minAmount <= 0 || maxAmount <= 0) {
+      toast({
+        title: 'Valores inválidos',
+        description: 'Los montos deben ser mayores a cero.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (minTerm <= 0 || maxTerm <= 0) {
+      toast({
+        title: 'Valores inválidos',
+        description: 'Los plazos deben ser mayores a cero.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (interestRate <= 0 || interestRate > 100) {
+      toast({
+        title: 'Tasa inválida',
+        description: 'La tasa debe estar entre 0 y 100%.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validar rangos mínimo < máximo
+    if (minAmount >= maxAmount) {
+      toast({
+        title: 'Rango inválido',
+        description: 'El monto mínimo debe ser menor al monto máximo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (minTerm >= maxTerm) {
+      toast({
+        title: 'Rango inválido',
+        description: 'El plazo mínimo debe ser menor al plazo máximo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       await api.put(`/api/loan-configurations/${creditType}`, {
-        monto_minimo: parseFloat(config.minAmount) || 0,
-        monto_maximo: parseFloat(config.maxAmount) || 0,
-        tasa_anual: parseFloat(config.interestRate) || 0,
-        plazo_minimo: parseInt(config.minTerm) || 1,
-        plazo_maximo: parseInt(config.maxTerm) || 1,
+        monto_minimo: minAmount,
+        monto_maximo: maxAmount,
+        tasa_anual: interestRate,
+        plazo_minimo: minTerm,
+        plazo_maximo: maxTerm,
       });
 
       toast({
@@ -1859,11 +1992,14 @@ export default function ConfiguracionPage() {
         description: `La configuración para ${label} ha sido actualizada.`,
         duration: 3000,
       });
-    } catch (error) {
+
+      // Recargar configuraciones para reflejar cambios del backend
+      await fetchLoanConfigurations();
+    } catch (error: any) {
       console.error('Error saving loan configuration:', error);
       toast({
         title: 'Error',
-        description: `No se pudo guardar la configuración de ${label}.`,
+        description: error?.response?.data?.message || `No se pudo guardar la configuración de ${label}.`,
         variant: 'destructive',
       });
     } finally {
