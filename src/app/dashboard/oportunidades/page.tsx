@@ -277,6 +277,11 @@ export default function DealsPage() {
     nombramiento: "",
   });
 
+  // Estados locales para display de campos currency (evita duplicación de dígitos al escribir)
+  const [montoDisplay, setMontoDisplay] = useState("");
+  const [ingresoBrutoDisplay, setIngresoBrutoDisplay] = useState("");
+  const [ingresoNetoDisplay, setIngresoNetoDisplay] = useState("");
+
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
   const [searchVertical, setSearchVertical] = useState("");
@@ -1465,21 +1470,78 @@ export default function DealsPage() {
                 <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="monto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.monto_credito)} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+                  <Input
+                    id="monto"
+                    className="h-8 text-sm pl-7"
+                    type="text"
+                    inputMode="numeric"
+                    value={montoDisplay || analisisForm.monto_credito || ''}
+                    onChange={e => {
+                      setMontoDisplay(e.target.value);
+                      handleAnalisisFormChange('monto_credito', e.target.value);
+                    }}
+                    onBlur={() => {
+                      if (analisisForm.monto_credito) {
+                        setMontoDisplay(formatCurrency(analisisForm.monto_credito));
+                      }
+                    }}
+                    onFocus={(e) => {
+                      setMontoDisplay(analisisForm.monto_credito);
+                      setTimeout(() => e.target.select(), 0);
+                    }}
+                  />
                 </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="ingreso_bruto" className="text-xs">Ingreso Bruto</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto)} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+                  <Input
+                    id="ingreso_bruto"
+                    className="h-8 text-sm pl-7"
+                    type="text"
+                    inputMode="numeric"
+                    value={ingresoBrutoDisplay || analisisForm.ingreso_bruto || ''}
+                    onChange={e => {
+                      setIngresoBrutoDisplay(e.target.value);
+                      handleAnalisisFormChange('ingreso_bruto', e.target.value);
+                    }}
+                    onBlur={() => {
+                      if (analisisForm.ingreso_bruto) {
+                        setIngresoBrutoDisplay(formatCurrency(analisisForm.ingreso_bruto));
+                      }
+                    }}
+                    onFocus={(e) => {
+                      setIngresoBrutoDisplay(analisisForm.ingreso_bruto);
+                      setTimeout(() => e.target.select(), 0);
+                    }}
+                  />
                 </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="ingreso_neto" className="text-xs">Ingreso Neto</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto)} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+                  <Input
+                    id="ingreso_neto"
+                    className="h-8 text-sm pl-7"
+                    type="text"
+                    inputMode="numeric"
+                    value={ingresoNetoDisplay || analisisForm.ingreso_neto || ''}
+                    onChange={e => {
+                      setIngresoNetoDisplay(e.target.value);
+                      handleAnalisisFormChange('ingreso_neto', e.target.value);
+                    }}
+                    onBlur={() => {
+                      if (analisisForm.ingreso_neto) {
+                        setIngresoNetoDisplay(formatCurrency(analisisForm.ingreso_neto));
+                      }
+                    }}
+                    onFocus={(e) => {
+                      setIngresoNetoDisplay(analisisForm.ingreso_neto);
+                      setTimeout(() => e.target.select(), 0);
+                    }}
+                  />
                 </div>
               </div>
               <div className="space-y-1">
