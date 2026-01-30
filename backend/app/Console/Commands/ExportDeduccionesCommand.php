@@ -112,6 +112,7 @@ class ExportDeduccionesCommand extends Command
                 'monto_credito' => round($montoCredito, 2),
                 'cuota_mensual' => round($cuotaMensual, 2),
                 'mes' => $mes,
+                'deductora' => $deductora,
             ];
 
             $count++;
