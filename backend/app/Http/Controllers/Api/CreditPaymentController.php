@@ -709,10 +709,18 @@ class CreditPaymentController extends Controller
             // 4. Capital (saldo_anterior) = capital REAL, no baja
             $cuota->saldo_anterior = $capitalReal;
 
-            // 5. Saldo = capital (no baja) + interés vencido + moratorio
+            // 5. Saldo por pagar = saldo_nuevo de la cuota anterior + intereses de este mes
             $intMora = (float) $cuota->interes_moratorio;
             $poliza = (float) ($cuota->poliza ?? 0);
-            $cuota->saldo_nuevo = round($capitalReal + $interesVencido + $intMora, 2);
+
+            $cuotaAnterior = $credit->planDePagos()
+                ->where('numero_cuota', '<', $cuota->numero_cuota)
+                ->where('numero_cuota', '>', 0)
+                ->orderBy('numero_cuota', 'desc')
+                ->first();
+
+            $saldoPrevio = $cuotaAnterior ? (float) $cuotaAnterior->saldo_nuevo : $capitalReal;
+            $cuota->saldo_nuevo = round($saldoPrevio + $interesVencido + $intMora + $poliza, 2);
 
             // 6. Marcar como Mora (la cuota original NO se modifica)
             $cuota->estado = 'Mora';
