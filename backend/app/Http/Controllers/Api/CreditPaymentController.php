@@ -770,7 +770,6 @@ class CreditPaymentController extends Controller
     {
         if ($amortizacionOriginal <= 0) return;
 
-        // Obtener la última cuota del plan
         $ultimaCuota = $credit->planDePagos()
             ->where('numero_cuota', '>', 0)
             ->orderBy('numero_cuota', 'desc')
@@ -784,8 +783,25 @@ class CreditPaymentController extends Controller
 
         $tasaAnual = (float) ($credit->tasa_anual ?? 0);
         $tasaMensual = $tasaAnual / 100 / 12;
+        $plazo = (int) $credit->plazo;
 
-        // Interés sobre el capital pendiente (la amortización que no se pagó)
+        // Incrementar saldo_nuevo de la cuota final del plazo original
+        // para que refleje el capital desplazado que aún se debe
+        $credit->planDePagos()
+            ->where('numero_cuota', $plazo)
+            ->increment('saldo_nuevo', $amortizacionOriginal);
+
+        // Incrementar saldo_anterior y saldo_nuevo de cuotas desplazadas existentes
+        // para reflejar el nuevo capital acumulado
+        $credit->planDePagos()
+            ->where('numero_cuota', '>', $plazo)
+            ->increment('saldo_anterior', $amortizacionOriginal);
+
+        $credit->planDePagos()
+            ->where('numero_cuota', '>', $plazo)
+            ->increment('saldo_nuevo', $amortizacionOriginal);
+
+        // Interés sobre el capital de ESTA cuota desplazada
         $interes = round($amortizacionOriginal * $tasaMensual, 2);
         $cuotaMonto = round($amortizacionOriginal + $interes, 2);
 
