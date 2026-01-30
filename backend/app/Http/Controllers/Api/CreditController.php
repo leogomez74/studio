@@ -17,17 +17,30 @@ use Carbon\Carbon;
 class CreditController extends Controller
 {
     /**
-     * Listar créditos con filtros
+     * Listar créditos con filtros (optimizado con paginación)
      */
     public function index(Request $request)
     {
-        $query = Credit::with(['lead', 'opportunity', 'documents','planDePagos']);
+        // Eager load solo relaciones necesarias con campos específicos
+        $query = Credit::with([
+            'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id',
+            'opportunity:id,status,opportunity_type,vertical,amount',
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado'
+        ]);
 
         if ($request->has('lead_id')) {
             $query->where('lead_id', $request->lead_id);
         }
 
-        return response()->json($query->latest()->get());
+        // Paginación: 50 por página (ajustable con ?per_page=X)
+        $perPage = min($request->get('per_page', 50), 100); // Máximo 100
+
+        // Si se solicita 'all', retornar sin paginar (para exportaciones)
+        if ($request->get('all') === 'true') {
+            return response()->json($query->latest()->get());
+        }
+
+        return response()->json($query->latest()->paginate($perPage));
     }
 
     /**

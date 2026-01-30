@@ -829,10 +829,22 @@ export default function AnalisisPage() {
                   id="monto"
                   type="text"
                   placeholder="₡0.00"
-                  value={creditForm.monto_credito ? formatCurrency(creditForm.monto_credito) : ''}
+                  value={creditForm.monto_credito || ''}
                   onChange={e => {
                     const rawValue = parseCurrencyToNumber(e.target.value);
                     setCreditForm(f => ({ ...f, monto_credito: rawValue }));
+                  }}
+                  onBlur={() => {
+                    if (creditForm.monto_credito) {
+                      setCreditForm(f => ({ ...f, monto_credito: formatCurrency(f.monto_credito) }));
+                    }
+                  }}
+                  onFocus={(e) => {
+                    if (creditForm.monto_credito) {
+                      const numValue = parseCurrencyToNumber(String(creditForm.monto_credito));
+                      setCreditForm(f => ({ ...f, monto_credito: numValue }));
+                      setTimeout(() => e.target.select(), 0);
+                    }
                   }}
                 />
               </div>
