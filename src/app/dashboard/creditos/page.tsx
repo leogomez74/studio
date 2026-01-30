@@ -89,6 +89,7 @@ const creditSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
   status: z.string(),
   category: z.string(),
+  tipo_credito: z.string().default("regular"),
   monto_credito: z.coerce.number().min(0, "El monto debe ser positivo"),
   clientId: z.string().min(1, "Debes seleccionar un cliente"),
   opportunityId: z.string().optional(),
@@ -353,6 +354,7 @@ export default function CreditsPage() {
       title: "",
       status: CREDIT_STATUS_OPTIONS[0],
       category: "",
+      tipo_credito: "regular",
       monto_credito: 0,
       clientId: "",
       opportunityId: "",
@@ -586,6 +588,7 @@ export default function CreditsPage() {
       title: "",
       status: CREDIT_STATUS_OPTIONS[0],
       category: products.length > 0 ? products[0].name : "",
+      tipo_credito: "regular",
       monto_credito: 0,
       clientId: "",
       opportunityId: "",
@@ -608,6 +611,7 @@ export default function CreditsPage() {
         title: values.title,
         status: values.status,
         category: values.category,
+        tipo_credito: values.tipo_credito,
         monto_credito: values.monto_credito,
         lead_id: parseInt(values.clientId),
         opportunity_id: values.opportunityId || null,
@@ -1524,6 +1528,27 @@ export default function CreditsPage() {
                     <h3 className="text-lg font-medium">Condiciones Financieras</h3>
                     <Separator className="my-2" />
                     <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="tipo_credito"
+                        render={({ field }) => (
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel>Tipo de Crédito</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar tipo..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="regular">Crédito Regular</SelectItem>
+                                <SelectItem value="microcredito">Micro-crédito</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       <FormField
                         control={form.control}
                         name="monto_credito"

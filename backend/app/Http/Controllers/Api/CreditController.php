@@ -114,39 +114,50 @@ class CreditController extends Controller
             ], 422);
         }
 
-        // Tasa por defecto: obtener tasa vigente según tipo de crédito EN LA FECHA DEL CRÉDITO
+        // Determinar tasa según tipo de crédito usando loan_configurations
         $fechaCredito = $validated['opened_at'] ?? now();
 
-        if (!isset($validated['tasa_id'])) {
-            $tipoCredito = $validated['tipo_credito'] ?? null;
-            $nombreTasa = ($tipoCredito === 'micro') ? 'Tasa Micro Crédito' : 'Tasa Regular';
+        // Si no viene tipo_credito, inferirlo desde la categoría (viene de la oportunidad)
+        if (empty($validated['tipo_credito'])) {
+            $category = strtolower(trim($validated['category'] ?? ''));
+            $validated['tipo_credito'] = str_contains($category, 'micro') ? 'microcredito' : 'regular';
+        }
+        $tipoCredito = $validated['tipo_credito'];
 
-            // Buscar tasa vigente en la fecha del crédito, no HOY
-            $tasa = \App\Models\Tasa::obtenerPorNombre($nombreTasa, $fechaCredito);
-            if ($tasa) {
-                $validated['tasa_id'] = $tasa->id;
-            } else {
-                // Fallback: obtener cualquier tasa vigente en esa fecha
-                $tasaFallback = \App\Models\Tasa::vigente($fechaCredito)->first();
-                if (!$tasaFallback) {
-                    return response()->json([
-                        'message' => 'No hay tasas vigentes para la fecha del crédito (' . Carbon::parse($fechaCredito)->format('d/m/Y') . '). Configure una tasa activa para ese período.',
-                        'fecha_credito' => Carbon::parse($fechaCredito)->format('d/m/Y'),
-                    ], 422);
-                }
-                $validated['tasa_id'] = $tasaFallback->id;
-            }
-        } else {
-            // Si se proporciona tasa_id manualmente, validar que estuviera vigente EN LA FECHA DEL CRÉDITO
-            $tasaProporcionada = \App\Models\Tasa::find($validated['tasa_id']);
-            if ($tasaProporcionada && !$tasaProporcionada->esVigente($fechaCredito)) {
+        // Buscar configuración del tipo de préstamo
+        $config = LoanConfiguration::where('tipo', $tipoCredito)->where('activo', true)->first();
+
+        if ($config) {
+            // Validar monto dentro del rango permitido
+            if ($validated['monto_credito'] < $config->monto_minimo || $validated['monto_credito'] > $config->monto_maximo) {
                 return response()->json([
-                    'message' => 'La tasa "' . $tasaProporcionada->nombre . '" no estaba vigente en la fecha del crédito (' . Carbon::parse($fechaCredito)->format('d/m/Y') . '). Por favor, seleccione una tasa válida para esa fecha.',
-                    'tasa_inicio' => $tasaProporcionada->inicio->format('d/m/Y'),
-                    'tasa_fin' => $tasaProporcionada->fin ? $tasaProporcionada->fin->format('d/m/Y') : 'Sin límite',
+                    'message' => "El monto debe estar entre ₡" . number_format($config->monto_minimo, 0) . " y ₡" . number_format($config->monto_maximo, 0) . " para {$config->nombre}.",
+                ], 422);
+            }
+
+            // Validar plazo dentro del rango permitido
+            if ($validated['plazo'] < $config->plazo_minimo || $validated['plazo'] > $config->plazo_maximo) {
+                return response()->json([
+                    'message' => "El plazo debe estar entre {$config->plazo_minimo} y {$config->plazo_maximo} meses para {$config->nombre}.",
+                ], 422);
+            }
+
+            // Asignar tasa desde la configuración del préstamo
+            if ($config->tasa_id) {
+                $validated['tasa_id'] = $config->tasa_id;
+            }
+        }
+
+        // Si aún no tiene tasa_id, buscar fallback
+        if (!isset($validated['tasa_id'])) {
+            $tasaFallback = \App\Models\Tasa::vigente($fechaCredito)->first();
+            if (!$tasaFallback) {
+                return response()->json([
+                    'message' => 'No hay tasas vigentes para la fecha del crédito (' . Carbon::parse($fechaCredito)->format('d/m/Y') . '). Configure una tasa activa para ese período.',
                     'fecha_credito' => Carbon::parse($fechaCredito)->format('d/m/Y'),
                 ], 422);
             }
+            $validated['tasa_id'] = $tasaFallback->id;
         }
 
         // Referencia temporal (se actualiza después con el ID real)
