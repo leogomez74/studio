@@ -177,7 +177,7 @@ class CreditPaymentController extends Controller
         return response()->json([
             'message' => 'Abono extraordinario aplicado y plan regenerado.',
             'payment' => $result,
-            'nuevo_saldo' => $credit->fresh()->saldo
+            'nuevo_saldo' => Credit::find($validated['credit_id'])->saldo
         ]);
     }
 
@@ -456,9 +456,11 @@ class CreditPaymentController extends Controller
                            + $cuota->amortizacion;
 
             if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
-                $cuota->estado = 'Pagado';
+                // Si la cuota tenía mora, marcar como Pagado/Mora para distinguir
+                $teniaMora = ((float) ($cuota->int_corriente_vencido ?? 0) > 0) || ((float) ($cuota->interes_moratorio ?? 0) > 0);
+                $cuota->estado = $teniaMora ? 'Pagado/Mora' : 'Pagado';
                 $cuota->fecha_pago = $fecha;
-                $cuota->concepto = 'Pago registrado';
+                $cuota->concepto = $teniaMora ? 'Pago registrado (mora)' : 'Pago registrado';
             } else {
                 $cuota->estado = 'Parcial';
                 $cuota->concepto = 'Pago parcial';
@@ -748,9 +750,9 @@ class CreditPaymentController extends Controller
 
     /**
      * Recalcula las cuotas siguientes cuando una cuota entra en mora
-     * IMPORTANTE: La cuota es FIJA (sistema francés), solo cambian los saldos
-     * El interés corriente NO se recalcula, se mantiene del plan original
-     * El saldo no baja porque no hubo pago
+     * IMPORTANTE: La cuota es FIJA (sistema francés)
+     * El interés corriente SÍ se recalcula basado en el capital REAL
+     * ya que en mora el capital no baja y el interés debe reflejar eso
      */
     private function recalcularCuotasSiguientes($credit, $numeroCuotaMora, $saldoActual, $tasaAnual)
     {
@@ -766,32 +768,30 @@ class CreditPaymentController extends Controller
         }
 
         $saldo = $saldoActual;
+        $tasaMensual = $tasaAnual / 100 / 12;
 
         foreach ($cuotasSiguientes as $cuota) {
             // LA CUOTA SE MANTIENE FIJA (no recalcular)
             $cuotaFija = (float) $cuota->cuota;
 
-            // EL INTERÉS CORRIENTE SE MANTIENE del plan original (no recalcular)
-            $interes = (float) $cuota->interes_corriente;
+            // RECALCULAR interés corriente basado en el capital REAL
+            $interes = round($saldo * $tasaMensual, 2);
+            $cuota->interes_corriente = $interes;
 
             // Amortización = Cuota - Interés
             $amortizacion = max(0, $cuotaFija - $interes);
             $nuevoCapital = $saldo - $amortizacion;
 
-            // Actualizar SOLO los saldos
             // saldo_anterior = CAPITAL (solo el principal)
             $cuota->saldo_anterior = round($saldo, 2);
-            // interes_corriente NO se modifica - mantiene valor original
             $cuota->amortizacion = round($amortizacion, 2);
-            // cuota NO se modifica - es FIJA
 
             // saldo_nuevo = Capital + Int.Corr + Int.Corr.Vencido + Int.Mora + Póliza
             $capital = round(max(0, $nuevoCapital), 2);
-            $intCorr = (float) $cuota->interes_corriente;
             $intCorrVencido = (float) ($cuota->int_corriente_vencido ?? 0);
             $intMora = (float) ($cuota->interes_moratorio ?? 0);
             $poliza = (float) ($cuota->poliza ?? 0);
-            $cuota->saldo_nuevo = round($capital + $intCorr + $intCorrVencido + $intMora + $poliza, 2);
+            $cuota->saldo_nuevo = round($capital + $interes + $intCorrVencido + $intMora + $poliza, 2);
 
             $cuota->save();
 
