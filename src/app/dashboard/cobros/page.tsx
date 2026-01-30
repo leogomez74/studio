@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -71,7 +71,10 @@ const calculateDaysInArrears = (credit: Credit): number => {
   return Math.max(0, diffDays - 30); // Assuming 30-day payment cycle
 };
 
-const CobrosTable = React.memo(function CobrosTable({ credits, isLoading }: { credits: Credit[], isLoading?: boolean }) {
+const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, currentPage, perPage, onPageChange, onPerPageChange }: { credits: Credit[], isLoading?: boolean, currentPage: number, perPage: number, onPageChange: (p: number) => void, onPerPageChange: (p: number) => void }) {
+  const totalPages = Math.ceil(credits.length / perPage);
+  const paginatedCredits = credits.slice((currentPage - 1) * perPage, currentPage * perPage);
+
   if (isLoading) {
     return (
       <div className="p-8 flex justify-center">
@@ -83,60 +86,88 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading }: { cr
     return <div className="p-4 text-center text-sm text-muted-foreground">No hay créditos en esta categoría.</div>
   }
   return (
-    <div className="relative w-full overflow-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-              <TableHead>Operación</TableHead>
-              <TableHead>Lead</TableHead>
-            <TableHead className="hidden md:table-cell">Monto Cuota</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="hidden md:table-cell">Días de Atraso</TableHead>
-            <TableHead><span className="sr-only">Acciones</span></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {credits.map((credit) => {
-            const diasAtraso = calculateDaysInArrears(credit);
-            return (
-              <TableRow key={credit.id} className="hover:bg-muted/50">
-                <TableCell className="font-medium">
-                  <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
-                    {credit.reference || credit.numero_operacion || credit.id}
-                  </Link>
-                </TableCell>
-                <TableCell>{credit.lead?.name || "-"}</TableCell>
-                <TableCell className="hidden md:table-cell">
-                  ₡{credit.cuota ? Number(credit.cuota).toLocaleString('de-DE') : '0'}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getStatusVariantCobros(credit.status)}>{credit.status}</Badge>
-                </TableCell>
-                <TableCell className="hidden font-medium md:table-cell">
-                  {diasAtraso > 0 ? (
-                    <span className="text-destructive">{diasAtraso} días</span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
-                      <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Enviar a Cobro</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+    <div>
+      <div className="relative w-full overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+                <TableHead>Operación</TableHead>
+                <TableHead>Lead</TableHead>
+              <TableHead className="hidden md:table-cell">Monto Cuota</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="hidden md:table-cell">Días de Atraso</TableHead>
+              <TableHead><span className="sr-only">Acciones</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedCredits.map((credit) => {
+              const diasAtraso = calculateDaysInArrears(credit);
+              return (
+                <TableRow key={credit.id} className="hover:bg-muted/50">
+                  <TableCell className="font-medium">
+                    <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                      {credit.reference || credit.numero_operacion || credit.id}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{credit.lead?.name || "-"}</TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    ₡{credit.cuota ? Number(credit.cuota).toLocaleString('de-DE') : '0'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusVariantCobros(credit.status)}>{credit.status}</Badge>
+                  </TableCell>
+                  <TableCell className="hidden font-medium md:table-cell">
+                    {diasAtraso > 0 ? (
+                      <span className="text-destructive">{diasAtraso} días</span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                        <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
+                        <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive">Enviar a Cobro</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      {/* Paginación */}
+      <div className="flex items-center justify-between border-t px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Mostrar:</span>
+          <Select value={String(perPage)} onValueChange={(v) => { onPerPageChange(Number(v)); onPageChange(1); }}>
+            <SelectTrigger className="h-8 w-[70px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="30">30</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
+          <span>de {credits.length}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm">{currentPage} / {totalPages || 1}</span>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 });
@@ -234,6 +265,14 @@ export default function CobrosPage() {
   const [paymentsState, setPaymentsState] = useState<PaymentWithRelations[]>([]);
   const [creditsList, setCreditsList] = useState<Credit[]>([]);
   const [isLoadingCredits, setIsLoadingCredits] = useState(true);
+
+  // Paginación - Historial de Abonos
+  const [abonosPage, setAbonosPage] = useState(1);
+  const [abonosPerPage, setAbonosPerPage] = useState(10);
+
+  // Paginación - Gestión de Cobros
+  const [cobrosPage, setCobrosPage] = useState(1);
+  const [cobrosPerPage, setCobrosPerPage] = useState(10);
 
   // Estados para el modal de Subir Planilla
   const [planillaModalOpen, setPlanillaModalOpen] = useState(false);
@@ -480,12 +519,12 @@ export default function CobrosPage() {
                             <TabsTrigger value="mas-180-dias">+180 días ({mas180.length})</TabsTrigger>
                         </TabsList>
                     </CardHeader>
-                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} /></CardContent></TabsContent>
-                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} /></CardContent></TabsContent>
-                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} /></CardContent></TabsContent>
-                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} /></CardContent></TabsContent>
-                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} /></CardContent></TabsContent>
-                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} /></CardContent></TabsContent>
+                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
+                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
+                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
+                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
+                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
+                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
                 </Card>
             </Tabs>
         </TabsContent>
@@ -797,11 +836,37 @@ export default function CobrosPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentsState.map((payment) => (
+                  {paymentsState.slice((abonosPage - 1) * abonosPerPage, abonosPage * abonosPerPage).map((payment) => (
                     <PaymentTableRow key={payment.id} payment={payment} />
                   ))}
                 </TableBody>
               </Table>
+              {/* Paginación */}
+              <div className="flex items-center justify-between border-t px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Mostrar:</span>
+                  <Select value={String(abonosPerPage)} onValueChange={(v) => { setAbonosPerPage(Number(v)); setAbonosPage(1); }}>
+                    <SelectTrigger className="h-8 w-[70px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="30">30</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>de {paymentsState.length}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage <= 1} onClick={() => setAbonosPage(abonosPage - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm">{abonosPage} / {Math.ceil(paymentsState.length / abonosPerPage) || 1}</span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage >= Math.ceil(paymentsState.length / abonosPerPage)} onClick={() => setAbonosPage(abonosPage + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
