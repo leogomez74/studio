@@ -10,8 +10,8 @@ use App\Models\LoanConfiguration;
 use App\Models\Deductora;
 use App\Models\PlanDePago;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-
 class DeduccionesSeeder extends Seeder
 {
     public function run()
@@ -41,9 +41,13 @@ class DeduccionesSeeder extends Seeder
         // Crear/obtener deductoras necesarias
         $deductorasMap = $this->prepararDeductoras();
 
+        // Limpiar datos existentes
+        $this->limpiarDatosExistentes();
+
         $this->command->info("✅ Configuración cargada:");
         $this->command->info("   Tasa: {$tasa->nombre} ({$tasa->tasa}%)");
-        $this->command->info("   Plazo: {$microConfig->plazo_minimo} meses");
+        $this->command->info("   Plazo: {$microConfig->plazo_minimo}-{$microConfig->plazo_maximo} meses");
+        $this->command->info("   Monto: ₡" . number_format($microConfig->monto_minimo) . " - ₡" . number_format($microConfig->monto_maximo));
         $this->command->info("   Deductoras preparadas: " . count($deductorasMap));
         $this->command->newLine();
 
@@ -83,6 +87,13 @@ class DeduccionesSeeder extends Seeder
                     $plazoAleatorio
                 );
 
+                // Aplicar límites de configuración (mantener cuota fija de planilla)
+                if ($montoCredito > $microConfig->monto_maximo) {
+                    $montoCredito = $microConfig->monto_maximo;
+                } elseif ($montoCredito < $microConfig->monto_minimo) {
+                    $montoCredito = $microConfig->monto_minimo;
+                }
+
                 // 1. Crear/actualizar Lead
                 $lead = Lead::withoutGlobalScopes()->updateOrCreate(
                     ['cedula' => $cedula],
@@ -101,10 +112,10 @@ class DeduccionesSeeder extends Seeder
                 // 2. Crear Opportunity
                 $opportunity = Opportunity::create([
                     'lead_cedula' => $cedula,
-                    'opportunity_type' => 'microcredito',
+                    'opportunity_type' => 'Microcrédito (Hasta ₡690.000)',
                     'vertical' => 'credito',
                     'amount' => $montoCredito,
-                    'status' => 'won',
+                    'status' => 'Analizada',
                     'expected_close_date' => Carbon::now(),
                 ]);
 
@@ -114,7 +125,7 @@ class DeduccionesSeeder extends Seeder
                     'title' => "Análisis {$opportunity->id}",
                     'estado_pep' => 'aprobado',
                     'estado_cliente' => 'aprobado',
-                    'category' => 'microcredito',
+                    'category' => 'Micro Crédito',
                     'monto_credito' => $montoCredito,
                     'lead_id' => $lead->id,
                     'opportunity_id' => $opportunity->id,
@@ -129,7 +140,7 @@ class DeduccionesSeeder extends Seeder
                     'reference' => $opportunity->id,
                     'title' => "Crédito {$opportunity->id}",
                     'status' => 'Pendiente',
-                    'category' => 'microcredito',
+                    'category' => 'Micro Crédito',
                     'progress' => 100,
                     'lead_id' => $lead->id,
                     'opportunity_id' => $opportunity->id,
@@ -142,6 +153,10 @@ class DeduccionesSeeder extends Seeder
                     'saldo' => $montoCredito,
                     'deductora_id' => $deductoraId,
                 ]);
+
+                // Generar número de operación con formato YY-XXXXX-01-CRED
+                $year = date('y');
+                $credit->numero_operacion = sprintf('%s-%05d-01-CRED', $year, $credit->id);
 
                 // Formalizar crédito y generar plan de pago
                 $credit->status = 'Formalizado';
@@ -173,6 +188,51 @@ class DeduccionesSeeder extends Seeder
         $this->command->info("   ✅ Créditos creados: {$processed}");
         $this->command->info("   ❌ Errores: {$errors}");
         $this->command->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+    /**
+     * Limpiar datos existentes - Wipe completo de tablas
+     * Elimina TODOS los registros de las tablas relacionadas antes de hacer el seed
+     */
+    private function limpiarDatosExistentes(): void
+    {
+        $this->command->info("🧹 Limpiando datos existentes (wipe completo)...");
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
+        // 1. Limpiar pagos de créditos
+        $deletedPayments = \App\Models\CreditPayment::count();
+        \App\Models\CreditPayment::truncate();
+        $this->command->info("   ✓ {$deletedPayments} pagos eliminados (tabla limpiada)");
+
+        // 2. Limpiar plan de pago
+        $deletedPlan = \App\Models\PlanDePago::count();
+        \App\Models\PlanDePago::truncate();
+        $this->command->info("   ✓ {$deletedPlan} entradas de plan de pago eliminadas (tabla limpiada)");
+
+        // 3. Limpiar créditos
+        $deletedCredits = \App\Models\Credit::count();
+        \App\Models\Credit::truncate();
+        $this->command->info("   ✓ {$deletedCredits} créditos eliminados (tabla limpiada)");
+
+        // 4. Limpiar análisis
+        $deletedAnalisis = \App\Models\Analisis::count();
+        \App\Models\Analisis::truncate();
+        $this->command->info("   ✓ {$deletedAnalisis} análisis eliminados (tabla limpiada)");
+
+        // 5. Limpiar oportunidades
+        $deletedOpportunities = \App\Models\Opportunity::count();
+        \App\Models\Opportunity::truncate();
+        $this->command->info("   ✓ {$deletedOpportunities} oportunidades eliminadas (tabla limpiada)");
+
+        // 6. Limpiar personas (solo leads y clientes, no inversores)
+        $deletedPersons = Lead::withoutGlobalScopes()->where('person_type_id', '!=', 3)->count();
+        Lead::withoutGlobalScopes()->where('person_type_id', '!=', 3)->delete();
+        $this->command->info("   ✓ {$deletedPersons} personas eliminadas (preservando inversores)");
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        $this->command->newLine();
     }
 
     /**
@@ -311,11 +371,12 @@ class DeduccionesSeeder extends Seeder
             $interesCorriente = $saldoActual * $tasaMensual;
             $amortizacion = $cuota - $interesCorriente;
             $saldoNuevo = $saldoActual - $amortizacion;
+            $cuotaActual = $cuota;
 
             // Ajustar última cuota por diferencias de redondeo
             if ($i === $plazo) {
                 $amortizacion = $saldoActual;
-                $cuota = $interesCorriente + $amortizacion;
+                $cuotaActual = $interesCorriente + $amortizacion;
                 $saldoNuevo = 0;
             }
 
@@ -331,7 +392,7 @@ class DeduccionesSeeder extends Seeder
                 'fecha_pago' => $fechaCuota->copy()->endOfMonth(),
                 'tasa_actual' => $tasaAnual,
                 'plazo_actual' => $plazo,
-                'cuota' => round($cuota, 2),
+                'cuota' => round($cuotaActual, 2),
                 'poliza' => 0,
                 'interes_corriente' => round($interesCorriente, 2),
                 'int_corriente_vencido' => 0,
