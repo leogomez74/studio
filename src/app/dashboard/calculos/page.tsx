@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 // Importamos los íconos que usaremos.
 import { Calculator, Search, RefreshCw, MessageSquare, Mail } from 'lucide-react';
+import { ProtectedPage } from "@/components/ProtectedPage";
 // $$$ CONECTOR MYSQL: Se importan la configuración de créditos.
 // Los créditos y leads ahora se obtienen de la API en tiempo real.
 import { Credit, creditConfigs, type Lead } from '@/lib/data';
@@ -340,7 +341,8 @@ export default function CalculosPage() {
   };
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <ProtectedPage module="calculos">
+      <div className="grid gap-6 md:grid-cols-2">
       {/* --- Opportunity Search Input --- */}
       <Card className="col-span-2">
         <CardHeader className="pb-3">
@@ -624,5 +626,6 @@ export default function CalculosPage() {
         </CardContent>
       </Card>
     </div>
+    </ProtectedPage>
   );
 }

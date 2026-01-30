@@ -1,6 +1,7 @@
 // Importamos los componentes e íconos necesarios para construir la página.
 import React from 'react';
 import { PlusCircle, MapPin, PackageCheck, User, Calendar, MoreHorizontal, Truck } from "lucide-react";
+import { ProtectedPage } from "@/components/ProtectedPage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,8 +40,9 @@ import { pendingPickups, routes, couriers } from "@/lib/data";
  */
 export default function RutasPage() {
   return (
-    // Usamos un layout de rejilla (grid) para organizar las tarjetas de contenido.
-    <div className="grid auto-rows-max items-start gap-4 lg:gap-8">
+    <ProtectedPage module="rutas">
+      {/* Usamos un layout de rejilla (grid) para organizar las tarjetas de contenido. */}
+      <div className="grid auto-rows-max items-start gap-4 lg:gap-8">
       {/* Tarjeta 1: Recogidas Pendientes */}
       <Card>
         <CardHeader>
@@ -171,5 +173,6 @@ export default function RutasPage() {
         </CardContent>
       </Card>
     </div>
+    </ProtectedPage>
   );
 }

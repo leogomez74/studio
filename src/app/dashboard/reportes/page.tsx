@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ProtectedPage } from "@/components/ProtectedPage";
 
 /**
  * Componente de la página de Reportes.
@@ -13,7 +14,8 @@ import {
  */
 export default function ReportesPage() {
   return (
-    <Card>
+    <ProtectedPage module="reportes">
+      <Card>
       <CardHeader>
         <CardTitle>Reportes</CardTitle>
         <CardDescription>
@@ -27,5 +29,6 @@ export default function ReportesPage() {
         </p>
       </CardContent>
     </Card>
+    </ProtectedPage>
   );
 }

@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
+import { ProtectedPage } from '@/components/ProtectedPage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
@@ -2270,7 +2271,8 @@ export default function ConfiguracionPage() {
   }, [activeTab, loadPoliza]);
 
   return (
-    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
+    <ProtectedPage module="configuracion">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
       <TabsList className="mb-4">
         <TabsTrigger value="prestamos">Préstamos</TabsTrigger>
         <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
@@ -2984,6 +2986,7 @@ export default function ConfiguracionPage() {
           </CardContent>
         </Card>
       </TabsContent>
-    </Tabs>
+      </Tabs>
+    </ProtectedPage>
   );
 }

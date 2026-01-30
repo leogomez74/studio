@@ -5,6 +5,7 @@ import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receip
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
+import { ProtectedPage } from "@/components/ProtectedPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -449,8 +450,9 @@ export default function CobrosPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <CardHeader className="px-0">
+    <ProtectedPage module="cobros">
+      <div className="space-y-6">
+        <CardHeader className="px-0">
         <CardTitle>Módulo de Cobros</CardTitle>
         <CardDescription>Administra los créditos en mora y visualiza el historial de abonos.</CardDescription>
       </CardHeader>
@@ -783,5 +785,6 @@ export default function CobrosPage() {
         </TabsContent>
       </Tabs>
     </div >
+    </ProtectedPage>
   );
 }

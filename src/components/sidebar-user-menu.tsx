@@ -17,9 +17,11 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/components/auth-guard';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 export function SidebarUserMenu() {
   const { user, logout } = useAuth();
+  const { canViewModule } = usePermissions();
 
   return (
     <SidebarMenu>
@@ -63,12 +65,14 @@ export function SidebarUserMenu() {
               <User className="mr-2 h-4 w-4" />
               <span>Perfil</span>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/configuracion">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Configuración</span>
-              </Link>
-            </DropdownMenuItem>
+            {canViewModule('configuracion') && (
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/configuracion">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Configuración</span>
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => logout()}>
               <LogOut className="mr-2 h-4 w-4" />

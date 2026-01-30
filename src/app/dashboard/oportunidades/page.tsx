@@ -80,6 +80,7 @@ import api from "@/lib/axios";
 
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
 import { PermissionButton } from "@/components/PermissionButton";
+import { ProtectedPage } from "@/components/ProtectedPage";
 
 const opportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
@@ -883,7 +884,8 @@ export default function DealsPage() {
   }, [searchVertical, instituciones]);
 
   return (
-    <Card>
+    <ProtectedPage module="oportunidades">
+      <Card>
       <CardHeader>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -1530,6 +1532,7 @@ export default function DealsPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+      </Card>
+    </ProtectedPage>
   );
 }

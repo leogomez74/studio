@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ProtectedPage } from "@/components/ProtectedPage";
 // Importamos los datos de ejemplo para el personal.
 import { staff, User } from "@/lib/data";
 
@@ -35,7 +36,8 @@ import { staff, User } from "@/lib/data";
  */
 export default function StaffPage() {
   return (
-    <Card>
+    <ProtectedPage module="staff">
+      <Card>
       {/* El encabezado de la tarjeta con título, descripción y botón para agregar. */}
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -71,6 +73,7 @@ export default function StaffPage() {
         </Table>
       </CardContent>
     </Card>
+    </ProtectedPage>
   );
 }
 

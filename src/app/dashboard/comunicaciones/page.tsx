@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PermissionButton } from "@/components/PermissionButton";
+import { ProtectedPage } from "@/components/ProtectedPage";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -205,7 +206,8 @@ export default function CommunicationsPage() {
 
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[260px_340px_1fr] h-[calc(100vh-8rem)] gap-2">
+    <ProtectedPage module="comunicaciones">
+      <div className="grid grid-cols-1 md:grid-cols-[260px_340px_1fr] h-[calc(100vh-8rem)] gap-2">
       {/* Columna 1: Barra lateral de Cajas de Entrada (Inboxes) */}
       <Card className="hidden md:flex flex-col">
         <CardContent className="p-4 space-y-6">
@@ -407,6 +409,7 @@ export default function CommunicationsPage() {
         )}
       </Card>
     </div>
+    </ProtectedPage>
   );
 }
 

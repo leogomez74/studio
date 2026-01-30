@@ -20,6 +20,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { PermissionButton } from '@/components/PermissionButton';
+import { ProtectedPage } from "@/components/ProtectedPage";
 
 // Funciones para formateo de moneda (Colones)
 const formatCurrency = (value: string | number): string => {
@@ -327,7 +328,8 @@ export default function AnalisisPage() {
 
   // 4. TABLA PRINCIPAL
   return (
-    <div className="space-y-6">
+    <ProtectedPage module="analizados">
+      <div className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -937,5 +939,6 @@ export default function AnalisisPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </ProtectedPage>
   );
 }

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlusCircle, Target, Building } from 'lucide-react';
+import { ProtectedPage } from "@/components/ProtectedPage";
 // Importamos los datos de ejemplo para las visitas y metas de venta.
 import { salesVisits, salesGoals, SalesVisit } from '@/lib/data';
 
@@ -39,7 +40,8 @@ const getStatusVariant = (status: SalesVisit['status']) => {
 // Esta es la función principal que define la página de Ventas.
 export default function VentasPage() {
   return (
-    <div className="space-y-6">
+    <ProtectedPage module="ventas">
+      <div className="space-y-6">
       {/* Tarjeta para las metas de venta */}
       <Card>
         <CardHeader>
@@ -128,5 +130,6 @@ export default function VentasPage() {
         </CardContent>
       </Card>
     </div>
+    </ProtectedPage>
   );
 }

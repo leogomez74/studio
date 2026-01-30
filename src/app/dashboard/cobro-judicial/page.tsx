@@ -27,6 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProtectedPage } from "@/components/ProtectedPage";
 // $$$ CONECTOR MYSQL: Se importan los datos de ejemplo.
 import { credits, Credit, judicialNotifications, JudicialNotification, undefinedNotifications, UndefinedNotification } from '@/lib/data'; 
 import Link from 'next/link';
@@ -221,7 +222,8 @@ export default function CobroJudicialPage() {
   );
 
   return (
-    <Tabs defaultValue="casos">
+    <ProtectedPage module="cobro_judicial">
+      <Tabs defaultValue="casos">
         <TabsList className="mb-4">
             <TabsTrigger value="casos">Casos</TabsTrigger>
             <TabsTrigger value="notificaciones-judiciales">Notificaciones Judiciales</TabsTrigger>
@@ -287,5 +289,6 @@ export default function CobroJudicialPage() {
             </Card>
         </TabsContent>
     </Tabs>
+    </ProtectedPage>
   );
 }

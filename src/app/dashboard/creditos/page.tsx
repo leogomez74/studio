@@ -14,6 +14,7 @@ import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PermissionButton } from "@/components/PermissionButton";
+import { ProtectedPage } from "@/components/ProtectedPage";
 import {
   Popover,
   PopoverContent,
@@ -1007,7 +1008,8 @@ export default function CreditsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <ProtectedPage module="creditos">
+      <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
@@ -1732,6 +1734,7 @@ export default function CreditsPage() {
         deductoras={deductoras}
       />
     </div>
+    </ProtectedPage>
   );
 }
 

@@ -5,13 +5,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ProtectedPage } from "@/components/ProtectedPage";
 
 /**
  * Componente de la página de Entrenamiento.
  */
 export default function EntrenamientoPage() {
   return (
-    <Card>
+    <ProtectedPage module="entrenamiento">
+      <Card>
       <CardHeader>
         <CardTitle>Entrenamiento</CardTitle>
         <CardDescription>
@@ -24,5 +26,6 @@ export default function EntrenamientoPage() {
         </p>
       </CardContent>
     </Card>
+    </ProtectedPage>
   );
 }

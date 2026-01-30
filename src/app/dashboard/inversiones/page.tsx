@@ -30,7 +30,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { investments, Investment, investors, Investor } from '@/lib/data'; 
+import { investments, Investment, investors, Investor } from '@/lib/data';
+import { ProtectedPage } from "@/components/ProtectedPage"; 
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -320,7 +321,8 @@ export default function InversionesPage() {
   const defaultTab = searchParams.get('tab') || 'inversionistas';
 
   return (
-    <Tabs defaultValue={defaultTab}>
+    <ProtectedPage module="inversiones">
+      <Tabs defaultValue={defaultTab}>
       <div className="flex items-center justify-between mb-4">
         <TabsList>
           <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
@@ -380,5 +382,6 @@ export default function InversionesPage() {
         </Card>
       </TabsContent>
     </Tabs>
+    </ProtectedPage>
   );
 }
