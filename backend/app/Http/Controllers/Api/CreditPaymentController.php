@@ -456,9 +456,8 @@ class CreditPaymentController extends Controller
                            + $cuota->amortizacion;
 
             if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
-                // Si la cuota tenía mora, marcar como Pagado/Mora para distinguir
                 $teniaMora = ((float) ($cuota->int_corriente_vencido ?? 0) > 0) || ((float) ($cuota->interes_moratorio ?? 0) > 0) || ((int) ($cuota->dias_mora ?? 0) > 0);
-                $cuota->estado = $teniaMora ? 'Pagado/Mora' : 'Pagado';
+                $cuota->estado = 'Pagado';
                 $cuota->fecha_pago = $fecha;
                 $cuota->concepto = $teniaMora ? 'Pago registrado (mora)' : 'Pago registrado';
             } else {
