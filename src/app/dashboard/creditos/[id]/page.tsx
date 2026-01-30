@@ -787,6 +787,20 @@ function CreditDetailClient({ id }: { id: string }) {
                   Balance General
                 </Link>
               </Button>
+              {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+                    const cleanBase = baseUrl.replace(/\/api\/?$/, '');
+                    window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
+                  }}
+                  className="bg-red-600 border-red-700 text-white hover:bg-red-700"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Reporte Plan de Pagos
+                </Button>
+              )}
             </>
           ) : (
             <>
@@ -1376,22 +1390,6 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardDescription>Detalle de cuotas y movimientos históricos</CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    {/* Botón Reporte PDF - Disponible siempre */}
-                    {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-                          const cleanBase = baseUrl.replace(/\/api\/?$/, '');
-                          window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
-                        }}
-                        className="bg-red-600 border-red-700 text-white hover:bg-red-700"
-                      >
-                        <FileText className="w-4 h-4 mr-1" />
-                        Reporte Plan de Pagos
-                      </Button>
-                    )}
                     {credit.status === 'Formalizado' && (
                       <TooltipProvider>
                         <Tooltip>
