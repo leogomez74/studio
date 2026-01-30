@@ -87,10 +87,11 @@ class Opportunity extends Model
         );
     }
 
-    // Relación con Lead (FK: lead_cedula -> persons.cedula)
+    // Relación con Person (FK: lead_cedula -> persons.cedula)
+    // Usa Person en lugar de Lead para incluir tanto Leads (type=1) como Clientes (type=2)
     public function lead()
     {
-        return $this->belongsTo(Lead::class, 'lead_cedula', 'cedula');
+        return $this->belongsTo(Person::class, 'lead_cedula', 'cedula');
     }
 
     // Relación con User (Agente asignado)

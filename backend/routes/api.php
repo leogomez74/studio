@@ -38,6 +38,9 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // --- Rutas de Negocio (Públicas) ---
 
+// PDF público del Plan de Pagos
+Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
+
 // Utilidades / Listas
 Route::get('/agents', function () {
     return response()->json(\App\Models\User::select('id', 'name')->get());
@@ -212,6 +215,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('credit-payments', CreditPaymentController::class);
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
+
+    // Tasas (Protegido)
+    Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);
+    Route::get('tasas/nombre/{nombre}', [\App\Http\Controllers\Api\TasaController::class, 'porNombre']);
+    Route::patch('tasas/{id}/toggle-activo', [\App\Http\Controllers\Api\TasaController::class, 'toggleActivo']);
 
     // --- Admin Gamificación ---
     Route::prefix('admin/gamification')->group(function () {

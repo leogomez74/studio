@@ -17,17 +17,30 @@ use Carbon\Carbon;
 class CreditController extends Controller
 {
     /**
-     * Listar créditos con filtros
+     * Listar créditos con filtros (optimizado con paginación)
      */
     public function index(Request $request)
     {
-        $query = Credit::with(['lead', 'opportunity', 'documents','planDePagos']);
+        // Eager load solo relaciones necesarias con campos específicos
+        $query = Credit::with([
+            'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id',
+            'opportunity:id,status,opportunity_type,vertical,amount',
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado'
+        ]);
 
         if ($request->has('lead_id')) {
             $query->where('lead_id', $request->lead_id);
         }
 
-        return response()->json($query->latest()->get());
+        // Paginación: 50 por página (ajustable con ?per_page=X)
+        $perPage = min($request->get('per_page', 50), 100); // Máximo 100
+
+        // Si se solicita 'all', retornar sin paginar (para exportaciones)
+        if ($request->get('all') === 'true') {
+            return response()->json($query->latest()->get());
+        }
+
+        return response()->json($query->latest()->paginate($perPage));
     }
 
     /**
@@ -89,7 +102,7 @@ class CreditController extends Controller
             // Campos Financieros
             'monto_credito' => 'required|numeric|min:2',
             'plazo' => 'required|integer|min:1',
-            'tasa_anual' => 'nullable|numeric',
+            'tasa_id' => 'nullable|exists:tasas,id',
             'fecha_primera_cuota' => 'nullable|date',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
@@ -114,9 +127,57 @@ class CreditController extends Controller
             ], 422);
         }
 
-        // Tasa por defecto
-        if (!isset($validated['tasa_anual'])) {
-            $validated['tasa_anual'] = 33.50;
+        // Determinar tasa según tipo de crédito usando loan_configurations
+        $fechaCredito = $validated['opened_at'] ?? now();
+
+        // Si no viene tipo_credito, inferirlo desde la categoría (viene de la oportunidad)
+        if (empty($validated['tipo_credito'])) {
+            $category = strtolower(trim($validated['category'] ?? ''));
+            $validated['tipo_credito'] = str_contains($category, 'micro') ? 'microcredito' : 'regular';
+        }
+        $tipoCredito = $validated['tipo_credito'];
+
+        // Buscar configuración del tipo de préstamo
+        $config = LoanConfiguration::where('tipo', $tipoCredito)->where('activo', true)->first();
+
+        if ($config) {
+            // Validar monto dentro del rango permitido
+            if ($validated['monto_credito'] < $config->monto_minimo || $validated['monto_credito'] > $config->monto_maximo) {
+                return response()->json([
+                    'message' => "El monto debe estar entre ₡" . number_format($config->monto_minimo, 0) . " y ₡" . number_format($config->monto_maximo, 0) . " para {$config->nombre}.",
+                ], 422);
+            }
+
+            // Validar plazo dentro del rango permitido
+            if ($validated['plazo'] < $config->plazo_minimo || $validated['plazo'] > $config->plazo_maximo) {
+                return response()->json([
+                    'message' => "El plazo debe estar entre {$config->plazo_minimo} y {$config->plazo_maximo} meses para {$config->nombre}.",
+                ], 422);
+            }
+
+            // Asignar tasa desde la configuración del préstamo
+            if ($config->tasa_id) {
+                $validated['tasa_id'] = $config->tasa_id;
+            }
+        }
+
+        // Si aún no tiene tasa_id, buscar fallback
+        if (!isset($validated['tasa_id'])) {
+            $tasaFallback = \App\Models\Tasa::vigente($fechaCredito)->first();
+            if (!$tasaFallback) {
+                return response()->json([
+                    'message' => 'No hay tasas vigentes para la fecha del crédito (' . Carbon::parse($fechaCredito)->format('d/m/Y') . '). Configure una tasa activa para ese período.',
+                    'fecha_credito' => Carbon::parse($fechaCredito)->format('d/m/Y'),
+                ], 422);
+            }
+            $validated['tasa_id'] = $tasaFallback->id;
+        }
+
+        // Congelar valores de tasa en el crédito
+        $tasaObj = \App\Models\Tasa::find($validated['tasa_id']);
+        if ($tasaObj) {
+            $validated['tasa_anual'] = $tasaObj->tasa;
+            $validated['tasa_maxima'] = $tasaObj->tasa_maxima;
         }
 
         // Referencia temporal (se actualiza después con el ID real)
@@ -334,6 +395,7 @@ class CreditController extends Controller
             'opportunity',
             'documents',
             'payments',
+            'tasa',  // ✓ Agregar relación tasa
             'planDePagos' => function($q) {
                 $q->orderBy('numero_cuota', 'asc');
             }
@@ -389,7 +451,7 @@ class CreditController extends Controller
             'reference' => 'sometimes|required|unique:credits,reference,' . $id,
             'status' => 'sometimes|required|string',
             'monto_credito' => 'nullable|numeric',
-            'tasa_anual' => 'nullable|numeric',
+            'tasa_id' => 'nullable|exists:tasas,id',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
             'cargos_adicionales' => 'nullable|array',
@@ -419,6 +481,19 @@ class CreditController extends Controller
                     'monto_credito' => $montoCredito,
                     'total_cargos' => $totalCargos,
                     'monto_neto' => $montoNeto,
+                ], 422);
+            }
+        }
+
+        // Validar que la tasa estaba vigente en la fecha de creación del crédito
+        if (isset($validated['tasa_id']) && $validated['tasa_id'] != $credit->tasa_id) {
+            $nuevaTasa = \App\Models\Tasa::find($validated['tasa_id']);
+
+            if ($nuevaTasa && !$nuevaTasa->esVigente($credit->created_at)) {
+                return response()->json([
+                    'message' => 'No se puede asignar esta tasa al crédito. La tasa "' . $nuevaTasa->nombre . '" no estaba vigente en la fecha de creación del crédito (' . $credit->created_at->format('d/m/Y') . ').',
+                    'tasa_inicio' => $nuevaTasa->inicio->format('d/m/Y'),
+                    'credito_creado' => $credit->created_at->format('d/m/Y'),
                 ], 422);
             }
         }
@@ -548,5 +623,28 @@ class CreditController extends Controller
         }
 
         return response()->json($credit);
+    }
+
+    /**
+     * Genera y descarga el PDF del Plan de Pagos (ruta pública, sin auth)
+     */
+    public function downloadPlanPDF($id)
+    {
+        $credit = Credit::with(['lead', 'tasa', 'planDePagos' => function($q) {
+            $q->orderBy('numero_cuota', 'asc');
+        }])->findOrFail($id);
+
+        $planDePagos = $credit->planDePagos;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.plan_de_pagos', [
+            'credit' => $credit,
+            'planDePagos' => $planDePagos,
+        ]);
+
+        $pdf->setPaper('a4', 'landscape');
+
+        $filename = 'plan_pagos_' . ($credit->numero_operacion ?? $credit->reference ?? $id) . '.pdf';
+
+        return $pdf->download($filename);
     }
 }

@@ -235,10 +235,7 @@ export default function AnalisisDetailPage() {
     }
   };
 
-  // Determinar si está en modo edición
-  const isEditMode = estadoPep === 'Pendiente de cambios';
-
-  // Helper para obtener info del tipo de archivo
+  // Helper para obtener info del tipo de archivo (no depende de analisis)
   const getFileTypeInfo = (fileName: string) => {
     const name = fileName.toLowerCase();
     if (name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
@@ -258,33 +255,6 @@ export default function AnalisisDetailPage() {
     }
     return { icon: File, label: 'Archivo', color: 'text-slate-600' };
   };
-
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-      </div>
-    );
-  }
-
-  if (error || !analisis) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="text-center text-red-500">
-          <p>{error || 'Análisis no encontrado'}</p>
-          <Button variant="outline" className="mt-4" onClick={() => router.push('/dashboard/analisis')}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Volver al listado
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const lead = analisis.lead;
-
-  // Verificar si un requisito está cumplido (auto o manual)
-  const allFiles = heredados;
 
   const isRequirementFulfilled = (req: Requirement): { fulfilled: boolean; autoMatch: boolean; matchedFiles: AnalisisFile[] } => {
     // Buscar archivos que coincidan por nombre y extensión
@@ -327,6 +297,32 @@ export default function AnalisisDetailPage() {
     { name: 'Comprobantes de Pago', file_extension: 'pdf', quantity: 6 },
   ];
 
+  // Early returns movidos aquí para cumplir con reglas de hooks
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  if (error || !analisis) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center text-red-500">
+          <p>{error || 'Análisis no encontrado'}</p>
+          <Button variant="outline" className="mt-4" onClick={() => router.push('/dashboard/analisis')}>
+            <ArrowLeft className="h-4 w-4 mr-2" /> Volver al listado
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Después de los early returns, TypeScript sabe que analisis no es null
+  const lead = analisis.lead;
+  const allFiles = heredados;
+  const isEditMode = estadoPep === 'Pendiente de cambios';
   const requirements = empresaMatch?.requirements || defaultRequirements;
 
   return (

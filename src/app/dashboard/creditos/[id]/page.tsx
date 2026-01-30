@@ -112,6 +112,7 @@ interface CreditPayment {
   cuota: number;
   poliza: number;
   interes_corriente: number;
+  int_corriente_vencido: number;
   interes_moratorio: number;
   amortizacion: number;
   saldo_anterior: number;
@@ -144,6 +145,7 @@ interface PlanDePago {
   cuota: number;
   poliza: number;
   interes_corriente: number;
+  int_corriente_vencido: number;
   interes_moratorio: number;
   amortizacion: number;
   saldo_anterior: number;
@@ -155,6 +157,7 @@ interface PlanDePago {
   movimiento_total: number;
   movimiento_poliza: number;
   movimiento_interes_corriente: number;
+  movimiento_int_corriente_vencido: number;
   movimiento_interes_moratorio: number;
   movimiento_principal: number;
   movimiento_amortizacion?: number;
@@ -234,6 +237,7 @@ interface CreditItem {
   lead?: {
     id: number;
     name: string;
+    cedula?: string | null;
     institucion_labora?: string | null;
     documents?: CreditDocument[];
     deductora_id?: number,
@@ -254,7 +258,9 @@ interface CreditItem {
   fecha_ultimo_pago?: string | null;
   garantia?: string | null;
   fecha_culminacion_credito?: string | null;
+  formalized_at?: string | null;
   tasa_anual?: number | null;
+  tasa?: { id: number; tasa: number } | null;
   plazo?: number | null;
   cuotas_atrasadas?: number | null;
   deductora?: { id: number; nombre: string } | null;
@@ -326,6 +332,154 @@ function CreditDetailClient({ id }: { id: string }) {
   // Deductoras
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
   const [isLoadingDeductoras, setIsLoadingDeductoras] = useState(true);
+
+  // Check if localhost (for dev tools)
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  // Helpers para formateo
+  const formatNumber = (n: number | string | null | undefined) => {
+    if (n === null || n === undefined) return '-';
+    return Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const formatDate = (d: string | null | undefined) => {
+    if (!d) return '-';
+    return new Date(d).toLocaleDateString('es-CR');
+  };
+
+  // Función para descargar plan de pagos como Markdown COMPLETO
+  const downloadPlanAsMarkdown = () => {
+    if (!credit?.plan_de_pagos) return;
+
+    let md = `# Plan de Pagos - ${credit.numero_operacion || credit.reference}\n\n`;
+    md += `## Información del Crédito\n\n`;
+    md += `| Campo | Valor |\n|-------|-------|\n`;
+    md += `| Cliente | ${credit.lead?.name || 'N/A'} |\n`;
+    md += `| Cédula | ${credit.lead?.cedula || 'N/A'} |\n`;
+    md += `| Monto Original | ₡${formatNumber(credit.monto_credito)} |\n`;
+    md += `| Saldo Actual | ₡${formatNumber(credit.saldo)} |\n`;
+    md += `| Estado Crédito | ${credit.status} |\n`;
+    md += `| Tasa Anual | ${credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00'}% |\n`;
+    md += `| Plazo | ${credit.plazo} meses |\n`;
+    md += `| Cuota Fija | ₡${formatNumber(credit.cuota)} |\n`;
+    md += `| Deductora | ${credit.lead?.deductora_id || 'N/A'} |\n`;
+    md += `| Formalizado | ${formatDate(credit.formalized_at)} |\n\n`;
+
+    md += `## Tabla de Amortización\n\n`;
+    md += `| # | Estado | Fecha Corte | Cuota | Póliza | Int.Corr | Int.Corr.Venc | Int.Mora | Amort | Capital | Saldo por Pagar |\n`;
+    md += `|---|--------|-------------|-------|--------|----------|---------------|----------|-------|---------|----------------|\n`;
+
+    const sortedPlan = [...credit.plan_de_pagos].sort((a, b) => a.numero_cuota - b.numero_cuota);
+
+    for (const p of sortedPlan) {
+      md += `| ${p.numero_cuota} | ${p.estado || '-'} | ${formatDate(p.fecha_corte)} | ${formatNumber(p.cuota)} | ${formatNumber(p.poliza)} | ${formatNumber(p.interes_corriente)} | ${formatNumber(p.int_corriente_vencido ?? 0)} | ${formatNumber(p.interes_moratorio)} | ${formatNumber(p.amortizacion)} | ${formatNumber(p.saldo_anterior)} | ${formatNumber(p.saldo_nuevo)} |\n`;
+    }
+
+    // Tabla de Movimientos
+    const hasMovimientos = sortedPlan.some(p => p.movimiento_total && Number(p.movimiento_total) > 0);
+    if (hasMovimientos) {
+      md += `\n## Movimientos Registrados\n\n`;
+      md += `| # | Fecha Mov | Mov.Total | Mov.Póliza | Mov.Int.Corr | Mov.Int.C.Venc | Mov.Int.Mora | Mov.Amort | Concepto |\n`;
+      md += `|---|-----------|-----------|------------|--------------|----------------|--------------|-----------|----------|\n`;
+      for (const p of sortedPlan) {
+        if (p.movimiento_total && Number(p.movimiento_total) > 0) {
+          md += `| ${p.numero_cuota} | ${formatDate(p.fecha_movimiento)} | ${formatNumber(p.movimiento_total)} | ${formatNumber(p.movimiento_poliza)} | ${formatNumber(p.movimiento_interes_corriente)} | ${formatNumber(p.movimiento_int_corriente_vencido ?? 0)} | ${formatNumber(p.movimiento_interes_moratorio)} | ${formatNumber(p.movimiento_amortizacion)} | ${p.concepto || '-'} |\n`;
+        }
+      }
+    }
+
+    // Resumen
+    const cuotasPagadas = sortedPlan.filter(p => p.estado === 'Pagado').length;
+    const cuotasMora = sortedPlan.filter(p => p.estado === 'Mora').length;
+    const cuotasPendientes = sortedPlan.filter(p => p.estado === 'Pendiente' && p.numero_cuota > 0).length;
+    const totalMora = sortedPlan.reduce((sum, p) => sum + Number(p.interes_moratorio || 0), 0);
+
+    md += `\n## Resumen\n\n`;
+    md += `| Concepto | Valor |\n|----------|-------|\n`;
+    md += `| Cuotas Pagadas | ${cuotasPagadas} |\n`;
+    md += `| Cuotas en Mora | ${cuotasMora} |\n`;
+    md += `| Cuotas Pendientes | ${cuotasPendientes} |\n`;
+    md += `| Total Int. Moratorio | ₡${formatNumber(totalMora)} |\n`;
+
+    md += `\n---\n*Generado: ${new Date().toLocaleString('es-CR')}*\n`;
+
+    const blob = new Blob([md], { type: 'text/markdown; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plan_pagos_${credit.numero_operacion || credit.reference || id}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Función para descargar plan de pagos como PDF
+  const downloadPlanAsPDF = async () => {
+    if (!credit?.plan_de_pagos) return;
+
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const sortedPlan = [...credit.plan_de_pagos].sort((a, b) => a.numero_cuota - b.numero_cuota);
+
+    // Título
+    doc.setFontSize(16);
+    doc.text(`Plan de Pagos - ${credit.numero_operacion || credit.reference}`, 14, 15);
+
+    // Info del crédito
+    doc.setFontSize(10);
+    const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
+    doc.text(`Cliente: ${credit.lead?.name || 'N/A'}`, 14, 25);
+    doc.text(`Monto: ${formatNumber(credit.monto_credito)}`, 14, 30);
+    doc.text(`Saldo por Pagar: ${formatNumber(credit.saldo)}`, 120, 25);
+    doc.text(`Estado: ${credit.status}`, 120, 30);
+    doc.text(`Tasa: ${tasaValue}%`, 200, 25);
+    doc.text(`Plazo: ${credit.plazo} meses`, 200, 30);
+
+    // Tabla principal con todas las columnas
+    const tableData = sortedPlan.map(p => [
+      p.numero_cuota,
+      p.estado || '-',
+      formatDate(p.fecha_corte),
+      formatNumber(p.cuota),
+      formatNumber(p.poliza ?? 0),
+      formatNumber(p.interes_corriente),
+      formatNumber(p.int_corriente_vencido ?? 0),
+      formatNumber(p.interes_moratorio),
+      formatNumber(p.amortizacion),
+      formatNumber(p.saldo_anterior),
+      formatNumber(p.saldo_nuevo),
+      p.dias_mora || '0',
+      formatDate(p.fecha_movimiento),
+      formatNumber(p.movimiento_total ?? 0),
+      formatNumber(p.movimiento_poliza ?? 0),
+      formatNumber(p.movimiento_interes_corriente ?? 0),
+      formatNumber(p.movimiento_int_corriente_vencido ?? 0),
+      formatNumber(p.movimiento_interes_moratorio ?? 0),
+      formatNumber(p.movimiento_amortizacion ?? 0),
+      formatNumber(p.movimiento_principal ?? 0),
+    ]);
+
+    autoTable(doc, {
+      head: [['#', 'Estado', 'Fecha', 'Cuota', 'Póliza', 'Int.Corr', 'Int.C.Venc', 'Int.Mora', 'Amort', 'Capital', 'Saldo', 'Mora', 'F.Mov', 'Mov.Total', 'Mov.Pól', 'Mov.Int.C', 'Mov.Int.V', 'Mov.Int.M', 'Mov.Amort', 'Mov.Princ']],
+      body: tableData,
+      startY: 35,
+      styles: { fontSize: 5.5, cellPadding: 0.8 },
+      headStyles: { fillColor: [41, 128, 185], fontSize: 5 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 16 },
+        2: { cellWidth: 16 },
+        11: { cellWidth: 8 },
+        12: { cellWidth: 14 },
+      },
+    });
+
+    doc.save(`plan_pagos_${credit.numero_operacion || credit.reference || id}.pdf`);
+  };
   // Fetch Deductoras
   const fetchDeductoras = async () => {
     try {
@@ -1207,49 +1361,66 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardTitle>Plan de Pagos</CardTitle>
                     <CardDescription>Detalle de cuotas y movimientos históricos</CardDescription>
                   </div>
-                  {credit.status === 'Formalizado' && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={credit.plan_de_pagos?.some(p => p.estado === 'Pagado')}
-                              onClick={async () => {
-                                if (!confirm('¿Estás seguro de que deseas regenerar el plan de pagos? Esto eliminará las cuotas pendientes y creará un nuevo plan.')) return;
-                                try {
-                                  setLoading(true);
-                                  await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
-                                  toast({
-                                    title: 'Plan de pagos regenerado',
-                                    description: 'El plan de pagos se ha regenerado correctamente.',
-                                  });
-                                  await fetchCredit();
-                                } catch (error) {
-                                  console.error('Error regenerando plan de pagos:', error);
-                                  toast({
-                                    title: 'Error',
-                                    description: 'No se pudo regenerar el plan de pagos.',
-                                    variant: 'destructive',
-                                  });
-                                } finally {
-                                  setLoading(false);
-                                }
-                              }}
-                            >
-                              Regenerar Plan
-                            </Button>
-                          </div>
-                        </TooltipTrigger>
-                        {credit.plan_de_pagos?.some(p => p.estado === 'Pagado') && (
-                          <TooltipContent>
-                            <p>No se puede regenerar el plan porque existen cuotas pagadas.</p>
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
+                  <div className="flex gap-2">
+                    {/* Botón Reporte PDF - Disponible siempre */}
+                    {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+                          const cleanBase = baseUrl.replace(/\/api\/?$/, '');
+                          window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
+                        }}
+                        className="bg-red-50 border-red-300 text-red-800 hover:bg-red-100"
+                      >
+                        Reporte Plan de Pagos
+                      </Button>
+                    )}
+                    {credit.status === 'Formalizado' && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={credit.plan_de_pagos?.some(p => p.estado === 'Pagado')}
+                                onClick={async () => {
+                                  if (!confirm('¿Estás seguro de que deseas regenerar el plan de pagos? Esto eliminará las cuotas pendientes y creará un nuevo plan.')) return;
+                                  try {
+                                    setLoading(true);
+                                    await api.post(`/api/credits/${id}/generate-plan-de-pagos`);
+                                    toast({
+                                      title: 'Plan de pagos regenerado',
+                                      description: 'El plan de pagos se ha regenerado correctamente.',
+                                    });
+                                    await fetchCredit();
+                                  } catch (error) {
+                                    console.error('Error regenerando plan de pagos:', error);
+                                    toast({
+                                      title: 'Error',
+                                      description: 'No se pudo regenerar el plan de pagos.',
+                                      variant: 'destructive',
+                                    });
+                                  } finally {
+                                    setLoading(false);
+                                  }
+                                }}
+                              >
+                                Regenerar Plan
+                              </Button>
+                            </div>
+                          </TooltipTrigger>
+                          {credit.plan_de_pagos?.some(p => p.estado === 'Pagado') && (
+                            <TooltipContent>
+                              <p>No se puede regenerar el plan porque existen cuotas pagadas.</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <ScrollableTableContainer className="max-h-[70vh]">
@@ -1266,10 +1437,11 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs text-right">Cuota</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Corriente</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Int. Corr. Vencido</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Int. Moratorio</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Amortización</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Saldo Anterior</TableHead>
-                        <TableHead className="whitespace-nowrap text-xs text-right">Saldo Nuevo</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Capital</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Saldo por Pagar</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Días</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Estado</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Mora (Días)</TableHead>
@@ -1277,6 +1449,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Total</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Póliza</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Corr.</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. C. Venc.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Int. Mora.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Amortización</TableHead>
                         <TableHead className="whitespace-nowrap text-xs text-right">Mov. Principal</TableHead>
@@ -1300,13 +1473,19 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.cuota)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_corriente)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.int_corriente_vencido ?? 0)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_moratorio)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.amortizacion)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.saldo_anterior)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.saldo_nuevo)}</TableCell>
                             <TableCell className="text-xs text-center">{payment.dias || "-"}</TableCell>
                             <TableCell className="text-xs">
-                              <Badge variant="outline" className={`text-[10px] h-5 ${payment.estado === 'Pagado' ? 'bg-green-50 text-green-700 border-green-200' : (payment.estado === 'Parcial' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : '')}`}>
+                              <Badge variant="outline" className={`text-[10px] h-5 ${
+                                payment.estado === 'Pagado' ? 'bg-green-50 text-green-700 border-green-200' :
+                                payment.estado === 'Mora' ? 'bg-red-50 text-red-700 border-red-200' :
+                                payment.estado === 'Parcial' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                'bg-gray-50 text-gray-700 border-gray-200'
+                              }`}>
                                 {payment.estado}
                               </Badge>
                             </TableCell>
@@ -1315,6 +1494,7 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_total)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_poliza)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_corriente)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_int_corriente_vencido ?? 0)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_interes_moratorio)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_amortizacion)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.movimiento_principal)}</TableCell>
@@ -1327,7 +1507,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={30} className="text-center py-12">
+                          <TableCell colSpan={32} className="text-center py-12">
                             <div className="flex flex-col items-center gap-4">
                               <div className="text-muted-foreground">
                                 {credit.status !== 'Formalizado' ? (

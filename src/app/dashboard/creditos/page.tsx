@@ -1,4 +1,4 @@
-  "use client";
+"use client";
 
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -91,6 +91,7 @@ const creditSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
   status: z.string(),
   category: z.string(),
+  tipo_credito: z.string().default("regular"),
   monto_credito: z.coerce.number().min(0, "El monto debe ser positivo"),
   clientId: z.string().min(1, "Debes seleccionar un cliente"),
   opportunityId: z.string().optional(),
@@ -355,6 +356,7 @@ export default function CreditsPage() {
       title: "",
       status: CREDIT_STATUS_OPTIONS[0],
       category: "",
+      tipo_credito: "regular",
       monto_credito: 0,
       clientId: "",
       opportunityId: "",
@@ -588,6 +590,7 @@ export default function CreditsPage() {
       title: "",
       status: CREDIT_STATUS_OPTIONS[0],
       category: products.length > 0 ? products[0].name : "",
+      tipo_credito: "regular",
       monto_credito: 0,
       clientId: "",
       opportunityId: "",
@@ -610,6 +613,7 @@ export default function CreditsPage() {
         title: values.title,
         status: values.status,
         category: values.category,
+        tipo_credito: values.tipo_credito,
         monto_credito: values.monto_credito,
         lead_id: parseInt(values.clientId),
         opportunity_id: values.opportunityId || null,
@@ -800,6 +804,7 @@ export default function CreditsPage() {
     doc.setTextColor(0, 0, 0);
 
     // Credit Data
+    const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
     const creditRow = [
       credit.numero_operacion || credit.reference,
       credit.linea || "PEPITO ABIERTO",
@@ -807,6 +812,7 @@ export default function CreditsPage() {
       credit.plazo || 120,
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
+      `${tasaValue}%`,
       "0.00", // Morosidad
       credit.primera_deduccion || "-", // PRI.DED (Primera Deducción)
       new Date().toISOString().split('T')[0], // Ult Mov
@@ -816,7 +822,7 @@ export default function CreditsPage() {
 
     autoTable(doc, {
       startY: finalY + 5,
-      head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
+      head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
       body: [creditRow],
       theme: 'plain',
       styles: { fontSize: 7, cellPadding: 1 },
@@ -950,7 +956,7 @@ export default function CreditsPage() {
     // Monto en números
     const monto = Number(credit.monto_credito ?? 0);
     const plazo = Number(credit.plazo ?? 0);
-    const tasaNumber = Number(credit.tasa_anual ?? 0);
+    const tasaNumber = Number(credit.tasa?.tasa ?? credit.tasa_anual ?? 0);
     const tasaMensual = (tasaNumber / 12).toFixed(2);
 
     doc.setFontSize(9);
@@ -1147,7 +1153,7 @@ export default function CreditsPage() {
                         const fechaFin = credit.fecha_culminacion_credito;
 
                         // 3. Tasa: De cabecera o del primer pago
-                        const tasa = credit.tasa_anual || (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null);
+                        const tasa = credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null);
 
                         // 4. Fallbacks para Línea y Proceso
                         const linea = credit.linea || credit.category || "-";
@@ -1168,12 +1174,12 @@ export default function CreditsPage() {
                                     <Eye className="h-4 w-4" />
                                   </Link>
                                 </Button>
-                                {credit.status === 'Formalizado' ? (
+                                {['Formalizado', 'En Mora'].includes(credit.status || '') ? (
                                   <Button
                                     variant="outline"
                                     size="icon"
                                     disabled
-                                    title="No se puede editar un crédito formalizado"
+                                    title={credit.status === 'En Mora' ? "No se puede editar un crédito en mora" : "No se puede editar un crédito formalizado"}
                                     className="border-gray-300 text-gray-400 cursor-not-allowed"
                                   >
                                     <Pencil className="h-4 w-4" />
@@ -1216,7 +1222,7 @@ export default function CreditsPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                    {credit.status !== 'Formalizado' && (
+                                    {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
                                       <DropdownMenuItem
                                         onClick={async () => {
                                           try {
@@ -1527,24 +1533,66 @@ export default function CreditsPage() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <FormField
                         control={form.control}
-                        name="monto_credito"
+                        name="tipo_credito"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Monto Solicitado</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="text"
-                                placeholder="₡0.00"
-                                value={field.value ? formatCurrency(field.value) : ''}
-                                onChange={(e) => {
-                                  const numericValue = parseCurrencyToNumber(e.target.value);
-                                  field.onChange(numericValue);
-                                }}
-                              />
-                            </FormControl>
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel>Tipo de Crédito</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar tipo..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="regular">Crédito Regular</SelectItem>
+                                <SelectItem value="microcredito">Micro-crédito</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="monto_credito"
+                        render={({ field }) => {
+                          const [displayValue, setDisplayValue] = useState(
+                            field.value ? formatCurrency(field.value) : ''
+                          );
+
+                          return (
+                            <FormItem>
+                              <FormLabel>Monto Solicitado</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="text"
+                                  placeholder="₡0.00"
+                                  value={displayValue}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setDisplayValue(value);
+                                    const numericValue = parseCurrencyToNumber(value);
+                                    field.onChange(numericValue);
+                                  }}
+                                  onBlur={() => {
+                                    // Format on blur
+                                    if (field.value) {
+                                      setDisplayValue(formatCurrency(field.value));
+                                    }
+                                  }}
+                                  onFocus={(e) => {
+                                    // Show raw number on focus
+                                    if (field.value) {
+                                      setDisplayValue(field.value.toString());
+                                      e.target.select();
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
                       <FormField
                         control={form.control}

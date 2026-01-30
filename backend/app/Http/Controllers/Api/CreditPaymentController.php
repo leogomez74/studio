@@ -39,9 +39,10 @@ class CreditPaymentController extends Controller
             'origen'    => 'nullable|string',
         ]);
 
-        $credit = Credit::findOrFail($validated['credit_id']);
+        $payment = DB::transaction(function () use ($validated) {
+            // 🔒 LOCK: Obtener crédito con bloqueo pesimista para prevenir race conditions
+            $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
 
-        $payment = DB::transaction(function () use ($credit, $validated) {
             return $this->processPaymentTransaction(
                 $credit,
                 $validated['monto'],
@@ -50,6 +51,9 @@ class CreditPaymentController extends Controller
                 $credit->lead->cedula ?? null
             );
         });
+
+        // Recargar el crédito actualizado
+        $credit = Credit::find($validated['credit_id']);
 
         return response()->json([
             'message' => 'Pago aplicado correctamente',
@@ -73,11 +77,12 @@ class CreditPaymentController extends Controller
             'cuotas'    => 'nullable|array', // IDs de cuotas seleccionadas para adelanto
         ]);
 
-        $credit = Credit::findOrFail($validated['credit_id']);
-
         // CASO 1: PAGO NORMAL / ADELANTO SIMPLE (Sin Recálculo)
         if (($validated['tipo'] ?? '') !== 'extraordinario') {
-            $result = DB::transaction(function () use ($credit, $validated) {
+            $result = DB::transaction(function () use ($validated) {
+                // 🔒 LOCK: Obtener crédito con bloqueo pesimista
+                $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
+
                 // Si es adelanto y hay cuotas seleccionadas, pasar IDs
                 $cuotasSeleccionadas = $validated['cuotas'] ?? null;
                 return $this->processPaymentTransaction(
@@ -89,15 +94,19 @@ class CreditPaymentController extends Controller
                     $cuotasSeleccionadas
                 );
             });
+
+            $credit = Credit::find($validated['credit_id']);
             return response()->json([
                 'message' => 'Pago aplicado correctamente.',
                 'payment' => $result,
-                'nuevo_saldo' => $credit->fresh()->saldo
+                'nuevo_saldo' => $credit->saldo
             ]);
         }
 
         // CASO 2: ABONO EXTRAORDINARIO (Recálculo de Tabla)
-        $result = DB::transaction(function () use ($credit, $validated) {
+        $result = DB::transaction(function () use ($validated) {
+            // 🔒 LOCK: Obtener crédito con bloqueo pesimista
+            $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
             $montoAbono = $validated['monto'];
             $fechaPago = $validated['fecha'];
             $strategy = $validated['extraordinary_strategy'];
@@ -168,7 +177,7 @@ class CreditPaymentController extends Controller
         return response()->json([
             'message' => 'Abono extraordinario aplicado y plan regenerado.',
             'payment' => $result,
-            'nuevo_saldo' => $credit->fresh()->saldo
+            'nuevo_saldo' => Credit::find($validated['credit_id'])->saldo
         ]);
     }
 
@@ -259,20 +268,33 @@ class CreditPaymentController extends Controller
             $loops = 0;
 
             // Descontamos continuamente mes a mes hasta que saldo llegue a 0
-            while ($saldo > 0.05 && $loops < $maxLoops) {
+            while ($saldo > 0.01 && $loops < $maxLoops) {
                 $fechaIteracion->addMonth();
                 $loops++;
 
                 $interes = round($saldo * $tasaMensual, 2);
                 $amortizacion = $cuotaFijaActual - $interes;
 
-                if ($saldo <= $amortizacion) {
+                // Validar: Si la amortización es negativa o cero, ajustar
+                if ($amortizacion <= 0) {
+                    // La cuota no alcanza para cubrir ni el interés - liquidar en esta cuota
+                    $cuotaReal = $saldo + $interes;
+                    $amortizacion = $saldo;
+                    $nuevoSaldo = 0;
+                } elseif ($saldo <= $amortizacion) {
                     $amortizacion = $saldo;
                     $cuotaReal = $saldo + $interes; // Última cuota ajustada
                     $nuevoSaldo = 0;
                 } else {
                     $cuotaReal = $cuotaFijaActual;
                     $nuevoSaldo = round($saldo - $amortizacion, 2);
+                }
+
+                // Protección final: Si estamos cerca del límite y queda saldo residual, liquidarlo
+                if ($loops >= $maxLoops - 1 && $nuevoSaldo > 0) {
+                    $cuotaReal += $nuevoSaldo;
+                    $amortizacion += $nuevoSaldo;
+                    $nuevoSaldo = 0;
                 }
 
                 $this->crearCuota($credit->id, $contadorCuota, $fechaIteracion, $tasaAnual, $cuotaReal, $interes, $amortizacion, $saldo, $nuevoSaldo, $polizaOriginal);
@@ -357,7 +379,14 @@ class CreditPaymentController extends Controller
 
             // A. Pendientes
             $pendienteMora = max(0.0, $cuota->interes_moratorio - $cuota->movimiento_interes_moratorio);
-            $pendienteInteres = max(0.0, $cuota->interes_corriente - $cuota->movimiento_interes_corriente) + $carryInteres;
+
+            // Separar pendientes de interés corriente y vencido
+            $pendienteIntVencido = max(0.0, ($cuota->int_corriente_vencido ?? 0) - ($cuota->movimiento_int_corriente_vencido ?? 0));
+            $pendienteIntCorriente = max(0.0, ($cuota->interes_corriente ?? 0) - ($cuota->movimiento_interes_corriente ?? 0));
+
+            // Sumar carry de interés al pendiente vencido primero
+            $pendienteIntVencido += $carryInteres;
+
             $pendientePoliza = max(0.0, $cuota->poliza - $cuota->movimiento_poliza);
             $pendientePrincipal = max(0.0, $cuota->amortizacion - $cuota->movimiento_principal) + $carryAmort;
 
@@ -366,11 +395,20 @@ class CreditPaymentController extends Controller
             $cuota->movimiento_interes_moratorio += $pagoMora;
             $dineroDisponible -= $pagoMora;
 
-            $pagoInteres = 0;
-            if ($dineroDisponible > 0) {
-                $pagoInteres = min($dineroDisponible, $pendienteInteres);
-                $cuota->movimiento_interes_corriente += $pagoInteres;
-                $dineroDisponible -= $pagoInteres;
+            // Pagar primero interés corriente vencido
+            $pagoIntVencido = 0;
+            if ($dineroDisponible > 0 && $pendienteIntVencido > 0) {
+                $pagoIntVencido = min($dineroDisponible, $pendienteIntVencido);
+                $cuota->movimiento_int_corriente_vencido = ($cuota->movimiento_int_corriente_vencido ?? 0) + $pagoIntVencido;
+                $dineroDisponible -= $pagoIntVencido;
+            }
+
+            // Luego pagar interés corriente
+            $pagoIntCorriente = 0;
+            if ($dineroDisponible > 0 && $pendienteIntCorriente > 0) {
+                $pagoIntCorriente = min($dineroDisponible, $pendienteIntCorriente);
+                $cuota->movimiento_interes_corriente += $pagoIntCorriente;
+                $dineroDisponible -= $pagoIntCorriente;
             }
 
             $pagoPoliza = 0;
@@ -391,28 +429,38 @@ class CreditPaymentController extends Controller
             }
 
             // Calculate carry-over for next cuota
-            $leftInteres = $pendienteInteres - $pagoInteres;
+            $leftIntVencido = $pendienteIntVencido - $pagoIntVencido;
+            $leftIntCorriente = $pendienteIntCorriente - $pagoIntCorriente;
             $leftAmort = $pendientePrincipal - $pagoPrincipal;
+
             // Only carry to next cuota, not last
             if ($i < $cuotasCount - 1) {
-                $carryInteres = max(0.0, $leftInteres);
+                // Carry suma ambos tipos de interés pendientes
+                $carryInteres = max(0.0, $leftIntVencido + $leftIntCorriente);
                 $carryAmort = max(0.0, $leftAmort);
             } else {
                 $carryInteres = 0.0;
                 $carryAmort = 0.0;
             }
 
-            $totalPagadoEnEstaTransaccion = $pagoMora + $pagoInteres + $pagoPoliza + $pagoPrincipal;
+            $totalPagadoEnEstaTransaccion = $pagoMora + $pagoIntVencido + $pagoIntCorriente + $pagoPoliza + $pagoPrincipal;
             $cuota->movimiento_total += $totalPagadoEnEstaTransaccion;
             $cuota->movimiento_amortizacion += $pagoPrincipal;
             $cuota->fecha_movimiento = $fecha;
 
-            $totalExigible = $cuota->cuota + $cuota->interes_moratorio + $cuota->poliza;
+            // Calcular total exigible incluyendo int_corriente_vencido
+            $totalExigible = $cuota->interes_corriente
+                           + $cuota->int_corriente_vencido
+                           + $cuota->interes_moratorio
+                           + $cuota->poliza
+                           + $cuota->amortizacion;
 
             if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
-                $cuota->estado = 'Pagado';
+                // Si la cuota tenía mora, marcar como Pagado/Mora para distinguir
+                $teniaMora = ((float) ($cuota->int_corriente_vencido ?? 0) > 0) || ((float) ($cuota->interes_moratorio ?? 0) > 0) || ((int) ($cuota->dias_mora ?? 0) > 0);
+                $cuota->estado = $teniaMora ? 'Pagado/Mora' : 'Pagado';
                 $cuota->fecha_pago = $fecha;
-                $cuota->concepto = 'Pago registrado';
+                $cuota->concepto = $teniaMora ? 'Pago registrado (mora)' : 'Pago registrado';
             } else {
                 $cuota->estado = 'Parcial';
                 $cuota->concepto = 'Pago parcial';
@@ -459,13 +507,17 @@ class CreditPaymentController extends Controller
         $validated = $request->validate([
             'file' => 'required|file',
             'deductora_id' => 'required|exists:deductoras,id',
+            'fecha_test' => 'nullable|date', // Solo para pruebas en localhost
         ]);
 
         $deductoraId = $request->input('deductora_id');
-        $fechaPago = now();
+
+        // Usar fecha de prueba si se proporciona (solo para desarrollo/testing)
+        $fechaTest = $request->input('fecha_test');
+        $fechaPago = $fechaTest ? Carbon::parse($fechaTest) : now();
 
         // Mes que se está pagando (planillas llegan 1 mes después)
-        $mesPago = now()->subMonth();
+        $mesPago = $fechaPago->copy()->subMonth();
         $diasDelMes = $mesPago->daysInMonth;
 
         // Tasa de mora desde configuración (loan_configurations.tasa_anual)
@@ -546,7 +598,10 @@ class CreditPaymentController extends Controller
                     }
                     $montoPagado = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
                     if ($montoPagado > 0) {
-                        $payment = DB::transaction(function () use ($credit, $montoPagado, $fechaPago, $rawCedula) {
+                        $creditId = $credit->id;
+                        $payment = DB::transaction(function () use ($creditId, $montoPagado, $fechaPago, $rawCedula) {
+                            // 🔒 LOCK: Obtener crédito con bloqueo pesimista dentro de la transacción
+                            $credit = Credit::lockForUpdate()->findOrFail($creditId);
                             return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula);
                         });
                         if ($payment) {
@@ -574,18 +629,17 @@ class CreditPaymentController extends Controller
     /**
      * Calcula mora para créditos formalizados de una deductora que NO están en la planilla
      *
-     * @param int $deductoraId ID de la deductora
-     * @param array $creditosQuePagaron IDs de créditos que SÍ pagaron
-     * @param Carbon $mesPago Mes que se está pagando (mes anterior)
-     * @param int $diasDelMes Días del mes para el cálculo
-     * @param float $tasaMora Tasa de mora anual (ej: 33.5)
-     * @return array Resultados del cálculo de mora
+     * Lógica:
+     * 1. Marca la cuota pendiente más antigua como "Mora" SIN modificar montos originales
+     * 2. Mueve interes_corriente → int_corriente_vencido
+     * 3. Si tasa_anual = tasa_maxima → interes_moratorio = 0
+     * 4. Agrega cuota desplazada al final del plan para que el saldo llegue a 0
+     * 5. NO recalcula cuotas siguientes
      */
     private function calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora)
     {
         $moraResults = [];
 
-        // Obtener créditos formalizados o en mora de ESTA deductora que NO pagaron
         $creditosSinPago = Credit::whereIn('status', ['Formalizado', 'En Mora'])
             ->where('deductora_id', $deductoraId)
             ->whereNotNull('formalized_at')
@@ -593,13 +647,10 @@ class CreditPaymentController extends Controller
             ->get();
 
         foreach ($creditosSinPago as $credit) {
-            // Verificar si ya comenzó período de mora
-            // Mora inicia el 1ro del mes SIGUIENTE a la formalización
             $inicioMora = Carbon::parse($credit->formalized_at)
                 ->startOfMonth()
                 ->addMonth();
 
-            // Si el mes de pago es anterior al inicio de mora, no aplica
             if ($mesPago->lt($inicioMora)) {
                 $moraResults[] = [
                     'credit_id' => $credit->id,
@@ -610,7 +661,7 @@ class CreditPaymentController extends Controller
                 continue;
             }
 
-            // Buscar cuota pendiente más antigua (no pagada)
+            // Buscar cuota pendiente más antigua
             $cuota = $credit->planDePagos()
                 ->where('numero_cuota', '>', 0)
                 ->where('estado', 'Pendiente')
@@ -626,31 +677,183 @@ class CreditPaymentController extends Controller
                 continue;
             }
 
-            // Calcular mora: Capital × (Tasa/365) × Días del mes
-            $capital = (float) $credit->monto_credito;
-            $mora = $capital * ($tasaMora / 100 / 365) * $diasDelMes;
-            $moraRedondeada = round($mora, 2);
+            // Tasa congelada del crédito
+            $tasaBase = (float) ($credit->tasa_anual ?? 0);
+            $tasaMaxima = (float) ($credit->tasa_maxima ?? 0);
+            $diferenciaTasa = $tasaMaxima - $tasaBase;
 
-            // Guardar mora y cambiar estado de la cuota
-            $cuota->interes_moratorio = ($cuota->interes_moratorio ?? 0) + $moraRedondeada;
+            // Guardar amortización original para la cuota desplazada
+            $amortizacionOriginal = (float) $cuota->amortizacion;
+
+            // Capital REAL del crédito (no el planificado)
+            $capitalReal = (float) $credit->saldo;
+            $tasaMensual = $tasaBase / 100 / 12;
+
+            // 1. Interés vencido = calculado sobre el capital REAL (no el planificado)
+            //    Si no pagó varias veces seguidas, el capital es el mismo → interés es el mismo
+            $interesVencido = round($capitalReal * $tasaMensual, 2);
+            $cuota->int_corriente_vencido = $interesVencido;
+            $cuota->interes_corriente = 0;
+
+            // 2. Interés moratorio: solo si hay diferencia entre tasas
+            if ($diferenciaTasa > 0) {
+                $interesMoratorio = round($capitalReal * $diferenciaTasa / 100 / 12, 2);
+                $cuota->interes_moratorio = ($cuota->interes_moratorio ?? 0) + $interesMoratorio;
+            } else {
+                $cuota->interes_moratorio = 0;
+            }
+
+            // 3. No se pagó: amortización = 0, capital no baja
+            $cuota->amortizacion = 0;
+
+            // 4. Capital (saldo_anterior) = capital REAL, no baja
+            $cuota->saldo_anterior = $capitalReal;
+
+            // 5. Saldo por pagar = saldo_nuevo de la cuota anterior + intereses de este mes
+            $intMora = (float) $cuota->interes_moratorio;
+            $poliza = (float) ($cuota->poliza ?? 0);
+
+            $cuotaAnterior = $credit->planDePagos()
+                ->where('numero_cuota', '<', $cuota->numero_cuota)
+                ->where('numero_cuota', '>', 0)
+                ->orderBy('numero_cuota', 'desc')
+                ->first();
+
+            $saldoPrevio = $cuotaAnterior ? (float) $cuotaAnterior->saldo_nuevo : $capitalReal;
+            $cuota->saldo_nuevo = round($saldoPrevio + $interesVencido + $intMora + $poliza, 2);
+
+            // 6. Marcar como Mora (la cuota original NO se modifica)
             $cuota->estado = 'Mora';
+            $cuota->dias_mora = 30;
             $cuota->save();
 
-            // Cambiar estado del crédito a "En Mora"
+            // 7. Recalcular la SIGUIENTE cuota pendiente para que refleje el capital real
+            $siguienteCuota = $credit->planDePagos()
+                ->where('numero_cuota', '>', $cuota->numero_cuota)
+                ->where('estado', 'Pendiente')
+                ->orderBy('numero_cuota')
+                ->first();
+
+            if ($siguienteCuota) {
+                $siguienteCuota->saldo_anterior = $capitalReal;
+                $siguienteCuota->interes_corriente = $interesVencido;
+                $siguienteCuota->amortizacion = round($siguienteCuota->cuota - $interesVencido - ($siguienteCuota->poliza ?? 0), 2);
+                $siguienteCuota->saldo_nuevo = round($capitalReal - $siguienteCuota->amortizacion, 2);
+                $siguienteCuota->save();
+            }
+
+            // 8. Agregar cuota desplazada al final del plan (con la amortización original)
+            $this->agregarCuotaDesplazada($credit, $amortizacionOriginal);
+
+            // 9. Cambiar estado del crédito
             Credit::where('id', $credit->id)->update(['status' => 'En Mora']);
 
             $moraResults[] = [
                 'credit_id' => $credit->id,
                 'lead' => $credit->lead->name ?? 'N/A',
                 'cuota_numero' => $cuota->numero_cuota,
-                'mora_calculada' => $moraRedondeada,
-                'capital_base' => $capital,
-                'dias_mes' => $diasDelMes,
+                'int_corriente_vencido' => $interesVencido,
+                'tasa_base' => $tasaBase,
+                'tasa_maxima' => $tasaMaxima,
+                'diferencia_tasa' => $diferenciaTasa,
+                'interes_moratorio' => (float) $cuota->interes_moratorio,
                 'status' => 'mora_aplicada'
             ];
         }
 
         return $moraResults;
+    }
+
+    /**
+     * Agrega una cuota al final del plan cuando una cuota entra en mora (desplazamiento)
+     *
+     * La cuota en mora no se pagó, así que su amortización no se aplicó al saldo.
+     * Esta nueva cuota al final del plan cubre ese capital pendiente para que
+     * el saldo llegue a 0 al terminar el plan extendido.
+     *
+     * @param Credit $credit El crédito
+     * @param float $amortizacionOriginal La amortización que no se pagó en la cuota mora
+     */
+    private function agregarCuotaDesplazada(Credit $credit, float $amortizacionOriginal)
+    {
+        if ($amortizacionOriginal <= 0) return;
+
+        $plazo = (int) $credit->plazo;
+        $tasaAnual = (float) ($credit->tasa_anual ?? 0);
+        $tasaMensual = $tasaAnual / 100 / 12;
+
+        // 1. Incrementar saldo_nuevo de la última cuota del plazo original
+        $credit->planDePagos()
+            ->where('numero_cuota', $plazo)
+            ->increment('saldo_nuevo', $amortizacionOriginal);
+
+        // 2. Eliminar cuotas desplazadas anteriores (se van a regenerar)
+        $credit->planDePagos()
+            ->where('numero_cuota', '>', $plazo)
+            ->delete();
+
+        // 3. Obtener el total de capital desplazado
+        $cuotaPlazo = $credit->planDePagos()
+            ->where('numero_cuota', $plazo)
+            ->first();
+
+        $totalDesplazado = (float) $cuotaPlazo->saldo_nuevo;
+        if ($totalDesplazado <= 0) return;
+
+        // 4. Obtener cuota fija del crédito (de cualquier cuota normal)
+        $cuotaNormal = $credit->planDePagos()
+            ->where('numero_cuota', 1)
+            ->first();
+        $cuotaFija = (float) $cuotaNormal->cuota;
+
+        // 5. Generar cuotas desplazadas con sistema francés
+        $saldo = $totalDesplazado;
+        $numero = $plazo + 1;
+        $fechaBase = Carbon::parse($cuotaPlazo->fecha_corte);
+
+        while ($saldo > 0.01) {
+            $interes = round($saldo * $tasaMensual, 2);
+
+            if ($saldo + $interes <= $cuotaFija) {
+                // Última cuota: el saldo restante cabe en una sola cuota
+                $amort = round($saldo, 2);
+                $cuotaMonto = round($amort + $interes, 2);
+            } else {
+                // Cuota normal del mismo monto que las originales
+                $cuotaMonto = $cuotaFija;
+                $amort = round($cuotaFija - $interes, 2);
+            }
+
+            $saldoNuevo = round($saldo - $amort, 2);
+            $saldoNuevo = max(0, $saldoNuevo);
+
+            $fechaInicio = $fechaBase->copy();
+            $fechaCorte = $fechaBase->copy()->addMonth();
+
+            PlanDePago::create([
+                'credit_id'         => $credit->id,
+                'numero_cuota'      => $numero,
+                'fecha_inicio'      => $fechaInicio,
+                'fecha_corte'       => $fechaCorte,
+                'tasa_actual'       => $tasaAnual,
+                'cuota'             => $cuotaMonto,
+                'poliza'            => 0,
+                'interes_corriente' => $interes,
+                'amortizacion'      => $amort,
+                'saldo_anterior'    => $saldo,
+                'saldo_nuevo'       => $saldoNuevo,
+                'estado'            => 'Pendiente',
+                'movimiento_total'  => 0,
+                'movimiento_poliza' => 0,
+                'movimiento_principal' => 0,
+                'movimiento_interes_corriente' => 0,
+                'movimiento_interes_moratorio' => 0,
+            ]);
+
+            $saldo = $saldoNuevo;
+            $numero++;
+            $fechaBase = $fechaCorte->copy();
+        }
     }
 
     public function show(string $id) { return response()->json([], 200); }
