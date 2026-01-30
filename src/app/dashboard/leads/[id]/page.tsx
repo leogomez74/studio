@@ -369,7 +369,7 @@ export default function LeadDetailPage() {
                                                 <TooltipTrigger asChild>
                                                     <PermissionButton
                                                         module="crm"
-                                                        action="delete"
+                                                        action="archive"
                                                         size="icon"
                                                         className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0"
                                                         onClick={handleArchive}

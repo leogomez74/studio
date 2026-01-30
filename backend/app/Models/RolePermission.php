@@ -14,6 +14,7 @@ class RolePermission extends Model
         'can_create',
         'can_edit',
         'can_delete',
+        'can_archive',
     ];
 
     protected $casts = [
@@ -21,6 +22,7 @@ class RolePermission extends Model
         'can_create' => 'boolean',
         'can_edit' => 'boolean',
         'can_delete' => 'boolean',
+        'can_archive' => 'boolean',
     ];
 
     /**

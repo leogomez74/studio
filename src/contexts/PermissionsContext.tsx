@@ -9,6 +9,7 @@ export interface ModulePermissions {
   create: boolean;
   edit: boolean;
   delete: boolean;
+  archive?: boolean;
 }
 
 export interface UserPermissions {
@@ -18,7 +19,7 @@ export interface UserPermissions {
 interface PermissionsContextType {
   permissions: UserPermissions;
   loading: boolean;
-  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete') => boolean;
+  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive') => boolean;
   canViewModule: (module: string) => boolean;
   refreshPermissions: () => Promise<void>;
 }
@@ -62,6 +63,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           if (roleRes.ok) {
             const roleData = await roleRes.json();
             const perms = roleData.permissions || {};
+            console.log('=== PERMISSIONS LOADED ===');
+            console.log('Role data:', roleData);
+            console.log('Permissions:', perms);
+            console.log('CRM permissions:', perms.crm);
             setPermissions(perms);
           } else {
             console.error('Role fetch failed:', roleRes.status);
@@ -85,25 +90,43 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     fetchPermissions();
   }, [token, user?.id]);
 
-  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete'): boolean => {
-    // Mientras se cargan los permisos, permitir todo para evitar flickering
-    if (loading) return true;
+  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive'): boolean => {
+    // Solo permitir visualización durante la carga para evitar flickering
+    // Pero NO permitir acciones como create, edit, delete, archive
+    if (loading) {
+      return action === 'view';
+    }
 
-    if (!permissions[module]) return false;
+    if (!permissions[module]) {
+      console.log(`[Permission Check] Module "${module}" not found in permissions`);
+      return false;
+    }
 
     const modulePerms = permissions[module];
+    let result = false;
+
     switch (action) {
       case 'view':
-        return modulePerms.view;
+        result = modulePerms.view;
+        break;
       case 'create':
-        return modulePerms.create;
+        result = modulePerms.create;
+        break;
       case 'edit':
-        return modulePerms.edit;
+        result = modulePerms.edit;
+        break;
       case 'delete':
-        return modulePerms.delete;
+        result = modulePerms.delete;
+        break;
+      case 'archive':
+        result = modulePerms.archive ?? false;
+        break;
       default:
-        return false;
+        result = false;
     }
+
+    console.log(`[Permission Check] module="${module}", action="${action}", result=${result}`, modulePerms);
+    return result;
   };
 
   const canViewModule = (module: string): boolean => {

@@ -1117,6 +1117,7 @@ interface Permission {
   create: boolean;
   edit: boolean;
   delete: boolean;
+  archive?: boolean;
 }
 
 interface RolePermissions {
@@ -1134,13 +1135,13 @@ interface Role {
 interface Module {
   key: string;
   label: string;
-  permissions?: ('view' | 'create' | 'edit' | 'delete')[];
+  permissions?: ('view' | 'create' | 'edit' | 'delete' | 'archive')[];
 }
 
 const MODULES: Module[] = [
   { key: 'reportes', label: 'Reportes', permissions: ['view'] },
   { key: 'kpis', label: 'KPIs', permissions: ['view'] },
-  { key: 'crm', label: 'CRM (Leads)', permissions: ['view', 'create', 'edit', 'delete'] },
+  { key: 'crm', label: 'CRM (Leads)', permissions: ['view', 'create', 'edit', 'delete', 'archive'] },
   { key: 'oportunidades', label: 'Oportunidades', permissions: ['view', 'create', 'edit', 'delete'] },
   { key: 'analizados', label: 'Analizados', permissions: ['view', 'edit'] },
   { key: 'creditos', label: 'Créditos', permissions: ['view', 'create', 'edit', 'delete'] },
@@ -1182,6 +1183,7 @@ const RolesPermisosManager: React.FC = () => {
         create: false,
         edit: false,
         delete: false,
+        archive: false,
       };
     });
     return perms;
@@ -1295,8 +1297,17 @@ const RolesPermisosManager: React.FC = () => {
 
   const openEditDialog = (role: Role) => {
     setEditingRole(role);
-    // Asegurar que todos los módulos tengan permisos definidos
-    const completePermissions = { ...initializePermissions(), ...role.permissions };
+    // Asegurar que todos los módulos tengan permisos definidos con merge profundo
+    const basePermissions = initializePermissions();
+    const completePermissions: RolePermissions = {};
+
+    Object.keys(basePermissions).forEach(moduleKey => {
+      completePermissions[moduleKey] = {
+        ...basePermissions[moduleKey],
+        ...(role.permissions[moduleKey] || {}),
+      };
+    });
+
     setRoleForm({
       ...role,
       permissions: completePermissions,
@@ -1315,13 +1326,13 @@ const RolesPermisosManager: React.FC = () => {
     });
   };
 
-  const handlePermissionChange = (moduleKey: string, permType: 'view' | 'create' | 'edit' | 'delete', value: boolean) => {
+  const handlePermissionChange = (moduleKey: string, permType: 'view' | 'create' | 'edit' | 'delete' | 'archive', value: boolean) => {
     setRoleForm(prev => ({
       ...prev,
       permissions: {
         ...prev.permissions,
         [moduleKey]: {
-          ...(prev.permissions[moduleKey] || { view: false, create: false, edit: false, delete: false }),
+          ...(prev.permissions[moduleKey] || { view: false, create: false, edit: false, delete: false, archive: false }),
           [permType]: value,
         },
       },
@@ -1341,6 +1352,7 @@ const RolesPermisosManager: React.FC = () => {
           create: enabled && modulePermissions.includes('create'),
           edit: enabled && modulePermissions.includes('edit'),
           delete: enabled && modulePermissions.includes('delete'),
+          archive: enabled && modulePermissions.includes('archive'),
         },
       },
     }));
@@ -1357,6 +1369,7 @@ const RolesPermisosManager: React.FC = () => {
           create: modulePermissions.includes('create'),
           edit: modulePermissions.includes('edit'),
           delete: modulePermissions.includes('delete'),
+          archive: modulePermissions.includes('archive'),
         };
       });
       setRoleForm(prev => ({
@@ -1536,6 +1549,7 @@ const RolesPermisosManager: React.FC = () => {
                           <TableHead className="text-center font-semibold w-[100px]">Crear</TableHead>
                           <TableHead className="text-center font-semibold w-[100px]">Editar</TableHead>
                           <TableHead className="text-center font-semibold w-[100px]">Eliminar</TableHead>
+                          <TableHead className="text-center font-semibold w-[100px]">Archivar</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1545,9 +1559,10 @@ const RolesPermisosManager: React.FC = () => {
                             create: false,
                             edit: false,
                             delete: false,
+                            archive: false,
                           };
                           const modulePermissions = module.permissions || ['view', 'create', 'edit', 'delete'];
-                          const isModuleEnabled = perms.view || perms.create || perms.edit || perms.delete;
+                          const isModuleEnabled = perms.view || perms.create || perms.edit || perms.delete || perms.archive;
 
                           return (
                             <TableRow key={module.key}>
@@ -1606,6 +1621,19 @@ const RolesPermisosManager: React.FC = () => {
                                     type="checkbox"
                                     checked={perms.delete}
                                     onChange={(e) => handlePermissionChange(module.key, 'delete', e.target.checked)}
+                                    disabled={saving || roleForm.full_access}
+                                    className="h-4 w-4"
+                                  />
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {modulePermissions.includes('archive') ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={perms.archive || false}
+                                    onChange={(e) => handlePermissionChange(module.key, 'archive', e.target.checked)}
                                     disabled={saving || roleForm.full_access}
                                     className="h-4 w-4"
                                   />

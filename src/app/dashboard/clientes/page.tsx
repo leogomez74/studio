@@ -1181,7 +1181,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PermissionButton module="crm" action="delete" size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
+                        <PermissionButton module="crm" action="archive" size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
                           <Archive className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>

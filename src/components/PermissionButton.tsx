@@ -7,7 +7,7 @@ import type { ButtonProps } from '@/components/ui/button';
 
 interface PermissionButtonProps extends ButtonProps {
   module: string;
-  action: 'create' | 'edit' | 'delete';
+  action: 'create' | 'edit' | 'delete' | 'archive';
   children: React.ReactNode;
 }
 

@@ -54,6 +54,7 @@ class Role extends Model
                     'create' => true,
                     'edit' => true,
                     'delete' => true,
+                    'archive' => true,
                 ];
             }
             return $permissions;
@@ -68,6 +69,7 @@ class Role extends Model
                 'create' => $perm->can_create,
                 'edit' => $perm->can_edit,
                 'delete' => $perm->can_delete,
+                'archive' => $perm->can_archive ?? false,
             ];
         }
         return $permissions;
