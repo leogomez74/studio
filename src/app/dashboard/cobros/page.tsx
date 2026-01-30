@@ -496,13 +496,13 @@ export default function CobrosPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.txt" className="hidden" onChange={handleFileSelected} />
-                  <Button variant="outline" onClick={openPlanillaModal} disabled={uploading}>
+                  <PermissionButton module="cobros" action="edit" variant="outline" onClick={openPlanillaModal} disabled={uploading}>
                     <Upload className="mr-2 h-4 w-4" />{uploading ? 'Subiendo...' : 'Cargar Planilla'}
-                  </Button>
+                  </PermissionButton>
 
-                  <Button variant="outline" onClick={handleExportPDF}>
+                  <PermissionButton module="cobros" action="delete" variant="outline" onClick={handleExportPDF}>
                     <FileDown className="mr-2 h-4 w-4" />Exportar PDF
-                  </Button>
+                  </PermissionButton>
 
                   <PermissionButton module="cobros" action="create" onClick={openAbonoModal}>
                     <PlusCircle className="mr-2 h-4 w-4" />Registrar Abono

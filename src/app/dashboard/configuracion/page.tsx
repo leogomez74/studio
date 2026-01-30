@@ -1136,6 +1136,13 @@ interface Module {
   key: string;
   label: string;
   permissions?: ('view' | 'create' | 'edit' | 'delete' | 'archive')[];
+  customPermissionLabels?: {
+    view?: string;
+    create?: string;
+    edit?: string;
+    delete?: string;
+    archive?: string;
+  };
 }
 
 const MODULES: Module[] = [
@@ -1146,7 +1153,16 @@ const MODULES: Module[] = [
   { key: 'analizados', label: 'Analizados', permissions: ['view', 'create', 'edit'] },
   { key: 'creditos', label: 'Créditos', permissions: ['view', 'create', 'edit', 'delete'] },
   { key: 'calculos', label: 'Cálculos', permissions: ['view'] },
-  { key: 'cobros', label: 'Cobros', permissions: ['view', 'create', 'edit'] },
+  {
+    key: 'cobros',
+    label: 'Cobros',
+    permissions: ['view', 'create', 'edit', 'delete'],
+    customPermissionLabels: {
+      create: 'Registrar Abono',
+      edit: 'Cargar Planilla',
+      delete: 'Exportar'
+    }
+  },
   { key: 'cobro_judicial', label: 'Cobro Judicial', permissions: ['view', 'create', 'edit', 'delete'] },
   { key: 'ventas', label: 'Ventas', permissions: ['view'] },
   { key: 'inversiones', label: 'Inversiones', permissions: ['view', 'create', 'edit', 'delete'] },
@@ -1578,65 +1594,100 @@ const RolesPermisosManager: React.FC = () => {
                               <TableCell className="font-medium">{module.label}</TableCell>
                               <TableCell className="text-center">
                                 {modulePermissions.includes('view') ? (
-                                  <input
-                                    type="checkbox"
-                                    checked={perms.view}
-                                    onChange={(e) => handlePermissionChange(module.key, 'view', e.target.checked)}
-                                    disabled={saving || roleForm.full_access}
-                                    className="h-4 w-4"
-                                  />
+                                  <div className="flex flex-col items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={perms.view}
+                                      onChange={(e) => handlePermissionChange(module.key, 'view', e.target.checked)}
+                                      disabled={saving || roleForm.full_access}
+                                      className="h-4 w-4"
+                                    />
+                                    {module.customPermissionLabels?.view && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {module.customPermissionLabels.view}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-center">
                                 {modulePermissions.includes('create') ? (
-                                  <input
-                                    type="checkbox"
-                                    checked={perms.create}
-                                    onChange={(e) => handlePermissionChange(module.key, 'create', e.target.checked)}
-                                    disabled={saving || roleForm.full_access}
-                                    className="h-4 w-4"
-                                  />
+                                  <div className="flex flex-col items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={perms.create}
+                                      onChange={(e) => handlePermissionChange(module.key, 'create', e.target.checked)}
+                                      disabled={saving || roleForm.full_access}
+                                      className="h-4 w-4"
+                                    />
+                                    {module.customPermissionLabels?.create && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {module.customPermissionLabels.create}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-center">
                                 {modulePermissions.includes('edit') ? (
-                                  <input
-                                    type="checkbox"
-                                    checked={perms.edit}
-                                    onChange={(e) => handlePermissionChange(module.key, 'edit', e.target.checked)}
-                                    disabled={saving || roleForm.full_access}
-                                    className="h-4 w-4"
-                                  />
+                                  <div className="flex flex-col items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={perms.edit}
+                                      onChange={(e) => handlePermissionChange(module.key, 'edit', e.target.checked)}
+                                      disabled={saving || roleForm.full_access}
+                                      className="h-4 w-4"
+                                    />
+                                    {module.customPermissionLabels?.edit && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {module.customPermissionLabels.edit}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-center">
                                 {modulePermissions.includes('delete') ? (
-                                  <input
-                                    type="checkbox"
-                                    checked={perms.delete}
-                                    onChange={(e) => handlePermissionChange(module.key, 'delete', e.target.checked)}
-                                    disabled={saving || roleForm.full_access}
-                                    className="h-4 w-4"
-                                  />
+                                  <div className="flex flex-col items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={perms.delete}
+                                      onChange={(e) => handlePermissionChange(module.key, 'delete', e.target.checked)}
+                                      disabled={saving || roleForm.full_access}
+                                      className="h-4 w-4"
+                                    />
+                                    {module.customPermissionLabels?.delete && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {module.customPermissionLabels.delete}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-center">
                                 {modulePermissions.includes('archive') ? (
-                                  <input
-                                    type="checkbox"
-                                    checked={perms.archive || false}
-                                    onChange={(e) => handlePermissionChange(module.key, 'archive', e.target.checked)}
-                                    disabled={saving || roleForm.full_access}
-                                    className="h-4 w-4"
-                                  />
+                                  <div className="flex flex-col items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={perms.archive || false}
+                                      onChange={(e) => handlePermissionChange(module.key, 'archive', e.target.checked)}
+                                      disabled={saving || roleForm.full_access}
+                                      className="h-4 w-4"
+                                    />
+                                    {module.customPermissionLabels?.archive && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {module.customPermissionLabels.archive}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
