@@ -778,60 +778,82 @@ class CreditPaymentController extends Controller
     {
         if ($amortizacionOriginal <= 0) return;
 
-        $ultimaCuota = $credit->planDePagos()
-            ->where('numero_cuota', '>', 0)
-            ->orderBy('numero_cuota', 'desc')
-            ->first();
-
-        if (!$ultimaCuota) return;
-
-        $nuevoNumero = $ultimaCuota->numero_cuota + 1;
-        $fechaCorte = Carbon::parse($ultimaCuota->fecha_corte)->addMonth();
-        $fechaInicio = Carbon::parse($ultimaCuota->fecha_corte);
-
+        $plazo = (int) $credit->plazo;
         $tasaAnual = (float) ($credit->tasa_anual ?? 0);
         $tasaMensual = $tasaAnual / 100 / 12;
-        $plazo = (int) $credit->plazo;
 
-        // Incrementar saldo_nuevo de la cuota final del plazo original
-        // para que refleje el capital desplazado que aún se debe
+        // 1. Incrementar saldo_nuevo de la última cuota del plazo original
         $credit->planDePagos()
             ->where('numero_cuota', $plazo)
             ->increment('saldo_nuevo', $amortizacionOriginal);
 
-        // Incrementar saldo_anterior y saldo_nuevo de cuotas desplazadas existentes
-        // para reflejar el nuevo capital acumulado
+        // 2. Eliminar cuotas desplazadas anteriores (se van a regenerar)
         $credit->planDePagos()
             ->where('numero_cuota', '>', $plazo)
-            ->increment('saldo_anterior', $amortizacionOriginal);
+            ->delete();
 
-        $credit->planDePagos()
-            ->where('numero_cuota', '>', $plazo)
-            ->increment('saldo_nuevo', $amortizacionOriginal);
+        // 3. Obtener el total de capital desplazado
+        $cuotaPlazo = $credit->planDePagos()
+            ->where('numero_cuota', $plazo)
+            ->first();
 
-        // Interés sobre el capital de ESTA cuota desplazada
-        $interes = round($amortizacionOriginal * $tasaMensual, 2);
-        $cuotaMonto = round($amortizacionOriginal + $interes, 2);
+        $totalDesplazado = (float) $cuotaPlazo->saldo_nuevo;
+        if ($totalDesplazado <= 0) return;
 
-        PlanDePago::create([
-            'credit_id'         => $credit->id,
-            'numero_cuota'      => $nuevoNumero,
-            'fecha_inicio'      => $fechaInicio,
-            'fecha_corte'       => $fechaCorte,
-            'tasa_actual'       => $tasaAnual,
-            'cuota'             => $cuotaMonto,
-            'poliza'            => 0,
-            'interes_corriente' => $interes,
-            'amortizacion'      => $amortizacionOriginal,
-            'saldo_anterior'    => $amortizacionOriginal,
-            'saldo_nuevo'       => 0,
-            'estado'            => 'Pendiente',
-            'movimiento_total'  => 0,
-            'movimiento_poliza' => 0,
-            'movimiento_principal' => 0,
-            'movimiento_interes_corriente' => 0,
-            'movimiento_interes_moratorio' => 0,
-        ]);
+        // 4. Obtener cuota fija del crédito (de cualquier cuota normal)
+        $cuotaNormal = $credit->planDePagos()
+            ->where('numero_cuota', 1)
+            ->first();
+        $cuotaFija = (float) $cuotaNormal->cuota;
+
+        // 5. Generar cuotas desplazadas con sistema francés
+        $saldo = $totalDesplazado;
+        $numero = $plazo + 1;
+        $fechaBase = Carbon::parse($cuotaPlazo->fecha_corte);
+
+        while ($saldo > 0.01) {
+            $interes = round($saldo * $tasaMensual, 2);
+
+            if ($saldo + $interes <= $cuotaFija) {
+                // Última cuota: el saldo restante cabe en una sola cuota
+                $amort = round($saldo, 2);
+                $cuotaMonto = round($amort + $interes, 2);
+            } else {
+                // Cuota normal del mismo monto que las originales
+                $cuotaMonto = $cuotaFija;
+                $amort = round($cuotaFija - $interes, 2);
+            }
+
+            $saldoNuevo = round($saldo - $amort, 2);
+            $saldoNuevo = max(0, $saldoNuevo);
+
+            $fechaInicio = $fechaBase->copy();
+            $fechaCorte = $fechaBase->copy()->addMonth();
+
+            PlanDePago::create([
+                'credit_id'         => $credit->id,
+                'numero_cuota'      => $numero,
+                'fecha_inicio'      => $fechaInicio,
+                'fecha_corte'       => $fechaCorte,
+                'tasa_actual'       => $tasaAnual,
+                'cuota'             => $cuotaMonto,
+                'poliza'            => 0,
+                'interes_corriente' => $interes,
+                'amortizacion'      => $amort,
+                'saldo_anterior'    => $saldo,
+                'saldo_nuevo'       => $saldoNuevo,
+                'estado'            => 'Pendiente',
+                'movimiento_total'  => 0,
+                'movimiento_poliza' => 0,
+                'movimiento_principal' => 0,
+                'movimiento_interes_corriente' => 0,
+                'movimiento_interes_moratorio' => 0,
+            ]);
+
+            $saldo = $saldoNuevo;
+            $numero++;
+            $fechaBase = $fechaCorte->copy();
+        }
     }
 
     public function show(string $id) { return response()->json([], 200); }
