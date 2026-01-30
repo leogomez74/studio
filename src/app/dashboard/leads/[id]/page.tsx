@@ -21,6 +21,7 @@ import { CaseChat } from "@/components/case-chat";
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
 import { DocumentManager } from "@/components/document-manager";
 import { PermissionButton } from "@/components/PermissionButton";
+import { usePermissions } from "@/contexts/PermissionsContext";
 
 import api from "@/lib/axios";
 import { Lead } from "@/lib/data";
@@ -31,11 +32,15 @@ export default function LeadDetailPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
+    const { hasPermission, permissions, loading: permsLoading } = usePermissions();
 
     // Force re-eval
     const id = params.id as string;
     const mode = searchParams.get("mode") || "view"; // view | edit
-    const isEditMode = mode === "edit";
+    // Solo permitir modo edición si tiene permiso
+    const canEdit = hasPermission('crm', 'edit');
+    const canArchive = hasPermission('crm', 'archive');
+    const isEditMode = mode === "edit" && canEdit;
 
     const [lead, setLead] = useState<Lead | null>(null);
     const [loading, setLoading] = useState(true);
@@ -47,6 +52,18 @@ export default function LeadDetailPage() {
     const [deductoras, setDeductoras] = useState<{id: number, nombre: string}[]>([]);
     const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string}[]>([]);
     const [syncing, setSyncing] = useState(false);
+
+    // Protección: redirigir si intenta editar sin permiso
+    useEffect(() => {
+        if (mode === "edit" && !canEdit && !permsLoading) {
+            toast({
+                title: "Acceso denegado",
+                description: "No tienes permiso para editar leads.",
+                variant: "destructive"
+            });
+            router.replace(`/dashboard/leads/${id}?mode=view`);
+        }
+    }, [mode, canEdit, permsLoading, id, router, toast]);
 
     useEffect(() => {
         const fetchLead = async () => {
@@ -330,56 +347,56 @@ export default function LeadDetailPage() {
 
                                 {!isEditMode && (
                                     <div className="flex items-center gap-2 ml-1">
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <PermissionButton
-                                                        module="crm"
-                                                        action="edit"
-                                                        size="icon"
-                                                        className="h-9 w-9 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border-0"
-                                                        onClick={() => router.push(`/dashboard/leads/${id}?mode=edit`)}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </PermissionButton>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Editar Lead</TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
+                                        {!permsLoading && canEdit && (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            size="icon"
+                                                            className="h-9 w-9 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border-0"
+                                                            onClick={() => router.push(`/dashboard/leads/${id}?mode=edit`)}
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Editar Lead</TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )}
 
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <PermissionButton
-                                                        module="oportunidades"
-                                                        action="create"
-                                                        size="icon"
-                                                        className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
-                                                        onClick={() => setIsOpportunityDialogOpen(true)}
-                                                    >
-                                                        <Sparkles className="h-4 w-4" />
-                                                    </PermissionButton>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Crear Oportunidad</TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
+                                        {!permsLoading && hasPermission('oportunidades', 'create') && (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            size="icon"
+                                                            className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
+                                                            onClick={() => setIsOpportunityDialogOpen(true)}
+                                                        >
+                                                            <Sparkles className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Crear Oportunidad</TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )}
 
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <PermissionButton
-                                                        module="crm"
-                                                        action="archive"
-                                                        size="icon"
-                                                        className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0"
-                                                        onClick={handleArchive}
-                                                    >
-                                                        <Archive className="h-4 w-4" />
-                                                    </PermissionButton>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Archivar</TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
+                                        {!permsLoading && canArchive && (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            size="icon"
+                                                            className="h-9 w-9 rounded-md bg-red-600 text-white hover:bg-red-700 border-0"
+                                                            onClick={handleArchive}
+                                                        >
+                                                            <Archive className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Archivar</TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )}
                                     </div>
                                 )}
                             </div>

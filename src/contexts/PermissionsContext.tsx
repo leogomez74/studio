@@ -63,10 +63,6 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           if (roleRes.ok) {
             const roleData = await roleRes.json();
             const perms = roleData.permissions || {};
-            console.log('=== PERMISSIONS LOADED ===');
-            console.log('Role data:', roleData);
-            console.log('Permissions:', perms);
-            console.log('CRM permissions:', perms.crm);
             setPermissions(perms);
           } else {
             console.error('Role fetch failed:', roleRes.status);
@@ -98,35 +94,25 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     }
 
     if (!permissions[module]) {
-      console.log(`[Permission Check] Module "${module}" not found in permissions`);
       return false;
     }
 
     const modulePerms = permissions[module];
-    let result = false;
 
     switch (action) {
       case 'view':
-        result = modulePerms.view;
-        break;
+        return modulePerms.view;
       case 'create':
-        result = modulePerms.create;
-        break;
+        return modulePerms.create;
       case 'edit':
-        result = modulePerms.edit;
-        break;
+        return modulePerms.edit;
       case 'delete':
-        result = modulePerms.delete;
-        break;
+        return modulePerms.delete;
       case 'archive':
-        result = modulePerms.archive ?? false;
-        break;
+        return modulePerms.archive ?? false;
       default:
-        result = false;
+        return false;
     }
-
-    console.log(`[Permission Check] module="${module}", action="${action}", result=${result}`, modulePerms);
-    return result;
   };
 
   const canViewModule = (module: string): boolean => {
