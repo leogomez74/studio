@@ -1165,7 +1165,7 @@ export default function CreditsPage() {
                                   size="icon"
                                   asChild
                                   title="Ver detalle"
-                                  className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                  className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
                                 >
                                   <Link href={`/dashboard/creditos/${credit.id}`}>
                                     <Eye className="h-4 w-4" />
@@ -1187,11 +1187,39 @@ export default function CreditsPage() {
                                     size="icon"
                                     asChild
                                     title="Editar crédito"
-                                    className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                    className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
                                   >
                                     <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
                                       <Pencil className="h-4 w-4" />
                                     </Link>
+                                  </Button>
+                                )}
+
+                                {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    title="Formalizar crédito"
+                                    className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                    onClick={async () => {
+                                      try {
+                                        await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
+                                        toast({
+                                          title: 'Crédito formalizado',
+                                          description: 'El plan de pagos se ha generado correctamente.',
+                                        });
+                                        fetchCredits();
+                                      } catch (error) {
+                                        console.error('Error formalizando crédito:', error);
+                                        toast({
+                                          title: 'Error',
+                                          description: 'No se pudo formalizar el crédito.',
+                                          variant: 'destructive',
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <Check className="h-4 w-4" />
                                   </Button>
                                 )}
 
@@ -1210,6 +1238,12 @@ export default function CreditsPage() {
                                       <FileText className="mr-2 h-4 w-4" />
                                       Exportar PDF
                                     </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                    >
+                                      <FileText className="mr-2 h-4 w-4" />
+                                      Exportar pagaré
+                                    </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
 
@@ -1219,34 +1253,6 @@ export default function CreditsPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                    {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
-                                      <DropdownMenuItem
-                                        onClick={async () => {
-                                          try {
-                                            await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
-                                            toast({
-                                              title: 'Crédito formalizado',
-                                              description: 'El plan de pagos se ha generado correctamente.',
-                                            });
-                                            fetchCredits();
-                                          } catch (error) {
-                                            console.error('Error formalizando crédito:', error);
-                                            toast({
-                                              title: 'Error',
-                                              description: 'No se pudo formalizar el crédito.',
-                                              variant: 'destructive',
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        Formalizar crédito
-                                      </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuItem
-                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
-                                    >
-                                      Exportar pagaré
-                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
                                       Gestionar documentos
                                     </DropdownMenuItem>

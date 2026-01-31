@@ -104,7 +104,9 @@ export default function ClientDetailPage() {
         setLoadingCredits(true);
         try {
             const response = await api.get(`/api/credits?lead_id=${id}`);
-            setCredits(response.data || []);
+            // Handle paginated response (response.data.data) or direct array (response.data)
+            const creditsData = Array.isArray(response.data) ? response.data : (response.data.data || []);
+            setCredits(creditsData);
         } catch (error) {
             console.error("Error fetching credits:", error);
             setCredits([]);

@@ -121,6 +121,7 @@ class DeduccionesSeeder extends Seeder
                         'apellido1' => $primerRegistro['apellido1'],
                         'apellido2' => $primerRegistro['apellido2'],
                         'status' => 'active',
+                        'lead_status_id' => 1, // Estado "Nuevo" por defecto
                         'tipo_credito' => 'microcredito',
                         'monto' => $montoCredito,
                         'person_type_id' => 1,
