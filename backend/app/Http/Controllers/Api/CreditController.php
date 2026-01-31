@@ -25,7 +25,7 @@ class CreditController extends Controller
         $query = Credit::with([
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado'
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado,dias_mora'
         ]);
 
         if ($request->has('lead_id')) {
@@ -446,6 +446,15 @@ class CreditController extends Controller
     {
         $credit = Credit::findOrFail($id);
         $previousStatus = $credit->status;
+
+        // PROTECCIÓN: Solo permitir edición si el crédito está en estado editable
+        if (!\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
+            return response()->json([
+                'message' => 'No se puede editar un crédito en estado "' . $credit->status . '". Solo se pueden editar créditos en estado "' . implode('" o "', Credit::EDITABLE_STATUSES) . '".',
+                'current_status' => $credit->status,
+                'editable_statuses' => Credit::EDITABLE_STATUSES,
+            ], 422);
+        }
 
         $validated = $request->validate([
             'reference' => 'sometimes|required|unique:credits,reference,' . $id,

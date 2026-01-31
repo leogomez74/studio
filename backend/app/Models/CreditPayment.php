@@ -22,7 +22,7 @@ class CreditPayment extends Model
         'interes_moratorio', // Informativo: cuánto de este pago fue a mora
         'amortizacion',      // Informativo: cuánto de este pago fue a capital
         'saldo_anterior',
-        'saldo_nuevo',
+        'nuevo_saldo',
         'estado',
         'fecha_movimiento',
         'movimiento_total',  // Usado si hubo excedente
@@ -51,7 +51,7 @@ class CreditPayment extends Model
         'interes_moratorio' => 'decimal:2',
         'amortizacion' => 'decimal:2',
         'saldo_anterior' => 'decimal:2',
-        'saldo_nuevo' => 'decimal:2',
+        'nuevo_saldo' => 'decimal:2',
         'movimiento_total' => 'decimal:2',
         'movimiento_amortizacion' => 'decimal:2',
         'tasa_actual' => 'decimal:2',

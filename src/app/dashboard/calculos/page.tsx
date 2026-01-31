@@ -67,7 +67,7 @@ export default function CalculosPage() {
     const fetchOpportunities = async () => {
       setIsLoadingOpportunities(true);
       try {
-        const response = await api.get('/api/opportunities');
+        const response = await api.get('/api/opportunities?all=true');
         const data = response.data.data || response.data;
         setOpportunities(Array.isArray(data) ? data : []);
       } catch (error) {
@@ -134,7 +134,7 @@ export default function CalculosPage() {
     const fetchLeads = async () => {
       setLoadingLeads(true);
       try {
-        const response = await api.get('/api/leads');
+        const response = await api.get('/api/leads?all=true');
         const leadsList = Array.isArray(response.data) ? response.data : response.data.data || [];
         setLeads(leadsList);
       } catch (error) {

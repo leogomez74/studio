@@ -370,7 +370,7 @@ export default function DealsPage() {
   const fetchLeads = useCallback(async () => {
     try {
       setIsLoadingLeads(true);
-      const response = await api.get('/api/leads');
+      const response = await api.get('/api/leads?all=true');
       const data = response.data.data || response.data;
       setLeads(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -393,7 +393,7 @@ export default function DealsPage() {
   // AGREGADO: Fetch Products para el select de categorías
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await api.get('/api/products');
+      const response = await api.get('/api/products?all=true');
       setProducts(response.data);
     } catch (error) {
       console.error("Error fetching products:", error);

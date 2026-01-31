@@ -146,8 +146,8 @@ export default function OpportunityDetailPage() {
       try {
         const [opportunityRes, productsRes, usersRes] = await Promise.all([
           api.get(`/api/opportunities/${id}`),
-          api.get('/api/products'),
-          api.get('/api/agents'),
+          api.get('/api/products?all=true'),
+          api.get('/api/agents?all=true'),
         ]);
 
         const opportunityData = opportunityRes.data.data || opportunityRes.data;

@@ -74,7 +74,7 @@ export default function CommunicationsPage() {
     const fetchConversations = async () => {
       setLoadingConversations(true);
       try {
-        const response = await api.get('/api/leads');
+        const response = await api.get('/api/leads?all=true');
         const leadsList = Array.isArray(response.data) ? response.data : response.data.data || [];
 
         // Convertir leads a conversaciones

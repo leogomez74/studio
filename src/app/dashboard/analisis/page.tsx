@@ -157,9 +157,9 @@ export default function AnalisisPage() {
 
       const [analisisRes, oppsRes, leadsRes, productsRes] = await Promise.all([
         api.get('/api/analisis', { params: analisisParams }),
-        api.get('/api/opportunities'),
-        api.get('/api/leads'),
-        api.get('/api/products'),
+        api.get('/api/opportunities?all=true'),
+        api.get('/api/leads?all=true'),
+        api.get('/api/products?all=true'),
       ]);
 
       const isPaginated = analisisRes.data.data && analisisRes.data.current_page;

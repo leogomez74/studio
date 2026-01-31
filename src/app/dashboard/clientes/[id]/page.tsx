@@ -92,7 +92,7 @@ export default function ClientDetailPage() {
 
     const fetchLeads = async () => {
         try {
-            const response = await api.get('/api/leads');
+            const response = await api.get('/api/leads?all=true');
             const data = response.data.data || response.data;
             setLeads(data.map((l: any) => ({ id: l.id, name: l.name })));
         } catch (error) {

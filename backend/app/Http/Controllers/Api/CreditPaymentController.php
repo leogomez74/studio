@@ -551,7 +551,7 @@ class CreditPaymentController extends Controller
             $montoCol = null; $cedulaCol = null;
             foreach ($header as $col => $val) {
                 $v = mb_strtolower(trim((string)$val));
-                if (str_contains($v, 'monto')) $montoCol = $col;
+                if (str_contains($v, 'monto') || str_contains($v, 'abono')) $montoCol = $col;
                 if (str_contains($v, 'cedula') || str_contains($v, 'cédula')) $cedulaCol = $col;
             }
             if (!$montoCol || !$cedulaCol || $montoCol === $cedulaCol) {
