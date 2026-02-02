@@ -63,14 +63,20 @@ const getStatusVariantCobros = (status: Credit['status']) => {
   }
 };
 
-// Helper function to calculate days in arrears from last payment date
+// Helper function to calculate days in arrears from plan de pagos
 const calculateDaysInArrears = (credit: Credit): number => {
-  if (!credit.fecha_ultimo_pago) return 0;
-  const lastPayment = new Date(credit.fecha_ultimo_pago);
-  const today = new Date();
-  const diffTime = today.getTime() - lastPayment.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  return Math.max(0, diffDays - 30); // Assuming 30-day payment cycle
+  // Obtener el máximo de dias_mora de las cuotas en el plan de pagos
+  if (!credit.plan_de_pagos || !Array.isArray(credit.plan_de_pagos) || credit.plan_de_pagos.length === 0) {
+    return 0;
+  }
+
+  // Buscar la cuota con más días de mora
+  const maxDiasMora = credit.plan_de_pagos.reduce((max, cuota) => {
+    const diasMora = cuota.dias_mora || 0;
+    return diasMora > max ? diasMora : max;
+  }, 0);
+
+  return maxDiasMora;
 };
 
 const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, currentPage, perPage, onPageChange, onPerPageChange }: { credits: Credit[], isLoading?: boolean, currentPage: number, perPage: number, onPageChange: (p: number) => void, onPerPageChange: (p: number) => void }) {
@@ -290,7 +296,7 @@ export default function CobrosPage() {
       try {
         const paymentsRes = await api.get('/api/credit-payments');
         setPaymentsState(paymentsRes.data);
-        const creditsRes = await api.get('/api/credits');
+        const creditsRes = await api.get('/api/credits?all=true');
         const creditsData = Array.isArray(creditsRes.data) ? creditsRes.data : creditsRes.data?.data || [];
         setCreditsList(creditsData);
       } catch (err) {
@@ -306,7 +312,7 @@ export default function CobrosPage() {
   // Dynamic filtering of credits by arrears - using live API data
   const filterCreditsByArrearsRange = useCallback((credits: Credit[], daysStart: number, daysEnd: number | null = null) => {
     return credits.filter(credit => {
-      if (credit.status !== 'En mora') return false;
+      if (credit.status !== 'En Mora') return false;
       const diasAtraso = calculateDaysInArrears(credit);
       if (daysEnd === null) {
         return diasAtraso >= daysStart;

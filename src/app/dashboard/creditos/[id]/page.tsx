@@ -30,7 +30,7 @@ interface AgentOption {
   id: number;
   name: string;
 }
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Paperclip,
@@ -43,7 +43,12 @@ import {
   Pencil,
   Save,
   X,
+  Check,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import Link from 'next/link';
 import {
   Card,
@@ -61,6 +66,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -294,6 +305,15 @@ function formatCurrency(amount?: number | null): string {
   return new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 }
 
+const formatAmount = (amount?: number | null): string => {
+  if (amount === null || amount === undefined) return "0.00";
+  return new Intl.NumberFormat('es-CR', {
+    style: 'decimal',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+
 // --- Main Component ---
 
 interface DeductoraOption {
@@ -303,8 +323,9 @@ interface DeductoraOption {
 
 function CreditDetailClient({ id }: { id: string }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { toast } = useToast();
-  
+
   const [credit, setCredit] = useState<CreditItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPanelVisible, setIsPanelVisible] = useState(false);
@@ -540,10 +561,11 @@ function CreditDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     const editParam = searchParams.get('edit');
-    if (editParam === 'true' && credit?.status !== 'Formalizado') {
+    const estadosEditables = ['Aprobado', 'Activo'];
+    if (editParam === 'true' && !credit?.formalized_at && credit?.status && estadosEditables.includes(credit.status)) {
       setIsEditMode(true);
     }
-  }, [searchParams, credit?.status]);
+  }, [searchParams, credit?.formalized_at, credit?.status]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -662,19 +684,378 @@ function CreditDetailClient({ id }: { id: string }) {
     setCargosAdicionales(nuevosCargos);
   };
 
+  // Export Handlers
+  const handleExportCSV = () => {
+    if (!credit) return;
+
+    const escapeCSV = (value: string | number | null | undefined): string => {
+      if (value === null || value === undefined) return "";
+      const str = String(value);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const headers = [
+      "Referencia", "Título", "Estado", "Categoría", "Cliente", "Monto", "Saldo", "Cuota", "Divisa"
+    ];
+    const row = [
+      escapeCSV(credit.reference),
+      escapeCSV(credit.title),
+      escapeCSV(credit.status),
+      escapeCSV(credit.category),
+      escapeCSV(credit.client?.name || credit.lead?.name || ""),
+      escapeCSV(formatCurrency(credit.monto_credito)),
+      escapeCSV(formatCurrency(credit.saldo)),
+      escapeCSV(formatCurrency(credit.cuota)),
+      escapeCSV(credit.divisa || "CRC"),
+    ];
+
+    const csvContent = [headers.join(","), row.join(",")].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `credito_${credit.reference}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = async () => {
+    if (!credit) return;
+
+    const doc = new jsPDF();
+    const currentDate = new Date().toLocaleDateString('es-CR');
+
+    const img = new Image();
+    img.src = '/logopepweb.png';
+    img.onload = () => {
+      doc.addImage(img, 'PNG', 14, 10, 40, 15);
+      generatePDFContent(doc, credit, currentDate);
+    };
+    img.onerror = () => {
+      doc.text("CREDIPEP", 14, 20);
+      generatePDFContent(doc, credit, currentDate);
+    };
+  };
+
+  const generatePDFContent = (doc: jsPDF, creditData: CreditItem, date: string) => {
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("ESTADO DE CUENTA", 105, 15, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`REPORTE AL ${date}`, 105, 22, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.text(`*${creditData.lead_id}*`, 195, 15, { align: "right" });
+    doc.text(`${creditData.lead_id}`, 195, 22, { align: "right" });
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${creditData.lead_id}`, 14, 35);
+    doc.text(`${creditData.client?.name || "CLIENTE DESCONOCIDO"}`, 14, 40);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("INST./EMPRESA", 100, 35);
+    doc.text(`${creditData.client?.ocupacion || "-"}`, 130, 35);
+    doc.text(`${creditData.client?.departamento_cargo || "-"}`, 100, 40);
+    doc.text("SECCIÓN", 100, 45);
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 128);
+    doc.text("Planes de Ahorros", 14, 55);
+    doc.setTextColor(0, 0, 0);
+
+    autoTable(doc, {
+      startY: 60,
+      head: [['N.CON', 'PLAN', 'MENSUALIDAD', 'INICIO', 'REND.CORTE', 'APORTES', 'RENDIMIENTO', 'ACUMULADO']],
+      body: [
+        ['621', 'SOBRANTES POR APLICAR', '0.00', '27/09/2022', '', '0.64', '0.00', '0.64']
+      ],
+      theme: 'plain',
+      styles: { fontSize: 8, cellPadding: 1 },
+      headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
+      columnStyles: {
+        0: { cellWidth: 15 },
+        1: { cellWidth: 50 },
+      }
+    });
+
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 128);
+    doc.text("Créditos / Otras deducciones", 14, finalY);
+    doc.setTextColor(0, 0, 0);
+
+    const estadosEditables = ['Aprobado', 'Activo'];
+    const esEditable = creditData.status && estadosEditables.includes(creditData.status);
+    const tasaValue = esEditable
+      ? (creditData.tasa?.tasa ?? creditData.tasa_anual ?? '0.00')
+      : (creditData.tasa_anual ?? creditData.tasa?.tasa ?? '0.00');
+    const creditRow = [
+      creditData.numero_operacion || creditData.reference,
+      creditData.linea || "PEPITO ABIERTO",
+      formatAmount(creditData.monto_credito || 0),
+      creditData.plazo || 120,
+      formatAmount(creditData.cuota || 0),
+      formatAmount(creditData.saldo || 0),
+      `${tasaValue}%`,
+      "0.00",
+      creditData.primera_deduccion || "-",
+      new Date().toISOString().split('T')[0],
+      creditData.fecha_culminacion_credito || "2032-01-01",
+      creditData.status || "NORMAL"
+    ];
+
+    autoTable(doc, {
+      startY: finalY + 5,
+      head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
+      body: [creditRow],
+      theme: 'plain',
+      styles: { fontSize: 7, cellPadding: 1 },
+      headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
+    });
+
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 128);
+    doc.text("Fianzas", 14, finalY);
+    doc.setTextColor(0, 0, 0);
+
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(0, 0, 128);
+    doc.line(14, finalY + 2, 195, finalY + 2);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+
+    if (creditData.plan_de_pagos && creditData.plan_de_pagos.length > 0) {
+      finalY = finalY + 20;
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 128);
+      doc.text("Plan de Pagos", 14, finalY);
+      doc.setTextColor(0, 0, 0);
+
+      const paymentRows = creditData.plan_de_pagos.map(p => [
+        p.numero_cuota,
+        formatDate(p.fecha_corte),
+        formatDate(p.fecha_pago),
+        formatAmount(p.cuota),
+        formatAmount(p.interes_corriente),
+        formatAmount(p.amortizacion),
+        formatAmount(p.saldo_nuevo),
+        p.estado
+      ]);
+
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['#', 'FECHA CUOTA', 'FECHA PAGO', 'CUOTA', 'INTERÉS', 'AMORTIZACIÓN', 'SALDO', 'ESTADO']],
+        body: paymentRows,
+        theme: 'striped',
+        styles: { fontSize: 7, cellPadding: 1 },
+        headStyles: { fontStyle: 'bold', textColor: [0, 0, 0], fillColor: [220, 220, 220] },
+      });
+    } else {
+      doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
+    }
+
+    doc.save(`estado_cuenta_${creditData.lead_id}.pdf`);
+  };
+
+  const handleExportPagare = async () => {
+    if (!credit) return;
+
+    const today = new Date().toLocaleDateString('es-CR', { year: 'numeric', month: 'long', day: 'numeric' });
+    const doc = new jsPDF();
+
+    const img = new Image();
+    img.src = '/logopepweb.png';
+    img.onload = () => {
+      doc.addImage(img, 'PNG', 15, 10, 40, 15);
+      generatePagareDocument(doc, credit, today);
+    };
+    img.onerror = () => {
+      generatePagareDocument(doc, credit, today);
+    };
+  };
+
+  const generatePagareDocument = (doc: jsPDF, creditData: CreditItem, prettyDate: string) => {
+    doc.setLanguage("es");
+
+    const debtor = creditData.client || creditData.lead || null;
+    const nombre = (debtor?.name || '').toUpperCase();
+    const cedula = (debtor as any)?.cedula || '';
+    const estadoCivil = ((debtor as any)?.estado_civil || '').toUpperCase();
+    const profesion = (debtor?.ocupacion || '').toUpperCase();
+    const direccion = [
+      (debtor as any)?.direccion1,
+      (debtor as any)?.direccion2,
+    ].filter(Boolean).join(', ').toUpperCase();
+
+    let y = 35;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('OPERACIÓN N°', 160, 15);
+    doc.text(creditData.numero_operacion || creditData.reference || '', 188, 15);
+
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAGARE', 105, 25, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`San José, Costa Rica, el día ${prettyDate.toUpperCase()}`, 20, y);
+    y += 8;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DEUDOR', 20, y);
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+
+    doc.text('Nombre y apellidos del deudor:', 30, y);
+    doc.text(nombre, 90, y);
+    y += 4;
+
+    doc.text('Número de cédula de identidad:', 30, y);
+    doc.text(cedula, 90, y);
+    y += 4;
+
+    doc.text('Estado civil:', 30, y);
+    doc.text(estadoCivil, 90, y);
+    y += 4;
+
+    doc.text('Profesión/Oficio:', 30, y);
+    doc.text(profesion, 90, y);
+    y += 4;
+
+    doc.text('Dirección de domicilio:', 30, y);
+    if (direccion) {
+      const direccionLines = doc.splitTextToSize(direccion, 105);
+      doc.text(direccionLines, 90, y);
+      y += direccionLines.length * 3.5 + 2;
+    } else {
+      y += 4;
+    }
+    y += 5;
+
+    const monto = Number(creditData.monto_credito ?? 0);
+    const plazo = Number(creditData.plazo ?? 0);
+    const estadosEditablesPagare = ['Aprobado', 'Activo'];
+    const esEditablePagare = creditData.status && estadosEditablesPagare.includes(creditData.status);
+    const tasaNumber = Number(esEditablePagare
+      ? (creditData.tasa?.tasa ?? creditData.tasa_anual ?? 0)
+      : (creditData.tasa_anual ?? creditData.tasa?.tasa ?? 0));
+    const tasaMensual = (tasaNumber / 12).toFixed(2);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Monto en números:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    const divisaCode = creditData.divisa || 'CRC';
+    doc.text(`${divisaCode}  ${formatAmount(monto)}`, 85, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Monto en letras:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('____________________________________________ DE COLONES EXACTOS', 85, y);
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tasa de interés corriente:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Tasa fija mensual del ${tasaMensual}%`, 85, y);
+    y += 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tasa de interés moratoria:', 30, y);
+    doc.setFont('helvetica', 'normal');
+    const tasaMoratoria = ((tasaNumber / 12) * 1.3).toFixed(2);
+    doc.text(`Tasa mensual del ${tasaMoratoria}%`, 85, y);
+    y += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Forma de pago:', 30, y);
+    y += 4;
+
+    doc.setFont('helvetica', 'normal');
+    const formaPago = `Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables y meses". Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José, San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento determinado y en porcentajes señalados como "tasa de interés corriente" Los pagos incluyen el capital más intereses y pagaré con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden para representación de un compromiso incondicional de pago de sumas de dinero.`;
+    const formaPagoLines = doc.splitTextToSize(formaPago, 175);
+    doc.text(formaPagoLines, 30, y);
+    y += formaPagoLines.length * 3.5 + 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('SOBRE LOS ABONOS EXTRAORDINARIOS Y CANCELACIÓN ANTICIPADA:', 30, y);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    const abonosTexto = `Se indica y aclara al deudor de este pagaré, que, por los abonos extraordinarios y cancelación anticipada antes de los primeros doce meses naturales a partir del primer día siguiente a la firma de este crédito se penalizará con tres meses de intereses corrientes, (los cuales tendrá como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).`;
+    const abonosLines = doc.splitTextToSize(abonosTexto, 175);
+    doc.text(abonosLines, 30, y);
+
+    doc.save(`pagare_${creditData.numero_operacion || creditData.reference}.pdf`);
+  };
+
+  const handleFormalizar = async () => {
+    if (!credit) return;
+
+    try {
+      await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
+      toast({
+        title: 'Crédito formalizado',
+        description: 'El plan de pagos se ha generado correctamente.',
+      });
+      // Reload credit data
+      const response = await api.get(`/api/credits/${credit.id}`);
+      setCredit(response.data);
+      setFormData(response.data);
+    } catch (error) {
+      console.error('Error formalizando crédito:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo formalizar el crédito.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleSave = async () => {
     if (!credit) return;
 
     const previousStatus = credit.status;
 
-    // No permitir editar un crédito ya formalizado
-    if (previousStatus === 'Formalizado') {
-      toast({
-        title: "Error",
-        description: "No se puede editar un crédito formalizado",
-        variant: "destructive"
-      });
-      return;
+    // No permitir editar campos críticos si el crédito ya fue formalizado (tiene formalized_at)
+    if (credit.formalized_at) {
+      // Validar si se intentan cambiar campos protegidos
+      const camposProtegidos = ['tasa_anual', 'tasa_maxima', 'monto_credito', 'plazo'];
+      const cambiosProhibidos = camposProtegidos.filter(campo =>
+        formData[campo as keyof CreditItem] !== undefined &&
+        formData[campo as keyof CreditItem] !== credit[campo as keyof CreditItem]
+      );
+
+      if (cambiosProhibidos.length > 0) {
+        toast({
+          title: "Error",
+          description: `No se pueden modificar los siguientes campos en un crédito formalizado: ${cambiosProhibidos.join(', ')}`,
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     const isFormalizingCredit = formData.status === 'Formalizado' && previousStatus !== 'Formalizado';
@@ -746,6 +1127,13 @@ function CreditDetailClient({ id }: { id: string }) {
     );
   }
 
+  // Determinar si el crédito puede ser editado
+  const estadosEditables = ['Aprobado', 'Activo'];
+  const puedeEditar = credit.status && estadosEditables.includes(credit.status);
+  const mensajeEdicion = !puedeEditar
+    ? `No se puede editar un crédito en estado "${credit.status}". Solo se pueden editar créditos en estado "Aprobado" o "Activo".`
+    : (credit?.formalized_at ? 'Algunos campos no podrán modificarse porque el crédito ya fue formalizado' : 'Editar crédito');
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -767,8 +1155,8 @@ function CreditDetailClient({ id }: { id: string }) {
               <Button
                 variant="outline"
                 onClick={() => setIsEditMode(true)}
-                disabled={credit?.status === 'Formalizado'}
-                title={credit?.status === 'Formalizado' ? 'No se puede editar un crédito formalizado' : 'Editar crédito'}
+                disabled={!puedeEditar}
+                title={mensajeEdicion}
               >
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
@@ -779,6 +1167,54 @@ function CreditDetailClient({ id }: { id: string }) {
                   Balance General
                 </Link>
               </Button>
+              {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+                    const cleanBase = baseUrl.replace(/\/api\/?$/, '');
+                    window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
+                  }}
+                  className="bg-red-600 border-red-700 text-white hover:bg-red-700"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Reporte Plan de Pagos
+                </Button>
+              )}
+
+              {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title="Formalizar crédito"
+                  className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                  onClick={handleFormalizar}
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+              )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Exportar CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Exportar PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPagare}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Exportar pagaré
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -903,6 +1339,8 @@ function CreditDetailClient({ id }: { id: string }) {
                                 value={formData.monto_credito || ""}
                                 onChange={(e) => handleInputChange("monto_credito", parseFloat(e.target.value) || 0)}
                                 placeholder="Monto otorgado"
+                                disabled={!!credit.formalized_at}
+                                title={credit.formalized_at ? 'No se puede modificar en crédito formalizado' : ''}
                               />
                             ) : (
                               <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
@@ -951,6 +1389,8 @@ function CreditDetailClient({ id }: { id: string }) {
                                 value={formData.tasa_anual || ""}
                                 onChange={(e) => handleInputChange("tasa_anual", parseFloat(e.target.value) || 0)}
                                 placeholder="Tasa anual (%)"
+                                disabled={!!credit.formalized_at}
+                                title={credit.formalized_at ? 'No se puede modificar en crédito formalizado' : ''}
                               />
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
@@ -1168,6 +1608,8 @@ function CreditDetailClient({ id }: { id: string }) {
                                 value={formData.plazo || ""}
                                 onChange={(e) => handleInputChange("plazo", parseInt(e.target.value) || 0)}
                                 placeholder="Plazo en meses"
+                                disabled={!!credit.formalized_at}
+                                title={credit.formalized_at ? 'No se puede modificar en crédito formalizado' : ''}
                               />
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
@@ -1362,21 +1804,6 @@ function CreditDetailClient({ id }: { id: string }) {
                     <CardDescription>Detalle de cuotas y movimientos históricos</CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    {/* Botón Reporte PDF - Disponible siempre */}
-                    {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-                          const cleanBase = baseUrl.replace(/\/api\/?$/, '');
-                          window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
-                        }}
-                        className="bg-red-50 border-red-300 text-red-800 hover:bg-red-100"
-                      >
-                        Reporte Plan de Pagos
-                      </Button>
-                    )}
                     {credit.status === 'Formalizado' && (
                       <TooltipProvider>
                         <Tooltip>

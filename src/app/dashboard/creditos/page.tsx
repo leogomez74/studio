@@ -234,6 +234,9 @@ interface CreditItem {
   documento_id?: string | null;
   poliza?: boolean | null;
   tasa_anual?: number | null;
+  tasa_maxima?: number | null;
+  tasa?: { id: number; nombre: string; tasa: number; tasa_maxima: number } | null;
+  formalized_at?: string | null;
   primera_deduccion?: string | null;
 }
 
@@ -281,6 +284,14 @@ const formatAmount = (amount?: number | null): string => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
+};
+
+const calculateCuotasAtrasadas = (credit: CreditItem): number => {
+  if (!credit.plan_de_pagos || !Array.isArray(credit.plan_de_pagos)) {
+    return 0;
+  }
+
+  return credit.plan_de_pagos.filter(cuota => cuota.estado === 'Mora').length;
 };
 
 const getStatusBadgeStyle = (status?: string | null): { variant: "default" | "secondary" | "destructive" | "outline"; className?: string } => {
@@ -429,7 +440,7 @@ export default function CreditsPage() {
 
   const fetchCredits = useCallback(async () => {
     try {
-      const response = await api.get('/api/credits');
+      const response = await api.get('/api/credits?all=true');
 
       // Handle both paginated response { data: [...] } and direct array response
       const apiData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
@@ -453,7 +464,7 @@ export default function CreditsPage() {
 
   const fetchOpportunities = useCallback(async () => {
     try {
-      const response = await api.get('/api/opportunities');
+      const response = await api.get('/api/opportunities?all=true');
       const data = response.data.data || response.data;
       setOpportunities(data.map((o: any) => ({
         id: o.id,
@@ -478,7 +489,7 @@ export default function CreditsPage() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await api.get('/api/products');
+      const response = await api.get('/api/products?all=true');
       setProducts(response.data);
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -803,8 +814,12 @@ export default function CreditsPage() {
     doc.text("Créditos / Otras deducciones", 14, finalY);
     doc.setTextColor(0, 0, 0);
 
-    // Credit Data
-    const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
+    // Credit Data - Solo usar tasa dinámica si está en estado editable (Aprobado/Activo)
+    const estadosEditables = ['Aprobado', 'Activo'];
+    const esEditable = credit.status && estadosEditables.includes(credit.status);
+    const tasaValue = esEditable
+      ? (credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00')
+      : (credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00');
     const creditRow = [
       credit.numero_operacion || credit.reference,
       credit.linea || "PEPITO ABIERTO",
@@ -956,7 +971,11 @@ export default function CreditsPage() {
     // Monto en números
     const monto = Number(credit.monto_credito ?? 0);
     const plazo = Number(credit.plazo ?? 0);
-    const tasaNumber = Number(credit.tasa?.tasa ?? credit.tasa_anual ?? 0);
+    const estadosEditablesPagare = ['Aprobado', 'Activo'];
+    const esEditablePagare = credit.status && estadosEditablesPagare.includes(credit.status);
+    const tasaNumber = Number(esEditablePagare
+      ? (credit.tasa?.tasa ?? credit.tasa_anual ?? 0)
+      : (credit.tasa_anual ?? credit.tasa?.tasa ?? 0));
     const tasaMensual = (tasaNumber / 12).toFixed(2);
 
     doc.setFontSize(9);
@@ -1152,8 +1171,12 @@ export default function CreditsPage() {
                         // 2. Vencimiento: De cabecera o la última cuota
                         const fechaFin = credit.fecha_culminacion_credito;
 
-                        // 3. Tasa: De cabecera o del primer pago
-                        const tasa = credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null);
+                        // 3. Tasa: Solo usar tasa dinámica si está en estado editable
+                        const estadosEditablesTabla = ['Aprobado', 'Activo'];
+                        const esEditableTabla = credit.status && estadosEditablesTabla.includes(credit.status);
+                        const tasa = esEditableTabla
+                          ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null))
+                          : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null));
 
                         // 4. Fallbacks para Línea y Proceso
                         const linea = credit.linea || credit.category || "-";
@@ -1168,7 +1191,7 @@ export default function CreditsPage() {
                                   size="icon"
                                   asChild
                                   title="Ver detalle"
-                                  className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                  className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
                                 >
                                   <Link href={`/dashboard/creditos/${credit.id}`}>
                                     <Eye className="h-4 w-4" />
@@ -1190,11 +1213,39 @@ export default function CreditsPage() {
                                     size="icon"
                                     asChild
                                     title="Editar crédito"
-                                    className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                    className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
                                   >
                                     <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
                                       <Pencil className="h-4 w-4" />
                                     </Link>
+                                  </Button>
+                                )}
+
+                                {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    title="Formalizar crédito"
+                                    className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                    onClick={async () => {
+                                      try {
+                                        await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
+                                        toast({
+                                          title: 'Crédito formalizado',
+                                          description: 'El plan de pagos se ha generado correctamente.',
+                                        });
+                                        fetchCredits();
+                                      } catch (error) {
+                                        console.error('Error formalizando crédito:', error);
+                                        toast({
+                                          title: 'Error',
+                                          description: 'No se pudo formalizar el crédito.',
+                                          variant: 'destructive',
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <Check className="h-4 w-4" />
                                   </Button>
                                 )}
 
@@ -1213,6 +1264,12 @@ export default function CreditsPage() {
                                       <FileText className="mr-2 h-4 w-4" />
                                       Exportar PDF
                                     </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                    >
+                                      <FileText className="mr-2 h-4 w-4" />
+                                      Exportar pagaré
+                                    </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
 
@@ -1222,34 +1279,6 @@ export default function CreditsPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                    {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
-                                      <DropdownMenuItem
-                                        onClick={async () => {
-                                          try {
-                                            await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
-                                            toast({
-                                              title: 'Crédito formalizado',
-                                              description: 'El plan de pagos se ha generado correctamente.',
-                                            });
-                                            fetchCredits();
-                                          } catch (error) {
-                                            console.error('Error formalizando crédito:', error);
-                                            toast({
-                                              title: 'Error',
-                                              description: 'No se pudo formalizar el crédito.',
-                                              variant: 'destructive',
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        Formalizar crédito
-                                      </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuItem
-                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
-                                    >
-                                      Exportar pagaré
-                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
                                       Gestionar documentos
                                     </DropdownMenuItem>
@@ -1281,13 +1310,13 @@ export default function CreditsPage() {
 
                             {/* Columnas Calculadas / Fallbacks */}
                             <TableCell>{linea}</TableCell>
-                            <TableCell>{formatDate(fechaInicio)}</TableCell>
-                            <TableCell>{credit.garantia || "-"}</TableCell>
+                            <TableCell>{fechaInicio ? formatDate(fechaInicio) : "No aplicable"}</TableCell>
+                            <TableCell>{credit.garantia || "No aplicable"}</TableCell>
                             <TableCell>{formatDate(fechaFin)}</TableCell>
                             <TableCell>{proceso}</TableCell>
                             <TableCell>{tasa ? `${tasa}%` : "-"}</TableCell>
 
-                            <TableCell>{credit.cuotas_atrasadas || 0}</TableCell>
+                            <TableCell>{calculateCuotasAtrasadas(credit)}</TableCell>
                             <TableCell>
                               {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "-"}
                             </TableCell>

@@ -61,6 +61,7 @@ Mora = Capital × (Tasa Mora / 365) × Días del mes
 | Abr | Marzo | ✅ Sí | Pago se aplica a cuota en mora primero (ver cascada) |
 | May | Abril | ✅ Sí | Continúa ciclo normal... |
 
+
 ---
 
 ## 3. Cascada de Pagos (Cuando hay mora pendiente)

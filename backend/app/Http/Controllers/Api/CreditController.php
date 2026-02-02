@@ -25,7 +25,7 @@ class CreditController extends Controller
         $query = Credit::with([
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado'
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado,dias_mora'
         ]);
 
         if ($request->has('lead_id')) {
@@ -447,11 +447,23 @@ class CreditController extends Controller
         $credit = Credit::findOrFail($id);
         $previousStatus = $credit->status;
 
+        // PROTECCIÓN: Solo permitir edición si el crédito está en estado editable
+        if (!\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
+            return response()->json([
+                'message' => 'No se puede editar un crédito en estado "' . $credit->status . '". Solo se pueden editar créditos en estado "' . implode('" o "', Credit::EDITABLE_STATUSES) . '".',
+                'current_status' => $credit->status,
+                'editable_statuses' => Credit::EDITABLE_STATUSES,
+            ], 422);
+        }
+
         $validated = $request->validate([
             'reference' => 'sometimes|required|unique:credits,reference,' . $id,
             'status' => 'sometimes|required|string',
             'monto_credito' => 'nullable|numeric',
             'tasa_id' => 'nullable|exists:tasas,id',
+            'tasa_anual' => 'nullable|numeric',
+            'tasa_maxima' => 'nullable|numeric',
+            'plazo' => 'nullable|integer',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
             'cargos_adicionales' => 'nullable|array',
@@ -461,11 +473,24 @@ class CreditController extends Controller
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
         ]);
 
-        // No permitir editar cargos_adicionales después de formalizar
-        if (isset($validated['cargos_adicionales']) && strtolower($credit->status) === 'formalizado') {
-            return response()->json([
-                'message' => 'No se pueden modificar los cargos adicionales después de formalizar el crédito.',
-            ], 422);
+        // PROTECCIÓN: No permitir modificar campos críticos si el crédito ya fue formalizado (tiene formalized_at)
+        if ($credit->formalized_at) {
+            $camposProtegidos = ['tasa_anual', 'tasa_maxima', 'monto_credito', 'plazo', 'cargos_adicionales'];
+            $intentoCambio = [];
+
+            foreach ($camposProtegidos as $campo) {
+                if (isset($validated[$campo]) && $validated[$campo] != $credit->$campo) {
+                    $intentoCambio[] = $campo;
+                }
+            }
+
+            if (!empty($intentoCambio)) {
+                return response()->json([
+                    'message' => 'No se pueden modificar los siguientes campos en un crédito formalizado: ' . implode(', ', $intentoCambio),
+                    'campos_protegidos' => $intentoCambio,
+                    'formalized_at' => $credit->formalized_at->format('d/m/Y H:i:s'),
+                ], 422);
+            }
         }
 
         // Validar monto_neto > 0 si se actualizan cargos o monto
@@ -502,7 +527,7 @@ class CreditController extends Controller
 
         // Recalcular saldo SOLO si se cambiaron cargos o monto Y el crédito NO está formalizado
         if ((isset($validated['cargos_adicionales']) || isset($validated['monto_credito']))
-            && strtolower($credit->status) !== 'formalizado') {
+            && !$credit->formalized_at) {
             $credit->refresh();
             $montoCredito = (float) $credit->monto_credito;
             $totalCargosActualizados = array_sum($credit->cargos_adicionales ?? []);

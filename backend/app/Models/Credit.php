@@ -9,6 +9,20 @@ class Credit extends Model
 {
     use HasFactory;
 
+    // Estados de crédito
+    public const STATUS_APROBADO = 'Aprobado';
+    public const STATUS_ACTIVO = 'Activo';
+    public const STATUS_EN_MORA = 'En Mora';
+    public const STATUS_CERRADO = 'Cerrado';
+    public const STATUS_LEGAL = 'Legal';
+    public const STATUS_FORMALIZADO = 'Formalizado';
+
+    // Estados editables (solo estos pueden modificarse)
+    public const EDITABLE_STATUSES = [
+        self::STATUS_APROBADO,
+        self::STATUS_ACTIVO,
+    ];
+
     protected $fillable = [
         'reference',
         'title',
@@ -98,6 +112,25 @@ class Credit extends Model
             if ($credit->isDirty('tasa_id') && !$credit->tasa_id) {
                 throw new \InvalidArgumentException('No se puede establecer tasa_id como nulo. Todo crédito debe tener una tasa asignada.');
             }
+
+            // PROTECCIÓN: Cuando se formaliza un crédito, copiar valores de tasa para congelarlos
+            if ($credit->isDirty('formalized_at') && $credit->formalized_at) {
+                // Cargar la tasa relacionada si no está cargada
+                if (!$credit->relationLoaded('tasa')) {
+                    $credit->load('tasa');
+                }
+
+                // Copiar valores de la tasa al crédito para congelarlos
+                if ($credit->tasa) {
+                    // Solo copiar si no tienen valores previamente establecidos
+                    if (!$credit->tasa_anual || $credit->tasa_anual == 0) {
+                        $credit->tasa_anual = $credit->tasa->tasa;
+                    }
+                    if (!$credit->tasa_maxima || $credit->tasa_maxima == 0) {
+                        $credit->tasa_maxima = $credit->tasa->tasa_maxima;
+                    }
+                }
+            }
         });
 
         static::created(function ($credit) {
@@ -146,11 +179,17 @@ class Credit extends Model
     }
 
     /**
-     * Accessor: tasa_anual (para retrocompatibilidad)
-     * Devuelve el valor de la tasa desde la relación
+     * Accessor: tasa_anual
+     * Devuelve el valor congelado del campo si existe, sino usa la relación
      */
-    public function getTasaAnualAttribute()
+    public function getTasaAnualAttribute($value)
     {
+        // Si hay un valor en el campo (tasa congelada), usarlo
+        if ($value !== null) {
+            return $value;
+        }
+
+        // Fallback: usar valor de la relación si está cargada
         return $this->tasa ? $this->tasa->tasa : null;
     }
 }

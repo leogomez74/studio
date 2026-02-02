@@ -92,7 +92,7 @@ export default function ClientDetailPage() {
 
     const fetchLeads = async () => {
         try {
-            const response = await api.get('/api/leads');
+            const response = await api.get('/api/leads?all=true');
             const data = response.data.data || response.data;
             setLeads(data.map((l: any) => ({ id: l.id, name: l.name })));
         } catch (error) {
@@ -104,7 +104,9 @@ export default function ClientDetailPage() {
         setLoadingCredits(true);
         try {
             const response = await api.get(`/api/credits?lead_id=${id}`);
-            setCredits(response.data || []);
+            // Handle paginated response (response.data.data) or direct array (response.data)
+            const creditsData = Array.isArray(response.data) ? response.data : (response.data.data || []);
+            setCredits(creditsData);
         } catch (error) {
             console.error("Error fetching credits:", error);
             setCredits([]);

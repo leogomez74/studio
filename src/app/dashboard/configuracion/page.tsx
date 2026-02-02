@@ -809,7 +809,7 @@ const ProductosCRUD: React.FC = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/products');
+      const res = await api.get('/api/products?all=true');
       setProducts(res.data);
     } catch (err) {
       console.error('Error fetching products:', err);

@@ -221,6 +221,19 @@ export type Credit = {
   documento_id?: string | null;
   lead?: { id: number; name: string; email: string | null  ; cedula?: number} | null;
   opportunity?: { id: string; title: string | null } | null;
+  plan_de_pagos?: Array<{
+    id: number;
+    credit_id: number;
+    numero_cuota: number;
+    cuota: number;
+    saldo_anterior: number;
+    interes_corriente: number;
+    amortizacion: number;
+    saldo_nuevo: number;
+    fecha_pago: string | null;
+    estado: string;
+    dias_mora?: number;
+  }> | null;
 
   // Legacy / UI fields for cobro-judicial
   operationNumber?: string;
