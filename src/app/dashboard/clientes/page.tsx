@@ -165,6 +165,7 @@ export default function ClientesPage() {
   const [clientsData, setClientsData] = useState<Client[]>([]);
   const [leadsData, setLeadsData] = useState<Lead[]>([]);
   const [inactiveData, setInactiveData] = useState<(Lead | Client)[]>([]);
+  const [unifiedSearchResults, setUnifiedSearchResults] = useState<Array<(Lead | Client) & { _type: 'lead' | 'cliente' | 'inactivo' }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -250,6 +251,30 @@ export default function ClientesPage() {
       commonParams.page = currentPage;
       commonParams.per_page = perPage;
 
+      // BÚSQUEDA UNIFICADA: Si hay searchQuery, buscar en todas las categorías
+      if (searchQuery && searchQuery.trim()) {
+        const [activeLeadsRes, activeClientsRes, inactiveLeadsRes, inactiveClientsRes] = await Promise.all([
+          api.get('/api/leads', { params: { ...commonParams, is_active: 1 } }),
+          api.get('/api/clients', { params: { ...commonParams, is_active: 1 } }),
+          api.get('/api/leads', { params: { ...commonParams, is_active: 0 } }),
+          api.get('/api/clients', { params: { ...commonParams, is_active: 0 } })
+        ]);
+
+        const activeLeads = (activeLeadsRes.data.data || activeLeadsRes.data || []).map((item: any) => ({ ...item, _type: 'lead' as const }));
+        const activeClients = (activeClientsRes.data.data || activeClientsRes.data || []).map((item: any) => ({ ...item, _type: 'cliente' as const }));
+        const inactiveLeads = (inactiveLeadsRes.data.data || inactiveLeadsRes.data || []).map((item: any) => ({ ...item, _type: 'inactivo' as const }));
+        const inactiveClients = (inactiveClientsRes.data.data || inactiveClientsRes.data || []).map((item: any) => ({ ...item, _type: 'inactivo' as const }));
+
+        // Combinar y ordenar: Leads primero, luego Clientes, luego Inactivos
+        const unified = [...activeLeads, ...activeClients, ...inactiveLeads, ...inactiveClients];
+        setUnifiedSearchResults(unified);
+        setTotalItems(unified.length);
+        setTotalPages(1);
+        setLoading(false);
+        return;
+      }
+
+      // COMPORTAMIENTO NORMAL: Sin búsqueda, usar tabs normalmente
       const leadParams = { ...commonParams };
       const clientParams = { ...commonParams };
 
@@ -268,6 +293,9 @@ export default function ClientesPage() {
               clientParams.status = statusFilter;
           }
       }
+
+      // Limpiar resultados unificados cuando no hay búsqueda
+      setUnifiedSearchResults([]);
 
       if (activeTab === "leads") {
         const resLeads = await api.get('/api/leads', { params: leadParams });
@@ -771,7 +799,24 @@ export default function ClientesPage() {
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-                  <Input placeholder="Cédula, nombre o correo" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-56" />
+                  <div className="relative">
+                    <Input
+                      placeholder="Cédula, nombre o correo"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-56 pr-8"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="Limpiar búsqueda"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
@@ -835,11 +880,15 @@ export default function ClientesPage() {
 
                   <TabsContent value="leads" className="space-y-4">
                     <div>
-                      <p className="text-sm font-medium">Leads recientes</p>
-                      <p className="text-sm text-muted-foreground">Últimos registros del embudo.</p>
+                      <p className="text-sm font-medium">{searchQuery ? 'Resultados de búsqueda' : 'Leads recientes'}</p>
+                      <p className="text-sm text-muted-foreground">{searchQuery ? 'Filtrando por: Leads' : 'Últimos registros del embudo.'}</p>
                     </div>
                     {loading ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                    ) : searchQuery && unifiedSearchResults.length > 0 ? (
+                        <>
+                          <UnifiedSearchTable data={unifiedSearchResults} activeTab={activeTab} onAction={handleLeadAction} />
+                        </>
                     ) : (
                         <>
                           <LeadsTable data={leadsData} onAction={handleLeadAction} />
@@ -893,19 +942,25 @@ export default function ClientesPage() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-2">
                             <div>
-                                <p className="text-sm font-medium">Clientes activos</p>
-                                <p className="text-sm text-muted-foreground">Casos que ya están en seguimiento.</p>
+                                <p className="text-sm font-medium">{searchQuery ? 'Resultados de búsqueda' : 'Clientes activos'}</p>
+                                <p className="text-sm text-muted-foreground">{searchQuery ? 'Filtrando por: Clientes' : 'Casos que ya están en seguimiento.'}</p>
                             </div>
-                            <Button asChild size="sm" variant="outline" className="w-fit">
-                                <Link href="/dashboard/clients" className="gap-1">
-                                    Ver clientes
-                                    <ArrowUpRight className="h-4 w-4" />
-                                </Link>
-                            </Button>
+                            {!searchQuery && (
+                              <Button asChild size="sm" variant="outline" className="w-fit">
+                                  <Link href="/dashboard/clients" className="gap-1">
+                                      Ver clientes
+                                      <ArrowUpRight className="h-4 w-4" />
+                                  </Link>
+                              </Button>
+                            )}
                         </div>
                     </div>
                     {loading ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                    ) : searchQuery && unifiedSearchResults.length > 0 ? (
+                        <>
+                          <UnifiedSearchTable data={unifiedSearchResults} activeTab={activeTab} onAction={handleLeadAction} />
+                        </>
                     ) : (
                         <>
                           <ClientsTable data={clientsData} onEdit={handleEditClient} onDelete={confirmDeleteClient} />
@@ -957,11 +1012,15 @@ export default function ClientesPage() {
 
                   <TabsContent value="inactivos" className="space-y-4">
                     <div>
-                      <p className="text-sm font-medium">Inactivos</p>
-                      <p className="text-sm text-muted-foreground">Leads suspendidos, exclientes o archivados.</p>
+                      <p className="text-sm font-medium">{searchQuery ? 'Resultados de búsqueda' : 'Inactivos'}</p>
+                      <p className="text-sm text-muted-foreground">{searchQuery ? 'Filtrando por: Inactivos' : 'Leads suspendidos, exclientes o archivados.'}</p>
                     </div>
                     {loading ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                    ) : searchQuery && unifiedSearchResults.length > 0 ? (
+                        <>
+                          <UnifiedSearchTable data={unifiedSearchResults} activeTab={activeTab} onAction={handleRestore} />
+                        </>
                     ) : (
                         <InactiveTable data={inactiveData} onRestore={handleRestore} />
                     )}
@@ -1263,6 +1322,108 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
           </TableBody>
         </Table>
     )
+}
+
+function UnifiedSearchTable({
+  data,
+  activeTab,
+  onAction
+}: {
+  data: Array<(Lead | Client) & { _type: 'lead' | 'cliente' | 'inactivo' }>,
+  activeTab: string,
+  onAction: (action: string, item: any) => void
+}) {
+  // Mostrar todos los resultados sin filtrar por tab
+  const filteredData = data;
+
+  if (filteredData.length === 0) {
+    return <div className="text-center p-8 text-muted-foreground">
+      No encontramos resultados con los filtros seleccionados.
+    </div>;
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[11rem]">Cédula</TableHead>
+          <TableHead>Nombre</TableHead>
+          <TableHead className="w-[8rem]">Tipo</TableHead>
+          <TableHead className="w-[10rem]">Contacto</TableHead>
+          <TableHead className="text-right">Registrado</TableHead>
+          <TableHead className="w-[15rem] text-right">Acciones</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {filteredData.map((item) => {
+          const displayName = getLeadDisplayName(item);
+          const typeBadgeClass =
+            item._type === 'lead' ? 'bg-blue-100 text-blue-700' :
+            item._type === 'cliente' ? 'bg-green-100 text-green-700' :
+            'bg-gray-100 text-gray-700';
+          const typeLabel =
+            item._type === 'lead' ? 'Lead' :
+            item._type === 'cliente' ? 'Cliente' :
+            'Inactivo';
+
+          return (
+            <TableRow key={`${item._type}-${item.id}`}>
+              <TableCell className="font-mono text-sm">
+                {item.cedula ? (
+                  <Link
+                    href={item._type === 'cliente' ? `/dashboard/clientes/${item.id}` : `/dashboard/leads/${item.id}?mode=view`}
+                    className="text-primary hover:underline"
+                  >
+                    {item.cedula}
+                  </Link>
+                ) : <span className="text-muted-foreground">-</span>}
+              </TableCell>
+              <TableCell>
+                <Link
+                  href={item._type === 'cliente' ? `/dashboard/clientes/${item.id}` : `/dashboard/leads/${item.id}?mode=view`}
+                  className="font-medium leading-none text-primary hover:underline"
+                >
+                  {displayName}
+                </Link>
+              </TableCell>
+              <TableCell>
+                <Badge className={typeBadgeClass}>{typeLabel}</Badge>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm text-muted-foreground">{item.email || "Sin correo"}</div>
+                <div className="text-sm text-muted-foreground">{item.phone || "Sin teléfono"}</div>
+              </TableCell>
+              <TableCell className="text-right">{formatRegistered(item.created_at)}</TableCell>
+              <TableCell className="text-right">
+                <div className="flex flex-wrap justify-end gap-2">
+                  {item._type === 'lead' && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', item)}>
+                          <Sparkles className="h-4 w-4" />
+                        </PermissionButton>
+                      </TooltipTrigger>
+                      <TooltipContent>Crear oportunidad</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {item._type === 'inactivo' && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PermissionButton module="crm" action="edit" size="icon" onClick={() => onAction('restore', item)}>
+                          <ArrowUpRight className="h-4 w-4" />
+                        </PermissionButton>
+                      </TooltipTrigger>
+                      <TooltipContent>Restaurar</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
 }
 
 function InactiveTable({ data, onRestore }: { data: (Lead | Client)[], onRestore: (item: Lead | Client) => void }) {
