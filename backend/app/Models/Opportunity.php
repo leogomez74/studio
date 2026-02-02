@@ -99,4 +99,10 @@ class Opportunity extends Model
     {
         return $this->belongsTo(User::class, 'assigned_to_id');
     }
+
+    // Relación con Analisis
+    public function analisis()
+    {
+        return $this->hasOne(Analisis::class, 'opportunity_id');
+    }
 }

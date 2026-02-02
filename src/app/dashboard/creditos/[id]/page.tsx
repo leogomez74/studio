@@ -561,7 +561,7 @@ function CreditDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     const editParam = searchParams.get('edit');
-    const estadosEditables = ['Aprobado', 'Activo'];
+    const estadosEditables = ['Aprobado', 'Por firmar'];
     if (editParam === 'true' && !credit?.formalized_at && credit?.status && estadosEditables.includes(credit.status)) {
       setIsEditMode(true);
     }
@@ -795,7 +795,7 @@ function CreditDetailClient({ id }: { id: string }) {
     doc.text("Créditos / Otras deducciones", 14, finalY);
     doc.setTextColor(0, 0, 0);
 
-    const estadosEditables = ['Aprobado', 'Activo'];
+    const estadosEditables = ['Aprobado', 'Por firmar'];
     const esEditable = creditData.status && estadosEditables.includes(creditData.status);
     const tasaValue = esEditable
       ? (creditData.tasa?.tasa ?? creditData.tasa_anual ?? '0.00')
@@ -954,7 +954,7 @@ function CreditDetailClient({ id }: { id: string }) {
 
     const monto = Number(creditData.monto_credito ?? 0);
     const plazo = Number(creditData.plazo ?? 0);
-    const estadosEditablesPagare = ['Aprobado', 'Activo'];
+    const estadosEditablesPagare = ['Aprobado', 'Por firmar'];
     const esEditablePagare = creditData.status && estadosEditablesPagare.includes(creditData.status);
     const tasaNumber = Number(esEditablePagare
       ? (creditData.tasa?.tasa ?? creditData.tasa_anual ?? 0)
@@ -1128,10 +1128,10 @@ function CreditDetailClient({ id }: { id: string }) {
   }
 
   // Determinar si el crédito puede ser editado
-  const estadosEditables = ['Aprobado', 'Activo'];
+  const estadosEditables = ['Aprobado', 'Por firmar'];
   const puedeEditar = credit.status && estadosEditables.includes(credit.status);
   const mensajeEdicion = !puedeEditar
-    ? `No se puede editar un crédito en estado "${credit.status}". Solo se pueden editar créditos en estado "Aprobado" o "Activo".`
+    ? `No se puede editar un crédito en estado "${credit.status}". Solo se pueden editar créditos en estado "Aprobado" o "Por firmar".`
     : (credit?.formalized_at ? 'Algunos campos no podrán modificarse porque el crédito ya fue formalizado' : 'Editar crédito');
 
   return (
@@ -1257,7 +1257,7 @@ function CreditDetailClient({ id }: { id: string }) {
                           </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant={credit.status === 'Activo' ? 'default' : 'secondary'}>
+                          <Badge variant={credit.status === 'Por firmar' ? 'default' : 'secondary'}>
                             {credit.status}
                           </Badge>
                           <TooltipProvider>
@@ -1649,7 +1649,7 @@ function CreditDetailClient({ id }: { id: string }) {
                                 <SelectContent>
                                   <SelectItem value="Aprobado">Aprobado</SelectItem>
                                   <SelectItem value="Formalizado">Formalizado</SelectItem>
-                                  <SelectItem value="Activo">Activo</SelectItem>
+                                  <SelectItem value="Por firmar">Por firmar</SelectItem>
                                   <SelectItem value="Mora">Mora</SelectItem>
                                   <SelectItem value="Cerrado">Cerrado</SelectItem>
                                   <SelectItem value="Legal">Legal</SelectItem>

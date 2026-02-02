@@ -203,6 +203,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
     Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
 
+    // Propuestas de Análisis (Protegido)
+    Route::get('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'index']);
+    Route::post('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'store']);
+    Route::put('propuestas/{id}', [\App\Http\Controllers\Api\PropuestaController::class, 'update']);
+    Route::delete('propuestas/{id}', [\App\Http\Controllers\Api\PropuestaController::class, 'destroy']);
+    Route::patch('propuestas/{id}/aceptar', [\App\Http\Controllers\Api\PropuestaController::class, 'aceptar']);
+    Route::patch('propuestas/{id}/denegar', [\App\Http\Controllers\Api\PropuestaController::class, 'denegar']);
+
     // Créditos (Protegido)
     Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
     Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);

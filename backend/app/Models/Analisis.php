@@ -29,7 +29,6 @@ class Analisis extends Model
         'ingreso_bruto',
         'ingreso_neto',
         'deducciones',
-        'propuesta',
     ];
 
     protected $casts = [
@@ -61,6 +60,11 @@ class Analisis extends Model
     public function opportunity()
     {
         return $this->belongsTo(Opportunity::class);
+    }
+
+    public function propuestas()
+    {
+        return $this->hasMany(Propuesta::class, 'analisis_reference', 'reference');
     }
 
     /**
