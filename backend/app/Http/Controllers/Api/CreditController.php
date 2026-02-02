@@ -191,6 +191,9 @@ class CreditController extends Controller
             $credit->reference = $this->generateReferenceWithId($credit->id);
             $credit->save();
 
+            // C. Calcular cuota mensual (PMT) para que sea visible antes de formalizar
+            $this->calculateAndSetCuota($credit);
+
             // Validar estado antes de crear plan de pagos
             if (strtolower($credit->status) === 'formalizado') {
                 $credit->formalized_at = now();
@@ -243,6 +246,42 @@ class CreditController extends Controller
         });
 
         return response()->json($credit->load('planDePagos'), 201);
+    }
+
+    /**
+     * Calcula la cuota mensual (PMT) sobre el monto neto (monto - cargos) y la guarda en el crédito.
+     * Se ejecuta al crear o actualizar, antes de formalizar.
+     */
+    private function calculateAndSetCuota(Credit $credit): void
+    {
+        $montoCredito = (float) $credit->monto_credito;
+        $totalCargos = array_sum($credit->cargos_adicionales ?? []);
+        $monto = $montoCredito - $totalCargos;
+        $plazo = (int) $credit->plazo;
+        $tasaAnual = (float) $credit->tasa_anual;
+
+        if ($monto <= 0 || $plazo <= 0) {
+            return;
+        }
+
+        $tasaMensual = ($tasaAnual / 100) / 12;
+
+        if ($tasaMensual > 0) {
+            $potencia = pow(1 + $tasaMensual, $plazo);
+            $cuotaFija = $monto * ($tasaMensual * $potencia) / ($potencia - 1);
+        } else {
+            $cuotaFija = $monto / $plazo;
+        }
+
+        // Agregar póliza si aplica
+        $polizaPorCuota = 0;
+        if ($credit->poliza) {
+            $loanConfig = LoanConfiguration::where('tipo', 'regular')->first();
+            $polizaPorCuota = (float) ($loanConfig->monto_poliza ?? 0);
+        }
+
+        $credit->cuota = round($cuotaFija, 2) + $polizaPorCuota;
+        $credit->save();
     }
 
     /**
@@ -447,8 +486,12 @@ class CreditController extends Controller
         $credit = Credit::findOrFail($id);
         $previousStatus = $credit->status;
 
+        // Permitir formalización desde cualquier estado
+        $isFormalizing = isset($request->status) && strtolower($request->status) === 'formalizado';
+
         // PROTECCIÓN: Solo permitir edición si el crédito está en estado editable
-        if (!\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
+        // EXCEPCIÓN: Permitir cambio a "Formalizado" desde cualquier estado
+        if (!$isFormalizing && !\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
             return response()->json([
                 'message' => 'No se puede editar un crédito en estado "' . $credit->status . '". Solo se pueden editar créditos en estado "' . implode('" o "', Credit::EDITABLE_STATUSES) . '".',
                 'current_status' => $credit->status,
@@ -533,6 +576,15 @@ class CreditController extends Controller
             $totalCargosActualizados = array_sum($credit->cargos_adicionales ?? []);
             $credit->saldo = $montoCredito - $totalCargosActualizados;
             $credit->save();
+        }
+
+        // Recalcular cuota mensual si cambiaron datos financieros y no está formalizado
+        if (!$credit->formalized_at &&
+            (isset($validated['monto_credito']) || isset($validated['plazo']) ||
+             isset($validated['tasa_id']) || isset($validated['poliza']) ||
+             isset($validated['cargos_adicionales']))) {
+            $credit->refresh();
+            $this->calculateAndSetCuota($credit);
         }
 
         // Si el estado cambió a "Formalizado" y no hay plan de pagos, generarlo
