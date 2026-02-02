@@ -61,13 +61,7 @@ const normalizePhoneInput = (value: string): string => value.replace(/[^0-9]/g, 
 
 const formatCedula = (value: string): string => {
   const numericValue = value.replace(/[^0-9]/g, "");
-  if (numericValue.length <= 1) {
-    return numericValue;
-  }
-  if (numericValue.length <= 5) {
-    return `${numericValue.slice(0, 1)}-${numericValue.slice(1)}`;
-  }
-  return `${numericValue.slice(0, 1)}-${numericValue.slice(1, 5)}-${numericValue.slice(5, 9)}`;
+  return numericValue;
 };
 
 const leadSchema = z.object({
@@ -85,14 +79,11 @@ const leadSchema = z.object({
     return dateObj <= today;
   }, "La fecha de nacimiento no puede ser en el futuro"),
   // Campos visibles en formulario (requeridos)
-  cedula: z.string().min(11, "La cédula debe tener 9 dígitos").refine((cedula) => {
-    if (!cedula) return false;
-    return /^\d{1}-\d{4}-\d{4}$/.test(cedula);
-  }, "El formato de la cédula debe ser X-XXXX-XXXX"),
+  cedula: z.string().min(1, "La cédula es requerida"),
   email: z.string().min(1, "El correo es requerido").email("Correo inválido"),
-  phone: z.string().min(1, "El teléfono es requerido").refine((phone) => {
-    return /^\d{8}$/.test(phone);
-  }, "El número de teléfono debe tener 8 dígitos"),
+  phone: z.string().min(1, "El teléfono es requerido"),
+  phonePrefix: z.string().optional(),
+  isExtranjero: z.boolean().optional(),
   sector: z.string().min(1, "El sector laboral es requerido"),
 });
 
@@ -208,12 +199,42 @@ export default function ClientesPage() {
       cedula: "",
       fechaNacimiento: "",
       sector: "",
+      phonePrefix: "+506",
+      isExtranjero: false,
     },
   });
 
-  // TSE Lookup State
+  // TSE Lookup State (copiado del registro público)
   const [isFetchingTse, setIsFetchingTse] = useState(false);
   const [lastTseCedula, setLastTseCedula] = useState<string | null>(null);
+  const [tseData, setTseData] = useState<any>(null);
+  const [tseNotFound, setTseNotFound] = useState(false);
+  const [showTseConfirmation, setShowTseConfirmation] = useState(false);
+  const [userConfirmedTse, setUserConfirmedTse] = useState(false);
+  const [isExtranjero, setIsExtranjero] = useState(false);
+  const [showExtranjeroFields, setShowExtranjeroFields] = useState(false);
+
+  // WhatsApp Verification State
+  const [whatsappVerified, setWhatsappVerified] = useState(false);
+  const [whatsappVerifying, setWhatsappVerifying] = useState(false);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+
+  // Country codes para extranjeros
+  const countryCallingCodes = [
+    { code: '+1', country: 'Estados Unidos / Canadá' },
+    { code: '+33', country: 'Francia' },
+    { code: '+34', country: 'España' },
+    { code: '+44', country: 'Reino Unido' },
+    { code: '+49', country: 'Alemania' },
+    { code: '+51', country: 'Perú' },
+    { code: '+52', country: 'México' },
+    { code: '+54', country: 'Argentina' },
+    { code: '+55', country: 'Brasil' },
+    { code: '+56', country: 'Chile' },
+    { code: '+57', country: 'Colombia' },
+    { code: '+58', country: 'Venezuela' },
+    { code: '+506', country: 'Costa Rica' },
+  ];
 
   // Opportunity Dialog State
   const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
@@ -222,6 +243,44 @@ export default function ClientesPage() {
   // Delete Client State
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // WhatsApp Verification Function
+  const checkWhatsApp = async (fullNumber: string) => {
+    if (!fullNumber || fullNumber.length < 7) return;
+
+    setWhatsappVerifying(true);
+    setWhatsappError(null);
+
+    try {
+      const EVOLUTION_API_URL = 'https://evolution.ssc.cr';
+      const EVOLUTION_API_KEY = '7E269F8C445B-4D63-B75B-BB59D7481AC7';
+      const EVOLUTION_INSTANCE = 'Informacion Pep';
+
+      const response = await fetch(`${EVOLUTION_API_URL}/chat/whatsappNumbers/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': EVOLUTION_API_KEY
+        },
+        body: JSON.stringify({ numbers: [fullNumber] })
+      });
+      const data = await response.json();
+
+      if (Array.isArray(data) && data.length > 0 && data[0].exists) {
+        setWhatsappVerified(true);
+        setWhatsappError(null);
+      } else {
+        setWhatsappVerified(false);
+        setWhatsappError('Este número no tiene WhatsApp');
+      }
+    } catch (error) {
+      console.error('Error verificando WhatsApp:', error);
+      setWhatsappVerified(false);
+      setWhatsappError('Error al verificar WhatsApp');
+    } finally {
+      setWhatsappVerifying(false);
+    }
+  };
 
   // --- Effects ---
 
@@ -475,74 +534,133 @@ export default function ClientesPage() {
     setEditingType(null);
     setLastTseCedula(null);
     setIsViewOnly(false);
+    setTseData(null);
+    setTseNotFound(false);
+    setShowTseConfirmation(false);
+    setUserConfirmedTse(false);
+    setIsExtranjero(false);
+    setShowExtranjeroFields(false);
+    setWhatsappVerified(false);
+    setWhatsappVerifying(false);
+    setWhatsappError(null);
   };
 
-  // TSE Lookup Logic
+  // TSE Lookup Logic (copiado del registro público)
   const handleTseLookup = useCallback(
     async (cedulaInput: string): Promise<void> => {
       const trimmed = cedulaInput.trim();
       const normalizedCedulaValue = normalizeCedulaInput(trimmed);
-      if (!normalizedCedulaValue || normalizedCedulaValue.length < 9 || normalizedCedulaValue === lastTseCedula) {
+      if (!normalizedCedulaValue || normalizedCedulaValue.length < 6 || normalizedCedulaValue === lastTseCedula) {
         return;
       }
+
+      // Reset form state
+      setTseData(null);
+      setTseNotFound(false);
+      setShowTseConfirmation(false);
+      setShowExtranjeroFields(false);
+      setUserConfirmedTse(false);
 
       setIsFetchingTse(true);
       try {
         const response = await fetch(`https://www.dsf.cr/tse/${encodeURIComponent(normalizedCedulaValue)}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
 
-        const payload = await response.json().catch(() => null);
-        if (!payload || typeof payload !== "object") throw new Error("Respuesta inesperada");
-
-        const normalizedName = typeof payload.nombre === "string" ? payload.nombre.trim() : "";
-        const normalizedApellido1 = typeof payload.apellido1 === "string" ? payload.apellido1.trim() : "";
-        const normalizedApellido2 = typeof payload.apellido2 === "string" ? payload.apellido2.trim() : "";
-        const normalizedCedula = typeof payload.cedula === "string" ? payload.cedula.trim() : normalizedCedulaValue;
-        const rawDate = payload["fecha-nacimiento"] || payload.fecha_nacimiento || "";
-
-        form.setValue("name", normalizedName);
-        form.setValue("apellido1", normalizedApellido1);
-        form.setValue("apellido2", normalizedApellido2);
-        form.setValue("cedula", formatCedula(normalizedCedula));
-        form.setValue("fechaNacimiento", formatDateForInput(rawDate));
-
-        setLastTseCedula(normalizeCedulaInput(normalizedCedula || normalizedCedulaValue));
-        toast({ title: "Datos cargados", description: "Información completada desde el TSE." });
+        if (payload.success && payload.nombre) {
+          // TSE encontró datos
+          const tseInfo = {
+            nombre: payload.nombre,
+            apellido1: payload.apellido1,
+            apellido2: payload.apellido2,
+            fechaNacimiento: payload["fecha-nacimiento"] || payload.fecha_nacimiento,
+            genero: payload.sexo
+          };
+          setTseData(tseInfo);
+          setShowTseConfirmation(true);
+          setLastTseCedula(normalizedCedulaValue);
+        } else {
+          // No encontrado
+          setTseNotFound(true);
+          setLastTseCedula(normalizedCedulaValue);
+        }
       } catch (error) {
         console.error("Error consultando TSE", error);
+        setTseNotFound(true);
+        setLastTseCedula(normalizedCedulaValue);
       } finally {
         setIsFetchingTse(false);
       }
     },
-    [lastTseCedula, toast, form]
+    [lastTseCedula]
   );
 
-  const cedulaValue = form.watch("cedula");
+  // Handlers para confirmación TSE
+  const handleTseYes = () => {
+    if (!tseData) return;
+    setUserConfirmedTse(true);
+    setShowTseConfirmation(false);
+    setIsExtranjero(false);
+    form.setValue("name", tseData.nombre);
+    form.setValue("apellido1", tseData.apellido1);
+    form.setValue("apellido2", tseData.apellido2);
+    form.setValue("fechaNacimiento", formatDateForInput(tseData.fechaNacimiento));
+    form.setValue("isExtranjero", false);
+    form.setValue("phonePrefix", "+506");
+  };
 
-  useEffect(() => {
-    const sanitized = (cedulaValue || "").trim();
-    if (!sanitized || sanitized.length < 9 || sanitized === lastTseCedula || isFetchingTse) {
-      return;
+  const handleTseNo = () => {
+    setTseData(null);
+    setUserConfirmedTse(false);
+    setShowTseConfirmation(false);
+    setShowExtranjeroFields(true);
+    setIsExtranjero(false);
+    form.setValue("isExtranjero", false);
+    form.setValue("phonePrefix", "+506");
+  };
+
+  const handleExtranjeroYes = () => {
+    setTseNotFound(false);
+    setIsExtranjero(true);
+    setShowExtranjeroFields(true);
+    form.setValue("isExtranjero", true);
+    if (!form.getValues("phonePrefix")) {
+      form.setValue("phonePrefix", "+506");
     }
-    const handler = setTimeout(() => {
-      void handleTseLookup(sanitized);
-    }, 600);
-    return () => clearTimeout(handler);
-  }, [handleTseLookup, isFetchingTse, lastTseCedula, cedulaValue]);
+  };
+
+  const handleExtranjeroNo = () => {
+    setTseNotFound(false);
+    setIsExtranjero(false);
+    setShowExtranjeroFields(true);
+    form.setValue("isExtranjero", false);
+    form.setValue("phonePrefix", "+506");
+  };
 
 
   const onSubmit = async (values: LeadFormValues) => {
+    // Validar WhatsApp antes de enviar
+    if (!whatsappVerified && !editingId) {
+      toast({ title: "Error", description: "El número no está registrado en WhatsApp", variant: "destructive" });
+      return;
+    }
+
     setIsSavingLead(true);
 
     try {
       // El input[type="date"] ya devuelve YYYY-MM-DD, listo para el backend
       const formattedDate = values.fechaNacimiento || null;
 
+      // Construir número completo de WhatsApp
+      const fullPhone = isExtranjero
+        ? (values.phonePrefix || '+506') + values.phone
+        : '506' + values.phone;
+
       const body: Record<string, any> = {
         name: values.name?.trim() || null,
         email: values.email?.trim() || null,
         cedula: values.cedula ? values.cedula.replace(/[^0-9]/g, '') : null,
         phone: values.phone || null,
+        whatsapp: fullPhone,
         apellido1: values.apellido1?.trim() || null,
         apellido2: values.apellido2?.trim() || null,
         sector: values.sector || null,
@@ -1005,76 +1123,204 @@ export default function ClientesPage() {
                           onChange={(e) => {
                             const formattedValue = formatCedula(e.target.value);
                             field.onChange(formattedValue);
+                            // Reset si cambia la cédula
+                            if (formattedValue === '') {
+                              setTseData(null);
+                              setTseNotFound(false);
+                              setShowTseConfirmation(false);
+                              setShowExtranjeroFields(false);
+                              setUserConfirmedTse(false);
+                            }
+                          }}
+                          onBlur={() => {
+                            const cedula = field.value;
+                            if (cedula && cedula.length >= 6 && cedula !== lastTseCedula) {
+                              handleTseLookup(cedula);
+                            }
                           }}
                         />
                       </FormControl>
-                      {!isViewOnly && <p className="text-xs text-muted-foreground">Al ingresar la cédula completaremos los datos desde el TSE.</p>}
+                      {isFetchingTse && <p className="text-xs text-blue-600">Buscando en TSE...</p>}
+                      {!isViewOnly && !isFetchingTse && <p className="text-xs text-muted-foreground">Al ingresar la cédula completaremos los datos desde el TSE.</p>}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Correo</FormLabel>
-                      <FormControl>
-                        <Input type="email" disabled={isViewOnly} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Teléfono (Whatsapp)</FormLabel>
-                      <FormControl>
-                        <Input
-                          required
-                          disabled={isViewOnly}
-                          maxLength={8}
-                          {...field}
-                          onChange={(e) => {
-                            const formattedValue = normalizePhoneInput(e.target.value);
-                            field.onChange(formattedValue);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sector"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sector Laboral</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isViewOnly}>
+
+              {/* Información TSE encontrada */}
+              {tseData && showTseConfirmation && !isViewOnly && (
+                <div className="space-y-3 p-4 border rounded-lg bg-blue-50">
+                  <div>
+                    <p className="text-sm font-medium">Datos del TSE:</p>
+                    <p className="text-base font-semibold">{tseData.nombre} {tseData.apellido1} {tseData.apellido2}</p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <span className="text-sm font-medium">¿Eres {tseData.nombre} {tseData.apellido1}?</span>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" onClick={handleTseNo}>No</Button>
+                      <Button type="button" onClick={handleTseYes}>Sí</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No encontrado en TSE - Pregunta si es extranjero */}
+              {tseNotFound && !isViewOnly && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border rounded-lg bg-muted">
+                  <span className="text-sm font-medium text-center sm:text-left">No se encontró en TSE. ¿Es extranjero?</span>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" onClick={handleExtranjeroNo}>No</Button>
+                    <Button type="button" onClick={handleExtranjeroYes}>Sí</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Campos de nombre/apellidos */}
+              {(userConfirmedTse || showExtranjeroFields) && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona un sector" />
-                          </SelectTrigger>
+                          <Input placeholder="Nombre completo" disabled={isViewOnly || userConfirmedTse} {...field} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="publico">Público</SelectItem>
-                          <SelectItem value="privado">Privado</SelectItem>
-                          <SelectItem value="propio">Propio</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="apellido1"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Primer Apellido</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Primer apellido" disabled={isViewOnly || userConfirmedTse} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="apellido2"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Segundo Apellido</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Segundo apellido" disabled={isViewOnly || userConfirmedTse} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Campos de correo, teléfono y sector - solo después de confirmar */}
+              {(userConfirmedTse || showExtranjeroFields || isViewOnly || editingId) && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Correo</FormLabel>
+                        <FormControl>
+                          <Input type="email" disabled={isViewOnly} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Teléfono (Whatsapp)</FormLabel>
+                        <div className="flex gap-2">
+                          {isExtranjero && (
+                            <FormField
+                              control={form.control}
+                              name="phonePrefix"
+                              render={({ field: prefixField }) => (
+                                <FormItem className="w-32">
+                                  <Select onValueChange={prefixField.onChange} value={prefixField.value} disabled={isViewOnly}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Prefijo" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {countryCallingCodes.map(c => (
+                                        <SelectItem key={c.code} value={c.code}>{c.code} {c.country}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </FormItem>
+                              )}
+                            />
+                          )}
+                          <FormControl className="flex-1">
+                            <Input
+                              required
+                              disabled={isViewOnly}
+                              placeholder={isExtranjero ? "88887777" : "88887777"}
+                              maxLength={isExtranjero ? 15 : 8}
+                              {...field}
+                              onChange={(e) => {
+                                const formattedValue = normalizePhoneInput(e.target.value);
+                                field.onChange(formattedValue);
+                                setWhatsappVerified(false);
+                                setWhatsappError(null);
+                              }}
+                              onBlur={() => {
+                                if (field.value && field.value.length >= 7) {
+                                  const fullNumber = isExtranjero
+                                    ? (form.getValues('phonePrefix') || '+506') + field.value
+                                    : '506' + field.value;
+                                  checkWhatsApp(fullNumber);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </div>
+                        {whatsappVerifying && <p className="text-xs text-blue-600">Verificando WhatsApp...</p>}
+                        {whatsappVerified && <p className="text-xs text-green-600">✓ Número verificado en WhatsApp</p>}
+                        {whatsappError && <p className="text-xs text-red-500">{whatsappError}</p>}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sector"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sector Laboral</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isViewOnly}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un sector" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="publico">Público</SelectItem>
+                            <SelectItem value="privado">Privado</SelectItem>
+                            <SelectItem value="propio">Propio</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeLeadDialog} disabled={isSavingLead}>
                   {isViewOnly ? "Cerrar" : "Cancelar"}
