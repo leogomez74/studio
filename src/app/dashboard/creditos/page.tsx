@@ -159,8 +159,17 @@ interface OpportunityOption {
   title: string;
   lead_id: number;
   status?: string;
+  opportunity_type?: string;
   credit?: {
     id: number;
+  } | null;
+  analisis?: {
+    id: number;
+    monto_credito: number;
+    plazo: number;
+    category: string;
+    divisa: string;
+    lead_id: number;
   } | null;
 }
 
@@ -241,7 +250,7 @@ interface CreditItem {
 }
 
 const CREDIT_STATUS_OPTIONS = [
-  "Activo",
+  "Por firmar",
   "Mora",
   "Cerrado",
   "Legal",
@@ -254,7 +263,7 @@ const CURRENCY_OPTIONS = [
 
 const CREDIT_STATUS_TAB_CONFIG = [
   { value: "all", label: "Todos" },
-  { value: "activo", label: "Activo" },
+  { value: "por firmar", label: "Por firmar" },
   { value: "formalizado", label: "Formalizado" },
   { value: "mora", label: "En Mora" },
   { value: "cerrado", label: "Cerrado" },
@@ -262,7 +271,7 @@ const CREDIT_STATUS_TAB_CONFIG = [
 ] as const;
 
 const TAB_STATUS_FILTERS: Record<string, string[]> = {
-  "activo": ["activo", "al día"],
+  "por firmar": ["por firmar"],
   "formalizado": ["formalizado"],
   "mora": ["mora", "en mora"],
   "cerrado": ["cerrado", "cancelado"],
@@ -471,7 +480,9 @@ export default function CreditsPage() {
         title: `${o.id} - ${o.opportunity_type} - ${new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(o.amount)}`,
         lead_id: o.lead?.id,
         status: o.status,
-        credit: o.credit
+        opportunity_type: o.opportunity_type,
+        credit: o.credit,
+        analisis: o.analisis || null
       })));
     } catch (error) {
       console.error("Error fetching opportunities:", error);
@@ -815,7 +826,7 @@ export default function CreditsPage() {
     doc.setTextColor(0, 0, 0);
 
     // Credit Data - Solo usar tasa dinámica si está en estado editable (Aprobado/Activo)
-    const estadosEditables = ['Aprobado', 'Activo'];
+    const estadosEditables = ['Aprobado', 'Por firmar'];
     const esEditable = credit.status && estadosEditables.includes(credit.status);
     const tasaValue = esEditable
       ? (credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00')
@@ -971,7 +982,7 @@ export default function CreditsPage() {
     // Monto en números
     const monto = Number(credit.monto_credito ?? 0);
     const plazo = Number(credit.plazo ?? 0);
-    const estadosEditablesPagare = ['Aprobado', 'Activo'];
+    const estadosEditablesPagare = ['Aprobado', 'Por firmar'];
     const esEditablePagare = credit.status && estadosEditablesPagare.includes(credit.status);
     const tasaNumber = Number(esEditablePagare
       ? (credit.tasa?.tasa ?? credit.tasa_anual ?? 0)
@@ -1172,7 +1183,7 @@ export default function CreditsPage() {
                         const fechaFin = credit.fecha_culminacion_credito;
 
                         // 3. Tasa: Solo usar tasa dinámica si está en estado editable
-                        const estadosEditablesTabla = ['Aprobado', 'Activo'];
+                        const estadosEditablesTabla = ['Aprobado', 'Por firmar'];
                         const esEditableTabla = credit.status && estadosEditablesTabla.includes(credit.status);
                         const tasa = esEditableTabla
                           ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null))
@@ -1427,7 +1438,7 @@ export default function CreditsPage() {
                           <FormItem>
                             <FormLabel>Título</FormLabel>
                             <FormControl>
-                              <Input placeholder="Crédito Hipotecario..." {...field} />
+                              <Input {...field} disabled />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1487,6 +1498,7 @@ export default function CreditsPage() {
                                         className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(client.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
                                         onClick={() => {
                                           form.setValue("clientId", String(client.id));
+                                          form.setValue("title", client.name);
                                           setOpenCombobox(false);
                                         }}
                                       >
@@ -1536,7 +1548,21 @@ export default function CreditsPage() {
                         render={({ field }) => (
                           <FormItem className="sm:col-span-2">
                             <FormLabel>Oportunidad (Opcional)</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select onValueChange={(value) => {
+                              field.onChange(value);
+                              const selected = availableOpportunities.find(o => String(o.id) === value);
+                              if (selected?.analisis) {
+                                const a = selected.analisis;
+                                if (a.monto_credito) form.setValue("monto_credito", a.monto_credito);
+                                if (a.plazo) form.setValue("plazo", a.plazo);
+                                if (a.category) form.setValue("category", a.category);
+                                if (a.divisa) form.setValue("divisa", a.divisa);
+                              }
+                              if (selected?.opportunity_type) {
+                                const tipo = selected.opportunity_type.toLowerCase().includes('micro') ? 'microcredito' : 'regular';
+                                form.setValue("tipo_credito", tipo);
+                              }
+                            }} defaultValue={field.value}>
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Selecciona una oportunidad" />
@@ -1566,17 +1592,9 @@ export default function CreditsPage() {
                         render={({ field }) => (
                           <FormItem className="sm:col-span-2">
                             <FormLabel>Tipo de Crédito</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleccionar tipo..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="regular">Crédito Regular</SelectItem>
-                                <SelectItem value="microcredito">Micro-crédito</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <FormControl>
+                              <Input value={field.value === 'microcredito' ? 'Micro-crédito' : 'Crédito Regular'} disabled />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1584,44 +1602,15 @@ export default function CreditsPage() {
                       <FormField
                         control={form.control}
                         name="monto_credito"
-                        render={({ field }) => {
-                          const [displayValue, setDisplayValue] = useState(
-                            field.value ? formatCurrency(field.value) : ''
-                          );
-
-                          return (
-                            <FormItem>
-                              <FormLabel>Monto Solicitado</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="text"
-                                  placeholder="₡0.00"
-                                  value={displayValue}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    setDisplayValue(value);
-                                    const numericValue = parseCurrencyToNumber(value);
-                                    field.onChange(numericValue);
-                                  }}
-                                  onBlur={() => {
-                                    // Format on blur
-                                    if (field.value) {
-                                      setDisplayValue(formatCurrency(field.value));
-                                    }
-                                  }}
-                                  onFocus={(e) => {
-                                    // Show raw number on focus
-                                    if (field.value) {
-                                      setDisplayValue(field.value.toString());
-                                      e.target.select();
-                                    }
-                                  }}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          );
-                        }}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Monto Solicitado</FormLabel>
+                            <FormControl>
+                              <Input value={field.value ? formatCurrency(field.value) : '₡0.00'} disabled />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
                       <FormField
                         control={form.control}
@@ -1630,21 +1619,7 @@ export default function CreditsPage() {
                           <FormItem>
                             <FormLabel>Plazo (Meses)</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                min="1"
-                                max="120"
-                                placeholder="1 - 120"
-                                value={field.value}
-                                onChange={(e) => {
-                                  const valor = parseInt(e.target.value);
-                                  if (e.target.value === '') {
-                                    field.onChange(0);
-                                  } else if (!isNaN(valor) && valor >= 1 && valor <= 120) {
-                                    field.onChange(valor);
-                                  }
-                                }}
-                              />
+                              <Input value={field.value} disabled />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1656,16 +1631,9 @@ export default function CreditsPage() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Divisa</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona la divisa" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {CURRENCY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            <FormControl>
+                              <Input value="CRC - Colón Costarricense" disabled />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1697,16 +1665,9 @@ export default function CreditsPage() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Categoría</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona la categoría" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {products.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            <FormControl>
+                              <Input value={field.value} disabled />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1738,16 +1699,9 @@ export default function CreditsPage() {
                         render={({ field }) => (
                           <FormItem className="sm:col-span-2">
                             <FormLabel>Estado Inicial</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona el estado" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {CREDIT_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            <FormControl>
+                              <Input value={field.value} disabled />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}

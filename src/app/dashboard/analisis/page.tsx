@@ -585,8 +585,8 @@ export default function AnalisisPage() {
 
                               setCreditForm({
                                 reference: nextReference,
-                                title: item.title || '',
-                                status: 'Activo',
+                                title: item.lead?.name || '',
+                                status: 'Por firmar',
                                 category: item.category || 'Regular',
                                 monto_credito: item.monto_credito ? String(item.monto_credito) : '',
                                 leadId: item.lead_id ? String(item.lead_id) : (item.lead?.id ? String(item.lead.id) : ''),
@@ -798,97 +798,48 @@ export default function AnalisisPage() {
                 <Label htmlFor="title">Título</Label>
                 <Input
                   id="title"
-                  placeholder="Crédito Hipotecario..."
                   value={creditForm.title}
-                  onChange={e => setCreditForm(f => ({ ...f, title: e.target.value }))}
-                  required
+                  disabled
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>
-                <Select value={creditForm.status} onValueChange={v => setCreditForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Activo">Activo</SelectItem>
-                    <SelectItem value="Mora">Mora</SelectItem>
-                    <SelectItem value="Cerrado">Cerrado</SelectItem>
-                    <SelectItem value="Legal">Legal</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="status"
+                  value={creditForm.status}
+                  disabled
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>
-                <Select value={creditForm.category} onValueChange={v => {
-                  // Si es Micro Crédito, desactivar póliza automáticamente
-                  if (v === 'Micro Crédito') {
-                    setCreditForm(f => ({ ...f, category: v, poliza: false }));
-                  } else {
-                    setCreditForm(f => ({ ...f, category: v }));
-                  }
-                }}>
-                  <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
-                  <SelectContent>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.name}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="category"
+                  value={creditForm.category}
+                  disabled
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="divisa">Divisa</Label>
-                <Select value={creditForm.divisa} onValueChange={v => setCreditForm(f => ({ ...f, divisa: v }))}>
-                  <SelectTrigger id="divisa"><SelectValue placeholder="Selecciona la divisa" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CRC">CRC - Colón Costarricense</SelectItem>
-                    <SelectItem value="USD">USD - Dólar Estadounidense</SelectItem>
-                    <SelectItem value="EUR">EUR - Euro</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="divisa"
+                  value="CRC - Colón Costarricense"
+                  disabled
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="monto">Monto</Label>
                 <Input
                   id="monto"
-                  type="text"
-                  placeholder="₡0.00"
                   value={creditForm.monto_credito || ''}
-                  onChange={e => {
-                    const rawValue = parseCurrencyToNumber(e.target.value);
-                    setCreditForm(f => ({ ...f, monto_credito: rawValue }));
-                  }}
-                  onBlur={() => {
-                    if (creditForm.monto_credito) {
-                      setCreditForm(f => ({ ...f, monto_credito: formatCurrency(f.monto_credito) }));
-                    }
-                  }}
-                  onFocus={(e) => {
-                    if (creditForm.monto_credito) {
-                      const numValue = parseCurrencyToNumber(String(creditForm.monto_credito));
-                      setCreditForm(f => ({ ...f, monto_credito: numValue }));
-                      setTimeout(() => e.target.select(), 0);
-                    }
-                  }}
+                  disabled
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="plazo">Plazo (Meses)</Label>
                 <Input
                   id="plazo"
-                  type="number"
-                  min="1"
-                  max="120"
-                  placeholder="1 - 120"
                   value={creditForm.plazo}
-                  onChange={e => {
-                    const valor = parseInt(e.target.value);
-                    if (e.target.value === '') {
-                      setCreditForm(f => ({ ...f, plazo: '' }));
-                    } else if (!isNaN(valor) && valor >= 1 && valor <= 120) {
-                      setCreditForm(f => ({ ...f, plazo: String(valor) }));
-                    }
-                  }}
+                  disabled
                 />
               </div>
               <div className="space-y-2">

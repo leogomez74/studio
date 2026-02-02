@@ -46,8 +46,7 @@ export default function AnalisisDetailPage() {
 
   // Estados editables (solo cuando estado_pep === 'Pendiente de cambios')
   const [editMontoCredito, setEditMontoCredito] = useState<number>(0);
-  const [editIngresoBruto, setEditIngresoBruto] = useState<number>(0);
-  const [editIngresoNeto, setEditIngresoNeto] = useState<number>(0);
+  const [editPlazo, setEditPlazo] = useState<number>(36);
   const [editPropuesta, setEditPropuesta] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
@@ -139,8 +138,7 @@ export default function AnalisisDetailPage() {
 
         // Inicializar campos editables
         setEditMontoCredito(data.monto_credito || 0);
-        setEditIngresoBruto(data.ingreso_bruto || 0);
-        setEditIngresoNeto(data.ingreso_neto || 0);
+        setEditPlazo(data.plazo || 36);
         setEditPropuesta(data.propuesta || '');
 
         // Cargar archivos del filesystem (heredados/específicos)
@@ -212,8 +210,7 @@ export default function AnalisisDetailPage() {
 
       const payload = {
         monto_credito: editMontoCredito,
-        ingreso_bruto: editIngresoBruto,
-        ingreso_neto: editIngresoNeto,
+        plazo: editPlazo,
         propuesta: editPropuesta,
       };
 
@@ -223,8 +220,7 @@ export default function AnalisisDetailPage() {
       setAnalisis(prev => prev ? {
         ...prev,
         monto_credito: editMontoCredito,
-        ingreso_bruto: editIngresoBruto,
-        ingreso_neto: editIngresoNeto,
+        plazo: editPlazo,
         propuesta: editPropuesta,
       } : null);
 
@@ -388,7 +384,7 @@ export default function AnalisisDetailPage() {
       {/* Contenido Principal - Todo en una sola vista */}
       <div className="space-y-6">
         {/* Fila 1: Info Personal + Info Laboral + Datos Financieros */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Info Personal */}
           <Card>
             <CardHeader className="pb-2">
@@ -431,6 +427,18 @@ export default function AnalisisDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Ingreso Neto */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.ingreso_neto || 0)}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Monto Solicitado */}
           <Card>
             <CardHeader className="pb-2">
@@ -453,23 +461,24 @@ export default function AnalisisDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Ingreso Neto */}
+          {/* Plazo */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-500">Plazo (meses)</CardTitle>
             </CardHeader>
             <CardContent>
               {isEditMode ? (
                 <Input
                   type="number"
-                  step="0.01"
-                  value={editIngresoNeto}
-                  onChange={(e) => setEditIngresoNeto(parseFloat(e.target.value) || 0)}
+                  min={1}
+                  max={120}
+                  value={editPlazo}
+                  onChange={(e) => setEditPlazo(parseInt(e.target.value) || 1)}
                   className="text-lg font-bold"
                 />
               ) : (
-                <div className="text-2xl font-bold text-green-600">
-                  ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.ingreso_neto || 0)}
+                <div className="text-2xl font-bold text-slate-700">
+                  {analisis.plazo || 36}
                 </div>
               )}
             </CardContent>

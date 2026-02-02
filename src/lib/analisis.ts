@@ -35,6 +35,7 @@ export interface AnalisisItem {
   lead?: Lead;
   ingreso_bruto?: number;
   ingreso_neto?: number;
+  plazo?: number;
   deducciones?: DeduccionItem[];
   propuesta?: string;
   estado_pep?: string;
