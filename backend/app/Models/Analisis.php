@@ -63,6 +63,11 @@ class Analisis extends Model
         return $this->belongsTo(Opportunity::class);
     }
 
+    public function propuestas()
+    {
+        return $this->hasMany(Propuesta::class, 'analisis_reference', 'reference');
+    }
+
     /**
      * Verificar si ya existe un crédito asociado a este análisis
      * Un crédito puede estar vinculado por opportunity_id o lead_id
