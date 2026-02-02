@@ -64,6 +64,17 @@ const formatCedula = (value: string): string => {
   return numericValue;
 };
 
+const formatMonto = (value: string): string => {
+  const numericValue = value.replace(/[^0-9]/g, "");
+  if (!numericValue) return "";
+  // Manually format with commas as thousand separators
+  return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+const normalizeMonto = (value: string): string => {
+  return value.replace(/[^0-9]/g, "");
+};
+
 const leadSchema = z.object({
   // Campos auto-rellenados por TSE (opcionales)
   name: z.string().optional(),
@@ -85,6 +96,8 @@ const leadSchema = z.object({
   phonePrefix: z.string().optional(),
   isExtranjero: z.boolean().optional(),
   sector: z.string().min(1, "El sector laboral es requerido"),
+  product_id: z.string().optional(),
+  monto: z.string().optional(),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
@@ -168,6 +181,7 @@ export default function ClientesPage() {
 
   // Lists for Dropdowns
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
+  const [products, setProducts] = useState<{ id: number; name: string }[]>([]);
 
   // UI State
   const [isLeadFiltersOpen, setIsLeadFiltersOpen] = useState(false);
@@ -202,6 +216,8 @@ export default function ClientesPage() {
       sector: "",
       phonePrefix: "+506",
       isExtranjero: false,
+      product_id: "",
+      monto: "",
     },
   });
 
@@ -288,11 +304,29 @@ export default function ClientesPage() {
     useEffect(() => {
     const fetchLists = async () => {
       try {
+        // Fetch lead statuses
         const resStatuses = await api.get('/api/lead-statuses');
         setLeadStatuses(Array.isArray(resStatuses.data) ? resStatuses.data : []);
+
+        // Fetch products
+        const resProducts = await api.get('/api/products');
+        console.log('=== DEBUG PRODUCTOS ===');
+        console.log('Respuesta completa:', resProducts);
+        console.log('resProducts.data:', resProducts.data);
+        console.log('Tipo de resProducts.data:', typeof resProducts.data);
+        console.log('Es array resProducts.data?', Array.isArray(resProducts.data));
+
+        // Axios wraps the response in a data property
+        const productsArray = Array.isArray(resProducts.data) ? resProducts.data : [];
+
+        console.log('Productos a establecer:', productsArray);
+        console.log('Cantidad de productos:', productsArray.length);
+
+        setProducts(productsArray);
       } catch (err) {
+        console.error("Error cargando listas:", err);
         setLeadStatuses([]);
-        console.error("Error loading lists:", err);
+        setProducts([]);
       }
     };
     fetchLists();
@@ -694,6 +728,8 @@ export default function ClientesPage() {
         sector: values.sector || null,
         ...(editingId ? {} : { status: "Nuevo" }),
         fecha_nacimiento: formattedDate,
+        product_id: values.product_id || null,
+        monto: values.monto || null,
       };
 
       if (editingId) {
@@ -1374,6 +1410,56 @@ export default function ClientesPage() {
                             <SelectItem value="propio">Propio</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="product_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Producto</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isViewOnly}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un producto" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {products.length === 0 && <div className="p-2 text-sm text-muted-foreground">Cargando productos...</div>}
+                            {products.map((product) => {
+                              console.log('Renderizando producto:', product);
+                              return (
+                                <SelectItem key={product.id} value={String(product.id)}>
+                                  {product.name}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="monto"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Monto del Crédito</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="text"
+                            placeholder="₡0"
+                            disabled={isViewOnly}
+                            value={field.value ? formatMonto(field.value) : ""}
+                            onChange={(e) => {
+                              const normalized = normalizeMonto(e.target.value);
+                              field.onChange(normalized);
+                            }}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -146,6 +146,7 @@ class LeadController extends Controller
             'nombramientos' => 'nullable|string',
             // Campos opcionales para oportunidad (si se proporcionan)
             'monto' => 'nullable|numeric|min:0',
+            'product_id' => 'nullable|integer|exists:products,id',
             'vertical' => 'nullable|string|max:255',
             'opportunity_type' => 'nullable|string|max:255',
             'create_opportunity' => 'nullable|boolean',
@@ -153,10 +154,26 @@ class LeadController extends Controller
 
         // Extraer datos de oportunidad antes de crear el lead
         $monto = $validated['monto'] ?? null;
+        $productId = $validated['product_id'] ?? null;
         $vertical = $validated['vertical'] ?? null;
         $opportunityType = $validated['opportunity_type'] ?? null;
         $createOpportunity = $validated['create_opportunity'] ?? true; // Por defecto crear oportunidad
-        unset($validated['monto'], $validated['vertical'], $validated['opportunity_type'], $validated['create_opportunity']);
+
+        // Si hay product_id, obtener el nombre del producto para usar como vertical Y opportunity_type
+        if ($productId) {
+            $product = \App\Models\Product::find($productId);
+            if ($product) {
+                $productName = $product->name;
+                if (!$vertical) {
+                    $vertical = $productName;
+                }
+                if (!$opportunityType) {
+                    $opportunityType = $productName;
+                }
+            }
+        }
+
+        unset($validated['monto'], $validated['product_id'], $validated['vertical'], $validated['opportunity_type'], $validated['create_opportunity']);
 
         $leadStatus = $this->resolveStatus($validated['lead_status_id'] ?? null);
         $validated['lead_status_id'] = $leadStatus?->id;
@@ -182,7 +199,8 @@ class LeadController extends Controller
                 Log::info('Oportunidad creada automáticamente con lead', [
                     'lead_id' => $lead->id,
                     'opportunity_id' => $opportunity->id,
-                    'monto' => $monto
+                    'monto' => $monto,
+                    'producto' => $opportunityType
                 ]);
             }
 

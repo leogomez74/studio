@@ -40,8 +40,8 @@ const parseCurrencyToNumber = (value: string): string => {
   let cleaned = value.replace(/[₡$]/g, '');
   // Eliminar espacios (separadores de miles)
   cleaned = cleaned.replace(/\s/g, '');
-  // Reemplazar coma decimal por punto
-  cleaned = cleaned.replace(',', '.');
+  // Eliminar comas (separadores de miles, no decimales)
+  cleaned = cleaned.replace(/,/g, '');
   // Eliminar todo excepto dígitos y punto decimal
   cleaned = cleaned.replace(/[^\d.]/g, '');
   return cleaned;
@@ -837,14 +837,6 @@ export default function AnalisisPage() {
                   id="reference"
                   placeholder="Se genera automáticamente (YY-XXXXX-CR)"
                   value={creditForm.reference}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="title">Título</Label>
-                <Input
-                  id="title"
-                  value={creditForm.title}
                   disabled
                 />
               </div>
