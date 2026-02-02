@@ -547,7 +547,7 @@ export default function AnalisisDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push(`/dashboard/creditos?id=${analisis.credit_id}`)}
+                onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
                 className="ml-4"
               >
                 <FileText className="h-4 w-4 mr-2" />
