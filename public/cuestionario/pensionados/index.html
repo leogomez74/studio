@@ -393,11 +393,9 @@
                 }
             }
             if (index === 2) {
-                const experiencia = document.querySelector('select[name="experiencia_crediticia"]').value;
-                const historial = document.querySelector('select[name="historial_mora"]').value;
                 const vivienda = document.querySelector('select[name="tipo_vivienda"]').value;
                 const dependientes = document.querySelector('select[name="dependientes"]').value;
-                if (!experiencia || !historial || !vivienda || !dependientes) {
+                if (!vivienda || !dependientes) {
                     showAlert('Completa todos los campos obligatorios del perfil financiero.');
                     return false;
                 }
@@ -439,8 +437,6 @@
                 destino: document.querySelector('select[name="destino"]').value,
                 deducciones: getRawNumber(document.querySelector('input[name="deducciones"]').value),
                 detalle: document.querySelector('textarea[name="detalle"]').value,
-                experiencia_crediticia: document.querySelector('select[name="experiencia_crediticia"]').value,
-                historial_mora: document.querySelector('select[name="historial_mora"]').value,
                 tipo_vivienda: document.querySelector('select[name="tipo_vivienda"]').value,
                 dependientes: document.querySelector('select[name="dependientes"]').value,
                 origen_lead: document.querySelector('select[name="origen_lead"]').value,

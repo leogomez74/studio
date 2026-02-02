@@ -788,13 +788,11 @@
                 }
             }
             if (index === 2) {
-                const experiencia = document.querySelector('select[name="experiencia_crediticia"]').value;
-                const historial = document.querySelector('select[name="historial_mora"]').value;
                 const vivienda = document.querySelector('select[name="tipo_vivienda"]').value;
                 const dependientes = document.querySelector('select[name="dependientes"]').value;
                 const estadoCivil = document.querySelector('select[name="estado_civil"]').value;
                 const nivelAcademico = document.querySelector('select[name="nivel_academico"]').value;
-                if (!experiencia || !historial || !vivienda || !dependientes || !estadoCivil || !nivelAcademico) {
+                if (!vivienda || !dependientes || !estadoCivil || !nivelAcademico) {
                     showAlert('Completa todos los campos obligatorios del perfil financiero.');
                     return false;
                 }
@@ -840,8 +838,6 @@
                 data.urgencia = document.querySelector('select[name="urgencia"]').value;
                 data.detalle_legal = document.querySelector('textarea[name="detalle_legal"]').value;
             }
-            data.experiencia_crediticia = document.querySelector('select[name="experiencia_crediticia"]').value;
-            data.historial_mora = document.querySelector('select[name="historial_mora"]').value;
             data.tipo_vivienda = document.querySelector('select[name="tipo_vivienda"]').value;
             data.dependientes = document.querySelector('select[name="dependientes"]').value;
             data.estado_civil = document.querySelector('select[name="estado_civil"]').value;
@@ -1164,12 +1160,6 @@
                 const formatted = formatSalario(e.target.value);
                 e.target.value = formatted;
                 validateSalario();
-            });
-            // Auto-seleccionar "No aplica" si es primer crédito
-            document.querySelector('select[name="experiencia_crediticia"]').addEventListener('change', function() {
-                if (this.value === 'no') {
-                    document.querySelector('select[name="historial_mora"]').value = 'no_aplica';
-                }
             });
             // Rango de ingreso - validar salario y verificar salario bajo
             document.getElementById('ingresoSelect').addEventListener('change', () => {
