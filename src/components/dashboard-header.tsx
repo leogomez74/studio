@@ -126,6 +126,15 @@ export function DashboardHeader() {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 md:gap-4">
+        <Button
+          variant="destructive"
+          size="sm"
+          className="gap-2"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          Eliminar Leo
+        </Button>
+
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative shrink-0">
