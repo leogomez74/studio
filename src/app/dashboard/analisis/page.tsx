@@ -35,7 +35,15 @@ const formatCurrency = (value: string | number): string => {
 };
 
 const parseCurrencyToNumber = (value: string): string => {
-  return value.replace(/[^\d.]/g, '');
+  // Eliminar símbolo de moneda (₡, $, etc.)
+  let cleaned = value.replace(/[₡$]/g, '');
+  // Eliminar espacios (separadores de miles)
+  cleaned = cleaned.replace(/\s/g, '');
+  // Reemplazar coma decimal por punto
+  cleaned = cleaned.replace(',', '.');
+  // Eliminar todo excepto dígitos y punto decimal
+  cleaned = cleaned.replace(/[^\d.]/g, '');
+  return cleaned;
 };
 
 type AnalisisItem = {
