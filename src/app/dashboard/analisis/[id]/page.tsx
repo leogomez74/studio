@@ -749,8 +749,7 @@ export default function AnalisisDetailPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Regular">Regular</SelectItem>
-                        <SelectItem value="Microcrédito">Microcrédito</SelectItem>
-                        <SelectItem value="Emergencia">Emergencia</SelectItem>
+                        <SelectItem value="Micro-crédito">Micro-crédito</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
