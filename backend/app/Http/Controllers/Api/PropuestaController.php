@@ -46,18 +46,18 @@ class PropuestaController extends Controller
         $validated = $request->validate([
             'monto' => 'required|numeric|min:0.01',
             'plazo' => 'required|integer|min:1',
-            'cuota' => 'required|numeric|min:0.01',
-            'interes' => 'required|numeric|min:0.0001',
-            'categoria' => 'nullable|string|max:255',
+            // 'cuota' => 'required|numeric|min:0.01',
+            // 'interes' => 'required|numeric|min:0.0001',
+            // 'categoria' => 'nullable|string|max:255',
         ]);
 
         $propuesta = Propuesta::create([
             'analisis_reference' => $reference,
             'monto' => $validated['monto'],
             'plazo' => $validated['plazo'],
-            'cuota' => $validated['cuota'],
-            'interes' => $validated['interes'],
-            'categoria' => $validated['categoria'] ?? null,
+            // 'cuota' => $validated['cuota'],
+            // 'interes' => $validated['interes'],
+            // 'categoria' => $validated['categoria'] ?? null,
             'estado' => Propuesta::ESTADO_PENDIENTE,
         ]);
 
@@ -173,6 +173,12 @@ class PropuestaController extends Controller
             'estado' => Propuesta::ESTADO_ACEPTADA,
             'aceptada_por' => $userId,
             'aceptada_at' => $now,
+        ]);
+
+        // Sincronizar datos de la propuesta aceptada al análisis
+        $analisis->update([
+            'monto_credito' => $propuesta->monto,
+            'plazo' => $propuesta->plazo,
         ]);
 
         $propuesta->load('aceptadaPorUser:id,name');

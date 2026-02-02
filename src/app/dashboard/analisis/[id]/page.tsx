@@ -67,9 +67,9 @@ export default function AnalisisDetailPage() {
   const [propuestaForm, setPropuestaForm] = useState({
     monto: '',
     plazo: '',
-    cuota: '',
-    interes: '',
-    categoria: '',
+    // cuota: '',
+    // interes: '',
+    // categoria: '',
   });
   const [savingPropuesta, setSavingPropuesta] = useState(false);
   const [editingPropuesta, setEditingPropuesta] = useState<Propuesta | null>(null);
@@ -297,7 +297,7 @@ export default function AnalisisDetailPage() {
   }, [analisis?.reference]);
 
   const resetPropuestaForm = () => {
-    setPropuestaForm({ monto: '', plazo: '', cuota: '', interes: '', categoria: '' });
+    setPropuestaForm({ monto: '', plazo: '' /*, cuota: '', interes: '', categoria: '' */ });
     setEditingPropuesta(null);
   };
 
@@ -306,11 +306,11 @@ export default function AnalisisDetailPage() {
 
     const monto = parseFloat(propuestaForm.monto);
     const plazo = parseInt(propuestaForm.plazo);
-    const cuota = parseFloat(propuestaForm.cuota);
-    const interes = parseFloat(propuestaForm.interes);
+    // const cuota = parseFloat(propuestaForm.cuota);
+    // const interes = parseFloat(propuestaForm.interes);
 
-    if (!monto || !plazo || !cuota || !interes) {
-      toast({ title: 'Error', description: 'Todos los campos numéricos son obligatorios.', variant: 'destructive' });
+    if (!monto || !plazo) {
+      toast({ title: 'Error', description: 'Monto y plazo son obligatorios.', variant: 'destructive' });
       return;
     }
 
@@ -318,14 +318,16 @@ export default function AnalisisDetailPage() {
     try {
       if (editingPropuesta) {
         await api.put(`/api/propuestas/${editingPropuesta.id}`, {
-          monto, plazo, cuota, interes,
-          categoria: propuestaForm.categoria || null,
+          monto, plazo,
+          // cuota, interes,
+          // categoria: propuestaForm.categoria || null,
         });
         toast({ title: 'Propuesta actualizada' });
       } else {
         await api.post(`/api/analisis/${analisis.reference}/propuestas`, {
-          monto, plazo, cuota, interes,
-          categoria: propuestaForm.categoria || null,
+          monto, plazo,
+          // cuota, interes,
+          // categoria: propuestaForm.categoria || null,
         });
         toast({ title: 'Propuesta creada' });
       }
@@ -347,9 +349,9 @@ export default function AnalisisDetailPage() {
     setPropuestaForm({
       monto: String(p.monto),
       plazo: String(p.plazo),
-      cuota: String(p.cuota),
-      interes: String(p.interes),
-      categoria: p.categoria || '',
+      // cuota: String(p.cuota),
+      // interes: String(p.interes),
+      // categoria: p.categoria || '',
     });
   };
 
@@ -372,6 +374,10 @@ export default function AnalisisDetailPage() {
       await api.patch(`/api/propuestas/${id}/aceptar`);
       toast({ title: 'Propuesta aceptada', description: 'Las demás propuestas pendientes fueron denegadas automáticamente.' });
       fetchPropuestas();
+      // Refrescar el análisis para reflejar monto/plazo de la propuesta aceptada
+      const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
+      const data = resAnalisis.data as AnalisisItem;
+      setAnalisis(data);
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -641,19 +647,9 @@ export default function AnalisisDetailPage() {
               <CardTitle className="text-sm font-medium text-gray-500">Monto Solicitado</CardTitle>
             </CardHeader>
             <CardContent>
-              {isEditMode ? (
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={editMontoCredito}
-                  onChange={(e) => setEditMontoCredito(parseFloat(e.target.value) || 0)}
-                  className="text-lg font-bold"
-                />
-              ) : (
-                <div className="text-2xl font-bold text-blue-600">
-                  ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_credito || 0)}
-                </div>
-              )}
+              <div className="text-2xl font-bold text-blue-600">
+                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_credito || 0)}
+              </div>
             </CardContent>
           </Card>
 
@@ -663,20 +659,9 @@ export default function AnalisisDetailPage() {
               <CardTitle className="text-sm font-medium text-gray-500">Plazo (meses)</CardTitle>
             </CardHeader>
             <CardContent>
-              {isEditMode ? (
-                <Input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={editPlazo}
-                  onChange={(e) => setEditPlazo(parseInt(e.target.value) || 1)}
-                  className="text-lg font-bold"
-                />
-              ) : (
-                <div className="text-2xl font-bold text-slate-700">
-                  {analisis.plazo || 36}
-                </div>
-              )}
+              <div className="text-2xl font-bold text-slate-700">
+                {analisis.plazo || 36}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -698,7 +683,7 @@ export default function AnalisisDetailPage() {
                 <p className="text-sm font-medium text-slate-700">
                   {editingPropuesta ? 'Editar Propuesta' : 'Nueva Propuesta'}
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Monto</Label>
                     <Input
@@ -718,6 +703,7 @@ export default function AnalisisDetailPage() {
                       onChange={(e) => setPropuestaForm(prev => ({ ...prev, plazo: e.target.value }))}
                     />
                   </div>
+                  {/* Comentado temporalmente: cuota, interes, categoria
                   <div>
                     <Label className="text-xs">Cuota</Label>
                     <Input
@@ -753,6 +739,7 @@ export default function AnalisisDetailPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  */}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleSubmitPropuesta} disabled={savingPropuesta}>
@@ -776,9 +763,11 @@ export default function AnalisisDetailPage() {
                     <TableRow>
                       <TableHead className="text-xs">Monto</TableHead>
                       <TableHead className="text-xs">Plazo</TableHead>
+                      {/* Comentado temporalmente: Cuota, Interés, Categoría
                       <TableHead className="text-xs">Cuota</TableHead>
                       <TableHead className="text-xs">Interés</TableHead>
                       <TableHead className="text-xs">Categoría</TableHead>
+                      */}
                       <TableHead className="text-xs">Estado</TableHead>
                       <TableHead className="text-xs">Fecha</TableHead>
                       {isEditMode && <TableHead className="text-xs text-right">Acciones</TableHead>}
@@ -789,9 +778,11 @@ export default function AnalisisDetailPage() {
                       <TableRow key={p.id}>
                         <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
                         <TableCell className="text-sm">{p.plazo} meses</TableCell>
+                        {/* Comentado temporalmente: cuota, interes, categoria
                         <TableCell className="text-sm">{formatCurrency(p.cuota)}</TableCell>
                         <TableCell className="text-sm">{p.interes}%</TableCell>
                         <TableCell className="text-sm">{p.categoria || '-'}</TableCell>
+                        */}
                         <TableCell>
                           <Badge
                             variant="outline"
