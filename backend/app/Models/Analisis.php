@@ -40,6 +40,11 @@ class Analisis extends Model
         'deducciones' => 'array',
     ];
 
+    protected $appends = [
+        'has_credit',
+        'credit_id',
+    ];
+
     protected static function booted()
     {
         static::creating(function ($model) {

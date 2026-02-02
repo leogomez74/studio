@@ -134,6 +134,11 @@ class AnalisisController extends Controller
     public function show(int $id)
     {
         $analisis = Analisis::with(['opportunity', 'lead', 'propuestas.aceptadaPorUser:id,name'])->findOrFail($id);
+
+        // Agregar información de si tiene crédito asociado y su ID
+        $analisis->has_credit = $analisis->has_credit;
+        $analisis->credit_id = $analisis->credit_id;
+
         return response()->json($analisis);
     }
 

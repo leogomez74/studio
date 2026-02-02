@@ -98,19 +98,11 @@ export function CreditFormModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log('🔍 Form data:', creditForm);
-    console.log('🔍 creditForm.leadId:', creditForm.leadId);
-    console.log('🔍 creditForm.leadId type:', typeof creditForm.leadId);
-
     const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
     const leadIdNumerico = parseInt(creditForm.leadId);
     const plazoNumerico = parseInt(creditForm.plazo);
 
-    console.log('🔍 leadIdNumerico:', leadIdNumerico);
-    console.log('🔍 isNaN(leadIdNumerico):', isNaN(leadIdNumerico));
-
     if (!creditForm.leadId || isNaN(leadIdNumerico)) {
-      console.log('🔍 Validation failed: No leadId or isNaN');
       toast({
         variant: "destructive",
         title: "Error de validación",
@@ -122,10 +114,6 @@ export function CreditFormModal({
     // Validar que el cliente tenga deductora asignada - fetch directo del cliente
     try {
       const clientResponse = await api.get(`/api/clients/${leadIdNumerico}`);
-      console.log('🔍 Client response:', clientResponse.data);
-      console.log('🔍 deductora_id:', clientResponse.data.deductora_id);
-      console.log('🔍 type of deductora_id:', typeof clientResponse.data.deductora_id);
-      console.log('🔍 validation result:', !clientResponse.data.deductora_id);
       if (!clientResponse.data.deductora_id) {
         toast({
           variant: "destructive",
@@ -135,7 +123,6 @@ export function CreditFormModal({
         return;
       }
     } catch (error) {
-      console.error('🔍 Error loading client:', error);
       toast({
         variant: "destructive",
         title: "Error de validación",

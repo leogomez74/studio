@@ -541,17 +541,29 @@ export default function AnalisisDetailPage() {
             </div>
           )}
 
-          {/* Botón Crear Crédito - Solo visible si está aprobado y no tiene crédito */}
-          {estadoCliente === 'Aprobado' && !analisis.has_credit && !analisis.credit_id && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setIsCreditDialogOpen(true)}
-              className="ml-4"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Crear Crédito
-            </Button>
+          {/* Botón de Crédito - Crear o Ver según el estado */}
+          {estadoCliente === 'Aprobado' && (
+            analisis.has_credit || analisis.credit_id ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/creditos?id=${analisis.credit_id}`)}
+                className="ml-4"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Ver Crédito
+              </Button>
+            ) : (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setIsCreditDialogOpen(true)}
+                className="ml-4"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Crear Crédito
+              </Button>
+            )
           )}
         </div>
       </div>
