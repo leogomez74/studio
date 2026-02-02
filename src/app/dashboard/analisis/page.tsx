@@ -3,6 +3,7 @@
 import api from '@/lib/axios';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -450,9 +451,18 @@ export default function AnalisisPage() {
                     </button>
                   </td>
 
-                  {/* Nombre del Lead */}
+                  {/* Nombre del Cliente */}
                   <td className="px-6 py-4 text-gray-700">
-                    {item.lead?.name || 'Sin Asignar'}
+                    {item.lead?.id ? (
+                      <Link
+                        href={`/dashboard/clientes/${item.lead.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {item.lead.name}
+                      </Link>
+                    ) : (
+                      'Sin Asignar'
+                    )}
                   </td>
 
                   {/* COLUMNA: Profesión (Acceso anidado) */}
@@ -476,7 +486,12 @@ export default function AnalisisPage() {
 
                   {/* Monto (Formateado) */}
                   <td className="px-6 py-4 text-gray-700">
-                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.monto_credito || 0)}
+                    <Link
+                      href={`/dashboard/analisis/${item.id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.monto_credito || 0)}
+                    </Link>
                   </td>
 
                   {/* Estado PEP - Clickeable para cambiar */}
@@ -715,6 +730,27 @@ export default function AnalisisPage() {
                 });
                 return;
               }
+
+              // Validar que el cliente tenga deductora asignada - fetch directo del cliente
+              try {
+                const clientResponse = await api.get(`/api/clients/${leadIdNumerico}`);
+                if (!clientResponse.data.deductora_id) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error de validación",
+                    description: "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crédito.",
+                  });
+                  return;
+                }
+              } catch (error) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "No se pudo verificar los datos del cliente",
+                });
+                return;
+              }
+
               if (isNaN(montoNumerico) || montoNumerico < 2) {
                 toast({
                   variant: "destructive",

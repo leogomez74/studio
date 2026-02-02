@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,13 +21,15 @@ import {
   Requirement,
   Empresa
 } from '@/lib/empresas-mock';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import {
   AnalisisItem,
   AnalisisFile,
   formatCurrency,
   formatFileSize,
 } from '@/lib/analisis';
+import { CreditFormModal } from '@/components/CreditFormModal';
 
 export default function AnalisisDetailPage() {
   const params = useParams();
@@ -65,6 +68,11 @@ export default function AnalisisDetailPage() {
 
   // Empresa encontrada basada en institucion_labora del lead
   const [empresaMatch, setEmpresaMatch] = useState<Empresa | undefined>(undefined);
+
+  // Estado del modal de crédito
+  const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
+  const [products, setProducts] = useState<Array<{ id: number; name: string; }>>([]);
+  const [leads, setLeads] = useState<Array<{ id: number; name?: string; deductora_id?: number; }>>([]);
 
   // Cargar archivos del filesystem
   const fetchAnalisisFiles = useCallback(async () => {
@@ -163,6 +171,24 @@ export default function AnalisisDetailPage() {
       fetchAnalisis();
     }
   }, [analisisId, fetchAnalisisFiles]);
+
+  // Cargar products y clients para el modal de crédito
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [productsRes, clientsRes] = await Promise.all([
+          api.get('/api/products'),
+          api.get('/api/clients', { params: { per_page: 1000 } }) // Traer muchos clientes
+        ]);
+        setProducts(productsRes.data || []);
+        const clientsData = clientsRes.data.data || clientsRes.data || [];
+        setLeads(clientsData);
+      } catch (error) {
+        console.error('Error fetching products/clients:', error);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Keyboard navigation for lightbox
   useEffect(() => {
@@ -382,6 +408,19 @@ export default function AnalisisDetailPage() {
               </Select>
             </div>
           )}
+
+          {/* Botón Crear Crédito - Solo visible si está aprobado y no tiene crédito */}
+          {estadoCliente === 'Aprobado' && !analisis.has_credit && !analisis.credit_id && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setIsCreditDialogOpen(true)}
+              className="ml-4"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Crear Crédito
+            </Button>
+          )}
         </div>
       </div>
 
@@ -397,7 +436,16 @@ export default function AnalisisDetailPage() {
             <CardContent className="space-y-2">
               <div>
                 <span className="font-semibold text-xs uppercase text-gray-500 block">Nombre</span>
-                <span className="text-base">{lead?.name || 'N/A'}</span>
+                {lead?.id ? (
+                  <Link
+                    href={`/dashboard/clientes/${lead.id}`}
+                    className="text-base text-blue-600 hover:underline"
+                  >
+                    {lead.name}
+                  </Link>
+                ) : (
+                  <span className="text-base">N/A</span>
+                )}
               </div>
               <div>
                 <span className="font-semibold text-xs uppercase text-gray-500 block">Cedula</span>
@@ -713,6 +761,30 @@ export default function AnalisisDetailPage() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Crear Crédito */}
+      <CreditFormModal
+        open={isCreditDialogOpen}
+        onOpenChange={setIsCreditDialogOpen}
+        initialData={{
+          reference: '',
+          title: `Crédito ${analisis.reference}`,
+          monto_credito: analisis.monto_credito,
+          leadId: analisis.lead_id,
+          clientName: analisis.lead?.name,
+          category: 'Crédito',
+          divisa: 'CRC',
+          plazo: '36',
+          description: `Crédito generado desde análisis ${analisis.reference}`,
+        }}
+        products={products}
+        leads={leads}
+        onSuccess={async () => {
+          // Refrescar análisis para actualizar has_credit
+          const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
+          setAnalisis(resAnalisis.data);
+        }}
+      />
     </div>
   );
 }

@@ -619,6 +619,18 @@ export default function CreditsPage() {
   const onSubmit = async (values: CreditFormValues) => {
     setIsSaving(true);
     try {
+      // Validar que el cliente tenga deductora asignada
+      const selectedClient = clients.find(c => String(c.id) === values.clientId);
+      if (!selectedClient?.deductora_id) {
+        toast({
+          title: "Error de validación",
+          description: "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crédito.",
+          variant: "destructive"
+        });
+        setIsSaving(false);
+        return;
+      }
+
       const body = {
         reference: values.reference,
         title: values.title,

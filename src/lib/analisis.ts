@@ -39,6 +39,8 @@ export interface AnalisisItem {
   propuesta?: string;
   estado_pep?: string;
   estado_cliente?: string | null;
+  has_credit?: boolean;
+  credit_id?: number;
 }
 
 export interface AnalisisFile {
