@@ -1256,10 +1256,6 @@ export default function CreditsPage() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleExportCSV(credit)}>
-                                      <FileSpreadsheet className="mr-2 h-4 w-4" />
-                                      Exportar CSV
-                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleExportPDF(credit)}>
                                       <FileText className="mr-2 h-4 w-4" />
                                       Exportar PDF
