@@ -1087,9 +1087,10 @@ function CreditDetailClient({ id }: { id: string }) {
 
       // Recargar el crédito para obtener el plan de pagos actualizado
       await fetchCredit();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving credit:", error);
-      toast({ title: "Error", description: "No se pudo guardar los cambios", variant: "destructive" });
+      const msg = error?.response?.data?.message || "No se pudo guardar los cambios";
+      toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setSaving(false);
     }

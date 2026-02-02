@@ -11,6 +11,7 @@ class Credit extends Model
 
     // Estados de crédito
     public const STATUS_APROBADO = 'Aprobado';
+    public const STATUS_POR_FIRMAR = 'Por firmar';
     public const STATUS_ACTIVO = 'Activo';
     public const STATUS_EN_MORA = 'En Mora';
     public const STATUS_CERRADO = 'Cerrado';
@@ -20,7 +21,7 @@ class Credit extends Model
     // Estados editables (solo estos pueden modificarse)
     public const EDITABLE_STATUSES = [
         self::STATUS_APROBADO,
-        self::STATUS_ACTIVO,
+        self::STATUS_POR_FIRMAR,
     ];
 
     protected $fillable = [
