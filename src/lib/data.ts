@@ -93,6 +93,55 @@ export type Lead = {
   source?: string;
 };
 
+export type PersonDocument = {
+      id: number;
+      person_id: number;
+      name: string;
+      notes?: string;
+      path: string;
+      url?: string;
+      mime_type?: string;
+      size?: number;
+      file_created_at?: string;
+};
+
+export type CreditPayment = {
+      id: number;
+      credit_id: number;
+      numero_cuota?: number;
+      proceso?: string;
+      fecha_cuota?: string;
+      fecha_pago?: string;
+      cuota?: number;
+      monto?: number;
+      poliza?: number;
+      interes_corriente?: number;
+      interes_moratorio?: number;
+      amortizacion?: number;
+      saldo_anterior?: number;
+      nuevo_saldo?: number;
+      estado?: string;
+      fecha_movimiento?: string;
+      movimiento_total?: number;
+      movimiento_amortizacion?: number;
+      linea?: string;
+      fecha_inicio?: string;
+      fecha_corte?: string;
+      tasa_actual?: number;
+      plazo_actual?: number;
+      dias?: number;
+      dias_mora?: number;
+      source?: string;
+      cedula?: string;
+      origen?: string;
+      capital_aplicado?: number;
+      interes_aplicado?: number;
+      mora_aplicada?: number;
+      fecha?: string;
+      created_at?: string;
+      credit?: { id: number; reference?: string };
+};
+
 export type Client = {
       id: string;
       name: string;
@@ -148,6 +197,8 @@ export type Client = {
       tipo_sociedad?: string;
       nombramientos?: string;
       estado_puesto?: string;
+      lead_id?: number;
+      documents?: PersonDocument[];
 };
 
 export type Investor = {
