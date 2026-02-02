@@ -1447,7 +1447,7 @@ export default function ClientesPage() {
                     name="monto"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Monto</FormLabel>
+                        <FormLabel>Monto del Crédito</FormLabel>
                         <FormControl>
                           <Input
                             type="text"
