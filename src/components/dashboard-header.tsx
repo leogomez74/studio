@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase } from 'lucide-react';
+import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -12,6 +12,7 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
+import { useToast } from '@/hooks/use-toast';
 
 interface LeadAlertItem {
   id: number;
@@ -76,9 +77,47 @@ function Breadcrumbs() {
 }
 
 export function DashboardHeader() {
+  const { toast } = useToast();
   const [alerts, setAlerts] = useState<LeadAlert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [expandedAlert, setExpandedAlert] = useState<number | null>(null);
+  const [deletingLeo, setDeletingLeo] = useState(false);
+
+  const handleDeleteLeo = async () => {
+    const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 108760664? Esta acción eliminará también todas las oportunidades, análisis y créditos asociados.');
+
+    if (!confirmed) return;
+
+    setDeletingLeo(true);
+    try {
+      const response = await api.post('/api/leads/delete-by-cedula', {
+        cedula: '108760664'
+      });
+
+      if (response.data.success) {
+        toast({
+          title: 'Eliminado correctamente',
+          description: response.data.message,
+        });
+      }
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        toast({
+          variant: 'destructive',
+          title: 'No encontrado',
+          description: 'No se encontró ningún registro con esa cédula',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error.response?.data?.message || 'Error al eliminar el registro',
+        });
+      }
+    } finally {
+      setDeletingLeo(false);
+    }
+  };
 
   const fetchAlerts = async () => {
     try {
@@ -130,9 +169,20 @@ export function DashboardHeader() {
           variant="destructive"
           size="sm"
           className="gap-2"
+          onClick={handleDeleteLeo}
+          disabled={deletingLeo}
         >
-          <AlertTriangle className="h-4 w-4" />
-          Eliminar Leo
+          {deletingLeo ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Eliminando...
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-4 w-4" />
+              Eliminar Leo
+            </>
+          )}
         </Button>
 
         <Popover>
