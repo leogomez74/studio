@@ -29,7 +29,6 @@ class Analisis extends Model
         'ingreso_bruto',
         'ingreso_neto',
         'deducciones',
-        'propuesta',
     ];
 
     protected $casts = [

@@ -25,6 +25,22 @@ export interface EditableDeduccion {
   activo: boolean;
 }
 
+export interface Propuesta {
+  id: number;
+  analisis_reference: string;
+  monto: number;
+  plazo: number;
+  cuota: number;
+  interes: number;
+  categoria: string | null;
+  estado: 'Pendiente' | 'Aceptada' | 'Denegada';
+  aceptada_por: number | null;
+  aceptada_at: string | null;
+  aceptada_por_user?: { id: number; name: string } | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AnalisisItem {
   id: number;
   reference: string;
@@ -37,7 +53,7 @@ export interface AnalisisItem {
   ingreso_neto?: number;
   plazo?: number;
   deducciones?: DeduccionItem[];
-  propuesta?: string;
+  propuestas?: Propuesta[];
   estado_pep?: string;
   estado_cliente?: string | null;
 }

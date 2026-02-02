@@ -41,7 +41,7 @@ class AnalisisController extends Controller
     {
         $perPage = min((int) $request->input('per_page', 10), 100);
 
-        $query = Analisis::with(['opportunity', 'lead']);
+        $query = Analisis::with(['opportunity', 'lead', 'propuestas']);
 
         // Filtro de búsqueda (referencia, nombre del lead, cédula)
         if ($search = $request->input('search')) {
@@ -133,7 +133,7 @@ class AnalisisController extends Controller
 
     public function show(int $id)
     {
-        $analisis = Analisis::with(['opportunity', 'lead'])->findOrFail($id);
+        $analisis = Analisis::with(['opportunity', 'lead', 'propuestas.aceptadaPorUser:id,name'])->findOrFail($id);
         return response()->json($analisis);
     }
 

@@ -24,9 +24,18 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   AnalisisItem,
   AnalisisFile,
+  Propuesta,
   formatCurrency,
   formatFileSize,
 } from '@/lib/analisis';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default function AnalisisDetailPage() {
   const params = useParams();
@@ -47,8 +56,20 @@ export default function AnalisisDetailPage() {
   // Estados editables (solo cuando estado_pep === 'Pendiente de cambios')
   const [editMontoCredito, setEditMontoCredito] = useState<number>(0);
   const [editPlazo, setEditPlazo] = useState<number>(36);
-  const [editPropuesta, setEditPropuesta] = useState<string>('');
   const [saving, setSaving] = useState(false);
+
+  // Propuestas state
+  const [propuestas, setPropuestas] = useState<Propuesta[]>([]);
+  const [loadingPropuestas, setLoadingPropuestas] = useState(false);
+  const [propuestaForm, setPropuestaForm] = useState({
+    monto: '',
+    plazo: '',
+    cuota: '',
+    interes: '',
+    categoria: '',
+  });
+  const [savingPropuesta, setSavingPropuesta] = useState(false);
+  const [editingPropuesta, setEditingPropuesta] = useState<Propuesta | null>(null);
 
   // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
@@ -139,7 +160,11 @@ export default function AnalisisDetailPage() {
         // Inicializar campos editables
         setEditMontoCredito(data.monto_credito || 0);
         setEditPlazo(data.plazo || 36);
-        setEditPropuesta(data.propuesta || '');
+
+        // Inicializar propuestas desde eager loading
+        if (data.propuestas) {
+          setPropuestas(data.propuestas);
+        }
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -211,7 +236,6 @@ export default function AnalisisDetailPage() {
       const payload = {
         monto_credito: editMontoCredito,
         plazo: editPlazo,
-        propuesta: editPropuesta,
       };
 
       await api.put(`/api/analisis/${analisisId}`, payload);
@@ -221,7 +245,6 @@ export default function AnalisisDetailPage() {
         ...prev,
         monto_credito: editMontoCredito,
         plazo: editPlazo,
-        propuesta: editPropuesta,
       } : null);
 
       toast({ title: 'Guardado', description: 'Los cambios se guardaron correctamente.' });
@@ -230,6 +253,119 @@ export default function AnalisisDetailPage() {
       toast({ title: 'Error', description: 'No se pudieron guardar los cambios.', variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ===== Propuestas CRUD =====
+  const fetchPropuestas = useCallback(async () => {
+    if (!analisis?.reference) return;
+    setLoadingPropuestas(true);
+    try {
+      const res = await api.get(`/api/analisis/${analisis.reference}/propuestas`);
+      setPropuestas(res.data);
+    } catch (err) {
+      console.error('Error fetching propuestas:', err);
+    } finally {
+      setLoadingPropuestas(false);
+    }
+  }, [analisis?.reference]);
+
+  const resetPropuestaForm = () => {
+    setPropuestaForm({ monto: '', plazo: '', cuota: '', interes: '', categoria: '' });
+    setEditingPropuesta(null);
+  };
+
+  const handleSubmitPropuesta = async () => {
+    if (!analisis?.reference) return;
+
+    const monto = parseFloat(propuestaForm.monto);
+    const plazo = parseInt(propuestaForm.plazo);
+    const cuota = parseFloat(propuestaForm.cuota);
+    const interes = parseFloat(propuestaForm.interes);
+
+    if (!monto || !plazo || !cuota || !interes) {
+      toast({ title: 'Error', description: 'Todos los campos numéricos son obligatorios.', variant: 'destructive' });
+      return;
+    }
+
+    setSavingPropuesta(true);
+    try {
+      if (editingPropuesta) {
+        await api.put(`/api/propuestas/${editingPropuesta.id}`, {
+          monto, plazo, cuota, interes,
+          categoria: propuestaForm.categoria || null,
+        });
+        toast({ title: 'Propuesta actualizada' });
+      } else {
+        await api.post(`/api/analisis/${analisis.reference}/propuestas`, {
+          monto, plazo, cuota, interes,
+          categoria: propuestaForm.categoria || null,
+        });
+        toast({ title: 'Propuesta creada' });
+      }
+      resetPropuestaForm();
+      fetchPropuestas();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'No se pudo guardar la propuesta.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingPropuesta(false);
+    }
+  };
+
+  const handleEditPropuesta = (p: Propuesta) => {
+    setEditingPropuesta(p);
+    setPropuestaForm({
+      monto: String(p.monto),
+      plazo: String(p.plazo),
+      cuota: String(p.cuota),
+      interes: String(p.interes),
+      categoria: p.categoria || '',
+    });
+  };
+
+  const handleDeletePropuesta = async (id: number) => {
+    try {
+      await api.delete(`/api/propuestas/${id}`);
+      toast({ title: 'Propuesta eliminada' });
+      fetchPropuestas();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'No se pudo eliminar.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAceptarPropuesta = async (id: number) => {
+    try {
+      await api.patch(`/api/propuestas/${id}/aceptar`);
+      toast({ title: 'Propuesta aceptada', description: 'Las demás propuestas pendientes fueron denegadas automáticamente.' });
+      fetchPropuestas();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'No se pudo aceptar.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDenegarPropuesta = async (id: number) => {
+    try {
+      await api.patch(`/api/propuestas/${id}/denegar`);
+      toast({ title: 'Propuesta denegada' });
+      fetchPropuestas();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'No se pudo denegar.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -485,22 +621,192 @@ export default function AnalisisDetailPage() {
           </Card>
         </div>
 
-        {/* Fila 2: Propuesta de Análisis */}
+        {/* Fila 2: Propuestas de Crédito */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Propuesta de Analisis</CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-gray-500">Propuestas de Crédito</CardTitle>
+              <Badge variant="outline" className="text-xs">
+                {propuestas.length} propuesta{propuestas.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent>
-            {isEditMode ? (
-              <Textarea
-                value={editPropuesta}
-                onChange={(e) => setEditPropuesta(e.target.value)}
-                className="min-h-[80px] text-sm"
-                placeholder="Escriba la propuesta de análisis..."
-              />
+          <CardContent className="space-y-4">
+            {/* Formulario de creación/edición (solo en modo edición) */}
+            {isEditMode && (
+              <div className="border rounded-lg p-4 bg-slate-50 space-y-3">
+                <p className="text-sm font-medium text-slate-700">
+                  {editingPropuesta ? 'Editar Propuesta' : 'Nueva Propuesta'}
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div>
+                    <Label className="text-xs">Monto</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={propuestaForm.monto}
+                      onChange={(e) => setPropuestaForm(prev => ({ ...prev, monto: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Plazo (meses)</Label>
+                    <Input
+                      type="number"
+                      placeholder="36"
+                      value={propuestaForm.plazo}
+                      onChange={(e) => setPropuestaForm(prev => ({ ...prev, plazo: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Cuota</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={propuestaForm.cuota}
+                      onChange={(e) => setPropuestaForm(prev => ({ ...prev, cuota: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Interés (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.0001"
+                      placeholder="33.50"
+                      value={propuestaForm.interes}
+                      onChange={(e) => setPropuestaForm(prev => ({ ...prev, interes: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Categoría</Label>
+                    <Select
+                      value={propuestaForm.categoria}
+                      onValueChange={(v) => setPropuestaForm(prev => ({ ...prev, categoria: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Regular">Regular</SelectItem>
+                        <SelectItem value="Microcrédito">Microcrédito</SelectItem>
+                        <SelectItem value="Emergencia">Emergencia</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSubmitPropuesta} disabled={savingPropuesta}>
+                    {savingPropuesta && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                    {editingPropuesta ? 'Actualizar' : 'Agregar Propuesta'}
+                  </Button>
+                  {editingPropuesta && (
+                    <Button size="sm" variant="outline" onClick={resetPropuestaForm}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tabla de propuestas */}
+            {propuestas.length > 0 ? (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Monto</TableHead>
+                      <TableHead className="text-xs">Plazo</TableHead>
+                      <TableHead className="text-xs">Cuota</TableHead>
+                      <TableHead className="text-xs">Interés</TableHead>
+                      <TableHead className="text-xs">Categoría</TableHead>
+                      <TableHead className="text-xs">Estado</TableHead>
+                      <TableHead className="text-xs">Fecha</TableHead>
+                      {isEditMode && <TableHead className="text-xs text-right">Acciones</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {propuestas.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
+                        <TableCell className="text-sm">{p.plazo} meses</TableCell>
+                        <TableCell className="text-sm">{formatCurrency(p.cuota)}</TableCell>
+                        <TableCell className="text-sm">{p.interes}%</TableCell>
+                        <TableCell className="text-sm">{p.categoria || '-'}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={
+                              p.estado === 'Aceptada'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : p.estado === 'Denegada'
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                            }
+                          >
+                            {p.estado}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(p.created_at).toLocaleDateString('es-CR')}
+                        </TableCell>
+                        {isEditMode && (
+                          <TableCell className="text-right">
+                            {p.estado === 'Pendiente' && (
+                              <div className="flex gap-1 justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => handleAceptarPropuesta(p.id)}
+                                  title="Aceptar"
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => handleDenegarPropuesta(p.id)}
+                                  title="Denegar"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2"
+                                  onClick={() => handleEditPropuesta(p)}
+                                  title="Editar"
+                                >
+                                  <Save className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-red-500 hover:text-red-600"
+                                  onClick={() => handleDeletePropuesta(p.id)}
+                                  title="Eliminar"
+                                >
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
+                            {p.estado !== 'Pendiente' && p.aceptada_por_user && (
+                              <span className="text-xs text-muted-foreground">
+                                por {p.aceptada_por_user.name}
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
-              <div className="min-h-[60px] p-3 bg-gray-50 rounded border text-sm">
-                {analisis.propuesta || <span className="text-muted-foreground italic">Sin propuesta definida</span>}
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                No hay propuestas registradas para este análisis.
               </div>
             )}
           </CardContent>

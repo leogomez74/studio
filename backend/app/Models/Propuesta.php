@@ -42,7 +42,7 @@ class Propuesta extends Model
         return $this->belongsTo(Analisis::class, 'analisis_reference', 'reference');
     }
 
-    public function aceptadaPor()
+    public function aceptadaPorUser()
     {
         return $this->belongsTo(User::class, 'aceptada_por');
     }

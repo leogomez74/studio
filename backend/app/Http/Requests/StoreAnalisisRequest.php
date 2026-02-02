@@ -34,7 +34,6 @@ class StoreAnalisisRequest extends FormRequest
             'deducciones' => 'nullable|array|max:20',
             'deducciones.*.nombre' => 'required_with:deducciones|string|max:100',
             'deducciones.*.monto' => 'required_with:deducciones|numeric|min:0|max:999999999.99',
-            'propuesta' => 'nullable|string|max:5000',
         ];
     }
 
