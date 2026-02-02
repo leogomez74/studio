@@ -246,9 +246,14 @@ export default function AnalisisDetailPage() {
       } else {
         setEstadoCliente(value);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating status:', error);
-      alert('Error al actualizar el estado');
+      const errorMessage = error?.response?.data?.message || 'Error al actualizar el estado';
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: errorMessage
+      });
     } finally {
       setUpdatingStatus(false);
     }

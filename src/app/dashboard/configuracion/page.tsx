@@ -2215,6 +2215,7 @@ export default function ConfiguracionPage() {
     password_confirmation: '',
     role_id: 'none',
     status: 'Activo',
+    monto_max_aprobacion: -1,
   });
   const [editingUser, setEditingUser] = useState<any | null>(null);
 
@@ -2330,6 +2331,7 @@ export default function ConfiguracionPage() {
       password_confirmation: '',
       role_id: 'none',
       status: 'Activo',
+      monto_max_aprobacion: -1,
     });
     setIsCreateUserOpen(true);
   };
@@ -2343,6 +2345,7 @@ export default function ConfiguracionPage() {
       password_confirmation: '',
       role_id: user.role_id ? user.role_id.toString() : 'none',
       status: user.status || 'Activo',
+      monto_max_aprobacion: user.monto_max_aprobacion ?? -1,
     });
     setIsCreateUserOpen(true);
   };
@@ -3165,7 +3168,7 @@ export default function ConfiguracionPage() {
                   <DialogHeader>
                     <DialogTitle>{editingUser ? 'Editar Usuario' : 'Agregar Nuevo Usuario'}</DialogTitle>
                     <DialogDescription>
-                      {editingUser ? 'Modifica los datos del usuario.' : 'Ingresa los datos del nuevo usuario. Todos los campos son obligatorios.'}
+                      {editingUser ? 'Modifica los datos del usuario. La contraseña es opcional.' : 'Ingresa los datos del nuevo usuario. Todos los campos son obligatorios.'}
                     </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleCreateUser} className="space-y-4">
@@ -3195,7 +3198,7 @@ export default function ConfiguracionPage() {
                         type="password"
                         value={newUser.password}
                         onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        required
+                        required={!editingUser}
                       />
                     </div>
                     <div className="space-y-2">
@@ -3205,8 +3208,13 @@ export default function ConfiguracionPage() {
                         type="password"
                         value={newUser.password_confirmation}
                         onChange={(e) => setNewUser({ ...newUser, password_confirmation: e.target.value })}
-                        required
+                        required={!editingUser}
                       />
+                      {editingUser && (
+                        <p className="text-xs text-muted-foreground">
+                          Dejar en blanco para conservar la contraseña actual
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -3247,6 +3255,20 @@ export default function ConfiguracionPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="monto_max_aprobacion">Monto Máximo de Aprobación (₡)</Label>
+                      <Input
+                        id="monto_max_aprobacion"
+                        type="number"
+                        step="0.01"
+                        value={newUser.monto_max_aprobacion}
+                        onChange={(e) => setNewUser({ ...newUser, monto_max_aprobacion: parseFloat(e.target.value) || -1 })}
+                        placeholder="-1"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        -1 = Sin límite (puede aprobar cualquier monto). Para restringir, ingrese el monto máximo que puede aprobar.
+                      </p>
                     </div>
                     <DialogFooter>
                       <Button type="submit" disabled={creatingUser}>
