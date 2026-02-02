@@ -65,7 +65,7 @@ export function CreditFormModal({
   const [creditForm, setCreditForm] = useState({
     reference: initialData.reference || '',
     title: initialData.title || '',
-    status: 'Activo',
+    status: 'Por firmar',
     category: initialData.category || 'Crédito',
     monto_credito: initialData.monto_credito ? String(initialData.monto_credito) : '',
     leadId: initialData.leadId || '',
@@ -235,6 +235,7 @@ export function CreditFormModal({
               <Select value={creditForm.status} onValueChange={v => setCreditForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Por firmar">Por firmar</SelectItem>
                   <SelectItem value="Activo">Activo</SelectItem>
                   <SelectItem value="Mora">Mora</SelectItem>
                   <SelectItem value="Cerrado">Cerrado</SelectItem>
