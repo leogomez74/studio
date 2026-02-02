@@ -346,4 +346,84 @@ class LeadController extends Controller
 
         return response()->json($lead);
     }
+
+    public function deleteByCedula(Request $request)
+    {
+        $cedula = $request->input('cedula');
+
+        if (!$cedula) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cédula es requerida'
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Buscar la persona por cédula
+            $person = DB::table('persons')->where('cedula', $cedula)->first();
+
+            if (!$person) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró ningún registro con esa cédula'
+                ], 404);
+            }
+
+            // Buscar oportunidades asociadas
+            $opportunities = DB::table('opportunities')
+                ->where('lead_cedula', $cedula)
+                ->pluck('id');
+
+            if ($opportunities->isNotEmpty()) {
+                // Buscar análisis asociados a esas oportunidades
+                $analisis = DB::table('analisis')
+                    ->whereIn('opportunity_id', $opportunities)
+                    ->pluck('id');
+
+                if ($analisis->isNotEmpty()) {
+                    // Eliminar créditos asociados a esos análisis
+                    $deletedCredits = DB::table('credits')
+                        ->whereIn('analisis_id', $analisis)
+                        ->delete();
+
+                    // Eliminar los análisis
+                    $deletedAnalisis = DB::table('analisis')
+                        ->whereIn('id', $analisis)
+                        ->delete();
+                }
+
+                // Eliminar las oportunidades
+                $deletedOpportunities = DB::table('opportunities')
+                    ->whereIn('id', $opportunities)
+                    ->delete();
+            }
+
+            // Finalmente, eliminar la persona
+            $deletedPerson = DB::table('persons')->where('id', $person->id)->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Registro eliminado correctamente',
+                'deleted' => [
+                    'person' => $deletedPerson,
+                    'opportunities' => $deletedOpportunities ?? 0,
+                    'analisis' => $deletedAnalisis ?? 0,
+                    'credits' => $deletedCredits ?? 0
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error eliminando por cédula: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar el registro: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -59,6 +59,7 @@ Route::apiResource('instituciones', InstitucionController::class);
 // Leads
 Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
 Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
+Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula']);
 Route::apiResource('leads', LeadController::class);
 
 // Questionnaires
