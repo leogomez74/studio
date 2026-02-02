@@ -263,28 +263,6 @@
                     <h2 class="text-lg font-semibold text-foreground">3. Perfil financiero</h2>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">¿Has tenido créditos antes? *</label>
-                            <select name="experiencia_crediticia" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                <option value="">Selecciona</option>
-                                <option value="si_bancarios">Sí, con bancos</option>
-                                <option value="si_cooperativas">Sí, con cooperativas</option>
-                                <option value="si_otros">Sí, con otras entidades</option>
-                                <option value="no">No, es mi primer crédito</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-foreground mb-1">Historial de pagos *</label>
-                            <select name="historial_mora" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                <option value="">Selecciona</option>
-                                <option value="siempre_al_dia">Siempre al día</option>
-                                <option value="atrasos_ocasionales">Atrasos ocasionales (1-2 veces)</option>
-                                <option value="atrasos_frecuentes">Atrasos frecuentes</option>
-                                <option value="no_aplica">No aplica / Primer crédito</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="grid md:grid-cols-2 gap-4">
-                        <div>
                             <label class="block text-sm font-medium text-foreground mb-1">Tipo de vivienda *</label>
                             <select name="tipo_vivienda" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
@@ -810,13 +788,11 @@
                 }
             }
             if (index === 2) {
-                const experiencia = document.querySelector('select[name="experiencia_crediticia"]').value;
-                const historial = document.querySelector('select[name="historial_mora"]').value;
                 const vivienda = document.querySelector('select[name="tipo_vivienda"]').value;
                 const dependientes = document.querySelector('select[name="dependientes"]').value;
                 const estadoCivil = document.querySelector('select[name="estado_civil"]').value;
                 const nivelAcademico = document.querySelector('select[name="nivel_academico"]').value;
-                if (!experiencia || !historial || !vivienda || !dependientes || !estadoCivil || !nivelAcademico) {
+                if (!vivienda || !dependientes || !estadoCivil || !nivelAcademico) {
                     showAlert('Completa todos los campos obligatorios del perfil financiero.');
                     return false;
                 }
@@ -862,8 +838,6 @@
                 data.urgencia = document.querySelector('select[name="urgencia"]').value;
                 data.detalle_legal = document.querySelector('textarea[name="detalle_legal"]').value;
             }
-            data.experiencia_crediticia = document.querySelector('select[name="experiencia_crediticia"]').value;
-            data.historial_mora = document.querySelector('select[name="historial_mora"]').value;
             data.tipo_vivienda = document.querySelector('select[name="tipo_vivienda"]').value;
             data.dependientes = document.querySelector('select[name="dependientes"]').value;
             data.estado_civil = document.querySelector('select[name="estado_civil"]').value;
@@ -1186,12 +1160,6 @@
                 const formatted = formatSalario(e.target.value);
                 e.target.value = formatted;
                 validateSalario();
-            });
-            // Auto-seleccionar "No aplica" si es primer crédito
-            document.querySelector('select[name="experiencia_crediticia"]').addEventListener('change', function() {
-                if (this.value === 'no') {
-                    document.querySelector('select[name="historial_mora"]').value = 'no_aplica';
-                }
             });
             // Rango de ingreso - validar salario y verificar salario bajo
             document.getElementById('ingresoSelect').addEventListener('change', () => {
