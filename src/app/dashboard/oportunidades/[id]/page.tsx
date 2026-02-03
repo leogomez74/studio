@@ -582,10 +582,7 @@ export default function OpportunityDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Regresar al listado
         </Button>
-        <Button variant="outline" className="gap-2 bg-white">
-          <RefreshCw className="h-4 w-4" />
-          Actualizar
-        </Button>
+        {/* Botón de actualizar oculto temporalmente */}
       </div>
 
       <div className="grid grid-cols-1 gap-6">
@@ -638,7 +635,7 @@ export default function OpportunityDetailPage() {
                             className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
-                            Crear Análisis
+                            Subir Análisis
                           </Button>
                         )
                       )

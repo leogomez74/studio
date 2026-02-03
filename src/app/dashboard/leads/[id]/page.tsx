@@ -966,28 +966,21 @@ export default function LeadDetailPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Deductora</Label>
-                                        {isEditMode ? (
-                                            <Select
-                                                value={String((formData as any).deductora_id || "")}
-                                                onValueChange={(value) => handleInputChange("deductora_id" as keyof Lead, Number(value))}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar deductora" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {deductoras.map((deductora) => (
-                                                        <SelectItem key={deductora.id} value={String(deductora.id)}>
-                                                            {deductora.nombre}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        ) : (
-                                            <Input
-                                                value={deductoras.find(d => d.id === Number((formData as any).deductora_id))?.nombre || ""}
-                                                disabled
-                                            />
-                                        )}
+                                        <div className="flex items-center gap-6">
+                                            {deductoras.map((deductora) => (
+                                                <Button
+                                                    key={deductora.id}
+                                                    type="button"
+                                                    variant={(formData as any).deductora_id === deductora.id ? "default" : "outline"}
+                                                    size="default"
+                                                    onClick={() => isEditMode && handleInputChange("deductora_id" as keyof Lead, deductora.id)}
+                                                    disabled={!isEditMode}
+                                                    className={`flex-1 ${(formData as any).deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
+                                                >
+                                                    {deductora.nombre}
+                                                </Button>
+                                            ))}
+                                        </div>
                                     </div>
                                     
                                     {/* Work Address */}

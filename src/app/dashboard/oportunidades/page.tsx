@@ -712,7 +712,7 @@ export default function DealsPage() {
     if (!isAnalizada) {
       return { label: "Solo oportunidades analizadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
     }
-    return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
+    return { label: "Subir Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
   };
 
   // --- Pagination Logic ---
