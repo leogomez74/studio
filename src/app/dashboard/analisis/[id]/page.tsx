@@ -273,21 +273,15 @@ export default function AnalisisDetailPage() {
   const handleSaveChanges = async () => {
     try {
       setSaving(true);
-
-      const payload = {
+      await api.put(`/api/analisis/${analisisId}`, {
         monto_credito: editMontoCredito,
         plazo: editPlazo,
-      };
-
-      await api.put(`/api/analisis/${analisisId}`, payload);
-
-      // Actualizar el estado local
+      });
       setAnalisis(prev => prev ? {
         ...prev,
         monto_credito: editMontoCredito,
         plazo: editPlazo,
       } : null);
-
       toast({ title: 'Guardado', description: 'Los cambios se guardaron correctamente.' });
     } catch (error) {
       console.error('Error saving changes:', error);
@@ -878,20 +872,6 @@ export default function AnalisisDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Indicador de modo edición */}
-        {isEditMode && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-amber-700">
-                <strong>Modo Edición:</strong> Los campos son editables. Guarda los cambios cuando termines.
-              </p>
-              <Button onClick={handleSaveChanges} disabled={saving} size="sm">
-                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                Guardar Cambios
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* Fila 3: Documentos con Miniaturas */}
         <Card>
