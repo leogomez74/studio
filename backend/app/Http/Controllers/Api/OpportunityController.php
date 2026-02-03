@@ -381,6 +381,31 @@ class OpportunityController extends Controller
                 // Verificar existencia física
                 if (Storage::disk('public')->exists($doc->path)) {
                     $fileName = basename($doc->path);
+
+                    // Agregar prefijo de categoría al nombre del archivo
+                    $category = $doc->category ?? 'otro';
+                    $categoryPrefix = '';
+
+                    switch ($category) {
+                        case 'cedula':
+                            $categoryPrefix = 'CEDULA_';
+                            break;
+                        case 'recibo_servicio':
+                            $categoryPrefix = 'RECIBO_';
+                            break;
+                        case 'comprobante_ingresos':
+                            $categoryPrefix = 'COMPROBANTE_';
+                            break;
+                        case 'constancia_trabajo':
+                            $categoryPrefix = 'CONSTANCIA_';
+                            break;
+                    }
+
+                    // Si el archivo ya tiene el prefijo, no agregarlo de nuevo
+                    if (!empty($categoryPrefix) && !str_starts_with(strtoupper($fileName), $categoryPrefix)) {
+                        $fileName = $categoryPrefix . $fileName;
+                    }
+
                     $newPath = "{$heredadosFolder}/{$fileName}";
 
                     // Manejo de colisiones de nombre
