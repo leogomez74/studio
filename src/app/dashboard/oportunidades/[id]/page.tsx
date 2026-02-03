@@ -439,14 +439,14 @@ export default function OpportunityDetailPage() {
 
   // Formatear número con separadores de miles (coma) - para inputs de análisis
   const formatNumberWithCommas = (value: string | number): string => {
-    const num = typeof value === 'string' ? value.replace(/[^\d]/g, '') : String(value);
+    const num = typeof value === 'number' ? Math.round(value) : Math.round(parseFloat(value) || 0);
     if (!num) return '';
-    return Number(num).toLocaleString('en-US');
+    return num.toLocaleString('en-US');
   };
 
   // Parsear valor formateado a número
   const parseFormattedNumber = (value: string): string => {
-    return value.replace(/[^\d]/g, '');
+    return value.replace(/[^\d.]/g, '');
   };
 
   // Analisis Logic

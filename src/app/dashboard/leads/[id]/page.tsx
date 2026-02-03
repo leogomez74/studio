@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,119 @@ import { usePermissions } from "@/contexts/PermissionsContext";
 import api from "@/lib/axios";
 import { Lead } from "@/lib/data";
 import { COSTA_RICA_PROVINCES, getProvinceOptions, getCantonOptions, getDistrictOptions } from '@/lib/costa-rica-regions';
+
+const PROFESIONES_LIST = [
+    "Abogado(a)",
+    "Accountant",
+    "Actor/Actriz",
+    "Administrador(a) de Empresas",
+    "Administrador(a) de Fincas",
+    "Administrador(a) Público",
+    "Agrónomo(a)",
+    "Analista de Datos",
+    "Analista de Sistemas",
+    "Antropólogo(a)",
+    "Archivista",
+    "Arquitecto(a)",
+    "Asistente Administrativo(a)",
+    "Asistente Dental",
+    "Asistente Legal",
+    "Auditor(a)",
+    "Bibliotecólogo(a)",
+    "Biólogo(a)",
+    "Bombero(a)",
+    "Cajero(a)",
+    "Chef / Cocinero(a)",
+    "Chofer / Conductor(a)",
+    "Comunicador(a) Social",
+    "Conserje",
+    "Contador(a)",
+    "Criminólogo(a)",
+    "Dentista / Odontólogo(a)",
+    "Desarrollador(a) de Software",
+    "Diseñador(a) Gráfico",
+    "Diseñador(a) Industrial",
+    "Economista",
+    "Educador(a)",
+    "Electricista",
+    "Enfermero(a)",
+    "Escritor(a)",
+    "Estadístico(a)",
+    "Farmacéutico(a)",
+    "Filólogo(a)",
+    "Filósofo(a)",
+    "Físico(a)",
+    "Fisioterapeuta",
+    "Fotógrafo(a)",
+    "Funcionario(a) Público",
+    "Geógrafo(a)",
+    "Geólogo(a)",
+    "Gestor(a) Ambiental",
+    "Guarda de Seguridad",
+    "Historiador(a)",
+    "Ingeniero(a) Agrícola",
+    "Ingeniero(a) Ambiental",
+    "Ingeniero(a) Civil",
+    "Ingeniero(a) Eléctrico",
+    "Ingeniero(a) Electrónico",
+    "Ingeniero(a) en Computación",
+    "Ingeniero(a) en Sistemas",
+    "Ingeniero(a) Industrial",
+    "Ingeniero(a) Mecánico",
+    "Ingeniero(a) Químico",
+    "Investigador(a)",
+    "Laboratorista",
+    "Locutor(a)",
+    "Matemático(a)",
+    "Mecánico(a)",
+    "Médico(a)",
+    "Mercadólogo(a)",
+    "Meteorólogo(a)",
+    "Microbiólogo(a)",
+    "Misceláneo(a)",
+    "Músico(a)",
+    "Notario(a)",
+    "Nutricionista",
+    "Obrero(a)",
+    "Oficial de Seguridad",
+    "Operador(a) de Maquinaria",
+    "Optometrista",
+    "Orientador(a)",
+    "Paramédico(a)",
+    "Pediatra",
+    "Periodista",
+    "Piloto",
+    "Planificador(a)",
+    "Policía",
+    "Politólogo(a)",
+    "Profesor(a) Universitario",
+    "Programador(a)",
+    "Promotor(a) Social",
+    "Psicólogo(a)",
+    "Psiquiatra",
+    "Publicista",
+    "Químico(a)",
+    "Radiólogo(a)",
+    "Recepcionista",
+    "Relacionista Público",
+    "Secretario(a)",
+    "Sociólogo(a)",
+    "Soldador(a)",
+    "Técnico(a) en Electrónica",
+    "Técnico(a) en Enfermería",
+    "Técnico(a) en Informática",
+    "Técnico(a) en Mantenimiento",
+    "Técnico(a) en Refrigeración",
+    "Tecnólogo(a) Médico",
+    "Teólogo(a)",
+    "Terapeuta Ocupacional",
+    "Topógrafo(a)",
+    "Trabajador(a) Social",
+    "Traductor(a)",
+    "Vendedor(a)",
+    "Veterinario(a)",
+    "Otro",
+].sort();
 
 export default function LeadDetailPage() {
     const params = useParams();
@@ -50,6 +164,11 @@ export default function LeadDetailPage() {
     const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
     const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
     const [deductoras, setDeductoras] = useState<{id: number, nombre: string}[]>([]);
+    const [instituciones, setInstituciones] = useState<{id: number, nombre: string}[]>([]);
+    const [institucionSearch, setInstitucionSearch] = useState("");
+    const [institucionOpen, setInstitucionOpen] = useState(false);
+    const [profesionSearch, setProfesionSearch] = useState("");
+    const [profesionOpen, setProfesionOpen] = useState(false);
     const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string}[]>([]);
     const [syncing, setSyncing] = useState(false);
 
@@ -97,10 +216,20 @@ export default function LeadDetailPage() {
             }
         };
 
+        const fetchInstituciones = async () => {
+            try {
+                const response = await api.get('/api/instituciones');
+                setInstituciones(response.data.data || response.data);
+            } catch (error) {
+                console.error("Error fetching instituciones:", error);
+            }
+        };
+
         if (id) {
             fetchLead();
             fetchAgents();
             fetchDeductoras();
+            fetchInstituciones();
         }
     }, [id, toast]);
 
@@ -150,8 +279,31 @@ export default function LeadDetailPage() {
         }
     };
 
+    const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const autoSave = useCallback(async (updatedData: Partial<Lead>) => {
+        try {
+            setSaving(true);
+            await api.put(`/api/leads/${id}`, updatedData);
+            setLead(prev => ({ ...prev, ...updatedData } as Lead));
+        } catch (error) {
+            console.error("Error auto-saving lead:", error);
+            toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
+        } finally {
+            setSaving(false);
+        }
+    }, [id, toast]);
+
     const handleInputChange = (field: keyof Lead, value: any) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        const newData = { ...formData, [field]: value };
+        setFormData(newData);
+
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+        autoSaveTimerRef.current = setTimeout(() => {
+            autoSave(newData);
+        }, 800);
     };
 
     // --- Provincias / Cantones / Distritos (dirección principal)
@@ -195,84 +347,48 @@ export default function LeadDetailPage() {
     }, [(formData as any).trabajo_provincia, (formData as any).trabajo_canton, (formData as any).trabajo_distrito]);
 
     const handleProvinceChange = (value: string) => {
-        setFormData(prev => ({ 
-            ...prev, 
-            province: value,
-            canton: "",
-            distrito: ""
-        }));
+        const newData = { ...formData, province: value, canton: "", distrito: "" };
+        setFormData(newData);
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => autoSave(newData), 800);
     };
 
     const handleCantonChange = (value: string) => {
-        setFormData(prev => ({ 
-            ...prev, 
-            canton: value,
-            distrito: ""
-        }));
+        const newData = { ...formData, canton: value, distrito: "" };
+        setFormData(newData);
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => autoSave(newData), 800);
     };
 
     const handleDistrictChange = (value: string) => {
-        setFormData(prev => ({ ...prev, distrito: value }));
+        const newData = { ...formData, distrito: value };
+        setFormData(newData);
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => autoSave(newData), 800);
     };
 
     // Work Address Logic
     const handleWorkProvinceChange = (value: string) => {
-        setFormData(prev => ({ 
-            ...prev, 
-            trabajo_provincia: value,
-            trabajo_canton: "",
-            trabajo_distrito: ""
-        }));
+        const newData = { ...formData, trabajo_provincia: value, trabajo_canton: "", trabajo_distrito: "" };
+        setFormData(newData);
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => autoSave(newData), 800);
     };
 
     const handleWorkCantonChange = (value: string) => {
-        setFormData(prev => ({ 
-            ...prev, 
-            trabajo_canton: value,
-            trabajo_distrito: ""
-        }));
+        const newData = { ...formData, trabajo_canton: value, trabajo_distrito: "" };
+        setFormData(newData);
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => autoSave(newData), 800);
     };
 
     const handleWorkDistrictChange = (value: string) => {
-        setFormData(prev => ({ ...prev, trabajo_distrito: value }));
+        const newData = { ...formData, trabajo_distrito: value };
+        setFormData(newData);
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => autoSave(newData), 800);
     };
 
-    const handleSave = async () => {
-        try {
-            setSaving(true);
-            // Sanitize deductora_id to ensure it's a valid number or null
-            const sanitizedData = {
-                ...formData,
-                deductora_id: formData.deductora_id ? Number(formData.deductora_id) : null,
-            };
-
-            console.log('Datos a enviar:', sanitizedData);
-
-            await api.put(`/api/leads/${id}`, sanitizedData);
-            toast({ title: "Guardado", description: "Lead actualizado correctamente." });
-            setLead(prev => ({ ...prev, ...formData } as Lead));
-            router.push(`/dashboard/leads/${id}?mode=view`);
-        } catch (error: any) {
-            console.error("Error updating lead:", error);
-            console.error("Error response:", error.response?.data);
-
-            // Mostrar errores de validación específicos si existen
-            if (error.response?.data?.errors) {
-                const errorMessages = Object.entries(error.response.data.errors)
-                    .map(([field, messages]: [string, any]) => `${field}: ${messages.join(', ')}`)
-                    .join('\n');
-                toast({
-                    title: "Error de validación",
-                    description: errorMessages,
-                    variant: "destructive"
-                });
-            } else {
-                toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
-            }
-        } finally {
-            setSaving(false);
-        }
-    };
 
     const handleArchive = async () => {
         if (!lead) return;
@@ -306,14 +422,11 @@ export default function LeadDetailPage() {
                     <span>volver al CRM</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isEditMode && (
-                        <>
-                            <Button variant="ghost" onClick={() => router.push(`/dashboard/leads/${id}?mode=view`)}>Cancelar</Button>
-                            <Button onClick={handleSave} disabled={saving}>
-                                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Guardar cambios
-                            </Button>
-                        </>
+                    {isEditMode && saving && (
+                        <span className="flex items-center text-sm text-muted-foreground">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Guardando...
+                        </span>
                     )}
                     <TooltipProvider>
                         <Tooltip>
@@ -682,19 +795,84 @@ export default function LeadDetailPage() {
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
                                         <Label>Nivel Académico</Label>
-                                        <Input 
-                                            value={(formData as any).nivel_academico || ""} 
-                                            onChange={(e) => handleInputChange("nivel_academico" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} 
-                                        />
+                                        {isEditMode ? (
+                                            <Select
+                                                value={(formData as any).nivel_academico || ""}
+                                                onValueChange={(value) => handleInputChange("nivel_academico" as keyof Lead, value)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar nivel académico" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="primaria">Primaria</SelectItem>
+                                                    <SelectItem value="secundaria">Secundaria</SelectItem>
+                                                    <SelectItem value="tecnico">Técnico / Vocacional</SelectItem>
+                                                    <SelectItem value="universitario">Universitario</SelectItem>
+                                                    <SelectItem value="posgrado">Posgrado</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <Input
+                                                value={(formData as any).nivel_academico || ""}
+                                                disabled
+                                            />
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Profesión</Label>
-                                        <Input 
-                                            value={(formData as any).profesion || ""} 
-                                            onChange={(e) => handleInputChange("profesion" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} 
-                                        />
+                                        {isEditMode ? (
+                                            <Popover open={profesionOpen} onOpenChange={setProfesionOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        role="combobox"
+                                                        aria-expanded={profesionOpen}
+                                                        className="w-full justify-between font-normal"
+                                                    >
+                                                        {(formData as any).profesion || "Seleccionar profesión"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[300px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input
+                                                            placeholder="Buscar profesión..."
+                                                            value={profesionSearch}
+                                                            onChange={(e) => setProfesionSearch(e.target.value)}
+                                                            className="h-8"
+                                                            autoFocus
+                                                        />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {PROFESIONES_LIST
+                                                            .filter(p => p.toLowerCase().includes(profesionSearch.toLowerCase()))
+                                                            .map((prof) => (
+                                                                <div
+                                                                    key={prof}
+                                                                    className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
+                                                                    onClick={() => {
+                                                                        handleInputChange("profesion" as keyof Lead, prof);
+                                                                        setProfesionOpen(false);
+                                                                        setProfesionSearch("");
+                                                                    }}
+                                                                >
+                                                                    <Check className={`h-4 w-4 ${(formData as any).profesion === prof ? "opacity-100" : "opacity-0"}`} />
+                                                                    {prof}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                        {PROFESIONES_LIST.filter(p => p.toLowerCase().includes(profesionSearch.toLowerCase())).length === 0 && (
+                                                            <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron resultados</div>
+                                                        )}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+                                        ) : (
+                                            <Input
+                                                value={(formData as any).profesion || ""}
+                                                disabled
+                                            />
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Sector</Label>
@@ -732,21 +910,53 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Institución</Label>
                                         {isEditMode ? (
-                                            <Select
-                                                value={(formData as any).institucion_labora || ""}
-                                                onValueChange={(value) => handleInputChange("institucion_labora" as keyof Lead, value)}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar institución" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {deductoras.map((deductora) => (
-                                                        <SelectItem key={deductora.id} value={deductora.nombre}>
-                                                            {deductora.nombre}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={institucionOpen} onOpenChange={setInstitucionOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        role="combobox"
+                                                        aria-expanded={institucionOpen}
+                                                        className="w-full justify-between font-normal"
+                                                    >
+                                                        {(formData as any).institucion_labora || "Seleccionar institución"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[300px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input
+                                                            placeholder="Buscar institución..."
+                                                            value={institucionSearch}
+                                                            onChange={(e) => setInstitucionSearch(e.target.value)}
+                                                            className="h-8"
+                                                            autoFocus
+                                                        />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {instituciones
+                                                            .filter(inst => inst.nombre.toLowerCase().includes(institucionSearch.toLowerCase()))
+                                                            .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                                                            .map((inst) => (
+                                                                <div
+                                                                    key={inst.id}
+                                                                    className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
+                                                                    onClick={() => {
+                                                                        handleInputChange("institucion_labora" as keyof Lead, inst.nombre);
+                                                                        setInstitucionOpen(false);
+                                                                        setInstitucionSearch("");
+                                                                    }}
+                                                                >
+                                                                    <Check className={`h-4 w-4 ${(formData as any).institucion_labora === inst.nombre ? "opacity-100" : "opacity-0"}`} />
+                                                                    {inst.nombre}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                        {instituciones.filter(inst => inst.nombre.toLowerCase().includes(institucionSearch.toLowerCase())).length === 0 && (
+                                                            <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron resultados</div>
+                                                        )}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                         ) : (
                                             <Input
                                                 value={(formData as any).institucion_labora || ""}
@@ -771,14 +981,6 @@ export default function LeadDetailPage() {
                                                 </Button>
                                             ))}
                                         </div>
-                                    </div>
-                                    <div className="col-span-3 space-y-2">
-                                        <Label>Dirección de la Institución</Label>
-                                        <Textarea 
-                                            value={(formData as any).institucion_direccion || ""} 
-                                            onChange={(e) => handleInputChange("institucion_direccion" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} 
-                                        />
                                     </div>
                                     
                                     {/* Work Address */}
@@ -898,14 +1100,6 @@ export default function LeadDetailPage() {
                                         ) : (
                                             <Input value={(formData as any).tipo_sociedad || ""} disabled />
                                         )}
-                                    </div>
-                                    <div className="col-span-3 space-y-2">
-                                        <Label>Nombramientos</Label>
-                                        <Textarea 
-                                            value={(formData as any).nombramientos || ""} 
-                                            onChange={(e) => handleInputChange("nombramientos" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} 
-                                        />
                                     </div>
                                 </div>
                             </div>
