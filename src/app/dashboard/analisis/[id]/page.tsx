@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, FileText, CheckCircle, AlertCircle, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Save, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -383,10 +383,12 @@ export default function AnalisisDetailPage() {
       await api.patch(`/api/propuestas/${id}/aceptar`);
       toast({ title: 'Propuesta aceptada', description: 'Las demás propuestas pendientes fueron denegadas automáticamente.' });
       fetchPropuestas();
-      // Refrescar el análisis para reflejar monto/plazo de la propuesta aceptada
+      // Refrescar el análisis para reflejar monto/plazo y estado_pep de la propuesta aceptada
       const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
       const data = resAnalisis.data as AnalisisItem;
       setAnalisis(data);
+      setEstadoPep(data.estado_pep || 'Aceptado');
+      setEstadoCliente(data.estado_cliente || 'Pendiente');
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -813,42 +815,33 @@ export default function AnalisisDetailPage() {
                         {isEditMode && (
                           <TableCell className="text-right">
                             {p.estado === 'Pendiente' && (
-                              <div className="flex gap-1 justify-end">
+                              <div className="flex gap-2 justify-end">
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
                                   onClick={() => handleAceptarPropuesta(p.id)}
                                   title="Aceptar"
                                 >
-                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  <ThumbsUp className="h-5 w-5" />
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                                   onClick={() => handleDenegarPropuesta(p.id)}
                                   title="Denegar"
                                 >
-                                  <X className="h-3.5 w-3.5" />
+                                  <ThumbsDown className="h-5 w-5" />
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-7 px-2"
+                                  className="h-8 px-2 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
                                   onClick={() => handleEditPropuesta(p)}
                                   title="Editar"
                                 >
-                                  <Save className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2 text-red-500 hover:text-red-600"
-                                  onClick={() => handleDeletePropuesta(p.id)}
-                                  title="Eliminar"
-                                >
-                                  <AlertCircle className="h-3.5 w-3.5" />
+                                  <Pencil className="h-5 w-5" />
                                 </Button>
                               </div>
                             )}
