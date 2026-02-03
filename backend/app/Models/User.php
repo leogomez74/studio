@@ -28,6 +28,7 @@ class User extends Authenticatable
         'role_id',
         'status',
         'monto_max_aprobacion',
+        'is_default_lead_assignee',
     ];
 
     /**

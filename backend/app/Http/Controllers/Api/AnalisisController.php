@@ -116,6 +116,14 @@ class AnalisisController extends Controller
             $validated['category'] = $this->determineCategoryFromData($validated);
         }
 
+        // Si no se especificó assigned_to, asignar al responsable default de leads
+        if (empty($validated['assigned_to'])) {
+            $defaultAssignee = \App\Models\User::where('is_default_lead_assignee', true)->first();
+            if ($defaultAssignee) {
+                $validated['assigned_to'] = $defaultAssignee->id;
+            }
+        }
+
         $analisis = Analisis::create($validated);
 
         // Copiar archivos de la oportunidad al análisis si existe opportunity_id
