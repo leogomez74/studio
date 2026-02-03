@@ -453,6 +453,10 @@ export default function OpportunityDetailPage() {
   const handleOpenAnalisisDialog = () => {
     if (!opportunity) return;
 
+    // Buscar el usuario responsable default
+    const defaultUser = users.find((u: any) => u.is_default_lead_assignee);
+    const defaultAssignedTo = defaultUser ? defaultUser.name : "";
+
     setAnalisisForm({
       reference: String(opportunity.id),
       title: opportunity.opportunity_type || "",
@@ -463,7 +467,7 @@ export default function OpportunityDetailPage() {
       propuesta: "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
-      assignedTo: "",
+      assignedTo: defaultAssignedTo,
       openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",

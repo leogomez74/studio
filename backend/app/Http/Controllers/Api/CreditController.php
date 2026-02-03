@@ -183,6 +183,14 @@ class CreditController extends Controller
         // Referencia temporal (se actualiza después con el ID real)
         $validated['reference'] = 'TEMP-' . time();
 
+        // Si no se especificó assigned_to, asignar al responsable default de leads
+        if (empty($validated['assigned_to'])) {
+            $defaultAssignee = \App\Models\User::where('is_default_lead_assignee', true)->first();
+            if ($defaultAssignee) {
+                $validated['assigned_to'] = $defaultAssignee->id;
+            }
+        }
+
         $credit = DB::transaction(function () use ($validated) {
             // A. Crear Cabecera
             $credit = Credit::create($validated);
