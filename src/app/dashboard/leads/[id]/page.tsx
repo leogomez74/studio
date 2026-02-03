@@ -172,6 +172,22 @@ export default function LeadDetailPage() {
     const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string}[]>([]);
     const [syncing, setSyncing] = useState(false);
 
+    // Validar si el registro está completo
+    const checkIsComplete = useCallback(() => {
+        if (!formData) return false;
+        const requiredFields = [
+            'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento',
+            'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
+            'province', 'canton', 'distrito', 'direccion1',
+            'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
+        ];
+        return requiredFields.every(field => {
+            const value = (formData as any)[field];
+            if (field === 'deductora_id') return value && value !== 0;
+            return value !== null && value !== undefined && value !== '';
+        });
+    }, [formData]);
+
     // Protección: redirigir si intenta editar sin permiso
     useEffect(() => {
         if (mode === "edit" && !canEdit && !permsLoading) {
@@ -493,11 +509,17 @@ export default function LeadDetailPage() {
                                                             size="icon"
                                                             className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
                                                             onClick={() => setIsOpportunityDialogOpen(true)}
+                                                            disabled={!checkIsComplete()}
                                                         >
                                                             <Sparkles className="h-4 w-4" />
                                                         </Button>
                                                     </TooltipTrigger>
-                                                    <TooltipContent>Crear Oportunidad</TooltipContent>
+                                                    <TooltipContent>
+                                                        {checkIsComplete()
+                                                            ? "Crear Oportunidad"
+                                                            : "Complete el registro antes de crear oportunidad"
+                                                        }
+                                                    </TooltipContent>
                                                 </Tooltip>
                                             </TooltipProvider>
                                         )}
