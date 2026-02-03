@@ -533,7 +533,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={formData.name || ""}
                                             onChange={(e) => handleInputChange("name", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -541,7 +541,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={formData.apellido1 || ""}
                                             onChange={(e) => handleInputChange("apellido1", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -549,7 +549,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={formData.apellido2 || ""}
                                             onChange={(e) => handleInputChange("apellido2", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -557,7 +557,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={formData.cedula || ""}
                                             onChange={(e) => handleInputChange("cedula", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -566,7 +566,7 @@ export default function LeadDetailPage() {
                                             type="date"
                                             value={(formData as any).cedula_vencimiento || ""}
                                             onChange={(e) => handleInputChange("cedula_vencimiento" as keyof Lead, e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -575,7 +575,7 @@ export default function LeadDetailPage() {
                                             type="date"
                                             value={formData.fecha_nacimiento ? String(formData.fecha_nacimiento).split('T')[0] : ""}
                                             onChange={(e) => handleInputChange("fecha_nacimiento", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -633,7 +633,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={formData.email || ""}
                                             onChange={(e) => handleInputChange("email", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -641,7 +641,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={formData.phone || ""}
                                             onChange={(e) => handleInputChange("phone", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -649,7 +649,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={(formData as any).telefono2 || ""}
                                             onChange={(e) => handleInputChange("telefono2" as keyof Lead, e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -657,7 +657,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={(formData as any).telefono3 || ""}
                                             onChange={(e) => handleInputChange("telefono3" as keyof Lead, e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -665,7 +665,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={formData.whatsapp || ""}
                                             onChange={(e) => handleInputChange("whatsapp", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -673,7 +673,7 @@ export default function LeadDetailPage() {
                                         <Input
                                             value={(formData as any).tel_casa || ""}
                                             onChange={(e) => handleInputChange("tel_casa" as keyof Lead, e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                 </div>
@@ -759,7 +759,7 @@ export default function LeadDetailPage() {
                                         <Textarea
                                             value={formData.direccion1 || ""}
                                             onChange={(e) => handleInputChange("direccion1", e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                     <div className="col-span-3 md:col-span-1 space-y-2">
@@ -767,7 +767,7 @@ export default function LeadDetailPage() {
                                         <Textarea
                                             value={(formData as any).direccion2 || ""}
                                             onChange={(e) => handleInputChange("direccion2" as keyof Lead, e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         />
                                     </div>
                                 </div>
@@ -865,7 +865,7 @@ export default function LeadDetailPage() {
                                         <Input 
                                             value={(formData as any).sector || ""} 
                                             onChange={(e) => handleInputChange("sector" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} onBlur={handleBlur} 
+                                            disabled={!isEditMode} 
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -873,7 +873,7 @@ export default function LeadDetailPage() {
                                         <Input 
                                             value={(formData as any).puesto || ""} 
                                             onChange={(e) => handleInputChange("puesto" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} onBlur={handleBlur} 
+                                            disabled={!isEditMode} 
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -881,7 +881,7 @@ export default function LeadDetailPage() {
                                         <Select
                                             value={(formData as any).estado_puesto || ""}
                                             onValueChange={(value) => handleInputChange("estado_puesto" as keyof Lead, value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            disabled={!isEditMode}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Seleccionar nombramiento" />
@@ -960,7 +960,7 @@ export default function LeadDetailPage() {
                                                     variant={(formData as any).deductora_id === deductora.id ? "default" : "outline"}
                                                     size="default"
                                                     onClick={() => isEditMode && handleInputChange("deductora_id" as keyof Lead, deductora.id)}
-                                                    disabled={!isEditMode} onBlur={handleBlur}
+                                                    disabled={!isEditMode}
                                                     className={`flex-1 ${(formData as any).deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
                                                 >
                                                     {deductora.nombre}
@@ -1046,7 +1046,7 @@ export default function LeadDetailPage() {
                                          <Textarea
                                              value={(formData as any).trabajo_direccion || ""}
                                              onChange={(e) => handleInputChange("trabajo_direccion" as keyof Lead, e.target.value)}
-                                             disabled={!isEditMode} onBlur={handleBlur}
+                                             disabled={!isEditMode}
                                          />
                                      </div>
                                 </div>

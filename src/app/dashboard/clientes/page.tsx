@@ -170,9 +170,25 @@ const checkMissingFields = (item: Lead | Client): string[] => {
     apellido1: 'Primer apellido',
     email: 'Correo electrónico',
     phone: 'Teléfono',
-    sector: 'Sector laboral',
     whatsapp: 'WhatsApp',
     fecha_nacimiento: 'Fecha de nacimiento',
+    // Información laboral
+    profesion: 'Profesión',
+    nivel_academico: 'Nivel académico',
+    puesto: 'Puesto',
+    institucion_labora: 'Institución donde labora',
+    deductora_id: 'Deductora',
+    sector: 'Sector laboral',
+    // Dirección personal
+    province: 'Provincia',
+    canton: 'Cantón',
+    distrito: 'Distrito',
+    direccion1: 'Dirección exacta',
+    // Dirección de trabajo
+    trabajo_provincia: 'Provincia (trabajo)',
+    trabajo_canton: 'Cantón (trabajo)',
+    trabajo_distrito: 'Distrito (trabajo)',
+    trabajo_direccion: 'Dirección de trabajo',
   };
 
   const missingFields: string[] = [];
@@ -181,8 +197,8 @@ const checkMissingFields = (item: Lead | Client): string[] => {
   Object.entries(requiredFieldsMap).forEach(([field, label]) => {
     const value = (item as any)[field];
 
-    // Verificar si el campo está vacío (null, undefined, string vacío)
-    if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
+    // Verificar si el campo está vacío (null, undefined, string vacío, o 0 para deductora_id)
+    if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '') || (field === 'deductora_id' && value === 0)) {
       missingFields.push(label);
     }
   });

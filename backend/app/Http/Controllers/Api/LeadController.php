@@ -21,7 +21,15 @@ class LeadController extends Controller
             ->select([
                 'id', 'name', 'apellido1', 'apellido2', 'cedula',
                 'email', 'phone', 'lead_status_id', 'is_active',
-                'assigned_to_id', 'deductora_id', 'created_at', 'updated_at'
+                'assigned_to_id', 'deductora_id', 'created_at', 'updated_at',
+                // Campos básicos adicionales
+                'sector', 'whatsapp', 'fecha_nacimiento',
+                // Información laboral
+                'profesion', 'nivel_academico', 'puesto', 'institucion_labora',
+                // Dirección personal
+                'province', 'canton', 'distrito', 'direccion1', 'direccion2',
+                // Dirección de trabajo
+                'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
             ])
             ->with([
                 'assignedAgent:id,name',
