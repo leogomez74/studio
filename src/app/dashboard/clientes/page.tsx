@@ -159,6 +159,34 @@ type LeadStatus = {
     name: string;
 };
 
+const checkMissingFields = (item: Lead | Client): string[] => {
+  // Mapeo de campos requeridos con sus nombres legibles
+  const requiredFieldsMap: Record<string, string> = {
+    cedula: 'Cédula',
+    name: 'Nombre',
+    apellido1: 'Primer apellido',
+    email: 'Correo electrónico',
+    phone: 'Teléfono',
+    sector: 'Sector laboral',
+    whatsapp: 'WhatsApp',
+    fecha_nacimiento: 'Fecha de nacimiento',
+  };
+
+  const missingFields: string[] = [];
+
+  // Iterar sobre los campos requeridos y verificar si están vacíos
+  Object.entries(requiredFieldsMap).forEach(([field, label]) => {
+    const value = (item as any)[field];
+
+    // Verificar si el campo está vacío (null, undefined, string vacío)
+    if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
+      missingFields.push(label);
+    }
+  });
+
+  return missingFields;
+};
+
 // --- Main Component ---
 
 export default function ClientesPage() {
@@ -1547,9 +1575,16 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                   ) : <span className="text-muted-foreground">-</span>}
                 </TableCell>
                 <TableCell>
-                  <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
-                    {displayName}
-                  </Link>
+                  <div>
+                    <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
+                      {displayName}
+                    </Link>
+                    {checkMissingFields(lead).length > 0 && (
+                      <div className="inline-block mt-2 px-2 py-0.5 text-xs font-medium text-orange-700 bg-orange-100 border border-orange-300 rounded-md">
+                        Faltan Datos Obligatorios
+                      </div>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge className={badgeClassName}>{statusLabel}</Badge>
