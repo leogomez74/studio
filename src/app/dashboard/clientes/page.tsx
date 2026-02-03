@@ -1589,8 +1589,8 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
             <TableHead>Lead</TableHead>
             <TableHead className="w-[7.5rem]">Estado</TableHead>
             <TableHead className="w-[10.5rem]">Contacto</TableHead>
-            <TableHead className="w-[9rem]">Registro</TableHead>
             <TableHead className="text-right">Registrado</TableHead>
+            <TableHead className="w-[9rem]">Registro</TableHead>
             <TableHead className="w-[20rem] text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -1620,6 +1620,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                   <div className="text-sm text-muted-foreground">{lead.email || "Sin correo"}</div>
                   <div className="text-sm text-muted-foreground">{lead.phone || "Sin teléfono"}</div>
                 </TableCell>
+                <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
                 <TableCell>
                   {checkMissingFields(lead).length > 0 ? (
                     <Link href={`/dashboard/leads/${lead.id}?mode=edit`} className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 cursor-pointer">
@@ -1631,7 +1632,6 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">
                     <Tooltip>
