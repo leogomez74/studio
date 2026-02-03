@@ -24,7 +24,7 @@ import { CreateOpportunityDialog } from "@/components/opportunities/create-oppor
 import { DocumentManager } from "@/components/document-manager";
 
 import api from "@/lib/axios";
-import { Client, chatMessages, Lead } from "@/lib/data";
+import { Client, Credit, CreditPayment, chatMessages, Lead } from "@/lib/data";
 import { PROVINCES, Province, Canton, Location } from "@/lib/cr-locations";
 
 export default function ClientDetailPage() {
@@ -49,8 +49,8 @@ export default function ClientDetailPage() {
   const [leads, setLeads] = useState<{id: number, name: string}[]>([]);
 
   // Credits and Payments state
-  const [credits, setCredits] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
+  const [credits, setCredits] = useState<Credit[]>([]);
+  const [payments, setPayments] = useState<CreditPayment[]>([]);
   const [loadingCredits, setLoadingCredits] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
 
@@ -94,7 +94,7 @@ export default function ClientDetailPage() {
         try {
             const response = await api.get('/api/leads?all=true');
             const data = response.data.data || response.data;
-            setLeads(data.map((l: any) => ({ id: l.id, name: l.name })));
+            setLeads(data.map((l: { id: number; name: string }) => ({ id: l.id, name: l.name })));
         } catch (error) {
             console.error("Error fetching leads:", error);
         }
@@ -144,12 +144,12 @@ export default function ClientDetailPage() {
 
   const leadName = React.useMemo(() => {
       if (!client || leads.length === 0) return null;
-      const leadId = (client as any).lead_id || (client as any).relacionado_a;
+      const leadId = client.lead_id || client.relacionado_a;
       const found = leads.find(l => String(l.id) === String(leadId));
       return found?.name;
   }, [client, leads]);
 
-  const handleInputChange = (field: keyof Client, value: any) => {
+  const handleInputChange = (field: keyof Client, value: string | number | boolean | null) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -333,7 +333,7 @@ export default function ClientDetailPage() {
             <TabsContent value="datos">
               <Card>
                 <div className="p-6 pb-0">
-                <h1 className="text-2xl font-bold tracking-tight uppercase">{client.name} {(client as any).apellido1} {(client as any).apellido2}</h1>
+                <h1 className="text-2xl font-bold tracking-tight uppercase">{client.name} {client.apellido1} {client.apellido2}</h1>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                     <span>ID #{client.id}</span>
                     <span> · </span>
@@ -428,16 +428,16 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 <Label>Primer Apellido</Label>
                 <Input 
-                  value={(formData as any).apellido1 || ""} 
-                  onChange={(e) => handleInputChange("apellido1" as keyof Client, e.target.value)} 
+                  value={formData.apellido1 || ""} 
+                  onChange={(e) => handleInputChange("apellido1", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Segundo Apellido</Label>
                 <Input 
-                  value={(formData as any).apellido2 || ""} 
-                  onChange={(e) => handleInputChange("apellido2" as keyof Client, e.target.value)} 
+                  value={formData.apellido2 || ""} 
+                  onChange={(e) => handleInputChange("apellido2", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -453,8 +453,8 @@ export default function ClientDetailPage() {
                 <Label>Vencimiento Cédula</Label>
                 <Input 
                   type="date"
-                  value={(formData as any).cedula_vencimiento || ""} 
-                  onChange={(e) => handleInputChange("cedula_vencimiento" as keyof Client, e.target.value)} 
+                  value={formData.cedula_vencimiento || ""} 
+                  onChange={(e) => handleInputChange("cedula_vencimiento", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -462,8 +462,8 @@ export default function ClientDetailPage() {
                 <Label>Fecha de Nacimiento</Label>
                 <Input 
                   type="date"
-                  value={(formData as any).fecha_nacimiento ? String((formData as any).fecha_nacimiento).split('T')[0] : ""} 
-                  onChange={(e) => handleInputChange("fecha_nacimiento" as keyof Client, e.target.value)} 
+                  value={formData.fecha_nacimiento ? String(formData.fecha_nacimiento).split('T')[0] : ""} 
+                  onChange={(e) => handleInputChange("fecha_nacimiento", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -471,8 +471,8 @@ export default function ClientDetailPage() {
                 <Label>Género</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).genero || ""} 
-                    onValueChange={(value) => handleInputChange("genero" as keyof Client, value)}
+                    value={formData.genero || ""} 
+                    onValueChange={(value) => handleInputChange("genero", value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar género" />
@@ -483,14 +483,14 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).genero || ""} disabled />
+                  <Input value={formData.genero || ""} disabled />
                 )}
               </div>
               <div className="space-y-2">
                 <Label>Nacionalidad</Label>
                 <Input 
-                  value={(formData as any).nacionalidad || ""} 
-                  onChange={(e) => handleInputChange("nacionalidad" as keyof Client, e.target.value)} 
+                  value={formData.nacionalidad || ""} 
+                  onChange={(e) => handleInputChange("nacionalidad", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -498,8 +498,8 @@ export default function ClientDetailPage() {
                 <Label>Estado Civil</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).estado_civil || ""} 
-                    onValueChange={(value) => handleInputChange("estado_civil" as keyof Client, value)}
+                    value={formData.estado_civil || ""} 
+                    onValueChange={(value) => handleInputChange("estado_civil", value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar estado civil" />
@@ -514,7 +514,7 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).estado_civil || ""} disabled />
+                  <Input value={formData.estado_civil || ""} disabled />
                 )}
               </div>
             </div>
@@ -545,16 +545,16 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 <Label>Teléfono 2</Label>
                 <Input 
-                  value={(formData as any).telefono2 || ""} 
-                  onChange={(e) => handleInputChange("telefono2" as keyof Client, e.target.value)} 
+                  value={formData.telefono2 || ""} 
+                  onChange={(e) => handleInputChange("telefono2", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Teléfono 3</Label>
                 <Input 
-                  value={(formData as any).telefono3 || ""} 
-                  onChange={(e) => handleInputChange("telefono3" as keyof Client, e.target.value)} 
+                  value={formData.telefono3 || ""} 
+                  onChange={(e) => handleInputChange("telefono3", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -569,8 +569,8 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 <Label>Teléfono Casa</Label>
                 <Input 
-                  value={(formData as any).tel_casa || ""} 
-                  onChange={(e) => handleInputChange("tel_casa" as keyof Client, e.target.value)} 
+                  value={formData.tel_casa || ""} 
+                  onChange={(e) => handleInputChange("tel_casa", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -587,7 +587,7 @@ export default function ClientDetailPage() {
                 <Label>Provincia</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).province || ""} 
+                    value={formData.province || ""} 
                     onValueChange={handleProvinceChange}
                   >
                     <SelectTrigger>
@@ -602,14 +602,14 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).province || ""} disabled />
+                  <Input value={formData.province || ""} disabled />
                 )}
               </div>
               <div className="space-y-2">
                 <Label>Cantón</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).canton || ""} 
+                    value={formData.canton || ""} 
                     onValueChange={handleCantonChange}
                     disabled={!selectedProvince}
                   >
@@ -625,14 +625,14 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).canton || ""} disabled />
+                  <Input value={formData.canton || ""} disabled />
                 )}
               </div>
               <div className="space-y-2">
                 <Label>Distrito</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).distrito || ""} 
+                    value={formData.distrito || ""} 
                     onValueChange={handleDistrictChange}
                     disabled={!selectedCanton}
                   >
@@ -648,7 +648,7 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).distrito || ""} disabled />
+                  <Input value={formData.distrito || ""} disabled />
                 )}
               </div>
               <div className="col-span-3 md:col-span-2 space-y-2">
@@ -662,8 +662,8 @@ export default function ClientDetailPage() {
               <div className="col-span-3 md:col-span-1 space-y-2">
                 <Label>Dirección 2 (Opcional)</Label>
                 <Textarea 
-                  value={(formData as any).direccion2 || ""} 
-                  onChange={(e) => handleInputChange("direccion2" as keyof Client, e.target.value)} 
+                  value={formData.direccion2 || ""} 
+                  onChange={(e) => handleInputChange("direccion2", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -679,40 +679,40 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 <Label>Nivel Académico</Label>
                 <Input 
-                  value={(formData as any).nivel_academico || ""} 
-                  onChange={(e) => handleInputChange("nivel_academico" as keyof Client, e.target.value)} 
+                  value={formData.nivel_academico || ""} 
+                  onChange={(e) => handleInputChange("nivel_academico", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Profesión</Label>
                 <Input 
-                  value={(formData as any).profesion || ""} 
-                  onChange={(e) => handleInputChange("profesion" as keyof Client, e.target.value)} 
+                  value={formData.profesion || ""} 
+                  onChange={(e) => handleInputChange("profesion", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Sector</Label>
                 <Input 
-                  value={(formData as any).sector || ""} 
-                  onChange={(e) => handleInputChange("sector" as keyof Client, e.target.value)} 
+                  value={formData.sector || ""} 
+                  onChange={(e) => handleInputChange("sector", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Puesto</Label>
                 <Input 
-                  value={(formData as any).puesto || ""} 
-                  onChange={(e) => handleInputChange("puesto" as keyof Client, e.target.value)} 
+                  value={formData.puesto || ""} 
+                  onChange={(e) => handleInputChange("puesto", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Estado del Puesto</Label>
                  <Select 
-                    value={(formData as any).estado_puesto || ""} 
-                    onValueChange={(value) => handleInputChange("estado_puesto" as keyof Client, value)}
+                    value={formData.estado_puesto || ""} 
+                    onValueChange={(value) => handleInputChange("estado_puesto", value)}
                     disabled={!isEditMode}
                   >
                     <SelectTrigger>
@@ -728,8 +728,8 @@ export default function ClientDetailPage() {
                <div className="space-y-2">
                 <Label>Institución</Label>
                 <Input 
-                  value={(formData as any).institucion_labora || ""} 
-                  onChange={(e) => handleInputChange("institucion_labora" as keyof Client, e.target.value)} 
+                  value={formData.institucion_labora || ""} 
+                  onChange={(e) => handleInputChange("institucion_labora", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -737,8 +737,8 @@ export default function ClientDetailPage() {
                 <Label>Deductora</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).deductora_id || ""} 
-                    onValueChange={(value) => handleInputChange("deductora_id" as keyof Client, value)}
+                    value={formData.deductora_id || ""} 
+                    onValueChange={(value) => handleInputChange("deductora_id", value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar deductora" />
@@ -753,7 +753,7 @@ export default function ClientDetailPage() {
                   </Select>
                 ) : (
                   <Input 
-                    value={deductoras.find(d => d.id === (formData as any).deductora_id)?.nombre || ""} 
+                    value={deductoras.find(d => d.id === formData.deductora_id)?.nombre || ""} 
                     disabled 
                   />
                 )}
@@ -761,8 +761,8 @@ export default function ClientDetailPage() {
                <div className="col-span-3 space-y-2">
                 <Label>Dirección de la Institución</Label>
                 <Textarea 
-                  value={(formData as any).institucion_direccion || ""} 
-                  onChange={(e) => handleInputChange("institucion_direccion" as keyof Client, e.target.value)} 
+                  value={formData.institucion_direccion || ""} 
+                  onChange={(e) => handleInputChange("institucion_direccion", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -775,7 +775,7 @@ export default function ClientDetailPage() {
                 <Label>Provincia</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).trabajo_provincia || ""} 
+                    value={formData.trabajo_provincia || ""} 
                     onValueChange={handleWorkProvinceChange}
                   >
                     <SelectTrigger>
@@ -790,14 +790,14 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).trabajo_provincia || ""} disabled />
+                  <Input value={formData.trabajo_provincia || ""} disabled />
                 )}
               </div>
               <div className="space-y-2">
                 <Label>Cantón</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).trabajo_canton || ""} 
+                    value={formData.trabajo_canton || ""} 
                     onValueChange={handleWorkCantonChange}
                     disabled={!selectedWorkProvince}
                   >
@@ -813,14 +813,14 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).trabajo_canton || ""} disabled />
+                  <Input value={formData.trabajo_canton || ""} disabled />
                 )}
               </div>
               <div className="space-y-2">
                 <Label>Distrito</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).trabajo_distrito || ""} 
+                    value={formData.trabajo_distrito || ""} 
                     onValueChange={handleWorkDistrictChange}
                     disabled={!selectedWorkCanton}
                   >
@@ -836,14 +836,14 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).trabajo_distrito || ""} disabled />
+                  <Input value={formData.trabajo_distrito || ""} disabled />
                 )}
               </div>
                <div className="col-span-3 space-y-2">
                 <Label>Dirección Exacta (Trabajo)</Label>
                 <Textarea 
-                  value={(formData as any).trabajo_direccion || ""} 
-                  onChange={(e) => handleInputChange("trabajo_direccion" as keyof Client, e.target.value)} 
+                  value={formData.trabajo_direccion || ""} 
+                  onChange={(e) => handleInputChange("trabajo_direccion", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -855,8 +855,8 @@ export default function ClientDetailPage() {
                <div className="space-y-2">
                 <Label>Actividad Económica</Label>
                 <Input 
-                  value={(formData as any).actividad_economica || ""} 
-                  onChange={(e) => handleInputChange("actividad_economica" as keyof Client, e.target.value)} 
+                  value={formData.actividad_economica || ""} 
+                  onChange={(e) => handleInputChange("actividad_economica", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -864,8 +864,8 @@ export default function ClientDetailPage() {
                 <Label>Tipo Sociedad</Label>
                 {isEditMode ? (
                   <Select 
-                    value={(formData as any).tipo_sociedad || ""} 
-                    onValueChange={(value) => handleInputChange("tipo_sociedad" as keyof Client, value)}
+                    value={formData.tipo_sociedad || ""} 
+                    onValueChange={(value) => handleInputChange("tipo_sociedad", value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar tipo" />
@@ -882,14 +882,14 @@ export default function ClientDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input value={(formData as any).tipo_sociedad || ""} disabled />
+                  <Input value={formData.tipo_sociedad || ""} disabled />
                 )}
               </div>
                <div className="col-span-3 space-y-2">
                 <Label>Nombramientos</Label>
                 <Textarea 
-                  value={(formData as any).nombramientos || ""} 
-                  onChange={(e) => handleInputChange("nombramientos" as keyof Client, e.target.value)} 
+                  value={formData.nombramientos || ""} 
+                  onChange={(e) => handleInputChange("nombramientos", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -914,8 +914,8 @@ export default function ClientDetailPage() {
               {/*<div className="space-y-2">*/}
               {/*  <Label>Lead Status ID</Label>*/}
               {/*  <Input */}
-              {/*    value={(formData as any).lead_status_id || ""} */}
-              {/*    onChange={(e) => handleInputChange("lead_status_id" as keyof Client, e.target.value)} */}
+              {/*    value={formData.lead_status_id || ""} */}
+              {/*    onChange={(e) => handleInputChange("lead_status_id", e.target.value)} */}
               {/*    disabled={!isEditMode} */}
               {/*  />*/}
               {/*</div>*/}
@@ -923,8 +923,8 @@ export default function ClientDetailPage() {
                 <Label>Responsable</Label>
                 {isEditMode ? (
                   <Select 
-                    value={String((formData as any).assigned_to_id || "")} 
-                    onValueChange={(value) => handleInputChange("assigned_to_id" as keyof Client, value)}
+                    value={String(formData.assigned_to_id || "")} 
+                    onValueChange={(value) => handleInputChange("assigned_to_id", value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar responsable" />
@@ -939,7 +939,7 @@ export default function ClientDetailPage() {
                   </Select>
                 ) : (
                   <Input 
-                    value={agents.find(a => a.id === (formData as any).assigned_to_id)?.name || (formData as any).assigned_to_id || ""} 
+                    value={agents.find(a => a.id === formData.assigned_to_id)?.name || formData.assigned_to_id || ""} 
                     disabled 
                   />
                 )}
@@ -955,16 +955,16 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 <Label>Fuente (Source)</Label>
                 <Input 
-                  value={(formData as any).source || ""} 
-                  onChange={(e) => handleInputChange("source" as keyof Client, e.target.value)} 
+                  value={formData.source || ""} 
+                  onChange={(e) => handleInputChange("source", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="col-span-3 space-y-2">
                 <Label>Notas</Label>
                 <Textarea 
-                  value={(formData as any).notes || ""} 
-                  onChange={(e) => handleInputChange("notes" as keyof Client, e.target.value)} 
+                  value={formData.notes || ""} 
+                  onChange={(e) => handleInputChange("notes", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1160,7 +1160,7 @@ export default function ClientDetailPage() {
                             <div className="text-xs text-purple-600 font-medium">Último Pago</div>
                             <div className="text-2xl font-bold text-purple-700">
                               {payments.length > 0
-                                ? new Date(payments[0].fecha || payments[0].created_at).toLocaleDateString('es-CR')
+                                ? new Date(payments[0].fecha || payments[0].created_at || '').toLocaleDateString('es-CR')
                                 : '-'}
                             </div>
                           </CardContent>
@@ -1189,7 +1189,7 @@ export default function ClientDetailPage() {
                                     <Calendar className="h-4 w-4 text-muted-foreground" />
                                     {payment.fecha
                                       ? new Date(payment.fecha).toLocaleDateString('es-CR')
-                                      : new Date(payment.created_at).toLocaleDateString('es-CR')}
+                                      : new Date(payment.created_at || '').toLocaleDateString('es-CR')}
                                   </div>
                                 </TableCell>
                                 <TableCell>
@@ -1207,7 +1207,7 @@ export default function ClientDetailPage() {
                                   {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(payment.interes_aplicado || 0)}
                                 </TableCell>
                                 <TableCell className="font-mono text-sm">
-                                  {payment.mora_aplicada > 0 ? (
+                                  {(payment.mora_aplicada ?? 0) > 0 ? (
                                     <span className="text-red-500">
                                       {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(payment.mora_aplicada || 0)}
                                     </span>
@@ -1242,7 +1242,7 @@ export default function ClientDetailPage() {
                 <CardContent>
                    <DocumentManager
                       personId={parseInt(client.id)}
-                      initialDocuments={(client as any).documents || []}
+                      initialDocuments={client.documents || []}
                    />
                 </CardContent>
               </Card>

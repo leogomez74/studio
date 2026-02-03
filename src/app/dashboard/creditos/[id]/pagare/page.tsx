@@ -343,12 +343,6 @@ export default function PagarePage() {
               <td style={{ paddingBottom: '2mm' }}>Tasa fija mensual del {tasaMensual}%</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', verticalAlign: 'top' }}>Tasa de interés moratoria:</td>
-              <td style={{ paddingBottom: '2mm', textAlign: 'justify' }}>
-                Tasa mensual del {tasaMoratoria}%. (Tasa de interés corriente aumentada en un 30% según lo estipulado en el artículo 498 del código de comercio de Costa Rica)
-              </td>
-            </tr>
-            <tr>
               <td style={{ fontWeight: 'bold', paddingBottom: '2mm', verticalAlign: 'top' }}>Plazo en número de meses:</td>
               <td style={{ paddingBottom: '2mm', textAlign: 'justify' }}>
                 {credit.plazo || 0} meses a partir del día primero del mes inmediato siguiente a la fecha del presente Pagaré.

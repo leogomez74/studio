@@ -520,8 +520,9 @@ export default function AnalisisPage() {
                                       a.id === item.id ? { ...a, estado_pep: estado, estado_cliente: estado !== 'Aceptado' ? null : a.estado_cliente } : a
                                     ));
                                     toast({ title: "Estado actualizado", description: `Estado PEP cambiado a "${estado}"` });
-                                  } catch (err) {
-                                    toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
+                                  } catch (err: any) {
+                                    const errorMessage = err?.response?.data?.message || "No se pudo actualizar el estado";
+                                    toast({ variant: "destructive", title: "Error", description: errorMessage });
                                   }
                                 }}
                               >
@@ -567,8 +568,9 @@ export default function AnalisisPage() {
                                         a.id === item.id ? { ...a, estado_cliente: estado } : a
                                       ));
                                       toast({ title: "Estado actualizado", description: `Estado Cliente cambiado a "${estado}"` });
-                                    } catch (err) {
-                                      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado" });
+                                    } catch (err: any) {
+                                      const errorMessage = err?.response?.data?.message || "No se pudo actualizar el estado";
+                                      toast({ variant: "destructive", title: "Error", description: errorMessage });
                                     }
                                   }}
                                 >

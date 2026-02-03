@@ -147,6 +147,32 @@ class AnalisisController extends Controller
         $analisis = Analisis::findOrFail($id);
         $validated = $request->validated();
 
+        // Validar monto máximo de aprobación para acciones de decisión (aceptar, rechazar, aprobar)
+        $user = $request->user();
+        $montoMaximo = $user->monto_max_aprobacion ?? -1;
+
+        // Verificar si se está tomando una decisión sobre el análisis
+        $isAceptandoPep = isset($validated['estado_pep']) && $validated['estado_pep'] === 'Aceptado';
+        $isRechazandoPep = isset($validated['estado_pep']) && $validated['estado_pep'] === 'Rechazado';
+        $isAprobandoCliente = isset($validated['estado_cliente']) && $validated['estado_cliente'] === 'Aprobado';
+        $isRechazandoCliente = isset($validated['estado_cliente']) && $validated['estado_cliente'] === 'Rechazado';
+
+        // Requiere autorización para: aceptar, rechazar, aprobar
+        $requiereAutorizacion = $isAceptandoPep || $isRechazandoPep || $isAprobandoCliente || $isRechazandoCliente;
+
+        if ($requiereAutorizacion) {
+            // Si el usuario tiene un límite (no es -1), validar el monto
+            if ($montoMaximo != -1 && $analisis->monto_credito > $montoMaximo) {
+                $accion = ($isAceptandoPep || $isAprobandoCliente) ? 'aprobar' : 'rechazar';
+                return response()->json([
+                    'message' => 'No tiene autorización para ' . $accion . ' este análisis. Su usuario (' . $user->name . ') solo puede tomar decisiones sobre análisis hasta ₡' . number_format((float)$montoMaximo, 2) . '. El monto de este análisis es ₡' . number_format((float)$analisis->monto_credito, 2) . '.',
+                    'monto_credito' => $analisis->monto_credito,
+                    'monto_max_aprobacion' => $montoMaximo,
+                    'usuario' => $user->name,
+                ], 403);
+            }
+        }
+
         // Si estado_pep no es "Aceptado", limpiar estado_cliente
         if (isset($validated['estado_pep']) && $validated['estado_pep'] !== 'Aceptado') {
             $validated['estado_cliente'] = null;

@@ -29,6 +29,7 @@ class UserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'role_id' => ['nullable', 'exists:roles,id'],
             'status' => ['required', 'string', 'in:Activo,Suspendido'],
+            'monto_max_aprobacion' => ['nullable', 'numeric'],
         ]);
 
         $user = User::create([
@@ -37,6 +38,7 @@ class UserController extends Controller
             'password' => Hash::make($request->password),
             'role_id' => $request->role_id,
             'status' => $request->status,
+            'monto_max_aprobacion' => $request->monto_max_aprobacion ?? -1,
         ]);
 
         return response()->json($user->load('role'), 201);
@@ -60,9 +62,10 @@ class UserController extends Controller
         $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,'.$user->id],
-            'password' => ['sometimes', 'confirmed', Rules\Password::defaults()],
+            'password' => ['sometimes', 'nullable', 'confirmed', Rules\Password::defaults()],
             'role_id' => ['sometimes', 'nullable', 'exists:roles,id'],
             'status' => ['sometimes', 'string', 'in:Activo,Suspendido'],
+            'monto_max_aprobacion' => ['sometimes', 'nullable', 'numeric'],
         ]);
 
         if ($request->has('name')) {
@@ -71,7 +74,7 @@ class UserController extends Controller
         if ($request->has('email')) {
             $user->email = $request->email;
         }
-        if ($request->has('password')) {
+        if ($request->filled('password')) {
             $user->password = Hash::make($request->password);
         }
         if ($request->has('role_id')) {
@@ -79,6 +82,9 @@ class UserController extends Controller
         }
         if ($request->has('status')) {
             $user->status = $request->status;
+        }
+        if ($request->has('monto_max_aprobacion')) {
+            $user->monto_max_aprobacion = $request->monto_max_aprobacion;
         }
 
         $user->save();

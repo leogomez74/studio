@@ -27,6 +27,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'status',
+        'monto_max_aprobacion',
     ];
 
     /**
