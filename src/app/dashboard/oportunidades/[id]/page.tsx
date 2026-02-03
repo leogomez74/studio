@@ -1250,7 +1250,7 @@ export default function OpportunityDetailPage() {
             </TabsContent>
 
             <TabsContent value="tareas">
-              <TareasTab opportunityReference={opportunity.reference} opportunityId={opportunity.id} />
+              <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
             </TabsContent>
 
             <TabsContent value="archivos">
