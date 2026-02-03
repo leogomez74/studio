@@ -50,12 +50,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
-import {
-  MILESTONE_OPTIONS,
-  getMilestoneLabel,
-  normalizeMilestoneValue,
-  type MilestoneValue
-} from "@/lib/milestones";
 
 // --- Types ---
 
@@ -81,14 +75,12 @@ interface TaskItem {
   archived_at: string | null;
   created_at: string | null;
   updated_at: string | null;
-  milestone: MilestoneValue;
 }
 
 interface TaskTableFilters {
   search: string;
   status: "todos" | TaskStatus;
   priority: "todas" | TaskPriority;
-  milestone: string;
   assignee: string;
   dueFrom: string;
   dueTo: string;
@@ -198,7 +190,7 @@ export default function TasksPage() {
   // Form State
   const [formValues, setFormValues] = useState({
     project_code: "",
-    project_name: "sin_hito" as MilestoneValue,
+    project_name: "sin_hito",
     title: "",
     details: "",
     status: "pendiente" as TaskStatus,
@@ -213,7 +205,6 @@ export default function TasksPage() {
     search: "",
     status: "todos",
     priority: "todas",
-    milestone: "todos",
     assignee: "todos",
     dueFrom: "",
     dueTo: "",
@@ -233,10 +224,7 @@ export default function TasksPage() {
       setIsLoading(true);
       const response = await api.get('/api/tareas');
       const data = response.data.data || response.data;
-      setTasks(Array.isArray(data) ? data.map((item: any) => ({
-        ...item,
-        milestone: normalizeMilestoneValue(item.project_name)
-      })) : []);
+      setTasks(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching tasks:", error);
       toast({ title: "Error", description: "No se pudieron cargar las tareas.", variant: "destructive" });
@@ -299,7 +287,7 @@ export default function TasksPage() {
     setDialogTask(task);
     setFormValues({
       project_code: task.project_code || "",
-      project_name: task.milestone,
+      project_name: "sin_hito",
       title: task.title,
       details: task.details || "",
       status: task.status,
@@ -411,7 +399,6 @@ export default function TasksPage() {
       search: "",
       status: "todos",
       priority: "todas",
-      milestone: "todos",
       assignee: "todos",
       dueFrom: "",
       dueTo: "",
@@ -462,10 +449,6 @@ export default function TasksPage() {
       filtered = filtered.filter(task => task.priority === filters.priority);
     }
 
-    if (filters.milestone !== "todos") {
-      filtered = filtered.filter(task => task.milestone === filters.milestone);
-    }
-
     if (filters.assignee !== "todos") {
       filtered = filtered.filter(task => String(task.assigned_to) === filters.assignee);
     }
@@ -498,7 +481,6 @@ export default function TasksPage() {
       filters.search.trim().length > 0 ||
       filters.status !== "todos" ||
       filters.priority !== "todas" ||
-      filters.milestone !== "todos" ||
       filters.assignee !== "todos" ||
       filters.dueFrom.length > 0 ||
       filters.dueTo.length > 0
@@ -535,13 +517,12 @@ export default function TasksPage() {
       return;
     }
 
-    const headers = ["Referencia", "Título", "Estado", "Prioridad", "Hito", "Responsable", "Fecha inicio", "Fecha vencimiento"];
+    const headers = ["Referencia", "Título", "Estado", "Prioridad", "Responsable", "Fecha inicio", "Fecha vencimiento"];
     const rows = visibleTasks.map(task => [
       formatTaskReference(task.id),
       task.title,
       STATUS_LABELS[task.status],
       PRIORITY_LABELS[task.priority],
-      getMilestoneLabel(task.milestone),
       task.assignee?.name || "-",
       task.start_date || "",
       task.due_date || "",
@@ -573,13 +554,12 @@ export default function TasksPage() {
 
     autoTable(doc, {
       startY: 22,
-      head: [["Ref", "Título", "Estado", "Prioridad", "Hito", "Responsable", "Inicio", "Vencimiento"]],
+      head: [["Ref", "Título", "Estado", "Prioridad", "Responsable", "Inicio", "Vencimiento"]],
       body: visibleTasks.map(task => [
         formatTaskReference(task.id),
         task.title,
         STATUS_LABELS[task.status],
         PRIORITY_LABELS[task.priority],
-        getMilestoneLabel(task.milestone),
         task.assignee?.name || "-",
         formatDate(task.start_date),
         formatDate(task.due_date),
@@ -669,20 +649,6 @@ export default function TasksPage() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hito</Label>
-            <Select value={filters.milestone} onValueChange={(value) => handleFilterChange("milestone", value)}>
-              <SelectTrigger className="w-auto min-w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                {MILESTONE_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Responsable</Label>
             <Select value={filters.assignee} onValueChange={(value) => handleFilterChange("assignee", value)}>
               <SelectTrigger className="w-auto min-w-[130px]">
@@ -757,7 +723,6 @@ export default function TasksPage() {
                       Prioridad {renderSortIcon("priority")}
                     </button>
                   </TableHead>
-                  <TableHead className="hidden md:table-cell">Hito</TableHead>
                   <TableHead className="hidden md:table-cell" aria-sort={getAriaSort("assignee")}>
                     <button
                       className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -782,13 +747,13 @@ export default function TasksPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                       <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                     </TableCell>
                   </TableRow>
                 ) : visibleTasks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                       No hay tareas.
                     </TableCell>
                   </TableRow>
@@ -824,9 +789,6 @@ export default function TasksPage() {
                           <Badge variant={PRIORITY_BADGE_VARIANT[task.priority]}>
                             {PRIORITY_LABELS[task.priority]}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="text-sm">{getMilestoneLabel(task.milestone)}</span>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <span className="text-sm">{task.assignee?.name || "-"}</span>
@@ -926,7 +888,6 @@ export default function TasksPage() {
                     <p className="text-sm text-muted-foreground">{task.details}</p>
                   )}
                   <div className="text-sm space-y-1">
-                    <div><span className="font-medium">Hito:</span> {getMilestoneLabel(task.milestone)}</div>
                     <div><span className="font-medium">Responsable:</span> {task.assignee?.name || "-"}</div>
                     <div><span className="font-medium">Vence:</span> {formatDate(task.due_date)}</div>
                   </div>

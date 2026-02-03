@@ -32,12 +32,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/axios";
-import {
-  MILESTONE_OPTIONS,
-  getMilestoneLabel,
-  normalizeMilestoneValue,
-  type MilestoneValue
-} from "@/lib/milestones";
 import { CaseChat } from "@/components/case-chat";
 
 // --- Types ---
@@ -64,7 +58,6 @@ interface TaskItem {
   archived_at: string | null;
   created_at: string | null;
   updated_at: string | null;
-  milestone: MilestoneValue;
 }
 
 // --- Helper Functions ---
@@ -140,7 +133,6 @@ export default function TaskDetailPage() {
 
   // Editable fields
   const [editedDetails, setEditedDetails] = useState("");
-  const [editedMilestone, setEditedMilestone] = useState<MilestoneValue>("sin_hito");
   const [savingDetails, setSavingDetails] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -152,7 +144,6 @@ export default function TaskDetailPage() {
       const data = res.data as TaskItem;
       setTask(data);
       setEditedDetails(data.details || "");
-      setEditedMilestone(normalizeMilestoneValue(data.milestone));
     } catch (err) {
       console.error("Error fetching task:", err);
       setError("No se pudo cargar la tarea.");
@@ -192,34 +183,6 @@ export default function TaskDetailPage() {
       });
     } finally {
       setSavingDetails(false);
-    }
-  };
-
-  // Update milestone (saves immediately)
-  const handleMilestoneChange = async (value: MilestoneValue) => {
-    if (!task) return;
-
-    try {
-      setEditedMilestone(value);
-      await api.put(`/api/tareas/${task.id}`, {
-        milestone: value,
-      });
-
-      setTask((prev) => prev ? { ...prev, milestone: value } : null);
-
-      toast({
-        title: "Hito actualizado",
-        description: `Hito cambiado a: ${getMilestoneLabel(value)}`,
-      });
-    } catch (err) {
-      console.error("Error updating milestone:", err);
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el hito.",
-        variant: "destructive",
-      });
-      // Revert on error
-      setEditedMilestone(task.milestone);
     }
   };
 
@@ -381,26 +344,6 @@ export default function TaskDetailPage() {
                         Guardar
                       </Button>
                     </div>
-                  </div>
-
-                  {/* Milestone selector (saves immediately) */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Hito del proceso</Label>
-                    <Select
-                      value={editedMilestone}
-                      onValueChange={(v) => handleMilestoneChange(v as MilestoneValue)}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MILESTONE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
 
                   {/* Assigned to (display only) */}
