@@ -408,17 +408,21 @@ class LeadController extends Controller
                     ->whereIn('opportunity_id', $opportunities)
                     ->delete();
 
-                // Buscar análisis asociados a esas oportunidades
-                $analisis = DB::table('analisis')
+                // Buscar análisis y eliminar propuestas asociadas
+                $analisisRefs = DB::table('analisis')
                     ->whereIn('opportunity_id', $opportunities)
-                    ->pluck('id');
+                    ->pluck('reference');
 
-                if ($analisis->isNotEmpty()) {
-                    // Eliminar los análisis
-                    $deletedAnalisis = DB::table('analisis')
-                        ->whereIn('id', $analisis)
+                if ($analisisRefs->isNotEmpty()) {
+                    DB::table('propuestas')
+                        ->whereIn('analisis_reference', $analisisRefs)
                         ->delete();
                 }
+
+                // Eliminar análisis
+                $deletedAnalisis = DB::table('analisis')
+                    ->whereIn('opportunity_id', $opportunities)
+                    ->delete();
 
                 // Eliminar las oportunidades
                 $deletedOpportunities = DB::table('opportunities')
