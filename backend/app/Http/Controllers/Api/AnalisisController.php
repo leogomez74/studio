@@ -126,6 +126,17 @@ class AnalisisController extends Controller
 
         $analisis = Analisis::create($validated);
 
+        // Crear automáticamente la primera propuesta con el monto sugerido y plazo
+        if (!empty($validated['monto_sugerido']) && !empty($validated['plazo'])) {
+            \App\Models\Propuesta::create([
+                'analisis_reference' => $analisis->reference,
+                'monto' => $validated['monto_sugerido'],
+                'plazo' => $validated['plazo'],
+                'cuota' => $validated['cuota'] ?? null,
+                'estado' => 'Pendiente',
+            ]);
+        }
+
         // Copiar archivos de la oportunidad al análisis si existe opportunity_id
         if (!empty($validated['opportunity_id'])) {
             Log::info('Analisis store - opportunity_id received', [
@@ -135,6 +146,9 @@ class AnalisisController extends Controller
             $copyResult = $this->copyFilesFromOpportunity($validated['opportunity_id'], $analisis->id);
             Log::info('Archivos copiados de oportunidad a análisis', $copyResult);
         }
+
+        // Recargar con propuestas para retornar en la respuesta
+        $analisis->load('propuestas');
 
         return response()->json($analisis, 201);
     }

@@ -1116,14 +1116,14 @@ export default function AnalisisDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Monto Solicitado */}
+          {/* Monto Crédito */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Monto Solicitado</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-500">Monto Crédito</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_credito || 0)}
+                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_sugerido || 0)}
               </div>
             </CardContent>
           </Card>
@@ -1141,7 +1141,72 @@ export default function AnalisisDetailPage() {
           </Card>
         </div>
 
-        {/* Fila 2: Propuestas de Crédito */}
+        {/* Fila 2: Manchas/Juicios/Embargos + Salarios */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Resumen de Manchas/Juicios/Embargos */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Historial Crediticio</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between p-2 bg-orange-50 rounded border border-orange-200">
+                <span className="text-sm font-medium text-orange-900">Manchas</span>
+                <Badge variant={analisis.numero_manchas > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                  {analisis.numero_manchas || 0}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between p-2 bg-red-50 rounded border border-red-200">
+                <span className="text-sm font-medium text-red-900">Juicios</span>
+                <Badge variant={analisis.numero_juicios > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                  {analisis.numero_juicios || 0}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between p-2 bg-purple-50 rounded border border-purple-200">
+                <span className="text-sm font-medium text-purple-900">Embargos</span>
+                <Badge variant={analisis.numero_embargos > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                  {analisis.numero_embargos || 0}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Resumen de Salarios (todos los meses) */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Ingresos Mensuales</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[160px] overflow-y-auto">
+              {[
+                { mes: 1, bruto: analisis.ingreso_bruto, neto: analisis.ingreso_neto },
+                { mes: 2, bruto: analisis.ingreso_bruto_2, neto: analisis.ingreso_neto_2 },
+                { mes: 3, bruto: analisis.ingreso_bruto_3, neto: analisis.ingreso_neto_3 },
+                { mes: 4, bruto: analisis.ingreso_bruto_4, neto: analisis.ingreso_neto_4 },
+                { mes: 5, bruto: analisis.ingreso_bruto_5, neto: analisis.ingreso_neto_5 },
+                { mes: 6, bruto: analisis.ingreso_bruto_6, neto: analisis.ingreso_neto_6 },
+              ]
+                .filter(item => item.bruto || item.neto) // Solo mostrar meses con datos
+                .map(item => (
+                  <div key={item.mes} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                    <span className="font-medium text-gray-700">Mes {item.mes}</span>
+                    <div className="flex gap-3">
+                      <span className="text-gray-600">
+                        B: ₡{new Intl.NumberFormat('en-US').format(item.bruto || 0)}
+                      </span>
+                      <span className="text-green-700 font-semibold">
+                        N: ₡{new Intl.NumberFormat('en-US').format(item.neto || 0)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              {![analisis.ingreso_bruto, analisis.ingreso_bruto_2, analisis.ingreso_bruto_3,
+                 analisis.ingreso_bruto_4, analisis.ingreso_bruto_5, analisis.ingreso_bruto_6].some(v => v) && (
+                <p className="text-sm text-gray-400 text-center py-4">No hay ingresos registrados</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Fila 3: Propuestas de Crédito */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -1245,11 +1310,11 @@ export default function AnalisisDetailPage() {
                       */}
                       <TableHead className="text-xs">Estado</TableHead>
                       <TableHead className="text-xs">Fecha</TableHead>
-                      {isEditMode && <TableHead className="text-xs text-right">Acciones</TableHead>}
+                      <TableHead className="text-xs text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {propuestas.map((p) => (
+                    {propuestas.map((p, index) => (
                       <TableRow key={p.id}>
                         <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
                         <TableCell className="text-sm">{p.plazo} meses</TableCell>
@@ -1275,28 +1340,29 @@ export default function AnalisisDetailPage() {
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(p.created_at).toLocaleDateString('es-CR')}
                         </TableCell>
-                        {isEditMode && (
-                          <TableCell className="text-right">
-                            {p.estado === 'Pendiente' && (
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  onClick={() => handleAceptarPropuesta(p.id)}
-                                  title="Aceptar"
-                                >
-                                  <ThumbsUp className="h-5 w-5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => handleDenegarPropuesta(p.id)}
-                                  title="Denegar"
-                                >
-                                  <ThumbsDown className="h-5 w-5" />
-                                </Button>
+                        <TableCell className="text-right">
+                          {/* Mostrar botones para la primera propuesta si está pendiente, o para todas si está en modo edición */}
+                          {p.estado === 'Pendiente' && (index === 0 || isEditMode) && (
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => handleAceptarPropuesta(p.id)}
+                                title="Aceptar"
+                              >
+                                <ThumbsUp className="h-5 w-5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleDenegarPropuesta(p.id)}
+                                title="Denegar"
+                              >
+                                <ThumbsDown className="h-5 w-5" />
+                              </Button>
+                              {isEditMode && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -1306,15 +1372,15 @@ export default function AnalisisDetailPage() {
                                 >
                                   <Pencil className="h-5 w-5" />
                                 </Button>
-                              </div>
-                            )}
-                            {p.estado !== 'Pendiente' && p.aceptada_por_user && (
-                              <span className="text-xs text-muted-foreground">
-                                por {p.aceptada_por_user.name}
-                              </span>
-                            )}
-                          </TableCell>
-                        )}
+                              )}
+                            </div>
+                          )}
+                          {p.estado !== 'Pendiente' && p.aceptada_por_user && (
+                            <span className="text-xs text-muted-foreground">
+                              por {p.aceptada_por_user.name}
+                            </span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
