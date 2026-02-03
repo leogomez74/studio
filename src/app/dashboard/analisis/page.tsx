@@ -619,15 +619,15 @@ export default function AnalisisPage() {
                                 reference: nextReference,
                                 title: item.lead?.name || '',
                                 status: 'Por firmar',
-                                category: item.opportunity_type || 'Regular',
-                                monto_credito: item.amount ? String(item.amount) : '',
+                                category: item.category || 'Regular',
+                                monto_credito: item.monto_credito ? String(item.monto_credito) : '',
                                 leadId: item.lead_id ? String(item.lead_id) : (item.lead?.id ? String(item.lead.id) : ''),
                                 clientName: item.lead?.name || '',
-                                description: item.comments || '',
-                                divisa: 'CRC',
-                                plazo: '36',
+                                description: item.description || '',
+                                divisa: item.divisa || 'CRC',
+                                plazo: item.plazo ? String(item.plazo) : '36',
                                 poliza: false,
-                                conCargosAdicionales: true, // Por defecto activo para créditos regulares
+                                conCargosAdicionales: true,
                               });
                               setIsCreditDialogOpen(true);
                             } catch (err) {

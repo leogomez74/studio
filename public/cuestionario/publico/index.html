@@ -75,7 +75,7 @@
                 <div class="text-center space-y-1">
                     <p class="text-xs font-semibold tracking-wide text-primary uppercase">Paso a paso</p>
                     <h1 class="text-2xl md:text-3xl font-headline font-bold text-primary">Cuestionario Público</h1>
-                    <p class="text-muted-foreground text-sm md:text-base">Queremos entender mejor tu necesidad. Son 4 pasos rápidos.</p>
+                    <p class="text-muted-foreground text-sm md:text-base">¡Queremos entender mejor su necesidad! Son 3 pasos rápidos.</p>
                 </div>
 
 
@@ -91,13 +91,13 @@
 
             <form id="questionnaireForm" class="p-4 md:p-6 pt-0 space-y-6">
                 <div id="step-1" class="space-y-4">
-                    <h2 class="text-lg font-semibold text-foreground">1. ¿Qué te interesa?</h2>
+                    <h2 class="text-lg font-semibold text-foreground">1. ¿Qué opción le interesa?</h2>
                     <div class="grid md:grid-cols-3 gap-4">
                         <label id="creditoOption" class="block cursor-pointer group">
                             <input type="radio" name="interes" value="credito" id="creditoRadio" class="peer sr-only">
                             <div id="creditoCard" class="border rounded-lg p-4 h-full transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background">
                                 <p class="text-sm font-semibold text-foreground">Crédito</p>
-                                <p class="text-xs text-muted-foreground mt-1">Financia tus metas y obligaciones.</p>
+                                <p class="text-xs text-muted-foreground mt-1">Financie sus metas y obligaciones.</p>
                             </div>
                         </label>
                         <label class="block cursor-pointer group">
@@ -119,7 +119,7 @@
                 </div>
 
                 <div id="step-2" class="space-y-4 hidden">
-                    <h2 class="text-lg font-semibold text-foreground">2. Detalles de tu necesidad</h2>
+                    <h2 class="text-lg font-semibold text-foreground">2. Por favor detalle su necesidad</h2>
 
                     <div id="creditoFields" class="space-y-3 hidden">
                         <p class="text-sm font-semibold text-muted-foreground">Crédito</p>
@@ -146,7 +146,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-foreground mb-1">Monto aproximado *</label>
                                 <select name="monto" id="montoSelect" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Primero selecciona el tipo de crédito</option>
+                                    <option value="">Primero seleccione el tipo de crédito</option>
                                 </select>
                             </div>
                             <div>
@@ -163,7 +163,7 @@
                             <label class="block text-sm font-medium text-foreground mb-1">Institución en la que labora *</label>
                             <div id="institucionContainer" class="relative">
                                 <button type="button" id="institucionTrigger" class="w-full h-10 px-3 bg-background border border-input rounded-md text-sm text-left flex items-center justify-between">
-                                    <span id="institucionLabel" class="truncate text-muted-foreground">Selecciona institución</span>
+                                    <span id="institucionLabel" class="truncate text-muted-foreground">Seleccione la institución</span>
                                     <span class="text-xs text-muted-foreground">▼</span>
                                 </button>
                                 <div id="institucionDropdown" class="hidden absolute z-20 mt-1 w-full rounded-md border bg-white shadow-lg">
@@ -179,7 +179,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-foreground mb-1">Tiempo laborando</label>
                                 <select name="antiguedad_laboral" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Selecciona</option>
+                                    <option value="">Seleccione</option>
                                     <option value="<1a">Menos de 1 año</option>
                                     <option value="1-3a">1 a 3 años</option>
                                     <option value="3-5a">3 a 5 años</option>
@@ -189,17 +189,6 @@
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-foreground mb-1">Rango de ingreso mensual *</label>
-                                <select name="ingreso" id="ingresoSelect" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Selecciona</option>
-                                    <option value="<300k">Menor a ₡300,000</option>
-                                    <option value="300k-500k">₡300,000 - ₡500,000</option>
-                                    <option value="500k-800k">₡500,000 - ₡800,000</option>
-                                    <option value="800k-1.2m">₡800,000 - ₡1,200,000</option>
-                                    <option value=">1.2m">Más de ₡1,200,000</option>
-                                </select>
-                            </div>
-                            <div>
                                 <label class="block text-sm font-medium text-foreground mb-1">Salario exacto (₡) *</label>
                                 <input type="text" name="salario_exacto" id="salarioExacto" placeholder="Ej: 450000" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <p id="salarioError" class="text-xs text-red-500 mt-1 hidden">El salario debe estar dentro del rango seleccionado</p>
@@ -207,9 +196,9 @@
                         </div>
                         <div class="grid md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-foreground mb-1">¿Tienes deudas actualmente? *</label>
+                                <label class="block text-sm font-medium text-foreground mb-1">¿Tiene deudas actualmente? *</label>
                                 <select name="tiene_deudas" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Selecciona</option>
+                                    <option value="">Seleccione</option>
                                     <option value="no">No</option>
                                     <option value="si_1_2">Sí, 1-2 créditos</option>
                                     <option value="si_3_mas">Sí, 3 o más</option>
@@ -308,7 +297,7 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-foreground mb-1">¿Cómo conociste Credipep?</label>
+                        <label class="block text-sm font-medium text-foreground mb-1">¿Cómo conoció Credipep?</label>
                         <select name="origen_lead" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                             <option value="">Selecciona</option>
                             <option value="redes_sociales">Redes sociales</option>
@@ -722,7 +711,7 @@
             const hidden = document.getElementById('institucionValue');
             const label = document.getElementById('institucionLabel');
             hidden.value = name || '';
-            label.textContent = name || 'Selecciona institución';
+            label.textContent = name || 'Seleccione institución';
             label.classList.toggle('text-muted-foreground', !name);
             closeInstitucionDropdown();
         }
