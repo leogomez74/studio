@@ -21,7 +21,7 @@ class UpdateAnalisisRequest extends FormRequest
             'reference' => 'sometimes|required|unique:analisis,reference,' . $id,
             'title' => 'sometimes|required|string|max:255',
             'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
-            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
+            'estado_cliente' => 'nullable|string|in:Pendiente,Aprobado,Rechazado',
             'category' => 'nullable|string|max:100',
             'monto_credito' => 'nullable|numeric|min:0|max:999999999.99',
             'lead_id' => 'nullable|integer|exists:persons,id',

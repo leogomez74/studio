@@ -43,7 +43,7 @@ Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController
 
 // Utilidades / Listas
 Route::get('/agents', function () {
-    return response()->json(\App\Models\User::select('id', 'name')->get());
+    return response()->json(\App\Models\User::select('id', 'name', 'is_default_lead_assignee')->get());
 });
 
 Route::get('/lead-statuses', function () {
@@ -176,6 +176,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
+    Route::post('/users/{id}/set-default-lead-assignee', [\App\Http\Controllers\Api\UserController::class, 'setDefaultLeadAssignee']);
 
     // Roles and Permissions
     Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class);

@@ -102,4 +102,26 @@ class UserController extends Controller
 
         return response()->noContent();
     }
+
+    /**
+     * Configurar usuario como responsable default de leads.
+     */
+    public function setDefaultLeadAssignee(string $id)
+    {
+        $user = User::findOrFail($id);
+
+        // Desactivar todos los demás usuarios como responsables default
+        User::where('is_default_lead_assignee', true)
+            ->where('id', '!=', $id)
+            ->update(['is_default_lead_assignee' => false]);
+
+        // Activar el usuario actual como responsable default
+        $user->is_default_lead_assignee = true;
+        $user->save();
+
+        return response()->json([
+            'message' => 'Usuario configurado como responsable default de leads',
+            'user' => $user->load('role')
+        ]);
+    }
 }

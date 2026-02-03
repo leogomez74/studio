@@ -19,7 +19,7 @@ class StoreAnalisisRequest extends FormRequest
             'reference' => 'nullable|unique:analisis,reference',
             'title' => 'required|string|max:255',
             'estado_pep' => 'nullable|string|in:Pendiente,Aceptado,Pendiente de cambios,Rechazado',
-            'estado_cliente' => 'nullable|string|in:Aprobado,Rechazado',
+            'estado_cliente' => 'nullable|string|in:Pendiente,Aprobado,Rechazado',
             'category' => 'nullable|string|max:100',
             'monto_credito' => 'required|numeric|min:1|max:999999999.99',
             'lead_id' => 'nullable|integer|exists:persons,id',

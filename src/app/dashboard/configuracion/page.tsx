@@ -2522,6 +2522,36 @@ export default function ConfiguracionPage() {
     }
   };
 
+  const handleSetDefaultLeadAssignee = async (user: any) => {
+    if (!confirm(`¿Configurar a "${user.name}" como responsable default de leads?`)) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/${user.id}/set-default-lead-assignee`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (res.ok) {
+        toast({
+          title: 'Configurado',
+          description: `${user.name} es ahora el responsable default de leads.`
+        });
+        fetchUsers();
+      } else {
+        throw new Error('Error al configurar responsable');
+      }
+    } catch (err) {
+      console.error('Error setting default lead assignee', err);
+      toast({
+        title: 'Error',
+        description: 'No se pudo configurar el responsable default.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const handleUpdateUserRole = async (userId: number, roleId: string) => {
     try {
       const payload = {
@@ -3294,6 +3324,7 @@ export default function ConfiguracionPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Rol</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead>Responsable Default Leads</TableHead>
                     <TableHead>Fecha Creación</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
@@ -3328,6 +3359,13 @@ export default function ConfiguracionPage() {
                           {user.status || 'Activo'}
                         </span>
                       </TableCell>
+                      <TableCell>
+                        {user.is_default_lead_assignee && (
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
+                            ✓ Responsable Default
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -3340,6 +3378,12 @@ export default function ConfiguracionPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => openEditUserDialog(user)}>Editar</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleSetDefaultLeadAssignee(user)}
+                              disabled={user.is_default_lead_assignee}
+                            >
+                              {user.is_default_lead_assignee ? '✓ Responsable Default' : 'Configurar como Responsable Default'}
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUser(user)}>Eliminar</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -3348,7 +3392,7 @@ export default function ConfiguracionPage() {
                   ))}
                   {users.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No hay usuarios registrados.
                       </TableCell>
                     </TableRow>

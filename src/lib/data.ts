@@ -225,6 +225,7 @@ export type Opportunity = {
   expected_close_date?: string;
   comments?: string;
   assigned_to_id?: number;
+  lost_reason?: string | null;
   created_at?: string;
   updated_at?: string;
   lead?: Lead;
