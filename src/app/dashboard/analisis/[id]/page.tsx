@@ -714,7 +714,7 @@ export default function AnalisisDetailPage() {
                     <Label className="text-xs">Plazo (meses)</Label>
                     <Input
                       type="number"
-                      placeholder="36"
+                      placeholder="Agregar plazo"
                       value={propuestaForm.plazo}
                       onChange={(e) => setPropuestaForm(prev => ({ ...prev, plazo: e.target.value }))}
                     />

@@ -573,7 +573,7 @@ export default function ClientDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Teléfono 3</Label>
+                <Label>Teléfono Familiar</Label>
                 <Input 
                   value={formData.telefono3 || ""} 
                   onChange={(e) => handleInputChange("telefono3", e.target.value)} 
