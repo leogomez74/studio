@@ -88,6 +88,11 @@ export default function OpportunityDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
 
+  // Modal de razón de pérdida
+  const [isLostReasonDialogOpen, setIsLostReasonDialogOpen] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [savingLostReason, setSavingLostReason] = useState(false);
+
   // Analisis state
   const [existingAnalisis, setExistingAnalisis] = useState<any>(null);
   const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
@@ -387,17 +392,21 @@ export default function OpportunityDetailPage() {
   const handleStatusChange = async (newStatus: string) => {
     if (!opportunity) return;
 
-    const previousStatus = opportunity.status; // Save previous value for rollback
+    // Si el nuevo estado es "Perdida", abrir modal para pedir razón
+    if (newStatus === 'Perdida') {
+      setLostReason('');
+      setIsLostReasonDialogOpen(true);
+      return;
+    }
+
+    const previousStatus = opportunity.status;
 
     try {
       setUpdatingStatus(true);
-      // Optimistic update
       setOpportunity(prev => prev ? { ...prev, status: newStatus } : null);
 
-      // API call
       await api.put(`/api/opportunities/${opportunity.id}`, { status: newStatus });
 
-      // Si el nuevo estado es "Analizada", verificar si existe un análisis
       if (newStatus === "Analizada") {
         await fetchExistingAnalisis();
       }
@@ -405,11 +414,39 @@ export default function OpportunityDetailPage() {
       toast({ title: "Estado actualizado", description: `La oportunidad ahora está ${newStatus}.` });
     } catch (error) {
       console.error("Error updating status:", error);
-      // Revert optimistic update on failure
       setOpportunity(prev => prev ? { ...prev, status: previousStatus } : null);
       toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleSaveLostReason = async () => {
+    if (!opportunity) return;
+    if (!lostReason.trim()) {
+      toast({ title: "Error", description: "Debe indicar la razón de pérdida.", variant: "destructive" });
+      return;
+    }
+
+    const previousStatus = opportunity.status;
+
+    try {
+      setSavingLostReason(true);
+      setOpportunity(prev => prev ? { ...prev, status: 'Perdida', lost_reason: lostReason.trim() } : null);
+
+      await api.put(`/api/opportunities/${opportunity.id}`, {
+        status: 'Perdida',
+        lost_reason: lostReason.trim(),
+      });
+
+      setIsLostReasonDialogOpen(false);
+      toast({ title: "Estado actualizado", description: "La oportunidad se marcó como Perdida." });
+    } catch (error) {
+      console.error("Error updating status:", error);
+      setOpportunity(prev => prev ? { ...prev, status: previousStatus } : null);
+      toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
+    } finally {
+      setSavingLostReason(false);
     }
   };
 
@@ -701,6 +738,14 @@ export default function OpportunityDetailPage() {
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">ACTUALIZADA</p>
                         <p className="text-sm font-medium text-slate-900">{formatDateTime(opportunity.updated_at)}</p>
                       </div>
+                      {opportunity.status === 'Perdida' && opportunity.lost_reason && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase mb-1">RAZÓN DE PÉRDIDA</p>
+                          <p className="text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md p-3 whitespace-pre-wrap">
+                            {opportunity.lost_reason}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1106,6 +1151,35 @@ export default function OpportunityDetailPage() {
           <DialogFooter className="flex-shrink-0 pt-2 border-t">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
             <Button type="submit" size="sm" onClick={handleAnalisisSubmit}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Razón de Pérdida */}
+      <Dialog open={isLostReasonDialogOpen} onOpenChange={setIsLostReasonDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Razón de pérdida</DialogTitle>
+            <DialogDescription>
+              Indique por qué se perdió esta oportunidad.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              placeholder="Escriba la razón por la cual se perdió esta oportunidad..."
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsLostReasonDialogOpen(false)} disabled={savingLostReason}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleSaveLostReason} disabled={savingLostReason}>
+              {savingLostReason && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
