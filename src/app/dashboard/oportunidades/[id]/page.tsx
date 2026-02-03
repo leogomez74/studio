@@ -794,7 +794,7 @@ export default function OpportunityDetailPage() {
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground uppercase mb-1">MONTO ESTIMADO</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase mb-1">MONTO SOLICITADO</p>
                         <p className="text-sm font-medium text-slate-900">{formatCurrency(opportunity.amount)}</p>
                       </div>
                     </div>
