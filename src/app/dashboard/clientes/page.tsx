@@ -756,13 +756,27 @@ export default function ClientesPage() {
 
 
   const onSubmit = async (values: LeadFormValues) => {
-    // Validar WhatsApp antes de enviar
-    if (!whatsappVerified && !editingId) {
-      toast({ title: "Error", description: "El número no está registrado en WhatsApp", variant: "destructive" });
-      return;
-    }
-
     setIsSavingLead(true);
+
+    // Verificar WhatsApp al momento de enviar (solo para nuevos leads)
+    if (!editingId) {
+      const fullPhone = isExtranjero
+        ? (values.phonePrefix || '+506') + values.phone
+        : '506' + values.phone;
+
+      // Ejecutar verificación de WhatsApp
+      await checkWhatsApp(fullPhone);
+
+      // Esperar un momento para que se actualice el estado
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Validar resultado
+      if (!whatsappVerified) {
+        setIsSavingLead(false);
+        toast({ title: "Error", description: "El número no está registrado en WhatsApp", variant: "destructive" });
+        return;
+      }
+    }
 
     try {
       // El input[type="date"] ya devuelve YYYY-MM-DD, listo para el backend
@@ -1434,14 +1448,6 @@ export default function ClientesPage() {
                                 field.onChange(formattedValue);
                                 setWhatsappVerified(false);
                                 setWhatsappError(null);
-                              }}
-                              onBlur={() => {
-                                if (field.value && field.value.length >= 7) {
-                                  const fullNumber = isExtranjero
-                                    ? (form.getValues('phonePrefix') || '+506') + field.value
-                                    : '506' + field.value;
-                                  checkWhatsApp(fullNumber);
-                                }
                               }}
                             />
                           </FormControl>
