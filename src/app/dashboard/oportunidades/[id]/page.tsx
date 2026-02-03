@@ -635,7 +635,7 @@ export default function OpportunityDetailPage() {
                             className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
-                            Crear Análisis
+                            Subir Análisis
                           </Button>
                         )
                       )
@@ -653,7 +653,7 @@ export default function OpportunityDetailPage() {
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">INSTITUCIÓN</p>
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-0">
-                          {opportunity.vertical}
+                          {opportunity.lead?.institucion_labora || opportunity.vertical || 'N/A'}
                         </Badge>
                       </div>
                       <div>

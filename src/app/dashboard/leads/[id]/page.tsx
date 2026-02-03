@@ -240,13 +240,35 @@ export default function LeadDetailPage() {
     const handleSave = async () => {
         try {
             setSaving(true);
-            await api.put(`/api/leads/${id}`, formData);
+            // Sanitize deductora_id to ensure it's a valid number or null
+            const sanitizedData = {
+                ...formData,
+                deductora_id: formData.deductora_id ? Number(formData.deductora_id) : null,
+            };
+
+            console.log('Datos a enviar:', sanitizedData);
+
+            await api.put(`/api/leads/${id}`, sanitizedData);
             toast({ title: "Guardado", description: "Lead actualizado correctamente." });
             setLead(prev => ({ ...prev, ...formData } as Lead));
             router.push(`/dashboard/leads/${id}?mode=view`);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error updating lead:", error);
-            toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
+            console.error("Error response:", error.response?.data);
+
+            // Mostrar errores de validación específicos si existen
+            if (error.response?.data?.errors) {
+                const errorMessages = Object.entries(error.response.data.errors)
+                    .map(([field, messages]: [string, any]) => `${field}: ${messages.join(', ')}`)
+                    .join('\n');
+                toast({
+                    title: "Error de validación",
+                    description: errorMessages,
+                    variant: "destructive"
+                });
+            } else {
+                toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
+            }
         } finally {
             setSaving(false);
         }
@@ -709,25 +731,17 @@ export default function LeadDetailPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Institución</Label>
-                                        <Input 
-                                            value={(formData as any).institucion_labora || ""} 
-                                            onChange={(e) => handleInputChange("institucion_labora" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} 
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Deductora</Label>
                                         {isEditMode ? (
                                             <Select
-                                                value={String((formData as any).deductora_id || "")}
-                                                onValueChange={(value) => handleInputChange("deductora_id" as keyof Lead, Number(value))}
+                                                value={(formData as any).institucion_labora || ""}
+                                                onValueChange={(value) => handleInputChange("institucion_labora" as keyof Lead, value)}
                                             >
                                                 <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar deductora" />
+                                                    <SelectValue placeholder="Seleccionar institución" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {deductoras.map((deductora) => (
-                                                        <SelectItem key={deductora.id} value={String(deductora.id)}>
+                                                        <SelectItem key={deductora.id} value={deductora.nombre}>
                                                             {deductora.nombre}
                                                         </SelectItem>
                                                     ))}
@@ -735,10 +749,28 @@ export default function LeadDetailPage() {
                                             </Select>
                                         ) : (
                                             <Input
-                                                value={deductoras.find(d => d.id === Number((formData as any).deductora_id))?.nombre || ""}
+                                                value={(formData as any).institucion_labora || ""}
                                                 disabled
                                             />
                                         )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Deductora</Label>
+                                        <div className="flex items-center gap-6">
+                                            {deductoras.map((deductora) => (
+                                                <Button
+                                                    key={deductora.id}
+                                                    type="button"
+                                                    variant={(formData as any).deductora_id === deductora.id ? "default" : "outline"}
+                                                    size="default"
+                                                    onClick={() => isEditMode && handleInputChange("deductora_id" as keyof Lead, deductora.id)}
+                                                    disabled={!isEditMode}
+                                                    className={`flex-1 ${(formData as any).deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
+                                                >
+                                                    {deductora.nombre}
+                                                </Button>
+                                            ))}
+                                        </div>
                                     </div>
                                     <div className="col-span-3 space-y-2">
                                         <Label>Dirección de la Institución</Label>
