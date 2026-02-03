@@ -52,7 +52,6 @@ import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getMilestoneLabel, normalizeMilestoneValue, MILESTONE_OPTIONS, type MilestoneValue } from "@/lib/milestones";
 
 // Tipo para archivos del filesystem
 interface OpportunityFile {
@@ -96,7 +95,6 @@ interface TaskItem {
   archived_at: string | null;
   created_at: string | null;
   updated_at: string | null;
-  milestone: MilestoneValue;
 }
 
 interface Agent {
@@ -158,6 +156,14 @@ const isTaskOverdue = (task: TaskItem): boolean => {
   return dueDate < today;
 };
 
+const getTodayDateString = (): string => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 // --- TareasTab Component ---
 
 interface TareasTabProps {
@@ -177,14 +183,14 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
 
   const [formValues, setFormValues] = useState({
     project_code: opportunityReference,
-    project_name: "sin_hito" as MilestoneValue,
+    project_name: "sin_hito",
     title: "",
     details: "",
     status: "pendiente" as TaskStatus,
     priority: "media" as TaskPriority,
     assigned_to: "",
-    start_date: "",
-    due_date: "",
+    start_date: getTodayDateString(),
+    due_date: getTodayDateString(),
   });
 
   const fetchTasks = useCallback(async () => {
@@ -194,10 +200,7 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
         params: { project_code: opportunityReference }
       });
       const data = response.data.data || response.data;
-      setTasks(Array.isArray(data) ? data.map((item: any) => ({
-        ...item,
-        milestone: normalizeMilestoneValue(item.project_name)
-      })) : []);
+      setTasks(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching tasks:", error);
       toast({ title: "Error", description: "No se pudieron cargar las tareas.", variant: "destructive" });
@@ -229,8 +232,8 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
       status: "pendiente",
       priority: "media",
       assigned_to: "",
-      start_date: "",
-      due_date: "",
+      start_date: getTodayDateString(),
+      due_date: getTodayDateString(),
     });
   }, [opportunityReference]);
 
@@ -328,7 +331,6 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
                     <TableHead>Título</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Prioridad</TableHead>
-                    <TableHead className="hidden md:table-cell">Hito</TableHead>
                     <TableHead className="hidden md:table-cell">Responsable</TableHead>
                     <TableHead className="hidden lg:table-cell">Vencimiento</TableHead>
                   </TableRow>
@@ -362,9 +364,6 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
                           <Badge variant={PRIORITY_BADGE_VARIANT[task.priority]}>
                             {PRIORITY_LABELS[task.priority]}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="text-sm">{getMilestoneLabel(task.milestone)}</span>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <span className="text-sm">{task.assignee?.name || "-"}</span>
@@ -415,31 +414,6 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
                   placeholder="Detalles adicionales..."
                   rows={3}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="project_code">Código de proyecto</Label>
-                <Input
-                  id="project_code"
-                  value={formValues.project_code}
-                  readOnly
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="milestone">Hito</Label>
-                <Select
-                  value={formValues.project_name}
-                  onValueChange={(value) => handleFormChange("project_name", value)}
-                >
-                  <SelectTrigger id="milestone">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MILESTONE_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>
@@ -1320,7 +1294,7 @@ export default function OpportunityDetailPage() {
             </TabsContent>
 
             <TabsContent value="tareas">
-              <TareasTab opportunityReference={opportunity.reference} opportunityId={opportunity.id} />
+              <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
             </TabsContent>
 
             <TabsContent value="archivos">
