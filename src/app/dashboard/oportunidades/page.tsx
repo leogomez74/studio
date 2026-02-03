@@ -702,12 +702,12 @@ export default function DealsPage() {
 
   // Analisis button - opens dialog directly to create analysis for the opportunity
   const getAnalisisButtonProps = (opportunity: Opportunity) => {
-    // Check if opportunity already has an analysis based on status or a flag
-    const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis;
+    // Check if opportunity already has an analysis
+    const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis || (opportunity as any).analisis;
     const isAnalizada = opportunity.status === 'Analizada';
 
     if (hasAnalysis) {
-      return { label: "Ver Análisis", color: "bg-green-600", icon: <Check className="h-4 w-4" />, disabled: false };
+      return { label: "Análisis creado", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
     }
     if (!isAnalizada) {
       return { label: "Solo oportunidades analizadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
