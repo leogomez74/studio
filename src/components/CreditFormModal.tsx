@@ -368,7 +368,7 @@ export function CreditFormModal({
                   Creando...
                 </>
               ) : (
-                'Crear Crédito'
+                'Subir Crédito'
               )}
             </Button>
           </div>

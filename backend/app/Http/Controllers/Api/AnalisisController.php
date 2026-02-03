@@ -170,11 +170,12 @@ class AnalisisController extends Controller
 
         if ($requiereAutorizacion) {
             // Si el usuario tiene un límite (no es -1), validar el monto
-            if ($montoMaximo != -1 && $analisis->monto_credito > $montoMaximo) {
+            $montoAnalisis = $analisis->monto_sugerido ?? 0;
+            if ($montoMaximo != -1 && $montoAnalisis > $montoMaximo) {
                 $accion = ($isAceptandoPep || $isAprobandoCliente) ? 'aprobar' : 'rechazar';
                 return response()->json([
-                    'message' => 'No tiene autorización para ' . $accion . ' este análisis. Su usuario (' . $user->name . ') solo puede tomar decisiones sobre análisis hasta ₡' . number_format((float)$montoMaximo, 2) . '. El monto de este análisis es ₡' . number_format((float)$analisis->monto_credito, 2) . '.',
-                    'monto_credito' => $analisis->monto_credito,
+                    'message' => 'No tiene autorización para ' . $accion . ' este análisis. Su usuario (' . $user->name . ') solo puede tomar decisiones sobre análisis hasta ₡' . number_format((float)$montoMaximo, 2) . '. El monto de este análisis es ₡' . number_format((float)$montoAnalisis, 2) . '.',
+                    'monto_sugerido' => $montoAnalisis,
                     'monto_max_aprobacion' => $montoMaximo,
                     'usuario' => $user->name,
                 ], 403);
