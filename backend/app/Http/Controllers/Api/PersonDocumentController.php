@@ -64,6 +64,7 @@ class PersonDocumentController extends Controller
         $validated = $request->validate([
             'person_id' => 'required|exists:persons,id',
             'file' => 'required|file|max:10240', // 10MB max
+            'category' => 'nullable|in:cedula,recibo_servicio,comprobante_ingresos,constancia_trabajo,otro',
         ]);
 
         // Validar que la persona tenga cédula
@@ -117,6 +118,7 @@ class PersonDocumentController extends Controller
 
         $document = PersonDocument::create([
             'person_id' => $validated['person_id'],
+            'category' => $validated['category'] ?? 'otro',
             'name' => $file->getClientOriginalName(),
             'path' => $path,
             'url' => asset(Storage::url($path)),

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -50,6 +51,7 @@ const getFileTypeInfo = (mimeType?: string | null, fileName?: string) => {
 export function DocumentManager({ personId, initialDocuments = [], readonly = false }: DocumentManagerProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [uploading, setUploading] = useState(false);
+  const [category, setCategory] = useState<string>('otro');
   const { toast } = useToast();
 
   // Lightbox state
@@ -117,6 +119,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     const formData = new FormData();
     formData.append('file', file);
     formData.append('person_id', String(personId));
+    formData.append('category', category);
 
     try {
       setUploading(true);
@@ -179,9 +182,24 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
   return (
     <div className="space-y-4">
       {!readonly && (
-        <div className="flex items-center gap-4">
+        <div className="flex items-end gap-4">
+          <div className="grid w-full max-w-xs items-center gap-1.5">
+            <Label htmlFor="document-category">Tipo de Documento</Label>
+            <Select value={category} onValueChange={setCategory} disabled={uploading}>
+              <SelectTrigger id="document-category">
+                <SelectValue placeholder="Seleccionar tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cedula">Cédula</SelectItem>
+                <SelectItem value="recibo_servicio">Recibo de Servicio</SelectItem>
+                <SelectItem value="comprobante_ingresos">Comprobante de Ingresos</SelectItem>
+                <SelectItem value="constancia_trabajo">Constancia de Trabajo</SelectItem>
+                <SelectItem value="otro">Otro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid w-full max-w-sm items-center gap-1.5 transition-colors cursor-pointer">
-            <Label htmlFor="document-upload">Subir Documento</Label>
+            <Label htmlFor="document-upload">Archivo</Label>
             <Input className='cursor-pointer' id="document-upload" type="file" onChange={handleFileUpload} disabled={uploading} />
           </div>
           {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -254,10 +272,20 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                             {doc.name}
                           </a>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-normal ${color} border-current opacity-80`}>
                             {label}
                           </Badge>
+                          {(doc as any).category && (doc as any).category !== 'otro' && (
+                            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
+                              {{
+                                cedula: '📄 Cédula',
+                                recibo_servicio: '💡 Recibo',
+                                comprobante_ingresos: '💰 Ingresos',
+                                constancia_trabajo: '💼 Trabajo'
+                              }[(doc as any).category] || (doc as any).category}
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">{formatDate(doc.created_at)}</span>
                         </div>
                       </div>
