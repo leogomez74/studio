@@ -1636,11 +1636,22 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                   <div className="flex flex-wrap justify-end gap-2">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', lead)}>
+                        <PermissionButton
+                          module="oportunidades"
+                          action="create"
+                          size="icon"
+                          onClick={() => onAction('create_opportunity', lead)}
+                          disabled={checkMissingFields(lead).length > 0}
+                        >
                           <Sparkles className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>
-                      <TooltipContent>Crear oportunidad</TooltipContent>
+                      <TooltipContent>
+                        {checkMissingFields(lead).length > 0
+                          ? "Complete el registro antes de crear oportunidad"
+                          : "Crear oportunidad"
+                        }
+                      </TooltipContent>
                     </Tooltip>
 
                     <Tooltip>
