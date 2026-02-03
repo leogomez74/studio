@@ -44,7 +44,7 @@ Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController
 
 // Utilidades / Listas
 Route::get('/agents', function () {
-    return response()->json(\App\Models\User::select('id', 'name', 'is_default_lead_assignee')->get());
+    return response()->json(\App\Models\User::select('id', 'name')->get());
 });
 
 Route::get('/lead-statuses', function () {

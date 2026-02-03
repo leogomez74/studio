@@ -586,6 +586,30 @@ export default function OpportunityDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
 
+  // Auto-ajustar meses según tipo de producto
+  useEffect(() => {
+    const isMicroCredito = analisisForm.category?.toLowerCase().includes('micro');
+
+    if (isMicroCredito) {
+      // Micro Crédito: solo 3 meses (limpiar salarios_anteriores)
+      if (analisisForm.salarios_anteriores.length > 0) {
+        setAnalisisForm(prev => ({ ...prev, salarios_anteriores: [] }));
+      }
+    } else {
+      // Crédito Regular u otro: 6 meses (agregar Mes 4, 5, 6 si no existen)
+      if (analisisForm.salarios_anteriores.length === 0) {
+        setAnalisisForm(prev => ({
+          ...prev,
+          salarios_anteriores: [
+            { mes: 'Mes 4', bruto: '', neto: '' },
+            { mes: 'Mes 5', bruto: '', neto: '' },
+            { mes: 'Mes 6', bruto: '', neto: '' },
+          ]
+        }));
+      }
+    }
+  }, [analisisForm.category]);
+
   // Cargar archivos de la oportunidad
   const fetchFiles = async () => {
     try {
@@ -1135,21 +1159,30 @@ export default function OpportunityDetailPage() {
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 border-b">
                   <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {OPPORTUNITY_STATUSES.map((status) => (
-                      <Button
-                        key={status}
-                        variant={opportunity.status === status ? "default" : "outline"}
-                        onClick={() => handleStatusChange(status)}
-                        disabled={updatingStatus || !canEdit || permsLoading}
-                        className={`h-8 text-xs ${
-                          opportunity.status === status
-                            ? "bg-slate-900 text-white hover:bg-slate-800"
-                            : "text-slate-600 border-slate-200"
-                        }`}
-                      >
-                        {status}
-                      </Button>
-                    ))}
+                    {OPPORTUNITY_STATUSES.map((status) => {
+                      const currentStatusIndex = OPPORTUNITY_STATUSES.indexOf(opportunity.status as any);
+                      const newStatusIndex = OPPORTUNITY_STATUSES.indexOf(status);
+                      // No permitir retroceder (excepto "Perdida" que siempre está disponible)
+                      const isBackward = newStatusIndex < currentStatusIndex && status !== 'Perdida';
+
+                      return (
+                        <Button
+                          key={status}
+                          variant={opportunity.status === status ? "default" : "outline"}
+                          onClick={() => handleStatusChange(status)}
+                          disabled={updatingStatus || !canEdit || permsLoading || isBackward}
+                          className={`h-8 text-xs ${
+                            opportunity.status === status
+                              ? "bg-slate-900 text-white hover:bg-slate-800"
+                              : isBackward
+                              ? "text-slate-400 border-slate-200 opacity-50 cursor-not-allowed"
+                              : "text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          {status}
+                        </Button>
+                      );
+                    })}
                     {opportunity.status === "Analizada" && (
                       existingAnalisis ? (
                         canViewAnalisis && (
@@ -1561,7 +1594,7 @@ export default function OpportunityDetailPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="category" className="text-xs">Producto</Label>
-                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
+                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)} disabled>
                   <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
@@ -1570,7 +1603,7 @@ export default function OpportunityDetailPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="divisa" className="text-xs">Divisa</Label>
-                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)}>
+                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)} disabled>
                   <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -1578,7 +1611,7 @@ export default function OpportunityDetailPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
+                <Label htmlFor="monto" className="text-xs">Monto Solicitado</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
                   <Input id="monto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.monto_credito)} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
@@ -1642,11 +1675,6 @@ export default function OpportunityDetailPage() {
               <div className="sm:col-span-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium">Meses Adicionales</Label>
-                  {analisisForm.salarios_anteriores.length < 3 && (
-                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addSalarioAnterior}>
-                      <PlusCircle className="h-3 w-3" /> Agregar mes
-                    </Button>
-                  )}
                 </div>
                 {analisisForm.salarios_anteriores.map((sal, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
