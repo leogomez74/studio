@@ -430,6 +430,19 @@ export default function DealsPage() {
     }
   }, [dialogState, leads, form]);
 
+  // Watch leadId para auto-completar institución
+  const currentLeadId = form.watch("leadId");
+
+  // Auto-completar institución desde el lead seleccionado (solo en modo crear)
+  useEffect(() => {
+    if (dialogState === "create" && currentLeadId) {
+      const selectedLead = leads.find(l => String(l.id) === currentLeadId);
+      if (selectedLead?.institucion_labora) {
+        form.setValue("vertical", selectedLead.institucion_labora);
+      }
+    }
+  }, [dialogState, currentLeadId, leads, form]);
+
   const resetForm = useCallback((opportunity?: Opportunity | null) => {
     const derivedVertical = opportunity ? normalizeOpportunityVertical(opportunity.vertical, instituciones) : (instituciones.length > 0 ? instituciones[0].nombre : "");
     form.reset({
@@ -1244,6 +1257,8 @@ export default function DealsPage() {
                             role="combobox"
                             aria-expanded={openVertical}
                             className="w-full justify-between"
+                            disabled={dialogState === "create"}
+                            title={dialogState === "create" ? "La institución se hereda del lead seleccionado" : ""}
                           >
                             {field.value
                               ? instituciones.find((inst) => inst.nombre === field.value)?.nombre

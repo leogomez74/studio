@@ -212,6 +212,16 @@ export function CreateOpportunityDialog({
 
   const currentLeadId = form.watch("leadId");
 
+  // Auto-completar institución desde el lead seleccionado
+  useEffect(() => {
+    if (currentLeadId) {
+      const selectedLead = leads.find(l => String(l.id) === currentLeadId);
+      if (selectedLead?.institucion_labora) {
+        form.setValue("vertical", selectedLead.institucion_labora);
+      }
+    }
+  }, [currentLeadId, leads, form]);
+
   const checkDocs = useCallback(async () => {
     if (!currentLeadId) {
       setHasDocuments(false);
@@ -395,11 +405,10 @@ export function CreateOpportunityDialog({
                             role="combobox"
                             aria-expanded={openVertical}
                             className="w-full justify-between"
-                            disabled={loadingInstituciones}
+                            disabled={true}
+                            title="La institución se hereda del lead seleccionado"
                           >
-                            {field.value
-                              ? instituciones.find((inst) => inst.nombre === field.value)?.nombre
-                              : loadingInstituciones ? "Cargando..." : "Seleccionar institución..."}
+                            {field.value || "Seleccionar lead primero..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </FormControl>
