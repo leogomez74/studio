@@ -175,10 +175,12 @@ class PropuestaController extends Controller
             'aceptada_at' => $now,
         ]);
 
-        // Sincronizar datos de la propuesta aceptada al análisis
+        // Sincronizar datos de la propuesta aceptada al análisis y cambiar estado_pep a Aceptado
         $analisis->update([
             'monto_credito' => $propuesta->monto,
             'plazo' => $propuesta->plazo,
+            'estado_pep' => 'Aceptado',
+            'estado_cliente' => 'Pendiente',
         ]);
 
         $propuesta->load('aceptadaPorUser:id,name');
