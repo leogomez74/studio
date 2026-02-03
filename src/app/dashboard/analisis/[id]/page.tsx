@@ -975,7 +975,7 @@ export default function AnalisisDetailPage() {
         </div>
 
         {/* Selectores de Estado */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-end gap-4">
           {/* Estado PEP */}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Estado PEP</Label>
@@ -1022,9 +1022,8 @@ export default function AnalisisDetailPage() {
             analisis.has_credit || analisis.credit_id ? (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
-                className="ml-4"
+                className="w-[180px] h-9 justify-start"
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Ver Crédito
@@ -1032,12 +1031,11 @@ export default function AnalisisDetailPage() {
             ) : (
               <Button
                 variant="default"
-                size="sm"
                 onClick={() => setIsCreditDialogOpen(true)}
-                className="ml-4"
+                className="w-[180px] h-9 justify-start"
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Crear Crédito
+                Subir Crédito
               </Button>
             )
           )}
