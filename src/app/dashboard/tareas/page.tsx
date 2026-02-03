@@ -164,6 +164,14 @@ const extractOpportunityId = (projectCode: string | null): number | null => {
   return match ? Number(match[1]) : null;
 };
 
+const getTodayDateString = (): string => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 // --- Main Component ---
 
 export default function TasksPage() {
@@ -196,8 +204,8 @@ export default function TasksPage() {
     status: "pendiente" as TaskStatus,
     priority: "media" as TaskPriority,
     assigned_to: "",
-    start_date: "",
-    due_date: "",
+    start_date: getTodayDateString(),
+    due_date: getTodayDateString(),
   });
 
   // Filters & Sort
@@ -273,8 +281,8 @@ export default function TasksPage() {
       status: "pendiente",
       priority: "media",
       assigned_to: "",
-      start_date: "",
-      due_date: "",
+      start_date: getTodayDateString(),
+      due_date: getTodayDateString(),
     });
   }, []);
 

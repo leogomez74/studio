@@ -127,6 +127,14 @@ const isTaskOverdue = (task: TaskItem): boolean => {
   return dueDate < today;
 };
 
+const getTodayDateString = (): string => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 // --- TareasTab Component ---
 
 interface TareasTabProps {
@@ -152,8 +160,8 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
     status: "pendiente" as TaskStatus,
     priority: "media" as TaskPriority,
     assigned_to: "",
-    start_date: "",
-    due_date: "",
+    start_date: getTodayDateString(),
+    due_date: getTodayDateString(),
   });
 
   const fetchTasks = useCallback(async () => {
@@ -195,8 +203,8 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
       status: "pendiente",
       priority: "media",
       assigned_to: "",
-      start_date: "",
-      due_date: "",
+      start_date: getTodayDateString(),
+      due_date: getTodayDateString(),
     });
   }, [opportunityReference]);
 
