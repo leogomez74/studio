@@ -1158,7 +1158,7 @@ export default function OpportunityDetailPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
+                <Label htmlFor="monto" className="text-xs">Monto Solicitado</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
                   <Input id="monto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.monto_credito)} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
