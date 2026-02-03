@@ -678,21 +678,30 @@ export default function OpportunityDetailPage() {
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 border-b">
                   <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {OPPORTUNITY_STATUSES.map((status) => (
-                      <Button
-                        key={status}
-                        variant={opportunity.status === status ? "default" : "outline"}
-                        onClick={() => handleStatusChange(status)}
-                        disabled={updatingStatus || !canEdit || permsLoading}
-                        className={`h-8 text-xs ${
-                          opportunity.status === status
-                            ? "bg-slate-900 text-white hover:bg-slate-800"
-                            : "text-slate-600 border-slate-200"
-                        }`}
-                      >
-                        {status}
-                      </Button>
-                    ))}
+                    {OPPORTUNITY_STATUSES.map((status) => {
+                      const currentStatusIndex = OPPORTUNITY_STATUSES.indexOf(opportunity.status as any);
+                      const newStatusIndex = OPPORTUNITY_STATUSES.indexOf(status);
+                      // No permitir retroceder (excepto "Perdida" que siempre está disponible)
+                      const isBackward = newStatusIndex < currentStatusIndex && status !== 'Perdida';
+
+                      return (
+                        <Button
+                          key={status}
+                          variant={opportunity.status === status ? "default" : "outline"}
+                          onClick={() => handleStatusChange(status)}
+                          disabled={updatingStatus || !canEdit || permsLoading || isBackward}
+                          className={`h-8 text-xs ${
+                            opportunity.status === status
+                              ? "bg-slate-900 text-white hover:bg-slate-800"
+                              : isBackward
+                              ? "text-slate-400 border-slate-200 opacity-50 cursor-not-allowed"
+                              : "text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          {status}
+                        </Button>
+                      );
+                    })}
                     {opportunity.status === "Analizada" && (
                       existingAnalisis ? (
                         canViewAnalisis && (
