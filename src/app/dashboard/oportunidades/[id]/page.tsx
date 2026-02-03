@@ -129,6 +129,30 @@ export default function OpportunityDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
 
+  // Auto-ajustar meses según tipo de producto
+  useEffect(() => {
+    const isMicroCredito = analisisForm.category?.toLowerCase().includes('micro');
+
+    if (isMicroCredito) {
+      // Micro Crédito: solo 3 meses (limpiar salarios_anteriores)
+      if (analisisForm.salarios_anteriores.length > 0) {
+        setAnalisisForm(prev => ({ ...prev, salarios_anteriores: [] }));
+      }
+    } else {
+      // Crédito Regular u otro: 6 meses (agregar Mes 4, 5, 6 si no existen)
+      if (analisisForm.salarios_anteriores.length === 0) {
+        setAnalisisForm(prev => ({
+          ...prev,
+          salarios_anteriores: [
+            { mes: 'Mes 4', bruto: '', neto: '' },
+            { mes: 'Mes 5', bruto: '', neto: '' },
+            { mes: 'Mes 6', bruto: '', neto: '' },
+          ]
+        }));
+      }
+    }
+  }, [analisisForm.category]);
+
   // Cargar archivos de la oportunidad
   const fetchFiles = async () => {
     try {
@@ -1117,7 +1141,7 @@ export default function OpportunityDetailPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="category" className="text-xs">Producto</Label>
-                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
+                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)} disabled>
                   <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
@@ -1126,7 +1150,7 @@ export default function OpportunityDetailPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="divisa" className="text-xs">Divisa</Label>
-                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)}>
+                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)} disabled>
                   <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -1198,11 +1222,6 @@ export default function OpportunityDetailPage() {
               <div className="sm:col-span-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium">Meses Adicionales</Label>
-                  {analisisForm.salarios_anteriores.length < 3 && (
-                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addSalarioAnterior}>
-                      <PlusCircle className="h-3 w-3" /> Agregar mes
-                    </Button>
-                  )}
                 </div>
                 {analisisForm.salarios_anteriores.map((sal, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
