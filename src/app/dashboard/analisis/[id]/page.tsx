@@ -233,16 +233,26 @@ export default function AnalisisDetailPage() {
       setUpdatingStatus(true);
       const payload: Record<string, string | null> = { [field]: value };
 
+      // Si estado_pep cambia a 'Aceptado', auto-setear estado_cliente a 'Pendiente'
+      if (field === 'estado_pep' && value === 'Aceptado') {
+        payload.estado_cliente = 'Pendiente';
+      }
+
       // Si estado_pep cambia a algo diferente de 'Aceptado', limpiar estado_cliente
       if (field === 'estado_pep' && value !== 'Aceptado') {
         payload.estado_cliente = null;
-        setEstadoCliente(null);
       }
 
       await api.put(`/api/analisis/${analisisId}`, payload);
 
+      // Actualizar estados locales juntos para que el render sea consistente
       if (field === 'estado_pep') {
         setEstadoPep(value);
+        if (value === 'Aceptado') {
+          setEstadoCliente('Pendiente');
+        } else {
+          setEstadoCliente(null);
+        }
       } else {
         setEstadoCliente(value);
       }
@@ -545,6 +555,7 @@ export default function AnalisisDetailPage() {
                   <SelectValue placeholder="Sin definir" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Pendiente">Pendiente</SelectItem>
                   <SelectItem value="Aprobado">Aprobado</SelectItem>
                   <SelectItem value="Rechazado">Rechazado</SelectItem>
                 </SelectContent>
