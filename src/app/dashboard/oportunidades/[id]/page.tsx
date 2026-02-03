@@ -638,7 +638,7 @@ export default function OpportunityDetailPage() {
                             className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
-                            Crear Análisis
+                            Subir Análisis
                           </Button>
                         )
                       )
