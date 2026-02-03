@@ -9,6 +9,7 @@ class PersonDocument extends Model
 {
     protected $fillable = [
         'person_id',
+        'category',
         'name',
         'notes',
         'path',

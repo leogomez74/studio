@@ -34,6 +34,7 @@ interface PersonDocument {
   name: string;
   url: string;
   created_at: string;
+  category?: string;
 }
 
 interface AnalisisDetailsDialogProps {
@@ -102,12 +103,24 @@ export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !analisis?.lead?.id) return;
-    
+
     const file = e.target.files[0];
+
+    // Determinar categoría automática basada en el orden de subida
+    let autoCategory = 'otro';
+    const docCount = documents.length;
+
+    if (docCount === 0) {
+      autoCategory = 'cedula';
+    } else if (docCount === 1) {
+      autoCategory = 'recibo_servicio';
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('person_id', String(analisis.lead.id));
-    formData.append('name', 'Record Crediticio'); // Default name for this context
+    formData.append('category', autoCategory);
+    formData.append('name', file.name); // Use actual filename
     formData.append('notes', 'Subido desde Análisis');
 
     try {
@@ -129,11 +142,12 @@ export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }
 
   const lead = analisis.lead;
 
-  // Helper to find specific documents
-  const findDoc = (keyword: string) => documents.find(d => d.name.toLowerCase().includes(keyword.toLowerCase()));
-  const colillaDoc = findDoc('colilla');
-  const constanciaDoc = findDoc('constancia');
-  const recordDoc = findDoc('record') || findDoc('crediticio');
+  // Helper to find specific documents by category
+  const findDocByCategory = (category: string) => documents.find(d => d.category === category);
+  const cedulaDoc = findDocByCategory('cedula');
+  const reciboDoc = findDocByCategory('recibo_servicio');
+  const comprobanteDoc = findDocByCategory('comprobante_ingresos');
+  const constanciaDoc = findDocByCategory('constancia_trabajo');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -273,9 +287,9 @@ export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }
                   <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium">Colilla de Pago</span>
+                      <span className="text-sm font-medium">Cédula</span>
                     </div>
-                    {colillaDoc ? (
+                    {cedulaDoc ? (
                       <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
                     ) : (
                       <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
@@ -285,21 +299,33 @@ export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }
                   <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium">Constancia Salarial</span>
+                      <span className="text-sm font-medium">Recibo de Servicio</span>
+                    </div>
+                    {reciboDoc ? (
+                      <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium">Comprobante de Ingresos</span>
+                    </div>
+                    {comprobanteDoc ? (
+                      <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium">Constancia de Trabajo</span>
                     </div>
                     {constanciaDoc ? (
-                      <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between p-2 border rounded bg-gray-50">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium">Récord Crediticio</span>
-                    </div>
-                    {recordDoc ? (
                       <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Recibido</Badge>
                     ) : (
                       <Badge variant="outline" className="text-yellow-600 border-yellow-600"><AlertCircle className="h-3 w-3 mr-1" /> Pendiente</Badge>
@@ -346,13 +372,23 @@ export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }
                   <div className="space-y-2">
                     {documents.map((doc) => (
                       <div key={doc.id} className="flex items-center justify-between p-2 hover:bg-gray-100 rounded text-sm">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[200px]">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
                             {doc.name}
                           </a>
+                          {doc.category && doc.category !== 'otro' && (
+                            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal flex-shrink-0">
+                              {{
+                                cedula: '📄 Cédula',
+                                recibo_servicio: '💡 Recibo',
+                                comprobante_ingresos: '💰 Ingresos',
+                                constancia_trabajo: '💼 Trabajo'
+                              }[doc.category] || doc.category}
+                            </Badge>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
+                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{new Date(doc.created_at).toLocaleDateString()}</span>
                       </div>
                     ))}
                   </div>

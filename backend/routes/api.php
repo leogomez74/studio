@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\QuestionnaireController;
 use App\Http\Controllers\Api\InstitucionController;
 use App\Http\Controllers\Api\LeadAlertController;
+use App\Http\Controllers\Api\TaskController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,7 +44,7 @@ Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController
 
 // Utilidades / Listas
 Route::get('/agents', function () {
-    return response()->json(\App\Models\User::select('id', 'name', 'is_default_lead_assignee')->get());
+    return response()->json(\App\Models\User::select('id', 'name')->get());
 });
 
 Route::get('/lead-statuses', function () {
@@ -76,6 +77,15 @@ Route::patch('/opportunities/update-status', [OpportunityController::class, 'upd
 
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
+
+// Tareas
+Route::get('/tareas', [TaskController::class, 'index']);
+Route::post('/tareas', [TaskController::class, 'store']);
+Route::get('/tareas/{task}', [TaskController::class, 'show']);
+Route::put('/tareas/{task}', [TaskController::class, 'update']);
+Route::delete('/tareas/{task}', [TaskController::class, 'destroy']);
+Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive']);
+Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore']);
 
 // Créditos - MOVIDO A RUTAS PROTEGIDAS (ver línea ~178)
 

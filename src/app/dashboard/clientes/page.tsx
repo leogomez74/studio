@@ -1590,6 +1590,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
             <TableHead className="w-[7.5rem]">Estado</TableHead>
             <TableHead className="w-[10.5rem]">Contacto</TableHead>
             <TableHead className="text-right">Registrado</TableHead>
+            <TableHead className="w-[9rem]">Registro</TableHead>
             <TableHead className="w-[20rem] text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -1608,16 +1609,9 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                   ) : <span className="text-muted-foreground">-</span>}
                 </TableCell>
                 <TableCell>
-                  <div>
-                    <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
-                      {displayName}
-                    </Link>
-                    {checkMissingFields(lead).length > 0 && (
-                      <Link href={`/dashboard/leads/${lead.id}?mode=edit`} className="inline-block mt-2 px-2 py-0.5 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 cursor-pointer">
-                        Faltan datos por completar en el registro
-                      </Link>
-                    )}
-                  </div>
+                  <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="font-medium leading-none text-primary hover:underline">
+                    {displayName}
+                  </Link>
                 </TableCell>
                 <TableCell>
                   <Badge className={badgeClassName}>{statusLabel}</Badge>
@@ -1627,15 +1621,37 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                   <div className="text-sm text-muted-foreground">{lead.phone || "Sin teléfono"}</div>
                 </TableCell>
                 <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
+                <TableCell>
+                  {checkMissingFields(lead).length > 0 ? (
+                    <Link href={`/dashboard/leads/${lead.id}?mode=edit`} className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 cursor-pointer">
+                      Faltan datos
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-100 border border-green-300 rounded-md">
+                      Completo
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', lead)}>
+                        <PermissionButton
+                          module="oportunidades"
+                          action="create"
+                          size="icon"
+                          onClick={() => onAction('create_opportunity', lead)}
+                          disabled={checkMissingFields(lead).length > 0}
+                        >
                           <Sparkles className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>
-                      <TooltipContent>Crear oportunidad</TooltipContent>
+                      <TooltipContent>
+                        {checkMissingFields(lead).length > 0
+                          ? "Complete el registro antes de crear oportunidad"
+                          : "Crear oportunidad"
+                        }
+                      </TooltipContent>
                     </Tooltip>
 
                     <Tooltip>

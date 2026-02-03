@@ -403,22 +403,26 @@ class LeadController extends Controller
                 ->pluck('id');
 
             if ($opportunities->isNotEmpty()) {
-                // Buscar análisis asociados a esas oportunidades
-                $analisis = DB::table('analisis')
+                // Eliminar créditos asociados a esas oportunidades
+                $deletedCredits = DB::table('credits')
                     ->whereIn('opportunity_id', $opportunities)
-                    ->pluck('id');
+                    ->delete();
 
-                if ($analisis->isNotEmpty()) {
-                    // Eliminar créditos asociados a esos análisis
-                    $deletedCredits = DB::table('credits')
-                        ->whereIn('analisis_id', $analisis)
-                        ->delete();
+                // Buscar análisis y eliminar propuestas asociadas
+                $analisisRefs = DB::table('analisis')
+                    ->whereIn('opportunity_id', $opportunities)
+                    ->pluck('reference');
 
-                    // Eliminar los análisis
-                    $deletedAnalisis = DB::table('analisis')
-                        ->whereIn('id', $analisis)
+                if ($analisisRefs->isNotEmpty()) {
+                    DB::table('propuestas')
+                        ->whereIn('analisis_reference', $analisisRefs)
                         ->delete();
                 }
+
+                // Eliminar análisis
+                $deletedAnalisis = DB::table('analisis')
+                    ->whereIn('opportunity_id', $opportunities)
+                    ->delete();
 
                 // Eliminar las oportunidades
                 $deletedOpportunities = DB::table('opportunities')

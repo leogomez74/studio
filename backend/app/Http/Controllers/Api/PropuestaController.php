@@ -158,10 +158,10 @@ class PropuestaController extends Controller
         $userId = Auth::id();
         $now = now();
 
-        // Denegar las demás propuestas pendientes del mismo análisis
+        // Denegar las demás propuestas pendientes o previamente aceptadas del mismo análisis
         Propuesta::where('analisis_reference', $propuesta->analisis_reference)
             ->where('id', '!=', $propuesta->id)
-            ->where('estado', Propuesta::ESTADO_PENDIENTE)
+            ->whereIn('estado', [Propuesta::ESTADO_PENDIENTE, Propuesta::ESTADO_ACEPTADA])
             ->update([
                 'estado' => Propuesta::ESTADO_DENEGADA,
                 'aceptada_por' => $userId,
@@ -175,10 +175,12 @@ class PropuestaController extends Controller
             'aceptada_at' => $now,
         ]);
 
-        // Sincronizar datos de la propuesta aceptada al análisis
+        // Sincronizar datos de la propuesta aceptada al análisis y cambiar estado_pep a Aceptado
         $analisis->update([
             'monto_credito' => $propuesta->monto,
             'plazo' => $propuesta->plazo,
+            'estado_pep' => 'Aceptado',
+            'estado_cliente' => 'Pendiente',
         ]);
 
         $propuesta->load('aceptadaPorUser:id,name');

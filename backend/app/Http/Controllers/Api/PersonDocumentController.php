@@ -64,6 +64,7 @@ class PersonDocumentController extends Controller
         $validated = $request->validate([
             'person_id' => 'required|exists:persons,id',
             'file' => 'required|file|max:10240', // 10MB max
+            'category' => 'nullable|in:cedula,recibo_servicio,comprobante_ingresos,constancia_trabajo,otro',
         ]);
 
         // Validar que la persona tenga cédula
@@ -117,6 +118,7 @@ class PersonDocumentController extends Controller
 
         $document = PersonDocument::create([
             'person_id' => $validated['person_id'],
+            'category' => $validated['category'] ?? 'otro',
             'name' => $file->getClientOriginalName(),
             'path' => $path,
             'url' => asset(Storage::url($path)),
@@ -125,7 +127,7 @@ class PersonDocumentController extends Controller
         ]);
 
         // Auto-sync: copiar archivo a oportunidades existentes del lead
-        $syncResult = $this->syncFileToOpportunities($person->cedula, $path, $fileName);
+        $syncResult = $this->syncFileToOpportunities($person->cedula, $path, $fileName, $document->category);
 
         return response()->json([
             'document' => $document,
@@ -140,9 +142,10 @@ class PersonDocumentController extends Controller
      * @param string $cedula
      * @param string $sourcePath
      * @param string $fileName
+     * @param string|null $category
      * @return array
      */
-    private function syncFileToOpportunities(string $cedula, string $sourcePath, string $fileName): array
+    private function syncFileToOpportunities(string $cedula, string $sourcePath, string $fileName, ?string $category = null): array
     {
         $strippedCedula = preg_replace('/[^0-9]/', '', $cedula);
 
@@ -154,6 +157,30 @@ class PersonDocumentController extends Controller
         if ($opportunities->isEmpty()) {
             Log::info("No hay oportunidades para sincronizar", ['cedula' => $cedula]);
             return ['count' => 0, 'opportunities' => []];
+        }
+
+        // Agregar prefijo de categoría al nombre del archivo
+        $categoryPrefix = '';
+        if ($category) {
+            switch ($category) {
+                case 'cedula':
+                    $categoryPrefix = 'CEDULA_';
+                    break;
+                case 'recibo_servicio':
+                    $categoryPrefix = 'RECIBO_';
+                    break;
+                case 'comprobante_ingresos':
+                    $categoryPrefix = 'COMPROBANTE_';
+                    break;
+                case 'constancia_trabajo':
+                    $categoryPrefix = 'CONSTANCIA_';
+                    break;
+            }
+        }
+
+        // Si el archivo ya tiene el prefijo, no agregarlo de nuevo
+        if (!empty($categoryPrefix) && !str_starts_with(strtoupper($fileName), $categoryPrefix)) {
+            $fileName = $categoryPrefix . $fileName;
         }
 
         $synced = [];
@@ -237,28 +264,69 @@ class PersonDocumentController extends Controller
             ], 404);
         }
 
-        // Carpeta fuente (buzón del lead)
-        $sourceFolder = "documentos/{$strippedCedula}/buzon";
-        $targetFolder = "documentos/{$strippedCedula}/{$opportunityId}/heredados";
+        // Buscar la persona por cédula para obtener los documentos con categoría
+        $person = Person::where('cedula', $validated['cedula'])
+            ->orWhere('cedula', $strippedCedula)
+            ->first();
 
-        if (!Storage::disk('public')->exists($sourceFolder)) {
+        if (!$person) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Persona no encontrada',
+            ], 404);
+        }
+
+        // Obtener documentos de la persona con sus categorías
+        $personDocuments = PersonDocument::where('person_id', $person->id)->get();
+
+        if ($personDocuments->isEmpty()) {
             return response()->json([
                 'success' => true,
-                'message' => 'No hay archivos en el buzón del lead',
+                'message' => 'No hay documentos en el buzón del lead',
                 'files_synced' => 0,
             ]);
         }
+
+        $targetFolder = "documentos/{$strippedCedula}/{$opportunityId}/heredados";
 
         // Crear carpeta destino si no existe
         if (!Storage::disk('public')->exists($targetFolder)) {
             Storage::disk('public')->makeDirectory($targetFolder);
         }
 
-        $files = Storage::disk('public')->files($sourceFolder);
         $synced = [];
 
-        foreach ($files as $file) {
-            $fileName = basename($file);
+        foreach ($personDocuments as $doc) {
+            if (!Storage::disk('public')->exists($doc->path)) {
+                continue;
+            }
+
+            $fileName = basename($doc->path);
+
+            // Agregar prefijo de categoría al nombre del archivo
+            $categoryPrefix = '';
+            $category = $doc->category ?? 'otro';
+
+            switch ($category) {
+                case 'cedula':
+                    $categoryPrefix = 'CEDULA_';
+                    break;
+                case 'recibo_servicio':
+                    $categoryPrefix = 'RECIBO_';
+                    break;
+                case 'comprobante_ingresos':
+                    $categoryPrefix = 'COMPROBANTE_';
+                    break;
+                case 'constancia_trabajo':
+                    $categoryPrefix = 'CONSTANCIA_';
+                    break;
+            }
+
+            // Si el archivo ya tiene el prefijo, no agregarlo de nuevo
+            if (!empty($categoryPrefix) && !str_starts_with(strtoupper($fileName), $categoryPrefix)) {
+                $fileName = $categoryPrefix . $fileName;
+            }
+
             $targetPath = "{$targetFolder}/{$fileName}";
 
             try {
@@ -267,11 +335,11 @@ class PersonDocumentController extends Controller
                     continue; // Skip si ya existe
                 }
 
-                Storage::disk('public')->copy($file, $targetPath);
+                Storage::disk('public')->copy($doc->path, $targetPath);
                 $synced[] = $fileName;
             } catch (\Exception $e) {
                 Log::error("Error sincronizando archivo", [
-                    'file' => $file,
+                    'file' => $doc->path,
                     'error' => $e->getMessage(),
                 ]);
             }

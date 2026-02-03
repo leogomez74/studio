@@ -283,6 +283,30 @@ export default function DealsPage() {
     salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
 
+  // Auto-ajustar meses según tipo de producto
+  useEffect(() => {
+    const isMicroCredito = analisisForm.category?.toLowerCase().includes('micro');
+
+    if (isMicroCredito) {
+      // Micro Crédito: solo 3 meses (limpiar salarios_anteriores)
+      if (analisisForm.salarios_anteriores.length > 0) {
+        setAnalisisForm(prev => ({ ...prev, salarios_anteriores: [] }));
+      }
+    } else {
+      // Crédito Regular u otro: 6 meses (agregar Mes 4, 5, 6 si no existen)
+      if (analisisForm.salarios_anteriores.length === 0) {
+        setAnalisisForm(prev => ({
+          ...prev,
+          salarios_anteriores: [
+            { mes: 'Mes 4', bruto: '', neto: '' },
+            { mes: 'Mes 5', bruto: '', neto: '' },
+            { mes: 'Mes 6', bruto: '', neto: '' },
+          ]
+        }));
+      }
+    }
+  }, [analisisForm.category]);
+
   // Estado local para display de monto (evita duplicación de dígitos al escribir)
   const [montoDisplay, setMontoDisplay] = useState("");
 
@@ -429,6 +453,19 @@ export default function DealsPage() {
       form.setValue("leadId", String(leads[0].id));
     }
   }, [dialogState, leads, form]);
+
+  // Watch leadId para auto-completar institución
+  const currentLeadId = form.watch("leadId");
+
+  // Auto-completar institución desde el lead seleccionado (solo en modo crear)
+  useEffect(() => {
+    if (dialogState === "create" && currentLeadId) {
+      const selectedLead = leads.find(l => String(l.id) === currentLeadId);
+      if (selectedLead?.institucion_labora) {
+        form.setValue("vertical", selectedLead.institucion_labora);
+      }
+    }
+  }, [dialogState, currentLeadId, leads, form]);
 
   const resetForm = useCallback((opportunity?: Opportunity | null) => {
     const derivedVertical = opportunity ? normalizeOpportunityVertical(opportunity.vertical, instituciones) : (instituciones.length > 0 ? instituciones[0].nombre : "");
@@ -1244,6 +1281,8 @@ export default function DealsPage() {
                             role="combobox"
                             aria-expanded={openVertical}
                             className="w-full justify-between"
+                            disabled={dialogState === "create"}
+                            title={dialogState === "create" ? "La institución se hereda del lead seleccionado" : ""}
                           >
                             {field.value
                               ? instituciones.find((inst) => inst.nombre === field.value)?.nombre
@@ -1468,7 +1507,7 @@ export default function DealsPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="category" className="text-xs">Producto</Label>
-                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
+                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)} disabled>
                   <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
@@ -1477,7 +1516,7 @@ export default function DealsPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="divisa" className="text-xs">Divisa</Label>
-                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)}>
+                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)} disabled>
                   <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -1485,7 +1524,7 @@ export default function DealsPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
+                <Label htmlFor="monto" className="text-xs">Monto Solicitado</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
                   <Input
@@ -1568,11 +1607,6 @@ export default function DealsPage() {
               <div className="sm:col-span-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium">Salarios Anteriores</Label>
-                  {analisisForm.salarios_anteriores.length < 3 && (
-                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addSalarioAnterior}>
-                      <PlusCircle className="h-3 w-3" /> Agregar mes
-                    </Button>
-                  )}
                 </div>
                 {analisisForm.salarios_anteriores.map((sal, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
