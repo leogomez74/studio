@@ -114,8 +114,6 @@ export default function OpportunityDetailPage() {
     openedAt: new Date().toISOString().split('T')[0],
     divisa: "CRC",
     plazo: "36",
-    cargo: "",
-    nombramiento: "",
     salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
 
@@ -513,8 +511,6 @@ export default function OpportunityDetailPage() {
       openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",
-      cargo: "",
-      nombramiento: "",
       salarios_anteriores: [],
     });
     setIsAnalisisDialogOpen(true);
@@ -601,13 +597,10 @@ export default function OpportunityDetailPage() {
           })),
       };
 
-      // Actualizar campos del lead si se especificaron
-      if (analisisForm.leadId && (analisisForm.cargo || analisisForm.nombramiento)) {
-        const leadUpdateData: Record<string, string> = {};
-        if (analisisForm.cargo) leadUpdateData.puesto = analisisForm.cargo;
-        if (analisisForm.nombramiento) leadUpdateData.estado_puesto = analisisForm.nombramiento;
-
-        await api.put(`/api/leads/${analisisForm.leadId}`, leadUpdateData);
+      // Agregar cargo y nombramiento directamente del lead asociado
+      if (opportunity?.lead) {
+        payload.cargo = (opportunity.lead as any)?.puesto || null;
+        payload.nombramiento = (opportunity.lead as any)?.estado_puesto || null;
       }
 
       const response = await api.post('/api/analisis', payload);
@@ -1124,27 +1117,6 @@ export default function OpportunityDetailPage() {
                   <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cargo" className="text-xs">Cargo</Label>
-                <Input
-                  id="cargo"
-                  value={analisisForm.cargo}
-                  onChange={e => handleAnalisisFormChange('cargo', e.target.value)}
-                  className="h-8 text-sm"
-                  placeholder="Ej: Ingeniero, Docente, etc."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nombramiento" className="text-xs">Nombramiento</Label>
-                <Select value={analisisForm.nombramiento} onValueChange={v => handleAnalisisFormChange('nombramiento', v)}>
-                  <SelectTrigger id="nombramiento" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Propiedad">Propiedad</SelectItem>
-                    <SelectItem value="Interino">Interino</SelectItem>
-                    <SelectItem value="De paso">De paso</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
