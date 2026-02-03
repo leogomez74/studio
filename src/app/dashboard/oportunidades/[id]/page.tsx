@@ -582,10 +582,7 @@ export default function OpportunityDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Regresar al listado
         </Button>
-        <Button variant="outline" className="gap-2 bg-white">
-          <RefreshCw className="h-4 w-4" />
-          Actualizar
-        </Button>
+        {/* Botón de actualizar oculto temporalmente */}
       </div>
 
       <div className="grid grid-cols-1 gap-6">
