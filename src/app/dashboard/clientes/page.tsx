@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,7 +16,9 @@ import {
   Loader2,
   Trash,
   X,
-  Search
+  Search,
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -50,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import api from '@/lib/axios';
 import { type Client, type Lead } from '@/lib/data';
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PermissionButton } from "@/components/PermissionButton";
 import { ProtectedPage } from "@/components/ProtectedPage";
 
@@ -182,6 +185,9 @@ export default function ClientesPage() {
   // Lists for Dropdowns
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
   const [products, setProducts] = useState<{ id: number; name: string }[]>([]);
+  const [instituciones, setInstituciones] = useState<Array<{ id: number; nombre: string; activa: boolean }>>([]);
+  const [openInstitucion, setOpenInstitucion] = useState(false);
+  const [searchInstitucion, setSearchInstitucion] = useState("");
 
   // UI State
   const [isLeadFiltersOpen, setIsLeadFiltersOpen] = useState(false);
@@ -323,6 +329,12 @@ export default function ClientesPage() {
         console.log('Cantidad de productos:', productsArray.length);
 
         setProducts(productsArray);
+
+        // Fetch instituciones
+        try {
+          const resInst = await api.get('/api/instituciones?activas_only=true');
+          setInstituciones(Array.isArray(resInst.data) ? resInst.data : []);
+        } catch { setInstituciones([]); }
       } catch (err) {
         console.error("Error cargando listas:", err);
         setLeadStatuses([]);
@@ -904,6 +916,11 @@ export default function ClientesPage() {
   };
 
 
+
+  const filteredInstituciones = useMemo(() => {
+    if (!searchInstitucion) return instituciones;
+    return instituciones.filter((inst) => inst.nombre.toLowerCase().includes(searchInstitucion.toLowerCase()));
+  }, [searchInstitucion, instituciones]);
 
   if (error) return <ProtectedPage module="crm"><div className="p-8 text-center text-destructive">{error}</div></ProtectedPage>;
 

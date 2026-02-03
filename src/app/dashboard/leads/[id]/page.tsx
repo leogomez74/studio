@@ -709,11 +709,28 @@ export default function LeadDetailPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Institución</Label>
-                                        <Input 
-                                            value={(formData as any).institucion_labora || ""} 
-                                            onChange={(e) => handleInputChange("institucion_labora" as keyof Lead, e.target.value)} 
-                                            disabled={!isEditMode} 
-                                        />
+                                        {isEditMode ? (
+                                            <Select
+                                                value={(formData as any).institucion_labora || ""}
+                                                onValueChange={(value) => handleInputChange("institucion_labora" as keyof Lead, value)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar institución" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {deductoras.map((deductora) => (
+                                                        <SelectItem key={deductora.id} value={deductora.nombre}>
+                                                            {deductora.nombre}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <Input
+                                                value={(formData as any).institucion_labora || ""}
+                                                disabled
+                                            />
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Deductora</Label>
