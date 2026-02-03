@@ -88,6 +88,11 @@ export default function OpportunityDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
 
+  // Modal de razón de pérdida
+  const [isLostReasonDialogOpen, setIsLostReasonDialogOpen] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [savingLostReason, setSavingLostReason] = useState(false);
+
   // Analisis state
   const [existingAnalisis, setExistingAnalisis] = useState<any>(null);
   const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
@@ -96,8 +101,12 @@ export default function OpportunityDetailPage() {
     title: "",
     category: "Crédito",
     monto_credito: "",
-    ingreso_bruto: "",
-    ingreso_neto: "",
+    ingreso_bruto_1: "",
+    ingreso_neto_1: "",
+    ingreso_bruto_2: "",
+    ingreso_neto_2: "",
+    ingreso_bruto_3: "",
+    ingreso_neto_3: "",
     propuesta: "",
     leadId: "",
     opportunityId: "",
@@ -105,8 +114,7 @@ export default function OpportunityDetailPage() {
     openedAt: new Date().toISOString().split('T')[0],
     divisa: "CRC",
     plazo: "36",
-    cargo: "",
-    nombramiento: "",
+    salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
 
   // Estados para archivos
@@ -387,17 +395,21 @@ export default function OpportunityDetailPage() {
   const handleStatusChange = async (newStatus: string) => {
     if (!opportunity) return;
 
-    const previousStatus = opportunity.status; // Save previous value for rollback
+    // Si el nuevo estado es "Perdida", abrir modal para pedir razón
+    if (newStatus === 'Perdida') {
+      setLostReason('');
+      setIsLostReasonDialogOpen(true);
+      return;
+    }
+
+    const previousStatus = opportunity.status;
 
     try {
       setUpdatingStatus(true);
-      // Optimistic update
       setOpportunity(prev => prev ? { ...prev, status: newStatus } : null);
 
-      // API call
       await api.put(`/api/opportunities/${opportunity.id}`, { status: newStatus });
 
-      // Si el nuevo estado es "Analizada", verificar si existe un análisis
       if (newStatus === "Analizada") {
         await fetchExistingAnalisis();
       }
@@ -405,11 +417,39 @@ export default function OpportunityDetailPage() {
       toast({ title: "Estado actualizado", description: `La oportunidad ahora está ${newStatus}.` });
     } catch (error) {
       console.error("Error updating status:", error);
-      // Revert optimistic update on failure
       setOpportunity(prev => prev ? { ...prev, status: previousStatus } : null);
       toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleSaveLostReason = async () => {
+    if (!opportunity) return;
+    if (!lostReason.trim()) {
+      toast({ title: "Error", description: "Debe indicar la razón de pérdida.", variant: "destructive" });
+      return;
+    }
+
+    const previousStatus = opportunity.status;
+
+    try {
+      setSavingLostReason(true);
+      setOpportunity(prev => prev ? { ...prev, status: 'Perdida', lost_reason: lostReason.trim() } : null);
+
+      await api.put(`/api/opportunities/${opportunity.id}`, {
+        status: 'Perdida',
+        lost_reason: lostReason.trim(),
+      });
+
+      setIsLostReasonDialogOpen(false);
+      toast({ title: "Estado actualizado", description: "La oportunidad se marcó como Perdida." });
+    } catch (error) {
+      console.error("Error updating status:", error);
+      setOpportunity(prev => prev ? { ...prev, status: previousStatus } : null);
+      toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
+    } finally {
+      setSavingLostReason(false);
     }
   };
 
@@ -439,14 +479,14 @@ export default function OpportunityDetailPage() {
 
   // Formatear número con separadores de miles (coma) - para inputs de análisis
   const formatNumberWithCommas = (value: string | number): string => {
-    const num = typeof value === 'string' ? value.replace(/[^\d]/g, '') : String(value);
+    const num = typeof value === 'number' ? Math.round(value) : Math.round(parseFloat(value) || 0);
     if (!num) return '';
-    return Number(num).toLocaleString('en-US');
+    return num.toLocaleString('en-US');
   };
 
   // Parsear valor formateado a número
   const parseFormattedNumber = (value: string): string => {
-    return value.replace(/[^\d]/g, '');
+    return value.replace(/[^\d.]/g, '');
   };
 
   // Analisis Logic
@@ -462,8 +502,12 @@ export default function OpportunityDetailPage() {
       title: opportunity.opportunity_type || "",
       category: opportunity.opportunity_type || "Micro Crédito",
       monto_credito: opportunity.amount ? String(opportunity.amount) : "",
-      ingreso_bruto: "",
-      ingreso_neto: "",
+      ingreso_bruto_1: "",
+      ingreso_neto_1: "",
+      ingreso_bruto_2: "",
+      ingreso_neto_2: "",
+      ingreso_bruto_3: "",
+      ingreso_neto_3: "",
       propuesta: "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
@@ -471,15 +515,14 @@ export default function OpportunityDetailPage() {
       openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",
-      cargo: "",
-      nombramiento: "",
+      salarios_anteriores: [],
     });
     setIsAnalisisDialogOpen(true);
   };
 
   const handleAnalisisFormChange = (field: string, value: string) => {
     // Para campos de moneda, guardar solo el valor numérico
-    if (['monto_credito', 'ingreso_bruto', 'ingreso_neto'].includes(field)) {
+    if (['monto_credito', 'ingreso_bruto_1', 'ingreso_neto_1', 'ingreso_bruto_2', 'ingreso_neto_2', 'ingreso_bruto_3', 'ingreso_neto_3'].includes(field)) {
       const numericValue = parseFormattedNumber(value);
       setAnalisisForm(prev => ({ ...prev, [field]: numericValue }));
     } else if (field === 'plazo') {
@@ -490,6 +533,29 @@ export default function OpportunityDetailPage() {
     } else {
       setAnalisisForm(prev => ({ ...prev, [field]: value }));
     }
+  };
+
+  const addSalarioAnterior = () => {
+    setAnalisisForm(prev => {
+      if (prev.salarios_anteriores.length >= 3) return prev;
+      return { ...prev, salarios_anteriores: [...prev.salarios_anteriores, { mes: `Mes ${prev.salarios_anteriores.length + 4}`, bruto: "", neto: "" }] };
+    });
+  };
+
+  const removeSalarioAnterior = (index: number) => {
+    setAnalisisForm(prev => ({
+      ...prev,
+      salarios_anteriores: prev.salarios_anteriores.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateSalarioAnterior = (index: number, field: 'mes' | 'bruto' | 'neto', value: string) => {
+    setAnalisisForm(prev => ({
+      ...prev,
+      salarios_anteriores: prev.salarios_anteriores.map((s, i) =>
+        i === index ? { ...s, [field]: (field === 'bruto' || field === 'neto') ? parseFormattedNumber(value) : value } : s
+      ),
+    }));
   };
 
   const handleAnalisisSubmit = async (e: FormEvent) => {
@@ -513,8 +579,12 @@ export default function OpportunityDetailPage() {
         status: "Pendiente",
         category: analisisForm.category,
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
-        ingreso_bruto: parseFloat(analisisForm.ingreso_bruto) || 0,
-        ingreso_neto: parseFloat(analisisForm.ingreso_neto) || 0,
+        ingreso_bruto: parseFloat(analisisForm.ingreso_bruto_1) || 0,
+        ingreso_neto: parseFloat(analisisForm.ingreso_neto_1) || 0,
+        ingreso_bruto_2: parseFloat(analisisForm.ingreso_bruto_2) || 0,
+        ingreso_neto_2: parseFloat(analisisForm.ingreso_neto_2) || 0,
+        ingreso_bruto_3: parseFloat(analisisForm.ingreso_bruto_3) || 0,
+        ingreso_neto_3: parseFloat(analisisForm.ingreso_neto_3) || 0,
         propuesta: analisisForm.propuesta || null,
         lead_id: parseInt(analisisForm.leadId),
         opportunity_id: analisisForm.opportunityId,
@@ -522,15 +592,19 @@ export default function OpportunityDetailPage() {
         divisa: analisisForm.divisa,
         opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
+        salarios_anteriores: analisisForm.salarios_anteriores
+          .filter(s => s.bruto || s.neto)
+          .map(s => ({
+            mes: s.mes,
+            bruto: parseFloat(s.bruto) || 0,
+            neto: parseFloat(s.neto) || 0,
+          })),
       };
 
-      // Actualizar campos del lead si se especificaron
-      if (analisisForm.leadId && (analisisForm.cargo || analisisForm.nombramiento)) {
-        const leadUpdateData: Record<string, string> = {};
-        if (analisisForm.cargo) leadUpdateData.puesto = analisisForm.cargo;
-        if (analisisForm.nombramiento) leadUpdateData.estado_puesto = analisisForm.nombramiento;
-
-        await api.put(`/api/leads/${analisisForm.leadId}`, leadUpdateData);
+      // Agregar cargo y nombramiento directamente del lead asociado
+      if (opportunity?.lead) {
+        payload.cargo = (opportunity.lead as any)?.puesto || null;
+        payload.nombramiento = (opportunity.lead as any)?.estado_puesto || null;
       }
 
       const response = await api.post('/api/analisis', payload);
@@ -586,10 +660,7 @@ export default function OpportunityDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Regresar al listado
         </Button>
-        <Button variant="outline" className="gap-2 bg-white">
-          <RefreshCw className="h-4 w-4" />
-          Actualizar
-        </Button>
+        {/* Botón de actualizar oculto temporalmente */}
       </div>
 
       <div className="grid grid-cols-1 gap-6">
@@ -642,7 +713,7 @@ export default function OpportunityDetailPage() {
                             className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
-                            Crear Análisis
+                            Subir Análisis
                           </Button>
                         )
                       )
@@ -660,7 +731,7 @@ export default function OpportunityDetailPage() {
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">INSTITUCIÓN</p>
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-0">
-                          {opportunity.vertical}
+                          {opportunity.lead?.institucion_labora || opportunity.vertical || 'N/A'}
                         </Badge>
                       </div>
                       <div>
@@ -708,6 +779,14 @@ export default function OpportunityDetailPage() {
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">ACTUALIZADA</p>
                         <p className="text-sm font-medium text-slate-900">{formatDateTime(opportunity.updated_at)}</p>
                       </div>
+                      {opportunity.status === 'Perdida' && opportunity.lost_reason && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase mb-1">RAZÓN DE PÉRDIDA</p>
+                          <p className="text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md p-3 whitespace-pre-wrap">
+                            {opportunity.lost_reason}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1046,46 +1125,108 @@ export default function OpportunityDetailPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cargo" className="text-xs">Cargo</Label>
-                <Input
-                  id="cargo"
-                  value={analisisForm.cargo}
-                  onChange={e => handleAnalisisFormChange('cargo', e.target.value)}
-                  className="h-8 text-sm"
-                  placeholder="Ej: Ingeniero, Docente, etc."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nombramiento" className="text-xs">Nombramiento</Label>
-                <Select value={analisisForm.nombramiento} onValueChange={v => handleAnalisisFormChange('nombramiento', v)}>
-                  <SelectTrigger id="nombramiento" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Propiedad">Propiedad</SelectItem>
-                    <SelectItem value="Interino">Interino</SelectItem>
-                    <SelectItem value="De paso">De paso</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
                 <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
                   <Input id="monto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.monto_credito)} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
                 </div>
               </div>
+              {/* Mes 1 */}
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium text-muted-foreground">Mes 1</Label>
+              </div>
               <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto" className="text-xs">Ingreso Bruto</Label>
+                <Label htmlFor="ingreso_bruto_1" className="text-xs">Ingreso Bruto</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_bruto)} onChange={e => handleAnalisisFormChange('ingreso_bruto', e.target.value)} />
+                  <Input id="ingreso_bruto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_bruto_1)} onChange={e => handleAnalisisFormChange('ingreso_bruto_1', e.target.value)} />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="ingreso_neto" className="text-xs">Ingreso Neto</Label>
+                <Label htmlFor="ingreso_neto_1" className="text-xs">Ingreso Neto</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_neto)} onChange={e => handleAnalisisFormChange('ingreso_neto', e.target.value)} />
+                  <Input id="ingreso_neto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_neto_1)} onChange={e => handleAnalisisFormChange('ingreso_neto_1', e.target.value)} />
                 </div>
+              </div>
+              {/* Mes 2 */}
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium text-muted-foreground">Mes 2</Label>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_bruto_2" className="text-xs">Ingreso Bruto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_bruto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_bruto_2)} onChange={e => handleAnalisisFormChange('ingreso_bruto_2', e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_neto_2" className="text-xs">Ingreso Neto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_neto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_neto_2)} onChange={e => handleAnalisisFormChange('ingreso_neto_2', e.target.value)} />
+                </div>
+              </div>
+              {/* Mes 3 */}
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium text-muted-foreground">Mes 3</Label>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_bruto_3" className="text-xs">Ingreso Bruto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_bruto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_bruto_3)} onChange={e => handleAnalisisFormChange('ingreso_bruto_3', e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_neto_3" className="text-xs">Ingreso Neto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_neto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.ingreso_neto_3)} onChange={e => handleAnalisisFormChange('ingreso_neto_3', e.target.value)} />
+                </div>
+              </div>
+              {/* Salarios Anteriores (dinámicos) */}
+              <div className="sm:col-span-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Meses Adicionales</Label>
+                  {analisisForm.salarios_anteriores.length < 3 && (
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addSalarioAnterior}>
+                      <PlusCircle className="h-3 w-3" /> Agregar mes
+                    </Button>
+                  )}
+                </div>
+                {analisisForm.salarios_anteriores.map((sal, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Mes</Label>
+                      <Select value={sal.mes} onValueChange={v => updateSalarioAnterior(idx, 'mes', v)}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Mes 4">Mes 4</SelectItem>
+                          <SelectItem value="Mes 5">Mes 5</SelectItem>
+                          <SelectItem value="Mes 6">Mes 6</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Bruto</Label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
+                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatNumberWithCommas(sal.bruto)} onChange={e => updateSalarioAnterior(idx, 'bruto', e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Neto</Label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
+                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatNumberWithCommas(sal.neto)} onChange={e => updateSalarioAnterior(idx, 'neto', e.target.value)} />
+                      </div>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removeSalarioAnterior(idx)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
@@ -1113,6 +1254,35 @@ export default function OpportunityDetailPage() {
           <DialogFooter className="flex-shrink-0 pt-2 border-t">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
             <Button type="submit" size="sm" onClick={handleAnalisisSubmit}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Razón de Pérdida */}
+      <Dialog open={isLostReasonDialogOpen} onOpenChange={setIsLostReasonDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Razón de pérdida</DialogTitle>
+            <DialogDescription>
+              Indique por qué se perdió esta oportunidad.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              placeholder="Escriba la razón por la cual se perdió esta oportunidad..."
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsLostReasonDialogOpen(false)} disabled={savingLostReason}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleSaveLostReason} disabled={savingLostReason}>
+              {savingLostReason && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

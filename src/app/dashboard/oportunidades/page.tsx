@@ -15,7 +15,8 @@ import {
   Filter,
   Calendar,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  X
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -266,8 +267,12 @@ export default function DealsPage() {
     title: "",
     category: "Crédito",
     monto_credito: "",
-    ingreso_bruto: "",
-    ingreso_neto: "",
+    ingreso_bruto_1: "",
+    ingreso_neto_1: "",
+    ingreso_bruto_2: "",
+    ingreso_neto_2: "",
+    ingreso_bruto_3: "",
+    ingreso_neto_3: "",
     propuesta: "",
     leadId: "",
     opportunityId: "",
@@ -275,14 +280,11 @@ export default function DealsPage() {
     openedAt: new Date().toISOString().split('T')[0],
     divisa: "CRC",
     plazo: "36",
-    cargo: "",
-    nombramiento: "",
+    salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
 
-  // Estados locales para display de campos currency (evita duplicación de dígitos al escribir)
+  // Estado local para display de monto (evita duplicación de dígitos al escribir)
   const [montoDisplay, setMontoDisplay] = useState("");
-  const [ingresoBrutoDisplay, setIngresoBrutoDisplay] = useState("");
-  const [ingresoNetoDisplay, setIngresoNetoDisplay] = useState("");
 
   // Combobox state
   const [openVertical, setOpenVertical] = useState(false);
@@ -619,8 +621,12 @@ export default function DealsPage() {
       title: opportunity.opportunity_type || "",
       category: opportunity.opportunity_type || "Micro Crédito",
       monto_credito: montoStr,
-      ingreso_bruto: "",
-      ingreso_neto: "",
+      ingreso_bruto_1: "",
+      ingreso_neto_1: "",
+      ingreso_bruto_2: "",
+      ingreso_neto_2: "",
+      ingreso_bruto_3: "",
+      ingreso_neto_3: "",
       propuesta: "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
@@ -628,32 +634,54 @@ export default function DealsPage() {
       openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",
-      cargo: (opportunity.lead as any)?.puesto || "",
-      nombramiento: (opportunity.lead as any)?.estado_puesto || "",
+      salarios_anteriores: [],
     });
     setIsAnalisisDialogOpen(true);
   };
 
   // Formatear número con separadores de miles (coma)
   const formatCurrency = (value: string | number): string => {
-    const num = typeof value === 'string' ? value.replace(/[^\d]/g, '') : String(value);
+    const num = typeof value === 'number' ? Math.round(value) : Math.round(parseFloat(value) || 0);
     if (!num) return '';
-    return Number(num).toLocaleString('en-US');
+    return num.toLocaleString('en-US');
   };
 
   // Parsear valor formateado a número
   const parseCurrency = (value: string): string => {
-    return value.replace(/[^\d]/g, '');
+    return value.replace(/[^\d.]/g, '');
   };
 
   const handleAnalisisFormChange = (field: string, value: string) => {
     // Para campos de moneda, guardar solo el valor numérico
-    if (['monto_credito', 'ingreso_bruto', 'ingreso_neto'].includes(field)) {
+    if (['monto_credito', 'ingreso_bruto_1', 'ingreso_neto_1', 'ingreso_bruto_2', 'ingreso_neto_2', 'ingreso_bruto_3', 'ingreso_neto_3'].includes(field)) {
       const numericValue = parseCurrency(value);
       setAnalisisForm(prev => ({ ...prev, [field]: numericValue }));
     } else {
       setAnalisisForm(prev => ({ ...prev, [field]: value }));
     }
+  };
+
+  const addSalarioAnterior = () => {
+    setAnalisisForm(prev => {
+      if (prev.salarios_anteriores.length >= 3) return prev;
+      return { ...prev, salarios_anteriores: [...prev.salarios_anteriores, { mes: `Mes ${prev.salarios_anteriores.length + 4}`, bruto: "", neto: "" }] };
+    });
+  };
+
+  const removeSalarioAnterior = (index: number) => {
+    setAnalisisForm(prev => ({
+      ...prev,
+      salarios_anteriores: prev.salarios_anteriores.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateSalarioAnterior = (index: number, field: 'mes' | 'bruto' | 'neto', value: string) => {
+    setAnalisisForm(prev => ({
+      ...prev,
+      salarios_anteriores: prev.salarios_anteriores.map((s, i) =>
+        i === index ? { ...s, [field]: (field === 'bruto' || field === 'neto') ? parseCurrency(value) : value } : s
+      ),
+    }));
   };
 
   const handleAnalisisSubmit = async (e: FormEvent) => {
@@ -665,8 +693,12 @@ export default function DealsPage() {
         status: "Pendiente", // Default status para análisis nuevo
         category: analisisForm.category,
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
-        ingreso_bruto: parseFloat(analisisForm.ingreso_bruto) || 0,
-        ingreso_neto: parseFloat(analisisForm.ingreso_neto) || 0,
+        ingreso_bruto: parseFloat(analisisForm.ingreso_bruto_1) || 0,
+        ingreso_neto: parseFloat(analisisForm.ingreso_neto_1) || 0,
+        ingreso_bruto_2: parseFloat(analisisForm.ingreso_bruto_2) || 0,
+        ingreso_neto_2: parseFloat(analisisForm.ingreso_neto_2) || 0,
+        ingreso_bruto_3: parseFloat(analisisForm.ingreso_bruto_3) || 0,
+        ingreso_neto_3: parseFloat(analisisForm.ingreso_neto_3) || 0,
         propuesta: analisisForm.propuesta || null,
         lead_id: parseInt(analisisForm.leadId),
         opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
@@ -674,15 +706,19 @@ export default function DealsPage() {
         divisa: analisisForm.divisa,
         opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
+        salarios_anteriores: analisisForm.salarios_anteriores
+          .filter(s => s.bruto || s.neto)
+          .map(s => ({
+            mes: s.mes,
+            bruto: parseFloat(s.bruto) || 0,
+            neto: parseFloat(s.neto) || 0,
+          })),
       };
 
-      // Actualizar el lead con cargo y nombramiento si se proporcionaron
-      if (analisisForm.leadId && (analisisForm.cargo || analisisForm.nombramiento)) {
-        const leadUpdateData: Record<string, string> = {};
-        if (analisisForm.cargo) leadUpdateData.puesto = analisisForm.cargo;
-        if (analisisForm.nombramiento) leadUpdateData.estado_puesto = analisisForm.nombramiento;
-
-        await api.put(`/api/leads/${analisisForm.leadId}`, leadUpdateData);
+      // Agregar cargo y nombramiento directamente del lead asociado
+      if (analisisOpportunity?.lead) {
+        payload.cargo = (analisisOpportunity.lead as any)?.puesto || null;
+        payload.nombramiento = (analisisOpportunity.lead as any)?.estado_puesto || null;
       }
 
       await api.post('/api/analisis', payload);
@@ -712,7 +748,7 @@ export default function DealsPage() {
     if (!isAnalizada) {
       return { label: "Solo oportunidades analizadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
     }
-    return { label: "Crear Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
+    return { label: "Subir Análisis", color: "bg-indigo-600", icon: <PlusCircle className="h-4 w-4" />, disabled: false };
   };
 
   // --- Pagination Logic ---
@@ -1449,27 +1485,6 @@ export default function DealsPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cargo" className="text-xs">Cargo</Label>
-                <Input
-                  id="cargo"
-                  value={analisisForm.cargo}
-                  onChange={e => handleAnalisisFormChange('cargo', e.target.value)}
-                  className="h-8 text-sm"
-                  placeholder="Ej: Ingeniero, Docente, etc."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nombramiento" className="text-xs">Nombramiento</Label>
-                <Select value={analisisForm.nombramiento} onValueChange={v => handleAnalisisFormChange('nombramiento', v)}>
-                  <SelectTrigger id="nombramiento" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Propiedad">Propiedad</SelectItem>
-                    <SelectItem value="Interino">Interino</SelectItem>
-                    <SelectItem value="De paso">De paso</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
                 <Label htmlFor="monto" className="text-xs">Monto Crédito</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
@@ -1495,57 +1510,102 @@ export default function DealsPage() {
                   />
                 </div>
               </div>
+              {/* Mes 1 */}
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium text-muted-foreground">Mes 1</Label>
+              </div>
               <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto" className="text-xs">Ingreso Bruto</Label>
+                <Label htmlFor="ingreso_bruto_1" className="text-xs">Ingreso Bruto</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="ingreso_bruto"
-                    className="h-8 text-sm pl-7"
-                    type="text"
-                    inputMode="numeric"
-                    value={ingresoBrutoDisplay || analisisForm.ingreso_bruto || ''}
-                    onChange={e => {
-                      setIngresoBrutoDisplay(e.target.value);
-                      handleAnalisisFormChange('ingreso_bruto', e.target.value);
-                    }}
-                    onBlur={() => {
-                      if (analisisForm.ingreso_bruto) {
-                        setIngresoBrutoDisplay(formatCurrency(analisisForm.ingreso_bruto));
-                      }
-                    }}
-                    onFocus={(e) => {
-                      setIngresoBrutoDisplay(analisisForm.ingreso_bruto);
-                      setTimeout(() => e.target.select(), 0);
-                    }}
-                  />
+                  <Input id="ingreso_bruto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_1)} onChange={e => handleAnalisisFormChange('ingreso_bruto_1', e.target.value)} />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="ingreso_neto" className="text-xs">Ingreso Neto</Label>
+                <Label htmlFor="ingreso_neto_1" className="text-xs">Ingreso Neto</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="ingreso_neto"
-                    className="h-8 text-sm pl-7"
-                    type="text"
-                    inputMode="numeric"
-                    value={ingresoNetoDisplay || analisisForm.ingreso_neto || ''}
-                    onChange={e => {
-                      setIngresoNetoDisplay(e.target.value);
-                      handleAnalisisFormChange('ingreso_neto', e.target.value);
-                    }}
-                    onBlur={() => {
-                      if (analisisForm.ingreso_neto) {
-                        setIngresoNetoDisplay(formatCurrency(analisisForm.ingreso_neto));
-                      }
-                    }}
-                    onFocus={(e) => {
-                      setIngresoNetoDisplay(analisisForm.ingreso_neto);
-                      setTimeout(() => e.target.select(), 0);
-                    }}
-                  />
+                  <Input id="ingreso_neto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_1)} onChange={e => handleAnalisisFormChange('ingreso_neto_1', e.target.value)} />
                 </div>
+              </div>
+              {/* Mes 2 */}
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium text-muted-foreground">Mes 2</Label>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_bruto_2" className="text-xs">Ingreso Bruto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_bruto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_2)} onChange={e => handleAnalisisFormChange('ingreso_bruto_2', e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_neto_2" className="text-xs">Ingreso Neto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_neto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_2)} onChange={e => handleAnalisisFormChange('ingreso_neto_2', e.target.value)} />
+                </div>
+              </div>
+              {/* Mes 3 */}
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium text-muted-foreground">Mes 3</Label>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_bruto_3" className="text-xs">Ingreso Bruto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_bruto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_3)} onChange={e => handleAnalisisFormChange('ingreso_bruto_3', e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingreso_neto_3" className="text-xs">Ingreso Neto</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input id="ingreso_neto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_3)} onChange={e => handleAnalisisFormChange('ingreso_neto_3', e.target.value)} />
+                </div>
+              </div>
+              {/* Salarios Anteriores */}
+              <div className="sm:col-span-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Salarios Anteriores</Label>
+                  {analisisForm.salarios_anteriores.length < 3 && (
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addSalarioAnterior}>
+                      <PlusCircle className="h-3 w-3" /> Agregar mes
+                    </Button>
+                  )}
+                </div>
+                {analisisForm.salarios_anteriores.map((sal, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Mes</Label>
+                      <Select value={sal.mes} onValueChange={v => updateSalarioAnterior(idx, 'mes', v)}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Mes 4">Mes extra 1</SelectItem>
+                          <SelectItem value="Mes 5">Mes extra 2</SelectItem>
+                          <SelectItem value="Mes 6">Mes extra 3</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Bruto</Label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
+                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatCurrency(sal.bruto)} onChange={e => updateSalarioAnterior(idx, 'bruto', e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Neto</Label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
+                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatCurrency(sal.neto)} onChange={e => updateSalarioAnterior(idx, 'neto', e.target.value)} />
+                      </div>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removeSalarioAnterior(idx)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>

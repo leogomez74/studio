@@ -190,6 +190,7 @@ class OpportunityController extends Controller
             'expected_close_date' => 'sometimes|nullable|date',
             'comments' => 'sometimes|nullable|string',
             'assigned_to_id' => 'sometimes|nullable|exists:users,id',
+            'lost_reason' => 'sometimes|nullable|string|max:2000',
         ]);
 
         $opportunity->update($validated);

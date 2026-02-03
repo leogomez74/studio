@@ -45,7 +45,7 @@ export default function ClientDetailPage() {
   const [isOpportunitiesOpen, setIsOpportunitiesOpen] = useState(true);
   const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
   const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
-  const [deductoras, setDeductoras] = useState<{id: string, nombre: string}[]>([]);
+  const [deductoras, setDeductoras] = useState<{id: number, nombre: string}[]>([]);
   const [leads, setLeads] = useState<{id: number, name: string}[]>([]);
 
   // Credits and Payments state
@@ -225,13 +225,35 @@ export default function ClientDetailPage() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await api.put(`/api/clients/${id}`, formData);
+      // Sanitize deductora_id to ensure it's a valid number or null
+      const sanitizedData = {
+        ...formData,
+        deductora_id: formData.deductora_id ? Number(formData.deductora_id) : null,
+      };
+
+      console.log('Datos a enviar:', sanitizedData);
+
+      await api.put(`/api/clients/${id}`, sanitizedData);
       toast({ title: "Guardado", description: "Cliente actualizado correctamente." });
       setClient(prev => ({ ...prev, ...formData } as Client));
       router.push(`/dashboard/clientes/${id}?mode=view`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating client:", error);
-      toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
+      console.error("Error response:", error.response?.data);
+
+      // Mostrar errores de validación específicos si existen
+      if (error.response?.data?.errors) {
+        const errorMessages = Object.entries(error.response.data.errors)
+          .map(([field, messages]: [string, any]) => `${field}: ${messages.join(', ')}`)
+          .join('\n');
+        toast({
+          title: "Error de validación",
+          description: errorMessages,
+          variant: "destructive"
+        });
+      } else {
+        toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
+      }
     } finally {
       setSaving(false);
     }
@@ -735,28 +757,21 @@ export default function ClientDetailPage() {
               </div>
                <div className="space-y-2">
                 <Label>Deductora</Label>
-                {isEditMode ? (
-                  <Select 
-                    value={formData.deductora_id || ""} 
-                    onValueChange={(value) => handleInputChange("deductora_id", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar deductora" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {deductoras.map((deductora) => (
-                        <SelectItem key={deductora.id} value={deductora.id}>
-                          {deductora.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input 
-                    value={deductoras.find(d => d.id === formData.deductora_id)?.nombre || ""} 
-                    disabled 
-                  />
-                )}
+                <div className="flex items-center gap-6">
+                  {deductoras.map((deductora) => (
+                    <Button
+                      key={deductora.id}
+                      type="button"
+                      variant={formData.deductora_id === deductora.id ? "default" : "outline"}
+                      size="default"
+                      onClick={() => isEditMode && handleInputChange("deductora_id", deductora.id)}
+                      disabled={!isEditMode}
+                      className={`flex-1 ${formData.deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
+                    >
+                      {deductora.nombre}
+                    </Button>
+                  ))}
+                </div>
               </div>
                <div className="col-span-3 space-y-2">
                 <Label>Dirección de la Institución</Label>
