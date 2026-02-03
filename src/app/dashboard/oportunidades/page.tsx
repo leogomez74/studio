@@ -612,11 +612,13 @@ export default function DealsPage() {
     setAnalisisOpportunity(opportunity);
 
     // La referencia es el ID de la oportunidad
+    const montoStr = opportunity.amount ? String(opportunity.amount) : "";
+    setMontoDisplay(montoStr ? formatCurrency(montoStr) : "");
     setAnalisisForm({
       reference: String(opportunity.id),
       title: opportunity.opportunity_type || "",
-      category: "Crédito",
-      monto_credito: opportunity.amount ? String(opportunity.amount) : "",
+      category: opportunity.opportunity_type || "Micro Crédito",
+      monto_credito: montoStr,
       ingreso_bruto: "",
       ingreso_neto: "",
       propuesta: "",
@@ -659,7 +661,7 @@ export default function DealsPage() {
     try {
       const payload: Record<string, any> = {
         reference: analisisForm.reference, // ID de la oportunidad como referencia
-        title: analisisForm.title,
+        title: analisisForm.category || analisisForm.title || "Análisis",
         status: "Pendiente", // Default status para análisis nuevo
         category: analisisForm.category,
         monto_credito: parseFloat(analisisForm.monto_credito) || 0,
@@ -1429,11 +1431,7 @@ export default function DealsPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="title" className="text-xs">Título</Label>
-                <Input id="title" className="h-8 text-sm" value={analisisForm.title} onChange={e => handleAnalisisFormChange('title', e.target.value)} required />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="category" className="text-xs">Categoría</Label>
+                <Label htmlFor="category" className="text-xs">Producto</Label>
                 <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)}>
                   <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
