@@ -88,6 +88,9 @@ export function AnalisisWizardModal({
   const [extraMonths, setExtraMonths] = useState(0);
   const [users, setUsers] = useState<Array<{ id: number; name: string }>>([]);
   const [leadData, setLeadData] = useState<{ profesion?: string; puesto?: string; estado_puesto?: string } | null>(null);
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; plazo_minimo: number; plazo_maximo: number; monto_minimo: number; monto_maximo: number }>>({});
+  const [plazoError, setPlazoError] = useState<string>('');
+  const [montoError, setMontoError] = useState<string>('');
 
   // Cargar usuarios y datos del lead al abrir el modal
   useEffect(() => {
@@ -110,8 +113,59 @@ export function AnalisisWizardModal({
           }
         })
         .catch(err => console.error('Error loading opportunity:', err));
+
+      // Cargar configuraciones de préstamos para validación
+      api.get('/api/loan-configurations/rangos')
+        .then(res => setLoanConfigs(res.data))
+        .catch(err => console.error('Error loading loan configs:', err));
     }
   }, [open, opportunityId]);
+
+  // Validar plazo según configuración del tipo de crédito
+  useEffect(() => {
+    const plazoMeses = parseInt(formData.plazo) || 0;
+    if (!plazoMeses || !producto || Object.keys(loanConfigs).length === 0) {
+      setPlazoError('');
+      return;
+    }
+
+    // Determinar el tipo de crédito
+    const esMicroCredito = producto.toLowerCase().includes('micro');
+    const tipoCredito = esMicroCredito ? 'microcredito' : 'regular';
+    const config = loanConfigs[tipoCredito];
+
+    if (config) {
+      if (plazoMeses < config.plazo_minimo || plazoMeses > config.plazo_maximo) {
+        setPlazoError(`El plazo debe estar entre ${config.plazo_minimo} y ${config.plazo_maximo} meses para ${config.nombre}.`);
+      } else {
+        setPlazoError('');
+      }
+    }
+  }, [formData.plazo, producto, loanConfigs]);
+
+  // Validar monto sugerido según configuración del tipo de crédito
+  useEffect(() => {
+    const monto = parseFloat(formData.monto_sugerido) || 0;
+    if (!monto || !producto || Object.keys(loanConfigs).length === 0) {
+      setMontoError('');
+      return;
+    }
+
+    // Determinar el tipo de crédito
+    const esMicroCredito = producto.toLowerCase().includes('micro');
+    const tipoCredito = esMicroCredito ? 'microcredito' : 'regular';
+    const config = loanConfigs[tipoCredito];
+
+    if (config) {
+      if (monto < config.monto_minimo || monto > config.monto_maximo) {
+        const minFormatted = config.monto_minimo.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const maxFormatted = config.monto_maximo.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        setMontoError(`El monto debe estar entre ₡${minFormatted} y ₡${maxFormatted} para ${config.nombre}.`);
+      } else {
+        setMontoError('');
+      }
+    }
+  }, [formData.monto_sugerido, producto, loanConfigs]);
 
   // Calcular cuota automáticamente cuando cambian monto_sugerido o plazo
   useEffect(() => {
@@ -163,6 +217,10 @@ export function AnalisisWizardModal({
     if (currentStep === 1) {
       const plazoValue = parseInt(formData.plazo);
       if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
+        return;
+      }
+      // Validar que no haya errores de plazo o monto según configuración
+      if (plazoError || montoError) {
         return;
       }
     }
@@ -314,35 +372,40 @@ export function AnalisisWizardModal({
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="monto_sugerido">Monto Sugerido *</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="monto_sugerido"
-                    type="text"
-                    inputMode="numeric"
-                    className="pl-7"
-                    value={formatNumber(formData.monto_sugerido)}
-                    onChange={(e) => updateFormData('monto_sugerido', parseNumber(e.target.value))}
-                    placeholder="420,000"
-                    required
-                  />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="monto_sugerido">Monto Sugerido *</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                    <Input
+                      id="monto_sugerido"
+                      type="text"
+                      inputMode="numeric"
+                      className={`pl-7 ${montoError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                      value={formatNumber(formData.monto_sugerido)}
+                      onChange={(e) => updateFormData('monto_sugerido', parseNumber(e.target.value))}
+                      placeholder="Ingresar monto sugerido"
+                      required
+                    />
+                  </div>
+                  {montoError && (
+                    <p className="text-sm text-red-500 mt-1">{montoError}</p>
+                  )}
                 </div>
-              </div>
 
-              <div>
-                <Label htmlFor="cuota">Cuota (Calculada)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="cuota"
-                    type="text"
-                    className="pl-7 bg-muted"
-                    value={formData.cuota ? formatNumber(formData.cuota) : 'N/A'}
-                    readOnly
-                    disabled
-                  />
+                <div>
+                  <Label htmlFor="cuota">Cuota (Calculada)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                    <Input
+                      id="cuota"
+                      type="text"
+                      className="pl-7 bg-muted"
+                      value={formData.cuota ? formatNumber(formData.cuota) : 'N/A'}
+                      readOnly
+                      disabled
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -358,7 +421,11 @@ export function AnalisisWizardModal({
                     onChange={(e) => updateFormData('plazo', e.target.value)}
                     placeholder="Ingresar plazo"
                     required
+                    className={plazoError ? 'border-red-500 focus-visible:ring-red-500' : ''}
                   />
+                  {plazoError && (
+                    <p className="text-sm text-red-500 mt-1">{plazoError}</p>
+                  )}
                 </div>
 
                 <div>
@@ -440,7 +507,19 @@ export function AnalisisWizardModal({
                               inputMode="numeric"
                               className="pl-7"
                               value={formatNumber(formData[brutoProp] as string)}
-                              onChange={(e) => updateFormData(brutoProp as string, parseNumber(e.target.value))}
+                              onChange={(e) => {
+                                const value = parseNumber(e.target.value);
+                                updateFormData(brutoProp as string, value);
+
+                                // Si es el Mes 1, auto-llenar los demás meses
+                                if (mes === 1) {
+                                  updateFormData('ingreso_bruto_2', value);
+                                  updateFormData('ingreso_bruto_3', value);
+                                  updateFormData('ingreso_bruto_4', value);
+                                  updateFormData('ingreso_bruto_5', value);
+                                  updateFormData('ingreso_bruto_6', value);
+                                }
+                              }}
                               placeholder="0"
                             />
                           </div>
