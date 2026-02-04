@@ -45,7 +45,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { CreditFormModal } from '@/components/CreditFormModal';
+
+// Helper functions for currency
+const parseCurrencyToNumber = (value: string): string => {
+  let cleaned = value.replace(/[₡$]/g, '');
+  cleaned = cleaned.replace(/\s/g, '');
+  cleaned = cleaned.replace(/,/g, '');
+  cleaned = cleaned.replace(/[^\d.]/g, '');
+  return cleaned;
+};
 
 // --- Types for Tareas ---
 
@@ -528,8 +536,41 @@ export default function AnalisisDetailPage() {
 
   // Estado del modal de crédito
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
+  const [creditForm, setCreditForm] = useState({
+    reference: '',
+    title: '',
+    status: 'Por firmar',
+    category: 'Crédito',
+    monto_credito: '',
+    leadId: '',
+    clientName: '',
+    description: '',
+    divisa: 'CRC',
+    plazo: '36',
+    poliza: false,
+    conCargosAdicionales: false,
+  });
   const [products, setProducts] = useState<Array<{ id: number; name: string; }>>([]);
   const [leads, setLeads] = useState<Array<{ id: number; name?: string; deductora_id?: number; }>>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Configuración de cargos adicionales por defecto
+  const CARGOS_CONFIG = {
+    comision: { porcentaje: 0.03, fijo: null },
+    transporte: { porcentaje: null, fijo: 10000 },
+    respaldo_deudor: { porcentaje: null, fijo: 4950, soloRegular: true },
+    descuento_factura: { porcentaje: null, fijo: 0 },
+  };
+
+  const calcularCargosDefault = (monto: number, category: string) => {
+    const esRegular = category === 'Regular' || category === 'Personal (Diferentes usos)' || category === 'Refundición (Pagar deudas actuales)';
+    return {
+      comision: Math.round(monto * (CARGOS_CONFIG.comision.porcentaje || 0) * 100) / 100,
+      transporte: CARGOS_CONFIG.transporte.fijo || 0,
+      respaldo_deudor: esRegular ? (CARGOS_CONFIG.respaldo_deudor.fijo || 0) : 0,
+      descuento_factura: 0,
+    };
+  };
 
   // Estados para collapsibles de historial crediticio
   const [manchasOpen, setManchasOpen] = useState(false);
@@ -1020,11 +1061,39 @@ export default function AnalisisDetailPage() {
             ) : (
               <Button
                 variant="default"
-                onClick={() => setIsCreditDialogOpen(true)}
+                onClick={async () => {
+                  try {
+                    // Obtener la próxima referencia del servidor
+                    const refResponse = await api.get('/api/credits/next-reference');
+                    const nextReference = refResponse.data.reference;
+
+                    setCreditForm({
+                      reference: nextReference,
+                      title: analisis.lead?.name || '',
+                      status: 'Por firmar',
+                      category: analisis.category || 'Regular',
+                      monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
+                      leadId: analisis.lead_id ? String(analisis.lead_id) : '',
+                      clientName: analisis.lead?.name || '',
+                      description: `Crédito generado desde análisis ${analisis.reference}`,
+                      divisa: analisis.divisa || 'CRC',
+                      plazo: analisis.plazo ? String(analisis.plazo) : '36',
+                      poliza: false,
+                      conCargosAdicionales: true,
+                    });
+                    setIsCreditDialogOpen(true);
+                  } catch (err) {
+                    toast({
+                      variant: "destructive",
+                      title: "Error",
+                      description: "No se pudo obtener la referencia del crédito",
+                    });
+                  }
+                }}
                 className="w-[180px] h-9 justify-start"
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Subir Crédito
+                Generar crédito
               </Button>
             )
           )}
@@ -1685,29 +1754,239 @@ export default function AnalisisDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Crear Crédito */}
-      <CreditFormModal
-        open={isCreditDialogOpen}
-        onOpenChange={setIsCreditDialogOpen}
-        initialData={{
-          reference: '',
-          title: `Crédito ${analisis.reference}`,
-          monto_credito: analisis.monto_credito,
-          leadId: analisis.lead_id,
-          clientName: analisis.lead?.name,
-          category: 'Crédito',
-          divisa: 'CRC',
-          plazo: '36',
-          description: `Crédito generado desde análisis ${analisis.reference}`,
-        }}
-        products={products}
-        leads={leads}
-        onSuccess={async () => {
-          // Refrescar análisis para actualizar has_credit
-          const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
-          setAnalisis(resAnalisis.data);
-        }}
-      />
+      <Dialog open={isCreditDialogOpen} onOpenChange={setIsCreditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nuevo Crédito</DialogTitle>
+            <DialogDescription>Completa la información del crédito.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-6"
+            onSubmit={async (e) => {
+              e.preventDefault();
+
+              // Validaciones previas
+              const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
+              const leadIdNumerico = parseInt(creditForm.leadId);
+              const plazoNumerico = parseInt(creditForm.plazo);
+
+              if (!creditForm.leadId || isNaN(leadIdNumerico)) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "No hay un cliente asociado al análisis",
+                });
+                return;
+              }
+
+              // Validar que el cliente tenga deductora asignada - fetch directo del cliente
+              try {
+                const clientResponse = await api.get(`/api/clients/${leadIdNumerico}`);
+                if (!clientResponse.data.deductora_id) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error de validación",
+                    description: "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crédito.",
+                  });
+                  return;
+                }
+              } catch (error) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "No se pudo verificar los datos del cliente",
+                });
+                return;
+              }
+
+              if (isNaN(montoNumerico) || montoNumerico < 2) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "El monto debe ser un número mayor a 2",
+                });
+                return;
+              }
+              if (isNaN(plazoNumerico) || plazoNumerico < 1 || plazoNumerico > 120) {
+                toast({
+                  variant: "destructive",
+                  title: "Error de validación",
+                  description: "El plazo debe ser un número entre 1 y 120",
+                });
+                return;
+              }
+
+              setIsSaving(true);
+
+              // Calcular cargos adicionales si está habilitado
+              const cargosAdicionales = creditForm.conCargosAdicionales
+                ? calcularCargosDefault(montoNumerico, creditForm.category)
+                : undefined;
+
+              const payload: Record<string, any> = {
+                reference: creditForm.reference,
+                title: creditForm.title,
+                status: creditForm.status,
+                category: creditForm.category,
+                monto_credito: montoNumerico,
+                lead_id: leadIdNumerico,
+                description: creditForm.description,
+                divisa: creditForm.divisa,
+                plazo: plazoNumerico,
+                poliza: creditForm.poliza,
+              };
+
+              if (cargosAdicionales) {
+                payload.cargos_adicionales = cargosAdicionales;
+              }
+
+              console.log('Enviando payload:', payload);
+
+              try {
+                const response = await api.post('/api/credits', payload);
+                console.log('Respuesta:', response.data);
+                setIsCreditDialogOpen(false);
+                toast({
+                  variant: "success",
+                  title: "Crédito creado",
+                  description: `El crédito ${response.data.reference} se ha creado exitosamente.`,
+                });
+                // Refrescar análisis para actualizar has_credit
+                const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
+                setAnalisis(resAnalisis.data);
+              } catch (err: any) {
+                console.error('Error completo:', err);
+                console.error('Response:', err?.response);
+                console.error('Response data:', err?.response?.data);
+                console.error('Response status:', err?.response?.status);
+
+                let mensaje = 'Error al crear crédito';
+                if (err?.response?.data?.message) {
+                  mensaje = err.response.data.message;
+                } else if (err?.response?.data?.errors) {
+                  mensaje = Object.values(err.response.data.errors).flat().join(', ');
+                } else if (err?.message) {
+                  mensaje = err.message;
+                }
+                toast({
+                  variant: "destructive",
+                  title: "Error al crear crédito",
+                  description: mensaje,
+                });
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="reference">Referencia</Label>
+                <Input
+                  id="reference"
+                  placeholder="Se genera automáticamente (YY-XXXXX-CR)"
+                  value={creditForm.reference}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Estado</Label>
+                <Input
+                  id="status"
+                  value={creditForm.status}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Categoría</Label>
+                <Input
+                  id="category"
+                  value={creditForm.category}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="divisa">Divisa</Label>
+                <Input
+                  id="divisa"
+                  value="CRC - Colón Costarricense"
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="monto">Monto</Label>
+                <Input
+                  id="monto"
+                  value={creditForm.monto_credito || ''}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="plazo">Plazo (Meses)</Label>
+                <Input
+                  id="plazo"
+                  value={creditForm.plazo}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="poliza">Póliza</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="poliza"
+                    checked={creditForm.poliza}
+                    onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
+                    disabled={creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'}
+                  />
+                  <Label htmlFor="poliza" className="text-sm text-muted-foreground">
+                    {creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'
+                      ? 'No disponible para Micro Crédito'
+                      : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
+                  </Label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cargos">Cargos Adicionales</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="cargos"
+                    checked={creditForm.conCargosAdicionales}
+                    onCheckedChange={checked => setCreditForm(f => ({ ...f, conCargosAdicionales: checked }))}
+                  />
+                  <Label htmlFor="cargos" className="text-sm text-muted-foreground">
+                    {creditForm.conCargosAdicionales
+                      ? 'Aplicar cargos (editable en detalle)'
+                      : 'Sin cargos adicionales'}
+                  </Label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cliente">Cliente</Label>
+                <Input
+                  id="cliente"
+                  value={creditForm.clientName}
+                  disabled
+                  placeholder="Cliente del análisis"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Descripción</Label>
+              <Textarea
+                id="description"
+                className="min-h-[80px]"
+                placeholder="Describe el contexto del crédito..."
+                value={creditForm.description}
+                onChange={e => setCreditForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSaving} className="bg-green-600 text-white hover:bg-green-700">
+                {isSaving ? 'Guardando...' : 'Generar crédito'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

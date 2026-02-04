@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback, FormEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X, AlertCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { Button } from "@/components/ui/button";
@@ -606,7 +606,7 @@ export default function LeadDetailPage() {
 
     // Validar si el registro está completo
     const REQUIRED_FIELDS = [
-        'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento',
+        'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento', 'estado_civil',
         'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
         'province', 'canton', 'distrito', 'direccion1',
         'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
@@ -628,6 +628,27 @@ export default function LeadDetailPage() {
         return value === null || value === undefined || value === '';
     }, [formData]);
 
+    const getMissingDocuments = useCallback(() => {
+        const documents = (lead as any)?.documents || [];
+        const missing = [];
+        const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
+        const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
+
+        if (!hasCedula) missing.push('Cédula');
+        if (!hasRecibo) missing.push('Recibo de Servicio');
+
+        return missing;
+    }, [lead]);
+
+    const getMissingFieldsCount = useCallback(() => {
+        if (!formData) return 0;
+        return REQUIRED_FIELDS.filter(field => {
+            const value = (formData as any)[field];
+            if (field === 'deductora_id') return !value || value === 0;
+            return value === null || value === undefined || value === '';
+        }).length;
+    }, [formData]);
+
     // Protección: redirigir si intenta editar sin permiso
     useEffect(() => {
         if (mode === "edit" && !canEdit && !permsLoading) {
@@ -640,19 +661,20 @@ export default function LeadDetailPage() {
         }
     }, [mode, canEdit, permsLoading, id, router, toast]);
 
+    const fetchLead = useCallback(async () => {
+        try {
+            const response = await api.get(`/api/leads/${id}`);
+            setLead(response.data);
+            setFormData(response.data);
+        } catch (error) {
+            console.error("Error fetching lead:", error);
+            toast({ title: "Error", description: "No se pudo cargar el lead.", variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    }, [id, toast]);
+
     useEffect(() => {
-        const fetchLead = async () => {
-            try {
-                const response = await api.get(`/api/leads/${id}`);
-                setLead(response.data);
-                setFormData(response.data);
-            } catch (error) {
-                console.error("Error fetching lead:", error);
-                toast({ title: "Error", description: "No se pudo cargar el lead.", variant: "destructive" });
-            } finally {
-                setLoading(false);
-            }
-        };
 
         const fetchAgents = async () => {
             try {
@@ -912,9 +934,23 @@ export default function LeadDetailPage() {
                 <div className={isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'}>
                     <Tabs defaultValue="datos" className="w-full">
                         <TabsList className="grid w-full grid-cols-3 mb-4">
-                            <TabsTrigger value="datos">Datos</TabsTrigger>
+                            <TabsTrigger value="datos" className="relative">
+                                Datos
+                                {getMissingFieldsCount() > 0 && (
+                                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                        {getMissingFieldsCount()}
+                                    </span>
+                                )}
+                            </TabsTrigger>
                             <TabsTrigger value="tareas">Tareas</TabsTrigger>
-                            <TabsTrigger value="archivos">Archivos</TabsTrigger>
+                            <TabsTrigger value="archivos" className="relative">
+                                Archivos
+                                {getMissingDocuments().length > 0 && (
+                                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                        {getMissingDocuments().length}
+                                    </span>
+                                )}
+                            </TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="datos">
@@ -1075,9 +1111,9 @@ export default function LeadDetailPage() {
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Estado Civil</Label>
+                                        <Label>Estado Civil {isFieldMissing('estado_civil') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
-                                            <Select 
+                                            <Select
                                                 value={(formData as any).estado_civil || ""} 
                                                 onValueChange={(value) => handleInputChange("estado_civil" as keyof Lead, value)}
                                             >
@@ -1568,10 +1604,29 @@ export default function LeadDetailPage() {
                                         </CardDescription>
                                     )}
                                 </CardHeader>
+                                {getMissingDocuments().length > 0 && (
+                                    <div className="px-6 pb-4">
+                                        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-sm font-medium text-red-900">Documentos obligatorios faltantes</p>
+                                                <p className="text-sm text-red-700 mt-1">
+                                                    {getMissingDocuments().map((doc, i) => (
+                                                        <span key={doc}>
+                                                            {i > 0 && ', '}
+                                                            <span className="font-semibold">{doc}</span>
+                                                        </span>
+                                                    ))}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 <CardContent>
                                     <DocumentManager
                                         personId={Number(lead.id)}
                                         initialDocuments={(lead as any).documents || []}
+                                        onDocumentChange={fetchLead}
                                     />
                                 </CardContent>
                             </Card>

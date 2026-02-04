@@ -16,7 +16,8 @@ import {
   Calendar,
   Check,
   ChevronsUpDown,
-  X
+  X,
+  AlertCircle
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -1129,6 +1130,10 @@ export default function DealsPage() {
                 <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("amount")}>
                   Monto {renderSortIcon("amount")}
                 </button>
+                
+              </TableHead>
+              <TableHead>
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Documentos</span>
               </TableHead>
               <TableHead className="hidden md:table-cell" aria-sort={getAriaSort("expected_close_date")}>
                 <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("expected_close_date")}>
@@ -1140,14 +1145,15 @@ export default function DealsPage() {
                   Creado {renderSortIcon("created_at")}
                 </button>
               </TableHead>
+              
               <TableHead><span className="sr-only">Acciones</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
             ) : visibleOpportunities.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No hay oportunidades.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">No hay oportunidades.</TableCell></TableRow>
             ) : (
               visibleOpportunities.map((opportunity) => {
                 const badgeVariant = opportunity.status?.toLowerCase() === "ganada" ? "default" : "secondary";
@@ -1170,6 +1176,32 @@ export default function DealsPage() {
                     <TableCell><Badge variant="default" className="bg-slate-900 hover:bg-slate-800">{opportunity.status || "Pendiente"}</Badge></TableCell>
                     <TableCell>{opportunity.opportunity_type || "-"}</TableCell>
                     <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
+                    <TableCell>
+                      {(opportunity as any).missing_documents?.length > 0 ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Badge variant="destructive" className="text-xs cursor-help">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Faltan {(opportunity as any).missing_documents.length}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">Documentos faltantes:</p>
+                              <ul className="list-disc list-inside text-xs">
+                                {(opportunity as any).missing_documents.map((doc: string, idx: number) => (
+                                  <li key={idx}>{doc}</li>
+                                ))}
+                              </ul>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-green-700 border-green-700">
+                          Completo
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="hidden md:table-cell">{formatDate(opportunity.expected_close_date)}</TableCell>
                     <TableCell className="hidden md:table-cell">{formatDate(opportunity.created_at)}</TableCell>
                     <TableCell className="text-right">

@@ -30,7 +30,8 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  Maximize2
+  Maximize2,
+  AlertCircle
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -778,6 +779,18 @@ export default function OpportunityDetailPage() {
     return heredados.find(f => f.name.toLowerCase().startsWith('recibo'));
   };
 
+  // Verificar documentos faltantes
+  const getMissingDocuments = () => {
+    const missing = [];
+    if (!getCedulaFile()) {
+      missing.push('Archivo de Cédula');
+    }
+    if (!getReciboFile()) {
+      missing.push('Archivo de Recibo');
+    }
+    return missing;
+  };
+
   // Eliminar archivo
   const handleDeleteFile = async (filename: string) => {
     if (!confirm(`¿Eliminar el archivo "${filename}"?`)) return;
@@ -1172,7 +1185,14 @@ export default function OpportunityDetailPage() {
             <TabsList className="grid w-full grid-cols-3 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
               <TabsTrigger value="tareas">Tareas</TabsTrigger>
-              <TabsTrigger value="archivos">Archivos</TabsTrigger>
+              <TabsTrigger value="archivos" className="relative">
+                Archivos
+                {getMissingDocuments().length > 0 && (
+                  <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1.5 text-xs">
+                    {getMissingDocuments().length}
+                  </Badge>
+                )}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="resumen">
@@ -1316,6 +1336,21 @@ export default function OpportunityDetailPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Advertencia de documentos faltantes */}
+                    {getMissingDocuments().length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-red-900 mb-1">Documentos Faltantes</h3>
+                            <p className="text-sm text-red-700">
+                              Los siguientes documentos son obligatorios: {getMissingDocuments().join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Documentos Requeridos: Cédula y Recibo */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Cédula */}
