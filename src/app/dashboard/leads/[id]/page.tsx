@@ -1165,7 +1165,7 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Teléfono 3</Label>
+                                        <Label>Teléfono Amigo</Label>
                                         <Input
                                             value={(formData as any).telefono3 || ""}
                                             onChange={(e) => handleInputChange("telefono3" as keyof Lead, e.target.value)}
