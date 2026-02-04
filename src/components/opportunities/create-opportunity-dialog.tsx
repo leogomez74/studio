@@ -62,9 +62,6 @@ const createOpportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
   vertical: z.string().min(1, "Debes seleccionar una institución"),
   opportunityType: z.string().min(1, "Debes seleccionar un tipo"),
-  status: z.enum(OPPORTUNITY_STATUSES, {
-    errorMap: () => ({ message: "Estado no válido" })
-  }),
   amount: z.coerce.number().min(0, "El monto debe ser positivo"),
   expectedCloseDate: z.string().optional().refine((date) => {
     if (!date) return true;
@@ -139,7 +136,6 @@ export function CreateOpportunityDialog({
       leadId: defaultLeadId || "",
       vertical: "",
       opportunityType: "",
-      status: OPPORTUNITY_STATUSES[0],
       amount: 0,
       expectedCloseDate: "",
       comments: "",
@@ -198,7 +194,6 @@ export function CreateOpportunityDialog({
         leadId: defaultLeadId || (leads.length > 0 ? String(leads[0].id) : ""),
         vertical: instituciones.length > 0 ? instituciones[0].nombre : "",
         opportunityType: products.length > 0 ? products[0].name : "",
-        status: OPPORTUNITY_STATUSES[0],
         amount: 0,
         expectedCloseDate: "",
         comments: "",
@@ -301,7 +296,7 @@ export function CreateOpportunityDialog({
             lead_cedula: selectedLead.cedula,
             vertical: values.vertical,
             opportunity_type: values.opportunityType,
-            status: values.status,
+            status: "Pendiente",
             amount: values.amount || 0,
             expected_close_date: values.expectedCloseDate || null,
             comments: values.comments,
@@ -342,7 +337,7 @@ export function CreateOpportunityDialog({
             <DialogDescription>Registra una nueva oportunidad.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <form className="space-y-3" onSubmit={form.handleSubmit(onSubmit)}>
               <FormField
                 control={form.control}
                 name="leadId"
@@ -452,45 +447,27 @@ export function CreateOpportunityDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="opportunityType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange} disabled={loadingProducts}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder={loadingProducts ? "Cargando..." : "Seleccionar tipo..."} /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {loadingProducts ? (
-                          <SelectItem value="loading" disabled>Cargando...</SelectItem>
-                        ) : (
-                          products.map(product => (
-                            <SelectItem key={product.id} value={product.name}>
-                              {product.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <div className="grid gap-4 md:grid-cols-2">
                   <FormField
                     control={form.control}
-                    name="status"
+                    name="opportunityType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Estado</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <FormLabel>Tipo</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange} disabled={loadingProducts}>
                           <FormControl>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder={loadingProducts ? "Cargando..." : "Seleccionar tipo..."} /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                              {OPPORTUNITY_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            {loadingProducts ? (
+                              <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                            ) : (
+                              products.map(product => (
+                                <SelectItem key={product.id} value={product.name}>
+                                  {product.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -498,33 +475,33 @@ export function CreateOpportunityDialog({
                     )}
                   />
                   <FormField
-                    control={form.control}
-                    name="amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Monto</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">₡</span>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="0"
-                              className="pl-7"
-                              value={displayAmount}
-                              onChange={(e) => {
-                                const rawValue = e.target.value.replace(/[^\d]/g, '');
-                                const numValue = rawValue ? parseInt(rawValue, 10) : 0;
-                                field.onChange(numValue);
-                                setDisplayAmount(rawValue ? formatCurrency(numValue) : '');
-                              }}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        control={form.control}
+                        name="amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Monto solicitado</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">₡</span>
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="0"
+                                  className="pl-7"
+                                  value={displayAmount}
+                                  onChange={(e) => {
+                                    const rawValue = e.target.value.replace(/[^\d]/g, '');
+                                    const numValue = rawValue ? parseInt(rawValue, 10) : 0;
+                                    field.onChange(numValue);
+                                    setDisplayAmount(rawValue ? formatCurrency(numValue) : '');
+                                  }}
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                   <FormField
@@ -547,7 +524,7 @@ export function CreateOpportunityDialog({
                       <FormItem className="md:col-span-2">
                         <FormLabel>Comentarios</FormLabel>
                         <FormControl>
-                          <Textarea rows={3} {...field} />
+                          <Textarea rows={2} placeholder="Comentarios adicionales (opcional)" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

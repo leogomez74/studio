@@ -23,7 +23,7 @@ class LeadController extends Controller
                 'email', 'phone', 'lead_status_id', 'is_active',
                 'assigned_to_id', 'deductora_id', 'created_at', 'updated_at',
                 // Campos básicos adicionales
-                'sector', 'whatsapp', 'fecha_nacimiento',
+                'sector', 'whatsapp', 'fecha_nacimiento', 'estado_civil',
                 // Información laboral
                 'profesion', 'nivel_academico', 'puesto', 'institucion_labora',
                 // Dirección personal
@@ -33,7 +33,8 @@ class LeadController extends Controller
             ])
             ->with([
                 'assignedAgent:id,name',
-                'leadStatus:id,name,slug'
+                'leadStatus:id,name,slug',
+                'documents:id,person_id,name,category,created_at'
             ]);
 
         // Filter by Active Status

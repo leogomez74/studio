@@ -339,7 +339,7 @@ export function AnalisisWizardModal({
                     type="number"
                     value={formData.plazo}
                     onChange={(e) => updateFormData('plazo', e.target.value)}
-                    placeholder="36"
+                    placeholder="Ingresar plazo"
                     required
                   />
                 </div>
@@ -453,11 +453,12 @@ export function AnalisisWizardModal({
                   <Label htmlFor="numero_manchas">Número de Manchas</Label>
                   <Input
                     id="numero_manchas"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
                     value={formData.numero_manchas}
                     onChange={(e) => {
-                      const num = parseInt(e.target.value) || 0;
+                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
                       updateFormData('numero_manchas', num);
                       // Ajustar array de detalles
                       const current = formData.manchas_detalle.length;
@@ -478,11 +479,12 @@ export function AnalisisWizardModal({
                   <Label htmlFor="numero_juicios">Número de Juicios</Label>
                   <Input
                     id="numero_juicios"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
                     value={formData.numero_juicios}
                     onChange={(e) => {
-                      const num = parseInt(e.target.value) || 0;
+                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
                       updateFormData('numero_juicios', num);
                       const current = formData.juicios_detalle.length;
                       if (num > current) {
@@ -504,11 +506,12 @@ export function AnalisisWizardModal({
                   <Label htmlFor="numero_embargos">Número de Embargos</Label>
                   <Input
                     id="numero_embargos"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
                     value={formData.numero_embargos}
                     onChange={(e) => {
-                      const num = parseInt(e.target.value) || 0;
+                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
                       updateFormData('numero_embargos', num);
                       const current = formData.embargos_detalle.length;
                       if (num > current) {

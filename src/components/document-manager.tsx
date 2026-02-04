@@ -192,9 +192,6 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
               <SelectContent>
                 <SelectItem value="cedula">Cédula</SelectItem>
                 <SelectItem value="recibo_servicio">Recibo de Servicio</SelectItem>
-                <SelectItem value="comprobante_ingresos">Comprobante de Ingresos</SelectItem>
-                <SelectItem value="constancia_trabajo">Constancia de Trabajo</SelectItem>
-                <SelectItem value="otro">Otro</SelectItem>
               </SelectContent>
             </Select>
           </div>

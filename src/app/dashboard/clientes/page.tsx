@@ -172,6 +172,7 @@ const checkMissingFields = (item: Lead | Client): string[] => {
     phone: 'Teléfono',
     whatsapp: 'WhatsApp',
     fecha_nacimiento: 'Fecha de nacimiento',
+    estado_civil: 'Estado civil',
     // Información laboral
     profesion: 'Profesión',
     nivel_academico: 'Nivel académico',
@@ -202,6 +203,18 @@ const checkMissingFields = (item: Lead | Client): string[] => {
       missingFields.push(label);
     }
   });
+
+  // Validar documentos requeridos (Cédula y Recibo)
+  const documents = (item as any).documents || [];
+  const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
+  const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
+
+  if (!hasCedula) {
+    missingFields.push('Archivo de Cédula');
+  }
+  if (!hasRecibo) {
+    missingFields.push('Archivo de Recibo');
+  }
 
   return missingFields;
 };
@@ -1596,7 +1609,7 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
             <TableHead className="w-[7.5rem]">Estado</TableHead>
             <TableHead className="w-[10.5rem]">Contacto</TableHead>
             <TableHead className="text-right">Registrado</TableHead>
-            <TableHead className="w-[9rem]">Registro</TableHead>
+            <TableHead className="w-[9rem]">Registro de datos</TableHead>
             <TableHead className="w-[20rem] text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
