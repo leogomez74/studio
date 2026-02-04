@@ -591,16 +591,21 @@ class OpportunityController extends Controller
         }
 
         $cedula = $this->getCleanCedulaFromOpportunity($opportunity);
-        $especificosFolder = "documentos/{$cedula}/{$opportunity->id}/especificos";
+        $file = $request->file('file');
+        $originalName = $file->getClientOriginalName();
+
+        // Determinar si es cédula o recibo para guardar en heredados
+        $isHeredado = stripos($originalName, 'cedula') === 0 || stripos($originalName, 'recibo') === 0;
+        $targetFolder = $isHeredado
+            ? "documentos/{$cedula}/{$opportunity->id}/heredados"
+            : "documentos/{$cedula}/{$opportunity->id}/especificos";
 
         try {
-            if (!Storage::disk('public')->exists($especificosFolder)) {
-                Storage::disk('public')->makeDirectory($especificosFolder);
+            if (!Storage::disk('public')->exists($targetFolder)) {
+                Storage::disk('public')->makeDirectory($targetFolder);
             }
 
-            $file = $request->file('file');
-            $originalName = $file->getClientOriginalName();
-            $path = $file->storeAs($especificosFolder, $originalName, 'public');
+            $path = $file->storeAs($targetFolder, $originalName, 'public');
 
             return response()->json([
                 'success' => true,
