@@ -300,21 +300,6 @@ export default function ClientesPage() {
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
 
   // Country codes para extranjeros
-  const countryCallingCodes = [
-    { code: '+1', country: 'Estados Unidos / Canadá' },
-    { code: '+33', country: 'Francia' },
-    { code: '+34', country: 'España' },
-    { code: '+44', country: 'Reino Unido' },
-    { code: '+49', country: 'Alemania' },
-    { code: '+51', country: 'Perú' },
-    { code: '+52', country: 'México' },
-    { code: '+54', country: 'Argentina' },
-    { code: '+55', country: 'Brasil' },
-    { code: '+56', country: 'Chile' },
-    { code: '+57', country: 'Colombia' },
-    { code: '+58', country: 'Venezuela' },
-    { code: '+506', country: 'Costa Rica' },
-  ];
 
   // Opportunity Dialog State
   const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
@@ -325,8 +310,8 @@ export default function ClientesPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // WhatsApp Verification Function
-  const checkWhatsApp = async (fullNumber: string) => {
-    if (!fullNumber || fullNumber.length < 7) return;
+  const checkWhatsApp = async (fullNumber: string): Promise<boolean> => {
+    if (!fullNumber || fullNumber.length < 7) return false;
 
     setWhatsappVerifying(true);
     setWhatsappError(null);
@@ -349,14 +334,17 @@ export default function ClientesPage() {
       if (Array.isArray(data) && data.length > 0 && data[0].exists) {
         setWhatsappVerified(true);
         setWhatsappError(null);
+        return true;
       } else {
         setWhatsappVerified(false);
         setWhatsappError('Este número no tiene WhatsApp');
+        return false;
       }
     } catch (error) {
       console.error('Error verificando WhatsApp:', error);
       setWhatsappVerified(false);
       setWhatsappError('Error al verificar WhatsApp');
+      return false;
     } finally {
       setWhatsappVerifying(false);
     }
@@ -773,18 +761,11 @@ export default function ClientesPage() {
 
     // Verificar WhatsApp al momento de enviar (solo para nuevos leads)
     if (!editingId) {
-      const fullPhone = isExtranjero
-        ? (values.phonePrefix || '+506') + values.phone
-        : '506' + values.phone;
+      const fullPhone = '506' + values.phone;
 
-      // Ejecutar verificación de WhatsApp
-      await checkWhatsApp(fullPhone);
+      const isVerified = await checkWhatsApp(fullPhone);
 
-      // Esperar un momento para que se actualice el estado
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Validar resultado
-      if (!whatsappVerified) {
+      if (!isVerified) {
         setIsSavingLead(false);
         toast({ title: "Error", description: "El número no está registrado en WhatsApp", variant: "destructive" });
         return;
@@ -796,9 +777,7 @@ export default function ClientesPage() {
       const formattedDate = values.fechaNacimiento || null;
 
       // Construir número completo de WhatsApp
-      const fullPhone = isExtranjero
-        ? (values.phonePrefix || '+506') + values.phone
-        : '506' + values.phone;
+      const fullPhone = '506' + values.phone;
 
       const body: Record<string, any> = {
         name: values.name?.trim() || null,
@@ -1427,34 +1406,12 @@ export default function ClientesPage() {
                       <FormItem>
                         <FormLabel>Teléfono (Whatsapp)</FormLabel>
                         <div className="flex gap-2">
-                          {isExtranjero && (
-                            <FormField
-                              control={form.control}
-                              name="phonePrefix"
-                              render={({ field: prefixField }) => (
-                                <FormItem className="w-32">
-                                  <Select onValueChange={prefixField.onChange} value={prefixField.value} disabled={isViewOnly}>
-                                    <FormControl>
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Prefijo" />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      {countryCallingCodes.map(c => (
-                                        <SelectItem key={c.code} value={c.code}>{c.code} {c.country}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </FormItem>
-                              )}
-                            />
-                          )}
                           <FormControl className="flex-1">
                             <Input
                               required
                               disabled={isViewOnly}
-                              placeholder={isExtranjero ? "88887777" : "88887777"}
-                              maxLength={isExtranjero ? 15 : 8}
+                              placeholder="88887777"
+                              maxLength={8}
                               {...field}
                               onChange={(e) => {
                                 const formattedValue = normalizePhoneInput(e.target.value);
