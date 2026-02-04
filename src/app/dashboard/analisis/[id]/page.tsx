@@ -1110,119 +1110,79 @@ export default function AnalisisDetailPage() {
 
         <TabsContent value="resumen">
           <div className="space-y-6">
-            {/* Fila 1: Información del Cliente */}
-        <div className="space-y-4">
-          {/* Información del Cliente */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Información del Cliente</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Nombre */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre</p>
+            {/* Información Resumida del Análisis */}
+        <Card>
+          <CardContent className="pt-6">
+            {/* Información del Cliente */}
+            <div className="mb-4 pb-4 border-b">
+              <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Información del Cliente</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Nombre</p>
                   {lead?.id ? (
-                    <Link
-                      href={`/dashboard/clientes/${lead.id}`}
-                      className="text-base font-semibold text-blue-600 hover:underline"
-                    >
+                    <Link href={`/dashboard/clientes/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
                       {lead.name}
                     </Link>
                   ) : (
-                    <span className="text-base">N/A</span>
+                    <span className="text-sm font-medium">N/A</span>
                   )}
                 </div>
-
-                {/* Cédula */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cédula</p>
-                  <p className="text-base font-semibold">{lead?.cedula || 'N/A'}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Cédula</p>
+                  <p className="text-sm font-medium">{lead?.cedula || 'N/A'}</p>
                 </div>
-
-                {/* Estado Civil */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Estado Civil</p>
-                  <p className="text-base">{lead?.estado_civil || 'N/A'}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Estado Civil</p>
+                  <p className="text-sm">{lead?.estado_civil || 'N/A'}</p>
                 </div>
-
-                {/* Institución */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Institución</p>
-                  <p className="text-base font-semibold">{lead?.institucion_labora || 'N/A'}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Institución</p>
+                  <p className="text-sm font-medium">{lead?.institucion_labora || 'N/A'}</p>
                 </div>
-
-                {/* Puesto */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Puesto</p>
-                  <p className="text-base">{analisis.cargo || lead?.puesto || 'N/A'}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Puesto</p>
+                  <p className="text-sm">{analisis.cargo || lead?.puesto || 'N/A'}</p>
                 </div>
-
-                {/* Nombramiento */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombramiento</p>
-                  <p className="text-base">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Nombramiento</p>
+                  <p className="text-sm">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Resumen Financiero */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Resumen Financiero</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Producto */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Producto</p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-sm font-semibold px-3 py-1">
-                      {analisis.opportunity?.opportunity_type || 'No especificado'}
-                    </Badge>
-                  </div>
+            {/* Resumen Financiero */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Resumen Financiero</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Producto</p>
+                  <Badge variant="outline" className="text-xs font-semibold">
+                    {analisis.opportunity?.opportunity_type || 'No especificado'}
+                  </Badge>
                 </div>
-
-                {/* Ingreso Neto */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ingreso Neto</p>
-                  <div className="text-2xl font-bold text-green-600">
-                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-                      Math.min(
-                        ...[
-                          analisis.ingreso_neto,
-                          analisis.ingreso_neto_2,
-                          analisis.ingreso_neto_3,
-                          analisis.ingreso_neto_4,
-                          analisis.ingreso_neto_5,
-                          analisis.ingreso_neto_6,
-                        ].filter(v => v != null && v > 0)
-                      ) || 0
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Ingreso Neto</p>
+                  <p className="text-lg font-bold text-green-600">
+                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
+                      Math.min(...[analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3, analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6].filter(v => v != null && v > 0)) || 0
                     )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Mínimo de todos los meses</p>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Mínimo mensual</p>
                 </div>
-
-                {/* Monto Crédito */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Monto Crédito</p>
-                  <div className="text-2xl font-bold text-blue-600">
-                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_sugerido || 0)}
-                  </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Monto Crédito</p>
+                  <p className="text-lg font-bold text-blue-600">
+                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(analisis.monto_sugerido || 0)}
+                  </p>
                 </div>
-
-                {/* Plazo */}
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plazo</p>
-                  <div className="text-2xl font-bold text-slate-700">
-                    {analisis.plazo || 36} <span className="text-base font-normal text-muted-foreground">meses</span>
-                  </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Plazo</p>
+                  <p className="text-lg font-bold text-slate-700">{analisis.plazo || 36} <span className="text-sm font-normal">meses</span></p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Fila 2: Manchas/Juicios/Embargos + Salarios */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
