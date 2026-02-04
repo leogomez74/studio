@@ -1594,11 +1594,19 @@ export default function CreditsPage() {
                         control={form.control}
                         name="tipo_credito"
                         render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
+                          <FormItem>
                             <FormLabel>Tipo de Crédito</FormLabel>
-                            <FormControl>
-                              <Input value={field.value === 'microcredito' ? 'Micro-crédito' : 'Crédito Regular'} disabled />
-                            </FormControl>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona el tipo de crédito" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="regular">Crédito Regular</SelectItem>
+                                <SelectItem value="microcredito">Micro-crédito</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
