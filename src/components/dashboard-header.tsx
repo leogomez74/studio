@@ -82,6 +82,7 @@ export function DashboardHeader() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [expandedAlert, setExpandedAlert] = useState<number | null>(null);
   const [deletingLeo, setDeletingLeo] = useState(false);
+  const [deletingDaniel, setDeletingDaniel] = useState(false);
 
   const handleDeleteLeo = async () => {
     const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 108760664? Esta acción eliminará también todas las oportunidades, análisis y créditos asociados.');
@@ -116,6 +117,42 @@ export function DashboardHeader() {
       }
     } finally {
       setDeletingLeo(false);
+    }
+  };
+
+  const handleDeleteDaniel = async () => {
+    const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 118760656? Esta acción eliminará también todas las oportunidades, análisis y créditos asociados.');
+
+    if (!confirmed) return;
+
+    setDeletingDaniel(true);
+    try {
+      const response = await api.post('/api/leads/delete-by-cedula', {
+        cedula: '118760656'
+      });
+
+      if (response.data.success) {
+        toast({
+          title: 'Eliminado correctamente',
+          description: response.data.message,
+        });
+      }
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        toast({
+          variant: 'destructive',
+          title: 'No encontrado',
+          description: 'No se encontró ningún registro con esa cédula',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error.response?.data?.message || 'Error al eliminar el registro',
+        });
+      }
+    } finally {
+      setDeletingDaniel(false);
     }
   };
 
@@ -181,6 +218,26 @@ export function DashboardHeader() {
             <>
               <AlertTriangle className="h-4 w-4" />
               Eliminar Leo
+            </>
+          )}
+        </Button>
+
+        <Button
+          variant="destructive"
+          size="sm"
+          className="gap-2"
+          onClick={handleDeleteDaniel}
+          disabled={deletingDaniel}
+        >
+          {deletingDaniel ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Eliminando...
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-4 w-4" />
+              Eliminar Daniel
             </>
           )}
         </Button>
