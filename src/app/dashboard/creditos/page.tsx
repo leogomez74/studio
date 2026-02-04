@@ -802,8 +802,8 @@ export default function CreditsPage() {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.text("INST./EMPRESA", 100, 35);
-    doc.text(`${credit.client?.ocupacion || "-"}`, 130, 35);
-    doc.text(`${credit.client?.departamento_cargo || "-"}`, 100, 40);
+    doc.text(`${credit.client?.ocupacion || "Falta por asignar"}`, 130, 35);
+    doc.text(`${credit.client?.departamento_cargo || "Falta por asignar"}`, 100, 40);
     doc.text("SECCIÓN", 100, 45);
 
     // Planes de Ahorros
@@ -852,7 +852,7 @@ export default function CreditsPage() {
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
       `${tasaValue}%`,
       "0.00", // Morosidad
-      credit.primera_deduccion || "-", // PRI.DED (Primera Deducción)
+      credit.primera_deduccion || "Falta por asignar", // PRI.DED (Primera Deducción)
       new Date().toISOString().split('T')[0], // Ult Mov
       credit.fecha_culminacion_credito || "2032-01-01",
       credit.status || "NORMAL"
@@ -1198,8 +1198,8 @@ export default function CreditsPage() {
                           : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null));
 
                         // 4. Fallbacks para Línea y Proceso
-                        const linea = credit.linea || credit.category || "-";
-                        const proceso = credit.proceso || credit.status || "-";
+                        const linea = credit.linea || credit.category || "Falta por asignar";
+                        const proceso = credit.proceso || credit.status || "Falta por asignar";
 
                         return (
                           <TableRow key={credit.id}>
@@ -1314,12 +1314,12 @@ export default function CreditsPage() {
                             <TableCell>{credit.client?.name || credit.lead?.name}</TableCell>
                             <TableCell className="font-medium">
                               <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
-                                {credit.numero_operacion || credit.reference || "-"}
+                                {credit.numero_operacion || credit.reference || "Falta por asignar"}
                               </Link>
                             </TableCell>
                             <TableCell>{credit.divisa || "CRC"}</TableCell>
                             <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
-                            <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
+                            <TableCell>{credit.plazo ? `${credit.plazo} meses` : "Falta por asignar"}</TableCell>
                             <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
                             <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
 
@@ -1329,11 +1329,11 @@ export default function CreditsPage() {
                             <TableCell>{credit.garantia || "No aplicable"}</TableCell>
                             <TableCell>{formatDate(fechaFin)}</TableCell>
                             <TableCell>{proceso}</TableCell>
-                            <TableCell>{tasa ? `${tasa}%` : "-"}</TableCell>
+                            <TableCell>{tasa ? `${tasa}%` : "Falta por asignar"}</TableCell>
 
                             <TableCell>{calculateCuotasAtrasadas(credit)}</TableCell>
                             <TableCell>
-                              {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "-"}
+                              {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "Falta por asignar"}
                             </TableCell>
                           </TableRow>
                         );
@@ -2034,7 +2034,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
                           </div>
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                          {doc.notes || "-"}
+                          {doc.notes || "Falta por asignar"}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {formatFileSize(doc.size)}
