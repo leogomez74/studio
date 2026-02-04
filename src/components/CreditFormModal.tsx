@@ -440,11 +440,11 @@ export function CreditFormModal({
                       id="poliza"
                       checked={creditForm.poliza}
                       onCheckedChange={(checked) => setCreditForm(f => ({ ...f, poliza: checked }))}
-                      disabled={creditForm.category === 'Micro Crédito'}
+                      disabled={creditForm.category !== 'Regular'}
                     />
                     <Label htmlFor="poliza" className="text-sm text-muted-foreground">
-                      {creditForm.category === 'Micro Crédito'
-                        ? 'No disponible para Micro Crédito'
+                      {creditForm.category !== 'Regular'
+                        ? 'Solo disponible para crédito Regular'
                         : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
                     </Label>
                   </div>
