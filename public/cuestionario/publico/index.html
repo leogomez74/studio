@@ -186,35 +186,19 @@
                                     <option value=">5a">Más de 5 años</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="grid md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-foreground mb-1">Rango de ingreso mensual *</label>
-                                <select name="ingreso" id="ingresoSelect" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Seleccione</option>
-                                    <option value="<300k">Menor a ₡300,000</option>
-                                    <option value="300k-500k">₡300,000 - ₡500,000</option>
-                                    <option value="500k-800k">₡500,000 - ₡800,000</option>
-                                    <option value="800k-1.2m">₡800,000 - ₡1,200,000</option>
-                                    <option value=">1.2m">Más de ₡1,200,000</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-foreground mb-1">Salario exacto (₡) *</label>
-                                <input type="text" name="salario_exacto" id="salarioExacto" placeholder="Ej: 450000" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                <p id="salarioError" class="text-xs text-red-500 mt-1 hidden">El salario debe estar dentro del rango seleccionado</p>
+                                <label class="block text-sm font-medium text-foreground mb-1">Salario Bruto *</label>
+                                <input type="text" name="salario_exacto" id="salarioExacto" placeholder="Ej: ₡450,000" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                             </div>
                         </div>
-                        <div class="grid md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-foreground mb-1">¿Tiene deudas actualmente? *</label>
-                                <select name="tiene_deudas" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Seleccione</option>
-                                    <option value="no">No</option>
-                                    <option value="si_1_2">Sí, 1-2 créditos</option>
-                                    <option value="si_3_mas">Sí, 3 o más</option>
-                                </select>
-                            </div>
+                        <div>
+                            <label class="block text-sm font-medium text-foreground mb-1">¿Tiene deudas actualmente? *</label>
+                            <select name="tiene_deudas" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                                <option value="">Seleccione</option>
+                                <option value="no">No</option>
+                                <option value="si_1_2">Sí, 1-2 créditos</option>
+                                <option value="si_3_mas">Sí, 3 o más</option>
+                            </select>
                         </div>
                     </div>
 
@@ -320,76 +304,6 @@
                     </div>
                 </div>
 
-                <div id="step-4" class="space-y-4 hidden">
-                    <h2 class="text-lg font-semibold text-foreground">4. Documentos requeridos</h2>
-                    <p class="text-sm text-muted-foreground">Para completar tu solicitud, por favor adjunta los siguientes documentos.</p>
-
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-foreground mb-2">Cédula de identidad (imagen) *</label>
-                            <div class="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer" id="cedulaDropZone">
-                                <input type="file" id="cedulaFile" name="cedula_file" accept="image/*" class="hidden" required>
-                                <div id="cedulaPlaceholder">
-                                    <svg class="w-12 h-12 mx-auto text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                                    </svg>
-                                    <p class="text-sm text-foreground font-medium">Click para seleccionar tu cédula</p>
-                                    <p class="text-xs text-muted-foreground mt-1">o arrastra la imagen aquí</p>
-                                    <p class="text-xs text-muted-foreground mt-1">PNG, JPG hasta 5MB</p>
-                                </div>
-                                <div id="cedulaPreview" class="hidden">
-                                    <img id="cedulaImage" class="max-w-full h-auto rounded-md mx-auto" style="max-height: 200px;">
-                                    <p id="cedulaFileName" class="text-sm text-foreground font-medium mt-2"></p>
-                                    <button type="button" id="cedulaRemove" class="mt-2 text-xs text-red-600 hover:text-red-700 font-medium">Eliminar</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-foreground mb-2">Recibo de servicio (imagen o PDF) *</label>
-                            <div class="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer" id="reciboDropZone">
-                                <input type="file" id="reciboFile" name="recibo_file" accept="image/*,application/pdf" class="hidden" required>
-                                <div id="reciboPlaceholder">
-                                    <svg class="w-12 h-12 mx-auto text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                    </svg>
-                                    <p class="text-sm text-foreground font-medium">Click para seleccionar tu recibo</p>
-                                    <p class="text-xs text-muted-foreground mt-1">o arrastra el archivo aquí</p>
-                                    <p class="text-xs text-muted-foreground mt-1">PNG, JPG, PDF hasta 5MB</p>
-                                </div>
-                                <div id="reciboPreview" class="hidden">
-                                    <div id="reciboImageContainer" class="hidden">
-                                        <img id="reciboImage" class="max-w-full h-auto rounded-md mx-auto" style="max-height: 200px;">
-                                    </div>
-                                    <div id="reciboPdfContainer" class="hidden">
-                                        <svg class="w-16 h-16 mx-auto text-red-600 mb-2" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
-                                        </svg>
-                                    </div>
-                                    <p id="reciboFileName" class="text-sm text-foreground font-medium mt-2"></p>
-                                    <button type="button" id="reciboRemove" class="mt-2 text-xs text-red-600 hover:text-red-700 font-medium">Eliminar</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 p-4 bg-accent/50 rounded-lg border border-border/50">
-                        <div class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                            </svg>
-                            <div class="flex-1">
-                                <p class="text-sm font-semibold text-foreground mb-2">Protección de datos personales</p>
-                                <p class="text-xs text-muted-foreground leading-relaxed">
-                                    Los datos y documentos que nos proporcionas están protegidos bajo nuestra política de privacidad y la normativa de protección de datos personales.
-                                    Serán utilizados exclusivamente para procesar tu solicitud de crédito o servicios legales. Tus archivos se almacenan de forma segura
-                                    y solo el personal autorizado tendrá acceso a ellos. Al enviar este formulario, aceptas nuestros términos y condiciones.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="flex items-center justify-between pt-2">
                     <button type="button" id="backBtn" class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-foreground bg-background hover:bg-accent disabled:opacity-50" disabled>Atrás</button>
                     <div class="flex items-center gap-2">
@@ -439,7 +353,7 @@
 
     <script>
         const API_BASE_URL = 'https://backend.pep.cr';
-        const steps = ['step-1', 'step-2', 'step-3', 'step-4'];
+        const steps = ['step-1', 'step-2', 'step-3'];
         let currentStep = 0;
 
         function showStep(index) {
@@ -594,14 +508,6 @@
         }
 
         // Rangos de salario para validación
-        const rangosIngreso = {
-            '<300k': { min: 0, max: 299999 },
-            '300k-500k': { min: 300000, max: 500000 },
-            '500k-800k': { min: 500000, max: 800000 },
-            '800k-1.2m': { min: 800000, max: 1200000 },
-            '>1.2m': { min: 1200001, max: Infinity }
-        };
-
         function updateMontoOptions() {
             const tipoCredito = document.querySelector('input[name="tipo_credito"]:checked')?.value;
             const montoSelect = document.getElementById('montoSelect');
@@ -644,31 +550,6 @@
             const numericValue = value.replace(/[^0-9]/g, '');
             // Formato con comas
             return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        }
-
-        function validateSalario() {
-            const ingresoSelect = document.getElementById('ingresoSelect');
-            const salarioInput = document.getElementById('salarioExacto');
-            const errorEl = document.getElementById('salarioError');
-            const rangoKey = ingresoSelect.value;
-            const salarioRaw = salarioInput.value.replace(/[^0-9]/g, '');
-            const salario = parseInt(salarioRaw) || 0;
-
-            if (!rangoKey || !salarioRaw) {
-                errorEl.classList.add('hidden');
-                return true;
-            }
-
-            const rango = rangosIngreso[rangoKey];
-            if (salario < rango.min || salario > rango.max) {
-                errorEl.classList.remove('hidden');
-                salarioInput.classList.add('border-red-500');
-                return false;
-            } else {
-                errorEl.classList.add('hidden');
-                salarioInput.classList.remove('border-red-500');
-                return true;
-            }
         }
 
         function updateDynamicBlocks() {
@@ -762,19 +643,14 @@
                     const monto = document.querySelector('select[name="monto"]').value;
                     const uso = document.querySelector('select[name="uso_credito"]').value;
                     const institucion = document.getElementById('institucionValue').value;
-                    const ingreso = document.getElementById('ingresoSelect').value;
                     const salario = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
 
                     if (!tipoCredito) {
                         showAlert('Selecciona el tipo de crédito (Microcrédito o Regular).');
                         return false;
                     }
-                    if (!monto || !uso || !institucion || !ingreso || !salario) {
+                    if (!monto || !uso || !institucion || !salario) {
                         showAlert('Completa todos los datos de crédito.');
-                        return false;
-                    }
-                    if (!validateSalario()) {
-                        showAlert('El salario debe estar dentro del rango de ingreso seleccionado.');
                         return false;
                     }
                 }
@@ -797,27 +673,6 @@
                     return false;
                 }
             }
-            if (index === 3) {
-                const cedulaFile = document.getElementById('cedulaFile').files[0];
-                const reciboFile = document.getElementById('reciboFile').files[0];
-                if (!cedulaFile) {
-                    showAlert('Por favor adjunta una imagen de tu cédula.');
-                    return false;
-                }
-                if (!reciboFile) {
-                    showAlert('Por favor adjunta tu recibo de servicio.');
-                    return false;
-                }
-                // Validate file sizes (max 5MB)
-                if (cedulaFile.size > 5 * 1024 * 1024) {
-                    showAlert('La imagen de la cédula no debe superar 5MB.');
-                    return false;
-                }
-                if (reciboFile.size > 5 * 1024 * 1024) {
-                    showAlert('El recibo no debe superar 5MB.');
-                    return false;
-                }
-            }
             return true;
         }
 
@@ -829,7 +684,6 @@
                 data.monto = document.querySelector('select[name="monto"]').value;
                 data.uso_credito = document.querySelector('select[name="uso_credito"]').value;
                 data.institucion_labora = document.getElementById('institucionValue').value;
-                data.ingreso = document.getElementById('ingresoSelect').value;
                 data.salario_exacto = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
                 data.tiene_deudas = document.querySelector('select[name="tiene_deudas"]').value;
             }
@@ -967,126 +821,18 @@
         }
 
         function checkSalarioBajo() {
-            const ingresoSelect = document.getElementById('ingresoSelect');
+            const salarioExacto = document.getElementById('salarioExacto');
             const interes = document.querySelector('input[name="interes"]:checked')?.value;
 
-            // Solo verificar si el interés incluye crédito
-            if ((interes === 'credito' || interes === 'ambos') && ingresoSelect.value === '<300k') {
+            // Obtener valor numérico del salario
+            const salarioValue = parseInt(salarioExacto.value.replace(/[^0-9]/g, ''));
+
+            // Solo verificar si el interés incluye crédito y el salario es menor a 300,000
+            if ((interes === 'credito' || interes === 'ambos') && salarioValue < 300000) {
                 showSalarioBajoDialog();
                 return true;
             }
             return false;
-        }
-
-        function setupFileUpload(fieldName, acceptTypes) {
-            const fileInput = document.getElementById(`${fieldName}File`);
-            const dropZone = document.getElementById(`${fieldName}DropZone`);
-            const placeholder = document.getElementById(`${fieldName}Placeholder`);
-            const preview = document.getElementById(`${fieldName}Preview`);
-            const removeBtn = document.getElementById(`${fieldName}Remove`);
-            const fileName = document.getElementById(`${fieldName}FileName`);
-
-            // Click to upload
-            dropZone.addEventListener('click', () => {
-                if (!preview.classList.contains('hidden')) return;
-                fileInput.click();
-            });
-
-            // File selected
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    handleFile(file, fieldName);
-                }
-            });
-
-            // Drag and drop
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('border-primary', 'bg-accent');
-            });
-
-            dropZone.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('border-primary', 'bg-accent');
-            });
-
-            dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('border-primary', 'bg-accent');
-                const file = e.dataTransfer.files[0];
-                if (file) {
-                    // Validate file type
-                    const acceptedTypes = acceptTypes.split(',').map(t => t.trim());
-                    const fileType = file.type;
-                    const isValid = acceptedTypes.some(type => {
-                        if (type.includes('*')) {
-                            const baseType = type.split('/')[0];
-                            return fileType.startsWith(baseType);
-                        }
-                        return fileType === type;
-                    });
-
-                    if (!isValid) {
-                        showAlert(`Tipo de archivo no válido para ${fieldName}.`, 'error');
-                        return;
-                    }
-
-                    // Set the file to the input
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    fileInput.files = dataTransfer.files;
-
-                    handleFile(file, fieldName);
-                }
-            });
-
-            // Remove file
-            removeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                fileInput.value = '';
-                placeholder.classList.remove('hidden');
-                preview.classList.add('hidden');
-                if (fieldName === 'cedula') {
-                    document.getElementById('cedulaImage').src = '';
-                } else if (fieldName === 'recibo') {
-                    document.getElementById('reciboImageContainer').classList.add('hidden');
-                    document.getElementById('reciboPdfContainer').classList.add('hidden');
-                    document.getElementById('reciboImage').src = '';
-                }
-            });
-        }
-
-        function handleFile(file, fieldName) {
-            const placeholder = document.getElementById(`${fieldName}Placeholder`);
-            const preview = document.getElementById(`${fieldName}Preview`);
-            const fileName = document.getElementById(`${fieldName}FileName`);
-
-            // Show filename
-            fileName.textContent = file.name;
-
-            // Show preview
-            placeholder.classList.add('hidden');
-            preview.classList.remove('hidden');
-
-            // Handle image preview
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    if (fieldName === 'cedula') {
-                        document.getElementById('cedulaImage').src = e.target.result;
-                    } else if (fieldName === 'recibo') {
-                        document.getElementById('reciboImageContainer').classList.remove('hidden');
-                        document.getElementById('reciboPdfContainer').classList.add('hidden');
-                        document.getElementById('reciboImage').src = e.target.result;
-                    }
-                };
-                reader.readAsDataURL(file);
-            } else if (file.type === 'application/pdf' && fieldName === 'recibo') {
-                // Show PDF icon
-                document.getElementById('reciboImageContainer').classList.add('hidden');
-                document.getElementById('reciboPdfContainer').classList.remove('hidden');
-            }
         }
 
         async function checkQuestionnaireStatus() {
@@ -1162,8 +908,15 @@
                 validateSalario();
             });
             // Rango de ingreso - validar salario y verificar salario bajo
-            document.getElementById('ingresoSelect').addEventListener('change', () => {
-                validateSalario();
+            // Event listener para formatear salario con comas
+            const salarioInput = document.getElementById('salarioExacto');
+            salarioInput.addEventListener('input', (e) => {
+                const formatted = formatSalario(e.target.value);
+                e.target.value = formatted;
+            });
+
+            // Event listener para verificar salario bajo cuando cambia el salario
+            salarioInput.addEventListener('blur', () => {
                 checkSalarioBajo();
             });
             // Institución dropdown event listeners
@@ -1198,12 +951,9 @@
                 }
             });
 
-            // File upload handlers
-            setupFileUpload('cedula', 'image/*');
-            setupFileUpload('recibo', 'image/*,application/pdf');
             document.getElementById('questionnaireForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                if (!validateStep(3)) return;
+                if (!validateStep(2)) return;
 
                 // Collect form data
                 const data = collectData();
@@ -1211,12 +961,6 @@
 
                 // Add all questionnaire data as JSON
                 formData.append('questionnaire_data', JSON.stringify(data));
-
-                // Add files
-                const cedulaFile = document.getElementById('cedulaFile').files[0];
-                const reciboFile = document.getElementById('reciboFile').files[0];
-                formData.append('cedula_file', cedulaFile);
-                formData.append('recibo_file', reciboFile);
 
                 // Get cedula from URL (base64 encoded)
                 const urlParams = new URLSearchParams(window.location.search);

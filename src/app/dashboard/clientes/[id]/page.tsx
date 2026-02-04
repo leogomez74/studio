@@ -3,7 +3,7 @@
 import React, { useEffect, useState, FormEvent, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, PlusCircle } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, PlusCircle, ChevronsUpDown, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { CaseChat } from "@/components/case-chat";
@@ -120,6 +121,118 @@ const getTodayDateString = (): string => {
   const day = String(today.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
+
+const PROFESIONES_LIST = [
+  "Abogado(a)",
+  "Actor/Actriz",
+  "Administrador(a) de Empresas",
+  "Administrador(a) de Fincas",
+  "Administrador(a) Público",
+  "Agrónomo(a)",
+  "Analista de Datos",
+  "Analista de Sistemas",
+  "Antropólogo(a)",
+  "Archivista",
+  "Arquitecto(a)",
+  "Asistente Administrativo(a)",
+  "Asistente Dental",
+  "Asistente Legal",
+  "Auditor(a)",
+  "Bibliotecólogo(a)",
+  "Biólogo(a)",
+  "Bombero(a)",
+  "Cajero(a)",
+  "Chef / Cocinero(a)",
+  "Chofer / Conductor(a)",
+  "Comunicador(a) Social",
+  "Conserje",
+  "Contador(a)",
+  "Criminólogo(a)",
+  "Dentista / Odontólogo(a)",
+  "Desarrollador(a) de Software",
+  "Diseñador(a) Gráfico",
+  "Diseñador(a) Industrial",
+  "Economista",
+  "Educador(a)",
+  "Electricista",
+  "Enfermero(a)",
+  "Escritor(a)",
+  "Estadístico(a)",
+  "Farmacéutico(a)",
+  "Filólogo(a)",
+  "Filósofo(a)",
+  "Físico(a)",
+  "Fisioterapeuta",
+  "Fotógrafo(a)",
+  "Funcionario(a) Público",
+  "Geógrafo(a)",
+  "Geólogo(a)",
+  "Gestor(a) Ambiental",
+  "Guarda de Seguridad",
+  "Historiador(a)",
+  "Ingeniero(a) Agrícola",
+  "Ingeniero(a) Ambiental",
+  "Ingeniero(a) Civil",
+  "Ingeniero(a) Eléctrico",
+  "Ingeniero(a) Electrónico",
+  "Ingeniero(a) en Computación",
+  "Ingeniero(a) en Sistemas",
+  "Ingeniero(a) Industrial",
+  "Ingeniero(a) Mecánico",
+  "Ingeniero(a) Químico",
+  "Investigador(a)",
+  "Laboratorista",
+  "Locutor(a)",
+  "Matemático(a)",
+  "Mecánico(a)",
+  "Médico(a)",
+  "Mercadólogo(a)",
+  "Meteorólogo(a)",
+  "Microbiólogo(a)",
+  "Misceláneo(a)",
+  "Músico(a)",
+  "Notario(a)",
+  "Nutricionista",
+  "Obrero(a)",
+  "Oficial de Seguridad",
+  "Operador(a) de Maquinaria",
+  "Optometrista",
+  "Orientador(a)",
+  "Paramédico(a)",
+  "Pediatra",
+  "Periodista",
+  "Piloto",
+  "Planificador(a)",
+  "Policía",
+  "Politólogo(a)",
+  "Profesor(a) Universitario",
+  "Programador(a)",
+  "Promotor(a) Social",
+  "Psicólogo(a)",
+  "Psiquiatra",
+  "Publicista",
+  "Químico(a)",
+  "Radiólogo(a)",
+  "Recepcionista",
+  "Relacionista Público",
+  "Secretario(a)",
+  "Sociólogo(a)",
+  "Soldador(a)",
+  "Técnico(a) en Electrónica",
+  "Técnico(a) en Enfermería",
+  "Técnico(a) en Informática",
+  "Técnico(a) en Mantenimiento",
+  "Técnico(a) en Refrigeración",
+  "Tecnólogo(a) Médico",
+  "Teólogo(a)",
+  "Terapeuta Ocupacional",
+  "Topógrafo(a)",
+  "Trabajador(a) Social",
+  "Traductor(a)",
+  "Vendedor(a)",
+  "Veterinario(a)",
+  "Otro",
+].sort();
 
 // --- TareasTab Component ---
 
@@ -478,6 +591,11 @@ export default function ClientDetailPage() {
   const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
   const [deductoras, setDeductoras] = useState<{id: number, nombre: string}[]>([]);
   const [leads, setLeads] = useState<{id: number, name: string}[]>([]);
+  const [instituciones, setInstituciones] = useState<{id: number, nombre: string}[]>([]);
+  const [institucionSearch, setInstitucionSearch] = useState("");
+  const [institucionOpen, setInstitucionOpen] = useState(false);
+  const [profesionSearch, setProfesionSearch] = useState("");
+  const [profesionOpen, setProfesionOpen] = useState(false);
 
   // Credits and Payments state
   const [credits, setCredits] = useState<Credit[]>([]);
@@ -532,6 +650,15 @@ export default function ClientDetailPage() {
         }
     };
 
+    const fetchInstituciones = async () => {
+        try {
+            const response = await api.get('/api/instituciones');
+            setInstituciones(response.data);
+        } catch (error) {
+            console.error("Error fetching instituciones:", error);
+        }
+    };
+
     const fetchCredits = async () => {
         setLoadingCredits(true);
         try {
@@ -569,6 +696,7 @@ export default function ClientDetailPage() {
       fetchAgents();
       fetchDeductoras();
       fetchLeads();
+      fetchInstituciones();
       fetchCredits();
       fetchPayments();
     }
@@ -597,6 +725,12 @@ export default function ClientDetailPage() {
 
   const getMissingDocuments = useCallback(() => {
     const documents = (client as any)?.documents || [];
+    if (documents.length === 0) return ['Cédula', 'Recibo de Servicio'];
+
+    // Si ningún documento tiene categoría asignada (archivos viejos), no mostrar alerta
+    const hasAnyCategory = documents.some((doc: any) => doc.category && doc.category !== 'otro');
+    if (!hasAnyCategory) return [];
+
     const missing = [];
     const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
     const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
@@ -991,18 +1125,10 @@ export default function ClientDetailPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Nacionalidad</Label>
-                <Input 
-                  value={formData.nacionalidad || ""} 
-                  onChange={(e) => handleInputChange("nacionalidad", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
-              </div>
-              <div className="space-y-2">
                 <Label>Estado Civil {isFieldMissing('estado_civil') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
                   <Select
-                    value={formData.estado_civil || ""} 
+                    value={formData.estado_civil || ""}
                     onValueChange={(value) => handleInputChange("estado_civil", value)}
                   >
                     <SelectTrigger>
@@ -1014,7 +1140,6 @@ export default function ClientDetailPage() {
                       <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
                       <SelectItem value="Viudo(a)">Viudo(a)</SelectItem>
                       <SelectItem value="Unión Libre">Unión Libre</SelectItem>
-                      <SelectItem value="Otros">Otros</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
@@ -1055,11 +1180,11 @@ export default function ClientDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Teléfono Familiar</Label>
-                <Input 
-                  value={formData.telefono3 || ""} 
-                  onChange={(e) => handleInputChange("telefono3", e.target.value)} 
-                  disabled={!isEditMode} 
+                <Label>Teléfono Amigo</Label>
+                <Input
+                  value={formData.telefono3 || ""}
+                  onChange={(e) => handleInputChange("telefono3", e.target.value)}
+                  disabled={!isEditMode}
                 />
               </div>
               <div className="space-y-2">
@@ -1182,19 +1307,84 @@ export default function ClientDetailPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label>Nivel Académico {isFieldMissing('nivel_academico') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.nivel_academico || ""} 
-                  onChange={(e) => handleInputChange("nivel_academico", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
+                {isEditMode ? (
+                  <Select
+                    value={formData.nivel_academico || ""}
+                    onValueChange={(value) => handleInputChange("nivel_academico", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar nivel académico" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="primaria">Primaria</SelectItem>
+                      <SelectItem value="secundaria">Secundaria</SelectItem>
+                      <SelectItem value="tecnico">Técnico / Vocacional</SelectItem>
+                      <SelectItem value="universitario">Universitario</SelectItem>
+                      <SelectItem value="posgrado">Posgrado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={formData.nivel_academico || ""}
+                    disabled
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Profesión {isFieldMissing('profesion') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.profesion || ""} 
-                  onChange={(e) => handleInputChange("profesion", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
+                {isEditMode ? (
+                  <Popover open={profesionOpen} onOpenChange={setProfesionOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={profesionOpen}
+                        className="w-full justify-between font-normal"
+                      >
+                        {formData.profesion || "Seleccionar profesión"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <div className="p-2 border-b">
+                        <Input
+                          placeholder="Buscar profesión..."
+                          value={profesionSearch}
+                          onChange={(e) => setProfesionSearch(e.target.value)}
+                          className="h-8"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {PROFESIONES_LIST
+                          .filter(p => p.toLowerCase().includes(profesionSearch.toLowerCase()))
+                          .map((prof) => (
+                            <div
+                              key={prof}
+                              className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
+                              onClick={() => {
+                                handleInputChange("profesion", prof);
+                                setProfesionOpen(false);
+                                setProfesionSearch("");
+                              }}
+                            >
+                              <Check className={`h-4 w-4 ${formData.profesion === prof ? "opacity-100" : "opacity-0"}`} />
+                              {prof}
+                            </div>
+                          ))
+                        }
+                        {PROFESIONES_LIST.filter(p => p.toLowerCase().includes(profesionSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron resultados</div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Input
+                    value={formData.profesion || ""}
+                    disabled
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Sector {isFieldMissing('sector') && <span className="text-red-500">*</span>}</Label>
@@ -1213,29 +1403,78 @@ export default function ClientDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Estado del Puesto</Label>
-                 <Select 
-                    value={formData.estado_puesto || ""} 
-                    onValueChange={(value) => handleInputChange("estado_puesto", value)}
-                    disabled={!isEditMode}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Propiedad">Propiedad</SelectItem>
-                        <SelectItem value="Interino">Interino</SelectItem>
-                        <SelectItem value="De paso">De paso</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Label>Nombramiento</Label>
+                <Select
+                  value={formData.estado_puesto || ""}
+                  onValueChange={(value) => handleInputChange("estado_puesto", value)}
+                  disabled={!isEditMode}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar nombramiento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Propiedad">Propiedad</SelectItem>
+                    <SelectItem value="Interino">Interino</SelectItem>
+                    <SelectItem value="De paso">De paso</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-               <div className="space-y-2">
+              <div className="space-y-2">
                 <Label>Institución {isFieldMissing('institucion_labora') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.institucion_labora || ""} 
-                  onChange={(e) => handleInputChange("institucion_labora", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
+                {isEditMode ? (
+                  <Popover open={institucionOpen} onOpenChange={setInstitucionOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={institucionOpen}
+                        className="w-full justify-between font-normal"
+                      >
+                        {formData.institucion_labora || "Seleccionar institución"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <div className="p-2 border-b">
+                        <Input
+                          placeholder="Buscar institución..."
+                          value={institucionSearch}
+                          onChange={(e) => setInstitucionSearch(e.target.value)}
+                          className="h-8"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {instituciones
+                          .filter(inst => inst.nombre.toLowerCase().includes(institucionSearch.toLowerCase()))
+                          .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                          .map((inst) => (
+                            <div
+                              key={inst.id}
+                              className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
+                              onClick={() => {
+                                handleInputChange("institucion_labora", inst.nombre);
+                                setInstitucionOpen(false);
+                                setInstitucionSearch("");
+                              }}
+                            >
+                              <Check className={`h-4 w-4 ${formData.institucion_labora === inst.nombre ? "opacity-100" : "opacity-0"}`} />
+                              {inst.nombre}
+                            </div>
+                          ))
+                        }
+                        {instituciones.filter(inst => inst.nombre.toLowerCase().includes(institucionSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron resultados</div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Input
+                    value={formData.institucion_labora || ""}
+                    disabled
+                  />
+                )}
               </div>
                <div className="space-y-2">
                 <Label>Deductora {isFieldMissing('deductora_id') && <span className="text-red-500">*</span>}</Label>
@@ -1255,15 +1494,7 @@ export default function ClientDetailPage() {
                   ))}
                 </div>
               </div>
-               <div className="col-span-3 space-y-2">
-                <Label>Dirección de la Institución</Label>
-                <Textarea 
-                  value={formData.institucion_direccion || ""} 
-                  onChange={(e) => handleInputChange("institucion_direccion", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
-              </div>
-              
+
               {/* Work Address */}
                <div className="col-span-3">
                 <h4 className="text-sm font-medium mb-2 mt-2">Dirección del Trabajo</h4>
@@ -1336,61 +1567,14 @@ export default function ClientDetailPage() {
                   <Input value={formData.trabajo_distrito || ""} disabled />
                 )}
               </div>
-               <div className="col-span-3 space-y-2">
-                <Label>Direcci��n Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
+              <div className="col-span-3 space-y-2">
+                <Label>Dirección Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
                 <Textarea
-                  value={formData.trabajo_direccion || ""} 
-                  onChange={(e) => handleInputChange("trabajo_direccion", e.target.value)} 
-                  disabled={!isEditMode} 
+                  value={formData.trabajo_direccion || ""}
+                  onChange={(e) => handleInputChange("trabajo_direccion", e.target.value)}
+                  disabled={!isEditMode}
                 />
               </div>
-
-              {/* Economic Activity */}
-               <div className="col-span-3">
-                <h4 className="text-sm font-medium mb-2 mt-2">Actividad Económica</h4>
-               </div>
-               <div className="space-y-2">
-                <Label>Actividad Económica</Label>
-                <Input 
-                  value={formData.actividad_economica || ""} 
-                  onChange={(e) => handleInputChange("actividad_economica", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
-              </div>
-               <div className="space-y-2">
-                <Label>Tipo Sociedad</Label>
-                {isEditMode ? (
-                  <Select 
-                    value={formData.tipo_sociedad || ""} 
-                    onValueChange={(value) => handleInputChange("tipo_sociedad", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="S.R.L" textValue="Sociedad de Responsabilidad Limitada">S.R.L</SelectItem>
-                      <SelectItem value="ECMAN" textValue="Empresa en Comandita">ECMAN</SelectItem>
-                      <SelectItem value="LTDA" textValue="Limitada">LTDA</SelectItem>
-                      <SelectItem value="OC" textValue="Optima Consultores">OC</SelectItem>
-                      <SelectItem value="RL" textValue="Responsabilidad Limitada">RL</SelectItem>
-                      <SelectItem value="SA" textValue="Sociedad Anónima">SA</SelectItem>
-                      <SelectItem value="SACV" textValue="Sociedad Anónima de Capital Variable">SACV</SelectItem>
-                      <SelectItem value="No indica" textValue="No indica">No indica</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={formData.tipo_sociedad || ""} disabled />
-                )}
-              </div>
-               <div className="col-span-3 space-y-2">
-                <Label>Nombramientos</Label>
-                <Textarea 
-                  value={formData.nombramientos || ""} 
-                  onChange={(e) => handleInputChange("nombramientos", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
-              </div>
-
             </div>
           </div>
 
@@ -1440,30 +1624,6 @@ export default function ClientDetailPage() {
                     disabled 
                   />
                 )}
-              </div>
-            </div>
-          </div>
-
-          <Separator className="my-6" />
-          
-          <div>
-            <h3 className="text-lg font-medium mb-4">Información Adicional</h3>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Fuente (Source)</Label>
-                <Input 
-                  value={formData.source || ""} 
-                  onChange={(e) => handleInputChange("source", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
-              </div>
-              <div className="col-span-3 space-y-2">
-                <Label>Notas</Label>
-                <Textarea 
-                  value={formData.notes || ""} 
-                  onChange={(e) => handleInputChange("notes", e.target.value)} 
-                  disabled={!isEditMode} 
-                />
               </div>
             </div>
           </div>

@@ -676,9 +676,22 @@ export default function OpportunityDetailPage() {
   const [uploadingRecibo, setUploadingRecibo] = useState(false);
 
   // Subir archivo con prefijo específico
-  const handleFileUploadWithType = async (e: React.ChangeEvent<HTMLInputElement>, type: 'cedula' | 'recibo') => {
+  const handleFileUploadWithType = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, type: 'cedula' | 'recibo') => {
+    console.log('[DEBUG] handleFileUploadWithType iniciado', { type, opportunity_id: opportunity?.id });
+
+    if (!opportunity) {
+      console.error('[DEBUG] No hay oportunidad cargada');
+      toast({ title: "Error", description: "No se puede subir el archivo. Recarga la página.", variant: "destructive" });
+      return;
+    }
+
     const file = e.target.files?.[0];
-    if (!file) return;
+    console.log('[DEBUG] Archivo seleccionado:', file?.name);
+
+    if (!file) {
+      console.log('[DEBUG] No se seleccionó archivo, saliendo');
+      return;
+    }
 
     const setUploadingState = type === 'cedula' ? setUploadingCedula : setUploadingRecibo;
     const prefix = type === 'cedula' ? 'cedula' : 'recibo';
@@ -686,26 +699,40 @@ export default function OpportunityDetailPage() {
     // Renombrar archivo con prefijo
     const ext = file.name.split('.').pop();
     const newFileName = `${prefix}_${opportunity?.lead_cedula || 'unknown'}.${ext}`;
-    const renamedFile = new File([file], newFileName, { type: file.type });
+    console.log('[DEBUG] Archivo renombrado a:', newFileName);
 
+    // Usar FormData.append con 3 parámetros en lugar de new File() para evitar error de Turbopack
     const formData = new FormData();
-    formData.append('file', renamedFile);
+    formData.append('file', file, newFileName);
 
     try {
       setUploadingState(true);
-      await api.post(`/api/opportunities/${id}/files`, formData, {
+      console.log('[DEBUG] Enviando archivo al servidor...');
+
+      const response = await api.post(`/api/opportunities/${id}/files`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      console.log('[DEBUG] Respuesta del servidor:', response.data);
       toast({ title: "Éxito", description: `${type === 'cedula' ? 'Cédula' : 'Recibo'} subido correctamente.` });
-      fetchFiles();
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+
+      console.log('[DEBUG] Refrescando lista de archivos...');
+      await fetchFiles();
+      console.log('[DEBUG] Lista de archivos refrescada');
+    } catch (error: any) {
+      console.error("[DEBUG] Error completo:", error);
+      console.error("[DEBUG] Error response:", error.response?.data);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "No se pudo subir el archivo.",
+        variant: "destructive"
+      });
     } finally {
       setUploadingState(false);
       e.target.value = '';
+      console.log('[DEBUG] handleFileUploadWithType finalizado');
     }
-  };
+  }, [opportunity, id, toast, fetchFiles]);
 
   // Subir archivo(s) específico(s) (genérico)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
