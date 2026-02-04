@@ -618,7 +618,7 @@ export default function AnalisisPage() {
                           action="create"
                           variant="outline"
                           className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
-                          title="Subir crédito"
+                          title="Generar crédito"
                           onClick={async () => {
                             try {
                               // Obtener la próxima referencia del servidor
@@ -649,7 +649,7 @@ export default function AnalisisPage() {
                             }
                           }}
                         >
-                          Subir crédito
+                          Generar crédito
                         </PermissionButton>
                       )}
                       {item.has_credit && item.credit_id && (
@@ -950,7 +950,7 @@ export default function AnalisisPage() {
             </div>
             <div className="flex justify-end">
               <Button type="submit" disabled={isSaving} className="bg-green-600 text-white hover:bg-green-700">
-                {isSaving ? 'Guardando...' : 'Subir Crédito'}
+                {isSaving ? 'Guardando...' : 'Generar crédito'}
               </Button>
             </div>
           </form>
