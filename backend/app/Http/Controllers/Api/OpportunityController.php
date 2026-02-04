@@ -106,18 +106,17 @@ class OpportunityController extends Controller
 
             if ($strippedCedula) {
                 $heredadosPath = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
+                $especificosPath = "documentos/{$strippedCedula}/{$opportunity->id}/especificos";
 
-                // Verificar si existe la carpeta heredados
+                // Verificar documentos heredados (cédula y recibo)
                 if (Storage::disk('public')->exists($heredadosPath)) {
                     $files = Storage::disk('public')->files($heredadosPath);
                     $fileNames = array_map('basename', $files);
 
-                    // Verificar cédula
                     $hasCedula = collect($fileNames)->contains(function ($name) {
                         return stripos(strtolower($name), 'cedula') === 0;
                     });
 
-                    // Verificar recibo
                     $hasRecibo = collect($fileNames)->contains(function ($name) {
                         return stripos(strtolower($name), 'recibo') === 0;
                     });
@@ -129,8 +128,15 @@ class OpportunityController extends Controller
                         $missingDocs[] = 'Recibo';
                     }
                 } else {
-                    // Si no existe la carpeta, faltan ambos documentos
                     $missingDocs = ['Cédula', 'Recibo'];
+                }
+
+                // Verificar documentos específicos de la oportunidad
+                $hasEspecificos = Storage::disk('public')->exists($especificosPath)
+                    && count(Storage::disk('public')->files($especificosPath)) > 0;
+
+                if (!$hasEspecificos) {
+                    $missingDocs[] = 'Documentos de oportunidad';
                 }
             }
 

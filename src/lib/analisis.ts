@@ -108,6 +108,9 @@ export interface AnalisisItem {
   estado_cliente?: string | null;
   has_credit?: boolean;
   credit_id?: number;
+  credit_status?: string;
+  category?: string;
+  divisa?: string;
 }
 
 export interface AnalisisFile {
