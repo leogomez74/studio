@@ -171,7 +171,7 @@ class PropuestaController extends Controller
 
         // Sincronizar datos de la propuesta aceptada al análisis y cambiar estado_pep a Aceptado
         $analisis->update([
-            'monto_credito' => $propuesta->monto,
+            'monto_sugerido' => $propuesta->monto,
             'plazo' => $propuesta->plazo,
             'estado_pep' => 'Aceptado',
             'estado_cliente' => 'Pendiente',

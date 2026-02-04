@@ -87,6 +87,7 @@ class Analisis extends Model
         'has_credit',
         'credit_id',
         'credit_status',
+        'monto_credito',
     ];
 
     protected static function booted()
@@ -123,6 +124,14 @@ class Analisis extends Model
     public function credit()
     {
         return $this->hasOne(Credit::class, 'opportunity_id', 'opportunity_id');
+    }
+
+    /**
+     * Accessor: monto_credito es alias de monto_sugerido para compatibilidad con el frontend.
+     */
+    public function getMontoCreditoAttribute(): ?string
+    {
+        return $this->monto_sugerido;
     }
 
     /**
