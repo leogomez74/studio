@@ -158,9 +158,9 @@ export function AnalisisWizardModal({
 
     if (config) {
       if (monto < config.monto_minimo || monto > config.monto_maximo) {
-        const minFormatted = config.monto_minimo.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const maxFormatted = config.monto_maximo.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        setMontoError(`El monto debe estar entre ₡${minFormatted} y ₡${maxFormatted} para ${config.nombre}.`);
+        const minFormatted = formatCurrency(config.monto_minimo);
+        const maxFormatted = formatCurrency(config.monto_maximo);
+        setMontoError(`El monto debe estar entre ${minFormatted} y ${maxFormatted} para ${config.nombre}.`);
       } else {
         setMontoError('');
       }
