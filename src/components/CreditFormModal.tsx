@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,6 +77,14 @@ export function CreditFormModal({
     conCargosAdicionales: false,
   });
 
+  // Estado para cargos adicionales editables
+  const [cargosAdicionales, setCargosAdicionales] = useState({
+    comision: 0,
+    transporte: 10000,
+    respaldo_deudor: 4950,
+    descuento_factura: 0,
+  });
+
   // Configuración de cargos adicionales por defecto
   const CARGOS_CONFIG = {
     comision: { porcentaje: 0.03, fijo: null },
@@ -94,6 +102,17 @@ export function CreditFormModal({
       descuento_factura: CARGOS_CONFIG.descuento_factura.fijo || 0,
     };
   };
+
+  // Actualizar cargos automáticamente cuando se activa el switch o cambia el monto/categoría
+  useEffect(() => {
+    if (creditForm.conCargosAdicionales && creditForm.monto_credito) {
+      const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
+      if (!isNaN(montoNumerico) && montoNumerico > 0) {
+        const cargosCalculados = calcularCargosDefault(montoNumerico, creditForm.category);
+        setCargosAdicionales(cargosCalculados);
+      }
+    }
+  }, [creditForm.conCargosAdicionales, creditForm.monto_credito, creditForm.category]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,8 +170,8 @@ export function CreditFormModal({
 
     setIsSaving(true);
 
-    const cargosAdicionales = creditForm.conCargosAdicionales
-      ? calcularCargosDefault(montoNumerico, creditForm.category)
+    const cargosParaEnviar = creditForm.conCargosAdicionales
+      ? cargosAdicionales
       : undefined;
 
     const payload: Record<string, any> = {
@@ -168,8 +187,8 @@ export function CreditFormModal({
       poliza: creditForm.poliza,
     };
 
-    if (cargosAdicionales) {
-      payload.cargos_adicionales = cargosAdicionales;
+    if (cargosParaEnviar) {
+      payload.cargos_adicionales = cargosParaEnviar;
     }
 
     try {
@@ -353,9 +372,69 @@ export function CreditFormModal({
               onCheckedChange={(checked) => setCreditForm(f => ({ ...f, conCargosAdicionales: checked }))}
             />
             <Label htmlFor="cargos" className="cursor-pointer">
-              Aplicar cargos (editable en detalle)
+              Aplicar cargos adicionales
             </Label>
           </div>
+
+          {creditForm.conCargosAdicionales && (
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+              <h4 className="font-semibold text-sm">Cargos Adicionales</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="comision">Comisión</Label>
+                  <Input
+                    id="comision"
+                    type="text"
+                    value={formatCurrency(cargosAdicionales.comision)}
+                    onChange={(e) => {
+                      const valor = parseCurrencyToNumber(e.target.value);
+                      setCargosAdicionales(prev => ({ ...prev, comision: parseFloat(valor) || 0 }));
+                    }}
+                    placeholder="₡0.00"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="transporte">Transporte</Label>
+                  <Input
+                    id="transporte"
+                    type="text"
+                    value={formatCurrency(cargosAdicionales.transporte)}
+                    onChange={(e) => {
+                      const valor = parseCurrencyToNumber(e.target.value);
+                      setCargosAdicionales(prev => ({ ...prev, transporte: parseFloat(valor) || 0 }));
+                    }}
+                    placeholder="₡0.00"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="respaldo_deudor">Respaldo Deudor</Label>
+                  <Input
+                    id="respaldo_deudor"
+                    type="text"
+                    value={formatCurrency(cargosAdicionales.respaldo_deudor)}
+                    onChange={(e) => {
+                      const valor = parseCurrencyToNumber(e.target.value);
+                      setCargosAdicionales(prev => ({ ...prev, respaldo_deudor: parseFloat(valor) || 0 }));
+                    }}
+                    placeholder="₡0.00"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="descuento_factura">Descuento de Factura</Label>
+                  <Input
+                    id="descuento_factura"
+                    type="text"
+                    value={formatCurrency(cargosAdicionales.descuento_factura)}
+                    onChange={(e) => {
+                      const valor = parseCurrencyToNumber(e.target.value);
+                      setCargosAdicionales(prev => ({ ...prev, descuento_factura: parseFloat(valor) || 0 }));
+                    }}
+                    placeholder="₡0.00"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>

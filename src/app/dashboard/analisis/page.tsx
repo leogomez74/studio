@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, Loader2, Eye } from 'lucide-react';
+import { Download, Loader2, Eye, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { Opportunity, Lead } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -109,6 +109,7 @@ export default function AnalisisPage() {
   const [dateTo, setDateTo] = useState('');
 
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const [creditForm, setCreditForm] = useState({
     reference: '',
@@ -123,6 +124,14 @@ export default function AnalisisPage() {
     plazo: '36',
     poliza: false,
     conCargosAdicionales: false,
+  });
+
+  // Estado para cargos adicionales editables
+  const [cargosAdicionales, setCargosAdicionales] = useState({
+    comision: 0,
+    transporte: 10000,
+    respaldo_deudor: 4950,
+    descuento_factura: 0,
   });
 
   // Configuración de cargos adicionales por defecto
@@ -143,6 +152,18 @@ export default function AnalisisPage() {
       descuento_factura: 0,
     };
   };
+
+  // Actualizar cargos automáticamente cuando se activa el switch o cambia el monto/categoría
+  useEffect(() => {
+    if (creditForm.conCargosAdicionales && creditForm.monto_credito) {
+      const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
+      if (!isNaN(montoNumerico) && montoNumerico > 0) {
+        const cargosCalculados = calcularCargosDefault(montoNumerico, creditForm.category);
+        setCargosAdicionales(cargosCalculados);
+      }
+    }
+  }, [creditForm.conCargosAdicionales, creditForm.monto_credito, creditForm.category]);
+
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchAll = useCallback(async () => {
@@ -639,6 +660,7 @@ export default function AnalisisPage() {
                                 poliza: false,
                                 conCargosAdicionales: true,
                               });
+                              setCurrentStep(1); // Resetear al abrir
                               setIsCreditDialogOpen(true);
                             } catch (err) {
                               toast({
@@ -725,14 +747,49 @@ export default function AnalisisPage() {
       </Card>
 
       {/* Dialog for creating credit */}
-      <Dialog open={isCreditDialogOpen} onOpenChange={setIsCreditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog
+        open={isCreditDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreditDialogOpen(open);
+          if (!open) setCurrentStep(1); // Resetear paso al cerrar
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Nuevo Crédito</DialogTitle>
+            <DialogTitle>Nuevo Crédito - Paso {currentStep} de {creditForm.conCargosAdicionales ? 2 : 1}</DialogTitle>
             <DialogDescription>Completa la información del crédito.</DialogDescription>
           </DialogHeader>
+
+          {/* Step indicator */}
+          {creditForm.conCargosAdicionales && (
+            <div className="flex items-center justify-between mb-4 px-8">
+              {[1, 2].map((step) => (
+                <div key={step} className="flex items-center">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      step === currentStep
+                        ? 'bg-blue-600 text-white'
+                        : step < currentStep
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-200 text-gray-500'
+                    }`}
+                  >
+                    {step < currentStep ? <Check className="w-5 h-5" /> : step}
+                  </div>
+                  {step < 2 && (
+                    <div
+                      className={`h-1 w-32 mx-2 ${
+                        step < currentStep ? 'bg-green-600' : 'bg-gray-200'
+                      }`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           <form
-            className="space-y-6"
+            className="space-y-6 overflow-y-auto flex-1 pr-2"
             onSubmit={async (e) => {
               e.preventDefault();
 
@@ -789,17 +846,26 @@ export default function AnalisisPage() {
 
               setIsSaving(true);
 
-              // Calcular cargos adicionales si está habilitado
-              const cargosAdicionales = creditForm.conCargosAdicionales
-                ? calcularCargosDefault(montoNumerico, creditForm.category)
+              // Usar cargos editables si está habilitado
+              const cargosParaEnviar = creditForm.conCargosAdicionales
+                ? cargosAdicionales
                 : undefined;
+
+              // Calcular monto neto restando los cargos si están habilitados
+              const montoConCargos = creditForm.conCargosAdicionales
+                ? montoNumerico -
+                  cargosAdicionales.comision -
+                  cargosAdicionales.transporte -
+                  cargosAdicionales.respaldo_deudor -
+                  cargosAdicionales.descuento_factura
+                : montoNumerico;
 
               const payload: Record<string, any> = {
                 reference: creditForm.reference,
                 title: creditForm.title,
                 status: creditForm.status,
                 category: creditForm.category,
-                monto_credito: montoNumerico,
+                monto_credito: montoConCargos, // Enviar monto con cargos si están habilitados
                 lead_id: leadIdNumerico,
                 description: creditForm.description,
                 divisa: creditForm.divisa,
@@ -807,8 +873,8 @@ export default function AnalisisPage() {
                 poliza: creditForm.poliza,
               };
 
-              if (cargosAdicionales) {
-                payload.cargos_adicionales = cargosAdicionales;
+              if (cargosParaEnviar) {
+                payload.cargos_adicionales = cargosParaEnviar;
               }
 
               console.log('Enviando payload:', payload);
@@ -817,6 +883,7 @@ export default function AnalisisPage() {
                 const response = await api.post('/api/credits', payload);
                 console.log('Respuesta:', response.data);
                 setIsCreditDialogOpen(false);
+                setCurrentStep(1); // Resetear el paso al cerrar
                 toast({
                   variant: "success",
                   title: "Crédito creado",
@@ -847,111 +914,276 @@ export default function AnalisisPage() {
               }
             }}
           >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="reference">Referencia</Label>
-                <Input
-                  id="reference"
-                  placeholder="Se genera automáticamente (YY-XXXXX-CR)"
-                  value={creditForm.reference}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Estado</Label>
-                <Input
-                  id="status"
-                  value={creditForm.status}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Categoría</Label>
-                <Input
-                  id="category"
-                  value={creditForm.category}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="divisa">Divisa</Label>
-                <Input
-                  id="divisa"
-                  value="CRC - Colón Costarricense"
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="monto">Monto</Label>
-                <Input
-                  id="monto"
-                  value={creditForm.monto_credito || ''}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="plazo">Plazo (Meses)</Label>
-                <Input
-                  id="plazo"
-                  value={creditForm.plazo}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="poliza">Póliza</Label>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="poliza"
-                    checked={creditForm.poliza}
-                    onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
-                    disabled={creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'}
-                  />
-                  <Label htmlFor="poliza" className="text-sm text-muted-foreground">
-                    {creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'
-                      ? 'No disponible para Micro Crédito'
-                      : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
-                  </Label>
+            {/* Paso 1: Información Básica */}
+            {currentStep === 1 && (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="reference">Referencia</Label>
+                    <Input
+                      id="reference"
+                      placeholder="Se genera automáticamente (YY-XXXXX-CR)"
+                      value={creditForm.reference}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Estado</Label>
+                    <Input
+                      id="status"
+                      value={creditForm.status}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Categoría</Label>
+                    <Input
+                      id="category"
+                      value={creditForm.category}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="divisa">Divisa</Label>
+                    <Input
+                      id="divisa"
+                      value="CRC - Colón Costarricense"
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="monto">Monto</Label>
+                    <Input
+                      id="monto"
+                      value={creditForm.monto_credito || ''}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="plazo">Plazo (Meses)</Label>
+                    <Input
+                      id="plazo"
+                      value={creditForm.plazo}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="poliza">Póliza</Label>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="poliza"
+                        checked={creditForm.poliza}
+                        onCheckedChange={checked => setCreditForm(f => ({ ...f, poliza: checked }))}
+                        disabled={creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'}
+                      />
+                      <Label htmlFor="poliza" className="text-sm text-muted-foreground">
+                        {creditForm.category === 'Micro Crédito' || creditForm.category === 'Microcrédito (Hasta ₡690.000)'
+                          ? 'No disponible para Micro Crédito'
+                          : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
+                      </Label>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cargos">Cargos Adicionales</Label>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="cargos"
+                        checked={creditForm.conCargosAdicionales}
+                        onCheckedChange={checked => {
+                          setCreditForm(f => ({ ...f, conCargosAdicionales: checked }));
+                          // Si se deshabilitan los cargos, volver al paso 1
+                          if (!checked) setCurrentStep(1);
+                        }}
+                      />
+                      <Label htmlFor="cargos" className="text-sm text-muted-foreground">
+                        {creditForm.conCargosAdicionales
+                          ? 'Aplicar cargos adicionales'
+                          : 'Sin cargos adicionales'}
+                      </Label>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cargos">Cargos Adicionales</Label>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="cargos"
-                    checked={creditForm.conCargosAdicionales}
-                    onCheckedChange={checked => setCreditForm(f => ({ ...f, conCargosAdicionales: checked }))}
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descripción</Label>
+                  <Textarea
+                    id="description"
+                    className="min-h-[80px]"
+                    placeholder="Describe el contexto del crédito..."
+                    value={creditForm.description}
+                    onChange={e => setCreditForm(f => ({ ...f, description: e.target.value }))}
                   />
-                  <Label htmlFor="cargos" className="text-sm text-muted-foreground">
-                    {creditForm.conCargosAdicionales
-                      ? 'Aplicar cargos (editable en detalle)'
-                      : 'Sin cargos adicionales'}
-                  </Label>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cliente">Cliente</Label>
-                <Input
-                  id="cliente"
-                  value={creditForm.clientName}
-                  disabled
-                  placeholder="Cliente del análisis"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
-              <Textarea
-                id="description"
-                className="min-h-[80px]"
-                placeholder="Describe el contexto del crédito..."
-                value={creditForm.description}
-                onChange={e => setCreditForm(f => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isSaving} className="bg-green-600 text-white hover:bg-green-700">
-                {isSaving ? 'Guardando...' : 'Generar crédito'}
-              </Button>
+              </>
+            )}
+
+            {/* Paso 2: Cargos Adicionales */}
+            {currentStep === 2 && creditForm.conCargosAdicionales && (
+              <>
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                  <h4 className="font-semibold text-lg">Cargos Adicionales (Editables)</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="comision">Comisión</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                        <Input
+                          id="comision"
+                          type="text"
+                          inputMode="numeric"
+                          className="pl-7"
+                          value={formatCurrency(cargosAdicionales.comision).replace('₡', '').trim()}
+                          onChange={(e) => {
+                            const valor = parseCurrencyToNumber(e.target.value);
+                            setCargosAdicionales(prev => ({ ...prev, comision: parseFloat(valor) || 0 }));
+                          }}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="transporte">Transporte</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                        <Input
+                          id="transporte"
+                          type="text"
+                          inputMode="numeric"
+                          className="pl-7"
+                          value={formatCurrency(cargosAdicionales.transporte).replace('₡', '').trim()}
+                          onChange={(e) => {
+                            const valor = parseCurrencyToNumber(e.target.value);
+                            setCargosAdicionales(prev => ({ ...prev, transporte: parseFloat(valor) || 0 }));
+                          }}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="respaldo_deudor">Respaldo Deudor</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                        <Input
+                          id="respaldo_deudor"
+                          type="text"
+                          inputMode="numeric"
+                          className="pl-7"
+                          value={formatCurrency(cargosAdicionales.respaldo_deudor).replace('₡', '').trim()}
+                          onChange={(e) => {
+                            const valor = parseCurrencyToNumber(e.target.value);
+                            setCargosAdicionales(prev => ({ ...prev, respaldo_deudor: parseFloat(valor) || 0 }));
+                          }}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="descuento_factura">Descuento de Factura</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                        <Input
+                          id="descuento_factura"
+                          type="text"
+                          inputMode="numeric"
+                          className="pl-7"
+                          value={formatCurrency(cargosAdicionales.descuento_factura).replace('₡', '').trim()}
+                          onChange={(e) => {
+                            const valor = parseCurrencyToNumber(e.target.value);
+                            setCargosAdicionales(prev => ({ ...prev, descuento_factura: parseFloat(valor) || 0 }));
+                          }}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Monto Total después de cargos */}
+                <div className="p-4 border-2 rounded-lg bg-blue-50 border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Monto Original</p>
+                      <p className="text-lg font-semibold">{creditForm.monto_credito || '₡0.00'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Monto Neto a Desembolsar</p>
+                      <p className="text-2xl font-bold text-blue-700">
+                        {formatCurrency(
+                          parseFloat(parseCurrencyToNumber(creditForm.monto_credito || '0')) -
+                          cargosAdicionales.comision -
+                          cargosAdicionales.transporte -
+                          cargosAdicionales.respaldo_deudor -
+                          cargosAdicionales.descuento_factura
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <p className="text-xs text-muted-foreground mb-2">Desglose de cargos:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between">
+                        <span>Comisión:</span>
+                        <span className="font-medium">{formatCurrency(cargosAdicionales.comision)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Transporte:</span>
+                        <span className="font-medium">{formatCurrency(cargosAdicionales.transporte)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Respaldo Deudor:</span>
+                        <span className="font-medium">{formatCurrency(cargosAdicionales.respaldo_deudor)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Descuento Factura:</span>
+                        <span className="font-medium">{formatCurrency(cargosAdicionales.descuento_factura)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Botones de navegación */}
+            <div className="flex justify-between pt-4 border-t">
+              {currentStep === 2 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setCurrentStep(1);
+                  }}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Anterior
+                </Button>
+              ) : (
+                <div></div>
+              )}
+
+              {currentStep === 1 && !creditForm.conCargosAdicionales ? (
+                <Button type="submit" disabled={isSaving} className="bg-green-600 text-white hover:bg-green-700">
+                  {isSaving ? 'Guardando...' : 'Generar crédito'}
+                </Button>
+              ) : currentStep === 1 && creditForm.conCargosAdicionales ? (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setCurrentStep(2);
+                  }}
+                  className="bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Siguiente
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                <Button type="submit" disabled={isSaving} className="bg-green-600 text-white hover:bg-green-700">
+                  {isSaving ? 'Guardando...' : 'Generar crédito'}
+                </Button>
+              )}
             </div>
           </form>
         </DialogContent>
