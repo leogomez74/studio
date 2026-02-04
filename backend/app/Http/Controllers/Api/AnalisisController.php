@@ -185,6 +185,27 @@ class AnalisisController extends Controller
             ], 403);
         }
 
+        // Validar transiciones permitidas de estado_pep
+        if (isset($validated['estado_pep'])) {
+            $estadoActual = $analisis->estado_pep ?? 'Pendiente';
+            $estadoNuevo = $validated['estado_pep'];
+
+            $transicionesPermitidas = [
+                'Pendiente' => ['Pendiente de cambios', 'Aceptado', 'Rechazado'],
+                'Pendiente de cambios' => ['Aceptado', 'Rechazado'],
+                'Aceptado' => ['Pendiente de cambios', 'Rechazado'],
+                'Rechazado' => ['Pendiente de cambios'],
+            ];
+
+            $permitidas = $transicionesPermitidas[$estadoActual] ?? [];
+
+            if ($estadoNuevo !== $estadoActual && !in_array($estadoNuevo, $permitidas)) {
+                return response()->json([
+                    'message' => "No se puede cambiar el estado de \"{$estadoActual}\" a \"{$estadoNuevo}\".",
+                ], 422);
+            }
+        }
+
         // Validar monto máximo de aprobación para acciones de decisión (aceptar, rechazar, aprobar)
         $user = $request->user();
         $montoMaximo = $user->monto_max_aprobacion ?? -1;

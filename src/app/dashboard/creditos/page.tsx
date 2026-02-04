@@ -147,6 +147,7 @@ interface ClientOption {
   telefono3?: string;
   institucion_labora?: string;
   departamento_cargo?: string;
+  puesto?: string;
   deductora_id?: number | null;
   lead_status_id?: number;
   assigned_to_id?: number;
@@ -752,7 +753,7 @@ export default function CreditsPage() {
   };
 
   const handleExportPDF = async (credit: CreditItem) => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape' });
     const currentDate = new Date().toLocaleDateString('es-CR');
 
     let fullCredit = credit;
@@ -779,43 +780,67 @@ export default function CreditsPage() {
   };
 
   const generatePDFContent = (doc: jsPDF, credit: CreditItem, date: string) => {
-    // Header Center
+    // ── Header ──
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("ESTADO DE CUENTA", 105, 15, { align: "center" });
+    const pageW = 297; // landscape width
+    const margin = 14;
+    const centerX = pageW / 2;
+    const lineEnd = pageW - margin;
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`REPORTE AL ${date}`, 105, 22, { align: "center" });
-
-    // Header Right (Account Number)
-    doc.setFontSize(10);
-    doc.text(`*${credit.lead_id}*`, 195, 15, { align: "right" });
-    doc.text(`${credit.lead_id}`, 195, 22, { align: "right" });
-
-    // Customer Info
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text(`${credit.lead_id}`, 14, 35);
-    doc.text(`${credit.client?.name || "CLIENTE DESCONOCIDO"}`, 14, 40);
+    doc.text("ESTADO DE CUENTA", centerX, 15, { align: "center" });
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text("INST./EMPRESA", 100, 35);
-    doc.text(`${credit.client?.ocupacion || "-"}`, 130, 35);
-    doc.text(`${credit.client?.departamento_cargo || "-"}`, 100, 40);
-    doc.text("SECCIÓN", 100, 45);
+    doc.text(`REPORTE AL ${date}`, centerX, 21, { align: "center" });
+
+    // Línea separadora del header
+    doc.setDrawColor(0, 0, 128);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 25, lineEnd, 25);
+
+    // ── Información del Cliente (lado izquierdo) ──
+    const infoY = 33;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("N° Cuenta:", margin, infoY);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${credit.lead_id || "-"}`, 42, infoY);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Cliente:", margin, infoY + 6);
+    doc.setFont("helvetica", "normal");
+    const person = credit.lead || credit.client;
+    const clientName = person ? [person.name, person.apellido1, person.apellido2].filter(Boolean).join(' ') : "CLIENTE DESCONOCIDO";
+    doc.text(clientName.toUpperCase(), 42, infoY + 6);
+
+    // ── Información laboral (lado derecho) ──
+    const rightCol = 160;
+    const labelW = 30;
+    doc.setFont("helvetica", "bold");
+    doc.text("Inst./Empresa:", rightCol, infoY);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${credit.lead?.institucion_labora || credit.lead?.ocupacion || credit.client?.institucion_labora || credit.client?.ocupacion || "-"}`, rightCol + labelW, infoY);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Sección:", rightCol, infoY + 6);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${credit.lead?.puesto || credit.client?.puesto || "-"}`, rightCol + labelW, infoY + 6);
 
     // Planes de Ahorros
+    const seccionesY = infoY + 18;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128); // Dark Blue
-    doc.text("Planes de Ahorros", 14, 55);
-    doc.setTextColor(0, 0, 0); // Black
+    doc.setTextColor(0, 0, 128);
+    doc.text("Planes de Ahorros", 14, seccionesY);
+    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(0, 0, 128);
+    doc.setLineWidth(0.3);
+    doc.line(margin, seccionesY + 2, lineEnd, seccionesY + 2);
 
     // Mock Savings Data
     autoTable(doc, {
-      startY: 60,
+      startY: seccionesY + 5,
       head: [['N.CON', 'PLAN', 'MENSUALIDAD', 'INICIO', 'REND.CORTE', 'APORTES', 'RENDIMIENTO', 'ACUMULADO']],
       body: [
         ['621', 'SOBRANTES POR APLICAR', '0.00', '27/09/2022', '', '0.64', '0.00', '0.64']
@@ -836,6 +861,9 @@ export default function CreditsPage() {
     doc.setTextColor(0, 0, 128);
     doc.text("Créditos / Otras deducciones", 14, finalY);
     doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(0, 0, 128);
+    doc.setLineWidth(0.3);
+    doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
     // Credit Data - Solo usar tasa dinámica si está en estado editable (Aprobado/Activo)
     const estadosEditables = ['Aprobado', 'Por firmar'];
@@ -845,7 +873,7 @@ export default function CreditsPage() {
       : (credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00');
     const creditRow = [
       credit.numero_operacion || credit.reference,
-      credit.linea || "PEPITO ABIERTO",
+      credit.linea || credit.category || "-",
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.monto_credito || 0),
       credit.plazo || 120,
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
@@ -854,7 +882,7 @@ export default function CreditsPage() {
       "0.00", // Morosidad
       credit.primera_deduccion || "-", // PRI.DED (Primera Deducción)
       new Date().toISOString().split('T')[0], // Ult Mov
-      credit.fecha_culminacion_credito || "2032-01-01",
+      (credit.fecha_culminacion_credito || "2032-01-01").split('T')[0].split(' ')[0],
       credit.status || "NORMAL"
     ];
 
@@ -863,8 +891,22 @@ export default function CreditsPage() {
       head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
       body: [creditRow],
       theme: 'plain',
-      styles: { fontSize: 7, cellPadding: 1 },
+      styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
+      columnStyles: {
+        0: { cellWidth: 30 },  // OPERACIÓN
+        1: { cellWidth: 28 },  // LINEA
+        2: { cellWidth: 25 },  // MONTO
+        3: { cellWidth: 15 },  // PLAZO
+        4: { cellWidth: 22 },  // CUOTA
+        5: { cellWidth: 25 },  // SALDO
+        6: { cellWidth: 18 },  // TASA
+        7: { cellWidth: 22 },  // MOROSIDAD
+        8: { cellWidth: 22 },  // PRI.DED
+        9: { cellWidth: 22 },  // ULT.MOV
+        10: { cellWidth: 22 }, // TERMINA
+        11: { cellWidth: 22 }, // PROCESO
+      },
     });
 
     // Fianzas
@@ -875,9 +917,9 @@ export default function CreditsPage() {
     doc.text("Fianzas", 14, finalY);
     doc.setTextColor(0, 0, 0);
 
-    doc.setLineWidth(0.5);
     doc.setDrawColor(0, 0, 128);
-    doc.line(14, finalY + 2, 195, finalY + 2);
+    doc.setLineWidth(0.3);
+    doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
@@ -891,6 +933,9 @@ export default function CreditsPage() {
       doc.setTextColor(0, 0, 128);
       doc.text("Plan de Pagos", 14, finalY);
       doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(0, 0, 128);
+      doc.setLineWidth(0.3);
+      doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
       const paymentRows = credit.plan_de_pagos.map(p => [
         p.numero_cuota,
@@ -1277,7 +1322,7 @@ export default function CreditsPage() {
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuItem onClick={() => handleExportPDF(credit)}>
                                       <FileText className="mr-2 h-4 w-4" />
-                                      Exportar PDF
+                                      Estado de cuenta
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
