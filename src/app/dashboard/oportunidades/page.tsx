@@ -674,7 +674,30 @@ export default function DealsPage() {
 
   // --- Analisis Logic ---
 
-  const handleOpenAnalisisDialog = (opportunity: Opportunity) => {
+  const handleOpenAnalisisDialog = async (opportunity: Opportunity) => {
+    // Validar que existan documentos específicos de la oportunidad
+    try {
+      const filesRes = await api.get(`/api/opportunities/${opportunity.id}/files`);
+      const especificos = filesRes.data.especificos || [];
+
+      if (especificos.length === 0) {
+        toast({
+          title: "Documentos requeridos",
+          description: "Debe cargar al menos un documento específico de la oportunidad antes de crear un análisis.",
+          variant: "destructive"
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking documents:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo verificar los documentos de la oportunidad.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setAnalisisOpportunity(opportunity);
 
     // La referencia es el ID de la oportunidad
