@@ -177,6 +177,14 @@ class AnalisisController extends Controller
         $analisis = Analisis::findOrFail($id);
         $validated = $request->validated();
 
+        // Bloquear cambios de estado si el crédito asociado está formalizado
+        $isChangingStatus = isset($validated['estado_pep']) || isset($validated['estado_cliente']);
+        if ($isChangingStatus && $analisis->credit_status === 'Formalizado') {
+            return response()->json([
+                'message' => 'No se puede cambiar el estado del análisis porque el crédito asociado ya fue formalizado.',
+            ], 403);
+        }
+
         // Validar monto máximo de aprobación para acciones de decisión (aceptar, rechazar, aprobar)
         $user = $request->user();
         $montoMaximo = $user->monto_max_aprobacion ?? -1;

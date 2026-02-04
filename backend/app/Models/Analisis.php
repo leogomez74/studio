@@ -86,6 +86,7 @@ class Analisis extends Model
     protected $appends = [
         'has_credit',
         'credit_id',
+        'credit_status',
     ];
 
     protected static function booted()
@@ -150,5 +151,20 @@ class Analisis extends Model
             ->first();
 
         return $credit?->id;
+    }
+
+    /**
+     * Accessor para obtener el status del crédito asociado
+     */
+    public function getCreditStatusAttribute(): ?string
+    {
+        $credit = Credit::where('opportunity_id', $this->opportunity_id)
+            ->orWhere(function ($query) {
+                $query->where('lead_id', $this->lead_id)
+                      ->whereNotNull('lead_id');
+            })
+            ->first();
+
+        return $credit?->status;
     }
 }

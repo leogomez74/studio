@@ -605,19 +605,27 @@ export default function LeadDetailPage() {
     const [syncing, setSyncing] = useState(false);
 
     // Validar si el registro está completo
+    const REQUIRED_FIELDS = [
+        'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento',
+        'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
+        'province', 'canton', 'distrito', 'direccion1',
+        'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
+    ];
+
     const checkIsComplete = useCallback(() => {
         if (!formData) return false;
-        const requiredFields = [
-            'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento',
-            'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
-            'province', 'canton', 'distrito', 'direccion1',
-            'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
-        ];
-        return requiredFields.every(field => {
+        return REQUIRED_FIELDS.every(field => {
             const value = (formData as any)[field];
             if (field === 'deductora_id') return value && value !== 0;
             return value !== null && value !== undefined && value !== '';
         });
+    }, [formData]);
+
+    const isFieldMissing = useCallback((field: string) => {
+        if (!formData || !REQUIRED_FIELDS.includes(field)) return false;
+        const value = (formData as any)[field];
+        if (field === 'deductora_id') return !value || value === 0;
+        return value === null || value === undefined || value === '';
     }, [formData]);
 
     // Protección: redirigir si intenta editar sin permiso
@@ -729,9 +737,23 @@ export default function LeadDetailPage() {
 
     const autoSave = useCallback(async () => {
         if (!isEditMode) return;
+        const EDITABLE_FIELDS = [
+            'name', 'apellido1', 'apellido2', 'cedula', 'email', 'phone', 'status', 'lead_status_id',
+            'assigned_to_id', 'notes', 'source', 'whatsapp', 'tel_casa', 'tel_amigo',
+            'province', 'canton', 'distrito', 'direccion1', 'direccion2',
+            'ocupacion', 'estado_civil', 'relacionado_a', 'tipo_relacion', 'fecha_nacimiento',
+            'is_active', 'cedula_vencimiento', 'genero', 'nacionalidad', 'telefono2', 'telefono3',
+            'institucion_labora', 'departamento_cargo', 'deductora_id', 'nivel_academico',
+            'profesion', 'sector', 'puesto', 'estado_puesto',
+            'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion',
+            'institucion_direccion', 'actividad_economica', 'tipo_sociedad', 'nombramientos',
+        ];
+        const payload = Object.fromEntries(
+            Object.entries(formData).filter(([key]) => EDITABLE_FIELDS.includes(key))
+        );
         try {
             setSaving(true);
-            await api.put(`/api/leads/${id}`, formData);
+            await api.put(`/api/leads/${id}`, payload);
             setLead(prev => ({ ...prev, ...formData } as Lead));
         } catch (error) {
             console.error("Error auto-saving lead:", error);
@@ -984,7 +1006,7 @@ export default function LeadDetailPage() {
                                 <h3 className="text-lg font-medium mb-4">Datos Personales</h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
-                                        <Label>Nombre</Label>
+                                        <Label>Nombre {isFieldMissing('name') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.name || ""}
                                             onChange={(e) => handleInputChange("name", e.target.value)}
@@ -992,7 +1014,7 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Primer Apellido</Label>
+                                        <Label>Primer Apellido {isFieldMissing('apellido1') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.apellido1 || ""}
                                             onChange={(e) => handleInputChange("apellido1", e.target.value)}
@@ -1008,7 +1030,7 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Cédula</Label>
+                                        <Label>Cédula {isFieldMissing('cedula') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.cedula || ""}
                                             onChange={(e) => handleInputChange("cedula", e.target.value)}
@@ -1025,7 +1047,7 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Fecha de Nacimiento</Label>
+                                        <Label>Fecha de Nacimiento {isFieldMissing('fecha_nacimiento') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             type="date"
                                             value={formData.fecha_nacimiento ? String(formData.fecha_nacimiento).split('T')[0] : ""}
@@ -1084,7 +1106,7 @@ export default function LeadDetailPage() {
                                 <h3 className="text-lg font-medium mb-4">Información de Contacto</h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
-                                        <Label>Email</Label>
+                                        <Label>Email {isFieldMissing('email') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.email || ""}
                                             onChange={(e) => handleInputChange("email", e.target.value)}
@@ -1092,7 +1114,7 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Teléfono Móvil</Label>
+                                        <Label>Teléfono Móvil {isFieldMissing('phone') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.phone || ""}
                                             onChange={(e) => handleInputChange("phone", e.target.value)}
@@ -1116,7 +1138,7 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>WhatsApp</Label>
+                                        <Label>WhatsApp {isFieldMissing('whatsapp') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.whatsapp || ""}
                                             onChange={(e) => handleInputChange("whatsapp", e.target.value)}
@@ -1141,10 +1163,10 @@ export default function LeadDetailPage() {
                                 <h3 className="text-lg font-medium mb-4">Dirección</h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
-                                        <Label>Provincia</Label>
+                                        <Label>Provincia {isFieldMissing('province') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
-                                            <Select 
-                                                value={(formData as any).province || ""} 
+                                            <Select
+                                                value={(formData as any).province || ""}
                                                 onValueChange={handleProvinceChange}
                                             >
                                                 <SelectTrigger>
@@ -1163,10 +1185,10 @@ export default function LeadDetailPage() {
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Cantón</Label>
+                                        <Label>Cantón {isFieldMissing('canton') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
-                                            <Select 
-                                                value={(formData as any).canton || ""} 
+                                            <Select
+                                                value={(formData as any).canton || ""}
                                                 onValueChange={handleCantonChange}
                                                 disabled={!formData?.province}
                                             >
@@ -1186,10 +1208,10 @@ export default function LeadDetailPage() {
                                          )}
                                      </div>
                                      <div className="space-y-2">
-                                         <Label>Distrito</Label>
+                                         <Label>Distrito {isFieldMissing('distrito') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
                                             <Select
-                                                value={(formData as any).distrito || ""} 
+                                                value={(formData as any).distrito || ""}
                                                 onValueChange={handleDistrictChange}
                                                 disabled={!formData?.canton}
                                             >
@@ -1210,7 +1232,7 @@ export default function LeadDetailPage() {
                                      </div>
 
                                     <div className="col-span-3 md:col-span-2 space-y-2">
-                                        <Label>Dirección Exacta</Label>
+                                        <Label>Dirección Exacta {isFieldMissing('direccion1') && <span className="text-red-500">*</span>}</Label>
                                         <Textarea
                                             value={formData.direccion1 || ""}
                                             onChange={(e) => handleInputChange("direccion1", e.target.value)}
@@ -1235,7 +1257,7 @@ export default function LeadDetailPage() {
                                 <h3 className="text-lg font-medium mb-4">Información Laboral</h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
-                                        <Label>Nivel Académico</Label>
+                                        <Label>Nivel Académico {isFieldMissing('nivel_academico') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Select
                                                 value={(formData as any).nivel_academico || ""}
@@ -1260,7 +1282,7 @@ export default function LeadDetailPage() {
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Profesión</Label>
+                                        <Label>Profesión {isFieldMissing('profesion') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Popover open={profesionOpen} onOpenChange={setProfesionOpen}>
                                                 <PopoverTrigger asChild>
@@ -1316,17 +1338,17 @@ export default function LeadDetailPage() {
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Sector</Label>
-                                        <Input 
-                                            value={(formData as any).sector || ""} 
+                                        <Label>Sector {isFieldMissing('sector') && <span className="text-red-500">*</span>}</Label>
+                                        <Input
+                                            value={(formData as any).sector || ""}
                                             onChange={(e) => handleInputChange("sector" as keyof Lead, e.target.value)} 
                                             disabled={!isEditMode} onBlur={handleBlur} 
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Puesto</Label>
-                                        <Input 
-                                            value={(formData as any).puesto || ""} 
+                                        <Label>Puesto {isFieldMissing('puesto') && <span className="text-red-500">*</span>}</Label>
+                                        <Input
+                                            value={(formData as any).puesto || ""}
                                             onChange={(e) => handleInputChange("puesto" as keyof Lead, e.target.value)} 
                                             disabled={!isEditMode} onBlur={handleBlur} 
                                         />
@@ -1349,7 +1371,7 @@ export default function LeadDetailPage() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Institución</Label>
+                                        <Label>Institución {isFieldMissing('institucion_labora') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Popover open={institucionOpen} onOpenChange={setInstitucionOpen}>
                                                 <PopoverTrigger asChild>
@@ -1406,7 +1428,7 @@ export default function LeadDetailPage() {
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Deductora</Label>
+                                        <Label>Deductora {isFieldMissing('deductora_id') && <span className="text-red-500">*</span>}</Label>
                                         <div className="flex items-center gap-6">
                                             {deductoras.map((deductora) => (
                                                 <Button
@@ -1429,10 +1451,10 @@ export default function LeadDetailPage() {
                                         <h4 className="text-sm font-medium mb-2 mt-2">Dirección del Trabajo</h4>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Provincia</Label>
+                                        <Label>Provincia {isFieldMissing('trabajo_provincia') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
-                                            <Select 
-                                                value={(formData as any).trabajo_provincia || ""} 
+                                            <Select
+                                                value={(formData as any).trabajo_provincia || ""}
                                                 onValueChange={handleWorkProvinceChange}
                                             >
                                                 <SelectTrigger>
@@ -1451,10 +1473,10 @@ export default function LeadDetailPage() {
                                         )}
                                     </div>
                                      <div className="space-y-2">
-                                         <Label>Cantón</Label>
+                                         <Label>Cantón {isFieldMissing('trabajo_canton') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
                                             <Select
-                                                value={(formData as any).trabajo_canton || ""} 
+                                                value={(formData as any).trabajo_canton || ""}
                                                 onValueChange={handleWorkCantonChange}
                                                 disabled={!((formData as any).trabajo_provincia)}
                                             >
@@ -1474,10 +1496,10 @@ export default function LeadDetailPage() {
                                          )}
                                      </div>
                                      <div className="space-y-2">
-                                         <Label>Distrito</Label>
+                                         <Label>Distrito {isFieldMissing('trabajo_distrito') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
                                             <Select
-                                                value={(formData as any).trabajo_distrito || ""} 
+                                                value={(formData as any).trabajo_distrito || ""}
                                                 onValueChange={handleWorkDistrictChange}
                                                 disabled={!((formData as any).trabajo_canton)}
                                             >
@@ -1497,7 +1519,7 @@ export default function LeadDetailPage() {
                                          )}
                                      </div>
                                     <div className="col-span-3 space-y-2">
-                                         <Label>Dirección Exacta (Trabajo)</Label>
+                                         <Label>Dirección Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
                                          <Textarea
                                              value={(formData as any).trabajo_direccion || ""}
                                              onChange={(e) => handleInputChange("trabajo_direccion" as keyof Lead, e.target.value)}

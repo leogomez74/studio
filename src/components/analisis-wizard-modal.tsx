@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Plus, X } from 'lucide-react';
 import { formatCurrency } from '@/lib/analisis';
 import api from '@/lib/axios';
 import type {
@@ -56,7 +56,7 @@ interface FormData {
 const initialFormData: FormData = {
   monto_sugerido: '',
   cuota: '',
-  plazo: '36',
+  plazo: '',
   assigned_to: '',
   ingreso_bruto: '',
   ingreso_bruto_2: '',
@@ -85,6 +85,7 @@ export function AnalisisWizardModal({
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [extraMonths, setExtraMonths] = useState(0);
   const [users, setUsers] = useState<Array<{ id: number; name: string }>>([]);
   const [leadData, setLeadData] = useState<{ profesion?: string; puesto?: string; estado_puesto?: string } | null>(null);
 
@@ -158,6 +159,13 @@ export function AnalisisWizardModal({
   };
 
   const nextStep = () => {
+    // Validar plazo obligatorio en paso 1
+    if (currentStep === 1) {
+      const plazoValue = parseInt(formData.plazo);
+      if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
+        return;
+      }
+    }
     if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
@@ -166,6 +174,13 @@ export function AnalisisWizardModal({
   };
 
   const handleSubmit = async () => {
+    // Validar plazo obligatorio
+    const plazoValue = parseInt(formData.plazo);
+    if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
+      setCurrentStep(1);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Construir payload con todos los datos
@@ -222,9 +237,9 @@ export function AnalisisWizardModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuevo Análisis - Paso {currentStep} de 3</DialogTitle>
+          <DialogTitle>Subir Análisis - Paso {currentStep} de 3</DialogTitle>
         </DialogHeader>
 
         {/* Step indicator */}
@@ -337,6 +352,8 @@ export function AnalisisWizardModal({
                   <Input
                     id="plazo"
                     type="number"
+                    min="1"
+                    max="120"
                     value={formData.plazo}
                     onChange={(e) => updateFormData('plazo', e.target.value)}
                     placeholder="Ingresar plazo"
@@ -368,77 +385,118 @@ export function AnalisisWizardModal({
         )}
 
         {/* Step 2: Ingresos Mensuales */}
-        {currentStep === 2 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Ingresos Mensuales</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {Array.from({ length: producto?.toLowerCase().includes('micro') ? 3 : 6 }, (_, i) => i + 1).map((mes) => {
-                const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}` as keyof FormData;
-                const bruto = parseFloat(formData[brutoProp] as string) || 0;
-                const deduccion = formData.deducciones_mensuales.find(d => d.mes === mes);
-                const ingresoNeto = bruto - (deduccion?.monto || 0);
+        {currentStep === 2 && (() => {
+          const fixedMonths = 3;
+          const maxExtra = 3;
+          const totalMonths = fixedMonths + extraMonths;
 
-                return (
-                  <div key={mes} className="border rounded-lg p-4 space-y-3">
-                    <h4 className="font-semibold text-sm text-gray-700">Mes {mes}</h4>
+          const removeExtraMonth = (mes: number) => {
+            // Clear data for the removed month
+            const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}`;
+            updateFormData(brutoProp, '');
+            const newDeducciones = formData.deducciones_mensuales.filter(d => d.mes !== mes);
+            updateFormData('deducciones_mensuales', newDeducciones);
+            setExtraMonths(prev => Math.max(0, prev - 1));
+          };
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <Label htmlFor={`bruto_${mes}`}>Ingreso Bruto</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                          <Input
-                            id={`bruto_${mes}`}
-                            type="text"
-                            inputMode="numeric"
-                            className="pl-7"
-                            value={formatNumber(formData[brutoProp] as string)}
-                            onChange={(e) => updateFormData(brutoProp as string, parseNumber(e.target.value))}
-                            placeholder="0"
-                          />
-                        </div>
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Ingresos Mensuales</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {Array.from({ length: totalMonths }, (_, i) => i + 1).map((mes) => {
+                  const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}` as keyof FormData;
+                  const bruto = parseFloat(formData[brutoProp] as string) || 0;
+                  const deduccion = formData.deducciones_mensuales.find(d => d.mes === mes);
+                  const ingresoNeto = bruto - (deduccion?.monto || 0);
+                  const isExtra = mes > fixedMonths;
+
+                  return (
+                    <div key={mes} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-sm text-gray-700">Mes {mes}</h4>
+                        {isExtra && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-red-500"
+                            onClick={() => removeExtraMonth(mes)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
 
-                      <div>
-                        <Label htmlFor={`deduccion_${mes}`}>Deducción</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                          <Input
-                            id={`deduccion_${mes}`}
-                            type="text"
-                            inputMode="numeric"
-                            className="pl-7"
-                            value={formatNumber(deduccion?.monto || '')}
-                            onChange={(e) => {
-                              const newMonto = parseFloat(parseNumber(e.target.value)) || 0;
-                              const newDeducciones = formData.deducciones_mensuales.filter(d => d.mes !== mes);
-                              if (newMonto > 0) {
-                                newDeducciones.push({ mes, monto: newMonto });
-                              }
-                              updateFormData('deducciones_mensuales', newDeducciones);
-                            }}
-                            placeholder="0"
-                          />
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label htmlFor={`bruto_${mes}`}>Ingreso Bruto</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                            <Input
+                              id={`bruto_${mes}`}
+                              type="text"
+                              inputMode="numeric"
+                              className="pl-7"
+                              value={formatNumber(formData[brutoProp] as string)}
+                              onChange={(e) => updateFormData(brutoProp as string, parseNumber(e.target.value))}
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
-                      </div>
 
-                      <div>
-                        <Label>Ingreso Neto</Label>
-                        <div className="h-10 px-3 py-2 bg-gray-100 border rounded-md flex items-center">
-                          <span className="font-medium text-green-700">
-                            {formatCurrency(ingresoNeto)}
-                          </span>
+                        <div>
+                          <Label htmlFor={`deduccion_${mes}`}>Deducción</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                            <Input
+                              id={`deduccion_${mes}`}
+                              type="text"
+                              inputMode="numeric"
+                              className="pl-7"
+                              value={formatNumber(deduccion?.monto || '')}
+                              onChange={(e) => {
+                                const newMonto = parseFloat(parseNumber(e.target.value)) || 0;
+                                const newDeducciones = formData.deducciones_mensuales.filter(d => d.mes !== mes);
+                                if (newMonto > 0) {
+                                  newDeducciones.push({ mes, monto: newMonto });
+                                }
+                                updateFormData('deducciones_mensuales', newDeducciones);
+                              }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label>Ingreso Neto</Label>
+                          <div className="h-10 px-3 py-2 bg-gray-100 border rounded-md flex items-center">
+                            <span className="font-medium text-green-700">
+                              {formatCurrency(ingresoNeto)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
+                  );
+                })}
+
+                {maxExtra > 0 && extraMonths < maxExtra && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setExtraMonths(prev => prev + 1)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar mes ({extraMonths + fixedMonths + 1} de {fixedMonths + maxExtra})
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Step 3: Historial Crediticio */}
         {currentStep === 3 && (

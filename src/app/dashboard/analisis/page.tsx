@@ -58,6 +58,7 @@ type AnalisisItem = {
   lead_id?: string;
   has_credit?: boolean; // Indica si ya tiene un crédito asociado
   credit_id?: number; // ID del crédito si existe
+  credit_status?: string | null; // Status del crédito asociado
   // Campos del análisis
   category?: string;
   title?: string;
@@ -505,7 +506,7 @@ export default function AnalisisPage() {
 
                   {/* Estado PEP - Clickeable para cambiar */}
                   <td className="px-6 py-4">
-                    {hasPermission('analizados', 'delete') ? (
+                    {hasPermission('analizados', 'delete') && item.credit_status !== 'Formalizado' ? (
                       <Popover>
                         <PopoverTrigger asChild>
                           <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
@@ -560,7 +561,7 @@ export default function AnalisisPage() {
                   {/* Estado Cliente - Solo visible si estado_pep es Aceptado */}
                   <td className="px-6 py-4">
                     {item.estado_pep === 'Aceptado' ? (
-                      hasPermission('analizados', 'archive') ? (
+                      hasPermission('analizados', 'archive') && item.credit_status !== 'Formalizado' ? (
                         <Popover>
                           <PopoverTrigger asChild>
                             <button className={`px-2 py-1 rounded text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity
