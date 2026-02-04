@@ -104,6 +104,14 @@ class AnalisisController extends Controller
                     'redirect_to' => $existingAnalisis->id,
                 ], 409); // 409 Conflict
             }
+
+            // Asignar automáticamente el lead_id desde la oportunidad si no viene en el request
+            if (empty($validated['lead_id'])) {
+                $opportunity = \App\Models\Opportunity::with('lead')->find($validated['opportunity_id']);
+                if ($opportunity && $opportunity->lead) {
+                    $validated['lead_id'] = $opportunity->lead->id;
+                }
+            }
         }
 
         // Valor por defecto para estado_pep
@@ -126,6 +134,17 @@ class AnalisisController extends Controller
 
         $analisis = Analisis::create($validated);
 
+        // Crear automáticamente la primera propuesta con el monto sugerido y plazo
+        if (!empty($validated['monto_sugerido']) && !empty($validated['plazo'])) {
+            \App\Models\Propuesta::create([
+                'analisis_reference' => $analisis->reference,
+                'monto' => $validated['monto_sugerido'],
+                'plazo' => $validated['plazo'],
+                'cuota' => $validated['cuota'] ?? null,
+                'estado' => 'Pendiente',
+            ]);
+        }
+
         // Copiar archivos de la oportunidad al análisis si existe opportunity_id
         if (!empty($validated['opportunity_id'])) {
             Log::info('Analisis store - opportunity_id received', [
@@ -135,6 +154,9 @@ class AnalisisController extends Controller
             $copyResult = $this->copyFilesFromOpportunity($validated['opportunity_id'], $analisis->id);
             Log::info('Archivos copiados de oportunidad a análisis', $copyResult);
         }
+
+        // Recargar con propuestas para retornar en la respuesta
+        $analisis->load('propuestas');
 
         return response()->json($analisis, 201);
     }
@@ -178,11 +200,12 @@ class AnalisisController extends Controller
 
         if ($requiereAutorizacion) {
             // Si el usuario tiene un límite (no es -1), validar el monto
-            if ($montoMaximo != -1 && $analisis->monto_credito > $montoMaximo) {
+            $montoAnalisis = $analisis->monto_sugerido ?? 0;
+            if ($montoMaximo != -1 && $montoAnalisis > $montoMaximo) {
                 $accion = ($isAceptandoPep || $isAprobandoCliente) ? 'aprobar' : 'rechazar';
                 return response()->json([
-                    'message' => 'No tiene autorización para ' . $accion . ' este análisis. Su usuario (' . $user->name . ') solo puede tomar decisiones sobre análisis hasta ₡' . number_format((float)$montoMaximo, 2) . '. El monto de este análisis es ₡' . number_format((float)$analisis->monto_credito, 2) . '.',
-                    'monto_credito' => $analisis->monto_credito,
+                    'message' => 'No tiene autorización para ' . $accion . ' este análisis. Su usuario (' . $user->name . ') solo puede tomar decisiones sobre análisis hasta ₡' . number_format((float)$montoMaximo, 2) . '. El monto de este análisis es ₡' . number_format((float)$montoAnalisis, 2) . '.',
+                    'monto_sugerido' => $montoAnalisis,
                     'monto_max_aprobacion' => $montoMaximo,
                     'usuario' => $user->name,
                 ], 403);

@@ -41,7 +41,7 @@ class OpportunityController extends Controller
             ->with([
                 'lead:id,cedula,name,email,phone',
                 'user:id,name',
-                'analisis:id,opportunity_id,monto_credito,plazo,category,divisa,lead_id'
+                'analisis:id,opportunity_id,monto_solicitado,monto_sugerido,cuota,plazo,category,divisa,lead_id'
             ]);
 
         if ($request->has('status') && $request->input('status') !== 'todos') {

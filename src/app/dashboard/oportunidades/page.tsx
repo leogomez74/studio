@@ -82,6 +82,7 @@ import api from "@/lib/axios";
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
 import { PermissionButton } from "@/components/PermissionButton";
 import { ProtectedPage } from "@/components/ProtectedPage";
+import { AnalisisWizardModal } from "@/components/analisis-wizard-modal";
 
 const opportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
@@ -266,7 +267,9 @@ export default function DealsPage() {
     reference: "",
     title: "",
     category: "Crédito",
-    monto_credito: "",
+    monto_solicitado: "",
+    monto_sugerido: "",
+    cuota: "",
     ingreso_bruto_1: "",
     ingreso_neto_1: "",
     ingreso_bruto_2: "",
@@ -277,9 +280,11 @@ export default function DealsPage() {
     leadId: "",
     opportunityId: "",
     assignedTo: "",
-    openedAt: new Date().toISOString().split('T')[0],
     divisa: "CRC",
     plazo: "36",
+    numero_manchas: "",
+    numero_juicios: "",
+    numero_embargos: "",
     salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
 
@@ -306,6 +311,28 @@ export default function DealsPage() {
       }
     }
   }, [analisisForm.category]);
+
+  // Auto-calcular cuota cuando cambia monto_sugerido o plazo
+  useEffect(() => {
+    const monto = parseFloat(analisisForm.monto_sugerido) || 0;
+    const plazo = parseInt(analisisForm.plazo) || 36;
+
+    if (monto > 0 && plazo > 0) {
+      const tasaAnual = 25; // Tasa anual por defecto (puede ajustarse)
+      const tasaMensual = (tasaAnual / 100) / 12;
+
+      if (tasaMensual > 0) {
+        const potencia = Math.pow(1 + tasaMensual, plazo);
+        const cuotaCalculada = monto * (tasaMensual * potencia) / (potencia - 1);
+        setAnalisisForm(prev => ({ ...prev, cuota: cuotaCalculada.toFixed(2) }));
+      } else {
+        // Si la tasa es 0, cuota = monto / plazo
+        setAnalisisForm(prev => ({ ...prev, cuota: (monto / plazo).toFixed(2) }));
+      }
+    } else {
+      setAnalisisForm(prev => ({ ...prev, cuota: "" }));
+    }
+  }, [analisisForm.monto_sugerido, analisisForm.plazo]);
 
   // Estado local para display de monto (evita duplicación de dígitos al escribir)
   const [montoDisplay, setMontoDisplay] = useState("");
@@ -651,13 +678,18 @@ export default function DealsPage() {
     setAnalisisOpportunity(opportunity);
 
     // La referencia es el ID de la oportunidad
-    const montoStr = opportunity.amount ? String(opportunity.amount) : "";
+    // Usar resolveEstimatedOpportunityAmount para obtener el monto correctamente
+    const montoNumerico = resolveEstimatedOpportunityAmount(opportunity.amount);
+    const montoStr = montoNumerico !== null ? String(montoNumerico) : "";
+
     setMontoDisplay(montoStr ? formatCurrency(montoStr) : "");
     setAnalisisForm({
       reference: String(opportunity.id),
       title: opportunity.opportunity_type || "",
       category: opportunity.opportunity_type || "Micro Crédito",
-      monto_credito: montoStr,
+      monto_solicitado: montoStr,
+      monto_sugerido: "",
+      cuota: "",
       ingreso_bruto_1: "",
       ingreso_neto_1: "",
       ingreso_bruto_2: "",
@@ -668,9 +700,11 @@ export default function DealsPage() {
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
       assignedTo: "",
-      openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",
+      numero_manchas: "",
+      numero_juicios: "",
+      numero_embargos: "",
       salarios_anteriores: [],
     });
     setIsAnalisisDialogOpen(true);
@@ -678,8 +712,8 @@ export default function DealsPage() {
 
   // Formatear número con separadores de miles (coma)
   const formatCurrency = (value: string | number): string => {
+    if (!value && value !== 0) return '';
     const num = typeof value === 'number' ? Math.round(value) : Math.round(parseFloat(value) || 0);
-    if (!num) return '';
     return num.toLocaleString('en-US');
   };
 
@@ -690,7 +724,7 @@ export default function DealsPage() {
 
   const handleAnalisisFormChange = (field: string, value: string) => {
     // Para campos de moneda, guardar solo el valor numérico
-    if (['monto_credito', 'ingreso_bruto_1', 'ingreso_neto_1', 'ingreso_bruto_2', 'ingreso_neto_2', 'ingreso_bruto_3', 'ingreso_neto_3'].includes(field)) {
+    if (['monto_solicitado', 'monto_sugerido', 'ingreso_bruto_1', 'ingreso_neto_1', 'ingreso_bruto_2', 'ingreso_neto_2', 'ingreso_bruto_3', 'ingreso_neto_3'].includes(field)) {
       const numericValue = parseCurrency(value);
       setAnalisisForm(prev => ({ ...prev, [field]: numericValue }));
     } else {
@@ -729,7 +763,9 @@ export default function DealsPage() {
         title: analisisForm.category || analisisForm.title || "Análisis",
         status: "Pendiente", // Default status para análisis nuevo
         category: analisisForm.category,
-        monto_credito: parseFloat(analisisForm.monto_credito) || 0,
+        monto_solicitado: parseFloat(analisisForm.monto_solicitado) || 0,
+        monto_sugerido: parseFloat(analisisForm.monto_sugerido) || 0,
+        cuota: parseFloat(analisisForm.cuota) || 0,
         ingreso_bruto: parseFloat(analisisForm.ingreso_bruto_1) || 0,
         ingreso_neto: parseFloat(analisisForm.ingreso_neto_1) || 0,
         ingreso_bruto_2: parseFloat(analisisForm.ingreso_bruto_2) || 0,
@@ -741,8 +777,10 @@ export default function DealsPage() {
         opportunity_id: analisisForm.opportunityId, // String ID como "26-00193-101-OP"
         plazo: parseInt(analisisForm.plazo) || 36,
         divisa: analisisForm.divisa,
-        opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
+        numero_manchas: parseInt(analisisForm.numero_manchas) || 0,
+        numero_juicios: parseInt(analisisForm.numero_juicios) || 0,
+        numero_embargos: parseInt(analisisForm.numero_embargos) || 0,
         salarios_anteriores: analisisForm.salarios_anteriores
           .filter(s => s.bruto || s.neto)
           .map(s => ({
@@ -1487,189 +1525,19 @@ export default function DealsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Analisis Creation Dialog */}
-      <Dialog open={isAnalisisDialogOpen} onOpenChange={setIsAnalisisDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Nuevo Análisis</DialogTitle>
-            <DialogDescription>Completa la información del análisis.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAnalisisSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="reference" className="text-xs">Referencia</Label>
-                <Input
-                  id="reference"
-                  value={analisisForm.reference}
-                  readOnly
-                  className="bg-muted h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="category" className="text-xs">Producto</Label>
-                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)} disabled>
-                  <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="divisa" className="text-xs">Divisa</Label>
-                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)} disabled>
-                  <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="monto" className="text-xs">Monto Solicitado</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="monto"
-                    className="h-8 text-sm pl-7"
-                    type="text"
-                    inputMode="numeric"
-                    value={montoDisplay || analisisForm.monto_credito || ''}
-                    onChange={e => {
-                      setMontoDisplay(e.target.value);
-                      handleAnalisisFormChange('monto_credito', e.target.value);
-                    }}
-                    onBlur={() => {
-                      if (analisisForm.monto_credito) {
-                        setMontoDisplay(formatCurrency(analisisForm.monto_credito));
-                      }
-                    }}
-                    onFocus={(e) => {
-                      setMontoDisplay(analisisForm.monto_credito);
-                      setTimeout(() => e.target.select(), 0);
-                    }}
-                  />
-                </div>
-              </div>
-              {/* Mes 1 */}
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Mes 1</Label>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto_1" className="text-xs">Ingreso Bruto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_1)} onChange={e => handleAnalisisFormChange('ingreso_bruto_1', e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_neto_1" className="text-xs">Ingreso Neto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_1)} onChange={e => handleAnalisisFormChange('ingreso_neto_1', e.target.value)} />
-                </div>
-              </div>
-              {/* Mes 2 */}
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Mes 2</Label>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto_2" className="text-xs">Ingreso Bruto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_2)} onChange={e => handleAnalisisFormChange('ingreso_bruto_2', e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_neto_2" className="text-xs">Ingreso Neto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_2)} onChange={e => handleAnalisisFormChange('ingreso_neto_2', e.target.value)} />
-                </div>
-              </div>
-              {/* Mes 3 */}
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Mes 3</Label>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto_3" className="text-xs">Ingreso Bruto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_3)} onChange={e => handleAnalisisFormChange('ingreso_bruto_3', e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_neto_3" className="text-xs">Ingreso Neto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_3)} onChange={e => handleAnalisisFormChange('ingreso_neto_3', e.target.value)} />
-                </div>
-              </div>
-              {/* Salarios Anteriores */}
-              <div className="sm:col-span-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">Salarios Anteriores</Label>
-                </div>
-                {analisisForm.salarios_anteriores.map((sal, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Mes</Label>
-                      <Select value={sal.mes} onValueChange={v => updateSalarioAnterior(idx, 'mes', v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Mes 4">Mes extra 1</SelectItem>
-                          <SelectItem value="Mes 5">Mes extra 2</SelectItem>
-                          <SelectItem value="Mes 6">Mes extra 3</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Bruto</Label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
-                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatCurrency(sal.bruto)} onChange={e => updateSalarioAnterior(idx, 'bruto', e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Neto</Label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
-                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatCurrency(sal.neto)} onChange={e => updateSalarioAnterior(idx, 'neto', e.target.value)} />
-                      </div>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removeSalarioAnterior(idx)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
-                <Input id="plazo" className="h-8 text-sm" type="number" min="1" max="120" value={analisisForm.plazo} onChange={e => handleAnalisisFormChange('plazo', e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="assignedTo" className="text-xs">Responsable</Label>
-                <Select value={analisisForm.assignedTo} onValueChange={v => handleAnalisisFormChange('assignedTo', v)}>
-                  <SelectTrigger id="assignedTo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="openedAt" className="text-xs">Fecha Apertura</Label>
-                <Input id="openedAt" className="h-8 text-sm" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <Label htmlFor="propuesta" className="text-xs">Propuesta de Análisis</Label>
-                <Textarea id="propuesta" rows={2} className="text-sm" placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
-              </div>
-            </div>
-          </form>
-          <DialogFooter className="flex-shrink-0 pt-2 border-t">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
-            <Button type="submit" size="sm" onClick={handleAnalisisSubmit}>Guardar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Analisis Creation Dialog - Wizard Modal */}
+      <AnalisisWizardModal
+        open={isAnalisisDialogOpen}
+        onOpenChange={setIsAnalisisDialogOpen}
+        opportunityId={analisisOpportunity?.id || ''}
+        monto_solicitado={analisisOpportunity?.amount ? parseFloat(String(analisisOpportunity.amount)) : undefined}
+        producto={analisisOpportunity?.opportunity_type || 'Micro Crédito'}
+        divisa="CRC"
+        onSuccess={() => {
+          fetchOpportunities();
+          toast({ title: "Análisis creado", description: "El análisis se ha creado correctamente" });
+        }}
+      />
 
       {/* Delete Alert */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

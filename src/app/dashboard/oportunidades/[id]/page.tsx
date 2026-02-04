@@ -52,7 +52,7 @@ import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getMilestoneLabel, normalizeMilestoneValue, MILESTONE_OPTIONS, type MilestoneValue } from "@/lib/milestones";
+import { AnalisisWizardModal } from "@/components/analisis-wizard-modal";
 
 // Tipo para archivos del filesystem
 interface OpportunityFile {
@@ -96,7 +96,6 @@ interface TaskItem {
   archived_at: string | null;
   created_at: string | null;
   updated_at: string | null;
-  milestone: MilestoneValue;
 }
 
 interface Agent {
@@ -158,6 +157,14 @@ const isTaskOverdue = (task: TaskItem): boolean => {
   return dueDate < today;
 };
 
+const getTodayDateString = (): string => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 // --- TareasTab Component ---
 
 interface TareasTabProps {
@@ -177,14 +184,14 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
 
   const [formValues, setFormValues] = useState({
     project_code: opportunityReference,
-    project_name: "sin_hito" as MilestoneValue,
+    project_name: "sin_hito",
     title: "",
     details: "",
     status: "pendiente" as TaskStatus,
     priority: "media" as TaskPriority,
     assigned_to: "",
-    start_date: "",
-    due_date: "",
+    start_date: getTodayDateString(),
+    due_date: getTodayDateString(),
   });
 
   const fetchTasks = useCallback(async () => {
@@ -194,10 +201,7 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
         params: { project_code: opportunityReference }
       });
       const data = response.data.data || response.data;
-      setTasks(Array.isArray(data) ? data.map((item: any) => ({
-        ...item,
-        milestone: normalizeMilestoneValue(item.project_name)
-      })) : []);
+      setTasks(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching tasks:", error);
       toast({ title: "Error", description: "No se pudieron cargar las tareas.", variant: "destructive" });
@@ -229,8 +233,8 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
       status: "pendiente",
       priority: "media",
       assigned_to: "",
-      start_date: "",
-      due_date: "",
+      start_date: getTodayDateString(),
+      due_date: getTodayDateString(),
     });
   }, [opportunityReference]);
 
@@ -328,7 +332,6 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
                     <TableHead>Título</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Prioridad</TableHead>
-                    <TableHead className="hidden md:table-cell">Hito</TableHead>
                     <TableHead className="hidden md:table-cell">Responsable</TableHead>
                     <TableHead className="hidden lg:table-cell">Vencimiento</TableHead>
                   </TableRow>
@@ -362,9 +365,6 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
                           <Badge variant={PRIORITY_BADGE_VARIANT[task.priority]}>
                             {PRIORITY_LABELS[task.priority]}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="text-sm">{getMilestoneLabel(task.milestone)}</span>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <span className="text-sm">{task.assignee?.name || "-"}</span>
@@ -415,31 +415,6 @@ function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
                   placeholder="Detalles adicionales..."
                   rows={3}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="project_code">Código de proyecto</Label>
-                <Input
-                  id="project_code"
-                  value={formValues.project_code}
-                  readOnly
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="milestone">Hito</Label>
-                <Select
-                  value={formValues.project_name}
-                  onValueChange={(value) => handleFormChange("project_name", value)}
-                >
-                  <SelectTrigger id="milestone">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MILESTONE_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>
@@ -557,7 +532,9 @@ export default function OpportunityDetailPage() {
     reference: "",
     title: "",
     category: "Crédito",
-    monto_credito: "",
+    monto_solicitado: "",
+    monto_sugerido: "",
+    cuota: "",
     ingreso_bruto_1: "",
     ingreso_neto_1: "",
     ingreso_bruto_2: "",
@@ -568,9 +545,11 @@ export default function OpportunityDetailPage() {
     leadId: "",
     opportunityId: "",
     assignedTo: "",
-    openedAt: new Date().toISOString().split('T')[0],
     divisa: "CRC",
     plazo: "36",
+    numero_manchas: "",
+    numero_juicios: "",
+    numero_embargos: "",
     salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
 
@@ -609,6 +588,29 @@ export default function OpportunityDetailPage() {
       }
     }
   }, [analisisForm.category]);
+
+  // Calcular cuota automáticamente cuando cambie monto_sugerido o plazo
+  useEffect(() => {
+    const monto = parseFloat(analisisForm.monto_sugerido) || 0;
+    const plazo = parseInt(analisisForm.plazo) || 36;
+
+    if (monto > 0 && plazo > 0) {
+      // Usar tasa fija del 25% anual (o obtener de configuración)
+      const tasaAnual = 25; // TODO: obtener de loan_configurations
+      const tasaMensual = (tasaAnual / 100) / 12;
+
+      if (tasaMensual > 0) {
+        const potencia = Math.pow(1 + tasaMensual, plazo);
+        const cuotaCalculada = monto * (tasaMensual * potencia) / (potencia - 1);
+        setAnalisisForm(prev => ({ ...prev, cuota: cuotaCalculada.toFixed(2) }));
+      } else {
+        const cuotaCalculada = monto / plazo;
+        setAnalisisForm(prev => ({ ...prev, cuota: cuotaCalculada.toFixed(2) }));
+      }
+    } else {
+      setAnalisisForm(prev => ({ ...prev, cuota: "" }));
+    }
+  }, [analisisForm.monto_sugerido, analisisForm.plazo]);
 
   // Cargar archivos de la oportunidad
   const fetchFiles = async () => {
@@ -982,7 +984,9 @@ export default function OpportunityDetailPage() {
       reference: String(opportunity.id),
       title: opportunity.opportunity_type || "",
       category: opportunity.opportunity_type || "Micro Crédito",
-      monto_credito: opportunity.amount ? String(opportunity.amount) : "",
+      monto_solicitado: opportunity.amount ? String(opportunity.amount) : "",
+      monto_sugerido: "",
+      cuota: "",
       ingreso_bruto_1: "",
       ingreso_neto_1: "",
       ingreso_bruto_2: "",
@@ -996,6 +1000,9 @@ export default function OpportunityDetailPage() {
       openedAt: new Date().toISOString().split('T')[0],
       divisa: "CRC",
       plazo: "36",
+      numero_manchas: "",
+      numero_juicios: "",
+      numero_embargos: "",
       salarios_anteriores: [],
     });
     setIsAnalisisDialogOpen(true);
@@ -1003,7 +1010,7 @@ export default function OpportunityDetailPage() {
 
   const handleAnalisisFormChange = (field: string, value: string) => {
     // Para campos de moneda, guardar solo el valor numérico
-    if (['monto_credito', 'ingreso_bruto_1', 'ingreso_neto_1', 'ingreso_bruto_2', 'ingreso_neto_2', 'ingreso_bruto_3', 'ingreso_neto_3'].includes(field)) {
+    if (['monto_solicitado', 'monto_sugerido', 'ingreso_bruto_1', 'ingreso_neto_1', 'ingreso_bruto_2', 'ingreso_neto_2', 'ingreso_bruto_3', 'ingreso_neto_3'].includes(field)) {
       const numericValue = parseFormattedNumber(value);
       setAnalisisForm(prev => ({ ...prev, [field]: numericValue }));
     } else if (field === 'plazo') {
@@ -1059,7 +1066,9 @@ export default function OpportunityDetailPage() {
         title: analisisForm.category || analisisForm.title || "Análisis",
         status: "Pendiente",
         category: analisisForm.category,
-        monto_credito: parseFloat(analisisForm.monto_credito) || 0,
+        monto_solicitado: parseFloat(analisisForm.monto_solicitado) || 0,
+        monto_sugerido: parseFloat(analisisForm.monto_sugerido) || 0,
+        cuota: parseFloat(analisisForm.cuota) || 0,
         ingreso_bruto: parseFloat(analisisForm.ingreso_bruto_1) || 0,
         ingreso_neto: parseFloat(analisisForm.ingreso_neto_1) || 0,
         ingreso_bruto_2: parseFloat(analisisForm.ingreso_bruto_2) || 0,
@@ -1067,11 +1076,13 @@ export default function OpportunityDetailPage() {
         ingreso_bruto_3: parseFloat(analisisForm.ingreso_bruto_3) || 0,
         ingreso_neto_3: parseFloat(analisisForm.ingreso_neto_3) || 0,
         propuesta: analisisForm.propuesta || null,
+        numero_manchas: parseInt(analisisForm.numero_manchas) || 0,
+        numero_juicios: parseInt(analisisForm.numero_juicios) || 0,
+        numero_embargos: parseInt(analisisForm.numero_embargos) || 0,
         lead_id: parseInt(analisisForm.leadId),
         opportunity_id: analisisForm.opportunityId,
         plazo: parseInt(analisisForm.plazo) || 36,
         divisa: analisisForm.divisa,
-        opened_at: analisisForm.openedAt,
         assigned_to: analisisForm.assignedTo || null,
         salarios_anteriores: analisisForm.salarios_anteriores
           .filter(s => s.bruto || s.neto)
@@ -1284,7 +1295,7 @@ export default function OpportunityDetailPage() {
             </TabsContent>
 
             <TabsContent value="tareas">
-              <TareasTab opportunityReference={opportunity.reference} opportunityId={opportunity.id} />
+              <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
             </TabsContent>
 
             <TabsContent value="archivos">
@@ -1574,8 +1585,22 @@ export default function OpportunityDetailPage() {
         */}
       </div>
 
-      {/* Analisis Creation Dialog */}
-      <Dialog open={isAnalisisDialogOpen} onOpenChange={setIsAnalisisDialogOpen}>
+      {/* Analisis Creation Dialog - Wizard Modal */}
+      <AnalisisWizardModal
+        open={isAnalisisDialogOpen}
+        onOpenChange={setIsAnalisisDialogOpen}
+        opportunityId={opportunity?.id || ''}
+        monto_solicitado={opportunity?.amount ? parseFloat(String(opportunity.amount)) : undefined}
+        producto={opportunity?.opportunity_type || 'Micro Crédito'}
+        divisa="CRC"
+        onSuccess={() => {
+          fetchExistingAnalisis();
+          toast({ title: "Análisis creado", description: "El análisis se ha creado correctamente" });
+        }}
+      />
+
+      {/* OLD DIALOG - TO BE REMOVED */}
+      <Dialog open={false} onOpenChange={() => {}}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>Nuevo Análisis</DialogTitle>
@@ -1611,10 +1636,45 @@ export default function OpportunityDetailPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="monto" className="text-xs">Monto Solicitado</Label>
+                <Label htmlFor="monto_solicitado" className="text-xs">Monto Solicitado</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="monto" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatNumberWithCommas(analisisForm.monto_credito)} onChange={e => handleAnalisisFormChange('monto_credito', e.target.value)} />
+                  <Input
+                    id="monto_solicitado"
+                    className="h-8 text-sm pl-7"
+                    type="text"
+                    inputMode="numeric"
+                    value={formatNumberWithCommas(analisisForm.monto_solicitado)}
+                    onChange={e => handleAnalisisFormChange('monto_solicitado', e.target.value)}
+                    disabled
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="monto_sugerido" className="text-xs">Monto Sugerido</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input
+                    id="monto_sugerido"
+                    className="h-8 text-sm pl-7"
+                    type="text"
+                    inputMode="numeric"
+                    value={formatNumberWithCommas(analisisForm.monto_sugerido)}
+                    onChange={e => handleAnalisisFormChange('monto_sugerido', e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="cuota" className="text-xs">Cuota</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input
+                    id="cuota"
+                    className="h-8 text-sm pl-7 bg-muted"
+                    type="text"
+                    value={formatNumberWithCommas(analisisForm.cuota)}
+                    readOnly
+                  />
                 </div>
               </div>
               {/* Mes 1 */}
@@ -1723,12 +1783,41 @@ export default function OpportunityDetailPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="openedAt" className="text-xs">Fecha Apertura</Label>
-                <Input id="openedAt" className="h-8 text-sm" type="date" value={analisisForm.openedAt} onChange={e => handleAnalisisFormChange('openedAt', e.target.value)} />
+                <Label htmlFor="numero_manchas" className="text-xs">Número de Manchas</Label>
+                <Input
+                  id="numero_manchas"
+                  className="h-8 text-sm"
+                  type="number"
+                  min="0"
+                  value={analisisForm.numero_manchas}
+                  onChange={e => handleAnalisisFormChange('numero_manchas', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="numero_juicios" className="text-xs">Número de Juicios</Label>
+                <Input
+                  id="numero_juicios"
+                  className="h-8 text-sm"
+                  type="number"
+                  min="0"
+                  value={analisisForm.numero_juicios}
+                  onChange={e => handleAnalisisFormChange('numero_juicios', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="numero_embargos" className="text-xs">Número de Embargos</Label>
+                <Input
+                  id="numero_embargos"
+                  className="h-8 text-sm"
+                  type="number"
+                  min="0"
+                  value={analisisForm.numero_embargos}
+                  onChange={e => handleAnalisisFormChange('numero_embargos', e.target.value)}
+                />
               </div>
               <div className="sm:col-span-2 space-y-1">
-                <Label htmlFor="propuesta" className="text-xs">Propuesta de Análisis</Label>
-                <Textarea id="propuesta" rows={2} className="text-sm" placeholder="Escriba aquí la propuesta o conclusiones del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
+                <Label htmlFor="propuesta" className="text-xs">Comentarios</Label>
+                <Textarea id="propuesta" rows={2} className="text-sm" placeholder="Escriba aquí los comentarios del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
               </div>
             </div>
           </form>

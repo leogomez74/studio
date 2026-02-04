@@ -68,6 +68,8 @@ type AnalisisItem = {
   ingreso_bruto?: number;
   ingreso_neto?: number;
   propuesta?: string;
+  cargo?: string;
+  nombramiento?: string;
   // Relaciones
   opportunity?: Opportunity;
   lead?: Lead;
@@ -264,8 +266,8 @@ export default function AnalisisPage() {
       item.lead?.cedula || "-",
       item.lead?.name || "Sin asignar",
       item.lead?.profesion || "-",
-      item.lead?.puesto || "-",
-      item.lead?.estado_puesto || "-",
+      item.cargo || item.lead?.puesto || "-",
+      item.nombramiento || item.lead?.estado_puesto || "-",
       formatAmountForCSV(item.ingreso_bruto),
       formatAmountForCSV(item.monto_credito),
       item.estado_pep || "Pendiente",
@@ -313,8 +315,8 @@ export default function AnalisisPage() {
         item.lead?.cedula || "-",
         item.lead?.name || "Sin asignar",
         item.lead?.profesion || "-",
-        item.lead?.puesto || "-",
-        item.lead?.estado_puesto || "-",
+        item.cargo || item.lead?.puesto || "-",
+        item.nombramiento || item.lead?.estado_puesto || "-",
         formatAmountForPDF(item.ingreso_bruto),
         formatAmountForPDF(item.monto_credito),
         item.estado_pep || "Pendiente",
@@ -471,18 +473,25 @@ export default function AnalisisPage() {
                     {item.lead?.profesion || '-'}
                   </td>
 
-                  {/* COLUMNA: Puesto */}
+                  {/* COLUMNA: Puesto - Prioriza cargo del análisis */}
                   <td className="px-6 py-4 text-gray-600">
-                    {item.lead?.puesto || '-'}
+                    {item.cargo || item.lead?.puesto || '-'}
                   </td>
 
-                  {/* COLUMNA: Nombramiento */}
+                  {/* COLUMNA: Nombramiento - Prioriza nombramiento del análisis */}
                   <td className="px-6 py-4 text-gray-600">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold
-                      ${item.lead?.estado_puesto === 'Fijo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
-                    `}>
-                      {item.lead?.estado_puesto || 'N/A'}
-                    </span>
+                    {(() => {
+                      const nombramiento = item.nombramiento || item.lead?.estado_puesto || 'N/A';
+                      return (
+                        <span className={`px-2 py-1 rounded text-xs font-semibold
+                          ${nombramiento.toLowerCase().includes('propiedad') || nombramiento.toLowerCase().includes('fijo')
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'}
+                        `}>
+                          {nombramiento}
+                        </span>
+                      );
+                    })()}
                   </td>
 
                   {/* Monto (Formateado) */}
