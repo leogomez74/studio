@@ -117,7 +117,6 @@ const isTaskOverdue = (task: TaskItem): boolean => {
 
 const PROFESIONES_LIST = [
     "Abogado(a)",
-    "Accountant",
     "Actor/Actriz",
     "Administrador(a) de Empresas",
     "Administrador(a) de Fincas",
