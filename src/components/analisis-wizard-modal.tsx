@@ -56,7 +56,7 @@ interface FormData {
 const initialFormData: FormData = {
   monto_sugerido: '',
   cuota: '',
-  plazo: '36',
+  plazo: '',
   assigned_to: '',
   ingreso_bruto: '',
   ingreso_bruto_2: '',
@@ -159,6 +159,13 @@ export function AnalisisWizardModal({
   };
 
   const nextStep = () => {
+    // Validar plazo obligatorio en paso 1
+    if (currentStep === 1) {
+      const plazoValue = parseInt(formData.plazo);
+      if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
+        return;
+      }
+    }
     if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
@@ -167,6 +174,13 @@ export function AnalisisWizardModal({
   };
 
   const handleSubmit = async () => {
+    // Validar plazo obligatorio
+    const plazoValue = parseInt(formData.plazo);
+    if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
+      setCurrentStep(1);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Construir payload con todos los datos
@@ -338,9 +352,11 @@ export function AnalisisWizardModal({
                   <Input
                     id="plazo"
                     type="number"
+                    min="1"
+                    max="120"
                     value={formData.plazo}
                     onChange={(e) => updateFormData('plazo', e.target.value)}
-                    placeholder="36"
+                    placeholder="Agregar plazo"
                     required
                   />
                 </div>
