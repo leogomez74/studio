@@ -87,6 +87,10 @@ Route::delete('/tareas/{task}', [TaskController::class, 'destroy']);
 Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive']);
 Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore']);
 
+// Automatización de Tareas
+Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index']);
+Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert']);
+
 // Créditos - MOVIDO A RUTAS PROTEGIDAS (ver línea ~178)
 
 // Deductoras (solo lectura - datos hardcodeados en config/deductoras.php)
