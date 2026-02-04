@@ -64,19 +64,40 @@ export function CreditFormModal({
   const [currentStep, setCurrentStep] = useState(1);
 
   const [creditForm, setCreditForm] = useState({
-    reference: initialData.reference || '',
-    title: initialData.title || '',
+    reference: '',
+    title: '',
     status: 'Por firmar',
-    category: initialData.category || 'Crédito',
-    monto_credito: initialData.monto_credito ? String(initialData.monto_credito) : '',
-    leadId: initialData.leadId || '',
-    clientName: initialData.clientName || '',
-    description: initialData.description || '',
-    divisa: initialData.divisa || 'CRC',
-    plazo: initialData.plazo || '36',
+    category: 'Crédito',
+    monto_credito: '',
+    leadId: '',
+    clientName: '',
+    description: '',
+    divisa: 'CRC',
+    plazo: '36',
     poliza: false,
     conCargosAdicionales: false,
   });
+
+  // Sincronizar estado interno cuando el modal se abre con nuevos datos
+  useEffect(() => {
+    if (open) {
+      setCreditForm({
+        reference: initialData.reference || '',
+        title: initialData.title || '',
+        status: 'Por firmar',
+        category: initialData.category || 'Crédito',
+        monto_credito: initialData.monto_credito ? String(initialData.monto_credito) : '',
+        leadId: initialData.leadId || '',
+        clientName: initialData.clientName || '',
+        description: initialData.description || '',
+        divisa: initialData.divisa || 'CRC',
+        plazo: initialData.plazo || '36',
+        poliza: false,
+        conCargosAdicionales: false,
+      });
+      setCurrentStep(1);
+    }
+  }, [open, initialData]);
 
   // Estado para cargos adicionales editables
   const [cargosAdicionales, setCargosAdicionales] = useState({
@@ -294,51 +315,56 @@ export function CreditFormModal({
                 placeholder="Crédito Hipotecario..."
                 value={creditForm.title}
                 onChange={e => setCreditForm(f => ({ ...f, title: e.target.value }))}
+                disabled={!!initialData.title}
+                className={initialData.title ? 'bg-gray-50' : ''}
                 required
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Estado</Label>
-              <Select value={creditForm.status} onValueChange={v => setCreditForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Por firmar">Por firmar</SelectItem>
-                  <SelectItem value="Activo">Activo</SelectItem>
-                  <SelectItem value="Mora">Mora</SelectItem>
-                  <SelectItem value="Cerrado">Cerrado</SelectItem>
-                  <SelectItem value="Legal">Legal</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="status"
+                value={creditForm.status}
+                disabled
+                className="bg-gray-50"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Categoría</Label>
-              <Select value={creditForm.category} onValueChange={v => {
-                if (v === 'Micro Crédito') {
-                  setCreditForm(f => ({ ...f, category: v, poliza: false }));
-                } else {
-                  setCreditForm(f => ({ ...f, category: v }));
-                }
-              }}>
-                <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.name}>
-                      {product.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {initialData.category ? (
+                <Input
+                  id="category"
+                  value={creditForm.category}
+                  disabled
+                  className="bg-gray-50"
+                />
+              ) : (
+                <Select value={creditForm.category} onValueChange={v => {
+                  if (v === 'Micro Crédito') {
+                    setCreditForm(f => ({ ...f, category: v, poliza: false }));
+                  } else {
+                    setCreditForm(f => ({ ...f, category: v }));
+                  }
+                }}>
+                  <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.name}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="divisa">Divisa</Label>
-              <Select value={creditForm.divisa} onValueChange={v => setCreditForm(f => ({ ...f, divisa: v }))}>
-                <SelectTrigger id="divisa"><SelectValue placeholder="Selecciona la divisa" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CRC">CRC - Colón Costarricense</SelectItem>
-                  <SelectItem value="USD">USD - Dólar Estadounidense</SelectItem>
-                  <SelectItem value="EUR">EUR - Euro</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="divisa"
+                value={creditForm.divisa}
+                disabled
+                className="bg-gray-50"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="monto">Monto</Label>
@@ -346,7 +372,7 @@ export function CreditFormModal({
                 id="monto"
                 type="text"
                 placeholder="₡0.00"
-                value={creditForm.monto_credito || ''}
+                value={initialData.monto_credito ? formatCurrency(creditForm.monto_credito) : (creditForm.monto_credito || '')}
                 onChange={e => {
                   const rawValue = parseCurrencyToNumber(e.target.value);
                   setCreditForm(f => ({ ...f, monto_credito: rawValue }));
@@ -363,6 +389,8 @@ export function CreditFormModal({
                     setTimeout(() => e.target.select(), 0);
                   }
                 }}
+                disabled={!!initialData.monto_credito}
+                className={initialData.monto_credito ? 'bg-gray-50' : ''}
                 required
               />
             </div>
@@ -376,6 +404,8 @@ export function CreditFormModal({
                 placeholder="1 - 120"
                 value={creditForm.plazo}
                 onChange={e => setCreditForm(f => ({ ...f, plazo: e.target.value }))}
+                disabled={!!initialData.plazo}
+                className={initialData.plazo ? 'bg-gray-50' : ''}
                 required
               />
             </div>
