@@ -1110,103 +1110,115 @@ export default function AnalisisDetailPage() {
 
         <TabsContent value="resumen">
           <div className="space-y-6">
-            {/* Fila 1: Info Personal + Info Laboral + Datos Financieros */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Info Personal */}
+            {/* Fila 1: Información del Cliente */}
+        <div className="space-y-4">
+          {/* Información del Cliente */}
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Informacion Personal</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Nombre</span>
-                {lead?.id ? (
-                  <Link
-                    href={`/dashboard/clientes/${lead.id}`}
-                    className="text-base text-blue-600 hover:underline"
-                  >
-                    {lead.name}
-                  </Link>
-                ) : (
-                  <span className="text-base">N/A</span>
-                )}
-              </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Cedula</span>
-                <span className="text-base">{lead?.cedula || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Estado Civil</span>
-                <span className="text-base">{lead?.estado_civil || 'N/A'}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Info Laboral */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Informacion Laboral</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Institucion</span>
-                <span className="text-base">{lead?.institucion_labora || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Puesto</span>
-                <span className="text-base">{analisis.cargo || lead?.puesto || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Nombramiento</span>
-                <span className="text-base">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Ingreso Neto - Mínimo de todos los meses */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Información del Cliente</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-                  Math.min(
-                    ...[
-                      analisis.ingreso_neto,
-                      analisis.ingreso_neto_2,
-                      analisis.ingreso_neto_3,
-                      analisis.ingreso_neto_4,
-                      analisis.ingreso_neto_5,
-                      analisis.ingreso_neto_6,
-                    ].filter(v => v != null && v > 0)
-                  ) || 0
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Nombre */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre</p>
+                  {lead?.id ? (
+                    <Link
+                      href={`/dashboard/clientes/${lead.id}`}
+                      className="text-base font-semibold text-blue-600 hover:underline"
+                    >
+                      {lead.name}
+                    </Link>
+                  ) : (
+                    <span className="text-base">N/A</span>
+                  )}
+                </div>
+
+                {/* Cédula */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cédula</p>
+                  <p className="text-base font-semibold">{lead?.cedula || 'N/A'}</p>
+                </div>
+
+                {/* Estado Civil */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Estado Civil</p>
+                  <p className="text-base">{lead?.estado_civil || 'N/A'}</p>
+                </div>
+
+                {/* Institución */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Institución</p>
+                  <p className="text-base font-semibold">{lead?.institucion_labora || 'N/A'}</p>
+                </div>
+
+                {/* Puesto */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Puesto</p>
+                  <p className="text-base">{analisis.cargo || lead?.puesto || 'N/A'}</p>
+                </div>
+
+                {/* Nombramiento */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombramiento</p>
+                  <p className="text-base">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</p>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Mínimo de todos los meses</p>
             </CardContent>
           </Card>
 
-          {/* Monto Crédito */}
+          {/* Resumen Financiero */}
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Monto Crédito</CardTitle>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Resumen Financiero</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_sugerido || 0)}
-              </div>
-            </CardContent>
-          </Card>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Producto */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Producto</p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-sm font-semibold px-3 py-1">
+                      {analisis.opportunity?.opportunity_type || 'No especificado'}
+                    </Badge>
+                  </div>
+                </div>
 
-          {/* Plazo */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Plazo (meses)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-700">
-                {analisis.plazo || 36}
+                {/* Ingreso Neto */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ingreso Neto</p>
+                  <div className="text-2xl font-bold text-green-600">
+                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+                      Math.min(
+                        ...[
+                          analisis.ingreso_neto,
+                          analisis.ingreso_neto_2,
+                          analisis.ingreso_neto_3,
+                          analisis.ingreso_neto_4,
+                          analisis.ingreso_neto_5,
+                          analisis.ingreso_neto_6,
+                        ].filter(v => v != null && v > 0)
+                      ) || 0
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Mínimo de todos los meses</p>
+                </div>
+
+                {/* Monto Crédito */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Monto Crédito</p>
+                  <div className="text-2xl font-bold text-blue-600">
+                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_sugerido || 0)}
+                  </div>
+                </div>
+
+                {/* Plazo */}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plazo</p>
+                  <div className="text-2xl font-bold text-slate-700">
+                    {analisis.plazo || 36} <span className="text-base font-normal text-muted-foreground">meses</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

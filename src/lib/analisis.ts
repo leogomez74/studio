@@ -75,6 +75,11 @@ export interface AnalisisItem {
   opportunity_id?: string;
   lead_id?: string;
   lead?: Lead;
+  opportunity?: {
+    id: string;
+    reference: string;
+    opportunity_type?: string;
+  };
   ingreso_bruto?: number;
   ingreso_neto?: number;
   ingreso_bruto_2?: number;
