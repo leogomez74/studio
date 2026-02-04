@@ -53,8 +53,8 @@ class QuestionnaireController extends Controller
             // Validate request
             $request->validate([
                 'cedula' => 'required|string',
-                'cedula_file' => 'required|file|image|max:5120', // 5MB max
-                'recibo_file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+                'cedula_file' => 'nullable|file|image|max:5120', // 5MB max - opcional
+                'recibo_file' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120', // opcional
                 'questionnaire_data' => 'required|string',
             ]);
 
@@ -81,39 +81,51 @@ class QuestionnaireController extends Controller
             // Limpiar cédula (remover guiones y espacios)
             $strippedCedula = preg_replace('/[^0-9]/', '', $cedula);
 
-            // Crear directorio en la estructura unificada: documentos/{cedula}/buzon/
-            $storagePath = "documentos/{$strippedCedula}/buzon";
+            // Variables para almacenar las rutas de los archivos
+            $cedulaPath = null;
+            $reciboPath = null;
 
-            // Save cedula file
-            $cedulaFile = $request->file('cedula_file');
-            $cedulaFileName = 'cedula_' . time() . '.' . $cedulaFile->getClientOriginalExtension();
-            $cedulaPath = $cedulaFile->storeAs($storagePath, $cedulaFileName, 'public');
+            // Procesar archivos solo si están presentes
+            if ($request->hasFile('cedula_file') || $request->hasFile('recibo_file')) {
+                // Crear directorio en la estructura unificada: documentos/{cedula}/buzon/
+                $storagePath = "documentos/{$strippedCedula}/buzon";
 
-            // Save recibo file
-            $reciboFile = $request->file('recibo_file');
-            $reciboFileName = 'recibo_' . time() . '.' . $reciboFile->getClientOriginalExtension();
-            $reciboPath = $reciboFile->storeAs($storagePath, $reciboFileName, 'public');
+                // Save cedula file if present
+                if ($request->hasFile('cedula_file')) {
+                    $cedulaFile = $request->file('cedula_file');
+                    $cedulaFileName = 'cedula_' . time() . '.' . $cedulaFile->getClientOriginalExtension();
+                    $cedulaPath = $cedulaFile->storeAs($storagePath, $cedulaFileName, 'public');
 
-            // Create PersonDocument records
-            PersonDocument::create([
-                'person_id' => $lead->id,
-                'name' => 'Cédula de Identidad',
-                'path' => $cedulaPath,
-                'url' => Storage::url($cedulaPath),
-                'mime_type' => $cedulaFile->getMimeType(),
-                'size' => $cedulaFile->getSize(),
-                'file_created_at' => now(),
-            ]);
+                    // Create PersonDocument record for cedula
+                    PersonDocument::create([
+                        'person_id' => $lead->id,
+                        'name' => 'Cédula de Identidad',
+                        'path' => $cedulaPath,
+                        'url' => Storage::url($cedulaPath),
+                        'mime_type' => $cedulaFile->getMimeType(),
+                        'size' => $cedulaFile->getSize(),
+                        'file_created_at' => now(),
+                    ]);
+                }
 
-            PersonDocument::create([
-                'person_id' => $lead->id,
-                'name' => 'Recibo de Servicio',
-                'path' => $reciboPath,
-                'url' => Storage::url($reciboPath),
-                'mime_type' => $reciboFile->getMimeType(),
-                'size' => $reciboFile->getSize(),
-                'file_created_at' => now(),
-            ]);
+                // Save recibo file if present
+                if ($request->hasFile('recibo_file')) {
+                    $reciboFile = $request->file('recibo_file');
+                    $reciboFileName = 'recibo_' . time() . '.' . $reciboFile->getClientOriginalExtension();
+                    $reciboPath = $reciboFile->storeAs($storagePath, $reciboFileName, 'public');
+
+                    // Create PersonDocument record for recibo
+                    PersonDocument::create([
+                        'person_id' => $lead->id,
+                        'name' => 'Recibo de Servicio',
+                        'path' => $reciboPath,
+                        'url' => Storage::url($reciboPath),
+                        'mime_type' => $reciboFile->getMimeType(),
+                        'size' => $reciboFile->getSize(),
+                        'file_created_at' => now(),
+                    ]);
+                }
+            }
 
             // Update lead with questionnaire data - mapeo directo a campos de BD
             $updateData = [];
@@ -198,7 +210,7 @@ class QuestionnaireController extends Controller
 
             Log::info("Questionnaire submitted for lead: {$cedula}", [
                 'lead_id' => $lead->id,
-                'files' => [$cedulaPath, $reciboPath],
+                'files' => array_filter([$cedulaPath, $reciboPath]), // Solo archivos presentes
                 'data' => $questionnaireData,
                 'synced_to_opportunities' => $syncResult
             ]);
@@ -223,16 +235,25 @@ class QuestionnaireController extends Controller
                 }
             }
 
-            return response()->json([
+            $responseData = [
                 'message' => $responseMessage,
                 'type' => $responseType,
                 'elegible_credito' => $elegibleCredito,
                 'lead_id' => $lead->id,
-                'files' => [
-                    'cedula' => Storage::url($cedulaPath),
-                    'recibo' => Storage::url($reciboPath),
-                ]
-            ], 200);
+            ];
+
+            // Agregar URLs de archivos solo si están presentes
+            if ($cedulaPath || $reciboPath) {
+                $responseData['files'] = [];
+                if ($cedulaPath) {
+                    $responseData['files']['cedula'] = Storage::url($cedulaPath);
+                }
+                if ($reciboPath) {
+                    $responseData['files']['recibo'] = Storage::url($reciboPath);
+                }
+            }
+
+            return response()->json($responseData, 200);
 
         } catch (\Exception $e) {
             Log::error("Error submitting questionnaire: " . $e->getMessage(), [
