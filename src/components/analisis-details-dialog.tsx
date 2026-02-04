@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Upload, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import api from '@/lib/axios';
+import { useToast } from '@/hooks/use-toast';
 import { Lead } from '@/lib/data';
 
 // Define types locally or import if available
@@ -45,6 +46,7 @@ interface AnalisisDetailsDialogProps {
 }
 
 export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }: AnalisisDetailsDialogProps) {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('resumen');
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [documents, setDocuments] = useState<PersonDocument[]>([]);
@@ -95,7 +97,7 @@ export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }
       onOpenChange(false);
     } catch (error) {
       console.error('Error updating analisis:', error);
-      alert('Error al guardar los cambios.');
+      toast({ title: 'Error', description: 'Error al guardar los cambios.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -129,10 +131,10 @@ export function AnalisisDetailsDialog({ open, onOpenChange, analisis, onUpdate }
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       await fetchDocuments(analisis.lead.id); // Refresh list
-      alert('Documento subido exitosamente.');
+      toast({ title: 'Documento subido', description: 'El documento se subió exitosamente.' });
     } catch (error) {
       console.error('Error uploading file:', error);
-      alert('Error al subir el documento.');
+      toast({ title: 'Error', description: 'Error al subir el documento.', variant: 'destructive' });
     } finally {
       setUploading(false);
     }

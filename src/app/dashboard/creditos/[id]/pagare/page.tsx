@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import api from "@/lib/axios";
+import { useToast } from "@/hooks/use-toast";
 
 interface CreditData {
   id: number;
@@ -69,6 +70,7 @@ const calcularCuotaMensual = (monto: number, plazo: number, tasaAnual: number): 
 export default function PagarePage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const [credit, setCredit] = useState<CreditData | null>(null);
   const [deductoras, setDeductoras] = useState<Deductora[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,7 +243,7 @@ export default function PagarePage() {
       console.log('PDF exportado exitosamente');
     } catch (error) {
       console.error('Error exportando PDF:', error);
-      alert('Error al exportar el PDF. Por favor intente de nuevo.');
+      toast({ title: 'Error', description: 'Error al exportar el PDF. Por favor intente de nuevo.', variant: 'destructive' });
     } finally {
       setExporting(false);
     }

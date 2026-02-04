@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, Check, Plus, X } from 'lucide-react';
 import { formatCurrency } from '@/lib/analisis';
 import api from '@/lib/axios';
+import { useToast } from '@/hooks/use-toast';
 import type {
   DeduccionMensual,
   ManchaDetalle,
@@ -82,6 +83,7 @@ export function AnalisisWizardModal({
   divisa = 'CRC',
   onSuccess
 }: AnalisisWizardModalProps) {
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -288,7 +290,7 @@ export function AnalisisWizardModal({
     } catch (error: any) {
       console.error('Error completo:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Error al crear análisis';
-      alert(errorMessage);
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
