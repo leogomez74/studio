@@ -976,6 +976,16 @@ export default function OpportunityDetailPage() {
   const handleOpenAnalisisDialog = () => {
     if (!opportunity) return;
 
+    // Validar que existan documentos específicos de la oportunidad
+    if (especificos.length === 0) {
+      toast({
+        title: "Documentos requeridos",
+        description: "Debe cargar al menos un documento específico de la oportunidad antes de crear un análisis.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Buscar el usuario responsable default
     const defaultUser = users.find((u: any) => u.is_default_lead_assignee);
     const defaultAssignedTo = defaultUser ? defaultUser.name : "";
