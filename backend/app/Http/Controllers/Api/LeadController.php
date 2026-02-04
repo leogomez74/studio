@@ -224,20 +224,25 @@ class LeadController extends Controller
         $result['lead']->load(['assignedAgent', 'leadStatus']);
 
         // Crear tarea automática si está configurada
-        $automation = TaskAutomation::where('event_type', 'lead_created')
-            ->where('is_active', true)
-            ->first();
+        try {
+            $automation = TaskAutomation::where('event_type', 'lead_created')
+                ->where('is_active', true)
+                ->first();
 
-        if ($automation && $automation->assigned_to) {
-            Task::create([
-                'project_code' => $result['lead']->cedula,
-                'title' => $automation->title,
-                'status' => 'pendiente',
-                'priority' => $automation->priority ?? 'media',
-                'assigned_to' => $automation->assigned_to,
-                'start_date' => now()->toDateString(),
-                'due_date' => now()->toDateString(),
-            ]);
+            if ($automation && $automation->assigned_to) {
+                Task::create([
+                    'project_code' => $result['lead']->cedula,
+                    'title' => $automation->title,
+                    'status' => 'pendiente',
+                    'priority' => $automation->priority ?? 'media',
+                    'assigned_to' => $automation->assigned_to,
+                    'start_date' => now()->toDateString(),
+                    'due_date' => now()->toDateString(),
+                ]);
+                Log::info('Tarea automática creada para lead', ['cedula' => $result['lead']->cedula]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error creando tarea automática', ['error' => $e->getMessage()]);
         }
 
         return response()->json([
