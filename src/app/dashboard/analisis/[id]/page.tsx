@@ -982,7 +982,7 @@ export default function AnalisisDetailPage() {
             <Select
               value={estadoPep || 'Pendiente'}
               onValueChange={(v) => handleEstadoChange('estado_pep', v)}
-              disabled={updatingStatus || !hasPermission('analizados', 'delete')}
+              disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado'}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
@@ -1003,7 +1003,7 @@ export default function AnalisisDetailPage() {
               <Select
                 value={estadoCliente || ''}
                 onValueChange={(v) => handleEstadoChange('estado_cliente', v)}
-                disabled={updatingStatus || !hasPermission('analizados', 'archive')}
+                disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Sin definir" />
