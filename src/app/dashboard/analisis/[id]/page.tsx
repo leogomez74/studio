@@ -9,7 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -526,6 +531,11 @@ export default function AnalisisDetailPage() {
   const [products, setProducts] = useState<Array<{ id: number; name: string; }>>([]);
   const [leads, setLeads] = useState<Array<{ id: number; name?: string; deductora_id?: number; }>>([]);
 
+  // Estados para collapsibles de historial crediticio
+  const [manchasOpen, setManchasOpen] = useState(false);
+  const [juiciosOpen, setJuiciosOpen] = useState(false);
+  const [embargosOpen, setEmbargosOpen] = useState(false);
+
   // Cargar archivos del filesystem
   const fetchAnalisisFiles = useCallback(async () => {
     try {
@@ -956,7 +966,7 @@ export default function AnalisisDetailPage() {
             <Select
               value={estadoPep || 'Pendiente'}
               onValueChange={(v) => handleEstadoChange('estado_pep', v)}
-              disabled={updatingStatus || !hasPermission('analizados', 'delete')}
+              disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado'}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
@@ -977,7 +987,7 @@ export default function AnalisisDetailPage() {
               <Select
                 value={estadoCliente || ''}
                 onValueChange={(v) => handleEstadoChange('estado_cliente', v)}
-                disabled={updatingStatus || !hasPermission('analizados', 'archive')}
+                disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Sin definir" />
@@ -1069,35 +1079,47 @@ export default function AnalisisDetailPage() {
               </div>
               <div>
                 <span className="font-semibold text-xs uppercase text-gray-500 block">Puesto</span>
-                <span className="text-base">{lead?.puesto || 'N/A'}</span>
+                <span className="text-base">{analisis.cargo || lead?.puesto || 'N/A'}</span>
               </div>
               <div>
                 <span className="font-semibold text-xs uppercase text-gray-500 block">Nombramiento</span>
-                <span className="text-base">{lead?.estado_puesto || 'N/A'}</span>
+                <span className="text-base">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Ingreso Neto */}
+          {/* Ingreso Neto - Mínimo de todos los meses */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.ingreso_neto || 0)}
+                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+                  Math.min(
+                    ...[
+                      analisis.ingreso_neto,
+                      analisis.ingreso_neto_2,
+                      analisis.ingreso_neto_3,
+                      analisis.ingreso_neto_4,
+                      analisis.ingreso_neto_5,
+                      analisis.ingreso_neto_6,
+                    ].filter(v => v != null && v > 0)
+                  ) || 0
+                )}
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Mínimo de todos los meses</p>
             </CardContent>
           </Card>
 
-          {/* Monto Solicitado */}
+          {/* Monto Crédito */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Monto Solicitado</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-500">Monto Crédito</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_credito || 0)}
+                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_sugerido || 0)}
               </div>
             </CardContent>
           </Card>
@@ -1115,7 +1137,153 @@ export default function AnalisisDetailPage() {
           </Card>
         </div>
 
-        {/* Fila 2: Propuestas de Crédito */}
+        {/* Fila 2: Manchas/Juicios/Embargos + Salarios */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Resumen de Manchas/Juicios/Embargos con detalles expandibles */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Historial Crediticio</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Manchas */}
+              <Collapsible open={manchasOpen} onOpenChange={setManchasOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-2 bg-orange-50 rounded border border-orange-200 hover:bg-orange-100 transition-colors">
+                    <span className="text-sm font-medium text-orange-900 flex items-center gap-2">
+                      Manchas
+                      {manchasOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                    <Badge variant={analisis.numero_manchas > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                      {analisis.numero_manchas || 0}
+                    </Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {analisis.manchas_detalle && analisis.manchas_detalle.length > 0 ? (
+                    <div className="mt-2 space-y-2 pl-4">
+                      {analisis.manchas_detalle.map((mancha, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm">
+                          <p className="font-medium text-gray-700">{mancha.descripcion}</p>
+                          <p className="text-orange-700 font-semibold mt-1">
+                            Monto: ₡{new Intl.NumberFormat('en-US').format(mancha.monto)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2 pl-4">Sin detalles</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Juicios */}
+              <Collapsible open={juiciosOpen} onOpenChange={setJuiciosOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-2 bg-red-50 rounded border border-red-200 hover:bg-red-100 transition-colors">
+                    <span className="text-sm font-medium text-red-900 flex items-center gap-2">
+                      Juicios
+                      {juiciosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                    <Badge variant={analisis.numero_juicios > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                      {analisis.numero_juicios || 0}
+                    </Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {analisis.juicios_detalle && analisis.juicios_detalle.length > 0 ? (
+                    <div className="mt-2 space-y-2 pl-4">
+                      {analisis.juicios_detalle.map((juicio, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-gray-700">Expediente: {juicio.expediente}</p>
+                            <Badge variant={juicio.estado === 'activo' ? 'destructive' : 'secondary'}>
+                              {juicio.estado}
+                            </Badge>
+                          </div>
+                          <p className="text-gray-600">Fecha: {new Date(juicio.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="text-red-700 font-semibold">
+                            Monto: ₡{new Intl.NumberFormat('en-US').format(juicio.monto)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2 pl-4">Sin detalles</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Embargos */}
+              <Collapsible open={embargosOpen} onOpenChange={setEmbargosOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-2 bg-purple-50 rounded border border-purple-200 hover:bg-purple-100 transition-colors">
+                    <span className="text-sm font-medium text-purple-900 flex items-center gap-2">
+                      Embargos
+                      {embargosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                    <Badge variant={analisis.numero_embargos > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                      {analisis.numero_embargos || 0}
+                    </Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {analisis.embargos_detalle && analisis.embargos_detalle.length > 0 ? (
+                    <div className="mt-2 space-y-2 pl-4">
+                      {analisis.embargos_detalle.map((embargo, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
+                          <p className="font-medium text-gray-700">{embargo.motivo}</p>
+                          <p className="text-gray-600">Fecha: {new Date(embargo.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="text-purple-700 font-semibold">
+                            Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2 pl-4">Sin detalles</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            </CardContent>
+          </Card>
+
+          {/* Resumen de Salarios (todos los meses) */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Ingresos Mensuales</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[160px] overflow-y-auto">
+              {[
+                { mes: 1, bruto: analisis.ingreso_bruto, neto: analisis.ingreso_neto },
+                { mes: 2, bruto: analisis.ingreso_bruto_2, neto: analisis.ingreso_neto_2 },
+                { mes: 3, bruto: analisis.ingreso_bruto_3, neto: analisis.ingreso_neto_3 },
+                { mes: 4, bruto: analisis.ingreso_bruto_4, neto: analisis.ingreso_neto_4 },
+                { mes: 5, bruto: analisis.ingreso_bruto_5, neto: analisis.ingreso_neto_5 },
+                { mes: 6, bruto: analisis.ingreso_bruto_6, neto: analisis.ingreso_neto_6 },
+              ]
+                .filter(item => item.bruto || item.neto) // Solo mostrar meses con datos
+                .map(item => (
+                  <div key={item.mes} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                    <span className="font-medium text-gray-700">Mes {item.mes}</span>
+                    <div className="flex gap-3">
+                      <span className="text-gray-600">
+                        B: ₡{new Intl.NumberFormat('en-US').format(item.bruto || 0)}
+                      </span>
+                      <span className="text-green-700 font-semibold">
+                        N: ₡{new Intl.NumberFormat('en-US').format(item.neto || 0)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              {![analisis.ingreso_bruto, analisis.ingreso_bruto_2, analisis.ingreso_bruto_3,
+                 analisis.ingreso_bruto_4, analisis.ingreso_bruto_5, analisis.ingreso_bruto_6].some(v => v) && (
+                <p className="text-sm text-gray-400 text-center py-4">No hay ingresos registrados</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Fila 3: Propuestas de Crédito */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -1219,11 +1387,11 @@ export default function AnalisisDetailPage() {
                       */}
                       <TableHead className="text-xs">Estado</TableHead>
                       <TableHead className="text-xs">Fecha</TableHead>
-                      {isEditMode && <TableHead className="text-xs text-right">Acciones</TableHead>}
+                      <TableHead className="text-xs text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {propuestas.map((p) => (
+                    {propuestas.map((p, index) => (
                       <TableRow key={p.id}>
                         <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
                         <TableCell className="text-sm">{p.plazo} meses</TableCell>
@@ -1249,28 +1417,29 @@ export default function AnalisisDetailPage() {
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(p.created_at).toLocaleDateString('es-CR')}
                         </TableCell>
-                        {isEditMode && (
-                          <TableCell className="text-right">
-                            {p.estado === 'Pendiente' && (
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  onClick={() => handleAceptarPropuesta(p.id)}
-                                  title="Aceptar"
-                                >
-                                  <ThumbsUp className="h-5 w-5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => handleDenegarPropuesta(p.id)}
-                                  title="Denegar"
-                                >
-                                  <ThumbsDown className="h-5 w-5" />
-                                </Button>
+                        <TableCell className="text-right">
+                          {/* Mostrar botones para la primera propuesta si está pendiente, o para todas si está en modo edición */}
+                          {p.estado === 'Pendiente' && (index === 0 || isEditMode) && (
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => handleAceptarPropuesta(p.id)}
+                                title="Aceptar"
+                              >
+                                <ThumbsUp className="h-5 w-5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleDenegarPropuesta(p.id)}
+                                title="Denegar"
+                              >
+                                <ThumbsDown className="h-5 w-5" />
+                              </Button>
+                              {isEditMode && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -1280,15 +1449,15 @@ export default function AnalisisDetailPage() {
                                 >
                                   <Pencil className="h-5 w-5" />
                                 </Button>
-                              </div>
-                            )}
-                            {p.estado !== 'Pendiente' && p.aceptada_por_user && (
-                              <span className="text-xs text-muted-foreground">
-                                por {p.aceptada_por_user.name}
-                              </span>
-                            )}
-                          </TableCell>
-                        )}
+                              )}
+                            </div>
+                          )}
+                          {p.estado !== 'Pendiente' && p.aceptada_por_user && (
+                            <span className="text-xs text-muted-foreground">
+                              por {p.aceptada_por_user.name}
+                            </span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

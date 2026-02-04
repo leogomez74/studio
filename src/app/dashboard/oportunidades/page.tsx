@@ -82,6 +82,7 @@ import api from "@/lib/axios";
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
 import { PermissionButton } from "@/components/PermissionButton";
 import { ProtectedPage } from "@/components/ProtectedPage";
+import { AnalisisWizardModal } from "@/components/analisis-wizard-modal";
 
 const opportunitySchema = z.object({
   leadId: z.string().min(1, "Debes seleccionar un lead"),
@@ -1524,233 +1525,19 @@ export default function DealsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Analisis Creation Dialog */}
-      <Dialog open={isAnalisisDialogOpen} onOpenChange={setIsAnalisisDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Nuevo Análisis</DialogTitle>
-            <DialogDescription>Completa la información del análisis.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAnalisisSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="reference" className="text-xs">Referencia</Label>
-                <Input
-                  id="reference"
-                  value={analisisForm.reference}
-                  readOnly
-                  className="bg-muted h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="category" className="text-xs">Producto</Label>
-                <Select value={analisisForm.category} onValueChange={v => handleAnalisisFormChange('category', v)} disabled>
-                  <SelectTrigger id="category" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {products.map(product => <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="divisa" className="text-xs">Divisa</Label>
-                <Select value={analisisForm.divisa} onValueChange={v => handleAnalisisFormChange('divisa', v)} disabled>
-                  <SelectTrigger id="divisa" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {["CRC", "USD", "EUR", "GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="monto_solicitado" className="text-xs">Monto Solicitado</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="monto_solicitado"
-                    className="h-8 text-sm pl-7 bg-muted"
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrency(analisisForm.monto_solicitado) || analisisForm.monto_solicitado}
-                    disabled
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="monto_sugerido" className="text-xs">Monto Sugerido</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="monto_sugerido"
-                    className="h-8 text-sm pl-7"
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrency(analisisForm.monto_sugerido)}
-                    onChange={e => handleAnalisisFormChange('monto_sugerido', e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cuota" className="text-xs">Cuota</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="cuota"
-                    className="h-8 text-sm pl-7 bg-muted"
-                    type="text"
-                    value={formatCurrency(analisisForm.cuota)}
-                    disabled
-                  />
-                </div>
-              </div>
-              {/* Mes 1 */}
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Mes 1</Label>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto_1" className="text-xs">Ingreso Bruto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_1)} onChange={e => handleAnalisisFormChange('ingreso_bruto_1', e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_neto_1" className="text-xs">Ingreso Neto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto_1" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_1)} onChange={e => handleAnalisisFormChange('ingreso_neto_1', e.target.value)} />
-                </div>
-              </div>
-              {/* Mes 2 */}
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Mes 2</Label>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto_2" className="text-xs">Ingreso Bruto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_2)} onChange={e => handleAnalisisFormChange('ingreso_bruto_2', e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_neto_2" className="text-xs">Ingreso Neto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto_2" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_2)} onChange={e => handleAnalisisFormChange('ingreso_neto_2', e.target.value)} />
-                </div>
-              </div>
-              {/* Mes 3 */}
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Mes 3</Label>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_bruto_3" className="text-xs">Ingreso Bruto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_bruto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_bruto_3)} onChange={e => handleAnalisisFormChange('ingreso_bruto_3', e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ingreso_neto_3" className="text-xs">Ingreso Neto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input id="ingreso_neto_3" className="h-8 text-sm pl-7" type="text" inputMode="numeric" value={formatCurrency(analisisForm.ingreso_neto_3)} onChange={e => handleAnalisisFormChange('ingreso_neto_3', e.target.value)} />
-                </div>
-              </div>
-              {/* Salarios Anteriores */}
-              <div className="sm:col-span-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">Salarios Anteriores</Label>
-                </div>
-                {analisisForm.salarios_anteriores.map((sal, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Mes</Label>
-                      <Select value={sal.mes} onValueChange={v => updateSalarioAnterior(idx, 'mes', v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Mes 4">Mes extra 1</SelectItem>
-                          <SelectItem value="Mes 5">Mes extra 2</SelectItem>
-                          <SelectItem value="Mes 6">Mes extra 3</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Bruto</Label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
-                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatCurrency(sal.bruto)} onChange={e => updateSalarioAnterior(idx, 'bruto', e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Neto</Label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
-                        <Input className="h-8 text-sm pl-6" type="text" inputMode="numeric" value={formatCurrency(sal.neto)} onChange={e => updateSalarioAnterior(idx, 'neto', e.target.value)} />
-                      </div>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removeSalarioAnterior(idx)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
-                <Input id="plazo" className="h-8 text-sm" type="number" min="1" max="120" value={analisisForm.plazo} onChange={e => handleAnalisisFormChange('plazo', e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="assignedTo" className="text-xs">Responsable</Label>
-                <Select value={analisisForm.assignedTo} onValueChange={v => handleAnalisisFormChange('assignedTo', v)}>
-                  <SelectTrigger id="assignedTo" className="h-8 text-sm"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="numero_manchas" className="text-xs">Número de Manchas</Label>
-                <Input
-                  id="numero_manchas"
-                  className="h-8 text-sm"
-                  type="number"
-                  min="0"
-                  value={analisisForm.numero_manchas}
-                  onChange={e => handleAnalisisFormChange('numero_manchas', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="numero_juicios" className="text-xs">Número de Juicios</Label>
-                <Input
-                  id="numero_juicios"
-                  className="h-8 text-sm"
-                  type="number"
-                  min="0"
-                  value={analisisForm.numero_juicios}
-                  onChange={e => handleAnalisisFormChange('numero_juicios', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="numero_embargos" className="text-xs">Número de Embargos</Label>
-                <Input
-                  id="numero_embargos"
-                  className="h-8 text-sm"
-                  type="number"
-                  min="0"
-                  value={analisisForm.numero_embargos}
-                  onChange={e => handleAnalisisFormChange('numero_embargos', e.target.value)}
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <Label htmlFor="propuesta" className="text-xs">Comentarios</Label>
-                <Textarea id="propuesta" rows={2} className="text-sm" placeholder="Escriba aquí los comentarios del análisis..." value={analisisForm.propuesta} onChange={e => handleAnalisisFormChange('propuesta', e.target.value)} />
-              </div>
-            </div>
-          </form>
-          <DialogFooter className="flex-shrink-0 pt-2 border-t">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsAnalisisDialogOpen(false)}>Cancelar</Button>
-            <Button type="submit" size="sm" onClick={handleAnalisisSubmit}>Guardar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Analisis Creation Dialog - Wizard Modal */}
+      <AnalisisWizardModal
+        open={isAnalisisDialogOpen}
+        onOpenChange={setIsAnalisisDialogOpen}
+        opportunityId={analisisOpportunity?.id || ''}
+        monto_solicitado={analisisOpportunity?.amount ? parseFloat(String(analisisOpportunity.amount)) : undefined}
+        producto={analisisOpportunity?.opportunity_type || 'Micro Crédito'}
+        divisa="CRC"
+        onSuccess={() => {
+          fetchOpportunities();
+          toast({ title: "Análisis creado", description: "El análisis se ha creado correctamente" });
+        }}
+      />
 
       {/* Delete Alert */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

@@ -52,6 +52,7 @@ import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AnalisisWizardModal } from "@/components/analisis-wizard-modal";
 
 // Tipo para archivos del filesystem
 interface OpportunityFile {
@@ -1584,8 +1585,22 @@ export default function OpportunityDetailPage() {
         */}
       </div>
 
-      {/* Analisis Creation Dialog */}
-      <Dialog open={isAnalisisDialogOpen} onOpenChange={setIsAnalisisDialogOpen}>
+      {/* Analisis Creation Dialog - Wizard Modal */}
+      <AnalisisWizardModal
+        open={isAnalisisDialogOpen}
+        onOpenChange={setIsAnalisisDialogOpen}
+        opportunityId={opportunity?.id || ''}
+        monto_solicitado={opportunity?.amount ? parseFloat(String(opportunity.amount)) : undefined}
+        producto={opportunity?.opportunity_type || 'Micro Crédito'}
+        divisa="CRC"
+        onSuccess={() => {
+          fetchExistingAnalisis();
+          toast({ title: "Análisis creado", description: "El análisis se ha creado correctamente" });
+        }}
+      />
+
+      {/* OLD DIALOG - TO BE REMOVED */}
+      <Dialog open={false} onOpenChange={() => {}}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>Nuevo Análisis</DialogTitle>

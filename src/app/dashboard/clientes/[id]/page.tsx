@@ -580,11 +580,25 @@ export default function ClientDetailPage() {
       return found?.name;
   }, [client, leads]);
 
+  const REQUIRED_FIELDS = [
+    'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento',
+    'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
+    'province', 'canton', 'distrito', 'direccion1',
+    'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
+  ];
+
+  const isFieldMissing = useCallback((field: string) => {
+    if (!formData || !REQUIRED_FIELDS.includes(field)) return false;
+    const value = (formData as any)[field];
+    if (field === 'deductora_id') return !value || value === 0;
+    return value === null || value === undefined || value === '';
+  }, [formData]);
+
   const handleInputChange = (field: keyof Client, value: string | number | boolean | null) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const selectedProvince = React.useMemo(() => 
+  const selectedProvince = React.useMemo(() =>
     PROVINCES.find(p => p.name === formData.province), 
     [formData.province]
   );
@@ -872,17 +886,17 @@ export default function ClientDetailPage() {
             <h3 className="text-lg font-medium mb-4">Datos Personales</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Nombre</Label>
-                <Input 
-                  value={formData.name || ""} 
+                <Label>Nombre {isFieldMissing('name') && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  value={formData.name || ""}
                   onChange={(e) => handleInputChange("name", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
-                <Label>Primer Apellido</Label>
-                <Input 
-                  value={formData.apellido1 || ""} 
+                <Label>Primer Apellido {isFieldMissing('apellido1') && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  value={formData.apellido1 || ""}
                   onChange={(e) => handleInputChange("apellido1", e.target.value)} 
                   disabled={!isEditMode} 
                 />
@@ -896,9 +910,9 @@ export default function ClientDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Cédula</Label>
-                <Input 
-                  value={formData.cedula || ""} 
+                <Label>Cédula {isFieldMissing('cedula') && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  value={formData.cedula || ""}
                   onChange={(e) => handleInputChange("cedula", e.target.value)} 
                   disabled={!isEditMode} 
                 />
@@ -913,8 +927,8 @@ export default function ClientDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Fecha de Nacimiento</Label>
-                <Input 
+                <Label>Fecha de Nacimiento {isFieldMissing('fecha_nacimiento') && <span className="text-red-500">*</span>}</Label>
+                <Input
                   type="date"
                   value={formData.fecha_nacimiento ? String(formData.fecha_nacimiento).split('T')[0] : ""} 
                   onChange={(e) => handleInputChange("fecha_nacimiento", e.target.value)} 
@@ -981,17 +995,17 @@ export default function ClientDetailPage() {
             <h3 className="text-lg font-medium mb-4">Información de Contacto</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Email</Label>
-                <Input 
-                  value={formData.email || ""} 
+                <Label>Email {isFieldMissing('email') && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  value={formData.email || ""}
                   onChange={(e) => handleInputChange("email", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
-                <Label>Teléfono Móvil</Label>
-                <Input 
-                  value={formData.phone || ""} 
+                <Label>Teléfono Móvil {isFieldMissing('phone') && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  value={formData.phone || ""}
                   onChange={(e) => handleInputChange("phone", e.target.value)} 
                   disabled={!isEditMode} 
                 />
@@ -1013,9 +1027,9 @@ export default function ClientDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>WhatsApp</Label>
-                <Input 
-                  value={formData.whatsapp || ""} 
+                <Label>WhatsApp {isFieldMissing('whatsapp') && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  value={formData.whatsapp || ""}
                   onChange={(e) => handleInputChange("whatsapp", e.target.value)} 
                   disabled={!isEditMode} 
                 />
@@ -1038,10 +1052,10 @@ export default function ClientDetailPage() {
             <h3 className="text-lg font-medium mb-4">Dirección</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Provincia</Label>
+                <Label>Provincia {isFieldMissing('province') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={formData.province || ""} 
+                  <Select
+                    value={formData.province || ""}
                     onValueChange={handleProvinceChange}
                   >
                     <SelectTrigger>
@@ -1060,10 +1074,10 @@ export default function ClientDetailPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Cantón</Label>
+                <Label>Cantón {isFieldMissing('canton') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={formData.canton || ""} 
+                  <Select
+                    value={formData.canton || ""}
                     onValueChange={handleCantonChange}
                     disabled={!selectedProvince}
                   >
@@ -1083,10 +1097,10 @@ export default function ClientDetailPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Distrito</Label>
+                <Label>Distrito {isFieldMissing('distrito') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={formData.distrito || ""} 
+                  <Select
+                    value={formData.distrito || ""}
                     onValueChange={handleDistrictChange}
                     disabled={!selectedCanton}
                   >
@@ -1106,8 +1120,8 @@ export default function ClientDetailPage() {
                 )}
               </div>
               <div className="col-span-3 md:col-span-2 space-y-2">
-                <Label>Dirección Exacta</Label>
-                <Textarea 
+                <Label>Dirección Exacta {isFieldMissing('direccion1') && <span className="text-red-500">*</span>}</Label>
+                <Textarea
                   value={formData.direccion1 || ""} 
                   onChange={(e) => handleInputChange("direccion1", e.target.value)} 
                   disabled={!isEditMode} 
@@ -1131,32 +1145,32 @@ export default function ClientDetailPage() {
             <h3 className="text-lg font-medium mb-4">Información Laboral</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Nivel Académico</Label>
-                <Input 
+                <Label>Nivel Académico {isFieldMissing('nivel_academico') && <span className="text-red-500">*</span>}</Label>
+                <Input
                   value={formData.nivel_academico || ""} 
                   onChange={(e) => handleInputChange("nivel_academico", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
-                <Label>Profesión</Label>
-                <Input 
+                <Label>Profesión {isFieldMissing('profesion') && <span className="text-red-500">*</span>}</Label>
+                <Input
                   value={formData.profesion || ""} 
                   onChange={(e) => handleInputChange("profesion", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
-                <Label>Sector</Label>
-                <Input 
+                <Label>Sector {isFieldMissing('sector') && <span className="text-red-500">*</span>}</Label>
+                <Input
                   value={formData.sector || ""} 
                   onChange={(e) => handleInputChange("sector", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
-                <Label>Puesto</Label>
-                <Input 
+                <Label>Puesto {isFieldMissing('puesto') && <span className="text-red-500">*</span>}</Label>
+                <Input
                   value={formData.puesto || ""} 
                   onChange={(e) => handleInputChange("puesto", e.target.value)} 
                   disabled={!isEditMode} 
@@ -1180,15 +1194,15 @@ export default function ClientDetailPage() {
                   </Select>
               </div>
                <div className="space-y-2">
-                <Label>Institución</Label>
-                <Input 
+                <Label>Institución {isFieldMissing('institucion_labora') && <span className="text-red-500">*</span>}</Label>
+                <Input
                   value={formData.institucion_labora || ""} 
                   onChange={(e) => handleInputChange("institucion_labora", e.target.value)} 
                   disabled={!isEditMode} 
                 />
               </div>
                <div className="space-y-2">
-                <Label>Deductora</Label>
+                <Label>Deductora {isFieldMissing('deductora_id') && <span className="text-red-500">*</span>}</Label>
                 <div className="flex items-center gap-6">
                   {deductoras.map((deductora) => (
                     <Button
@@ -1219,10 +1233,10 @@ export default function ClientDetailPage() {
                 <h4 className="text-sm font-medium mb-2 mt-2">Dirección del Trabajo</h4>
                </div>
                <div className="space-y-2">
-                <Label>Provincia</Label>
+                <Label>Provincia {isFieldMissing('trabajo_provincia') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={formData.trabajo_provincia || ""} 
+                  <Select
+                    value={formData.trabajo_provincia || ""}
                     onValueChange={handleWorkProvinceChange}
                   >
                     <SelectTrigger>
@@ -1241,10 +1255,10 @@ export default function ClientDetailPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Cantón</Label>
+                <Label>Cantón {isFieldMissing('trabajo_canton') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={formData.trabajo_canton || ""} 
+                  <Select
+                    value={formData.trabajo_canton || ""}
                     onValueChange={handleWorkCantonChange}
                     disabled={!selectedWorkProvince}
                   >
@@ -1264,10 +1278,10 @@ export default function ClientDetailPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Distrito</Label>
+                <Label>Distrito {isFieldMissing('trabajo_distrito') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={formData.trabajo_distrito || ""} 
+                  <Select
+                    value={formData.trabajo_distrito || ""}
                     onValueChange={handleWorkDistrictChange}
                     disabled={!selectedWorkCanton}
                   >
@@ -1287,8 +1301,8 @@ export default function ClientDetailPage() {
                 )}
               </div>
                <div className="col-span-3 space-y-2">
-                <Label>Dirección Exacta (Trabajo)</Label>
-                <Textarea 
+                <Label>Dirección Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
+                <Textarea
                   value={formData.trabajo_direccion || ""} 
                   onChange={(e) => handleInputChange("trabajo_direccion", e.target.value)} 
                   disabled={!isEditMode} 

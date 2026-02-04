@@ -48,6 +48,10 @@ class Analisis extends Model
         'nombramiento',
         'salarios_anteriores',
         'deducciones',
+        'manchas_detalle',
+        'juicios_detalle',
+        'embargos_detalle',
+        'deducciones_mensuales',
     ];
 
     protected $casts = [
@@ -73,11 +77,16 @@ class Analisis extends Model
         'numero_embargos' => 'integer',
         'salarios_anteriores' => 'array',
         'deducciones' => 'array',
+        'manchas_detalle' => 'array',
+        'juicios_detalle' => 'array',
+        'embargos_detalle' => 'array',
+        'deducciones_mensuales' => 'array',
     ];
 
     protected $appends = [
         'has_credit',
         'credit_id',
+        'credit_status',
     ];
 
     protected static function booted()
@@ -142,5 +151,20 @@ class Analisis extends Model
             ->first();
 
         return $credit?->id;
+    }
+
+    /**
+     * Accessor para obtener el status del crédito asociado
+     */
+    public function getCreditStatusAttribute(): ?string
+    {
+        $credit = Credit::where('opportunity_id', $this->opportunity_id)
+            ->orWhere(function ($query) {
+                $query->where('lead_id', $this->lead_id)
+                      ->whereNotNull('lead_id');
+            })
+            ->first();
+
+        return $credit?->status;
     }
 }
