@@ -125,11 +125,11 @@ class QuestionnaireController extends Controller
             if (isset($questionnaireData['nivel_academico'])) {
                 $updateData['nivel_academico'] = $questionnaireData['nivel_academico'];
             }
-            // Institución - priorizar el campo 'institucion' sobre 'situacion_laboral'
-            if (isset($questionnaireData['institucion']) && !empty($questionnaireData['institucion'])) {
+            // Institución
+            if (isset($questionnaireData['institucion_labora']) && !empty($questionnaireData['institucion_labora'])) {
+                $updateData['institucion_labora'] = $questionnaireData['institucion_labora'];
+            } elseif (isset($questionnaireData['institucion']) && !empty($questionnaireData['institucion'])) {
                 $updateData['institucion_labora'] = $questionnaireData['institucion'];
-            } elseif (isset($questionnaireData['situacion_laboral'])) {
-                $updateData['institucion_labora'] = $questionnaireData['situacion_laboral'];
             }
             if (isset($questionnaireData['origen_lead'])) {
                 $updateData['source'] = $questionnaireData['origen_lead'];
