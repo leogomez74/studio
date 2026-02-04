@@ -284,6 +284,7 @@ export function AnalisisWizardModal({
       onOpenChange(false);
       setFormData(initialFormData);
       setCurrentStep(1);
+      setExtraMonths(0);
     } catch (error: any) {
       console.error('Error completo:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Error al crear análisis';
@@ -453,8 +454,10 @@ export function AnalisisWizardModal({
 
         {/* Step 2: Ingresos Mensuales */}
         {currentStep === 2 && (() => {
-          const fixedMonths = 3;
-          const maxExtra = 3;
+          // Determinar meses según tipo de crédito
+          const esMicroCredito = producto?.toLowerCase().includes('micro') || false;
+          const fixedMonths = esMicroCredito ? 3 : 6;
+          const maxExtra = 0; // No permitir agregar meses adicionales
           const totalMonths = fixedMonths + extraMonths;
 
           const removeExtraMonth = (mes: number) => {
@@ -511,13 +514,15 @@ export function AnalisisWizardModal({
                                 const value = parseNumber(e.target.value);
                                 updateFormData(brutoProp as string, value);
 
-                                // Si es el Mes 1, auto-llenar los demás meses
+                                // Si es el Mes 1, auto-llenar los demás meses según el tipo de crédito
                                 if (mes === 1) {
                                   updateFormData('ingreso_bruto_2', value);
                                   updateFormData('ingreso_bruto_3', value);
-                                  updateFormData('ingreso_bruto_4', value);
-                                  updateFormData('ingreso_bruto_5', value);
-                                  updateFormData('ingreso_bruto_6', value);
+                                  if (!esMicroCredito) {
+                                    updateFormData('ingreso_bruto_4', value);
+                                    updateFormData('ingreso_bruto_5', value);
+                                    updateFormData('ingreso_bruto_6', value);
+                                  }
                                 }
                               }}
                               placeholder="0"
