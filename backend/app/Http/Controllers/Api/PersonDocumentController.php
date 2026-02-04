@@ -289,6 +289,15 @@ class PersonDocumentController extends Controller
 
         $targetFolder = "documentos/{$strippedCedula}/{$opportunityId}/heredados";
 
+        // PASO 1: Borrar archivos existentes en la carpeta heredados
+        if (Storage::disk('public')->exists($targetFolder)) {
+            $existingFiles = Storage::disk('public')->files($targetFolder);
+            foreach ($existingFiles as $file) {
+                Storage::disk('public')->delete($file);
+            }
+            Log::info("Archivos existentes eliminados", ['folder' => $targetFolder, 'count' => count($existingFiles)]);
+        }
+
         // Crear carpeta destino si no existe
         if (!Storage::disk('public')->exists($targetFolder)) {
             Storage::disk('public')->makeDirectory($targetFolder);
@@ -296,7 +305,14 @@ class PersonDocumentController extends Controller
 
         $synced = [];
 
+        // PASO 2: Copiar SOLO Cédula y Recibo del lead (documentos genéricos)
+        // Los demás archivos (constancias, recibos de pago específicos) se suben directamente a la oportunidad
         foreach ($personDocuments as $doc) {
+            // FILTRO: Solo copiar cedula y recibo_servicio
+            if (!in_array($doc->category, ['cedula', 'recibo_servicio'])) {
+                continue;
+            }
+
             if (!Storage::disk('public')->exists($doc->path)) {
                 continue;
             }
@@ -314,12 +330,6 @@ class PersonDocumentController extends Controller
                 case 'recibo_servicio':
                     $categoryPrefix = 'RECIBO_';
                     break;
-                case 'comprobante_ingresos':
-                    $categoryPrefix = 'COMPROBANTE_';
-                    break;
-                case 'constancia_trabajo':
-                    $categoryPrefix = 'CONSTANCIA_';
-                    break;
             }
 
             // Si el archivo ya tiene el prefijo, no agregarlo de nuevo
@@ -330,11 +340,6 @@ class PersonDocumentController extends Controller
             $targetPath = "{$targetFolder}/{$fileName}";
 
             try {
-                // Verificar si ya existe (evitar duplicados)
-                if (Storage::disk('public')->exists($targetPath)) {
-                    continue; // Skip si ya existe
-                }
-
                 Storage::disk('public')->copy($doc->path, $targetPath);
                 $synced[] = $fileName;
             } catch (\Exception $e) {
@@ -353,7 +358,7 @@ class PersonDocumentController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Archivos sincronizados correctamente',
+            'message' => 'Archivos sincronizados correctamente (solo Cédula y Recibo)',
             'files_synced' => count($synced),
             'files' => $synced,
         ]);
