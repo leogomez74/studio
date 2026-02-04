@@ -115,15 +115,11 @@ class CreditController extends Controller
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
         ]);
 
-        // Validar que monto_neto > 0
-        $totalCargos = array_sum($validated['cargos_adicionales'] ?? []);
-        $montoNeto = $validated['monto_credito'] - $totalCargos;
-        if ($montoNeto <= 0) {
+        // Validar que monto_credito > 0 (ya viene con cargos descontados desde el frontend)
+        if ($validated['monto_credito'] <= 0) {
             return response()->json([
-                'message' => 'El monto neto debe ser mayor a 0. Los cargos adicionales exceden el monto del crédito.',
+                'message' => 'El monto del crédito debe ser mayor a 0.',
                 'monto_credito' => $validated['monto_credito'],
-                'total_cargos' => $totalCargos,
-                'monto_neto' => $montoNeto,
             ], 422);
         }
 
@@ -262,9 +258,8 @@ class CreditController extends Controller
      */
     private function calculateAndSetCuota(Credit $credit): void
     {
-        $montoCredito = (float) $credit->monto_credito;
-        $totalCargos = array_sum($credit->cargos_adicionales ?? []);
-        $monto = $montoCredito - $totalCargos;
+        // monto_credito ya viene con los cargos descontados desde el frontend
+        $monto = (float) $credit->monto_credito;
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
 
@@ -298,10 +293,8 @@ class CreditController extends Controller
      */
     private function generateAmortizationSchedule(Credit $credit)
     {
-        // Calcular monto neto: monto_credito - cargos_adicionales
-        $montoCredito = (float) $credit->monto_credito;
-        $totalCargos = array_sum($credit->cargos_adicionales ?? []);
-        $monto = $montoCredito - $totalCargos;
+        // monto_credito ya viene con los cargos descontados desde el frontend
+        $monto = (float) $credit->monto_credito;
 
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
@@ -470,8 +463,8 @@ class CreditController extends Controller
         $totalCapital = $paidPayments->sum('amortizacion');
         $totalInteres = $paidPayments->sum('interes_corriente') + $paidPayments->sum('interes_moratorio');
 
+        // monto_credito ya tiene los cargos descontados, cargos_adicionales es solo metadata
         $totalCargos = array_sum($credit->cargos_adicionales ?? []);
-        $montoNeto = (float) $credit->monto_credito - $totalCargos;
 
         return response()->json([
             'credit_id' => $credit->id,
@@ -480,7 +473,7 @@ class CreditController extends Controller
             'monto_original' => $credit->monto_credito,
             'cargos_adicionales' => $credit->cargos_adicionales ?? [],
             'total_cargos' => $totalCargos,
-            'monto_neto' => $montoNeto,
+            'monto_neto' => $credit->monto_credito,
             'saldo_actual' => $credit->saldo,
             'total_capital_pagado' => $totalCapital,
             'total_intereses_pagados' => $totalInteres,
@@ -544,19 +537,13 @@ class CreditController extends Controller
             }
         }
 
-        // Validar monto_neto > 0 si se actualizan cargos o monto
-        if (isset($validated['cargos_adicionales']) || isset($validated['monto_credito'])) {
-            $montoCredito = $validated['monto_credito'] ?? $credit->monto_credito;
-            $cargos = $validated['cargos_adicionales'] ?? $credit->cargos_adicionales ?? [];
-            $totalCargos = array_sum($cargos);
-            $montoNeto = $montoCredito - $totalCargos;
-
-            if ($montoNeto <= 0) {
+        // Validar que monto_credito > 0 (ya viene con cargos descontados desde el frontend)
+        if (isset($validated['monto_credito'])) {
+            $montoCredito = $validated['monto_credito'];
+            if ($montoCredito <= 0) {
                 return response()->json([
-                    'message' => 'El monto neto debe ser mayor a 0. Los cargos adicionales exceden el monto del crédito.',
+                    'message' => 'El monto del crédito debe ser mayor a 0.',
                     'monto_credito' => $montoCredito,
-                    'total_cargos' => $totalCargos,
-                    'monto_neto' => $montoNeto,
                 ], 422);
             }
         }
@@ -576,13 +563,11 @@ class CreditController extends Controller
 
         $credit->update($validated);
 
-        // Recalcular saldo SOLO si se cambiaron cargos o monto Y el crédito NO está formalizado
-        if ((isset($validated['cargos_adicionales']) || isset($validated['monto_credito']))
-            && !$credit->formalized_at) {
+        // Recalcular saldo SOLO si se cambió el monto Y el crédito NO está formalizado
+        // monto_credito ya viene con cargos descontados, no restar de nuevo
+        if (isset($validated['monto_credito']) && !$credit->formalized_at) {
             $credit->refresh();
-            $montoCredito = (float) $credit->monto_credito;
-            $totalCargosActualizados = array_sum($credit->cargos_adicionales ?? []);
-            $credit->saldo = $montoCredito - $totalCargosActualizados;
+            $credit->saldo = (float) $credit->monto_credito;
             $credit->save();
         }
 
@@ -626,15 +611,11 @@ class CreditController extends Controller
             ], 422);
         }
 
-        // Validar monto_neto > 0
-        $totalCargos = array_sum($credit->cargos_adicionales ?? []);
-        $montoNeto = (float) $credit->monto_credito - $totalCargos;
-        if ($montoNeto <= 0) {
+        // Validar que monto_credito > 0 (ya viene con cargos descontados)
+        if ((float) $credit->monto_credito <= 0) {
             return response()->json([
-                'message' => 'El monto neto debe ser mayor a 0. Los cargos adicionales exceden el monto del crédito.',
+                'message' => 'El monto del crédito debe ser mayor a 0.',
                 'monto_credito' => $credit->monto_credito,
-                'total_cargos' => $totalCargos,
-                'monto_neto' => $montoNeto,
             ], 422);
         }
 

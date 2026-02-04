@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,9 +78,10 @@ export function CreditFormModal({
     conCargosAdicionales: false,
   });
 
-  // Sincronizar estado interno cuando el modal se abre con nuevos datos
+  // Sincronizar estado interno solo cuando el modal se ABRE (transición false → true)
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
       setCreditForm({
         reference: initialData.reference || '',
         title: initialData.title || '',
@@ -97,7 +98,11 @@ export function CreditFormModal({
       });
       setCurrentStep(1);
     }
-  }, [open, initialData]);
+    prevOpenRef.current = open;
+  }, [open]);
+
+  // Campo de cargo actualmente en edición (para mostrar valor raw vs formateado)
+  const [editingCargo, setEditingCargo] = useState<string | null>(null);
 
   // Estado para cargos adicionales editables
   const [cargosAdicionales, setCargosAdicionales] = useState({
@@ -125,16 +130,18 @@ export function CreditFormModal({
     };
   };
 
-  // Actualizar cargos automáticamente cuando se activa el switch o cambia el monto/categoría
+  // Calcular cargos por defecto solo al activar el switch (no al editar manualmente)
+  const prevCargosActivosRef = useRef(false);
   useEffect(() => {
-    if (creditForm.conCargosAdicionales && creditForm.monto_credito) {
+    if (creditForm.conCargosAdicionales && !prevCargosActivosRef.current && creditForm.monto_credito) {
       const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
       if (!isNaN(montoNumerico) && montoNumerico > 0) {
         const cargosCalculados = calcularCargosDefault(montoNumerico, creditForm.category);
         setCargosAdicionales(cargosCalculados);
       }
     }
-  }, [creditForm.conCargosAdicionales, creditForm.monto_credito, creditForm.category]);
+    prevCargosActivosRef.current = creditForm.conCargosAdicionales;
+  }, [creditForm.conCargosAdicionales]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -477,58 +484,35 @@ export function CreditFormModal({
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
                 <h4 className="font-semibold text-lg">Cargos Adicionales (Editables)</h4>
                 <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="comision">Comisión</Label>
-                  <Input
-                    id="comision"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.comision)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, comision: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="transporte">Transporte</Label>
-                  <Input
-                    id="transporte"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.transporte)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, transporte: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="respaldo_deudor">Respaldo Deudor</Label>
-                  <Input
-                    id="respaldo_deudor"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.respaldo_deudor)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, respaldo_deudor: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="descuento_factura">Descuento de Factura</Label>
-                  <Input
-                    id="descuento_factura"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.descuento_factura)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, descuento_factura: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
+                {(['comision', 'transporte', 'respaldo_deudor', 'descuento_factura'] as const).map((campo) => {
+                  const labels: Record<string, string> = {
+                    comision: 'Comisión',
+                    transporte: 'Transporte',
+                    respaldo_deudor: 'Respaldo Deudor',
+                    descuento_factura: 'Descuento de Factura',
+                  };
+                  const val = cargosAdicionales[campo];
+                  const displayValue = editingCargo === campo
+                    ? (val || '')
+                    : (val ? val.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '');
+                  return (
+                    <div key={campo}>
+                      <Label htmlFor={campo}>{labels[campo]}</Label>
+                      <Input
+                        id={campo}
+                        type="text"
+                        value={displayValue}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^\d.]/g, '');
+                          setCargosAdicionales(prev => ({ ...prev, [campo]: raw === '' ? 0 : parseFloat(raw) }));
+                        }}
+                        onFocus={() => setEditingCargo(campo)}
+                        onBlur={() => setEditingCargo(null)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
