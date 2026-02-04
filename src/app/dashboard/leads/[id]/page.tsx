@@ -629,6 +629,12 @@ export default function LeadDetailPage() {
 
     const getMissingDocuments = useCallback(() => {
         const documents = (lead as any)?.documents || [];
+        if (documents.length === 0) return ['Cédula', 'Recibo de Servicio'];
+
+        // Si ningún documento tiene categoría asignada (archivos viejos), no mostrar alerta
+        const hasAnyCategory = documents.some((doc: any) => doc.category && doc.category !== 'otro');
+        if (!hasAnyCategory) return [];
+
         const missing = [];
         const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
         const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
