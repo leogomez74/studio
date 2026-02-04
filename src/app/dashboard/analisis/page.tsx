@@ -284,16 +284,16 @@ export default function AnalisisPage() {
 
     const headers = ["Referencia", "Cédula", "Cliente", "Profesión", "Puesto", "Nombramiento", "Salario Bruto", "Monto", "Estado PEP", "Estado Cliente"];
     const rows = analisisList.map(item => [
-      item.reference || "Falta por asignar",
-      item.lead?.cedula || "Falta por asignar",
+      item.reference || "-",
+      item.lead?.cedula || "-",
       item.lead?.name || "Sin asignar",
-      item.lead?.profesion || "Falta por asignar",
-      item.cargo || item.lead?.puesto || "Falta por asignar",
-      item.nombramiento || item.lead?.estado_puesto || "Falta por asignar",
+      item.lead?.profesion || "-",
+      item.cargo || item.lead?.puesto || "-",
+      item.nombramiento || item.lead?.estado_puesto || "-",
       formatAmountForCSV(item.ingreso_bruto),
       formatAmountForCSV(item.monto_credito),
       item.estado_pep || "Pendiente",
-      item.estado_cliente || "Falta por asignar",
+      item.estado_cliente || "-",
     ]);
 
     const csvContent = [
@@ -322,7 +322,7 @@ export default function AnalisisPage() {
     doc.text('Reporte de Analizados', 14, 16);
 
     const formatAmountForPDF = (amount: number | null | undefined): string => {
-      if (amount == null) return "Falta por asignar";
+      if (amount == null) return "-";
       return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
@@ -333,16 +333,16 @@ export default function AnalisisPage() {
       startY: 22,
       head: [["Referencia", "Cédula", "Cliente", "Profesión", "Puesto", "Nombramiento", "Salario Bruto", "Monto", "Estado PEP", "Estado Cliente"]],
       body: analisisList.map((item) => [
-        item.reference || "Falta por asignar",
-        item.lead?.cedula || "Falta por asignar",
+        item.reference || "-",
+        item.lead?.cedula || "-",
         item.lead?.name || "Sin asignar",
-        item.lead?.profesion || "Falta por asignar",
-        item.cargo || item.lead?.puesto || "Falta por asignar",
-        item.nombramiento || item.lead?.estado_puesto || "Falta por asignar",
+        item.lead?.profesion || "-",
+        item.cargo || item.lead?.puesto || "-",
+        item.nombramiento || item.lead?.estado_puesto || "-",
         formatAmountForPDF(item.ingreso_bruto),
         formatAmountForPDF(item.monto_credito),
         item.estado_pep || "Pendiente",
-        item.estado_cliente || "Falta por asignar",
+        item.estado_cliente || "-",
       ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [220, 53, 69] },
@@ -492,18 +492,18 @@ export default function AnalisisPage() {
 
                   {/* COLUMNA: Profesión (Acceso anidado) */}
                   <td className="px-6 py-4 text-gray-600">
-                    {item.lead?.profesion || 'Falta por asignar'}
+                    {item.lead?.profesion || '-'}
                   </td>
 
                   {/* COLUMNA: Puesto - Prioriza cargo del análisis */}
                   <td className="px-6 py-4 text-gray-600">
-                    {item.cargo || item.lead?.puesto || 'Falta por asignar'}
+                    {item.cargo || item.lead?.puesto || '-'}
                   </td>
 
                   {/* COLUMNA: Nombramiento - Prioriza nombramiento del análisis */}
                   <td className="px-6 py-4 text-gray-600">
                     {(() => {
-                      const nombramiento = item.nombramiento || item.lead?.estado_puesto || 'Falta por asignar';
+                      const nombramiento = item.nombramiento || item.lead?.estado_puesto || 'N/A';
                       return (
                         <span className={`px-2 py-1 rounded text-xs font-semibold
                           ${nombramiento.toLowerCase().includes('propiedad') || nombramiento.toLowerCase().includes('fijo')

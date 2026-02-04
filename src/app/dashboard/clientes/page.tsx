@@ -570,10 +570,10 @@ export default function ClientesPage() {
 
     const tableColumn = ["Cédula", "Nombre", "Email", "Teléfono", "Estado", "Registrado"];
     const tableRows = dataToExport.map((item: any) => [
-        item.cedula || "Falta por asignar",
+        item.cedula || "-",
         getLeadDisplayName(item),
         item.email,
-        item.phone || "Falta por asignar",
+        item.phone || "-",
         activeTab === "leads"
             ? (item.lead_status?.name || item.lead_status_id)
             : (item.status || (item.is_active ? 'Activo' : 'Inactivo')),
@@ -613,10 +613,10 @@ export default function ClientesPage() {
 
     const headers = ["Cédula", "Nombre", "Email", "Teléfono", "Estado", "Registrado"];
     const rows = dataToExport.map((item: any) => [
-        item.cedula || "Falta por asignar",
+        item.cedula || "-",
         getLeadDisplayName(item),
         item.email,
-        item.phone || "Falta por asignar",
+        item.phone || "-",
         activeTab === "leads"
             ? (item.lead_status?.name || item.lead_status_id)
             : (item.status || (item.is_active ? 'Activo' : 'Inactivo')),
@@ -1741,7 +1741,7 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{client.cedula || "Falta por asignar"}</TableCell>
+                    <TableCell className="font-mono text-sm">{client.cedula || "-"}</TableCell>
                     <TableCell>{formatRegistered(client.created_at)}</TableCell>
                     <TableCell>
                         <Badge className={badgeClassName}>{statusLabel}</Badge>

@@ -1170,11 +1170,11 @@ export default function DealsPage() {
                     <TableCell>
                         <div className="flex flex-col">
                             <span>{opportunity.lead?.name || "Desconocido"}</span>
-                            <span className="text-xs text-muted-foreground">{opportunity.lead?.email || "Falta por asignar"}</span>
+                            <span className="text-xs text-muted-foreground">{opportunity.lead?.email || "-"}</span>
                         </div>
                     </TableCell>
                     <TableCell><Badge variant="default" className="bg-slate-900 hover:bg-slate-800">{opportunity.status || "Pendiente"}</Badge></TableCell>
-                    <TableCell>{opportunity.opportunity_type || "Falta por asignar"}</TableCell>
+                    <TableCell>{opportunity.opportunity_type || "-"}</TableCell>
                     <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
                     <TableCell>
                       {(opportunity as any).missing_documents?.length > 0 ? (
