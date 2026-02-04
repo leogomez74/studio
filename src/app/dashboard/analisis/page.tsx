@@ -775,7 +775,7 @@ export default function AnalisisPage() {
           description: creditForm.description,
         }}
         products={products}
-        leads={leads}
+        leads={leads.map(l => ({ ...l, id: Number(l.id) }))}
         onSuccess={() => {
           // Refrescar la lista de análisis
           fetchAll();

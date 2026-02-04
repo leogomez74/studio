@@ -1011,98 +1011,121 @@ export default function AnalisisDetailPage() {
           </div>
         </div>
 
-        {/* Fila 2: Selectores de Estado - Stack en móvil, horizontal en desktop */}
-        <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">
-          {/* Estado PEP */}
-          <div className="space-y-1 w-full sm:w-auto">
-            <Label className="text-xs text-muted-foreground">Estado PEP</Label>
-            <Select
-              value={estadoPep || 'Pendiente'}
-              onValueChange={(v) => handleEstadoChange('estado_pep', v)}
-              disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado'}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Pendiente">Pendiente</SelectItem>
-                <SelectItem value="Aceptado">Aceptado</SelectItem>
-                <SelectItem value="Pendiente de cambios">Pendiente de cambios</SelectItem>
-                <SelectItem value="Rechazado">Rechazado</SelectItem>
-              </SelectContent>
-            </Select>
+        {/* Fila 2: Botones de Estado - PEP izquierda, Cliente derecha */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 flex-wrap">
+          {/* Estado PEP - Izquierda */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Estado PEP:</span>
+            {(() => {
+              const transicionesPep: Record<string, string[]> = {
+                'Pendiente': ['Pendiente de cambios', 'Aceptado', 'Rechazado'],
+                'Pendiente de cambios': ['Aceptado', 'Rechazado'],
+                'Aceptado': ['Pendiente de cambios', 'Rechazado'],
+                'Rechazado': ['Pendiente de cambios'],
+              };
+              const currentEstado = estadoPep || 'Pendiente';
+              const permitidos = transicionesPep[currentEstado] || [];
+              return (['Pendiente', 'Pendiente de cambios', 'Aceptado', 'Rechazado'] as const).map((estado) => (
+                <Button
+                  key={estado}
+                  size="sm"
+                  variant={estadoPep === estado ? 'default' : 'outline'}
+                  className={
+                    estadoPep === estado
+                      ? estado === 'Aceptado'
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : estado === 'Rechazado'
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : estado === 'Pendiente de cambios'
+                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                        : ''
+                      : ''
+                  }
+                  disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado' || (estadoPep !== estado && !permitidos.includes(estado))}
+                  onClick={() => handleEstadoChange('estado_pep', estado)}
+                >
+                  {estado}
+                </Button>
+              ));
+            })()}
           </div>
 
-          {/* Estado Cliente - Solo visible si estado_pep === 'Aceptado' */}
-          {estadoPep === 'Aceptado' && (
-            <div className="space-y-1 w-full sm:w-auto">
-              <Label className="text-xs text-muted-foreground">Estado Cliente</Label>
-              <Select
-                value={estadoCliente || ''}
-                onValueChange={(v) => handleEstadoChange('estado_cliente', v)}
-                disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
-              >
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Sin definir" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Pendiente">Pendiente</SelectItem>
-                  <SelectItem value="Aprobado">Aprobado</SelectItem>
-                  <SelectItem value="Rechazado">Rechazado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Botón de Crédito - Crear o Ver según el estado */}
-          {estadoCliente === 'Aprobado' && (
-            analisis.has_credit || analisis.credit_id ? (
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
-                className="w-full sm:w-[180px] h-9 justify-start"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Ver Crédito
-              </Button>
-            ) : (
-              <Button
-                variant="default"
-                onClick={async () => {
-                  try {
-                    // Obtener la próxima referencia del servidor
-                    const refResponse = await api.get('/api/credits/next-reference');
-                    const nextReference = refResponse.data.reference;
-
-                    setCreditForm({
-                      reference: nextReference,
-                      title: analisis.lead?.name || '',
-                      status: 'Por firmar',
-                      category: analisis.category || 'Regular',
-                      monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
-                      leadId: analisis.lead_id ? String(analisis.lead_id) : '',
-                      clientName: analisis.lead?.name || '',
-                      description: `Crédito generado desde análisis ${analisis.reference}`,
-                      divisa: analisis.divisa || 'CRC',
-                      plazo: analisis.plazo ? String(analisis.plazo) : '36',
-                      poliza: false,
-                      conCargosAdicionales: true,
-                    });
-                    setIsCreditDialogOpen(true);
-                  } catch (err) {
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: "No se pudo obtener la referencia del crédito",
-                    });
+          {/* Estado Cliente - Derecha */}
+          {(estadoPep === 'Aceptado' || estadoPep === 'Pendiente de cambios') && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Estado Cliente:</span>
+              {(['Pendiente', 'Aprobado', 'Rechazado'] as const).map((estado) => (
+                <Button
+                  key={estado}
+                  size="sm"
+                  variant={estadoCliente === estado ? 'default' : 'outline'}
+                  className={
+                    estadoCliente === estado
+                      ? estado === 'Aprobado'
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : estado === 'Rechazado'
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : ''
+                      : ''
                   }
-                }}
-                className="w-full sm:w-[180px] h-9 justify-start"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Generar crédito
-              </Button>
-            )
+                  disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
+                  onClick={() => handleEstadoChange('estado_cliente', estado)}
+                >
+                  {estado}
+                </Button>
+              ))}
+
+              {/* Botón de Crédito */}
+              {estadoCliente === 'Aprobado' && (
+                analisis.has_credit || analisis.credit_id ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
+                    className="ml-2"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Ver Crédito
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={async () => {
+                      try {
+                        const refResponse = await api.get('/api/credits/next-reference');
+                        const nextReference = refResponse.data.reference;
+                        setCreditForm({
+                          reference: nextReference,
+                          title: analisis.lead?.name || '',
+                          status: 'Por firmar',
+                          category: analisis.category || 'Regular',
+                          monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
+                          leadId: analisis.lead_id ? String(analisis.lead_id) : '',
+                          clientName: analisis.lead?.name || '',
+                          description: `Crédito generado desde análisis ${analisis.reference}`,
+                          divisa: analisis.divisa || 'CRC',
+                          plazo: analisis.plazo ? String(analisis.plazo) : '36',
+                          poliza: false,
+                          conCargosAdicionales: true,
+                        });
+                        setIsCreditDialogOpen(true);
+                      } catch (err) {
+                        toast({
+                          variant: "destructive",
+                          title: "Error",
+                          description: "No se pudo obtener la referencia del crédito",
+                        });
+                      }
+                    }}
+                    className="ml-2"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Generar crédito
+                  </Button>
+                )
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1170,7 +1193,7 @@ export default function AnalisisDetailPage() {
                   <p className="text-xs text-muted-foreground mb-1">Ingreso Neto</p>
                   <p className="text-lg font-bold text-green-600">
                     ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
-                      Math.min(...[analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3, analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6].filter(v => v != null && v > 0)) || 0
+                      Math.min(...[analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3, analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6].filter((v): v is number => v != null && v > 0)) || 0
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground">Mínimo mensual</p>
@@ -1206,7 +1229,7 @@ export default function AnalisisDetailPage() {
                       Manchas
                       {manchasOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={analisis.numero_manchas > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                    <Badge variant={(analisis.numero_manchas ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
                       {analisis.numero_manchas || 0}
                     </Badge>
                   </button>
@@ -1237,7 +1260,7 @@ export default function AnalisisDetailPage() {
                       Juicios
                       {juiciosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={analisis.numero_juicios > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                    <Badge variant={(analisis.numero_juicios ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
                       {analisis.numero_juicios || 0}
                     </Badge>
                   </button>
@@ -1274,7 +1297,7 @@ export default function AnalisisDetailPage() {
                       Embargos
                       {embargosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={analisis.numero_embargos > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                    <Badge variant={(analisis.numero_embargos ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
                       {analisis.numero_embargos || 0}
                     </Badge>
                   </button>
@@ -1820,6 +1843,124 @@ export default function AnalisisDetailPage() {
           setAnalisis(resAnalisis.data);
         }}
       />
+
+      {/* Barra inferior - Estado PEP izquierda, Estado Cliente derecha */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mt-6 pt-4 border-t flex-wrap">
+        {/* Estado PEP - Izquierda */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">Estado PEP:</span>
+          {(() => {
+            const transicionesPep: Record<string, string[]> = {
+              'Pendiente': ['Pendiente de cambios', 'Aceptado', 'Rechazado'],
+              'Pendiente de cambios': ['Aceptado', 'Rechazado'],
+              'Aceptado': ['Pendiente de cambios', 'Rechazado'],
+              'Rechazado': ['Pendiente de cambios'],
+            };
+            const currentEstado = estadoPep || 'Pendiente';
+            const permitidos = transicionesPep[currentEstado] || [];
+            return (['Pendiente', 'Pendiente de cambios', 'Aceptado', 'Rechazado'] as const).map((estado) => (
+              <Button
+                key={estado}
+                size="sm"
+                variant={estadoPep === estado ? 'default' : 'outline'}
+                className={
+                  estadoPep === estado
+                    ? estado === 'Aceptado'
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : estado === 'Rechazado'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : estado === 'Pendiente de cambios'
+                      ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                      : ''
+                    : ''
+                }
+                disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado' || (estadoPep !== estado && !permitidos.includes(estado))}
+                onClick={() => handleEstadoChange('estado_pep', estado)}
+              >
+                {estado}
+              </Button>
+            ));
+          })()}
+        </div>
+
+        {/* Estado Cliente - Derecha */}
+        {(estadoPep === 'Aceptado' || estadoPep === 'Pendiente de cambios') && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Estado Cliente:</span>
+            {(['Pendiente', 'Aprobado', 'Rechazado'] as const).map((estado) => (
+              <Button
+                key={estado}
+                size="sm"
+                variant={estadoCliente === estado ? 'default' : 'outline'}
+                className={
+                  estadoCliente === estado
+                    ? estado === 'Aprobado'
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : estado === 'Rechazado'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : ''
+                    : ''
+                }
+                disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
+                onClick={() => handleEstadoChange('estado_cliente', estado)}
+              >
+                {estado}
+              </Button>
+            ))}
+
+            {/* Botón de Crédito */}
+            {estadoCliente === 'Aprobado' && (
+              analisis.has_credit || analisis.credit_id ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
+                  className="ml-2"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Ver Crédito
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={async () => {
+                    try {
+                      const refResponse = await api.get('/api/credits/next-reference');
+                      const nextReference = refResponse.data.reference;
+                      setCreditForm({
+                        reference: nextReference,
+                        title: analisis.lead?.name || '',
+                        status: 'Por firmar',
+                        category: analisis.category || 'Regular',
+                        monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
+                        leadId: analisis.lead_id ? String(analisis.lead_id) : '',
+                        clientName: analisis.lead?.name || '',
+                        description: `Crédito generado desde análisis ${analisis.reference}`,
+                        divisa: analisis.divisa || 'CRC',
+                        plazo: analisis.plazo ? String(analisis.plazo) : '36',
+                        poliza: false,
+                        conCargosAdicionales: true,
+                      });
+                      setIsCreditDialogOpen(true);
+                    } catch (err) {
+                      toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description: "No se pudo obtener la referencia del crédito",
+                      });
+                    }
+                  }}
+                  className="ml-2"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Generar crédito
+                </Button>
+              )
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
