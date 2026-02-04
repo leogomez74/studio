@@ -1,5 +1,7 @@
 import type { NextConfig } from 'next';
 
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api';
+
 const nextConfig: NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } } = {
   /* Config options */
 
@@ -40,7 +42,7 @@ const nextConfig: NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } } = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://127.0.0.1:8000/api/:path*',
+        destination: `${BACKEND_API_URL}/:path*`,
       },
       // Servir archivos HTML estáticos sin extensión
       {
