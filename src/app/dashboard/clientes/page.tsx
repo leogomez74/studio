@@ -1641,15 +1641,30 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                 </TableCell>
                 <TableCell className="text-right">{formatRegistered(lead.created_at)}</TableCell>
                 <TableCell>
-                  {checkMissingFields(lead).length > 0 ? (
-                    <Link href={`/dashboard/leads/${lead.id}?mode=edit`} className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 cursor-pointer">
-                      Faltan datos
-                    </Link>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-100 border border-green-300 rounded-md">
-                      Completo
-                    </span>
-                  )}
+                  {(() => {
+                    const missingFields = checkMissingFields(lead);
+                    if (missingFields.length === 0) {
+                      return (
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-100 border border-green-300 rounded-md">
+                          Completo
+                        </span>
+                      );
+                    }
+
+                    // Check if missing items are only documents
+                    const hasFieldsMissing = missingFields.some(field => field !== 'Archivo de Cédula' && field !== 'Archivo de Recibo');
+                    const hasOnlyDocsMissing = missingFields.length > 0 && !hasFieldsMissing;
+
+                    const targetUrl = hasOnlyDocsMissing
+                      ? `/dashboard/leads/${lead.id}#archivos`
+                      : `/dashboard/leads/${lead.id}?mode=edit`;
+
+                    return (
+                      <Link href={targetUrl} className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 cursor-pointer">
+                        Faltan datos
+                      </Link>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">
