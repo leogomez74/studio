@@ -149,12 +149,6 @@ class PropuestaController extends Controller
 
         $analisis = Analisis::where('reference', $propuesta->analisis_reference)->firstOrFail();
 
-        if ($analisis->estado_pep !== 'Pendiente de cambios') {
-            return response()->json([
-                'message' => 'Solo se pueden aceptar propuestas cuando el análisis está en estado "Pendiente de cambios".',
-            ], 422);
-        }
-
         $userId = Auth::id();
         $now = now();
 

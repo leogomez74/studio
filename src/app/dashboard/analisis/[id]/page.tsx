@@ -692,6 +692,11 @@ export default function AnalisisDetailPage() {
         setEstadoPep(value);
         if (value === 'Aceptado') {
           setEstadoCliente('Pendiente');
+          // Auto-aceptar la primera propuesta pendiente
+          const propuestaPendiente = propuestas.find(p => p.estado === 'Pendiente');
+          if (propuestaPendiente) {
+            await handleAceptarPropuesta(propuestaPendiente.id);
+          }
         } else {
           setEstadoCliente(null);
         }
