@@ -1617,7 +1617,7 @@ export default function AnalisisDetailPage() {
         </TabsContent>
 
         <TabsContent value="tareas">
-          <TareasTab opportunityReference={analisis.reference} opportunityId={analisis.id} />
+          <TareasTab opportunityReference={String(analisis.id)} opportunityId={analisis.id} />
         </TabsContent>
       </Tabs>
 

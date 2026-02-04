@@ -1889,7 +1889,7 @@ export default function ClientDetailPage() {
             </TabsContent>
 
             <TabsContent value="tareas">
-              <TareasTab opportunityReference={client.cedula} opportunityId={client.id} />
+              <TareasTab opportunityReference={String(client.id)} opportunityId={client.id} />
             </TabsContent>
 
             <TabsContent value="archivos">

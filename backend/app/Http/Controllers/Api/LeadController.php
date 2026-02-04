@@ -231,7 +231,7 @@ class LeadController extends Controller
 
             if ($automation && $automation->assigned_to) {
                 Task::create([
-                    'project_code' => $result['lead']->cedula,
+                    'project_code' => (string) $result['lead']->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',
