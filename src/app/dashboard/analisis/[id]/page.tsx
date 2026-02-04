@@ -9,7 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -525,6 +530,11 @@ export default function AnalisisDetailPage() {
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
   const [products, setProducts] = useState<Array<{ id: number; name: string; }>>([]);
   const [leads, setLeads] = useState<Array<{ id: number; name?: string; deductora_id?: number; }>>([]);
+
+  // Estados para collapsibles de historial crediticio
+  const [manchasOpen, setManchasOpen] = useState(false);
+  const [juiciosOpen, setJuiciosOpen] = useState(false);
+  const [embargosOpen, setEmbargosOpen] = useState(false);
 
   // Cargar archivos del filesystem
   const fetchAnalisisFiles = useCallback(async () => {
@@ -1069,24 +1079,36 @@ export default function AnalisisDetailPage() {
               </div>
               <div>
                 <span className="font-semibold text-xs uppercase text-gray-500 block">Puesto</span>
-                <span className="text-base">{lead?.puesto || 'N/A'}</span>
+                <span className="text-base">{analisis.cargo || lead?.puesto || 'N/A'}</span>
               </div>
               <div>
                 <span className="font-semibold text-xs uppercase text-gray-500 block">Nombramiento</span>
-                <span className="text-base">{lead?.estado_puesto || 'N/A'}</span>
+                <span className="text-base">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Ingreso Neto */}
+          {/* Ingreso Neto - Mínimo de todos los meses */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.ingreso_neto || 0)}
+                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+                  Math.min(
+                    ...[
+                      analisis.ingreso_neto,
+                      analisis.ingreso_neto_2,
+                      analisis.ingreso_neto_3,
+                      analisis.ingreso_neto_4,
+                      analisis.ingreso_neto_5,
+                      analisis.ingreso_neto_6,
+                    ].filter(v => v != null && v > 0)
+                  ) || 0
+                )}
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Mínimo de todos los meses</p>
             </CardContent>
           </Card>
 
@@ -1117,30 +1139,111 @@ export default function AnalisisDetailPage() {
 
         {/* Fila 2: Manchas/Juicios/Embargos + Salarios */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Resumen de Manchas/Juicios/Embargos */}
+          {/* Resumen de Manchas/Juicios/Embargos con detalles expandibles */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">Historial Crediticio</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-2 bg-orange-50 rounded border border-orange-200">
-                <span className="text-sm font-medium text-orange-900">Manchas</span>
-                <Badge variant={analisis.numero_manchas > 0 ? "destructive" : "secondary"} className="text-base px-3">
-                  {analisis.numero_manchas || 0}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-red-50 rounded border border-red-200">
-                <span className="text-sm font-medium text-red-900">Juicios</span>
-                <Badge variant={analisis.numero_juicios > 0 ? "destructive" : "secondary"} className="text-base px-3">
-                  {analisis.numero_juicios || 0}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-purple-50 rounded border border-purple-200">
-                <span className="text-sm font-medium text-purple-900">Embargos</span>
-                <Badge variant={analisis.numero_embargos > 0 ? "destructive" : "secondary"} className="text-base px-3">
-                  {analisis.numero_embargos || 0}
-                </Badge>
-              </div>
+              {/* Manchas */}
+              <Collapsible open={manchasOpen} onOpenChange={setManchasOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-2 bg-orange-50 rounded border border-orange-200 hover:bg-orange-100 transition-colors">
+                    <span className="text-sm font-medium text-orange-900 flex items-center gap-2">
+                      Manchas
+                      {manchasOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                    <Badge variant={analisis.numero_manchas > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                      {analisis.numero_manchas || 0}
+                    </Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {analisis.manchas_detalle && analisis.manchas_detalle.length > 0 ? (
+                    <div className="mt-2 space-y-2 pl-4">
+                      {analisis.manchas_detalle.map((mancha, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm">
+                          <p className="font-medium text-gray-700">{mancha.descripcion}</p>
+                          <p className="text-orange-700 font-semibold mt-1">
+                            Monto: ₡{new Intl.NumberFormat('en-US').format(mancha.monto)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2 pl-4">Sin detalles</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Juicios */}
+              <Collapsible open={juiciosOpen} onOpenChange={setJuiciosOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-2 bg-red-50 rounded border border-red-200 hover:bg-red-100 transition-colors">
+                    <span className="text-sm font-medium text-red-900 flex items-center gap-2">
+                      Juicios
+                      {juiciosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                    <Badge variant={analisis.numero_juicios > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                      {analisis.numero_juicios || 0}
+                    </Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {analisis.juicios_detalle && analisis.juicios_detalle.length > 0 ? (
+                    <div className="mt-2 space-y-2 pl-4">
+                      {analisis.juicios_detalle.map((juicio, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-gray-700">Expediente: {juicio.expediente}</p>
+                            <Badge variant={juicio.estado === 'activo' ? 'destructive' : 'secondary'}>
+                              {juicio.estado}
+                            </Badge>
+                          </div>
+                          <p className="text-gray-600">Fecha: {new Date(juicio.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="text-red-700 font-semibold">
+                            Monto: ₡{new Intl.NumberFormat('en-US').format(juicio.monto)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2 pl-4">Sin detalles</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Embargos */}
+              <Collapsible open={embargosOpen} onOpenChange={setEmbargosOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-2 bg-purple-50 rounded border border-purple-200 hover:bg-purple-100 transition-colors">
+                    <span className="text-sm font-medium text-purple-900 flex items-center gap-2">
+                      Embargos
+                      {embargosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                    <Badge variant={analisis.numero_embargos > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                      {analisis.numero_embargos || 0}
+                    </Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {analisis.embargos_detalle && analisis.embargos_detalle.length > 0 ? (
+                    <div className="mt-2 space-y-2 pl-4">
+                      {analisis.embargos_detalle.map((embargo, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
+                          <p className="font-medium text-gray-700">{embargo.motivo}</p>
+                          <p className="text-gray-600">Fecha: {new Date(embargo.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="text-purple-700 font-semibold">
+                            Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2 pl-4">Sin detalles</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             </CardContent>
           </Card>
 

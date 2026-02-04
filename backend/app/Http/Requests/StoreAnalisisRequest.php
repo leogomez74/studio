@@ -49,6 +49,25 @@ class StoreAnalisisRequest extends FormRequest
             'propuesta' => 'nullable|string|max:5000',
             'cargo' => 'nullable|string|max:255',
             'nombramiento' => 'nullable|string|max:255',
+            // Deducciones mensuales
+            'deducciones_mensuales' => 'nullable|array|max:6',
+            'deducciones_mensuales.*.mes' => 'required_with:deducciones_mensuales|integer|min:1|max:6',
+            'deducciones_mensuales.*.monto' => 'required_with:deducciones_mensuales|numeric|min:0|max:999999999.99',
+            // Manchas detalle
+            'manchas_detalle' => 'nullable|array|max:50',
+            'manchas_detalle.*.descripcion' => 'required_with:manchas_detalle|string|max:500',
+            'manchas_detalle.*.monto' => 'required_with:manchas_detalle|numeric|min:0|max:999999999.99',
+            // Juicios detalle
+            'juicios_detalle' => 'nullable|array|max:50',
+            'juicios_detalle.*.fecha' => 'required_with:juicios_detalle|date',
+            'juicios_detalle.*.estado' => 'required_with:juicios_detalle|string|in:activo,cerrado',
+            'juicios_detalle.*.expediente' => 'required_with:juicios_detalle|string|max:100',
+            'juicios_detalle.*.monto' => 'required_with:juicios_detalle|numeric|min:0|max:999999999.99',
+            // Embargos detalle
+            'embargos_detalle' => 'nullable|array|max:50',
+            'embargos_detalle.*.fecha' => 'required_with:embargos_detalle|date',
+            'embargos_detalle.*.motivo' => 'required_with:embargos_detalle|string|max:500',
+            'embargos_detalle.*.monto' => 'required_with:embargos_detalle|numeric|min:0|max:999999999.99',
             'salarios_anteriores' => 'nullable|array|max:10',
             'salarios_anteriores.*.mes' => 'required_with:salarios_anteriores|string|max:50',
             'salarios_anteriores.*.bruto' => 'required_with:salarios_anteriores|numeric|min:0|max:999999999.99',

@@ -19,6 +19,29 @@ export interface DeduccionItem {
   monto: number;
 }
 
+export interface DeduccionMensual {
+  mes: number;
+  monto: number;
+}
+
+export interface ManchaDetalle {
+  descripcion: string;
+  monto: number;
+}
+
+export interface JuicioDetalle {
+  fecha: string;
+  estado: 'activo' | 'cerrado';
+  expediente: string;
+  monto: number;
+}
+
+export interface EmbargoDetalle {
+  fecha: string;
+  motivo: string;
+  monto: number;
+}
+
 export interface EditableDeduccion {
   nombre: string;
   monto: number;
@@ -68,7 +91,13 @@ export interface AnalisisItem {
   numero_juicios?: number;
   numero_embargos?: number;
   plazo?: number;
+  cargo?: string;
+  nombramiento?: string;
   deducciones?: DeduccionItem[];
+  deducciones_mensuales?: DeduccionMensual[];
+  manchas_detalle?: ManchaDetalle[];
+  juicios_detalle?: JuicioDetalle[];
+  embargos_detalle?: EmbargoDetalle[];
   propuestas?: Propuesta[];
   estado_pep?: string;
   estado_cliente?: string | null;

@@ -104,6 +104,14 @@ class AnalisisController extends Controller
                     'redirect_to' => $existingAnalisis->id,
                 ], 409); // 409 Conflict
             }
+
+            // Asignar automáticamente el lead_id desde la oportunidad si no viene en el request
+            if (empty($validated['lead_id'])) {
+                $opportunity = \App\Models\Opportunity::with('lead')->find($validated['opportunity_id']);
+                if ($opportunity && $opportunity->lead) {
+                    $validated['lead_id'] = $opportunity->lead->id;
+                }
+            }
         }
 
         // Valor por defecto para estado_pep

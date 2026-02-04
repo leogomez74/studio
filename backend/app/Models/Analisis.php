@@ -48,6 +48,10 @@ class Analisis extends Model
         'nombramiento',
         'salarios_anteriores',
         'deducciones',
+        'manchas_detalle',
+        'juicios_detalle',
+        'embargos_detalle',
+        'deducciones_mensuales',
     ];
 
     protected $casts = [
@@ -73,6 +77,10 @@ class Analisis extends Model
         'numero_embargos' => 'integer',
         'salarios_anteriores' => 'array',
         'deducciones' => 'array',
+        'manchas_detalle' => 'array',
+        'juicios_detalle' => 'array',
+        'embargos_detalle' => 'array',
+        'deducciones_mensuales' => 'array',
     ];
 
     protected $appends = [
