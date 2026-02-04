@@ -99,6 +99,45 @@ class OpportunityController extends Controller
         $perPage = min((int) $request->input('per_page', 10), 100);
         $opportunities = $query->latest()->paginate($perPage);
 
+        // Agregar información de documentos faltantes
+        $opportunities->getCollection()->transform(function ($opportunity) {
+            $missingDocs = [];
+            $strippedCedula = $this->getCleanCedulaFromOpportunity($opportunity);
+
+            if ($strippedCedula) {
+                $heredadosPath = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
+
+                // Verificar si existe la carpeta heredados
+                if (Storage::disk('public')->exists($heredadosPath)) {
+                    $files = Storage::disk('public')->files($heredadosPath);
+                    $fileNames = array_map('basename', $files);
+
+                    // Verificar cédula
+                    $hasCedula = collect($fileNames)->contains(function ($name) {
+                        return stripos(strtolower($name), 'cedula') === 0;
+                    });
+
+                    // Verificar recibo
+                    $hasRecibo = collect($fileNames)->contains(function ($name) {
+                        return stripos(strtolower($name), 'recibo') === 0;
+                    });
+
+                    if (!$hasCedula) {
+                        $missingDocs[] = 'Cédula';
+                    }
+                    if (!$hasRecibo) {
+                        $missingDocs[] = 'Recibo';
+                    }
+                } else {
+                    // Si no existe la carpeta, faltan ambos documentos
+                    $missingDocs = ['Cédula', 'Recibo'];
+                }
+            }
+
+            $opportunity->missing_documents = $missingDocs;
+            return $opportunity;
+        });
+
         return response()->json($opportunities, 200);
     }
 

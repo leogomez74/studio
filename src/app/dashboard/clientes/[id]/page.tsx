@@ -489,19 +489,20 @@ export default function ClientDetailPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refreshData = React.useCallback(() => setRefreshKey(k => k + 1), []);
 
+  const fetchClient = useCallback(async () => {
+    try {
+      const response = await api.get(`/api/clients/${id}`);
+      setClient(response.data);
+      setFormData(response.data);
+    } catch (error) {
+      console.error("Error fetching client:", error);
+      toast({ title: "Error", description: "No se pudo cargar el cliente.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [id, toast]);
+
   useEffect(() => {
-    const fetchClient = async () => {
-      try {
-        const response = await api.get(`/api/clients/${id}`);
-        setClient(response.data);
-        setFormData(response.data);
-      } catch (error) {
-        console.error("Error fetching client:", error);
-        toast({ title: "Error", description: "No se pudo cargar el cliente.", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
-    };
 
     const fetchAgents = async () => {
         try {
@@ -581,7 +582,7 @@ export default function ClientDetailPage() {
   }, [client, leads]);
 
   const REQUIRED_FIELDS = [
-    'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento',
+    'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento', 'estado_civil',
     'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
     'province', 'canton', 'distrito', 'direccion1',
     'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
@@ -592,6 +593,27 @@ export default function ClientDetailPage() {
     const value = (formData as any)[field];
     if (field === 'deductora_id') return !value || value === 0;
     return value === null || value === undefined || value === '';
+  }, [formData]);
+
+  const getMissingDocuments = useCallback(() => {
+    const documents = (client as any)?.documents || [];
+    const missing = [];
+    const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
+    const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
+
+    if (!hasCedula) missing.push('Cédula');
+    if (!hasRecibo) missing.push('Recibo de Servicio');
+
+    return missing;
+  }, [client]);
+
+  const getMissingFieldsCount = useCallback(() => {
+    if (!formData) return 0;
+    return REQUIRED_FIELDS.filter(field => {
+      const value = (formData as any)[field];
+      if (field === 'deductora_id') return !value || value === 0;
+      return value === null || value === undefined || value === '';
+    }).length;
   }, [formData]);
 
   const handleInputChange = (field: keyof Client, value: string | number | boolean | null) => {
@@ -779,7 +801,14 @@ export default function ClientDetailPage() {
         <div className={isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-5 mb-4">
-              <TabsTrigger value="datos">Datos</TabsTrigger>
+              <TabsTrigger value="datos" className="relative">
+                Datos
+                {getMissingFieldsCount() > 0 && (
+                  <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {getMissingFieldsCount()}
+                  </span>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="creditos" className="flex items-center gap-1">
                 <CreditCard className="h-3.5 w-3.5" />
                 Créditos
@@ -795,7 +824,14 @@ export default function ClientDetailPage() {
                 )}
               </TabsTrigger>
               <TabsTrigger value="tareas">Tareas</TabsTrigger>
-              <TabsTrigger value="archivos">Archivos</TabsTrigger>
+              <TabsTrigger value="archivos" className="relative">
+                Archivos
+                {getMissingDocuments().length > 0 && (
+                  <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {getMissingDocuments().length}
+                  </span>
+                )}
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="datos">
@@ -963,9 +999,9 @@ export default function ClientDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Estado Civil</Label>
+                <Label>Estado Civil {isFieldMissing('estado_civil') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select 
+                  <Select
                     value={formData.estado_civil || ""} 
                     onValueChange={(value) => handleInputChange("estado_civil", value)}
                   >
@@ -1301,7 +1337,7 @@ export default function ClientDetailPage() {
                 )}
               </div>
                <div className="col-span-3 space-y-2">
-                <Label>Dirección Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
+                <Label>Direcci��n Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
                 <Textarea
                   value={formData.trabajo_direccion || ""} 
                   onChange={(e) => handleInputChange("trabajo_direccion", e.target.value)} 
@@ -1704,10 +1740,29 @@ export default function ClientDetailPage() {
                     Archivos del Cliente
                   </CardTitle>
                 </CardHeader>
+                {getMissingDocuments().length > 0 && (
+                  <div className="px-6 pb-4">
+                    <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-red-900">Documentos obligatorios faltantes</p>
+                        <p className="text-sm text-red-700 mt-1">
+                          {getMissingDocuments().map((doc, i) => (
+                            <span key={doc}>
+                              {i > 0 && ', '}
+                              <span className="font-semibold">{doc}</span>
+                            </span>
+                          ))}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <CardContent>
                    <DocumentManager
                       personId={parseInt(client.id)}
                       initialDocuments={client.documents || []}
+                      onDocumentChange={fetchClient}
                    />
                 </CardContent>
               </Card>

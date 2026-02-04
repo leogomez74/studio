@@ -25,6 +25,7 @@ interface DocumentManagerProps {
   personId: number;
   initialDocuments?: Document[];
   readonly?: boolean;
+  onDocumentChange?: () => void;
 }
 
 // Helper function to determine file type info
@@ -48,7 +49,7 @@ const getFileTypeInfo = (mimeType?: string | null, fileName?: string) => {
   return { icon: File, label: 'Archivo', color: 'text-slate-600', isImage: false, isPdf: false };
 };
 
-export function DocumentManager({ personId, initialDocuments = [], readonly = false }: DocumentManagerProps) {
+export function DocumentManager({ personId, initialDocuments = [], readonly = false, onDocumentChange }: DocumentManagerProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [uploading, setUploading] = useState(false);
   const [category, setCategory] = useState<string>('otro');
@@ -135,6 +136,11 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
       const syncCount = response.data.synced_to_opportunities || 0;
       const syncMsg = syncCount > 0 ? ` (sincronizado a ${syncCount} oportunidad${syncCount > 1 ? 'es' : ''})` : '';
       toast({ title: 'Éxito', description: `Documento subido correctamente.${syncMsg}` });
+
+      // Notify parent component to refresh
+      if (onDocumentChange) {
+        onDocumentChange();
+      }
     } catch (error) {
       console.error('Error uploading document:', error);
       toast({ title: 'Error', description: 'No se pudo subir el documento.', variant: 'destructive' });
@@ -150,6 +156,11 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
       await api.delete(`/api/person-documents/${id}`);
       setDocuments((prev) => prev.filter((doc) => doc.id !== id));
       toast({ title: 'Éxito', description: 'Documento eliminado.' });
+
+      // Notify parent component to refresh
+      if (onDocumentChange) {
+        onDocumentChange();
+      }
     } catch (error) {
       console.error('Error deleting document:', error);
       toast({ title: 'Error', description: 'No se pudo eliminar el documento.', variant: 'destructive' });
@@ -197,7 +208,14 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
           </div>
           <div className="grid w-full max-w-sm items-center gap-1.5 transition-colors cursor-pointer">
             <Label htmlFor="document-upload">Archivo</Label>
-            <Input className='cursor-pointer' id="document-upload" type="file" onChange={handleFileUpload} disabled={uploading} />
+            <Input
+              className='cursor-pointer'
+              id="document-upload"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
           </div>
           {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
         </div>
