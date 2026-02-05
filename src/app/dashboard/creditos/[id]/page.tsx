@@ -794,6 +794,11 @@ function CreditDetailClient({ id }: { id: string }) {
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
   const [isLoadingDeductoras, setIsLoadingDeductoras] = useState(true);
 
+  // Active Tab (controlled by query parameter)
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    return searchParams.get('tab') || 'credito';
+  });
+
   // Check if localhost (for dev tools)
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -1006,6 +1011,14 @@ function CreditDetailClient({ id }: { id: string }) {
       setIsEditMode(true);
     }
   }, [searchParams, credit?.formalized_at, credit?.status]);
+
+  // Update active tab when query parameter changes
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && (tab === 'credito' || tab === 'plan-pagos')) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -1658,7 +1671,7 @@ function CreditDetailClient({ id }: { id: string }) {
 
       <div className="space-y-6">
         <div className="space-y-6">
-          <Tabs defaultValue="credito" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="credito">Crédito</TabsTrigger>
               <TabsTrigger value="plan-pagos">Plan de Pagos</TabsTrigger>
