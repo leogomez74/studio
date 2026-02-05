@@ -817,6 +817,16 @@ export default function AnalisisDetailPage() {
       return;
     }
 
+    // Validación: Micro crédito requiere mínimo 6 meses de plazo
+    if (analisis.category?.toLowerCase().includes('micro') && plazo < 6) {
+      toast({
+        title: 'Error',
+        description: 'Para Micro crédito el plazo mínimo es de 6 meses.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setSavingPropuesta(true);
     try {
       if (editingPropuesta) {

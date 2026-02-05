@@ -1624,7 +1624,7 @@ function CreditDetailClient({ id }: { id: string }) {
 
               <Button
                 className="h-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0 px-3"
-                onClick={handleExportPagare}
+                onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Exportar pagaré
