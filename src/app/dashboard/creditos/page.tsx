@@ -1313,25 +1313,13 @@ export default function CreditsPage() {
                                   </Button>
                                 )}
 
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0">
-                                      <Download className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleExportPDF(credit)}>
-                                      <FileText className="mr-2 h-4 w-4" />
-                                      Estado de cuenta
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
-                                    >
-                                      <FileText className="mr-2 h-4 w-4" />
-                                      Exportar pagaré
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                <Button
+                                  size="icon"
+                                  className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
+                                  onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
 
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>

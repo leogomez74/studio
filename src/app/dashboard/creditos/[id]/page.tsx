@@ -1623,39 +1623,24 @@ function CreditDetailClient({ id }: { id: string }) {
                 </Button>
               )}
 
+              <Button
+                className="h-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0 px-3"
+                onClick={handleExportPagare}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Exportar pagaré
+              </Button>
+
               {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
                 <Button
                   variant="outline"
-                  size="icon"
-                  title="Formalizar crédito"
                   className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
                   onClick={handleFormalizar}
                 >
-                  <Check className="h-4 w-4" />
+                  <Check className="h-4 w-4 mr-2" />
+                  Formalizar
                 </Button>
               )}
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="icon" className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportCSV}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                    Exportar CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPDF}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Exportar PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPagare}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Exportar pagaré
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </>
           ) : (
             <>
