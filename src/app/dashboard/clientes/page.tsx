@@ -46,7 +46,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -562,7 +562,7 @@ export default function ClientesPage() {
     }
 
     if (dataToExport.length === 0) {
-        toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+        toastWarning("Sin datos", "No hay datos para exportar");
         return;
     }
 
@@ -609,7 +609,7 @@ export default function ClientesPage() {
     }
 
     if (dataToExport.length === 0) {
-        toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+        toastWarning("Sin datos", "No hay datos para exportar");
         return;
     }
 

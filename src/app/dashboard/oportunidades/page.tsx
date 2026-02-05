@@ -622,6 +622,7 @@ export default function DealsPage() {
   // --- Bulk Delete Logic ---
 
   const handleBulkDelete = useCallback(async () => {
+    // Convert Set to array (IDs are references - strings)
     const ids = Array.from(selectedIds);
 
     if (ids.length === 0) return;
@@ -1255,7 +1256,6 @@ export default function DealsPage() {
               <TableHead className="w-12">
                 <Checkbox
                   checked={isAllSelected}
-                  indeterminate={isIndeterminate}
                   onCheckedChange={() => toggleAll(visibleOpportunities)}
                   aria-label="Seleccionar todo"
                 />

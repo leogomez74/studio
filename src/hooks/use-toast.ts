@@ -8,6 +8,7 @@ import type {
   ToastActionElement,
   ToastProps,
 } from "@/components/ui/toast"
+import { ToastAction } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 5000 // 5 seconds default
@@ -222,11 +223,10 @@ function toastSuccess(
     variant: "default",
     duration: options?.duration ?? 3000, // 3 seconds for success
     action: options?.action
-      ? {
+      ? React.createElement(ToastAction, {
           altText: options.action.label,
-          children: options.action.label,
           onClick: options.action.onClick,
-        } as ToastActionElement
+        }, options.action.label)
       : undefined,
     className: "border-green-500 bg-green-50 text-green-900",
   })
@@ -248,11 +248,10 @@ function toastError(
     variant: "destructive",
     duration: options?.duration ?? 8000, // 8 seconds for errors
     action: options?.action
-      ? {
+      ? React.createElement(ToastAction, {
           altText: options.action.label,
-          children: options.action.label,
           onClick: options.action.onClick,
-        } as ToastActionElement
+        }, options.action.label)
       : undefined,
   })
 }
@@ -273,11 +272,10 @@ function toastWarning(
     variant: "default",
     duration: options?.duration ?? 6000, // 6 seconds for warnings
     action: options?.action
-      ? {
+      ? React.createElement(ToastAction, {
           altText: options.action.label,
-          children: options.action.label,
           onClick: options.action.onClick,
-        } as ToastActionElement
+        }, options.action.label)
       : undefined,
     className: "border-yellow-500 bg-yellow-50 text-yellow-900",
   })
@@ -299,11 +297,10 @@ function toastInfo(
     variant: "default",
     duration: options?.duration ?? 4000, // 4 seconds for info
     action: options?.action
-      ? {
+      ? React.createElement(ToastAction, {
           altText: options.action.label,
-          children: options.action.label,
           onClick: options.action.onClick,
-        } as ToastActionElement
+        }, options.action.label)
       : undefined,
     className: "border-blue-500 bg-blue-50 text-blue-900",
   })

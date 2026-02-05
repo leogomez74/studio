@@ -843,7 +843,7 @@ class OpportunityController extends Controller
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1|max:' . config('bulk-actions.max_items_per_request', 50),
-            'ids.*' => 'required|integer|exists:opportunities,id'
+            'ids.*' => 'required|string|exists:opportunities,id'
         ]);
 
         $ids = $validated['ids'];
