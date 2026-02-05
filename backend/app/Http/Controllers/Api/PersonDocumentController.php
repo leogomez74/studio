@@ -63,7 +63,7 @@ class PersonDocumentController extends Controller
     {
         $validated = $request->validate([
             'person_id' => 'required|exists:persons,id',
-            'file' => 'required|file|max:10240', // 10MB max
+            'file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,pdf|max:10240', // Imágenes y PDF, 10MB max
             'category' => 'nullable|in:cedula,recibo_servicio,comprobante_ingresos,constancia_trabajo,otro',
         ]);
 

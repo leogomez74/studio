@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Check, ChevronsUpDown, FileUp, Loader2 } from "lucide-react"; // Agregados íconos útiles
 import { Button } from "@/components/ui/button";
 import {
@@ -93,6 +94,7 @@ export function CreateOpportunityDialog({
   defaultLeadId,
 }: CreateOpportunityDialogProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
   const [checkingDocs, setCheckingDocs] = useState(false);
@@ -303,11 +305,20 @@ export function CreateOpportunityDialog({
             assigned_to_id: selectedLead.assigned_to_id
         };
 
-        await api.post('/api/opportunities', body);
-        toast({ title: "Creado", description: "Oportunidad creada correctamente." });
+        const response = await api.post('/api/opportunities', body);
 
         onOpenChange(false);
         if (onSuccess) onSuccess();
+
+        const createdId = response.data?.opportunity?.id || response.data?.data?.id || response.data?.id;
+        toast({
+          title: "Oportunidad creada",
+          description: "Redirigiendo a la oportunidad...",
+          duration: 3000,
+        });
+        if (createdId) {
+          setTimeout(() => router.push(`/dashboard/oportunidades/${createdId}`), 3000);
+        }
       } catch (error: any) {
           console.error("Error saving:", error);
           const errorMessage = error.response?.data?.message || "No se pudo guardar la oportunidad.";

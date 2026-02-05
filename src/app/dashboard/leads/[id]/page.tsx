@@ -1575,7 +1575,7 @@ export default function LeadDetailPage() {
                         </TabsContent>
 
                         <TabsContent value="tareas">
-                            <TareasTab opportunityReference={lead.cedula} opportunityId={lead.id} />
+                            <TareasTab opportunityReference={String(lead.id)} opportunityId={lead.id} />
                         </TabsContent>
 
                         <TabsContent value="archivos">

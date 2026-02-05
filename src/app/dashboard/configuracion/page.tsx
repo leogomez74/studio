@@ -2811,6 +2811,55 @@ export default function ConfiguracionPage() {
   const [polizaSaving, setPolizaSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('prestamos');
 
+  // Task Automations state
+  const [automations, setAutomations] = useState<any[]>([]);
+  const [automationsLoading, setAutomationsLoading] = useState(false);
+  const [savingAutomation, setSavingAutomation] = useState<string | null>(null);
+  const [leadCreatedConfig, setLeadCreatedConfig] = useState({
+    assigned_to: '',
+    is_active: false,
+  });
+
+  const fetchAutomations = useCallback(async () => {
+    setAutomationsLoading(true);
+    try {
+      const res = await api.get('/api/task-automations');
+      const data = Array.isArray(res.data) ? res.data : [];
+      setAutomations(data);
+      const leadAuto = data.find((a: any) => a.event_type === 'lead_created');
+      if (leadAuto) {
+        setLeadCreatedConfig({
+          assigned_to: leadAuto.assigned_to ? String(leadAuto.assigned_to) : '',
+          is_active: leadAuto.is_active,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching automations:', error);
+    } finally {
+      setAutomationsLoading(false);
+    }
+  }, []);
+
+  const saveAutomation = async (eventType: string, title: string, assignedTo: string, isActive: boolean) => {
+    setSavingAutomation(eventType);
+    try {
+      await api.post('/api/task-automations', {
+        event_type: eventType,
+        title,
+        assigned_to: assignedTo ? Number(assignedTo) : null,
+        priority: 'media',
+        is_active: isActive,
+      });
+      toast({ title: 'Guardado', description: 'Configuración de tarea automática guardada.' });
+      fetchAutomations();
+    } catch (error) {
+      console.error('Error saving automation:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la configuración.' });
+    } finally {
+      setSavingAutomation(null);
+    }
+  };
+
   const fetchReferenceCredit = useCallback(async () => {
     const res = await api.get('/api/credits');
     const list = res.data;
@@ -2866,6 +2915,12 @@ export default function ConfiguracionPage() {
     }
   }, [activeTab, loadPoliza]);
 
+  useEffect(() => {
+    if (activeTab === 'tareas') {
+      fetchAutomations();
+    }
+  }, [activeTab, fetchAutomations]);
+
   return (
     <ProtectedPage module="configuracion">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
@@ -2881,6 +2936,7 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="productos">Créditos</TabsTrigger>
         <TabsTrigger value="api">API ERP</TabsTrigger>
         <TabsTrigger value="poliza">Póliza</TabsTrigger>
+        <TabsTrigger value="tareas">Tareas</TabsTrigger>
       </TabsList>
 
 
@@ -3637,6 +3693,69 @@ export default function ConfiguracionPage() {
                 <Button type="submit">Guardar Cambios</Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="tareas">
+        <Card>
+          <CardHeader>
+            <CardTitle>Tareas Automáticas</CardTitle>
+            <CardDescription>
+              Configura las tareas que se crean automáticamente al ocurrir ciertos eventos en el sistema.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {automationsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium">Nuevo Lead Creado</h4>
+                      <p className="text-sm text-muted-foreground">Al registrar un nuevo lead, se crea automáticamente una tarea asignada al usuario seleccionado.</p>
+                    </div>
+                    <Switch
+                      checked={leadCreatedConfig.is_active}
+                      onCheckedChange={(checked) => setLeadCreatedConfig(prev => ({ ...prev, is_active: checked }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div className="space-y-2">
+                      <Label>Asignar tarea a</Label>
+                      <Select
+                        value={leadCreatedConfig.assigned_to}
+                        onValueChange={(value) => setLeadCreatedConfig(prev => ({ ...prev, assigned_to: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar usuario" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users.map((user) => (
+                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Button
+                        onClick={() => saveAutomation('lead_created', 'Nuevo lead creado', leadCreatedConfig.assigned_to, leadCreatedConfig.is_active)}
+                        disabled={savingAutomation === 'lead_created'}
+                      >
+                        {savingAutomation === 'lead_created' ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
+                        ) : (
+                          'Guardar Cambios'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </TabsContent>

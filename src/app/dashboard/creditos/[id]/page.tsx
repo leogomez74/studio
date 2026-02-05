@@ -1088,10 +1088,15 @@ function CreditDetailClient({ id }: { id: string }) {
     return monto * 0.03;
   };
 
-  // Calcular monto neto (monto - cargos)
+  // monto_credito ya viene con cargos descontados, así que monto neto = monto_credito
   const getMontoNeto = () => {
+    return formData.monto_credito || credit?.monto_credito || 0;
+  };
+
+  // Monto original = monto_credito + cargos (para mostrar el monto antes de descontar)
+  const getMontoOriginal = () => {
     const monto = formData.monto_credito || credit?.monto_credito || 0;
-    return monto - getTotalCargos();
+    return monto + getTotalCargos();
   };
 
   // Aplicar valores por defecto según CARGOS_CONFIG
@@ -1602,12 +1607,6 @@ function CreditDetailClient({ id }: { id: string }) {
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
               </Button>
-              <Button asChild variant="outline">
-                <Link href={`/dashboard/creditos/${id}/balance`} target="_blank">
-                  <FileText className="mr-2 h-4 w-4" />
-                  Balance General
-                </Link>
-              </Button>
               {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
                 <Button
                   variant="outline"
@@ -2061,7 +2060,7 @@ function CreditDetailClient({ id }: { id: string }) {
                           <CaseChat conversationId={credit.reference} />
                         </TabsContent>
                         <TabsContent value="tareas" className="flex-1 overflow-y-auto p-4">
-                          <TareasTab opportunityReference={credit.reference} opportunityId={credit.id} />
+                          <TareasTab opportunityReference={String(credit.id)} opportunityId={credit.id} />
                         </TabsContent>
                       </Tabs>
                     </Card>

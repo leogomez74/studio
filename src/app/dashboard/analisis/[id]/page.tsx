@@ -992,111 +992,140 @@ export default function AnalisisDetailPage() {
   const requirements = empresaMatch?.requirements || defaultRequirements;
 
   return (
-    <div className="container mx-auto p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/analisis')}>
+    <div className="container mx-auto p-3 sm:p-6">
+      {/* Header - Responsive */}
+      <div className="mb-6">
+        {/* Fila 1: Botón Volver + Título */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/dashboard/analisis')}
+            className="self-start"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" /> Volver
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Análisis: {analisis.reference}</h1>
-            <p className="text-sm text-gray-500">Revisión de datos financieros y laborales del cliente</p>
+          <div className="flex-1">
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-800">Análisis: {analisis.reference}</h1>
+            <p className="text-xs sm:text-sm text-gray-500">Revisión de datos financieros y laborales del cliente</p>
           </div>
         </div>
 
-        {/* Selectores de Estado */}
-        <div className="flex items-end gap-4">
-          {/* Estado PEP */}
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Estado PEP</Label>
-            <Select
-              value={estadoPep || 'Pendiente'}
-              onValueChange={(v) => handleEstadoChange('estado_pep', v)}
-              disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado'}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Pendiente">Pendiente</SelectItem>
-                <SelectItem value="Aceptado">Aceptado</SelectItem>
-                <SelectItem value="Pendiente de cambios">Pendiente de cambios</SelectItem>
-                <SelectItem value="Rechazado">Rechazado</SelectItem>
-              </SelectContent>
-            </Select>
+        {/* Fila 2: Botones de Estado - PEP izquierda, Cliente derecha */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 flex-wrap">
+          {/* Estado PEP - Izquierda */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Estado PEP:</span>
+            {(() => {
+              const transicionesPep: Record<string, string[]> = {
+                'Pendiente': ['Pendiente de cambios', 'Aceptado', 'Rechazado'],
+                'Pendiente de cambios': ['Aceptado', 'Rechazado'],
+                'Aceptado': ['Pendiente de cambios', 'Rechazado'],
+                'Rechazado': ['Pendiente de cambios'],
+              };
+              const currentEstado = estadoPep || 'Pendiente';
+              const permitidos = transicionesPep[currentEstado] || [];
+              return (['Pendiente', 'Pendiente de cambios', 'Aceptado', 'Rechazado'] as const).map((estado) => (
+                <Button
+                  key={estado}
+                  size="sm"
+                  variant={estadoPep === estado ? 'default' : 'outline'}
+                  className={
+                    estadoPep === estado
+                      ? estado === 'Aceptado'
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : estado === 'Rechazado'
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : estado === 'Pendiente de cambios'
+                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                        : ''
+                      : ''
+                  }
+                  disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado' || (estadoPep !== estado && !permitidos.includes(estado))}
+                  onClick={() => handleEstadoChange('estado_pep', estado)}
+                >
+                  {estado}
+                </Button>
+              ));
+            })()}
           </div>
 
-          {/* Estado Cliente - Solo visible si estado_pep === 'Aceptado' */}
-          {estadoPep === 'Aceptado' && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Estado Cliente</Label>
-              <Select
-                value={estadoCliente || ''}
-                onValueChange={(v) => handleEstadoChange('estado_cliente', v)}
-                disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Sin definir" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Pendiente">Pendiente</SelectItem>
-                  <SelectItem value="Aprobado">Aprobado</SelectItem>
-                  <SelectItem value="Rechazado">Rechazado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Botón de Crédito - Crear o Ver según el estado */}
-          {estadoCliente === 'Aprobado' && (
-            analisis.has_credit || analisis.credit_id ? (
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
-                className="w-[180px] h-9 justify-start"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Ver Crédito
-              </Button>
-            ) : (
-              <Button
-                variant="default"
-                onClick={async () => {
-                  try {
-                    // Obtener la próxima referencia del servidor
-                    const refResponse = await api.get('/api/credits/next-reference');
-                    const nextReference = refResponse.data.reference;
-
-                    setCreditForm({
-                      reference: nextReference,
-                      title: analisis.lead?.name || '',
-                      status: 'Por firmar',
-                      category: analisis.category || 'Regular',
-                      monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
-                      leadId: analisis.lead_id ? String(analisis.lead_id) : '',
-                      clientName: analisis.lead?.name || '',
-                      description: `Crédito generado desde análisis ${analisis.reference}`,
-                      divisa: analisis.divisa || 'CRC',
-                      plazo: analisis.plazo ? String(analisis.plazo) : '36',
-                      poliza: false,
-                      conCargosAdicionales: true,
-                    });
-                    setIsCreditDialogOpen(true);
-                  } catch (err) {
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: "No se pudo obtener la referencia del crédito",
-                    });
+          {/* Estado Cliente - Derecha */}
+          {(estadoPep === 'Aceptado' || estadoPep === 'Pendiente de cambios') && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Estado Cliente:</span>
+              {(['Pendiente', 'Aprobado', 'Rechazado'] as const).map((estado) => (
+                <Button
+                  key={estado}
+                  size="sm"
+                  variant={estadoCliente === estado ? 'default' : 'outline'}
+                  className={
+                    estadoCliente === estado
+                      ? estado === 'Aprobado'
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : estado === 'Rechazado'
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : ''
+                      : ''
                   }
-                }}
-                className="w-[180px] h-9 justify-start"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Generar crédito
-              </Button>
-            )
+                  disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
+                  onClick={() => handleEstadoChange('estado_cliente', estado)}
+                >
+                  {estado}
+                </Button>
+              ))}
+
+              {/* Botón de Crédito */}
+              {estadoCliente === 'Aprobado' && (
+                analisis.has_credit || analisis.credit_id ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
+                    className="ml-2"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Ver Crédito
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={async () => {
+                      try {
+                        const refResponse = await api.get('/api/credits/next-reference');
+                        const nextReference = refResponse.data.reference;
+                        setCreditForm({
+                          reference: nextReference,
+                          title: analisis.lead?.name || '',
+                          status: 'Por firmar',
+                          category: analisis.category || 'Regular',
+                          monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
+                          leadId: analisis.lead_id ? String(analisis.lead_id) : '',
+                          clientName: analisis.lead?.name || '',
+                          description: `Crédito generado desde análisis ${analisis.reference}`,
+                          divisa: analisis.divisa || 'CRC',
+                          plazo: analisis.plazo ? String(analisis.plazo) : '36',
+                          poliza: false,
+                          conCargosAdicionales: true,
+                        });
+                        setIsCreditDialogOpen(true);
+                      } catch (err) {
+                        toast({
+                          variant: "destructive",
+                          title: "Error",
+                          description: "No se pudo obtener la referencia del crédito",
+                        });
+                      }
+                    }}
+                    className="ml-2"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Generar crédito
+                  </Button>
+                )
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1110,107 +1139,79 @@ export default function AnalisisDetailPage() {
 
         <TabsContent value="resumen">
           <div className="space-y-6">
-            {/* Fila 1: Info Personal + Info Laboral + Datos Financieros */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Info Personal */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Informacion Personal</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Nombre</span>
-                {lead?.id ? (
-                  <Link
-                    href={`/dashboard/clientes/${lead.id}`}
-                    className="text-base text-blue-600 hover:underline"
-                  >
-                    {lead.name}
-                  </Link>
-                ) : (
-                  <span className="text-base">N/A</span>
-                )}
+            {/* Información Resumida del Análisis */}
+        <Card>
+          <CardContent className="pt-6">
+            {/* Información del Cliente */}
+            <div className="mb-4 pb-4 border-b">
+              <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Información del Cliente</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Nombre</p>
+                  {lead?.id ? (
+                    <Link href={`/dashboard/clientes/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                      {lead.name}
+                    </Link>
+                  ) : (
+                    <span className="text-sm font-medium">N/A</span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Cédula</p>
+                  <p className="text-sm font-medium">{lead?.cedula || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Estado Civil</p>
+                  <p className="text-sm">{lead?.estado_civil || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Institución</p>
+                  <p className="text-sm font-medium">{lead?.institucion_labora || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Puesto</p>
+                  <p className="text-sm">{analisis.cargo || lead?.puesto || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Nombramiento</p>
+                  <p className="text-sm">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</p>
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Cedula</span>
-                <span className="text-base">{lead?.cedula || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Estado Civil</span>
-                <span className="text-base">{lead?.estado_civil || 'N/A'}</span>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Info Laboral */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Informacion Laboral</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Institucion</span>
-                <span className="text-base">{lead?.institucion_labora || 'N/A'}</span>
+            {/* Resumen Financiero */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Resumen Financiero</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Producto</p>
+                  <Badge variant="outline" className="text-xs font-semibold">
+                    {analisis.opportunity?.opportunity_type || 'No especificado'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Ingreso Neto</p>
+                  <p className="text-lg font-bold text-green-600">
+                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
+                      Math.min(...[analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3, analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6].filter((v): v is number => v != null && v > 0)) || 0
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Mínimo mensual</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Monto Crédito</p>
+                  <p className="text-lg font-bold text-blue-600">
+                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(analisis.monto_sugerido || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Plazo</p>
+                  <p className="text-lg font-bold text-slate-700">{analisis.plazo || 36} <span className="text-sm font-normal">meses</span></p>
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Puesto</span>
-                <span className="text-base">{analisis.cargo || lead?.puesto || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-xs uppercase text-gray-500 block">Nombramiento</span>
-                <span className="text-base">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Ingreso Neto - Mínimo de todos los meses */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Ingreso Neto</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-                  Math.min(
-                    ...[
-                      analisis.ingreso_neto,
-                      analisis.ingreso_neto_2,
-                      analisis.ingreso_neto_3,
-                      analisis.ingreso_neto_4,
-                      analisis.ingreso_neto_5,
-                      analisis.ingreso_neto_6,
-                    ].filter(v => v != null && v > 0)
-                  ) || 0
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Mínimo de todos los meses</p>
-            </CardContent>
-          </Card>
-
-          {/* Monto Crédito */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Monto Crédito</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(analisis.monto_sugerido || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Plazo */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Plazo (meses)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-700">
-                {analisis.plazo || 36}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Fila 2: Manchas/Juicios/Embargos + Salarios */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1228,7 +1229,7 @@ export default function AnalisisDetailPage() {
                       Manchas
                       {manchasOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={analisis.numero_manchas > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                    <Badge variant={(analisis.numero_manchas ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
                       {analisis.numero_manchas || 0}
                     </Badge>
                   </button>
@@ -1259,7 +1260,7 @@ export default function AnalisisDetailPage() {
                       Juicios
                       {juiciosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={analisis.numero_juicios > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                    <Badge variant={(analisis.numero_juicios ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
                       {analisis.numero_juicios || 0}
                     </Badge>
                   </button>
@@ -1296,7 +1297,7 @@ export default function AnalisisDetailPage() {
                       Embargos
                       {embargosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={analisis.numero_embargos > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                    <Badge variant={(analisis.numero_embargos ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
                       {analisis.numero_embargos || 0}
                     </Badge>
                   </button>
@@ -1375,7 +1376,7 @@ export default function AnalisisDetailPage() {
                 <p className="text-sm font-medium text-slate-700">
                   {editingPropuesta ? 'Editar Propuesta' : 'Nueva Propuesta'}
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Monto</Label>
                     <Input
@@ -1447,97 +1448,162 @@ export default function AnalisisDetailPage() {
               </div>
             )}
 
-            {/* Tabla de propuestas */}
+            {/* Propuestas - Vista móvil y desktop */}
             {propuestas.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">Monto</TableHead>
-                      <TableHead className="text-xs">Plazo</TableHead>
-                      {/* Comentado temporalmente: Cuota, Interés, Categoría
-                      <TableHead className="text-xs">Cuota</TableHead>
-                      <TableHead className="text-xs">Interés</TableHead>
-                      <TableHead className="text-xs">Categoría</TableHead>
-                      */}
-                      <TableHead className="text-xs">Estado</TableHead>
-                      <TableHead className="text-xs">Fecha</TableHead>
-                      <TableHead className="text-xs text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {propuestas.map((p, index) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
-                        <TableCell className="text-sm">{p.plazo} meses</TableCell>
-                        {/* Comentado temporalmente: cuota, interes, categoria
-                        <TableCell className="text-sm">{formatCurrency(p.cuota)}</TableCell>
-                        <TableCell className="text-sm">{p.interes}%</TableCell>
-                        <TableCell className="text-sm">{p.categoria || '-'}</TableCell>
-                        */}
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              p.estado === 'Aceptada'
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : p.estado === 'Denegada'
-                                ? 'bg-red-50 text-red-700 border-red-200'
-                                : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            }
+              <>
+                {/* Vista móvil - Cards */}
+                <div className="md:hidden space-y-3">
+                  {propuestas.map((p, index) => (
+                    <div key={p.id} className="border rounded-lg p-4 bg-card">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">
+                            {formatCurrency(p.monto)}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {p.plazo} meses
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={
+                            p.estado === 'Aceptada'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : p.estado === 'Denegada'
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                          }
+                        >
+                          {p.estado}
+                        </Badge>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground mb-3">
+                        {new Date(p.created_at).toLocaleDateString('es-CR')}
+                      </div>
+
+                      {/* Acciones */}
+                      {p.estado === 'Pendiente' && (index === 0 || isEditMode) && (
+                        <div className="flex gap-2 pt-3 border-t">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            onClick={() => handleAceptarPropuesta(p.id)}
                           >
-                            {p.estado}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(p.created_at).toLocaleDateString('es-CR')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {/* Mostrar botones para la primera propuesta si está pendiente, o para todas si está en modo edición */}
-                          {p.estado === 'Pendiente' && (index === 0 || isEditMode) && (
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                onClick={() => handleAceptarPropuesta(p.id)}
-                                title="Aceptar"
-                              >
-                                <ThumbsUp className="h-5 w-5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleDenegarPropuesta(p.id)}
-                                title="Denegar"
-                              >
-                                <ThumbsDown className="h-5 w-5" />
-                              </Button>
-                              {isEditMode && (
+                            <ThumbsUp className="h-4 w-4 mr-1" />
+                            Aceptar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDenegarPropuesta(p.id)}
+                          >
+                            <ThumbsDown className="h-4 w-4 mr-1" />
+                            Denegar
+                          </Button>
+                          {isEditMode && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-slate-600 hover:text-slate-700 hover:bg-slate-50"
+                              onClick={() => handleEditPropuesta(p)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      {p.estado !== 'Pendiente' && p.aceptada_por_user && (
+                        <div className="text-xs text-muted-foreground pt-3 border-t">
+                          Procesado por {p.aceptada_por_user.name}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Vista desktop - Tabla */}
+                <div className="hidden md:block border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Monto</TableHead>
+                        <TableHead className="text-xs">Plazo</TableHead>
+                        <TableHead className="text-xs">Estado</TableHead>
+                        <TableHead className="text-xs">Fecha</TableHead>
+                        <TableHead className="text-xs text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {propuestas.map((p, index) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
+                          <TableCell className="text-sm">{p.plazo} meses</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={
+                                p.estado === 'Aceptada'
+                                  ? 'bg-green-50 text-green-700 border-green-200'
+                                  : p.estado === 'Denegada'
+                                  ? 'bg-red-50 text-red-700 border-red-200'
+                                  : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                              }
+                            >
+                              {p.estado}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(p.created_at).toLocaleDateString('es-CR')}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {p.estado === 'Pendiente' && (index === 0 || isEditMode) && (
+                              <div className="flex gap-2 justify-end">
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-8 px-2 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
-                                  onClick={() => handleEditPropuesta(p)}
-                                  title="Editar"
+                                  className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => handleAceptarPropuesta(p.id)}
+                                  title="Aceptar"
                                 >
-                                  <Pencil className="h-5 w-5" />
+                                  <ThumbsUp className="h-5 w-5" />
                                 </Button>
-                              )}
-                            </div>
-                          )}
-                          {p.estado !== 'Pendiente' && p.aceptada_por_user && (
-                            <span className="text-xs text-muted-foreground">
-                              por {p.aceptada_por_user.name}
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => handleDenegarPropuesta(p.id)}
+                                  title="Denegar"
+                                >
+                                  <ThumbsDown className="h-5 w-5" />
+                                </Button>
+                                {isEditMode && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 px-2 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
+                                    onClick={() => handleEditPropuesta(p)}
+                                    title="Editar"
+                                  >
+                                    <Pencil className="h-5 w-5" />
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                            {p.estado !== 'Pendiente' && p.aceptada_por_user && (
+                              <span className="text-xs text-muted-foreground">
+                                por {p.aceptada_por_user.name}
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             ) : (
               <div className="text-center py-6 text-sm text-muted-foreground">
                 No hay propuestas registradas para este análisis.
@@ -1562,7 +1628,7 @@ export default function AnalisisDetailPage() {
             ) : heredados.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">Sin documentos</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {heredados.map((file) => {
                   const { icon: FileIcon, color } = getFileTypeInfo(file.name);
                   const isImage = file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
@@ -1645,7 +1711,7 @@ export default function AnalisisDetailPage() {
         </TabsContent>
 
         <TabsContent value="tareas">
-          <TareasTab opportunityReference={analisis.reference} opportunityId={analisis.id} />
+          <TareasTab opportunityReference={String(analisis.id)} opportunityId={analisis.id} />
         </TabsContent>
       </Tabs>
 
@@ -1777,6 +1843,124 @@ export default function AnalisisDetailPage() {
           setAnalisis(resAnalisis.data);
         }}
       />
+
+      {/* Barra inferior - Estado PEP izquierda, Estado Cliente derecha */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mt-6 pt-4 border-t flex-wrap">
+        {/* Estado PEP - Izquierda */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">Estado PEP:</span>
+          {(() => {
+            const transicionesPep: Record<string, string[]> = {
+              'Pendiente': ['Pendiente de cambios', 'Aceptado', 'Rechazado'],
+              'Pendiente de cambios': ['Aceptado', 'Rechazado'],
+              'Aceptado': ['Pendiente de cambios', 'Rechazado'],
+              'Rechazado': ['Pendiente de cambios'],
+            };
+            const currentEstado = estadoPep || 'Pendiente';
+            const permitidos = transicionesPep[currentEstado] || [];
+            return (['Pendiente', 'Pendiente de cambios', 'Aceptado', 'Rechazado'] as const).map((estado) => (
+              <Button
+                key={estado}
+                size="sm"
+                variant={estadoPep === estado ? 'default' : 'outline'}
+                className={
+                  estadoPep === estado
+                    ? estado === 'Aceptado'
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : estado === 'Rechazado'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : estado === 'Pendiente de cambios'
+                      ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                      : ''
+                    : ''
+                }
+                disabled={updatingStatus || !hasPermission('analizados', 'delete') || analisis?.credit_status === 'Formalizado' || (estadoPep !== estado && !permitidos.includes(estado))}
+                onClick={() => handleEstadoChange('estado_pep', estado)}
+              >
+                {estado}
+              </Button>
+            ));
+          })()}
+        </div>
+
+        {/* Estado Cliente - Derecha */}
+        {(estadoPep === 'Aceptado' || estadoPep === 'Pendiente de cambios') && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Estado Cliente:</span>
+            {(['Pendiente', 'Aprobado', 'Rechazado'] as const).map((estado) => (
+              <Button
+                key={estado}
+                size="sm"
+                variant={estadoCliente === estado ? 'default' : 'outline'}
+                className={
+                  estadoCliente === estado
+                    ? estado === 'Aprobado'
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : estado === 'Rechazado'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : ''
+                    : ''
+                }
+                disabled={updatingStatus || !hasPermission('analizados', 'archive') || analisis?.credit_status === 'Formalizado'}
+                onClick={() => handleEstadoChange('estado_cliente', estado)}
+              >
+                {estado}
+              </Button>
+            ))}
+
+            {/* Botón de Crédito */}
+            {estadoCliente === 'Aprobado' && (
+              analisis.has_credit || analisis.credit_id ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/dashboard/creditos/${analisis.credit_id}`)}
+                  className="ml-2"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Ver Crédito
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={async () => {
+                    try {
+                      const refResponse = await api.get('/api/credits/next-reference');
+                      const nextReference = refResponse.data.reference;
+                      setCreditForm({
+                        reference: nextReference,
+                        title: analisis.lead?.name || '',
+                        status: 'Por firmar',
+                        category: analisis.category || 'Regular',
+                        monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
+                        leadId: analisis.lead_id ? String(analisis.lead_id) : '',
+                        clientName: analisis.lead?.name || '',
+                        description: `Crédito generado desde análisis ${analisis.reference}`,
+                        divisa: analisis.divisa || 'CRC',
+                        plazo: analisis.plazo ? String(analisis.plazo) : '36',
+                        poliza: false,
+                        conCargosAdicionales: true,
+                      });
+                      setIsCreditDialogOpen(true);
+                    } catch (err) {
+                      toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description: "No se pudo obtener la referencia del crédito",
+                      });
+                    }
+                  }}
+                  className="ml-2"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Generar crédito
+                </Button>
+              )
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -541,10 +541,21 @@ export default function AnalisisPage() {
                         <PopoverContent className="w-48 p-2">
                           <div className="space-y-1">
                             <p className="text-xs font-medium text-gray-500 mb-2">Cambiar Estado PEP:</p>
-                            {['Pendiente', 'Aceptado', 'Pendiente de cambios', 'Rechazado'].map((estado) => (
+                            {(() => {
+                              const transiciones: Record<string, string[]> = {
+                                'Pendiente': ['Pendiente de cambios', 'Aceptado', 'Rechazado'],
+                                'Pendiente de cambios': ['Aceptado', 'Rechazado'],
+                                'Aceptado': ['Pendiente de cambios', 'Rechazado'],
+                                'Rechazado': ['Pendiente de cambios'],
+                              };
+                              const estadoActual = item.estado_pep || 'Pendiente';
+                              const permitidos = transiciones[estadoActual] || [];
+                              return permitidos.length === 0 ? (
+                                <p className="text-xs text-muted-foreground px-2 py-1">Estado final, no se puede cambiar.</p>
+                              ) : permitidos.map((estado) => (
                               <button
                                 key={estado}
-                                className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${item.estado_pep === estado ? 'bg-gray-100 font-medium' : ''}`}
+                                className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100`}
                                 onClick={async () => {
                                   try {
                                     const payload: Record<string, string | null> = { estado_pep: estado };
@@ -566,7 +577,8 @@ export default function AnalisisPage() {
                               >
                                 {estado}
                               </button>
-                            ))}
+                            ));
+                            })()}
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -763,7 +775,7 @@ export default function AnalisisPage() {
           description: creditForm.description,
         }}
         products={products}
-        leads={leads}
+        leads={leads.map(l => ({ ...l, id: Number(l.id) }))}
         onSuccess={() => {
           // Refrescar la lista de análisis
           fetchAll();

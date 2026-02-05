@@ -75,6 +75,11 @@ export interface AnalisisItem {
   opportunity_id?: string;
   lead_id?: string;
   lead?: Lead;
+  opportunity?: {
+    id: string;
+    reference: string;
+    opportunity_type?: string;
+  };
   ingreso_bruto?: number;
   ingreso_neto?: number;
   ingreso_bruto_2?: number;
@@ -103,6 +108,9 @@ export interface AnalisisItem {
   estado_cliente?: string | null;
   has_credit?: boolean;
   credit_id?: number;
+  credit_status?: string;
+  category?: string;
+  divisa?: string;
 }
 
 export interface AnalisisFile {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,23 +61,50 @@ export function CreditFormModal({
   onSuccess
 }: CreditFormModalProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
   const [creditForm, setCreditForm] = useState({
-    reference: initialData.reference || '',
-    title: initialData.title || '',
+    reference: '',
+    title: '',
     status: 'Por firmar',
-    category: initialData.category || 'Crédito',
-    monto_credito: initialData.monto_credito ? String(initialData.monto_credito) : '',
-    leadId: initialData.leadId || '',
-    clientName: initialData.clientName || '',
-    description: initialData.description || '',
-    divisa: initialData.divisa || 'CRC',
-    plazo: initialData.plazo || '36',
+    category: 'Crédito',
+    monto_credito: '',
+    leadId: '',
+    clientName: '',
+    description: '',
+    divisa: 'CRC',
+    plazo: '36',
     poliza: false,
     conCargosAdicionales: false,
   });
+
+  // Sincronizar estado interno solo cuando el modal se ABRE (transición false → true)
+  const prevOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setCreditForm({
+        reference: initialData.reference || '',
+        title: initialData.title || '',
+        status: 'Por firmar',
+        category: initialData.category || 'Crédito',
+        monto_credito: initialData.monto_credito ? String(initialData.monto_credito) : '',
+        leadId: initialData.leadId || '',
+        clientName: initialData.clientName || '',
+        description: initialData.description || '',
+        divisa: initialData.divisa || 'CRC',
+        plazo: initialData.plazo || '36',
+        poliza: false,
+        conCargosAdicionales: false,
+      });
+      setCurrentStep(1);
+    }
+    prevOpenRef.current = open;
+  }, [open]);
+
+  // Campo de cargo actualmente en edición (para mostrar valor raw vs formateado)
+  const [editingCargo, setEditingCargo] = useState<string | null>(null);
 
   // Estado para cargos adicionales editables
   const [cargosAdicionales, setCargosAdicionales] = useState({
@@ -104,16 +132,18 @@ export function CreditFormModal({
     };
   };
 
-  // Actualizar cargos automáticamente cuando se activa el switch o cambia el monto/categoría
+  // Calcular cargos por defecto solo al activar el switch (no al editar manualmente)
+  const prevCargosActivosRef = useRef(false);
   useEffect(() => {
-    if (creditForm.conCargosAdicionales && creditForm.monto_credito) {
+    if (creditForm.conCargosAdicionales && !prevCargosActivosRef.current && creditForm.monto_credito) {
       const montoNumerico = parseFloat(parseCurrencyToNumber(creditForm.monto_credito));
       if (!isNaN(montoNumerico) && montoNumerico > 0) {
         const cargosCalculados = calcularCargosDefault(montoNumerico, creditForm.category);
         setCargosAdicionales(cargosCalculados);
       }
     }
-  }, [creditForm.conCargosAdicionales, creditForm.monto_credito, creditForm.category]);
+    prevCargosActivosRef.current = creditForm.conCargosAdicionales;
+  }, [creditForm.conCargosAdicionales]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,13 +234,19 @@ export function CreditFormModal({
     try {
       const response = await api.post('/api/credits', payload);
       onOpenChange(false);
-      toast({
-        title: "Crédito creado",
-        description: `El crédito ${response.data.reference} se ha creado exitosamente.`,
-      });
 
       if (onSuccess) {
         onSuccess();
+      }
+
+      const createdId = response.data?.data?.id || response.data?.id;
+      toast({
+        title: "Crédito creado",
+        description: `El crédito ${response.data?.data?.reference || response.data?.reference || ''} se ha creado. Redirigiendo...`,
+        duration: 3000,
+      });
+      if (createdId) {
+        setTimeout(() => router.push(`/dashboard/creditos/${createdId}`), 3000);
       }
     } catch (err: any) {
       let mensaje = 'Error al crear crédito';
@@ -294,51 +330,56 @@ export function CreditFormModal({
                 placeholder="Crédito Hipotecario..."
                 value={creditForm.title}
                 onChange={e => setCreditForm(f => ({ ...f, title: e.target.value }))}
+                disabled={!!initialData.title}
+                className={initialData.title ? 'bg-gray-50' : ''}
                 required
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Estado</Label>
-              <Select value={creditForm.status} onValueChange={v => setCreditForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger id="status"><SelectValue placeholder="Selecciona el estado" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Por firmar">Por firmar</SelectItem>
-                  <SelectItem value="Activo">Activo</SelectItem>
-                  <SelectItem value="Mora">Mora</SelectItem>
-                  <SelectItem value="Cerrado">Cerrado</SelectItem>
-                  <SelectItem value="Legal">Legal</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="status"
+                value={creditForm.status}
+                disabled
+                className="bg-gray-50"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Categoría</Label>
-              <Select value={creditForm.category} onValueChange={v => {
-                if (v === 'Micro Crédito') {
-                  setCreditForm(f => ({ ...f, category: v, poliza: false }));
-                } else {
-                  setCreditForm(f => ({ ...f, category: v }));
-                }
-              }}>
-                <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.name}>
-                      {product.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {initialData.category ? (
+                <Input
+                  id="category"
+                  value={creditForm.category}
+                  disabled
+                  className="bg-gray-50"
+                />
+              ) : (
+                <Select value={creditForm.category} onValueChange={v => {
+                  if (v === 'Micro Crédito') {
+                    setCreditForm(f => ({ ...f, category: v, poliza: false }));
+                  } else {
+                    setCreditForm(f => ({ ...f, category: v }));
+                  }
+                }}>
+                  <SelectTrigger id="category"><SelectValue placeholder="Selecciona la categoría" /></SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.name}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="divisa">Divisa</Label>
-              <Select value={creditForm.divisa} onValueChange={v => setCreditForm(f => ({ ...f, divisa: v }))}>
-                <SelectTrigger id="divisa"><SelectValue placeholder="Selecciona la divisa" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CRC">CRC - Colón Costarricense</SelectItem>
-                  <SelectItem value="USD">USD - Dólar Estadounidense</SelectItem>
-                  <SelectItem value="EUR">EUR - Euro</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="divisa"
+                value={creditForm.divisa}
+                disabled
+                className="bg-gray-50"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="monto">Monto</Label>
@@ -346,7 +387,7 @@ export function CreditFormModal({
                 id="monto"
                 type="text"
                 placeholder="₡0.00"
-                value={creditForm.monto_credito || ''}
+                value={initialData.monto_credito ? formatCurrency(creditForm.monto_credito) : (creditForm.monto_credito || '')}
                 onChange={e => {
                   const rawValue = parseCurrencyToNumber(e.target.value);
                   setCreditForm(f => ({ ...f, monto_credito: rawValue }));
@@ -363,6 +404,8 @@ export function CreditFormModal({
                     setTimeout(() => e.target.select(), 0);
                   }
                 }}
+                disabled={!!initialData.monto_credito}
+                className={initialData.monto_credito ? 'bg-gray-50' : ''}
                 required
               />
             </div>
@@ -376,6 +419,8 @@ export function CreditFormModal({
                 placeholder="1 - 120"
                 value={creditForm.plazo}
                 onChange={e => setCreditForm(f => ({ ...f, plazo: e.target.value }))}
+                disabled={!!initialData.plazo}
+                className={initialData.plazo ? 'bg-gray-50' : ''}
                 required
               />
             </div>
@@ -410,11 +455,11 @@ export function CreditFormModal({
                       id="poliza"
                       checked={creditForm.poliza}
                       onCheckedChange={(checked) => setCreditForm(f => ({ ...f, poliza: checked }))}
-                      disabled={creditForm.category === 'Micro Crédito'}
+                      disabled={creditForm.category !== 'Regular'}
                     />
                     <Label htmlFor="poliza" className="text-sm text-muted-foreground">
-                      {creditForm.category === 'Micro Crédito'
-                        ? 'No disponible para Micro Crédito'
+                      {creditForm.category !== 'Regular'
+                        ? 'Solo disponible para crédito Regular'
                         : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
                     </Label>
                   </div>
@@ -447,58 +492,35 @@ export function CreditFormModal({
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
                 <h4 className="font-semibold text-lg">Cargos Adicionales (Editables)</h4>
                 <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="comision">Comisión</Label>
-                  <Input
-                    id="comision"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.comision)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, comision: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="transporte">Transporte</Label>
-                  <Input
-                    id="transporte"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.transporte)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, transporte: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="respaldo_deudor">Respaldo Deudor</Label>
-                  <Input
-                    id="respaldo_deudor"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.respaldo_deudor)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, respaldo_deudor: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="descuento_factura">Descuento de Factura</Label>
-                  <Input
-                    id="descuento_factura"
-                    type="text"
-                    value={formatCurrency(cargosAdicionales.descuento_factura)}
-                    onChange={(e) => {
-                      const valor = parseCurrencyToNumber(e.target.value);
-                      setCargosAdicionales(prev => ({ ...prev, descuento_factura: parseFloat(valor) || 0 }));
-                    }}
-                    placeholder="₡0.00"
-                  />
-                </div>
+                {(['comision', 'transporte', 'respaldo_deudor', 'descuento_factura'] as const).map((campo) => {
+                  const labels: Record<string, string> = {
+                    comision: 'Comisión',
+                    transporte: 'Transporte',
+                    respaldo_deudor: 'Respaldo Deudor',
+                    descuento_factura: 'Descuento de Factura',
+                  };
+                  const val = cargosAdicionales[campo];
+                  const displayValue = editingCargo === campo
+                    ? (val || '')
+                    : (val ? val.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '');
+                  return (
+                    <div key={campo}>
+                      <Label htmlFor={campo}>{labels[campo]}</Label>
+                      <Input
+                        id={campo}
+                        type="text"
+                        value={displayValue}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^\d.]/g, '');
+                          setCargosAdicionales(prev => ({ ...prev, [campo]: raw === '' ? 0 : parseFloat(raw) }));
+                        }}
+                        onFocus={() => setEditingCargo(campo)}
+                        onBlur={() => setEditingCargo(null)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
