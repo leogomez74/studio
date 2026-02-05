@@ -124,30 +124,11 @@
 
                     <div id="creditoFields" class="space-y-3 hidden">
                         <p class="text-sm font-semibold text-muted-foreground">Crédito</p>
-                        <div class="space-y-2">
-                            <label class="block text-sm font-medium text-foreground">Tipo de crédito *</label>
-                            <div class="grid grid-cols-2 gap-3">
-                                <label class="block cursor-pointer">
-                                    <input type="radio" name="tipo_credito" value="microcredito" class="peer sr-only">
-                                    <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center">
-                                        <p class="text-sm font-medium text-foreground">Microcrédito</p>
-                                        <p id="microRangeLabel" class="text-xs text-muted-foreground">Cargando...</p>
-                                    </div>
-                                </label>
-                                <label class="block cursor-pointer">
-                                    <input type="radio" name="tipo_credito" value="regular" class="peer sr-only">
-                                    <div class="border rounded-lg p-3 transition hover:shadow-md peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20 bg-background text-center">
-                                        <p class="text-sm font-medium text-foreground">Crédito Regular</p>
-                                        <p id="regularRangeLabel" class="text-xs text-muted-foreground">Cargando...</p>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
                         <div class="grid md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-foreground mb-1">Monto aproximado *</label>
+                                <label class="block text-sm font-medium text-foreground mb-1">Monto aproximado que desea solicitar *</label>
                                 <select name="monto" id="montoSelect" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
-                                    <option value="">Primero seleccione el tipo de crédito</option>
+                                    <option value="">Selecciona un monto</option>
                                 </select>
                             </div>
                             <div>
@@ -392,11 +373,11 @@
 
         // Configuraciones de préstamos (se cargan desde la API)
         let loanConfigs = {
-            microcredito: { monto_minimo: 100000, monto_maximo: 1000000 },
-            regular: { monto_minimo: 500000, monto_maximo: 10000000 }
+            microcredito: { monto_minimo: 100000, monto_maximo: 690000 },
+            regular: { monto_minimo: 690000, monto_maximo: 2200000 }
         };
-        let montosMicrocredito = [];
-        let montosRegular = [];
+        let montosUnificados = [];
+        const LIMITE_MICROCREDITO = 690000; // Por debajo = microcrédito, igual o mayor = crédito regular
 
         // Formatear número a colones
         function formatCurrency(num) {
@@ -464,7 +445,7 @@
             return rangos;
         }
 
-        // Cargar configuraciones desde la API
+        // Cargar configuraciones desde la API y crear rangos unificados
         async function loadLoanConfigurations() {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/loan-configurations`);
@@ -475,47 +456,47 @@
 
                 if (micro) {
                     loanConfigs.microcredito = micro;
-                    montosMicrocredito = generarRangosMonto(
-                        parseFloat(micro.monto_minimo),
-                        parseFloat(micro.monto_maximo)
-                    );
-                    // Actualizar etiqueta
-                    const microLabel = document.getElementById('microRangeLabel');
-                    if (microLabel) {
-                        microLabel.textContent = formatCurrency(parseFloat(micro.monto_minimo)) + ' - ' + formatCurrency(parseFloat(micro.monto_maximo));
-                    }
                 }
 
                 if (regular) {
                     loanConfigs.regular = regular;
-                    montosRegular = generarRangosMonto(
-                        parseFloat(regular.monto_minimo),
-                        parseFloat(regular.monto_maximo)
-                    );
-                    // Actualizar etiqueta
-                    const regularLabel = document.getElementById('regularRangeLabel');
-                    if (regularLabel) {
-                        regularLabel.textContent = formatCurrency(parseFloat(regular.monto_minimo)) + ' - ' + formatCurrency(parseFloat(regular.monto_maximo));
-                    }
                 }
 
+                // Crear rangos unificados basados en la configuración
+                crearRangosUnificados();
                 console.log('Configuraciones cargadas:', loanConfigs);
             } catch (error) {
                 console.error('Error cargando configuraciones de préstamos:', error);
                 // Usar valores por defecto si falla la API
-                montosMicrocredito = generarRangosMonto(100000, 1000000);
-                montosRegular = generarRangosMonto(500000, 10000000);
-
-                const microLabel = document.getElementById('microRangeLabel');
-                if (microLabel) microLabel.textContent = '₡100,000 - ₡1,000,000';
-                const regularLabel = document.getElementById('regularRangeLabel');
-                if (regularLabel) regularLabel.textContent = '₡500,000 - ₡10,000,000';
+                crearRangosUnificados();
             }
+
+            // Poblar el select de montos
+            updateMontoOptions();
         }
 
-        // Rangos de salario para validación
+        // Crear rangos de monto unificados
+        function crearRangosUnificados() {
+            montosUnificados = [
+                { value: '100k-250k', label: '₡100,000 - ₡250,000', min: 100000, max: 250000 },
+                { value: '300k-450k', label: '₡300,000 - ₡450,000', min: 300000, max: 450000 },
+                { value: '500k-690k', label: '₡500,000 - ₡690,000', min: 500000, max: 690000 },
+                { value: '690k-1m', label: '₡690,000 - ₡1,000,000', min: 690000, max: 1000000 },
+                { value: '1m-1.5m', label: '₡1,000,000 - ₡1,500,000', min: 1000000, max: 1500000 },
+                { value: '1.5m-2.2m', label: '₡1,500,000 - ₡2,200,000', min: 1500000, max: 2200000 }
+            ];
+        }
+
+        // Determinar tipo de crédito basado en el monto seleccionado
+        function determinarTipoCredito(montoValue) {
+            const rango = montosUnificados.find(m => m.value === montoValue);
+            if (!rango) return 'microcredito';
+            // Si el monto máximo del rango es >= 690,000, es crédito regular
+            return rango.max >= LIMITE_MICROCREDITO ? 'regular' : 'microcredito';
+        }
+
+        // Poblar opciones de monto con rangos unificados
         function updateMontoOptions() {
-            const tipoCredito = document.querySelector('input[name="tipo_credito"]:checked')?.value;
             const montoSelect = document.getElementById('montoSelect');
 
             if (!montoSelect) {
@@ -534,16 +515,8 @@
             defaultOpt.textContent = 'Selecciona un monto';
             montoSelect.appendChild(defaultOpt);
 
-            // Seleccionar montos según tipo
-            let montos = [];
-            if (tipoCredito === 'microcredito') {
-                montos = montosMicrocredito;
-            } else if (tipoCredito === 'regular') {
-                montos = montosRegular;
-            }
-
-            // Agregar opciones
-            montos.forEach(function(m) {
+            // Agregar todas las opciones de montos unificados
+            montosUnificados.forEach(function(m) {
                 const opt = document.createElement('option');
                 opt.value = m.value;
                 opt.textContent = m.label;
@@ -645,17 +618,13 @@
             if (index === 1) {
                 const interes = document.querySelector('input[name="interes"]:checked')?.value;
                 if (interes === 'credito' || interes === 'ambos') {
-                    const tipoCredito = document.querySelector('input[name="tipo_credito"]:checked')?.value;
                     const monto = document.querySelector('select[name="monto"]').value;
                     const uso = document.querySelector('select[name="uso_credito"]').value;
                     const institucion = document.getElementById('institucionValue').value;
                     const salario = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
+                    const tieneDeudas = document.querySelector('select[name="tiene_deudas"]').value;
 
-                    if (!tipoCredito) {
-                        showAlert('Selecciona el tipo de crédito (Microcrédito o Regular).');
-                        return false;
-                    }
-                    if (!monto || !uso || !institucion || !salario) {
+                    if (!monto || !uso || !institucion || !salario || !tieneDeudas) {
                         showAlert('Completa todos los datos de crédito.');
                         return false;
                     }
@@ -686,8 +655,10 @@
             const interes = document.querySelector('input[name="interes"]:checked')?.value || '';
             const data = { interes };
             if (interes === 'credito' || interes === 'ambos') {
-                data.tipo_credito = document.querySelector('input[name="tipo_credito"]:checked')?.value || '';
-                data.monto = document.querySelector('select[name="monto"]').value;
+                const montoValue = document.querySelector('select[name="monto"]').value;
+                // Determinar automáticamente el tipo de crédito basado en el monto
+                data.tipo_credito = determinarTipoCredito(montoValue);
+                data.monto = montoValue;
                 data.uso_credito = document.querySelector('select[name="uso_credito"]').value;
                 data.institucion_labora = document.getElementById('institucionValue').value;
                 data.salario_exacto = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
@@ -898,13 +869,6 @@
                         return;
                     }
                     updateDynamicBlocks();
-                });
-            });
-            // Tipo de crédito - actualizar montos
-            const tipoCredInputs = document.querySelectorAll('input[name="tipo_credito"]');
-            tipoCredInputs.forEach(function(input) {
-                input.addEventListener('change', function() {
-                    updateMontoOptions();
                 });
             });
             // Salario - formatear y validar
