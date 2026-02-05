@@ -409,23 +409,6 @@ export function AnalisisWizardModal({
                 </div>
 
                 <div>
-                  <Label htmlFor="cuota">Cuota (Calculada)</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                    <Input
-                      id="cuota"
-                      type="text"
-                      className="pl-7 bg-muted"
-                      value={formData.cuota ? formatNumber(formData.cuota) : 'N/A'}
-                      readOnly
-                      disabled
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
                   <Label htmlFor="plazo">Plazo (Meses) *</Label>
                   <Input
                     id="plazo"
@@ -441,6 +424,23 @@ export function AnalisisWizardModal({
                   {plazoError && (
                     <p className="text-sm text-red-500 mt-1">{plazoError}</p>
                   )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="cuota">Cuota (Calculada)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                    <Input
+                      id="cuota"
+                      type="text"
+                      className="pl-7 bg-muted"
+                      value={formData.cuota ? formatNumber(formData.cuota) : 'N/A'}
+                      readOnly
+                      disabled
+                    />
+                  </div>
                 </div>
 
                 <div>
