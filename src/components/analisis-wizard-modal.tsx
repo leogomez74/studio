@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Check, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Plus, X, FolderOpen, Loader2, FileText, File, Image as ImageIcon, FileSpreadsheet, Trash } from 'lucide-react';
 import { formatCurrency } from '@/lib/analisis';
 import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,15 @@ import type {
   JuicioDetalle,
   EmbargoDetalle
 } from '@/lib/analisis';
+
+// Tipo para archivos del filesystem
+interface OpportunityFile {
+  name: string;
+  path: string;
+  url: string;
+  size: number;
+  last_modified: number;
+}
 
 interface AnalisisWizardModalProps {
   open: boolean;
@@ -95,6 +104,10 @@ export function AnalisisWizardModal({
   const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; plazo_minimo: number; plazo_maximo: number; monto_minimo: number; monto_maximo: number }>>({});
   const [plazoError, setPlazoError] = useState<string>('');
   const [montoError, setMontoError] = useState<string>('');
+
+  // Estados para archivos (Paso 4)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   // Cargar usuarios y datos del lead al abrir el modal
   useEffect(() => {
@@ -212,6 +225,93 @@ export function AnalisisWizardModal({
     return value.replace(/,/g, '');
   };
 
+  // Helper functions para archivos
+  const isImageFile = (fileName: string) => {
+    return fileName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+  };
+
+  const isPdfFile = (fileName: string) => {
+    return fileName.toLowerCase().endsWith('.pdf');
+  };
+
+  const getFileTypeInfo = (fileName: string) => {
+    const name = fileName.toLowerCase();
+    if (name.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+      return { icon: ImageIcon, label: 'Imagen', color: 'text-purple-600' };
+    }
+    if (name.endsWith('.pdf')) {
+      return { icon: FileText, label: 'PDF', color: 'text-red-600' };
+    }
+    if (name.match(/\.(xls|xlsx|csv)$/)) {
+      return { icon: FileSpreadsheet, label: 'Excel', color: 'text-green-600' };
+    }
+    if (name.match(/\.(doc|docx)$/)) {
+      return { icon: FileText, label: 'Word', color: 'text-blue-600' };
+    }
+    return { icon: File, label: 'Archivo', color: 'text-slate-600' };
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Manejar selección de archivos (solo guardar en estado, no subir)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles = Array.from(files);
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+
+    toast({
+      title: "Archivos seleccionados",
+      description: `${newFiles.length} archivo(s) agregado(s). Se subirán al crear el análisis.`
+    });
+
+    // Reset input
+    e.target.value = '';
+  };
+
+  // Eliminar archivo de la lista (antes de subir)
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Subir todos los archivos seleccionados
+  const uploadSelectedFiles = async () => {
+    if (selectedFiles.length === 0) return;
+
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          await api.post(`/api/opportunities/${opportunityId}/files`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (errorCount > 0) {
+        throw new Error(`${errorCount} archivo(s) no se pudieron subir`);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -228,7 +328,7 @@ export function AnalisisWizardModal({
         return;
       }
     }
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
+    if (currentStep < 4) setCurrentStep(currentStep + 1);
   };
 
   const prevStep = () => {
@@ -243,8 +343,21 @@ export function AnalisisWizardModal({
       return;
     }
 
+    // Validar que haya archivos seleccionados
+    if (selectedFiles.length === 0) {
+      toast({
+        title: "Archivos requeridos",
+        description: "Debe agregar al menos un documento específico de la oportunidad.",
+        variant: "destructive"
+      });
+      setCurrentStep(4);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // Primero subir los archivos
+      await uploadSelectedFiles();
       // Construir payload con todos los datos
       const payload: any = {
         opportunity_id: opportunityId,
@@ -289,6 +402,7 @@ export function AnalisisWizardModal({
       setFormData(initialFormData);
       setCurrentStep(1);
       setExtraMonths(0);
+      setSelectedFiles([]);
 
       const createdId = response.data?.data?.id || response.data?.id;
       toast({
@@ -312,12 +426,12 @@ export function AnalisisWizardModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Subir Análisis - Paso {currentStep} de 3</DialogTitle>
+          <DialogTitle>Subir Análisis - Paso {currentStep} de 4</DialogTitle>
         </DialogHeader>
 
         {/* Step indicator */}
         <div className="flex items-center justify-between mb-6">
-          {[1, 2, 3].map((step) => (
+          {[1, 2, 3, 4].map((step) => (
             <div key={step} className="flex items-center">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -330,7 +444,7 @@ export function AnalisisWizardModal({
               >
                 {step < currentStep ? <Check className="w-5 h-5" /> : step}
               </div>
-              {step < 3 && (
+              {step < 4 && (
                 <div
                   className={`h-1 w-20 mx-2 ${
                     step < currentStep ? 'bg-green-600' : 'bg-gray-200'
@@ -409,23 +523,6 @@ export function AnalisisWizardModal({
                 </div>
 
                 <div>
-                  <Label htmlFor="cuota">Cuota (Calculada)</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                    <Input
-                      id="cuota"
-                      type="text"
-                      className="pl-7 bg-muted"
-                      value={formData.cuota ? formatNumber(formData.cuota) : 'N/A'}
-                      readOnly
-                      disabled
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
                   <Label htmlFor="plazo">Plazo (Meses) *</Label>
                   <Input
                     id="plazo"
@@ -441,6 +538,23 @@ export function AnalisisWizardModal({
                   {plazoError && (
                     <p className="text-sm text-red-500 mt-1">{plazoError}</p>
                   )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="cuota">Cuota (Calculada)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                    <Input
+                      id="cuota"
+                      type="text"
+                      className="pl-7 bg-muted"
+                      value={formData.cuota ? formatNumber(formData.cuota) : 'N/A'}
+                      readOnly
+                      disabled
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -871,6 +985,69 @@ export function AnalisisWizardModal({
           </Card>
         )}
 
+        {/* Step 4: Documentos Específicos */}
+        {currentStep === 4 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FolderOpen className="h-5 w-5 text-green-500" />
+                Específicos de Oportunidad
+                <Badge variant="secondary" className="ml-auto">{selectedFiles.length}</Badge>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">Archivos que se subirán al crear el análisis</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Upload para documentos específicos */}
+              <div className="flex items-center gap-4 pb-3 border-b">
+                <div className="grid w-full items-center gap-1.5">
+                  <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad *</Label>
+                  <Input
+                    id="file-upload"
+                    type="file"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Lista de archivos seleccionados */}
+              {selectedFiles.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                  <FolderOpen className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-50" />
+                  <p className="text-sm text-muted-foreground">Sin archivos seleccionados</p>
+                  <p className="text-xs text-muted-foreground mt-1">Debe agregar al menos un documento</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {selectedFiles.map((file, index) => {
+                    const { icon: FileIcon, color } = getFileTypeInfo(file.name);
+                    return (
+                      <div key={index} className="border rounded-lg p-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileIcon className={`h-8 w-8 flex-shrink-0 ${color}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => handleRemoveFile(index)}
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Navigation buttons */}
         <div className="flex justify-between mt-6">
           <Button
@@ -882,7 +1059,7 @@ export function AnalisisWizardModal({
             Anterior
           </Button>
 
-          {currentStep < 3 ? (
+          {currentStep < 4 ? (
             <Button onClick={nextStep}>
               Siguiente
               <ChevronRight className="w-4 h-4 ml-2" />

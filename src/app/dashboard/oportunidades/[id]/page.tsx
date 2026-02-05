@@ -529,6 +529,7 @@ export default function OpportunityDetailPage() {
   // Analisis state
   const [existingAnalisis, setExistingAnalisis] = useState<any>(null);
   const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
+  const [analysisStarted, setAnalysisStarted] = useState(false); // Track if analysis process started
   const [analisisForm, setAnalisisForm] = useState({
     reference: "",
     title: "",
@@ -657,7 +658,14 @@ export default function OpportunityDetailPage() {
 
         // Cargar archivos y verificar análisis existente
         fetchFiles();
-        fetchExistingAnalisis();
+        await fetchExistingAnalisis();
+
+        // Cargar estado de análisis desde localStorage
+        const storageKey = `analysis_started_${id}`;
+        const savedState = localStorage.getItem(storageKey);
+        if (savedState === 'true') {
+          setAnalysisStarted(true);
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
         toast({ title: "Error", description: "No se pudo cargar la información.", variant: "destructive" });
@@ -1016,15 +1024,16 @@ export default function OpportunityDetailPage() {
   const handleOpenAnalisisDialog = () => {
     if (!opportunity) return;
 
+    // VALIDACIÓN TEMPORALMENTE DESACTIVADA
     // Validar que existan documentos específicos de la oportunidad
-    if (especificos.length === 0) {
-      toast({
-        title: "Documentos requeridos",
-        description: "Debe cargar al menos un documento específico de la oportunidad antes de crear un análisis.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // if (especificos.length === 0) {
+    //   toast({
+    //     title: "Documentos requeridos",
+    //     description: "Debe cargar al menos un documento específico de la oportunidad antes de crear un análisis.",
+    //     variant: "destructive"
+    //   });
+    //   return;
+    // }
 
     // Buscar el usuario responsable default
     const defaultUser = users.find((u: any) => u.is_default_lead_assignee);
@@ -1055,6 +1064,13 @@ export default function OpportunityDetailPage() {
       numero_embargos: "",
       salarios_anteriores: [],
     });
+
+    // Marcar que el análisis ha iniciado y guardar en localStorage
+    setAnalysisStarted(true);
+    if (id) {
+      localStorage.setItem(`analysis_started_${id}`, 'true');
+    }
+
     setIsAnalisisDialogOpen(true);
   };
 
@@ -1155,6 +1171,9 @@ export default function OpportunityDetailPage() {
 
       // Actualizar el análisis existente para que el botón cambie
       fetchExistingAnalisis();
+
+      // Limpiar el estado de localStorage ya que el análisis fue completado
+      localStorage.removeItem(`analysis_started_${id}`);
     } catch (error: any) {
       if (error.response?.status === 409) {
         toast({ title: "Análisis existente", description: "Ya existe un análisis para esta oportunidad." });
@@ -1233,21 +1252,39 @@ export default function OpportunityDetailPage() {
                       // No permitir retroceder (excepto "Perdida" que siempre está disponible)
                       const isBackward = newStatusIndex < currentStatusIndex && status !== 'Perdida';
 
+                      // Customize button text and style for "Analizada" status
+                      let buttonText = status;
+                      let customClassName = "";
+                      let customOnClick = () => handleStatusChange(status);
+
+                      if (status === "Analizada" && opportunity.status === status) {
+                        if (existingAnalisis) {
+                          buttonText = "Analizado";
+                          customClassName = "bg-green-600 text-white hover:bg-green-700 opacity-75 cursor-not-allowed";
+                        } else if (analysisStarted) {
+                          buttonText = "Analizando";
+                          customClassName = "bg-yellow-600 text-white hover:bg-yellow-700 opacity-75 cursor-not-allowed";
+                        } else {
+                          buttonText = "Por analizar";
+                          customClassName = "bg-indigo-600 text-white hover:bg-indigo-700";
+                        }
+                      }
+
                       return (
                         <Button
                           key={status}
                           variant={opportunity.status === status ? "default" : "outline"}
-                          onClick={() => handleStatusChange(status)}
-                          disabled={updatingStatus || !canEdit || permsLoading || isBackward}
+                          onClick={customOnClick}
+                          disabled={updatingStatus || !canEdit || permsLoading || isBackward || (status === "Analizada" && (analysisStarted || existingAnalisis))}
                           className={`h-8 text-xs ${
-                            opportunity.status === status
+                            customClassName || (opportunity.status === status
                               ? "bg-slate-900 text-white hover:bg-slate-800"
                               : isBackward
                               ? "text-slate-400 border-slate-200 opacity-50 cursor-not-allowed"
-                              : "text-slate-600 border-slate-200"
+                              : "text-slate-600 border-slate-200")
                           }`}
                         >
-                          {status}
+                          {buttonText}
                         </Button>
                       );
                     })}
@@ -1737,17 +1774,8 @@ export default function OpportunityDetailPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cuota" className="text-xs">Cuota</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                  <Input
-                    id="cuota"
-                    className="h-8 text-sm pl-7 bg-muted"
-                    type="text"
-                    value={formatNumberWithCommas(analisisForm.cuota)}
-                    readOnly
-                  />
-                </div>
+                <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
+                <Input id="plazo" className="h-8 text-sm" type="number" min="1" max="120" value={analisisForm.plazo} onChange={e => handleAnalisisFormChange('plazo', e.target.value)} />
               </div>
               {/* Mes 1 */}
               <div className="sm:col-span-2">
@@ -1842,8 +1870,17 @@ export default function OpportunityDetailPage() {
                 ))}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="plazo" className="text-xs">Plazo (Meses)</Label>
-                <Input id="plazo" className="h-8 text-sm" type="number" min="1" max="120" value={analisisForm.plazo} onChange={e => handleAnalisisFormChange('plazo', e.target.value)} />
+                <Label htmlFor="cuota" className="text-xs">Cuota (Calculada)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                  <Input
+                    id="cuota"
+                    className="h-8 text-sm pl-7 bg-muted"
+                    type="text"
+                    value={formatNumberWithCommas(analisisForm.cuota)}
+                    readOnly
+                  />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="assignedTo" className="text-xs">Responsable</Label>
