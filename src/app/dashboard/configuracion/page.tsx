@@ -2292,17 +2292,18 @@ export default function ConfiguracionPage() {
   const fetchDeductoras = async () => {
     setLoadingDeductoras(true);
     try {
-      const response = await api.get('/api/deductoras');
-      setDeductorasList(response.data);
+      // Usar datos hardcodeados directamente del backend config
+      const now = new Date();
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const lastDayOfMonth = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+      const staticDeductoras = [
+        { id: 1, nombre: 'COOPENACIONAL', codigo: 'COOPENACIONAL', fecha_reporte_pago: lastDayOfMonth, comision: 0 },
+        { id: 2, nombre: 'COOPESERVICIOS', codigo: 'COOPESERVICIOS', fecha_reporte_pago: lastDayOfMonth, comision: 0 },
+        { id: 3, nombre: 'Coope San Gabriel R.L.', codigo: 'COOPESANGABRIEL', fecha_reporte_pago: lastDayOfMonth, comision: 0 },
+      ];
+      setDeductorasList(staticDeductoras);
     } catch (error) {
-      console.error('Error fetching deductoras from API, using static data:', error);
-      // Fall back to static data from data.ts if API fails
-      // setDeductorasList(deductorasData); 
-      toast({
-        title: "Usando datos locales",
-        description: "No se pudo conectar con el servidor.",
-        variant: "default",
-      });
+      console.error('Error loading deductoras:', error);
     } finally {
       setLoadingDeductoras(false);
     }
@@ -2481,7 +2482,8 @@ export default function ConfiguracionPage() {
           password: '',
           password_confirmation: '',
           role_id: 'none',
-          status: 'Activo'
+          status: 'Activo',
+          monto_max_aprobacion: -1, // -1 = Sin límite
         });
         fetchUsers();
       } else {
@@ -3596,10 +3598,10 @@ export default function ConfiguracionPage() {
                   Gestiona las cooperativas y entidades que procesan las deducciones.
                 </CardDescription>
               </div>
-              <Button size="sm" className="gap-1" onClick={openCreateDeductoraDialog}>
+              {/* <Button size="sm" className="gap-1" onClick={openCreateDeductoraDialog}>
                 <PlusCircle className="h-4 w-4" />
                 Agregar Deductora
-              </Button>
+              </Button> */}
             </div>
           </CardHeader>
           <CardContent>
@@ -3614,15 +3616,15 @@ export default function ConfiguracionPage() {
                     <TableHead>Nombre de la Deductora</TableHead>
                     <TableHead>Fecha de Cobro</TableHead>
                     <TableHead className="text-right">Comisión (%)</TableHead>
-                    <TableHead>
+                    {/* <TableHead>
                       <span className="sr-only">Acciones</span>
-                    </TableHead>
+                    </TableHead> */}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {deductorasList.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">
                         No hay deductoras registradas.
                       </TableCell>
                     </TableRow>
@@ -3632,7 +3634,7 @@ export default function ConfiguracionPage() {
                         <TableCell className="font-medium">{deductora.nombre}</TableCell>
                         <TableCell>{deductora.fecha_reporte_pago ? new Date(deductora.fecha_reporte_pago).toLocaleDateString('es-CR') : '-'}</TableCell>
                         <TableCell className="text-right font-mono">{(parseFloat(deductora.comision?.toString() || '0')).toFixed(2)}%</TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -3652,7 +3654,7 @@ export default function ConfiguracionPage() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </TableCell>
+                        </TableCell> */}
                       </TableRow>
                     ))
                   )}
