@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
+use App\Models\Person;
 use App\Models\LeadStatus;
 use App\Models\Opportunity;
 use App\Models\Task;
@@ -510,10 +511,12 @@ class LeadController extends Controller
 
             foreach ($ids as $id) {
                 try {
-                    $lead = Lead::findOrFail($id);
+                    // Use Person model instead of Lead to handle both Leads and Clients
+                    // (Lead model has global scope that filters person_type_id=1)
+                    $person = Person::findOrFail($id);
 
                     // Only process if person_type_id is 1 (Lead) or 2 (Client)
-                    if (!in_array($lead->person_type_id, [1, 2])) {
+                    if (!in_array($person->person_type_id, [1, 2])) {
                         $failed++;
                         $errors[] = [
                             'id' => $id,
@@ -522,8 +525,8 @@ class LeadController extends Controller
                         continue;
                     }
 
-                    $lead->is_active = $isActive;
-                    $lead->save();
+                    $person->is_active = $isActive;
+                    $person->save();
                     $successful++;
 
                 } catch (\Exception $e) {
