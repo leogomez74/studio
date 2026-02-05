@@ -61,11 +61,12 @@ Route::apiResource('instituciones', InstitucionController::class);
 Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
 Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula']);
-Route::apiResource('leads', LeadController::class);
 
-// Bulk actions for leads
+// Bulk actions for leads (MUST be before apiResource to avoid route conflicts)
 Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
 Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
+
+Route::apiResource('leads', LeadController::class);
 
 // Questionnaires
 Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
@@ -79,11 +80,11 @@ Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadF
 Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile']);
 Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
 
+// Bulk actions for opportunities (MUST be before apiResource to avoid route conflicts)
+Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete']);
+
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
-
-// Bulk actions for opportunities
-Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete']);
 
 // Tareas
 Route::get('/tareas', [TaskController::class, 'index']);
@@ -220,13 +221,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     // Analisis CRUD (Protegido)
+    // Bulk actions for analisis (MUST be before apiResource to avoid route conflicts)
+    Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
+
     Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
     Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
     Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
-
-    // Bulk actions for analisis
-    Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
 
     // Propuestas de Análisis (Protegido)
     Route::get('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'index']);
