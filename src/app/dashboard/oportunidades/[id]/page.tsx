@@ -1057,7 +1057,6 @@ export default function OpportunityDetailPage() {
       numero_embargos: "",
       salarios_anteriores: [],
     });
-    setAnalysisStarted(true); // Mark that analysis process has started
     setIsAnalisisDialogOpen(true);
   };
 
@@ -1239,6 +1238,7 @@ export default function OpportunityDetailPage() {
                       // Customize button text and style for "Analizada" status
                       let buttonText = status;
                       let customClassName = "";
+                      let customOnClick = () => handleStatusChange(status);
 
                       if (status === "Analizada" && opportunity.status === status) {
                         if (existingAnalisis) {
@@ -1250,6 +1250,14 @@ export default function OpportunityDetailPage() {
                         } else {
                           buttonText = "Por analizar";
                           customClassName = "bg-indigo-600 text-white hover:bg-indigo-700";
+                          // Custom onClick for "Por analizar" - just start the analysis flow
+                          customOnClick = () => {
+                            setAnalysisStarted(true);
+                            toast({
+                              title: "Análisis iniciado",
+                              description: "La oportunidad ahora está siendo analizada."
+                            });
+                          };
                         }
                       }
 
@@ -1257,7 +1265,7 @@ export default function OpportunityDetailPage() {
                         <Button
                           key={status}
                           variant={opportunity.status === status ? "default" : "outline"}
-                          onClick={() => handleStatusChange(status)}
+                          onClick={customOnClick}
                           disabled={updatingStatus || !canEdit || permsLoading || isBackward}
                           className={`h-8 text-xs ${
                             customClassName || (opportunity.status === status
