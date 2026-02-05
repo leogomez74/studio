@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Download, Loader2, Eye, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { Opportunity, Lead } from '@/lib/data';
-import { useToast } from '@/hooks/use-toast';
+import { useToast, toastSuccess, toastError, toastWarning } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -270,7 +270,7 @@ export default function AnalisisPage() {
 
   const handleExportCSV = () => {
     if (analisisList.length === 0) {
-      toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+      toastWarning("Sin datos", "No hay datos para exportar");
       return;
     }
 
@@ -313,7 +313,7 @@ export default function AnalisisPage() {
 
   const handleExportPDF = () => {
     if (analisisList.length === 0) {
-      toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+      toastWarning("Sin datos", "No hay datos para exportar");
       return;
     }
 
@@ -568,10 +568,10 @@ export default function AnalisisPage() {
                                     setAnalisisList(prev => prev.map(a =>
                                       a.id === item.id ? { ...a, estado_pep: estado, estado_cliente: estado === 'Aceptado' ? 'Pendiente' : null } : a
                                     ));
-                                    toast({ title: "Estado actualizado", description: `Estado PEP cambiado a "${estado}"` });
+                                    toastSuccess("Estado actualizado", `Estado PEP cambiado a "${estado}"`);
                                   } catch (err: any) {
                                     const errorMessage = err?.response?.data?.message || "No se pudo actualizar el estado";
-                                    toast({ variant: "destructive", title: "Error", description: errorMessage });
+                                    toastError("Error", errorMessage);
                                   }
                                 }}
                               >
@@ -618,10 +618,10 @@ export default function AnalisisPage() {
                                       setAnalisisList(prev => prev.map(a =>
                                         a.id === item.id ? { ...a, estado_cliente: estado } : a
                                       ));
-                                      toast({ title: "Estado actualizado", description: `Estado Cliente cambiado a "${estado}"` });
+                                      toastSuccess("Estado actualizado", `Estado Cliente cambiado a "${estado}"`);
                                     } catch (err: any) {
                                       const errorMessage = err?.response?.data?.message || "No se pudo actualizar el estado";
-                                      toast({ variant: "destructive", title: "Error", description: errorMessage });
+                                      toastError("Error", errorMessage);
                                     }
                                   }}
                                 >
@@ -676,11 +676,7 @@ export default function AnalisisPage() {
                               setCurrentStep(1); // Resetear al abrir
                               setIsCreditDialogOpen(true);
                             } catch (err) {
-                              toast({
-                                variant: "destructive",
-                                title: "Error",
-                                description: "No se pudo obtener la referencia del crédito",
-                              });
+                              toastError("Error", "No se pudo obtener la referencia del crédito");
                             }
                           }}
                         >

@@ -782,7 +782,7 @@ export default function ClientesPage() {
 
       if (!isVerified) {
         setIsSavingLead(false);
-        toast({ title: "Error", description: "El número no está registrado en WhatsApp", variant: "destructive" });
+        toastError("Error", "El número no está registrado en WhatsApp");
         return;
       }
     }
@@ -813,16 +813,16 @@ export default function ClientesPage() {
       if (editingId) {
           const endpoint = editingType === 'client' ? `/api/clients/${editingId}` : `/api/leads/${editingId}`;
           await api.put(endpoint, body);
-          toast({ title: "Actualizado", description: "Datos actualizados correctamente." });
+          toastSuccess("Actualizado", "Datos actualizados correctamente.");
       } else {
           const response = await api.post('/api/leads', body);
           const hasOpportunity = response.data?.opportunity !== null;
-          toast({
-            title: "Creado",
-            description: hasOpportunity
+          toastSuccess(
+            "Creado",
+            hasOpportunity
               ? "Lead y oportunidad registrados exitosamente."
               : "Lead registrado exitosamente."
-          });
+          );
       }
 
       closeLeadDialog();
@@ -842,13 +842,9 @@ export default function ClientesPage() {
           form.setError(key as keyof LeadFormValues, { type: "server", message });
         });
         
-        toast({
-          title: "Error de validación", 
-          description: "Por favor revisa los campos marcados en rojo.", 
-          variant: "destructive"
-        });
+        toastError("Error de validación", "Por favor revisa los campos marcados en rojo.");
       } else {
-        toast({ title: "Error", description: error.response?.data?.message || "No se pudo guardar.", variant: "destructive" });
+        toastError("Error", error.response?.data?.message || "No se pudo guardar.");
       }
     } finally {
       setIsSavingLead(false);
@@ -915,10 +911,10 @@ export default function ClientesPage() {
   const handleConvertLead = async (lead: Lead) => {
       try {
           await api.post(`/api/leads/${lead.id}/convert`);
-          toast({ title: "Convertido", description: `${lead.name} ahora es cliente.`, className: "bg-green-600 text-white" });
+          toastSuccess("Convertido", `${lead.name} ahora es cliente.`);
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo convertir.", variant: "destructive" });
+          toastError("Error", "No se pudo convertir.");
       }
   };
 
@@ -926,10 +922,10 @@ export default function ClientesPage() {
       if (!confirm(`¿Archivar a ${lead.name}?`)) return;
       try {
           await api.patch(`/api/leads/${lead.id}/toggle-active`);
-          toast({ title: "Archivado", description: "Lead archivado correctamente." });
+          toastSuccess("Archivado", "Lead archivado correctamente.");
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo archivar.", variant: "destructive" });
+          toastError("Error", "No se pudo archivar.");
       }
   };
 
@@ -938,10 +934,10 @@ export default function ClientesPage() {
       const endpoint = isLead ? `/api/leads/${item.id}/toggle-active` : `/api/clients/${item.id}/toggle-active`;
       try {
           await api.patch(endpoint);
-          toast({ title: "Restaurado", description: "Registro restaurado." });
+          toastSuccess("Restaurado", "Registro restaurado.");
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo restaurar.", variant: "destructive" });
+          toastError("Error", "No se pudo restaurar.");
       }
   };
 
@@ -971,10 +967,10 @@ export default function ClientesPage() {
       if (!clientToDelete) return;
       try {
           await api.delete(`/api/clients/${clientToDelete.id}`);
-          toast({ title: "Eliminado", description: "Cliente eliminado." });
+          toastSuccess("Eliminado", "Cliente eliminado.");
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" });
+          toastError("Error", "No se pudo eliminar.");
       } finally {
           setIsDeleteDialogOpen(false);
           setClientToDelete(null);
@@ -997,11 +993,7 @@ export default function ClientesPage() {
     if (ids.length === 0) return;
 
     if (ids.length > 50) {
-      toast({
-        title: "Límite excedido",
-        description: "Máximo 50 elementos por operación",
-        variant: "destructive"
-      });
+      toastWarning("Límite excedido", "Máximo 50 elementos por operación");
       return;
     }
 
@@ -1031,11 +1023,7 @@ export default function ClientesPage() {
           });
 
           if (incompleteLeads.length > 0) {
-            toast({
-              title: "Leads incompletos",
-              description: `${incompleteLeads.length} leads no tienen datos completos. Completa los datos antes de convertir.`,
-              variant: "destructive"
-            });
+            toastWarning("Leads incompletos", `${incompleteLeads.length} leads no tienen datos completos. Completa los datos antes de convertir.`);
             setIsBulkProcessing(false);
             setIsConfirmBulkActionOpen(false);
             return;
@@ -1060,16 +1048,9 @@ export default function ClientesPage() {
       const { successful, failed } = response?.data?.data || { successful: ids.length, failed: 0 };
 
       if (failed > 0) {
-        toast({
-          title: "Operación parcial",
-          description: `${successful} exitosos, ${failed} fallidos`,
-          variant: "destructive"
-        });
+        toastWarning("Operación parcial", `${successful} exitosos, ${failed} fallidos`);
       } else {
-        toast({
-          title: "Éxito",
-          description: successMessage
-        });
+        toastSuccess("Éxito", successMessage);
       }
 
       fetchData();
@@ -1077,11 +1058,7 @@ export default function ClientesPage() {
       setIsConfirmBulkActionOpen(false);
 
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Error en operación masiva",
-        variant: "destructive"
-      });
+      toastError("Error", error.response?.data?.message || "Error en operación masiva");
     } finally {
       setIsBulkProcessing(false);
       setBulkActionType(null);
@@ -1118,10 +1095,7 @@ export default function ClientesPage() {
     link.download = `${activeTab}_seleccionados_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
 
-    toast({
-      title: "Exportado",
-      description: `${selectedItems.length} registros exportados`
-    });
+    toastSuccess("Exportado", `${selectedItems.length} registros exportados`);
   };
 
   const filteredInstituciones = useMemo(() => {
