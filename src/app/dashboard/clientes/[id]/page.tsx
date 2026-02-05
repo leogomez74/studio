@@ -3,7 +3,7 @@
 import React, { useEffect, useState, FormEvent, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, PlusCircle, ChevronsUpDown, Check } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, PlusCircle, ChevronsUpDown, Check, DollarSign, TrendingUp, Activity, PieChart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { CaseChat } from "@/components/case-chat";
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
@@ -603,6 +604,23 @@ export default function ClientDetailPage() {
   const [loadingCredits, setLoadingCredits] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
 
+  // Balance General state
+  const [selectedBalanceCreditId, setSelectedBalanceCreditId] = useState<number | null>(null);
+  const [balanceData, setBalanceData] = useState<{
+    credit_id: number;
+    numero_operacion: string;
+    client_name: string;
+    monto_original: number;
+    saldo_actual: number;
+    total_capital_pagado: number;
+    total_intereses_pagados: number;
+    total_pagado: number;
+    fecha_ultimo_pago: string | null;
+    proximo_pago: { fecha: string; monto: number } | null;
+    progreso_pagos: number;
+  } | null>(null);
+  const [loadingBalance, setLoadingBalance] = useState(false);
+
   // Refresh key to trigger data re-fetch without full page reload
   const [refreshKey, setRefreshKey] = useState(0);
   const refreshData = React.useCallback(() => setRefreshKey(k => k + 1), []);
@@ -701,6 +719,30 @@ export default function ClientDetailPage() {
       fetchPayments();
     }
   }, [id, toast, refreshKey]);
+
+  const fetchBalance = async (creditId: number) => {
+    setLoadingBalance(true);
+    setBalanceData(null);
+    try {
+      const response = await api.get(`/api/credits/${creditId}/balance`);
+      setBalanceData(response.data);
+    } catch (error) {
+      console.error("Error fetching balance:", error);
+      setBalanceData(null);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
+
+  const toggleBalance = (creditId: number) => {
+    if (selectedBalanceCreditId === creditId) {
+      setSelectedBalanceCreditId(null);
+      setBalanceData(null);
+    } else {
+      setSelectedBalanceCreditId(creditId);
+      fetchBalance(creditId);
+    }
+  };
 
   const leadName = React.useMemo(() => {
       if (!client || leads.length === 0) return null;
@@ -1725,43 +1767,201 @@ export default function ClientDetailPage() {
                           </TableHeader>
                           <TableBody>
                             {credits.map((credit) => (
-                              <TableRow key={credit.id} className="hover:bg-muted/50">
-                                <TableCell className="font-medium">{credit.reference || credit.numero_operacion || `#${credit.id}`}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">{credit.tipo_credito || credit.category || 'Regular'}</Badge>
-                                </TableCell>
-                                <TableCell className="font-mono">
-                                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(credit.monto_credito || 0)}
-                                </TableCell>
-                                <TableCell className="font-mono">
-                                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(credit.saldo || 0)}
-                                </TableCell>
-                                <TableCell>{credit.plazo} meses</TableCell>
-                                <TableCell>{credit.tasa_anual || 0}%</TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={credit.status === 'Formalizado' || credit.status === 'Al día' ? 'default' :
-                                             credit.status === 'En mora' ? 'destructive' :
-                                             credit.status === 'Cancelado' ? 'secondary' : 'outline'}
-                                    className={credit.status === 'Al día' ? 'bg-green-500' :
-                                               credit.status === 'Formalizado' ? 'bg-blue-500' : ''}
-                                  >
-                                    {credit.status === 'Al día' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                                    {credit.status === 'En mora' && <AlertCircle className="h-3 w-3 mr-1" />}
-                                    {credit.status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground text-sm">
-                                  {credit.opened_at ? new Date(credit.opened_at).toLocaleDateString('es-CR') : '-'}
-                                </TableCell>
-                                <TableCell>
-                                  <Link href={`/dashboard/creditos/${credit.id}`}>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <ExternalLink className="h-4 w-4" />
-                                    </Button>
-                                  </Link>
-                                </TableCell>
-                              </TableRow>
+                              <React.Fragment key={credit.id}>
+                                <TableRow className="hover:bg-muted/50">
+                                  <TableCell className="font-medium">{credit.reference || credit.numero_operacion || `#${credit.id}`}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline">{credit.tipo_credito || credit.category || 'Regular'}</Badge>
+                                  </TableCell>
+                                  <TableCell className="font-mono">
+                                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(credit.monto_credito || 0)}
+                                  </TableCell>
+                                  <TableCell className="font-mono">
+                                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(credit.saldo || 0)}
+                                  </TableCell>
+                                  <TableCell>{credit.plazo} meses</TableCell>
+                                  <TableCell>{credit.tasa_anual || 0}%</TableCell>
+                                  <TableCell>
+                                    <Badge
+                                      variant={credit.status === 'Formalizado' || credit.status === 'Al día' ? 'default' :
+                                               credit.status === 'En mora' ? 'destructive' :
+                                               credit.status === 'Cancelado' ? 'secondary' : 'outline'}
+                                      className={credit.status === 'Al día' ? 'bg-green-500' :
+                                                 credit.status === 'Formalizado' ? 'bg-blue-500' : ''}
+                                    >
+                                      {credit.status === 'Al día' && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                      {credit.status === 'En mora' && <AlertCircle className="h-3 w-3 mr-1" />}
+                                      {credit.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground text-sm">
+                                    {credit.opened_at ? new Date(credit.opened_at).toLocaleDateString('es-CR') : '-'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant={selectedBalanceCreditId === credit.id ? 'default' : 'ghost'}
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        title="Balance General"
+                                        onClick={() => toggleBalance(credit.id)}
+                                      >
+                                        <DollarSign className="h-4 w-4" />
+                                      </Button>
+                                      <Link href={`/dashboard/creditos/${credit.id}`}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                          <ExternalLink className="h-4 w-4" />
+                                        </Button>
+                                      </Link>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                                {/* Balance General expandible */}
+                                {selectedBalanceCreditId === credit.id && (
+                                  <TableRow>
+                                    <TableCell colSpan={9} className="p-0 border-b-2 border-blue-200">
+                                      <div className="bg-slate-50 p-6 space-y-6">
+                                        {loadingBalance ? (
+                                          <div className="flex justify-center py-8">
+                                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                          </div>
+                                        ) : !balanceData ? (
+                                          <p className="text-center text-muted-foreground py-4">No hay información de balance disponible.</p>
+                                        ) : (
+                                          <>
+                                            <div className="flex items-center justify-between">
+                                              <h3 className="text-lg font-bold tracking-tight">Balance General</h3>
+                                              <span className="text-sm text-muted-foreground">Op: {balanceData.numero_operacion}</span>
+                                            </div>
+                                            {/* Stats Grid */}
+                                            <div className="grid gap-4 md:grid-cols-4">
+                                              <Card>
+                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                  <CardTitle className="text-sm font-medium">Saldo Actual</CardTitle>
+                                                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                                                </CardHeader>
+                                                <CardContent>
+                                                  <div className="text-2xl font-bold">
+                                                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.saldo_actual)}
+                                                  </div>
+                                                  <p className="text-xs text-muted-foreground">
+                                                    De un original de {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.monto_original)}
+                                                  </p>
+                                                </CardContent>
+                                              </Card>
+                                              <Card>
+                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                  <CardTitle className="text-sm font-medium">Capital Pagado</CardTitle>
+                                                  <TrendingUp className="h-4 w-4 text-green-500" />
+                                                </CardHeader>
+                                                <CardContent>
+                                                  <div className="text-2xl font-bold">
+                                                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.total_capital_pagado)}
+                                                  </div>
+                                                  <p className="text-xs text-muted-foreground">Amortización principal</p>
+                                                </CardContent>
+                                              </Card>
+                                              <Card>
+                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                  <CardTitle className="text-sm font-medium">Intereses Pagados</CardTitle>
+                                                  <Activity className="h-4 w-4 text-blue-500" />
+                                                </CardHeader>
+                                                <CardContent>
+                                                  <div className="text-2xl font-bold">
+                                                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.total_intereses_pagados)}
+                                                  </div>
+                                                  <p className="text-xs text-muted-foreground">Costo financiero acumulado</p>
+                                                </CardContent>
+                                              </Card>
+                                              <Card>
+                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                  <CardTitle className="text-sm font-medium">Progreso</CardTitle>
+                                                  <PieChart className="h-4 w-4 text-muted-foreground" />
+                                                </CardHeader>
+                                                <CardContent>
+                                                  <div className="text-2xl font-bold">{balanceData.progreso_pagos}%</div>
+                                                  <Progress value={balanceData.progreso_pagos} className="mt-2 h-2" />
+                                                </CardContent>
+                                              </Card>
+                                            </div>
+                                            {/* Detail Cards */}
+                                            <div className="grid gap-6 md:grid-cols-2">
+                                              <Card>
+                                                <CardHeader>
+                                                  <CardTitle className="text-base">Estado de Pagos</CardTitle>
+                                                  <CardDescription>Resumen de la actividad reciente</CardDescription>
+                                                </CardHeader>
+                                                <CardContent className="space-y-4">
+                                                  <div className="flex items-center justify-between border-b pb-4">
+                                                    <div className="space-y-1">
+                                                      <p className="text-sm font-medium leading-none">Último Pago Realizado</p>
+                                                      <p className="text-sm text-muted-foreground">Fecha de aplicación</p>
+                                                    </div>
+                                                    <div className="font-medium">
+                                                      {balanceData.fecha_ultimo_pago
+                                                        ? new Intl.DateTimeFormat('es-CR', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(balanceData.fecha_ultimo_pago))
+                                                        : '-'}
+                                                    </div>
+                                                  </div>
+                                                  <div className="flex items-center justify-between pt-2">
+                                                    <div className="space-y-1">
+                                                      <p className="text-sm font-medium leading-none">Próximo Pago</p>
+                                                      <p className="text-sm text-muted-foreground">Vencimiento estimado</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                      <div className="font-medium">
+                                                        {balanceData.proximo_pago?.fecha
+                                                          ? new Intl.DateTimeFormat('es-CR', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(balanceData.proximo_pago.fecha))
+                                                          : '-'}
+                                                      </div>
+                                                      <div className="text-sm text-muted-foreground">
+                                                        {balanceData.proximo_pago?.monto
+                                                          ? new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.proximo_pago.monto)
+                                                          : '-'}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </CardContent>
+                                              </Card>
+                                              <Card>
+                                                <CardHeader>
+                                                  <CardTitle className="text-base">Resumen Financiero</CardTitle>
+                                                  <CardDescription>Distribución total de pagos</CardDescription>
+                                                </CardHeader>
+                                                <CardContent>
+                                                  <div className="space-y-4">
+                                                    <div className="flex items-center justify-between">
+                                                      <span className="text-sm font-medium">Total Pagado (Bruto)</span>
+                                                      <span className="font-bold">
+                                                        {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.total_pagado)}
+                                                      </span>
+                                                    </div>
+                                                    <div className="h-[1px] bg-border" />
+                                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                                      <div>
+                                                        <span className="text-muted-foreground">Capital:</span>
+                                                        <div className="font-medium">
+                                                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.total_capital_pagado)}
+                                                        </div>
+                                                      </div>
+                                                      <div>
+                                                        <span className="text-muted-foreground">Intereses:</span>
+                                                        <div className="font-medium">
+                                                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(balanceData.total_intereses_pagados)}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </CardContent>
+                                              </Card>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </React.Fragment>
                             ))}
                           </TableBody>
                         </Table>

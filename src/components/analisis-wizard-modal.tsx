@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,6 +85,7 @@ export function AnalisisWizardModal({
   onSuccess
 }: AnalisisWizardModalProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -287,6 +289,16 @@ export function AnalisisWizardModal({
       setFormData(initialFormData);
       setCurrentStep(1);
       setExtraMonths(0);
+
+      const createdId = response.data?.data?.id || response.data?.id;
+      toast({
+        title: "Análisis creado",
+        description: "Redirigiendo al análisis...",
+        duration: 3000,
+      });
+      if (createdId) {
+        setTimeout(() => router.push(`/dashboard/analisis/${createdId}`), 3000);
+      }
     } catch (error: any) {
       console.error('Error completo:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Error al crear análisis';

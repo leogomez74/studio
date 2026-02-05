@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,6 +61,7 @@ export function CreditFormModal({
   onSuccess
 }: CreditFormModalProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -232,13 +234,19 @@ export function CreditFormModal({
     try {
       const response = await api.post('/api/credits', payload);
       onOpenChange(false);
-      toast({
-        title: "Crédito creado",
-        description: `El crédito ${response.data.reference} se ha creado exitosamente.`,
-      });
 
       if (onSuccess) {
         onSuccess();
+      }
+
+      const createdId = response.data?.data?.id || response.data?.id;
+      toast({
+        title: "Crédito creado",
+        description: `El crédito ${response.data?.data?.reference || response.data?.reference || ''} se ha creado. Redirigiendo...`,
+        duration: 3000,
+      });
+      if (createdId) {
+        setTimeout(() => router.push(`/dashboard/creditos/${createdId}`), 3000);
       }
     } catch (err: any) {
       let mensaje = 'Error al crear crédito';

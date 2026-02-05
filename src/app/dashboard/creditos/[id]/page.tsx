@@ -1607,12 +1607,6 @@ function CreditDetailClient({ id }: { id: string }) {
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
               </Button>
-              <Button asChild variant="outline">
-                <Link href={`/dashboard/creditos/${id}/balance`} target="_blank">
-                  <FileText className="mr-2 h-4 w-4" />
-                  Balance General
-                </Link>
-              </Button>
               {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
                 <Button
                   variant="outline"
