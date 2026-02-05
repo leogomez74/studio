@@ -63,6 +63,10 @@ Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula']);
 Route::apiResource('leads', LeadController::class);
 
+// Bulk actions for leads
+Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
+Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
+
 // Questionnaires
 Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
 Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
@@ -77,6 +81,9 @@ Route::patch('/opportunities/update-status', [OpportunityController::class, 'upd
 
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
+
+// Bulk actions for opportunities
+Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete']);
 
 // Tareas
 Route::get('/tareas', [TaskController::class, 'index']);
@@ -217,6 +224,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
     Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
     Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
+
+    // Bulk actions for analisis
+    Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
 
     // Propuestas de Análisis (Protegido)
     Route::get('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'index']);

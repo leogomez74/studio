@@ -47,6 +47,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { useBulkSelection } from "@/hooks/use-bulk-selection";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { BulkActionsToolbar } from "@/components/bulk-actions-toolbar";
 
 // Importamos la conexión real y los tipos
 import api from '@/lib/axios';
@@ -250,6 +254,16 @@ export default function ClientesPage() {
   const [isLeadFiltersOpen, setIsLeadFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("leads");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Bulk Selection Hooks (one for each tab)
+  const leadsSelection = useBulkSelection<Lead>();
+  const clientsSelection = useBulkSelection<Client>();
+  const inactivesSelection = useBulkSelection<Lead | Client>();
+
+  // Bulk Actions State
+  const [isConfirmBulkActionOpen, setIsConfirmBulkActionOpen] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<'archive' | 'restore' | 'convert' | 'delete' | null>(null);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
@@ -967,7 +981,148 @@ export default function ClientesPage() {
       }
   };
 
+  // --- Bulk Actions Handlers ---
 
+  const openBulkActionConfirmation = (action: 'archive' | 'restore' | 'convert' | 'delete') => {
+    setBulkActionType(action);
+    setIsConfirmBulkActionOpen(true);
+  };
+
+  const handleBulkAction = async () => {
+    if (!bulkActionType) return;
+
+    const currentSelection = activeTab === 'leads' ? leadsSelection : activeTab === 'clientes' ? clientsSelection : inactivesSelection;
+    const ids = Array.from(currentSelection.selectedIds);
+
+    if (ids.length === 0) return;
+
+    if (ids.length > 50) {
+      toast({
+        title: "Límite excedido",
+        description: "Máximo 50 elementos por operación",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsBulkProcessing(true);
+
+    try {
+      let response;
+      let successMessage = "";
+
+      switch (bulkActionType) {
+        case 'archive':
+          response = await api.patch('/api/leads/bulk-archive', { ids, action: 'archive' });
+          successMessage = `${response.data.data.successful} registros archivados`;
+          break;
+
+        case 'restore':
+          response = await api.patch('/api/leads/bulk-archive', { ids, action: 'restore' });
+          successMessage = `${response.data.data.successful} registros restaurados`;
+          break;
+
+        case 'convert':
+          // Validate all selected leads first
+          const selectedLeads = leadsData.filter(l => currentSelection.selectedIds.has(l.id));
+          const incompleteLeads = selectedLeads.filter(lead => {
+            const missingFields = checkMissingFields(lead);
+            return missingFields.length > 0;
+          });
+
+          if (incompleteLeads.length > 0) {
+            toast({
+              title: "Leads incompletos",
+              description: `${incompleteLeads.length} leads no tienen datos completos. Completa los datos antes de convertir.`,
+              variant: "destructive"
+            });
+            setIsBulkProcessing(false);
+            setIsConfirmBulkActionOpen(false);
+            return;
+          }
+
+          response = await api.post('/api/leads/bulk-convert', { ids });
+          successMessage = `${response.data.data.successful} leads convertidos a clientes`;
+          break;
+
+        case 'delete':
+          // Use Promise.all with individual deletes
+          const deletePromises = ids.map(id => api.delete(`/api/clients/${id}`));
+          await Promise.all(deletePromises);
+          successMessage = `${ids.length} clientes eliminados`;
+          response = { data: { data: { successful: ids.length, failed: 0, errors: [] } } };
+          break;
+
+        default:
+          break;
+      }
+
+      const { successful, failed } = response?.data?.data || { successful: ids.length, failed: 0 };
+
+      if (failed > 0) {
+        toast({
+          title: "Operación parcial",
+          description: `${successful} exitosos, ${failed} fallidos`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Éxito",
+          description: successMessage
+        });
+      }
+
+      fetchData();
+      currentSelection.clearSelection();
+      setIsConfirmBulkActionOpen(false);
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error en operación masiva",
+        variant: "destructive"
+      });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkActionType(null);
+    }
+  };
+
+  const handleBulkExport = () => {
+    const currentSelection = activeTab === 'leads' ? leadsSelection : activeTab === 'clientes' ? clientsSelection : inactivesSelection;
+    const currentData = activeTab === 'leads' ? leadsData : activeTab === 'clientes' ? clientsData : inactiveData;
+
+    const selectedItems = currentData.filter(item => currentSelection.selectedIds.has(item.id));
+
+    if (selectedItems.length === 0) return;
+
+    // Export to CSV
+    const headers = ["Cédula", "Nombre", "Email", "Teléfono", "Estado", "Registrado"];
+    const rows = selectedItems.map(item => [
+      item.cedula || "-",
+      item.name || "-",
+      item.email || "-",
+      item.phone || "-",
+      (item as any).lead_status?.name || (item as any).status || "-",
+      new Date(item.created_at || "").toLocaleDateString()
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${activeTab}_seleccionados_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+
+    toast({
+      title: "Exportado",
+      description: `${selectedItems.length} registros exportados`
+    });
+  };
 
   const filteredInstituciones = useMemo(() => {
     if (!searchInstitucion) return instituciones;
@@ -1114,7 +1269,13 @@ export default function ClientesPage() {
                         </>
                     ) : (
                         <>
-                          <LeadsTable data={leadsData} onAction={handleLeadAction} />
+                          <LeadsTable
+                            data={leadsData}
+                            onAction={handleLeadAction}
+                            selection={leadsSelection}
+                            onBulkAction={openBulkActionConfirmation}
+                            onBulkExport={handleBulkExport}
+                          />
                           {totalItems > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
                               <div className="text-sm text-muted-foreground">
@@ -1186,7 +1347,14 @@ export default function ClientesPage() {
                         </>
                     ) : (
                         <>
-                          <ClientsTable data={clientsData} onEdit={handleEditClient} onDelete={confirmDeleteClient} />
+                          <ClientsTable
+                            data={clientsData}
+                            onEdit={handleEditClient}
+                            onDelete={confirmDeleteClient}
+                            selection={clientsSelection}
+                            onBulkAction={openBulkActionConfirmation}
+                            onBulkExport={handleBulkExport}
+                          />
                           {totalItems > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
                               <div className="text-sm text-muted-foreground">
@@ -1245,7 +1413,13 @@ export default function ClientesPage() {
                           <UnifiedSearchTable data={unifiedSearchResults} activeTab={activeTab} onAction={handleRestore} />
                         </>
                     ) : (
-                        <InactiveTable data={inactiveData} onRestore={handleRestore} />
+                        <InactiveTable
+                          data={inactiveData}
+                          onRestore={handleRestore}
+                          selection={inactivesSelection}
+                          onBulkAction={openBulkActionConfirmation}
+                          onBulkExport={handleBulkExport}
+                        />
                     )}
                   </TabsContent>
                 </Tabs>
@@ -1573,6 +1747,48 @@ export default function ClientesPage() {
             </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Action Confirmation Dialog */}
+      <AlertDialog open={isConfirmBulkActionOpen} onOpenChange={setIsConfirmBulkActionOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkActionType === 'delete' && `¿Eliminar ${activeTab === 'leads' ? leadsSelection.selectedCount : activeTab === 'clientes' ? clientsSelection.selectedCount : inactivesSelection.selectedCount} registros?`}
+              {bulkActionType === 'archive' && `¿Archivar ${activeTab === 'leads' ? leadsSelection.selectedCount : clientsSelection.selectedCount} registros?`}
+              {bulkActionType === 'restore' && `¿Restaurar ${inactivesSelection.selectedCount} registros?`}
+              {bulkActionType === 'convert' && `¿Convertir ${leadsSelection.selectedCount} leads a clientes?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkActionType === 'delete' && 'Esta acción no se puede deshacer. Los registros se eliminarán permanentemente.'}
+              {bulkActionType === 'archive' && 'Los registros seleccionados serán archivados.'}
+              {bulkActionType === 'restore' && 'Los registros seleccionados serán restaurados y volverán a estar activos.'}
+              {bulkActionType === 'convert' && 'Los leads seleccionados se convertirán en clientes. Asegúrate de que todos tengan datos completos.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkAction}
+              className={bulkActionType === 'delete' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+              disabled={isBulkProcessing}
+            >
+              {isBulkProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Procesando...
+                </>
+              ) : (
+                <>
+                  {bulkActionType === 'delete' && 'Eliminar'}
+                  {bulkActionType === 'archive' && 'Archivar'}
+                  {bulkActionType === 'restore' && 'Restaurar'}
+                  {bulkActionType === 'convert' && 'Convertir'}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </TooltipProvider>
     </ProtectedPage>
   );
@@ -1582,18 +1798,56 @@ export default function ClientesPage() {
 type LeadsTableProps = {
   data: Lead[];
   onAction: (action: string, lead: Lead) => void;
+  selection: ReturnType<typeof useBulkSelection<Lead>>;
+  onBulkAction: (action: 'archive' | 'convert') => void;
+  onBulkExport: () => void;
 };
 
-function LeadsTable({ data, onAction }: LeadsTableProps) {
+function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: LeadsTableProps) {
   const { toast } = useToast();
 
   if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
 
   return (
     <>
+      {/* Bulk Actions Toolbar */}
+      {selection.selectedCount > 0 && (
+        <BulkActionsToolbar
+          selectedCount={selection.selectedCount}
+          onClear={selection.clearSelection}
+          actions={[
+            {
+              label: 'Archivar',
+              icon: Archive,
+              onClick: () => onBulkAction('archive'),
+              variant: 'secondary'
+            },
+            {
+              label: 'Convertir a Clientes',
+              icon: ArrowUpRight,
+              onClick: () => onBulkAction('convert'),
+              variant: 'default'
+            },
+            {
+              label: 'Exportar',
+              icon: Download,
+              onClick: onBulkExport,
+              variant: 'secondary'
+            }
+          ]}
+        />
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12">
+              <Checkbox
+                checked={selection.isAllSelected}
+                onCheckedChange={() => selection.toggleAll(data)}
+                aria-label="Seleccionar todo"
+              />
+            </TableHead>
             <TableHead className="w-[11rem]">Cédula</TableHead>
             <TableHead>Lead</TableHead>
             <TableHead className="w-[7.5rem]">Estado</TableHead>
@@ -1610,6 +1864,13 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
             const badgeClassName = getStatusBadgeClassName(statusLabel);
             return (
               <TableRow key={lead.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={selection.isSelected(lead.id)}
+                    onCheckedChange={() => selection.toggleItem(lead.id)}
+                    aria-label={`Seleccionar lead ${lead.cedula}`}
+                  />
+                </TableCell>
                 <TableCell className="font-mono text-sm">
                   {lead.cedula ? (
                     <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="text-primary hover:underline">
@@ -1696,14 +1957,57 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
     </>
   );
 }
-function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (client: Client) => void, onDelete: (client: Client) => void }) {
+function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkExport }: {
+  data: Client[],
+  onEdit: (client: Client) => void,
+  onDelete: (client: Client) => void,
+  selection: ReturnType<typeof useBulkSelection<Client>>,
+  onBulkAction: (action: 'archive' | 'delete') => void,
+  onBulkExport: () => void
+}) {
     if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos clientes con los filtros seleccionados.</div>;
 
     return (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Cliente</TableHead>
+        <>
+          {/* Bulk Actions Toolbar */}
+          {selection.selectedCount > 0 && (
+            <BulkActionsToolbar
+              selectedCount={selection.selectedCount}
+              onClear={selection.clearSelection}
+              actions={[
+                {
+                  label: 'Archivar',
+                  icon: Archive,
+                  onClick: () => onBulkAction('archive'),
+                  variant: 'secondary'
+                },
+                {
+                  label: 'Eliminar',
+                  icon: Trash,
+                  onClick: () => onBulkAction('delete'),
+                  variant: 'destructive'
+                },
+                {
+                  label: 'Exportar',
+                  icon: Download,
+                  onClick: onBulkExport,
+                  variant: 'secondary'
+                }
+              ]}
+            />
+          )}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selection.isAllSelected}
+                        onCheckedChange={() => selection.toggleAll(data)}
+                    aria-label="Seleccionar todo"
+                  />
+                </TableHead>
+                <TableHead>Cliente</TableHead>
               <TableHead className="w-[11rem]">Cédula</TableHead>
               <TableHead className="w-[11rem]">Registrado</TableHead>
               <TableHead className="w-[16rem]">Estado</TableHead>
@@ -1718,6 +2022,13 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
 
                 return (
                   <TableRow key={client.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selection.isSelected(client.id)}
+                        onCheckedChange={() => selection.toggleItem(client.id)}
+                        aria-label={`Seleccionar cliente ${client.cedula}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
@@ -1761,6 +2072,7 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
             })}
           </TableBody>
         </Table>
+      </>
     )
 }
 
@@ -1866,14 +2178,56 @@ function UnifiedSearchTable({
   );
 }
 
-function InactiveTable({ data, onRestore }: { data: (Lead | Client)[], onRestore: (item: Lead | Client) => void }) {
+function InactiveTable({ data, onRestore, selection, onBulkAction, onBulkExport }: {
+  data: (Lead | Client)[],
+  onRestore: (item: Lead | Client) => void,
+  selection: ReturnType<typeof useBulkSelection<Lead | Client>>,
+  onBulkAction: (action: 'restore' | 'delete') => void,
+  onBulkExport: () => void
+}) {
     if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos registros inactivos.</div>;
 
     return (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Contacto</TableHead>
+        <>
+          {/* Bulk Actions Toolbar */}
+          {selection.selectedCount > 0 && (
+            <BulkActionsToolbar
+              selectedCount={selection.selectedCount}
+              onClear={selection.clearSelection}
+              actions={[
+                {
+                  label: 'Restaurar',
+                  icon: Sparkles,
+                  onClick: () => onBulkAction('restore'),
+                  variant: 'default'
+                },
+                {
+                  label: 'Eliminar',
+                  icon: Trash,
+                  onClick: () => onBulkAction('delete'),
+                  variant: 'destructive'
+                },
+                {
+                  label: 'Exportar',
+                  icon: Download,
+                  onClick: onBulkExport,
+                  variant: 'secondary'
+                }
+              ]}
+            />
+          )}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selection.isAllSelected}
+                        onCheckedChange={() => selection.toggleAll(data)}
+                    aria-label="Seleccionar todo"
+                  />
+                </TableHead>
+                <TableHead>Contacto</TableHead>
               <TableHead className="w-[10rem]">Estado</TableHead>
               <TableHead className="w-[12rem]">Última actualización</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -1887,6 +2241,13 @@ function InactiveTable({ data, onRestore }: { data: (Lead | Client)[], onRestore
 
                 return (
                   <TableRow key={item.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selection.isSelected(item.id)}
+                        onCheckedChange={() => selection.toggleItem(item.id)}
+                        aria-label={`Seleccionar registro ${item.cedula}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
@@ -1915,5 +2276,6 @@ function InactiveTable({ data, onRestore }: { data: (Lead | Client)[], onRestore
             })}
           </TableBody>
         </Table>
+      </>
     );
 }

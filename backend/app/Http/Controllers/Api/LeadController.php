@@ -481,4 +481,170 @@ class LeadController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Bulk archive/restore leads
+     * PATCH /api/leads/bulk-archive
+     *
+     * @param Request $request - Expects { ids: [1, 2, 3], action: 'archive'|'restore' }
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkArchive(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:' . config('bulk-actions.max_items_per_request', 50),
+            'ids.*' => 'required|integer|exists:persons,id',
+            'action' => 'required|in:archive,restore'
+        ]);
+
+        $ids = $validated['ids'];
+        $action = $validated['action'];
+        $isActive = ($action === 'restore'); // restore = is_active true, archive = is_active false
+
+        $successful = 0;
+        $failed = 0;
+        $errors = [];
+
+        try {
+            DB::beginTransaction();
+
+            foreach ($ids as $id) {
+                try {
+                    $lead = Lead::findOrFail($id);
+
+                    // Only process if person_type_id is 1 (Lead) or 2 (Client)
+                    if (!in_array($lead->person_type_id, [1, 2])) {
+                        $failed++;
+                        $errors[] = [
+                            'id' => $id,
+                            'message' => "Registro #{$id} no es un Lead o Cliente válido"
+                        ];
+                        continue;
+                    }
+
+                    $lead->is_active = $isActive;
+                    $lead->save();
+                    $successful++;
+
+                } catch (\Exception $e) {
+                    $failed++;
+                    $errors[] = [
+                        'id' => $id,
+                        'message' => $e->getMessage()
+                    ];
+                }
+            }
+
+            if (config('bulk-actions.use_transactions', true)) {
+                DB::commit();
+            }
+
+            $actionText = $action === 'archive' ? 'archivados' : 'restaurados';
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'successful' => $successful,
+                    'failed' => $failed,
+                    'errors' => $errors
+                ],
+                'message' => "$successful registros $actionText correctamente"
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al archivar/restaurar',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk convert leads to clients
+     * POST /api/leads/bulk-convert
+     *
+     * @param Request $request - Expects { ids: [1, 2, 3] }
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkConvert(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:' . config('bulk-actions.max_items_per_request', 50),
+            'ids.*' => 'required|integer|exists:persons,id'
+        ]);
+
+        $ids = $validated['ids'];
+        $successful = 0;
+        $failed = 0;
+        $errors = [];
+
+        try {
+            DB::beginTransaction();
+
+            foreach ($ids as $id) {
+                try {
+                    $lead = Lead::findOrFail($id);
+
+                    // Verify it's actually a Lead (person_type_id = 1)
+                    if ($lead->person_type_id !== 1) {
+                        $failed++;
+                        $errors[] = [
+                            'id' => $id,
+                            'message' => "Registro #{$id} no es un Lead"
+                        ];
+                        continue;
+                    }
+
+                    // Verify lead is active
+                    if (!$lead->is_active) {
+                        $failed++;
+                        $errors[] = [
+                            'id' => $id,
+                            'message' => "Lead #{$id} está archivado"
+                        ];
+                        continue;
+                    }
+
+                    // Convert: 1 (Lead) -> 2 (Client)
+                    $lead->person_type_id = 2;
+                    $lead->status = 'Activo'; // Default client status
+                    $lead->save();
+                    $successful++;
+
+                } catch (\Exception $e) {
+                    $failed++;
+                    $errors[] = [
+                        'id' => $id,
+                        'message' => $e->getMessage()
+                    ];
+                }
+            }
+
+            if (config('bulk-actions.use_transactions', true)) {
+                DB::commit();
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'successful' => $successful,
+                    'failed' => $failed,
+                    'errors' => $errors
+                ],
+                'message' => "$successful leads convertidos a clientes correctamente"
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al convertir leads',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

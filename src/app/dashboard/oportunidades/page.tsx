@@ -17,7 +17,8 @@ import {
   Check,
   ChevronsUpDown,
   X,
-  AlertCircle
+  AlertCircle,
+  Trash
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -74,10 +75,13 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useDebounce } from "@/hooks/use-debounce";
+import { useBulkSelection } from "@/hooks/use-bulk-selection";
+import { BulkActionsToolbar } from "@/components/bulk-actions-toolbar";
 import api from "@/lib/axios";
 
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
@@ -288,6 +292,22 @@ export default function DealsPage() {
     numero_embargos: "",
     salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
+
+  // Bulk Selection Hook
+  const {
+    selectedIds,
+    selectedCount,
+    isAllSelected,
+    isIndeterminate,
+    toggleItem,
+    toggleAll,
+    clearSelection,
+    isSelected
+  } = useBulkSelection<Opportunity>();
+
+  // Bulk Delete State
+  const [isConfirmBulkDeleteOpen, setIsConfirmBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Auto-ajustar meses según tipo de producto
   useEffect(() => {
@@ -598,6 +618,99 @@ export default function DealsPage() {
           setIsDeleting(false);
       }
   }, [opportunityToDelete, closeDeleteDialog, fetchOpportunities, toast]);
+
+  // --- Bulk Delete Logic ---
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+
+    if (ids.length === 0) return;
+
+    // Validate max items
+    if (ids.length > 50) {
+      toast({
+        title: "Límite excedido",
+        description: "Máximo 50 elementos por operación",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsBulkDeleting(true);
+
+    try {
+      const response = await api.delete('/api/opportunities/bulk', {
+        data: { ids }
+      });
+
+      const { successful, failed, errors } = response.data.data;
+
+      if (failed > 0) {
+        // Partial success
+        toast({
+          title: "Operación parcial",
+          description: `${successful} eliminadas, ${failed} fallidas`,
+          variant: "destructive"
+        });
+      } else {
+        // Full success
+        toast({
+          title: "Eliminadas",
+          description: `${successful} oportunidades eliminadas correctamente`
+        });
+      }
+
+      // Refresh and clear selection
+      fetchOpportunities();
+      clearSelection();
+      setIsConfirmBulkDeleteOpen(false);
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al eliminar oportunidades",
+        variant: "destructive"
+      });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }, [selectedIds, clearSelection, fetchOpportunities, toast]);
+
+  // Bulk Export Selected
+  const handleBulkExport = useCallback(() => {
+    const selectedOpportunities = opportunities.filter(opp => selectedIds.has(opp.id));
+
+    if (selectedOpportunities.length === 0) return;
+
+    // Export to CSV
+    const headers = ["Número", "Lead", "Email", "Estado", "Tipo", "Monto", "Cierre Esperado", "Creado"];
+    const rows = selectedOpportunities.map(opp => [
+      formatOpportunityReference(opp.id),
+      opp.lead?.name || "Desconocido",
+      opp.lead?.email || "-",
+      opp.status || "Pendiente",
+      opp.opportunity_type || "-",
+      formatAmount(resolveEstimatedOpportunityAmount(opp.amount)),
+      opp.expected_close_date || "-",
+      new Date(opp.created_at || "").toLocaleDateString()
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `oportunidades_seleccionadas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+
+    toast({
+      title: "Exportado",
+      description: `${selectedOpportunities.length} oportunidades exportadas`
+    });
+  }, [selectedIds, opportunities, toast]);
 
   // --- Detail Logic ---
 
@@ -1108,9 +1221,39 @@ export default function DealsPage() {
       </CardHeader>
       <CardContent className="space-y-6">
 
+        {/* Bulk Actions Toolbar */}
+        {selectedCount > 0 && (
+          <BulkActionsToolbar
+            selectedCount={selectedCount}
+            onClear={clearSelection}
+            actions={[
+              {
+                label: 'Eliminar',
+                icon: Trash,
+                onClick: () => setIsConfirmBulkDeleteOpen(true),
+                variant: 'destructive'
+              },
+              {
+                label: 'Exportar',
+                icon: Download,
+                onClick: handleBulkExport,
+                variant: 'secondary'
+              }
+            ]}
+          />
+        )}
+
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={isAllSelected}
+                  indeterminate={isIndeterminate}
+                  onCheckedChange={() => toggleAll(visibleOpportunities)}
+                  aria-label="Seleccionar todo"
+                />
+              </TableHead>
               <TableHead aria-sort={getAriaSort("reference")}>
                 <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("reference")}>
                   Número {renderSortIcon("reference")}
@@ -1156,14 +1299,21 @@ export default function DealsPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
             ) : visibleOpportunities.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">No hay oportunidades.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">No hay oportunidades.</TableCell></TableRow>
             ) : (
               visibleOpportunities.map((opportunity) => {
                 const badgeVariant = opportunity.status?.toLowerCase() === "ganada" ? "default" : "secondary";
                 return (
                   <TableRow key={opportunity.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={isSelected(opportunity.id)}
+                        onCheckedChange={() => toggleItem(opportunity.id)}
+                        aria-label={`Seleccionar oportunidad ${opportunity.id}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-mono text-sm">
                         <div className="flex flex-col">
                             <Link href={`/dashboard/oportunidades/${opportunity.id}`} className="font-semibold text-primary hover:underline">
@@ -1612,6 +1762,28 @@ export default function DealsPage() {
                     {isDeleting ? "Eliminando..." : "Eliminar"}
                 </AlertDialogAction>
             </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isConfirmBulkDeleteOpen} onOpenChange={setIsConfirmBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selectedCount} oportunidades?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Las oportunidades seleccionadas se eliminarán permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isBulkDeleting}
+            >
+              {isBulkDeleting ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       </Card>
