@@ -1297,7 +1297,7 @@ export default function OpportunityDetailPage() {
                             className="h-8 text-xs bg-green-600 text-white hover:bg-green-700 gap-1"
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            Analizado
+                            Ver Análisis
                           </Button>
                         )
                       ) : (
