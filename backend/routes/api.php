@@ -63,8 +63,8 @@ Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula']);
 
 // Bulk actions for leads (MUST be before apiResource to avoid route conflicts)
-Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
-Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
+Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive'])->middleware('auth:sanctum');
+Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert'])->middleware('auth:sanctum');
 
 Route::apiResource('leads', LeadController::class);
 
@@ -81,7 +81,7 @@ Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::cl
 Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
 
 // Bulk actions for opportunities (MUST be before apiResource to avoid route conflicts)
-Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete']);
+Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete'])->middleware('auth:sanctum');
 
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
