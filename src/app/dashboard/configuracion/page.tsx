@@ -2292,18 +2292,15 @@ export default function ConfiguracionPage() {
   const fetchDeductoras = async () => {
     setLoadingDeductoras(true);
     try {
-      // Usar datos hardcodeados directamente del backend config
-      const now = new Date();
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const lastDayOfMonth = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
-      const staticDeductoras = [
-        { id: 1, nombre: 'COOPENACIONAL', codigo: 'COOPENACIONAL', fecha_reporte_pago: lastDayOfMonth, comision: 0 },
-        { id: 2, nombre: 'COOPESERVICIOS', codigo: 'COOPESERVICIOS', fecha_reporte_pago: lastDayOfMonth, comision: 0 },
-        { id: 3, nombre: 'Coope San Gabriel R.L.', codigo: 'COOPESANGABRIEL', fecha_reporte_pago: lastDayOfMonth, comision: 0 },
-      ];
-      setDeductorasList(staticDeductoras);
+      const response = await api.get('/api/deductoras');
+      setDeductorasList(response.data);
     } catch (error) {
-      console.error('Error loading deductoras:', error);
+      console.error('Error fetching deductoras from API:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo cargar las deductoras.",
+        variant: "destructive",
+      });
     } finally {
       setLoadingDeductoras(false);
     }

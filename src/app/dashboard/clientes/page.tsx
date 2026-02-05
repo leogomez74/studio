@@ -761,7 +761,8 @@ export default function ClientesPage() {
 
     // Verificar WhatsApp al momento de enviar (solo para nuevos leads)
     if (!editingId) {
-      const fullPhone = '506' + values.phone;
+      const prefix = (values.phonePrefix || '+506').replace('+', '');
+      const fullPhone = prefix + values.phone;
 
       const isVerified = await checkWhatsApp(fullPhone);
 
@@ -777,7 +778,8 @@ export default function ClientesPage() {
       const formattedDate = values.fechaNacimiento || null;
 
       // Construir número completo de WhatsApp
-      const fullPhone = '506' + values.phone;
+      const prefix = (values.phonePrefix || '+506').replace('+', '');
+      const fullPhone = prefix + values.phone;
 
       const body: Record<string, any> = {
         name: values.name?.trim() || null,
@@ -1405,13 +1407,44 @@ export default function ClientesPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Teléfono (Whatsapp)</FormLabel>
-                        <div className="flex gap-2">
-                          <FormControl className="flex-1">
+                        <FormControl>
+                          <div className="flex gap-0">
+                            {isExtranjero && (
+                              <FormField
+                                control={form.control}
+                                name="phonePrefix"
+                                render={({ field: prefixField }) => (
+                                  <Select
+                                    disabled={isViewOnly}
+                                    onValueChange={prefixField.onChange}
+                                    value={prefixField.value}
+                                  >
+                                    <SelectTrigger className="w-[110px] rounded-r-none border-r-0">
+                                      <SelectValue placeholder="+506" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="+506">+506</SelectItem>
+                                      <SelectItem value="+1">+1</SelectItem>
+                                      <SelectItem value="+52">+52</SelectItem>
+                                      <SelectItem value="+34">+34</SelectItem>
+                                      <SelectItem value="+57">+57</SelectItem>
+                                      <SelectItem value="+58">+58</SelectItem>
+                                      <SelectItem value="+507">+507</SelectItem>
+                                      <SelectItem value="+505">+505</SelectItem>
+                                      <SelectItem value="+503">+503</SelectItem>
+                                      <SelectItem value="+504">+504</SelectItem>
+                                      <SelectItem value="+502">+502</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              />
+                            )}
                             <Input
                               required
                               disabled={isViewOnly}
                               placeholder="88887777"
-                              maxLength={8}
+                              maxLength={isExtranjero ? undefined : 8}
+                              className={isExtranjero ? "rounded-l-none" : ""}
                               {...field}
                               onChange={(e) => {
                                 const formattedValue = normalizePhoneInput(e.target.value);
@@ -1420,8 +1453,8 @@ export default function ClientesPage() {
                                 setWhatsappError(null);
                               }}
                             />
-                          </FormControl>
-                        </div>
+                          </div>
+                        </FormControl>
                         {whatsappVerifying && <p className="text-xs text-blue-600">Verificando WhatsApp...</p>}
                         {whatsappVerified && <p className="text-xs text-green-600">✓ Número verificado en WhatsApp</p>}
                         {whatsappError && <p className="text-xs text-red-500">{whatsappError}</p>}

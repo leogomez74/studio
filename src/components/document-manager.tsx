@@ -117,6 +117,20 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Check if trying to upload cedula when one already exists
+    if (category === 'cedula') {
+      const existingCedula = documents.find(doc => (doc as any).category === 'cedula');
+      if (existingCedula) {
+        toast({
+          title: 'Error',
+          description: 'Ya existe una cédula registrada. Elimínela primero para subir una nueva.',
+          variant: 'destructive'
+        });
+        e.target.value = '';
+        return;
+      }
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('person_id', String(personId));

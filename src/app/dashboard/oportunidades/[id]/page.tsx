@@ -1260,7 +1260,7 @@ export default function OpportunityDetailPage() {
                       if (status === "Analizada" && opportunity.status === status) {
                         if (existingAnalisis) {
                           buttonText = "Analizado";
-                          customClassName = "bg-green-600 text-white hover:bg-green-700";
+                          customClassName = "bg-green-600 text-white hover:bg-green-700 opacity-75 cursor-not-allowed";
                         } else if (analysisStarted) {
                           buttonText = "Analizando";
                           customClassName = "bg-yellow-600 text-white hover:bg-yellow-700 opacity-75 cursor-not-allowed";
@@ -1275,7 +1275,7 @@ export default function OpportunityDetailPage() {
                           key={status}
                           variant={opportunity.status === status ? "default" : "outline"}
                           onClick={customOnClick}
-                          disabled={updatingStatus || !canEdit || permsLoading || isBackward || (status === "Analizada" && analysisStarted && !existingAnalisis)}
+                          disabled={updatingStatus || !canEdit || permsLoading || isBackward || (status === "Analizada" && (analysisStarted || existingAnalisis))}
                           className={`h-8 text-xs ${
                             customClassName || (opportunity.status === status
                               ? "bg-slate-900 text-white hover:bg-slate-800"
@@ -1297,7 +1297,7 @@ export default function OpportunityDetailPage() {
                             className="h-8 text-xs bg-green-600 text-white hover:bg-green-700 gap-1"
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            Analizado
+                            Ver Análisis
                           </Button>
                         )
                       ) : (

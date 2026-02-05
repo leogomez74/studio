@@ -520,6 +520,11 @@ export default function AnalisisDetailPage() {
   const [savingPropuesta, setSavingPropuesta] = useState(false);
   const [editingPropuesta, setEditingPropuesta] = useState<Propuesta | null>(null);
 
+  // Estado para modal de rechazo de propuesta
+  const [propuestaToReject, setPropuestaToReject] = useState<Propuesta | null>(null);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [rejectingPropuesta, setRejectingPropuesta] = useState(false);
+
   // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -887,10 +892,27 @@ export default function AnalisisDetailPage() {
     }
   };
 
-  const handleDenegarPropuesta = async (id: number) => {
+  const handleDenegarPropuesta = (propuesta: Propuesta) => {
+    setPropuestaToReject(propuesta);
+    setMotivoRechazo('');
+  };
+
+  const handleConfirmRechazo = async () => {
+    if (!propuestaToReject) return;
+
+    if (!motivoRechazo.trim()) {
+      toast({ title: 'Error', description: 'Debe ingresar el motivo del rechazo.', variant: 'destructive' });
+      return;
+    }
+
+    setRejectingPropuesta(true);
     try {
-      await api.patch(`/api/propuestas/${id}/denegar`);
+      await api.patch(`/api/propuestas/${propuestaToReject.id}/denegar`, {
+        motivo_rechazo: motivoRechazo.trim()
+      });
       toast({ title: 'Propuesta denegada' });
+      setPropuestaToReject(null);
+      setMotivoRechazo('');
       fetchPropuestas();
     } catch (err: any) {
       toast({
@@ -898,6 +920,8 @@ export default function AnalisisDetailPage() {
         description: err.response?.data?.message || 'No se pudo denegar.',
         variant: 'destructive',
       });
+    } finally {
+      setRejectingPropuesta(false);
     }
   };
 
@@ -1478,6 +1502,14 @@ export default function AnalisisDetailPage() {
                         </Badge>
                       </div>
 
+                      {/* Motivo de rechazo */}
+                      {p.estado === 'Denegada' && p.motivo_rechazo && (
+                        <div className="text-xs text-red-600 bg-red-50 rounded p-2 mb-3">
+                          <span className="font-medium">Motivo: </span>
+                          {p.motivo_rechazo}
+                        </div>
+                      )}
+
                       <div className="text-xs text-muted-foreground mb-3">
                         {new Date(p.created_at).toLocaleDateString('es-CR')}
                       </div>
@@ -1498,7 +1530,7 @@ export default function AnalisisDetailPage() {
                             size="sm"
                             variant="ghost"
                             className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDenegarPropuesta(p.id)}
+                            onClick={() => handleDenegarPropuesta(p)}
                           >
                             <ThumbsDown className="h-4 w-4 mr-1" />
                             Denegar
@@ -1532,6 +1564,7 @@ export default function AnalisisDetailPage() {
                         <TableHead className="text-xs">Monto</TableHead>
                         <TableHead className="text-xs">Plazo</TableHead>
                         <TableHead className="text-xs">Estado</TableHead>
+                        <TableHead className="text-xs">Motivo</TableHead>
                         <TableHead className="text-xs">Fecha</TableHead>
                         <TableHead className="text-xs text-right">Acciones</TableHead>
                       </TableRow>
@@ -1555,6 +1588,15 @@ export default function AnalisisDetailPage() {
                               {p.estado}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[200px]">
+                            {p.estado === 'Denegada' && p.motivo_rechazo ? (
+                              <span className="text-red-600 line-clamp-2" title={p.motivo_rechazo}>
+                                {p.motivo_rechazo}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {new Date(p.created_at).toLocaleDateString('es-CR')}
                           </TableCell>
@@ -1574,7 +1616,7 @@ export default function AnalisisDetailPage() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => handleDenegarPropuesta(p.id)}
+                                  onClick={() => handleDenegarPropuesta(p)}
                                   title="Denegar"
                                 >
                                   <ThumbsDown className="h-5 w-5" />
@@ -1843,6 +1885,51 @@ export default function AnalisisDetailPage() {
           setAnalisis(resAnalisis.data);
         }}
       />
+
+      {/* Modal de rechazo de propuesta */}
+      <Dialog open={!!propuestaToReject} onOpenChange={(open) => !open && setPropuestaToReject(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Denegar Propuesta</DialogTitle>
+            <DialogDescription>
+              Ingrese el motivo por el cual se rechaza esta propuesta de {propuestaToReject ? formatCurrency(propuestaToReject.monto) : ''} a {propuestaToReject?.plazo} meses.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="motivo-rechazo">Motivo del rechazo *</Label>
+              <Textarea
+                id="motivo-rechazo"
+                placeholder="Escriba el motivo del rechazo..."
+                value={motivoRechazo}
+                onChange={(e) => setMotivoRechazo(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPropuestaToReject(null);
+                setMotivoRechazo('');
+              }}
+              disabled={rejectingPropuesta}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmRechazo}
+              disabled={rejectingPropuesta || !motivoRechazo.trim()}
+            >
+              {rejectingPropuesta && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirmar Rechazo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Barra inferior - Estado PEP izquierda, Estado Cliente derecha */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mt-6 pt-4 border-t flex-wrap">

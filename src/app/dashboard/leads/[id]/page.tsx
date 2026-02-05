@@ -627,6 +627,17 @@ export default function LeadDetailPage() {
         return value === null || value === undefined || value === '';
     }, [formData]);
 
+    // Verificar completitud por sección
+    const isSectionComplete = useCallback((fields: string[]) => {
+        if (!formData) return false;
+        return fields.every(field => !isFieldMissing(field));
+    }, [formData, isFieldMissing]);
+
+    const personalFields = ['name', 'apellido1', 'cedula', 'fecha_nacimiento', 'estado_civil'];
+    const contactFields = ['email', 'phone', 'whatsapp'];
+    const addressFields = ['province', 'canton', 'distrito', 'direccion1'];
+    const employmentFields = ['profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector', 'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'];
+
     const getMissingDocuments = useCallback(() => {
         const documents = (lead as any)?.documents || [];
         if (documents.length === 0) return ['Cédula', 'Recibo de Servicio'];
@@ -1044,7 +1055,19 @@ export default function LeadDetailPage() {
 
                             {/* Personal Information */}
                             <div>
-                                <h3 className="text-lg font-medium mb-4">Datos Personales</h3>
+                                <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                                    Datos Personales
+                                    {isSectionComplete(personalFields) ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-300">
+                                            <Check className="h-3 w-3 mr-1" />
+                                            Completo
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                            {personalFields.filter(f => isFieldMissing(f)).length} pendientes
+                                        </Badge>
+                                    )}
+                                </h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
                                         <Label>Nombre {isFieldMissing('name') && <span className="text-red-500">*</span>}</Label>
@@ -1144,7 +1167,19 @@ export default function LeadDetailPage() {
 
                             {/* Contact Information */}
                             <div>
-                                <h3 className="text-lg font-medium mb-4">Información de Contacto</h3>
+                                <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                                    Información de Contacto
+                                    {isSectionComplete(contactFields) ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-300">
+                                            <Check className="h-3 w-3 mr-1" />
+                                            Completo
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                            {contactFields.filter(f => isFieldMissing(f)).length} pendientes
+                                        </Badge>
+                                    )}
+                                </h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
                                         <Label>Email {isFieldMissing('email') && <span className="text-red-500">*</span>}</Label>
@@ -1201,7 +1236,19 @@ export default function LeadDetailPage() {
 
                             {/* Address Information */}
                             <div>
-                                <h3 className="text-lg font-medium mb-4">Dirección</h3>
+                                <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                                    Dirección
+                                    {isSectionComplete(addressFields) ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-300">
+                                            <Check className="h-3 w-3 mr-1" />
+                                            Completo
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                            {addressFields.filter(f => isFieldMissing(f)).length} pendientes
+                                        </Badge>
+                                    )}
+                                </h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
                                         <Label>Provincia {isFieldMissing('province') && <span className="text-red-500">*</span>}</Label>
@@ -1295,7 +1342,19 @@ export default function LeadDetailPage() {
 
                             {/* Employment Information */}
                             <div>
-                                <h3 className="text-lg font-medium mb-4">Información Laboral</h3>
+                                <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                                    Información Laboral
+                                    {isSectionComplete(employmentFields) ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-300">
+                                            <Check className="h-3 w-3 mr-1" />
+                                            Completo
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                            {employmentFields.filter(f => isFieldMissing(f)).length} pendientes
+                                        </Badge>
+                                    )}
+                                </h3>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <div className="space-y-2">
                                         <Label>Nivel Académico {isFieldMissing('nivel_academico') && <span className="text-red-500">*</span>}</Label>

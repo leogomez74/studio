@@ -27,6 +27,7 @@ class Propuesta extends Model
         'estado',
         'aceptada_por',
         'aceptada_at',
+        'motivo_rechazo',
     ];
 
     protected $casts = [
