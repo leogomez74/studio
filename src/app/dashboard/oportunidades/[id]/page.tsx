@@ -529,6 +529,7 @@ export default function OpportunityDetailPage() {
   // Analisis state
   const [existingAnalisis, setExistingAnalisis] = useState<any>(null);
   const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
+  const [analysisStarted, setAnalysisStarted] = useState(false); // Track if analysis process started
   const [analisisForm, setAnalisisForm] = useState({
     reference: "",
     title: "",
@@ -1016,15 +1017,16 @@ export default function OpportunityDetailPage() {
   const handleOpenAnalisisDialog = () => {
     if (!opportunity) return;
 
+    // VALIDACIÓN TEMPORALMENTE DESACTIVADA
     // Validar que existan documentos específicos de la oportunidad
-    if (especificos.length === 0) {
-      toast({
-        title: "Documentos requeridos",
-        description: "Debe cargar al menos un documento específico de la oportunidad antes de crear un análisis.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // if (especificos.length === 0) {
+    //   toast({
+    //     title: "Documentos requeridos",
+    //     description: "Debe cargar al menos un documento específico de la oportunidad antes de crear un análisis.",
+    //     variant: "destructive"
+    //   });
+    //   return;
+    // }
 
     // Buscar el usuario responsable default
     const defaultUser = users.find((u: any) => u.is_default_lead_assignee);
@@ -1055,6 +1057,7 @@ export default function OpportunityDetailPage() {
       numero_embargos: "",
       salarios_anteriores: [],
     });
+    setAnalysisStarted(true); // Mark that analysis process has started
     setIsAnalisisDialogOpen(true);
   };
 
@@ -1260,7 +1263,7 @@ export default function OpportunityDetailPage() {
                             className="h-8 text-xs bg-green-600 text-white hover:bg-green-700 gap-1"
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            Ver Análisis
+                            Analizado
                           </Button>
                         )
                       ) : (
@@ -1268,10 +1271,14 @@ export default function OpportunityDetailPage() {
                           <Button
                             variant="default"
                             onClick={handleOpenAnalisisDialog}
-                            className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
+                            className={`h-8 text-xs gap-1 ${
+                              analysisStarted
+                                ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            }`}
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
-                            Subir Análisis
+                            {analysisStarted ? 'Analizando' : 'Por analizar'}
                           </Button>
                         )
                       )
