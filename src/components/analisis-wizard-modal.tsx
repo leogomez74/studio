@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Check, Plus, X, FolderOpen, Loader2, FileText, File, Image as ImageIcon, FileSpreadsheet, Trash, Download, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Plus, X, FolderOpen, Loader2, FileText, File, Image as ImageIcon, FileSpreadsheet, Trash } from 'lucide-react';
 import { formatCurrency } from '@/lib/analisis';
 import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
@@ -106,12 +106,8 @@ export function AnalisisWizardModal({
   const [montoError, setMontoError] = useState<string>('');
 
   // Estados para archivos (Paso 4)
-  const [especificos, setEspecificos] = useState<OpportunityFile[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxFile, setLightboxFile] = useState<OpportunityFile | null>(null);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [zoom, setZoom] = useState(1);
 
   // Cargar usuarios y datos del lead al abrir el modal
   useEffect(() => {
@@ -261,35 +257,39 @@ export function AnalisisWizardModal({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Cargar archivos de la oportunidad
-  const fetchFiles = async () => {
-    if (!opportunityId) return;
-    try {
-      const response = await api.get(`/api/opportunities/${opportunityId}/files`);
-      const allFiles = response.data || [];
-      // Filtrar solo archivos específicos (los que no son cedula ni recibo)
-      const specific = allFiles.filter((f: OpportunityFile) => {
-        const name = f.name.toLowerCase();
-        return !name.startsWith('cedula') && !name.startsWith('recibo');
-      });
-      setEspecificos(specific);
-    } catch (error) {
-      console.error('Error fetching files:', error);
-    }
-  };
-
-  // Subir archivo(s) específico(s)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Manejar selección de archivos (solo guardar en estado, no subir)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+
+    const newFiles = Array.from(files);
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+
+    toast({
+      title: "Archivos seleccionados",
+      description: `${newFiles.length} archivo(s) agregado(s). Se subirán al crear el análisis.`
+    });
+
+    // Reset input
+    e.target.value = '';
+  };
+
+  // Eliminar archivo de la lista (antes de subir)
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Subir todos los archivos seleccionados
+  const uploadSelectedFiles = async () => {
+    if (selectedFiles.length === 0) return;
 
     setUploading(true);
     let successCount = 0;
     let errorCount = 0;
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
         const formData = new FormData();
         formData.append('file', file);
 
@@ -304,83 +304,13 @@ export function AnalisisWizardModal({
         }
       }
 
-      if (successCount > 0) {
-        toast({
-          title: "Éxito",
-          description: `${successCount} archivo(s) subido(s) correctamente.${errorCount > 0 ? ` ${errorCount} fallaron.` : ''}`
-        });
-        fetchFiles();
-      } else {
-        toast({ title: "Error", description: "No se pudieron subir los archivos.", variant: "destructive" });
+      if (errorCount > 0) {
+        throw new Error(`${errorCount} archivo(s) no se pudieron subir`);
       }
-    } catch (error) {
-      console.error('Error in upload:', error);
-      toast({ title: "Error", description: "Error al subir archivos.", variant: "destructive" });
     } finally {
       setUploading(false);
-      // Reset input
-      e.target.value = '';
     }
   };
-
-  // Eliminar archivo
-  const handleDeleteFile = async (filename: string) => {
-    if (!confirm(`¿Eliminar el archivo "${filename}"?`)) return;
-
-    try {
-      await api.delete(`/api/opportunities/${opportunityId}/files/${encodeURIComponent(filename)}`);
-      toast({ title: "Éxito", description: "Archivo eliminado." });
-      fetchFiles();
-    } catch (error) {
-      console.error("Error deleting file:", error);
-      toast({ title: "Error", description: "No se pudo eliminar el archivo.", variant: "destructive" });
-    }
-  };
-
-  // Lightbox functions
-  const getViewableFiles = () => {
-    return especificos.filter(f => isImageFile(f.name) || isPdfFile(f.name));
-  };
-
-  const openLightbox = (file: OpportunityFile) => {
-    const viewableFiles = getViewableFiles();
-    const index = viewableFiles.findIndex(f => f.path === file.path);
-    setLightboxFile(file);
-    setLightboxIndex(index >= 0 ? index : 0);
-    setZoom(1);
-    setLightboxOpen(true);
-  };
-
-  const closeLightbox = () => {
-    setLightboxOpen(false);
-    setLightboxFile(null);
-    setZoom(1);
-  };
-
-  const goToPrevious = () => {
-    const viewableFiles = getViewableFiles();
-    if (viewableFiles.length <= 1) return;
-    const newIndex = (lightboxIndex - 1 + viewableFiles.length) % viewableFiles.length;
-    setLightboxIndex(newIndex);
-    setLightboxFile(viewableFiles[newIndex]);
-    setZoom(1);
-  };
-
-  const goToNext = () => {
-    const viewableFiles = getViewableFiles();
-    if (viewableFiles.length <= 1) return;
-    const newIndex = (lightboxIndex + 1) % viewableFiles.length;
-    setLightboxIndex(newIndex);
-    setLightboxFile(viewableFiles[newIndex]);
-    setZoom(1);
-  };
-
-  // Cargar archivos cuando se abre el modal
-  useEffect(() => {
-    if (open && opportunityId) {
-      fetchFiles();
-    }
-  }, [open, opportunityId]);
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -413,8 +343,21 @@ export function AnalisisWizardModal({
       return;
     }
 
+    // Validar que haya archivos seleccionados
+    if (selectedFiles.length === 0) {
+      toast({
+        title: "Archivos requeridos",
+        description: "Debe agregar al menos un documento específico de la oportunidad.",
+        variant: "destructive"
+      });
+      setCurrentStep(4);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // Primero subir los archivos
+      await uploadSelectedFiles();
       // Construir payload con todos los datos
       const payload: any = {
         opportunity_id: opportunityId,
@@ -459,6 +402,7 @@ export function AnalisisWizardModal({
       setFormData(initialFormData);
       setCurrentStep(1);
       setExtraMonths(0);
+      setSelectedFiles([]);
 
       const createdId = response.data?.data?.id || response.data?.id;
       toast({
@@ -1048,85 +992,53 @@ export function AnalisisWizardModal({
               <CardTitle className="flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-green-500" />
                 Específicos de Oportunidad
-                <Badge variant="secondary" className="ml-auto">{especificos.length}</Badge>
+                <Badge variant="secondary" className="ml-auto">{selectedFiles.length}</Badge>
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Documentos subidos directamente aquí</p>
+              <p className="text-sm text-muted-foreground">Archivos que se subirán al crear el análisis</p>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Upload para documentos específicos */}
               <div className="flex items-center gap-4 pb-3 border-b">
-                <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad</Label>
+                <div className="grid w-full items-center gap-1.5">
+                  <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad *</Label>
                   <Input
                     id="file-upload"
                     type="file"
                     multiple
-                    onChange={handleFileUpload}
-                    disabled={uploading}
+                    onChange={handleFileSelect}
                     className="cursor-pointer"
                   />
                 </div>
-                {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
               </div>
 
-              {/* Lista de archivos específicos */}
-              {especificos.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Sin archivos específicos</p>
+              {/* Lista de archivos seleccionados */}
+              {selectedFiles.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                  <FolderOpen className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-50" />
+                  <p className="text-sm text-muted-foreground">Sin archivos seleccionados</p>
+                  <p className="text-xs text-muted-foreground mt-1">Debe agregar al menos un documento</p>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto">
-                  {especificos.map((file) => {
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {selectedFiles.map((file, index) => {
                     const { icon: FileIcon, color } = getFileTypeInfo(file.name);
                     return (
-                      <div key={file.path} className="border rounded-lg overflow-hidden">
-                        {/* Miniatura */}
-                        {(isImageFile(file.name) || isPdfFile(file.name)) ? (
-                          <button
-                            type="button"
-                            onClick={() => openLightbox(file)}
-                            className="h-32 w-full bg-muted flex items-center justify-center cursor-pointer relative group"
-                          >
-                            {isImageFile(file.name) ? (
-                              <img
-                                src={file.url}
-                                alt={file.name}
-                                className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
-                              />
-                            ) : (
-                              <iframe
-                                src={file.url}
-                                className="w-full h-full pointer-events-none"
-                                title={file.name}
-                              />
-                            )}
-                            <div className="absolute inset-0 bg-black\0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                              <Maximize2 className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                            </div>
-                          </button>
-                        ) : (
-                          <div className="h-32 bg-muted flex items-center justify-center">
-                            <FileIcon className={`h-12 w-12 ${color}`} />
-                          </div>
-                        )}
-
-                        {/* Info y acciones */}
-                        <div className="p-3 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{file.name}</p>
-                              <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                            </div>
-                            <div className="flex gap-1">
-                              <a href={file.url} download target="_blank" rel="noopener noreferrer">
-                                <Button variant="ghost" size="sm" className="h-7">
-                                  <Download className="h-3 w-3" />
-                                </Button>
-                              </a>
-                              <Button variant="ghost" size="sm" className="h-7" onClick={() => handleDeleteFile(file.name)}>
-                                <Trash className="h-3 w-3 text-destructive" />
-                              </Button>
-                            </div>
+                      <div key={index} className="border rounded-lg p-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileIcon className={`h-8 w-8 flex-shrink-0 ${color}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                           </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => handleRemoveFile(index)}
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
                     );
                   })}
@@ -1159,101 +1071,6 @@ export function AnalisisWizardModal({
           )}
         </div>
       </DialogContent>
-
-      {/* Lightbox para visualizar archivos */}
-      {lightboxOpen && lightboxFile && (
-        <Dialog open={lightboxOpen} onOpenChange={closeLightbox}>
-          <DialogContent className="max-w-[95vw] max-h-[95vh] p-0">
-            {/* Controles de navegación */}
-            {getViewableFiles().length > 1 && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 z-50 bg-black/50 text-white hover:bg-black/70"
-                  onClick={goToPrevious}
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 z-50 bg-black/50 text-white hover:bg-black/70"
-                  onClick={goToNext}
-                >
-                  <ChevronRight className="h-6 w-6" />
-                </Button>
-              </>
-            )}
-
-            {/* Contenido */}
-            {isImageFile(lightboxFile.name) ? (
-              <div className="flex items-center justify-center w-full h-[85vh] p-4">
-                <img
-                  src={lightboxFile.url}
-                  alt={lightboxFile.name}
-                  className="max-w-full max-h-full object-contain transition-transform duration-200"
-                  style={{ transform: `scale(${zoom})` }}
-                />
-              </div>
-            ) : isPdfFile(lightboxFile.name) ? (
-              <div className="w-[90vw] h-[85vh]">
-                <iframe
-                  src={lightboxFile.url}
-                  className="w-full h-full"
-                  title={lightboxFile.name}
-                />
-              </div>
-            ) : null}
-
-            {/* Barra inferior con controles */}
-            <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-white p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium truncate max-w-[300px]">
-                  {lightboxFile?.name}
-                </span>
-                {getViewableFiles().length > 1 && (
-                  <span className="text-sm text-white/60">
-                    {lightboxIndex + 1} / {getViewableFiles().length}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {lightboxFile && isImageFile(lightboxFile.name) && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/20"
-                      onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))}
-                    >
-                      <Download className="h-4 w-4 rotate-90" />
-                    </Button>
-                    <span className="text-sm w-12 text-center">{Math.round(zoom * 100)}%</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/20"
-                      onClick={() => setZoom(z => Math.min(z + 0.25, 3))}
-                    >
-                      <Download className="h-4 w-4 rotate-[-90deg]" />
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:bg-white/20"
-                  onClick={closeLightbox}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </Dialog>
   );
 }
