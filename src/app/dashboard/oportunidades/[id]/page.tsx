@@ -1288,14 +1288,10 @@ export default function OpportunityDetailPage() {
                           <Button
                             variant="default"
                             onClick={handleOpenAnalisisDialog}
-                            className={`h-8 text-xs gap-1 ${
-                              analysisStarted
-                                ? 'bg-yellow-600 text-white hover:bg-yellow-700'
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            }`}
+                            className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
-                            {analysisStarted ? 'Analizando' : 'Por analizar'}
+                            Subir Análisis
                           </Button>
                         )
                       )
