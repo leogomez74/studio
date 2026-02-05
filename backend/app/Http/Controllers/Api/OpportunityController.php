@@ -831,4 +831,92 @@ class OpportunityController extends Controller
         // Default: retornar 0 si no se puede parsear
         return 0;
     }
+
+    /**
+     * Bulk delete opportunities
+     * DELETE /api/opportunities/bulk
+     *
+     * @param Request $request - Expects { ids: [1, 2, 3] }
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:' . config('bulk-actions.max_items_per_request', 50),
+            'ids.*' => 'required|integer|exists:opportunities,id'
+        ]);
+
+        $ids = $validated['ids'];
+        $successful = 0;
+        $failed = 0;
+        $errors = [];
+
+        try {
+            \DB::beginTransaction();
+
+            foreach ($ids as $id) {
+                try {
+                    $opportunity = Opportunity::findOrFail($id);
+
+                    // Check if opportunity has associated analisis or credit
+                    if ($opportunity->analisis()->exists()) {
+                        $failed++;
+                        $errors[] = [
+                            'id' => $id,
+                            'message' => "Oportunidad #{$id} tiene análisis asociado"
+                        ];
+                        continue;
+                    }
+
+                    // Delete associated files if any
+                    $cleanCedula = $this->getCleanCedulaFromOpportunity($opportunity);
+                    if ($cleanCedula) {
+                        $baseDir = "documents/{$cleanCedula}";
+                        if (Storage::disk('public')->exists($baseDir)) {
+                            // Note: Only delete if no other opportunities use this cedula
+                            $otherOpportunities = Opportunity::where('lead_cedula', $opportunity->lead_cedula)
+                                ->where('id', '!=', $id)
+                                ->count();
+
+                            if ($otherOpportunities === 0) {
+                                Storage::disk('public')->deleteDirectory($baseDir);
+                            }
+                        }
+                    }
+
+                    $opportunity->delete();
+                    $successful++;
+
+                } catch (\Exception $e) {
+                    $failed++;
+                    $errors[] = [
+                        'id' => $id,
+                        'message' => $e->getMessage()
+                    ];
+                }
+            }
+
+            if (config('bulk-actions.use_transactions', true)) {
+                \DB::commit();
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'successful' => $successful,
+                    'failed' => $failed,
+                    'errors' => $errors
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar oportunidades',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
