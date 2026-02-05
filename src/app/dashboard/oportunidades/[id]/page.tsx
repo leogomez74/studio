@@ -1236,6 +1236,23 @@ export default function OpportunityDetailPage() {
                       // No permitir retroceder (excepto "Perdida" que siempre está disponible)
                       const isBackward = newStatusIndex < currentStatusIndex && status !== 'Perdida';
 
+                      // Customize button text and style for "Analizada" status
+                      let buttonText = status;
+                      let customClassName = "";
+
+                      if (status === "Analizada" && opportunity.status === status) {
+                        if (existingAnalisis) {
+                          buttonText = "Analizado";
+                          customClassName = "bg-green-600 text-white hover:bg-green-700";
+                        } else if (analysisStarted) {
+                          buttonText = "Analizando";
+                          customClassName = "bg-yellow-600 text-white hover:bg-yellow-700";
+                        } else {
+                          buttonText = "Por analizar";
+                          customClassName = "bg-indigo-600 text-white hover:bg-indigo-700";
+                        }
+                      }
+
                       return (
                         <Button
                           key={status}
@@ -1243,14 +1260,14 @@ export default function OpportunityDetailPage() {
                           onClick={() => handleStatusChange(status)}
                           disabled={updatingStatus || !canEdit || permsLoading || isBackward}
                           className={`h-8 text-xs ${
-                            opportunity.status === status
+                            customClassName || (opportunity.status === status
                               ? "bg-slate-900 text-white hover:bg-slate-800"
                               : isBackward
                               ? "text-slate-400 border-slate-200 opacity-50 cursor-not-allowed"
-                              : "text-slate-600 border-slate-200"
+                              : "text-slate-600 border-slate-200")
                           }`}
                         >
-                          {status}
+                          {buttonText}
                         </Button>
                       );
                     })}
