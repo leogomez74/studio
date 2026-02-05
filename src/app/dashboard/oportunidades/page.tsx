@@ -1029,79 +1029,84 @@ export default function DealsPage() {
     <ProtectedPage module="oportunidades">
       <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <CardTitle>Oportunidades</CardTitle>
-            <CardDescription>Gestiona las oportunidades asociadas a tus leads.</CardDescription>
-            <p className="text-sm text-muted-foreground mt-1">
-                {totalItems > 0 ? `${totalItems} ${totalItems === 1 ? "oportunidad" : "oportunidades"} total` : "No hay oportunidades"}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
-                <Input type="date" value={filters.createdFrom} onChange={(e) => handleFilterChange("createdFrom", e.target.value)} className="h-10 w-36" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
-                <Input type="date" value={filters.createdTo} onChange={(e) => handleFilterChange("createdTo", e.target.value)} className="h-10 w-36" />
-              </div>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Oportunidades</CardTitle>
+              <CardDescription>Gestiona las oportunidades asociadas a tus leads.</CardDescription>
+              <p className="text-sm text-muted-foreground mt-1">
+                  {totalItems > 0 ? `${totalItems} ${totalItems === 1 ? "oportunidad" : "oportunidades"} total` : "No hay oportunidades"}
+              </p>
             </div>
-            <Button variant="outline" onClick={handleClearFilters} disabled={!hasActiveFilters}>Limpiar filtros</Button>
-            <Button variant="default" onClick={handleExportPDF} className="gap-2">
-              <Download className="h-4 w-4" />
-              Exportar PDF
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" onClick={handleClearFilters} disabled={!hasActiveFilters} size="sm">
+                <X className="h-4 w-4 mr-1" />
+                Limpiar
+              </Button>
+              <Button variant="default" onClick={handleExportPDF} size="sm" className="gap-2">
+                <Download className="h-4 w-4" />
+                Exportar
+              </Button>
+            </div>
+          </div>
+
+          {/* Barra de filtros consolidada */}
+          <div className="flex flex-wrap items-end gap-3 pb-2 border-b">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
+              <Input placeholder="Referencia, lead..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-48 h-9" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
+              <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value)}>
+                <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {OPPORTUNITY_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status.toLowerCase()}>{status}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</Label>
+              <Select value={filters.tipoCredito} onValueChange={(value) => handleFilterChange("tipoCredito", value)}>
+                <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {products.map(product => (
+                    <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desde</Label>
+              <Input type="date" value={filters.createdFrom} onChange={(e) => handleFilterChange("createdFrom", e.target.value)} className="h-9 w-[140px]" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hasta</Label>
+              <Input type="date" value={filters.createdTo} onChange={(e) => handleFilterChange("createdTo", e.target.value)} className="h-9 w-[140px]" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por página</Label>
+              <Select value={String(perPage)} onValueChange={(value) => {
+                setPerPage(Number(value));
+                setCurrentPage(1);
+              }}>
+                <SelectTrigger className="w-[80px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-                <Input placeholder="Referencia, lead o título" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-56" />
-            </div>
-            <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
-                <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value)}>
-                    <SelectTrigger className="w-auto min-w-[130px]"><SelectValue placeholder="Todos" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        {OPPORTUNITY_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status.toLowerCase()}>{status}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo crédito</Label>
-                <Select value={filters.tipoCredito} onValueChange={(value) => handleFilterChange("tipoCredito", value)}>
-                    <SelectTrigger className="w-auto min-w-[130px]"><SelectValue placeholder="Todos" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        {products.map(product => (
-                            <SelectItem key={product.id} value={product.name}>{product.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por página</Label>
-                <Select value={String(perPage)} onValueChange={(value) => {
-                  setPerPage(Number(value));
-                  setCurrentPage(1);
-                }}>
-                    <SelectTrigger className="w-auto min-w-[70px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="30">30</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-        </div>
 
         <Table>
           <TableHeader>
