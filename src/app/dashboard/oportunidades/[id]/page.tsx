@@ -31,7 +31,11 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  Clock,
+  FileCheck,
+  DollarSign
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,6 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { QuickStats, QuickStat } from "@/components/quick-stats";
 
 import api from "@/lib/axios";
 import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
@@ -1316,6 +1321,63 @@ export default function OpportunityDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-6">
+                  {/* Quick Stats Summary */}
+                  <QuickStats stats={[
+                    {
+                      label: "Días desde creación",
+                      value: Math.floor((new Date().getTime() - new Date(opportunity.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+                      icon: Calendar,
+                      variant: "default",
+                      tooltip: `Creada el ${new Date(opportunity.created_at).toLocaleDateString('es-CR')}`
+                    },
+                    {
+                      label: "Días hasta cierre esperado",
+                      value: opportunity.expected_close_date
+                        ? Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                        : "N/A",
+                      icon: Clock,
+                      variant: opportunity.expected_close_date
+                        ? (Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 7 ? "warning" : "success")
+                        : "default",
+                      tooltip: opportunity.expected_close_date
+                        ? `Fecha esperada: ${new Date(opportunity.expected_close_date).toLocaleDateString('es-CR')}`
+                        : "Sin fecha de cierre establecida"
+                    },
+                    {
+                      label: "Completitud de documentos",
+                      value: (() => {
+                        const totalDocs = 5; // Cédula, Recibo, y 3 documentos de oportunidad
+                        const missingDocs = opportunity.missing_documents?.length || 0;
+                        const completeDocs = totalDocs - missingDocs;
+                        const percentage = Math.round((completeDocs / totalDocs) * 100);
+                        return `${percentage}%`;
+                      })(),
+                      icon: FileCheck,
+                      variant: (() => {
+                        const totalDocs = 5;
+                        const missingDocs = opportunity.missing_documents?.length || 0;
+                        const percentage = ((totalDocs - missingDocs) / totalDocs) * 100;
+                        if (percentage >= 80) return "success";
+                        if (percentage >= 50) return "warning";
+                        return "danger";
+                      })(),
+                      tooltip: opportunity.missing_documents?.length
+                        ? `Faltan: ${opportunity.missing_documents.join(', ')}`
+                        : "Todos los documentos completos"
+                    },
+                    {
+                      label: "Monto estimado",
+                      value: new Intl.NumberFormat('es-CR', {
+                        style: 'currency',
+                        currency: 'CRC',
+                        minimumFractionDigits: 0
+                      }).format(opportunity.amount || 0),
+                      icon: DollarSign,
+                      variant: "info",
+                      tooltip: `Tipo: ${opportunity.opportunity_type || 'N/A'}`
+                    }
+                  ]} />
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
                     {/* Left Column of Details */}
                     <div className="space-y-6">
