@@ -76,7 +76,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useDebounce } from "@/hooks/use-debounce";
@@ -437,7 +437,7 @@ export default function DealsPage() {
       }
     } catch (error) {
       console.error("Error fetching opportunities:", error);
-      toast({ title: "Error", description: "No se pudieron cargar las oportunidades.", variant: "destructive" });
+      toastError("Error", "No se pudieron cargar las oportunidades.");
     } finally {
       setIsLoading(false);
     }
@@ -576,17 +576,17 @@ export default function DealsPage() {
 
         if (dialogState === "edit" && dialogOpportunity) {
             await api.put(`/api/opportunities/${dialogOpportunity.id}`, body);
-            toast({ title: "Actualizado", description: "Oportunidad actualizada correctamente." });
+            toastSuccess("Actualizado", "Oportunidad actualizada correctamente.");
         } else {
             await api.post('/api/opportunities', body);
-            toast({ title: "Creado", description: "Oportunidad creada correctamente." });
+            toastSuccess("Creado", "Oportunidad creada correctamente.");
         }
 
         closeDialog();
         fetchOpportunities();
       } catch (error) {
           console.error("Error saving:", error);
-          toast({ title: "Error", description: "No se pudo guardar la oportunidad.", variant: "destructive" });
+          toastError("Error", "No se pudo guardar la oportunidad.");
       } finally {
           setIsSaving(false);
       }
@@ -609,15 +609,15 @@ export default function DealsPage() {
       setIsDeleting(true);
       try {
           await api.delete(`/api/opportunities/${opportunityToDelete.id}`);
-          toast({ title: "Eliminado", description: "Oportunidad eliminada." });
+          toastSuccess("Eliminado", "Oportunidad eliminada.");
           closeDeleteDialog();
           fetchOpportunities();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" });
+          toastError("Error", "No se pudo eliminar.");
       } finally {
           setIsDeleting(false);
       }
-  }, [opportunityToDelete, closeDeleteDialog, fetchOpportunities, toast]);
+  }, [opportunityToDelete, closeDeleteDialog, fetchOpportunities]);
 
   // --- Bulk Delete Logic ---
 
@@ -628,11 +628,10 @@ export default function DealsPage() {
 
     // Validate max items
     if (ids.length > 50) {
-      toast({
-        title: "Límite excedido",
-        description: "Máximo 50 elementos por operación",
-        variant: "destructive"
-      });
+      toastWarning(
+        "Límite excedido",
+        "Máximo 50 elementos por operación"
+      );
       return;
     }
 
@@ -646,18 +645,26 @@ export default function DealsPage() {
       const { successful, failed, errors } = response.data.data;
 
       if (failed > 0) {
-        // Partial success
-        toast({
-          title: "Operación parcial",
-          description: `${successful} eliminadas, ${failed} fallidas`,
-          variant: "destructive"
-        });
+        // Partial success - show warning with details
+        toastWarning(
+          "Operación parcial",
+          `${successful} eliminadas correctamente, ${failed} fallidas`,
+          {
+            action: {
+              label: "Ver detalles",
+              onClick: () => {
+                console.log("Errores:", errors);
+                alert(`Errores:\n${errors.map((e: any) => `- ${e.message}`).join('\n')}`);
+              }
+            }
+          }
+        );
       } else {
         // Full success
-        toast({
-          title: "Eliminadas",
-          description: `${successful} oportunidades eliminadas correctamente`
-        });
+        toastSuccess(
+          "Eliminadas",
+          `${successful} oportunidades eliminadas correctamente`
+        );
       }
 
       // Refresh and clear selection
@@ -666,15 +673,14 @@ export default function DealsPage() {
       setIsConfirmBulkDeleteOpen(false);
 
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Error al eliminar oportunidades",
-        variant: "destructive"
-      });
+      toastError(
+        "Error",
+        error.response?.data?.message || "Error al eliminar oportunidades"
+      );
     } finally {
       setIsBulkDeleting(false);
     }
-  }, [selectedIds, clearSelection, fetchOpportunities, toast]);
+  }, [selectedIds, clearSelection, fetchOpportunities]);
 
   // Bulk Export Selected
   const handleBulkExport = useCallback(() => {
