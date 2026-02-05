@@ -1,32 +1,34 @@
 import { useState, useCallback, useMemo } from 'react';
 
-export interface UseBulkSelectionReturn<T extends { id: number }> {
-  selectedIds: Set<number>;
+export interface UseBulkSelectionReturn<T extends { id: string | number }> {
+  selectedIds: Set<string | number>;
   isAllSelected: boolean;
   isIndeterminate: boolean;
   selectedCount: number;
+  currentItems: T[];
 
-  toggleItem: (id: number) => void;
+  toggleItem: (id: string | number) => void;
   toggleAll: (items: T[]) => void;
   clearSelection: () => void;
   getSelectedItems: (items: T[]) => T[];
-  isSelected: (id: number) => boolean;
+  isSelected: (id: string | number) => boolean;
 }
 
 /**
  * Custom hook for managing bulk selection state in tables
  *
- * @template T - Type of items with an `id` property
+ * @template T - Type of items with an `id` property (string or number)
  * @returns Object with selection state and helper functions
  *
  * @example
  * const { selectedIds, toggleItem, toggleAll, clearSelection } = useBulkSelection<Opportunity>();
  */
-export function useBulkSelection<T extends { id: number }>(): UseBulkSelectionReturn<T> {
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+export function useBulkSelection<T extends { id: string | number }>(): UseBulkSelectionReturn<T> {
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
+  const [currentItems, setCurrentItems] = useState<T[]>([]);
 
   // Toggle individual item
-  const toggleItem = useCallback((id: number) => {
+  const toggleItem = useCallback((id: string | number) => {
     setSelectedIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(id)) {
@@ -40,6 +42,7 @@ export function useBulkSelection<T extends { id: number }>(): UseBulkSelectionRe
 
   // Toggle all items (select all / deselect all)
   const toggleAll = useCallback((items: T[]) => {
+    setCurrentItems(items);
     setSelectedIds(prev => {
       // If all items are selected, deselect all
       if (prev.size === items.length && items.every(item => prev.has(item.id))) {
@@ -56,7 +59,7 @@ export function useBulkSelection<T extends { id: number }>(): UseBulkSelectionRe
   }, []);
 
   // Check if item is selected
-  const isSelected = useCallback((id: number) => {
+  const isSelected = useCallback((id: string | number) => {
     return selectedIds.has(id);
   }, [selectedIds]);
 
@@ -69,8 +72,8 @@ export function useBulkSelection<T extends { id: number }>(): UseBulkSelectionRe
   const selectedCount = selectedIds.size;
 
   const isAllSelected = useMemo(() => {
-    return selectedCount > 0 && selectedCount === selectedCount;
-  }, [selectedCount]);
+    return currentItems.length > 0 && selectedCount === currentItems.length;
+  }, [selectedCount, currentItems.length]);
 
   const isIndeterminate = useMemo(() => {
     return selectedCount > 0 && !isAllSelected;
@@ -81,6 +84,7 @@ export function useBulkSelection<T extends { id: number }>(): UseBulkSelectionRe
     isAllSelected,
     isIndeterminate,
     selectedCount,
+    currentItems,
     toggleItem,
     toggleAll,
     clearSelection,
