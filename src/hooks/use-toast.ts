@@ -212,11 +212,11 @@ function toastSuccess(
   options?: ToastHelperOptions
 ) {
   return toast({
-    title: (
-      <div className="flex items-center gap-2">
-        <CheckCircle2 className="h-5 w-5" />
-        <span>{title}</span>
-      </div>
+    title: React.createElement(
+      "div",
+      { className: "flex items-center gap-2" },
+      React.createElement(CheckCircle2, { className: "h-5 w-5" }),
+      React.createElement("span", null, title)
     ),
     description,
     variant: "default",
@@ -238,11 +238,11 @@ function toastError(
   options?: ToastHelperOptions
 ) {
   return toast({
-    title: (
-      <div className="flex items-center gap-2">
-        <XCircle className="h-5 w-5" />
-        <span>{title}</span>
-      </div>
+    title: React.createElement(
+      "div",
+      { className: "flex items-center gap-2" },
+      React.createElement(XCircle, { className: "h-5 w-5" }),
+      React.createElement("span", null, title)
     ),
     description,
     variant: "destructive",
@@ -263,11 +263,11 @@ function toastWarning(
   options?: ToastHelperOptions
 ) {
   return toast({
-    title: (
-      <div className="flex items-center gap-2">
-        <AlertTriangle className="h-5 w-5" />
-        <span>{title}</span>
-      </div>
+    title: React.createElement(
+      "div",
+      { className: "flex items-center gap-2" },
+      React.createElement(AlertTriangle, { className: "h-5 w-5" }),
+      React.createElement("span", null, title)
     ),
     description,
     variant: "default",
@@ -289,11 +289,11 @@ function toastInfo(
   options?: ToastHelperOptions
 ) {
   return toast({
-    title: (
-      <div className="flex items-center gap-2">
-        <Info className="h-5 w-5" />
-        <span>{title}</span>
-      </div>
+    title: React.createElement(
+      "div",
+      { className: "flex items-center gap-2" },
+      React.createElement(Info, { className: "h-5 w-5" }),
+      React.createElement("span", null, title)
     ),
     description,
     variant: "default",
