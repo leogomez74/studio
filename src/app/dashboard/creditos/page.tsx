@@ -1327,7 +1327,12 @@ export default function CreditsPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => router.push(`/dashboard/creditos/${credit.id}?tab=plan-pagos`)}>
+                                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                      Ver Plan de Pagos
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
+                                      <FileText className="h-4 w-4 mr-2" />
                                       Gestionar documentos
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
