@@ -60,6 +60,7 @@ export interface Propuesta {
   aceptada_por: number | null;
   aceptada_at: string | null;
   aceptada_por_user?: { id: number; name: string } | null;
+  motivo_rechazo?: string | null;
   created_at: string;
   updated_at: string;
 }

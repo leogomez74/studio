@@ -185,7 +185,7 @@ class PropuestaController extends Controller
     /**
      * Denegar una propuesta.
      */
-    public function denegar(int $id): JsonResponse
+    public function denegar(Request $request, int $id): JsonResponse
     {
         $propuesta = Propuesta::findOrFail($id);
 
@@ -195,10 +195,15 @@ class PropuestaController extends Controller
             ], 422);
         }
 
+        $validated = $request->validate([
+            'motivo_rechazo' => 'required|string|max:1000',
+        ]);
+
         $propuesta->update([
             'estado' => Propuesta::ESTADO_DENEGADA,
             'aceptada_por' => Auth::id(),
             'aceptada_at' => now(),
+            'motivo_rechazo' => $validated['motivo_rechazo'],
         ]);
 
         $propuesta->load('aceptadaPorUser:id,name');
