@@ -1472,7 +1472,7 @@ export default function OpportunityDetailPage() {
               <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
             </TabsContent>
 
-            <TabsContent value="archivos">
+            <TabsContent value="archivos" id="archivos">
               <div className="space-y-4">
                 {loadingFiles ? (
                   <div className="flex justify-center p-8">
