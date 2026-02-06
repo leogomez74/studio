@@ -20,6 +20,20 @@ class TaskController extends Controller
             $query->whereNotIn('status', ['deleted']);
         }
 
+        // Por defecto, solo mostrar tareas del usuario autenticado
+        // a menos que tenga permiso "ver todas" o esté filtrando por project_code (detalle de análisis)
+        $user = auth('sanctum')->user();
+        if ($user && !$request->filled('project_code')) {
+            $canViewAll = false;
+            if ($user->role) {
+                $permissions = $user->role->getFormattedPermissions();
+                $canViewAll = $permissions['tareas']['view'] ?? false;
+            }
+            if (!$canViewAll) {
+                $query->where('assigned_to', $user->id);
+            }
+        }
+
         // Filtros opcionales
         if ($request->filled('status')) {
             $query->where('status', $request->status);

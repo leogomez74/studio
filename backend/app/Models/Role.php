@@ -44,7 +44,7 @@ class Role extends Model
                 'reportes', 'kpis', 'crm', 'oportunidades', 'analizados', 'creditos',
                 'calculos', 'cobros', 'cobro_judicial', 'ventas', 'inversiones',
                 'rutas', 'proyectos', 'comunicaciones', 'staff', 'entrenamiento',
-                'recompensas', 'configuracion'
+                'recompensas', 'configuracion', 'tareas'
             ];
 
             $permissions = [];

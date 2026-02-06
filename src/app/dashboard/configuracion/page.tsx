@@ -1182,6 +1182,14 @@ const MODULES: Module[] = [
   { key: 'entrenamiento', label: 'Entrenamiento', permissions: ['view'] },
   { key: 'recompensas', label: 'Recompensas', permissions: ['view', 'create', 'edit', 'delete'] },
   { key: 'configuracion', label: 'Configuración', permissions: ['view', 'create', 'edit', 'delete'] },
+  {
+    key: 'tareas',
+    label: 'Tareas',
+    permissions: ['view'],
+    customPermissionLabels: {
+      view: 'Ver todas'
+    }
+  },
 ];
 
 const RolesPermisosManager: React.FC = () => {
