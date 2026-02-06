@@ -209,6 +209,7 @@ class PropuestaController extends Controller
 
     /**
      * Denegar una propuesta.
+     * Actualiza automáticamente el estado_pep del análisis a "Pendiente de cambios".
      */
     public function denegar(Request $request, int $id): JsonResponse
     {
@@ -230,6 +231,14 @@ class PropuestaController extends Controller
             'aceptada_at' => now(),
             'motivo_rechazo' => $validated['motivo_rechazo'],
         ]);
+
+        // Actualizar estado_pep del análisis a "Pendiente de cambios"
+        $analisis = Analisis::where('reference', $propuesta->analisis_reference)->first();
+        if ($analisis) {
+            $analisis->update([
+                'estado_pep' => 'Pendiente de cambios',
+            ]);
+        }
 
         $propuesta->load('aceptadaPorUser:id,name');
 
