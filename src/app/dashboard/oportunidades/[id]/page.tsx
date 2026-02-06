@@ -1286,7 +1286,7 @@ export default function OpportunityDetailPage() {
                       const isBackward = newStatusIndex < currentStatusIndex && status !== 'Perdida';
 
                       // Customize button text and style for "Analizada" status
-                      let buttonText = status;
+                      let buttonText: string = status;
                       let customClassName = "";
                       let customOnClick = () => handleStatusChange(status);
 
