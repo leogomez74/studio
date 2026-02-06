@@ -18,7 +18,9 @@ import {
   X,
   Search,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Eye,
+  Briefcase
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -54,7 +56,7 @@ import { BulkActionsToolbar } from "@/components/bulk-actions-toolbar";
 
 // Importamos la conexión real y los tipos
 import api from '@/lib/axios';
-import { type Client, type Lead } from '@/lib/data';
+import { type Client, type Lead, type Opportunity } from '@/lib/data';
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PermissionButton } from "@/components/PermissionButton";
@@ -1779,6 +1781,16 @@ type LeadsTableProps = {
 
 function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: LeadsTableProps) {
   const { toast } = useToast();
+  const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
+  const [selectedPersonOpportunities, setSelectedPersonOpportunities] = useState<Opportunity[]>([]);
+  const [selectedPersonName, setSelectedPersonName] = useState("");
+
+  const handleOpenOpportunitiesModal = (person: Lead | Client) => {
+    const displayName = `${person.name || ''} ${person.apellido1 || ''}`.trim();
+    setSelectedPersonName(displayName);
+    setSelectedPersonOpportunities(person.opportunities || []);
+    setOpportunitiesModalOpen(true);
+  };
 
   if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
 
@@ -1828,6 +1840,7 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
             <TableHead className="w-[10.5rem]">Contacto</TableHead>
             <TableHead className="text-right">Registrado</TableHead>
             <TableHead className="w-[9rem]">Registro de datos</TableHead>
+            <TableHead className="w-[8rem] text-center">Oportunidades</TableHead>
             <TableHead className="w-[20rem] text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -1891,6 +1904,21 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
                     );
                   })()}
                 </TableCell>
+                <TableCell className="text-center">
+                  {lead.opportunities && lead.opportunities.length > 0 ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenOpportunitiesModal(lead)}
+                      className="h-8 px-3 gap-2"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      {lead.opportunities.length}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">0</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">
                     <Tooltip>
@@ -1928,6 +1956,62 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
           })}
         </TableBody>
       </Table>
+
+      {/* Modal de Oportunidades */}
+      <Dialog open={opportunitiesModalOpen} onOpenChange={setOpportunitiesModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Oportunidades de {selectedPersonName}</DialogTitle>
+            <DialogDescription>
+              {selectedPersonOpportunities.length === 0 ? 'No hay oportunidades registradas' : `${selectedPersonOpportunities.length} oportunidad(es) encontrada(s)`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto">
+            {selectedPersonOpportunities.length > 0 ? (
+              <div className="space-y-3">
+                {selectedPersonOpportunities.map((opportunity) => (
+                  <Card key={opportunity.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-medium">{opportunity.id}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {opportunity.status || 'Pendiente'}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Tipo: {opportunity.opportunity_type || 'N/A'}
+                          </div>
+                          {opportunity.amount && (
+                            <div className="text-sm font-medium">
+                              {new Intl.NumberFormat('es-CR', {
+                                style: 'currency',
+                                currency: 'CRC',
+                                minimumFractionDigits: 0
+                              }).format(opportunity.amount)}
+                            </div>
+                          )}
+                        </div>
+                        <Link href={`/dashboard/oportunidades/${opportunity.id}`}>
+                          <Button size="sm" className="gap-2">
+                            <Eye className="h-4 w-4" />
+                            Ver
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No hay oportunidades registradas para esta persona
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -1939,6 +2023,17 @@ function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkE
   onBulkAction: (action: 'archive' | 'delete') => void,
   onBulkExport: () => void
 }) {
+    const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
+    const [selectedPersonOpportunities, setSelectedPersonOpportunities] = useState<Opportunity[]>([]);
+    const [selectedPersonName, setSelectedPersonName] = useState("");
+
+    const handleOpenOpportunitiesModal = (person: Lead | Client) => {
+      const displayName = `${person.name || ''} ${person.apellido1 || ''}`.trim();
+      setSelectedPersonName(displayName);
+      setSelectedPersonOpportunities(person.opportunities || []);
+      setOpportunitiesModalOpen(true);
+    };
+
     if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos clientes con los filtros seleccionados.</div>;
 
     return (
@@ -1985,6 +2080,7 @@ function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkE
               <TableHead className="w-[11rem]">Cédula</TableHead>
               <TableHead className="w-[11rem]">Registrado</TableHead>
               <TableHead className="w-[16rem]">Estado</TableHead>
+              <TableHead className="w-[8rem] text-center">Oportunidades</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -2021,6 +2117,21 @@ function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkE
                     <TableCell>
                         <Badge className={badgeClassName}>{statusLabel}</Badge>
                     </TableCell>
+                    <TableCell className="text-center">
+                      {client.opportunities && client.opportunities.length > 0 ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenOpportunitiesModal(client)}
+                          className="h-8 px-3 gap-2"
+                        >
+                          <Briefcase className="h-4 w-4" />
+                          {client.opportunities.length}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">0</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap justify-end gap-2">
                         <Tooltip>
@@ -2046,6 +2157,62 @@ function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkE
             })}
           </TableBody>
         </Table>
+
+        {/* Modal de Oportunidades */}
+        <Dialog open={opportunitiesModalOpen} onOpenChange={setOpportunitiesModalOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Oportunidades de {selectedPersonName}</DialogTitle>
+              <DialogDescription>
+                {selectedPersonOpportunities.length === 0 ? 'No hay oportunidades registradas' : `${selectedPersonOpportunities.length} oportunidad(es) encontrada(s)`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[400px] overflow-y-auto">
+              {selectedPersonOpportunities.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedPersonOpportunities.map((opportunity) => (
+                    <Card key={opportunity.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-medium">{opportunity.id}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {opportunity.status || 'Pendiente'}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Tipo: {opportunity.opportunity_type || 'N/A'}
+                            </div>
+                            {opportunity.amount && (
+                              <div className="text-sm font-medium">
+                                {new Intl.NumberFormat('es-CR', {
+                                  style: 'currency',
+                                  currency: 'CRC',
+                                  minimumFractionDigits: 0
+                                }).format(opportunity.amount)}
+                              </div>
+                            )}
+                          </div>
+                          <Link href={`/dashboard/oportunidades/${opportunity.id}`}>
+                            <Button size="sm" className="gap-2">
+                              <Eye className="h-4 w-4" />
+                              Ver
+                            </Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay oportunidades registradas para esta persona
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </>
     )
 }

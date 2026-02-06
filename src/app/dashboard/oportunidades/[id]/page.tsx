@@ -31,7 +31,11 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  Clock,
+  FileCheck,
+  DollarSign
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,6 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { QuickStats, QuickStat } from "@/components/quick-stats";
 
 import api from "@/lib/axios";
 import { Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
@@ -1316,6 +1321,81 @@ export default function OpportunityDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-6">
+                  {/* Quick Stats Summary */}
+                  <QuickStats stats={[
+                    {
+                      label: "Días desde creación",
+                      value: Math.floor((new Date().getTime() - new Date(opportunity.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+                      icon: Calendar,
+                      variant: "default",
+                      tooltip: `Creada el ${new Date(opportunity.created_at).toLocaleDateString('es-CR')}`
+                    },
+                    {
+                      label: "Días hasta cierre esperado",
+                      value: opportunity.expected_close_date
+                        ? Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                        : "N/A",
+                      icon: Clock,
+                      variant: opportunity.expected_close_date
+                        ? (Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 7 ? "warning" : "success")
+                        : "default",
+                      tooltip: opportunity.expected_close_date
+                        ? `Fecha esperada: ${new Date(opportunity.expected_close_date).toLocaleDateString('es-CR')}`
+                        : "Sin fecha de cierre establecida"
+                    },
+                    {
+                      label: "Completitud de documentos",
+                      value: (() => {
+                        // Documentos heredados (obligatorios): Cédula y Recibo
+                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+
+                        // Documentos específicos: mínimo 3 esperados
+                        const minEspecificos = 3;
+                        const totalEspecificosEsperados = Math.max(minEspecificos, especificos.length);
+
+                        // Total de documentos
+                        const totalEsperado = 2 + totalEspecificosEsperados;
+                        const totalCompletos = heredadosCompletos + especificos.length;
+
+                        const percentage = Math.round((totalCompletos / totalEsperado) * 100);
+                        return `${percentage}%`;
+                      })(),
+                      icon: FileCheck,
+                      variant: (() => {
+                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+                        const minEspecificos = 3;
+                        const totalEspecificosEsperados = Math.max(minEspecificos, especificos.length);
+                        const totalEsperado = 2 + totalEspecificosEsperados;
+                        const totalCompletos = heredadosCompletos + especificos.length;
+                        const percentage = (totalCompletos / totalEsperado) * 100;
+
+                        if (percentage >= 80) return "success";
+                        if (percentage >= 50) return "warning";
+                        return "danger";
+                      })(),
+                      tooltip: (() => {
+                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+                        const parts = [];
+                        if (heredadosCompletos < 2) {
+                          parts.push(`Heredados: ${heredadosCompletos}/2`);
+                        }
+                        parts.push(`Específicos: ${especificos.length}/3 mín`);
+                        return parts.join(' • ');
+                      })()
+                    },
+                    {
+                      label: "Monto estimado",
+                      value: new Intl.NumberFormat('es-CR', {
+                        style: 'currency',
+                        currency: 'CRC',
+                        minimumFractionDigits: 0
+                      }).format(opportunity.amount || 0),
+                      icon: DollarSign,
+                      variant: "info",
+                      tooltip: `Tipo: ${opportunity.opportunity_type || 'N/A'}`
+                    }
+                  ]} />
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
                     {/* Left Column of Details */}
                     <div className="space-y-6">
@@ -1392,7 +1472,7 @@ export default function OpportunityDetailPage() {
               <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
             </TabsContent>
 
-            <TabsContent value="archivos">
+            <TabsContent value="archivos" id="archivos">
               <div className="space-y-4">
                 {loadingFiles ? (
                   <div className="flex justify-center p-8">
