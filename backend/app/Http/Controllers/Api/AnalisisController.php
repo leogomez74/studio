@@ -9,6 +9,8 @@ use App\Http\Requests\StoreAnalisisRequest;
 use App\Http\Requests\UpdateAnalisisRequest;
 use App\Models\Analisis;
 use App\Models\Lead;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -153,6 +155,28 @@ class AnalisisController extends Controller
             ]);
             $copyResult = $this->copyFilesFromOpportunity($validated['opportunity_id'], $analisis->id);
             Log::info('Archivos copiados de oportunidad a análisis', $copyResult);
+        }
+
+        // Crear tarea automática si está configurada
+        try {
+            $automation = TaskAutomation::where('event_type', 'analisis_created')
+                ->where('is_active', true)
+                ->first();
+
+            if ($automation && $automation->assigned_to) {
+                Task::create([
+                    'project_code' => (string) $analisis->id,
+                    'title' => $automation->title,
+                    'status' => 'pendiente',
+                    'priority' => $automation->priority ?? 'media',
+                    'assigned_to' => $automation->assigned_to,
+                    'start_date' => now()->toDateString(),
+                    'due_date' => now()->toDateString(),
+                ]);
+                Log::info('Tarea automática creada para análisis', ['analisis_id' => $analisis->id]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error creando tarea automática para análisis', ['error' => $e->getMessage()]);
         }
 
         // Recargar con propuestas para retornar en la respuesta
