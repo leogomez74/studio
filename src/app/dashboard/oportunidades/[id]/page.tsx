@@ -175,7 +175,7 @@ const getTodayDateString = (): string => {
 
 interface TareasTabProps {
   opportunityReference: string;
-  opportunityId: number;
+  opportunityId: string;
 }
 
 function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
@@ -526,6 +526,7 @@ export default function OpportunityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
+  const [updatingExpectedDate, setUpdatingExpectedDate] = useState(false);
 
   // Modal de razón de pérdida
   const [isLostReasonDialogOpen, setIsLostReasonDialogOpen] = useState(false);
@@ -553,6 +554,7 @@ export default function OpportunityDetailPage() {
     leadId: "",
     opportunityId: "",
     assignedTo: "",
+    openedAt: "",
     divisa: "CRC",
     plazo: "36",
     numero_manchas: "",
@@ -1018,6 +1020,30 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  const handleExpectedDateChange = async (newDate: string) => {
+    if (!opportunity) return;
+
+    const previousDate = opportunity.expected_close_date;
+
+    try {
+      setUpdatingExpectedDate(true);
+      // Optimistic update
+      setOpportunity(prev => prev ? { ...prev, expected_close_date: newDate } : null);
+
+      // API call
+      await api.put(`/api/opportunities/${opportunity.id}`, { expected_close_date: newDate || null });
+
+      toast({ title: "Fecha actualizada", description: "La fecha de cierre esperado ha sido actualizada." });
+    } catch (error) {
+      console.error("Error updating expected date:", error);
+      // Revert optimistic update on failure
+      setOpportunity(prev => prev ? { ...prev, expected_close_date: previousDate } : null);
+      toast({ title: "Error", description: "No se pudo actualizar la fecha.", variant: "destructive" });
+    } finally {
+      setUpdatingExpectedDate(false);
+    }
+  };
+
   // Formatear número con separadores de miles (coma) - para inputs de análisis
   const formatNumberWithCommas = (value: string | number): string => {
     const num = typeof value === 'number' ? Math.round(value) : Math.round(parseFloat(value) || 0);
@@ -1261,7 +1287,7 @@ export default function OpportunityDetailPage() {
                       const isBackward = newStatusIndex < currentStatusIndex && status !== 'Perdida';
 
                       // Customize button text and style for "Analizada" status
-                      let buttonText = status;
+                      let buttonText: string = status;
                       let customClassName = "";
                       let customOnClick = () => handleStatusChange(status);
 
@@ -1328,26 +1354,26 @@ export default function OpportunityDetailPage() {
                   <QuickStats stats={[
                     {
                       label: "Días desde creación",
-                      value: Math.floor((new Date().getTime() - new Date(opportunity.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+                      value: Math.floor((new Date().getTime() - new Date(opportunity.created_at!).getTime()) / (1000 * 60 * 60 * 24)),
                       icon: Calendar,
                       variant: "default",
-                      tooltip: `Creada el ${new Date(opportunity.created_at).toLocaleDateString('es-CR')}`
+                      tooltip: `Creada el ${new Date(opportunity.created_at!).toLocaleDateString('es-CR')}`
                     },
                     {
                       label: "Días hasta cierre esperado",
                       value: opportunity.expected_close_date
-                        ? Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                        ? Math.ceil((new Date(opportunity.expected_close_date!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
                         : "N/A",
                       icon: Clock,
                       variant: opportunity.expected_close_date
-                        ? (Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 7 ? "warning" : "success")
+                        ? (Math.ceil((new Date(opportunity.expected_close_date!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 7 ? "warning" : "success")
                         : "default",
                       tooltip: opportunity.expected_close_date
-                        ? `Fecha esperada: ${new Date(opportunity.expected_close_date).toLocaleDateString('es-CR')}`
+                        ? `Fecha esperada: ${new Date(opportunity.expected_close_date!).toLocaleDateString('es-CR')}`
                         : "Sin fecha de cierre establecida"
                     },
                     {
-                      label: "Completitud de documentos",
+                      label: "% de documentos obligatorios subidos",
                       value: (() => {
                         // Documentos heredados (obligatorios): Cédula y Recibo
                         const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
@@ -1447,7 +1473,13 @@ export default function OpportunityDetailPage() {
                     <div className="space-y-6">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CIERRE ESPERADO</p>
-                        <p className="text-sm font-medium text-slate-900">{formatDate(opportunity.expected_close_date)}</p>
+                        <Input
+                          type="date"
+                          value={opportunity.expected_close_date ? opportunity.expected_close_date.split('T')[0] : ''}
+                          onChange={(e) => handleExpectedDateChange(e.target.value)}
+                          disabled={updatingExpectedDate || !canEdit || permsLoading}
+                          className="h-9 text-sm"
+                        />
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CREADA</p>

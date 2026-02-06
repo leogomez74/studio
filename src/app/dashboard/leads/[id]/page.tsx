@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback, FormEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X, AlertCircle } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X, AlertCircle, Handshake, DollarSign } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { Button } from "@/components/ui/button";
@@ -600,8 +600,9 @@ export default function LeadDetailPage() {
     const [institucionOpen, setInstitucionOpen] = useState(false);
     const [profesionSearch, setProfesionSearch] = useState("");
     const [profesionOpen, setProfesionOpen] = useState(false);
-    const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string}[]>([]);
+    const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string, amount?: number}[]>([]);
     const [syncing, setSyncing] = useState(false);
+    const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
 
     // Validar si el registro está completo
     const REQUIRED_FIELDS = [
@@ -883,6 +884,9 @@ export default function LeadDetailPage() {
         if (isEditMode) setTimeout(autoSave, 100);
     };
 
+    const handleOpenOpportunitiesModal = () => {
+        setOpportunitiesModalOpen(true);
+    };
 
     const handleArchive = async () => {
         if (!lead) return;
@@ -922,6 +926,20 @@ export default function LeadDetailPage() {
                             Guardando...
                         </span>
                     )}
+                    <Button
+                        variant="default"
+                        onClick={handleOpenOpportunitiesModal}
+                        disabled={opportunities.length === 0}
+                        className="gap-2"
+                    >
+                        <Handshake className="h-4 w-4" />
+                        <span>Oportunidades</span>
+                        {opportunities.length > 0 && (
+                            <Badge variant="secondary" className="ml-1 bg-white text-slate-900 hover:bg-white">
+                                {opportunities.length}
+                            </Badge>
+                        )}
+                    </Button>
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -1713,6 +1731,65 @@ export default function LeadDetailPage() {
                 defaultLeadId={lead ? String(lead.id) : undefined}
                 onSuccess={() => window.location.reload()}
             />
+
+            {/* Modal de Oportunidades */}
+            <Dialog open={opportunitiesModalOpen} onOpenChange={setOpportunitiesModalOpen}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Oportunidades de {lead?.name} {lead?.apellido1}</DialogTitle>
+                        <DialogDescription>
+                            {opportunities.length === 0 ? 'No hay oportunidades registradas' : `${opportunities.length} oportunidad(es) encontrada(s)`}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-[400px] overflow-y-auto">
+                        {opportunities.length > 0 ? (
+                            <div className="space-y-3">
+                                {opportunities.map((opportunity) => (
+                                    <Card key={opportunity.id}>
+                                        <CardContent className="p-4">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex-1 space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono text-sm font-medium">{opportunity.id}</span>
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {opportunity.status || 'Pendiente'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-sm text-muted-foreground">
+                                                        Tipo: {opportunity.opportunity_type || 'N/A'}
+                                                    </div>
+                                                    {opportunity.amount && (
+                                                        <div className="text-sm font-medium flex items-center gap-1">
+                                                            <DollarSign className="h-3 w-3" />
+                                                            {new Intl.NumberFormat('es-CR', {
+                                                                style: 'currency',
+                                                                currency: 'CRC',
+                                                                minimumFractionDigits: 0
+                                                            }).format(opportunity.amount)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    className="gap-2"
+                                                    onClick={() => router.push(`/dashboard/oportunidades/${opportunity.id}`)}
+                                                >
+                                                    <Sparkles className="h-4 w-4" />
+                                                    Ver
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                                No hay oportunidades registradas para este lead
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

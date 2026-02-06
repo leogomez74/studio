@@ -2826,6 +2826,10 @@ export default function ConfiguracionPage() {
     assigned_to: '',
     is_active: false,
   });
+  const [propuestaAprobadaConfig, setPropuestaAprobadaConfig] = useState({
+    assigned_to: '',
+    is_active: false,
+  });
 
   const fetchAutomations = useCallback(async () => {
     setAutomationsLoading(true);
@@ -2852,6 +2856,13 @@ export default function ConfiguracionPage() {
         setAnalisisCreatedConfig({
           assigned_to: analisisAuto.assigned_to ? String(analisisAuto.assigned_to) : '',
           is_active: analisisAuto.is_active,
+        });
+      }
+      const propAprobadaAuto = data.find((a: any) => a.event_type === 'propuesta_aprobada');
+      if (propAprobadaAuto) {
+        setPropuestaAprobadaConfig({
+          assigned_to: propAprobadaAuto.assigned_to ? String(propAprobadaAuto.assigned_to) : '',
+          is_active: propAprobadaAuto.is_active,
         });
       }
     } catch (error) {
@@ -3839,6 +3850,49 @@ export default function ConfiguracionPage() {
                         disabled={savingAutomation === 'analisis_created'}
                       >
                         {savingAutomation === 'analisis_created' ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
+                        ) : (
+                          'Guardar Cambios'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium">Propuesta Aprobada</h4>
+                      <p className="text-sm text-muted-foreground">Al aprobar una propuesta de crédito, se asigna tarea para enviar la propuesta al cliente.</p>
+                    </div>
+                    <Switch
+                      checked={propuestaAprobadaConfig.is_active}
+                      onCheckedChange={(checked) => setPropuestaAprobadaConfig(prev => ({ ...prev, is_active: checked }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div className="space-y-2">
+                      <Label>Asignar tarea a</Label>
+                      <Select
+                        value={propuestaAprobadaConfig.assigned_to}
+                        onValueChange={(value) => setPropuestaAprobadaConfig(prev => ({ ...prev, assigned_to: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar usuario" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users.map((user) => (
+                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Button
+                        onClick={() => saveAutomation('propuesta_aprobada', 'Enviar propuesta al cliente', propuestaAprobadaConfig.assigned_to, propuestaAprobadaConfig.is_active)}
+                        disabled={savingAutomation === 'propuesta_aprobada'}
+                      >
+                        {savingAutomation === 'propuesta_aprobada' ? (
                           <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
                         ) : (
                           'Guardar Cambios'
