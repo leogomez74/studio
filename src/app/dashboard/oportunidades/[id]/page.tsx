@@ -1372,7 +1372,7 @@ export default function OpportunityDetailPage() {
                         : "Sin fecha de cierre establecida"
                     },
                     {
-                      label: "Completitud de documentos",
+                      label: "% de documentos obligatorios subidos",
                       value: (() => {
                         // Documentos heredados (obligatorios): Cédula y Recibo
                         const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
@@ -1474,7 +1474,7 @@ export default function OpportunityDetailPage() {
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CIERRE ESPERADO</p>
                         <Input
                           type="date"
-                          value={opportunity.expected_close_date || ''}
+                          value={opportunity.expected_close_date ? opportunity.expected_close_date.split('T')[0] : ''}
                           onChange={(e) => handleExpectedDateChange(e.target.value)}
                           disabled={updatingExpectedDate || !canEdit || permsLoading}
                           className="h-9 text-sm"
