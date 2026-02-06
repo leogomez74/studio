@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Download, ArrowLeft } from "lucide-react";
+import { Printer, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -74,7 +74,7 @@ export default function PagarePage() {
   const [credit, setCredit] = useState<CreditData | null>(null);
   const [deductoras, setDeductoras] = useState<Deductora[]>([]);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const pagareRef = useRef<HTMLDivElement>(null);
   const autorizacionRef = useRef<HTMLDivElement>(null);
   const autorizacionCSGRef = useRef<HTMLDivElement>(null);
@@ -157,10 +157,10 @@ export default function PagarePage() {
   const mesNombre = now.toLocaleDateString('es-CR', { month: 'long' }).toUpperCase();
   const anio = now.getFullYear();
 
-  const handleExportPDF = async () => {
+  const handlePrint = async () => {
     if (!pagareRef.current || !credit) return;
 
-    setExporting(true);
+    setPrinting(true);
     try {
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -171,7 +171,7 @@ export default function PagarePage() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      // Helper function to capture element as canvas with timeout
+      // Helper function to capture element as canvas
       const captureElement = async (element: HTMLElement): Promise<HTMLCanvasElement> => {
         const width = element.offsetWidth;
         const height = element.offsetHeight;
@@ -186,66 +186,60 @@ export default function PagarePage() {
           height: height,
           windowWidth: width,
           windowHeight: height,
-          imageTimeout: 0, // No esperar por imágenes
+          imageTimeout: 0,
           ignoreElements: (el) => {
-            // Ignorar todas las imágenes para evitar bloqueos
             return el.tagName === 'IMG';
           }
         });
       };
 
       // Página 1: Pagaré
-      console.log('Capturando página 1: Pagaré...');
       const canvas1 = await captureElement(pagareRef.current);
-
       const imgData1 = canvas1.toDataURL('image/png');
       const ratio1 = Math.min(pdfWidth / canvas1.width, pdfHeight / canvas1.height);
       const finalWidth1 = canvas1.width * ratio1;
       const finalHeight1 = canvas1.height * ratio1;
       const x1 = (pdfWidth - finalWidth1) / 2;
-
       pdf.addImage(imgData1, 'PNG', x1, 0, finalWidth1, finalHeight1);
 
       // Página 2: Autorización de Deducción (COOPENACIONAL o COOPESERVICIOS)
       if (showAutorizacionCoope && autorizacionRef.current) {
-        console.log('Capturando página 2: Autorización COOPE...');
         pdf.addPage();
-
         const canvas2 = await captureElement(autorizacionRef.current);
-
         const imgData2 = canvas2.toDataURL('image/png');
         const ratio2 = Math.min(pdfWidth / canvas2.width, pdfHeight / canvas2.height);
         const finalWidth2 = canvas2.width * ratio2;
         const finalHeight2 = canvas2.height * ratio2;
         const x2 = (pdfWidth - finalWidth2) / 2;
-
         pdf.addImage(imgData2, 'PNG', x2, 0, finalWidth2, finalHeight2);
       }
 
       // Página 2: Autorización de Deducción (Coope San Gabriel)
       if (showAutorizacionCSG && autorizacionCSGRef.current) {
-        console.log('Capturando página 2: Autorización CSG...');
         pdf.addPage();
-
         const canvas3 = await captureElement(autorizacionCSGRef.current);
-
         const imgData3 = canvas3.toDataURL('image/png');
         const ratio3 = Math.min(pdfWidth / canvas3.width, pdfHeight / canvas3.height);
         const finalWidth3 = canvas3.width * ratio3;
         const finalHeight3 = canvas3.height * ratio3;
         const x3 = (pdfWidth - finalWidth3) / 2;
-
         pdf.addImage(imgData3, 'PNG', x3, 0, finalWidth3, finalHeight3);
       }
 
-      console.log('Guardando PDF...');
-      pdf.save(`pagare_${credit.numero_operacion || credit.reference || credit.id}.pdf`);
-      console.log('PDF exportado exitosamente');
+      // Abrir PDF en nueva ventana para imprimir
+      const pdfBlob = pdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(pdfUrl);
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
     } catch (error) {
-      console.error('Error exportando PDF:', error);
-      toast({ title: 'Error', description: 'Error al exportar el PDF. Por favor intente de nuevo.', variant: 'destructive' });
+      console.error('Error generando PDF:', error);
+      toast({ title: 'Error', description: 'Error al generar el documento. Por favor intente de nuevo.', variant: 'destructive' });
     } finally {
-      setExporting(false);
+      setPrinting(false);
     }
   };
 
@@ -259,9 +253,9 @@ export default function PagarePage() {
           </Button>
           <h1 className="text-xl font-bold">Vista previa del Pagaré</h1>
         </div>
-        <Button onClick={handleExportPDF} disabled={exporting}>
-          <Download className="mr-2 h-4 w-4" />
-          {exporting ? 'Exportando...' : 'Exportar PDF'}
+        <Button onClick={handlePrint} disabled={printing}>
+          <Printer className="mr-2 h-4 w-4" />
+          {printing ? 'Generando...' : 'Imprimir'}
         </Button>
       </div>
 
