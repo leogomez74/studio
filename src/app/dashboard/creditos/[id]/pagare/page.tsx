@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Printer, ArrowLeft } from "lucide-react";
+import { Printer, ArrowLeft, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -253,10 +253,16 @@ export default function PagarePage() {
           </Button>
           <h1 className="text-xl font-bold">Vista previa del Pagaré</h1>
         </div>
-        <Button onClick={handlePrint} disabled={printing}>
-          <Printer className="mr-2 h-4 w-4" />
-          {printing ? 'Generando...' : 'Imprimir'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handlePrint} disabled={printing}>
+            <Printer className="mr-2 h-4 w-4" />
+            {printing ? 'Generando...' : 'Imprimir'}
+          </Button>
+          <Button onClick={() => router.push(`/dashboard/creditos/${params.id}`)}>
+            Continuar
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Documento Pagaré - Página 1 */}
