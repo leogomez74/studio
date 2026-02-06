@@ -2826,7 +2826,11 @@ export default function ConfiguracionPage() {
     assigned_to: '',
     is_active: false,
   });
-  const [propuestaAprobadaConfig, setPropuestaAprobadaConfig] = useState({
+  const [pepAceptadoConfig, setPepAceptadoConfig] = useState({
+    assigned_to: '',
+    is_active: false,
+  });
+  const [pepRechazadoConfig, setPepRechazadoConfig] = useState({
     assigned_to: '',
     is_active: false,
   });
@@ -2858,11 +2862,18 @@ export default function ConfiguracionPage() {
           is_active: analisisAuto.is_active,
         });
       }
-      const propAprobadaAuto = data.find((a: any) => a.event_type === 'propuesta_aprobada');
-      if (propAprobadaAuto) {
-        setPropuestaAprobadaConfig({
-          assigned_to: propAprobadaAuto.assigned_to ? String(propAprobadaAuto.assigned_to) : '',
-          is_active: propAprobadaAuto.is_active,
+      const pepAceptadoAuto = data.find((a: any) => a.event_type === 'pep_aceptado');
+      if (pepAceptadoAuto) {
+        setPepAceptadoConfig({
+          assigned_to: pepAceptadoAuto.assigned_to ? String(pepAceptadoAuto.assigned_to) : '',
+          is_active: pepAceptadoAuto.is_active,
+        });
+      }
+      const pepRechazadoAuto = data.find((a: any) => a.event_type === 'pep_rechazado');
+      if (pepRechazadoAuto) {
+        setPepRechazadoConfig({
+          assigned_to: pepRechazadoAuto.assigned_to ? String(pepRechazadoAuto.assigned_to) : '',
+          is_active: pepRechazadoAuto.is_active,
         });
       }
     } catch (error) {
@@ -2872,23 +2883,19 @@ export default function ConfiguracionPage() {
     }
   }, []);
 
-  const saveAutomation = async (eventType: string, title: string, assignedTo: string, isActive: boolean) => {
-    setSavingAutomation(eventType);
+  const saveAutomation = async (eventType: string, title: string, assignedTo: string) => {
     try {
       await api.post('/api/task-automations', {
         event_type: eventType,
         title,
         assigned_to: assignedTo ? Number(assignedTo) : null,
         priority: 'media',
-        is_active: isActive,
+        is_active: !!assignedTo,
       });
-      toast({ title: 'Guardado', description: 'Configuración de tarea automática guardada.' });
-      fetchAutomations();
+      toast({ title: 'Guardado', description: 'Configuración actualizada.' });
     } catch (error) {
       console.error('Error saving automation:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la configuración.' });
-    } finally {
-      setSavingAutomation(null);
     }
   };
 
@@ -3720,7 +3727,7 @@ export default function ConfiguracionPage() {
           <CardHeader>
             <CardTitle>Tareas Automáticas</CardTitle>
             <CardDescription>
-              Configura las tareas que se crean automáticamente al ocurrir ciertos eventos en el sistema.
+              Configura las tareas que se crean automáticamente al ocurrir ciertos eventos en el sistema. Selecciona &quot;Ninguno&quot; para desactivar una tarea.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -3731,174 +3738,132 @@ export default function ConfiguracionPage() {
             ) : (
               <div className="space-y-6">
                 <div className="rounded-lg border p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-medium">Nuevo Lead Creado</h4>
-                      <p className="text-sm text-muted-foreground">Al registrar un nuevo lead, se crea automáticamente una tarea asignada al usuario seleccionado.</p>
-                    </div>
-                    <Switch
-                      checked={leadCreatedConfig.is_active}
-                      onCheckedChange={(checked) => setLeadCreatedConfig(prev => ({ ...prev, is_active: checked }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <div className="space-y-2">
-                      <Label>Asignar tarea a</Label>
-                      <Select
-                        value={leadCreatedConfig.assigned_to}
-                        onValueChange={(value) => setLeadCreatedConfig(prev => ({ ...prev, assigned_to: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar usuario" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Button
-                        onClick={() => saveAutomation('lead_created', 'Nuevo lead creado', leadCreatedConfig.assigned_to, leadCreatedConfig.is_active)}
-                        disabled={savingAutomation === 'lead_created'}
-                      >
-                        {savingAutomation === 'lead_created' ? (
-                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
-                        ) : (
-                          'Guardar Cambios'
-                        )}
-                      </Button>
-                    </div>
+                  <h4 className="font-medium">Nuevo Lead Creado</h4>
+                  <p className="text-sm text-muted-foreground mb-3">Al registrar un nuevo lead, se crea automáticamente una tarea asignada al usuario seleccionado.</p>
+                  <div className="space-y-2">
+                    <Label>Asignar tarea a</Label>
+                    <Select
+                      value={leadCreatedConfig.assigned_to || 'none'}
+                      onValueChange={(value) => {
+                        const assignedTo = value === 'none' ? '' : value;
+                        setLeadCreatedConfig(prev => ({ ...prev, assigned_to: assignedTo }));
+                        saveAutomation('lead_created', 'Nuevo lead creado', assignedTo);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="rounded-lg border p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-medium">Nueva Oportunidad Creada</h4>
-                      <p className="text-sm text-muted-foreground">Al generar una oportunidad, se crea tarea para realizar análisis, solicitar colillas y verificarlas.</p>
-                    </div>
-                    <Switch
-                      checked={opportunityCreatedConfig.is_active}
-                      onCheckedChange={(checked) => setOpportunityCreatedConfig(prev => ({ ...prev, is_active: checked }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <div className="space-y-2">
-                      <Label>Asignar tarea a</Label>
-                      <Select
-                        value={opportunityCreatedConfig.assigned_to}
-                        onValueChange={(value) => setOpportunityCreatedConfig(prev => ({ ...prev, assigned_to: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar usuario" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Button
-                        onClick={() => saveAutomation('opportunity_created', 'Realizar análisis, solicitar colillas y verificarlas', opportunityCreatedConfig.assigned_to, opportunityCreatedConfig.is_active)}
-                        disabled={savingAutomation === 'opportunity_created'}
-                      >
-                        {savingAutomation === 'opportunity_created' ? (
-                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
-                        ) : (
-                          'Guardar Cambios'
-                        )}
-                      </Button>
-                    </div>
+                  <h4 className="font-medium">Nueva Oportunidad Creada</h4>
+                  <p className="text-sm text-muted-foreground mb-3">Al generar una oportunidad, se crea tarea para realizar análisis, solicitar colillas y verificarlas.</p>
+                  <div className="space-y-2">
+                    <Label>Asignar tarea a</Label>
+                    <Select
+                      value={opportunityCreatedConfig.assigned_to || 'none'}
+                      onValueChange={(value) => {
+                        const assignedTo = value === 'none' ? '' : value;
+                        setOpportunityCreatedConfig(prev => ({ ...prev, assigned_to: assignedTo }));
+                        saveAutomation('opportunity_created', 'Realizar análisis, solicitar colillas y verificarlas', assignedTo);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="rounded-lg border p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-medium">Análisis Creado</h4>
-                      <p className="text-sm text-muted-foreground">Al crear un análisis, se asigna tarea para enviar propuesta al equipo PEP, dar seguimiento y verificar estado.</p>
-                    </div>
-                    <Switch
-                      checked={analisisCreatedConfig.is_active}
-                      onCheckedChange={(checked) => setAnalisisCreatedConfig(prev => ({ ...prev, is_active: checked }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <div className="space-y-2">
-                      <Label>Asignar tarea a</Label>
-                      <Select
-                        value={analisisCreatedConfig.assigned_to}
-                        onValueChange={(value) => setAnalisisCreatedConfig(prev => ({ ...prev, assigned_to: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar usuario" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Button
-                        onClick={() => saveAutomation('analisis_created', 'Enviar propuesta al equipo PEP, dar seguimiento y verificar estado', analisisCreatedConfig.assigned_to, analisisCreatedConfig.is_active)}
-                        disabled={savingAutomation === 'analisis_created'}
-                      >
-                        {savingAutomation === 'analisis_created' ? (
-                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
-                        ) : (
-                          'Guardar Cambios'
-                        )}
-                      </Button>
-                    </div>
+                  <h4 className="font-medium">Análisis Creado</h4>
+                  <p className="text-sm text-muted-foreground mb-3">Al crear un análisis, se asigna tarea para enviar propuesta al equipo PEP, dar seguimiento y verificar estado.</p>
+                  <div className="space-y-2">
+                    <Label>Asignar tarea a</Label>
+                    <Select
+                      value={analisisCreatedConfig.assigned_to || 'none'}
+                      onValueChange={(value) => {
+                        const assignedTo = value === 'none' ? '' : value;
+                        setAnalisisCreatedConfig(prev => ({ ...prev, assigned_to: assignedTo }));
+                        saveAutomation('analisis_created', 'Enviar propuesta al equipo PEP, dar seguimiento y verificar estado', assignedTo);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="rounded-lg border p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-medium">Propuesta Aprobada</h4>
-                      <p className="text-sm text-muted-foreground">Al aprobar una propuesta de crédito, se asigna tarea para enviar la propuesta al cliente.</p>
-                    </div>
-                    <Switch
-                      checked={propuestaAprobadaConfig.is_active}
-                      onCheckedChange={(checked) => setPropuestaAprobadaConfig(prev => ({ ...prev, is_active: checked }))}
-                    />
+                  <h4 className="font-medium">PEP Acepta Análisis</h4>
+                  <p className="text-sm text-muted-foreground mb-3">Al aceptar el análisis o aprobar una propuesta, se asigna tarea para informar al cliente la propuesta aceptada.</p>
+                  <div className="space-y-2">
+                    <Label>Asignar tarea a</Label>
+                    <Select
+                      value={pepAceptadoConfig.assigned_to || 'none'}
+                      onValueChange={(value) => {
+                        const assignedTo = value === 'none' ? '' : value;
+                        setPepAceptadoConfig(prev => ({ ...prev, assigned_to: assignedTo }));
+                        saveAutomation('pep_aceptado', 'Informar al cliente la propuesta aceptada', assignedTo);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <div className="space-y-2">
-                      <Label>Asignar tarea a</Label>
-                      <Select
-                        value={propuestaAprobadaConfig.assigned_to}
-                        onValueChange={(value) => setPropuestaAprobadaConfig(prev => ({ ...prev, assigned_to: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar usuario" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Button
-                        onClick={() => saveAutomation('propuesta_aprobada', 'Enviar propuesta al cliente', propuestaAprobadaConfig.assigned_to, propuestaAprobadaConfig.is_active)}
-                        disabled={savingAutomation === 'propuesta_aprobada'}
-                      >
-                        {savingAutomation === 'propuesta_aprobada' ? (
-                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
-                        ) : (
-                          'Guardar Cambios'
-                        )}
-                      </Button>
-                    </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <h4 className="font-medium">PEP Rechaza Análisis</h4>
+                  <p className="text-sm text-muted-foreground mb-3">Al marcar estado PEP como &quot;Rechazado&quot;, se asigna tarea para informar al cliente que no califica para el crédito.</p>
+                  <div className="space-y-2">
+                    <Label>Asignar tarea a</Label>
+                    <Select
+                      value={pepRechazadoConfig.assigned_to || 'none'}
+                      onValueChange={(value) => {
+                        const assignedTo = value === 'none' ? '' : value;
+                        setPepRechazadoConfig(prev => ({ ...prev, assigned_to: assignedTo }));
+                        saveAutomation('pep_rechazado', 'Informar al cliente que no califica para el crédito', assignedTo);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

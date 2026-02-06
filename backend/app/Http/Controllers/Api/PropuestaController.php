@@ -180,15 +180,15 @@ class PropuestaController extends Controller
             'estado_cliente' => 'Pendiente',
         ]);
 
-        // Crear tarea automática al aprobar propuesta
+        // Crear tarea automática al aceptar propuesta (mismo evento que PEP acepta análisis)
         try {
-            $automation = TaskAutomation::where('event_type', 'propuesta_aprobada')
+            $automation = TaskAutomation::where('event_type', 'pep_aceptado')
                 ->where('is_active', true)
                 ->first();
 
             if ($automation && $automation->assigned_to) {
-                Task::create([
-                    'project_code' => $propuesta->analisis_reference,
+                $task = Task::create([
+                    'project_code' => (string) $analisis->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',
@@ -196,6 +196,7 @@ class PropuestaController extends Controller
                     'start_date' => now()->toDateString(),
                     'due_date' => now()->toDateString(),
                 ]);
+                Log::info('Tarea automática creada (pep_aceptado)', ['task_id' => $task->id, 'analisis_id' => $analisis->id]);
             }
         } catch (\Exception $e) {
             Log::error('Error creando tarea automática para propuesta aprobada', ['error' => $e->getMessage()]);

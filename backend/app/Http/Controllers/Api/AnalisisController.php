@@ -264,6 +264,31 @@ class AnalisisController extends Controller
 
         $analisis->update($validated);
 
+        // Crear tarea automática al aceptar o rechazar estado PEP
+        if ($isAceptandoPep || $isRechazandoPep) {
+            try {
+                $eventType = $isAceptandoPep ? 'pep_aceptado' : 'pep_rechazado';
+                $automation = TaskAutomation::where('event_type', $eventType)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation && $automation->assigned_to) {
+                    $task = Task::create([
+                        'project_code' => (string) $analisis->id,
+                        'title' => $automation->title,
+                        'status' => 'pendiente',
+                        'priority' => $automation->priority ?? 'media',
+                        'assigned_to' => $automation->assigned_to,
+                        'start_date' => now()->toDateString(),
+                        'due_date' => now()->toDateString(),
+                    ]);
+                    Log::info("Tarea automática creada ({$eventType})", ['task_id' => $task->id, 'analisis_id' => $analisis->id]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Error creando tarea automática para estado PEP', ['error' => $e->getMessage()]);
+            }
+        }
+
         // Si estado_cliente cambia a "Aprobado", convertir Lead a Cliente
         if (isset($validated['estado_cliente']) && $validated['estado_cliente'] === 'Aprobado') {
             // Buscar el Lead asociado (sin el Global Scope)
