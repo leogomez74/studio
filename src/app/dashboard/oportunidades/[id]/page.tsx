@@ -1361,14 +1361,14 @@ export default function OpportunityDetailPage() {
                     {
                       label: "Días hasta cierre esperado",
                       value: opportunity.expected_close_date
-                        ? Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                        ? Math.ceil((new Date(opportunity.expected_close_date!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
                         : "N/A",
                       icon: Clock,
                       variant: opportunity.expected_close_date
-                        ? (Math.ceil((new Date(opportunity.expected_close_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 7 ? "warning" : "success")
+                        ? (Math.ceil((new Date(opportunity.expected_close_date!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) < 7 ? "warning" : "success")
                         : "default",
                       tooltip: opportunity.expected_close_date
-                        ? `Fecha esperada: ${new Date(opportunity.expected_close_date).toLocaleDateString('es-CR')}`
+                        ? `Fecha esperada: ${new Date(opportunity.expected_close_date!).toLocaleDateString('es-CR')}`
                         : "Sin fecha de cierre establecida"
                     },
                     {
