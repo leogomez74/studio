@@ -475,22 +475,35 @@
             updateMontoOptions();
         }
 
-        // Crear rangos de monto unificados
+        // Crear rangos de monto unificados basados en configuración
         function crearRangosUnificados() {
-            montosUnificados = [
-                { value: '100k-250k', label: '₡100,000 - ₡250,000', min: 100000, max: 250000 },
-                { value: '300k-450k', label: '₡300,000 - ₡450,000', min: 300000, max: 450000 },
-                { value: '500k-690k', label: '₡500,000 - ₡690,000', min: 500000, max: 690000 },
-                { value: '690k+', label: '₡690,000 o más', min: 690000, max: 999999999 }
-            ];
+            const microMin = Number(loanConfigs.microcredito.monto_minimo);
+            const microMax = Number(loanConfigs.microcredito.monto_maximo);
+            const regularMin = Number(loanConfigs.regular.monto_minimo);
+            const regularMax = Number(loanConfigs.regular.monto_maximo);
+
+            montosUnificados = [];
+
+            // Rangos de Micro Crédito (dinámicos desde config)
+            const microRangos = generarRangosMonto(microMin, microMax);
+            microRangos.forEach(r => {
+                r.tipo = 'microcredito';
+                montosUnificados.push(r);
+            });
+
+            // Rangos de Crédito Regular (dinámicos desde config)
+            const regularRangos = generarRangosMonto(regularMin, regularMax);
+            regularRangos.forEach(r => {
+                r.tipo = 'regular';
+                montosUnificados.push(r);
+            });
         }
 
         // Determinar tipo de crédito basado en el monto seleccionado
         function determinarTipoCredito(montoValue) {
             const rango = montosUnificados.find(m => m.value === montoValue);
             if (!rango) return 'microcredito';
-            // Si el monto máximo del rango es >= 690,000, es crédito regular
-            return rango.max >= LIMITE_MICROCREDITO ? 'regular' : 'microcredito';
+            return rango.tipo || (rango.max >= LIMITE_MICROCREDITO ? 'regular' : 'microcredito');
         }
 
         // Poblar opciones de monto con rangos unificados
@@ -513,12 +526,19 @@
             defaultOpt.textContent = 'Selecciona un monto';
             montoSelect.appendChild(defaultOpt);
 
-            // Agregar todas las opciones de montos unificados
-            montosUnificados.forEach(function(m) {
-                const opt = document.createElement('option');
-                opt.value = m.value;
-                opt.textContent = m.label;
-                montoSelect.appendChild(opt);
+            // Agregar opciones agrupadas por tipo
+            ['microcredito', 'regular'].forEach(function(tipo) {
+                const items = montosUnificados.filter(r => r.tipo === tipo);
+                if (items.length === 0) return;
+                const optGroup = document.createElement('optgroup');
+                optGroup.label = tipo === 'microcredito' ? 'Micro Crédito' : 'Crédito Regular';
+                items.forEach(function(r) {
+                    const opt = document.createElement('option');
+                    opt.value = r.value;
+                    opt.textContent = r.label;
+                    optGroup.appendChild(opt);
+                });
+                montoSelect.appendChild(optGroup);
             });
         }
 
