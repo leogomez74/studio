@@ -526,6 +526,7 @@ export default function OpportunityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
+  const [updatingExpectedDate, setUpdatingExpectedDate] = useState(false);
 
   // Modal de razón de pérdida
   const [isLostReasonDialogOpen, setIsLostReasonDialogOpen] = useState(false);
@@ -1018,6 +1019,30 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  const handleExpectedDateChange = async (newDate: string) => {
+    if (!opportunity) return;
+
+    const previousDate = opportunity.expected_close_date;
+
+    try {
+      setUpdatingExpectedDate(true);
+      // Optimistic update
+      setOpportunity(prev => prev ? { ...prev, expected_close_date: newDate } : null);
+
+      // API call
+      await api.put(`/api/opportunities/${opportunity.id}`, { expected_close_date: newDate || null });
+
+      toast({ title: "Fecha actualizada", description: "La fecha de cierre esperado ha sido actualizada." });
+    } catch (error) {
+      console.error("Error updating expected date:", error);
+      // Revert optimistic update on failure
+      setOpportunity(prev => prev ? { ...prev, expected_close_date: previousDate } : null);
+      toast({ title: "Error", description: "No se pudo actualizar la fecha.", variant: "destructive" });
+    } finally {
+      setUpdatingExpectedDate(false);
+    }
+  };
+
   // Formatear número con separadores de miles (coma) - para inputs de análisis
   const formatNumberWithCommas = (value: string | number): string => {
     const num = typeof value === 'number' ? Math.round(value) : Math.round(parseFloat(value) || 0);
@@ -1447,7 +1472,13 @@ export default function OpportunityDetailPage() {
                     <div className="space-y-6">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CIERRE ESPERADO</p>
-                        <p className="text-sm font-medium text-slate-900">{formatDate(opportunity.expected_close_date)}</p>
+                        <Input
+                          type="date"
+                          value={opportunity.expected_close_date || ''}
+                          onChange={(e) => handleExpectedDateChange(e.target.value)}
+                          disabled={updatingExpectedDate || !canEdit || permsLoading}
+                          className="h-9 text-sm"
+                        />
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase mb-1">CREADA</p>
