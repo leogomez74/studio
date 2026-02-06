@@ -7,9 +7,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Analisis;
 use App\Models\Propuesta;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class PropuestaController extends Controller
 {
@@ -176,6 +179,27 @@ class PropuestaController extends Controller
             'estado_pep' => 'Aceptado',
             'estado_cliente' => 'Pendiente',
         ]);
+
+        // Crear tarea automática al aprobar propuesta
+        try {
+            $automation = TaskAutomation::where('event_type', 'propuesta_aprobada')
+                ->where('is_active', true)
+                ->first();
+
+            if ($automation && $automation->assigned_to) {
+                Task::create([
+                    'project_code' => $propuesta->analisis_reference,
+                    'title' => $automation->title,
+                    'status' => 'pendiente',
+                    'priority' => $automation->priority ?? 'media',
+                    'assigned_to' => $automation->assigned_to,
+                    'start_date' => now()->toDateString(),
+                    'due_date' => now()->toDateString(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error creando tarea automática para propuesta aprobada', ['error' => $e->getMessage()]);
+        }
 
         $propuesta->load('aceptadaPorUser:id,name');
 
