@@ -20,7 +20,7 @@ import {
   Check,
   ChevronsUpDown,
   Eye,
-  Briefcase
+  Handshake
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -1905,19 +1905,16 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
                   })()}
                 </TableCell>
                 <TableCell className="text-center">
-                  {lead.opportunities && lead.opportunities.length > 0 ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenOpportunitiesModal(lead)}
-                      className="h-8 px-3 gap-2"
-                    >
-                      <Briefcase className="h-4 w-4" />
-                      {lead.opportunities.length}
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">0</span>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => lead.opportunities && lead.opportunities.length > 0 && handleOpenOpportunitiesModal(lead)}
+                    disabled={!lead.opportunities || lead.opportunities.length === 0}
+                    className="h-8 px-3 gap-2"
+                  >
+                    <Handshake className="h-4 w-4" />
+                    {lead.opportunities?.length || 0}
+                  </Button>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">
@@ -2118,19 +2115,16 @@ function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkE
                         <Badge className={badgeClassName}>{statusLabel}</Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      {client.opportunities && client.opportunities.length > 0 ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenOpportunitiesModal(client)}
-                          className="h-8 px-3 gap-2"
-                        >
-                          <Briefcase className="h-4 w-4" />
-                          {client.opportunities.length}
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">0</span>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => client.opportunities && client.opportunities.length > 0 && handleOpenOpportunitiesModal(client)}
+                        disabled={!client.opportunities || client.opportunities.length === 0}
+                        className="h-8 px-3 gap-2"
+                      >
+                        <Handshake className="h-4 w-4" />
+                        {client.opportunities?.length || 0}
+                      </Button>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap justify-end gap-2">
