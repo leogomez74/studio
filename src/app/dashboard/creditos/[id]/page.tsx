@@ -1101,15 +1101,15 @@ function CreditDetailClient({ id }: { id: string }) {
     return monto * 0.03;
   };
 
-  // monto_credito ya viene con cargos descontados, así que monto neto = monto_credito
+  // Monto de desembolso = monto_credito - cargos adicionales
   const getMontoNeto = () => {
-    return formData.monto_credito || credit?.monto_credito || 0;
+    const monto = formData.monto_credito || credit?.monto_credito || 0;
+    return monto - getTotalCargos();
   };
 
-  // Monto original = monto_credito + cargos (para mostrar el monto antes de descontar)
+  // Monto original = monto_credito (total del crédito)
   const getMontoOriginal = () => {
-    const monto = formData.monto_credito || credit?.monto_credito || 0;
-    return monto + getTotalCargos();
+    return formData.monto_credito || credit?.monto_credito || 0;
   };
 
   // Aplicar valores por defecto según CARGOS_CONFIG
@@ -1759,6 +1759,12 @@ function CreditDetailClient({ id }: { id: string }) {
                               </p>
                           </div>
                           <div className="space-y-2">
+                            <Label>Monto de Desembolso</Label>
+                              <p className="text-sm font-semibold text-green-600 bg-green-50 px-3 py-2 rounded-md">
+                                ₡{formatCurrency((credit.monto_credito || 0) - getTotalCargos())}
+                              </p>
+                          </div>
+                          <div className="space-y-2">
                             <Label>Cuota Mensual</Label>
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
                                 ₡{formatCurrency(credit.cuota)}
@@ -1794,8 +1800,8 @@ function CreditDetailClient({ id }: { id: string }) {
                         <div className="mt-6 pt-6 border-t">
                           <div className="flex items-center justify-between mb-3">
                             <div>
-                              <h4 className="text-sm font-medium text-muted-foreground">Cargos Adicionales</h4>
-                              <p className="text-xs text-muted-foreground">Estos montos se restan del crédito</p>
+                              <h4 className="text-sm font-medium text-muted-foreground">Deducciones</h4>
+                              <p className="text-xs text-muted-foreground">Estos montos se restan del monto otorgado</p>
                             </div>
                             <div className="flex items-center gap-4">
                               {isEditMode && (
@@ -1838,11 +1844,12 @@ function CreditDetailClient({ id }: { id: string }) {
                                   </Label>
                                   {isEditMode ? (
                                     <Input
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      value={cargosAdicionales[key] || ""}
-                                      onChange={(e) => handleCargoChange(key, parseFloat(e.target.value) || 0)}
+                                      type="text"
+                                      value={cargosAdicionales[key] ? formatCurrency(cargosAdicionales[key]) : ""}
+                                      onChange={(e) => {
+                                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                                        handleCargoChange(key, Number(raw) || 0);
+                                      }}
                                       placeholder={getPlaceholder()}
                                       className={`h-9 ${deshabilitado ? 'opacity-50' : ''}`}
                                       disabled={deshabilitado}
@@ -1857,16 +1864,16 @@ function CreditDetailClient({ id }: { id: string }) {
                               );
                             })}
                           </div>
-                          {/* Resumen de cargos */}
+                          {/* Resumen de deducciones */}
                           <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                             <div className="space-y-1">
                               <div className="flex items-center gap-4 text-sm">
-                                <span className="text-muted-foreground">Total cargos:</span>
+                                <span className="text-muted-foreground">Total deducciones:</span>
                                 <span className="font-medium text-destructive">-₡{formatCurrency(getTotalCargos())}</span>
                               </div>
                             </div>
                             <div className="text-right">
-                              <span className="text-xs text-muted-foreground block">Monto neto a recibir</span>
+                              <span className="text-xs text-muted-foreground block">Monto de desembolso</span>
                               <span className="text-lg font-bold text-primary">₡{formatCurrency(getMontoNeto())}</span>
                             </div>
                           </div>

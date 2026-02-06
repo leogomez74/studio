@@ -247,7 +247,8 @@ export default function ClientesPage() {
 
   // Lists for Dropdowns
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
-  const [products, setProducts] = useState<{ id: number; name: string }[]>([]);
+  const [products, setProducts] = useState<{ id: number; name: string; slug?: string }[]>([]);
+  const [loanConfigs, setLoanConfigs] = useState<{ tipo: string; monto_minimo: number; monto_maximo: number }[]>([]);
   const [instituciones, setInstituciones] = useState<Array<{ id: number; nombre: string; activa: boolean }>>([]);
   const [openInstitucion, setOpenInstitucion] = useState(false);
   const [searchInstitucion, setSearchInstitucion] = useState("");
@@ -299,6 +300,10 @@ export default function ClientesPage() {
       monto: "",
     },
   });
+
+  // Watch product_id y monto para validación en tiempo real
+  const watchedProductId = form.watch('product_id');
+  const watchedMonto = form.watch('monto');
 
   // TSE Lookup State (copiado del registro público)
   const [isFetchingTse, setIsFetchingTse] = useState(false);
@@ -390,6 +395,12 @@ export default function ClientesPage() {
         console.log('Cantidad de productos:', productsArray.length);
 
         setProducts(productsArray);
+
+        // Fetch loan configurations
+        try {
+          const resConfigs = await api.get('/api/loan-configurations/activas');
+          setLoanConfigs(Array.isArray(resConfigs.data) ? resConfigs.data : []);
+        } catch { setLoanConfigs([]); }
 
         // Fetch instituciones
         try {
@@ -772,8 +783,47 @@ export default function ClientesPage() {
   };
 
 
+  // Obtener los límites de monto según el producto seleccionado
+  const getMontoLimits = (productId: string | undefined) => {
+    if (!productId) return null;
+    const product = products.find(p => String(p.id) === productId);
+    if (!product) return null;
+    // Mapear producto a tipo de configuración
+    const slug = product.slug || product.name.toLowerCase();
+    let configTipo: string | null = null;
+    if (slug.includes('micro')) configTipo = 'microcredito';
+    else if (slug === 'credito' || slug === 'crédito') configTipo = 'regular';
+    if (!configTipo) return null;
+    const config = loanConfigs.find(c => c.tipo === configTipo);
+    if (!config) return null;
+    return { min: Number(config.monto_minimo), max: Number(config.monto_maximo), nombre: product.name };
+  };
+
+  // Validar monto contra límites del producto
+  const getMontoError = () => {
+    const productId = watchedProductId;
+    const montoStr = watchedMonto;
+    console.log('=== VALIDACIÓN MONTO ===', { productId, montoStr, products: products.length, loanConfigs });
+    if (!productId || !montoStr) return null;
+    const limits = getMontoLimits(productId);
+    console.log('Limits encontrados:', limits);
+    if (!limits) return null;
+    const monto = Number(montoStr);
+    if (monto < limits.min) return `El monto mínimo para ${limits.nombre} es ₡${formatMonto(String(limits.min))}`;
+    if (monto > limits.max) return `El monto máximo para ${limits.nombre} es ₡${formatMonto(String(limits.max))}`;
+    return null;
+  };
+
   const onSubmit = async (values: LeadFormValues) => {
     setIsSavingLead(true);
+
+    // Validar monto contra límites del producto
+    const montoError = getMontoError();
+    if (montoError) {
+      setIsSavingLead(false);
+      toastError("Monto inválido", montoError);
+      return;
+    }
 
     // Verificar WhatsApp al momento de enviar (solo para nuevos leads)
     if (!editingId) {
@@ -1689,24 +1739,32 @@ export default function ClientesPage() {
                   <FormField
                     control={form.control}
                     name="monto"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Monto del Crédito</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="text"
-                            placeholder="₡0"
-                            disabled={isViewOnly}
-                            value={field.value ? formatMonto(field.value) : ""}
-                            onChange={(e) => {
-                              const normalized = normalizeMonto(e.target.value);
-                              field.onChange(normalized);
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const montoValidationError = getMontoError();
+                      return (
+                        <FormItem>
+                          <FormLabel>Monto del Crédito</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              placeholder="₡0"
+                              disabled={isViewOnly}
+                              value={field.value ? formatMonto(field.value) : ""}
+                              onChange={(e) => {
+                                const normalized = normalizeMonto(e.target.value);
+                                field.onChange(normalized);
+                              }}
+                              className={montoValidationError ? "border-red-500" : ""}
+                            />
+                          </FormControl>
+                          {montoValidationError ? (
+                            <p className="text-sm text-red-500">{montoValidationError}</p>
+                          ) : (
+                            <FormMessage />
+                          )}
+                        </FormItem>
+                      );
+                    }}
                   />
                 </div>
               )}
@@ -1715,7 +1773,7 @@ export default function ClientesPage() {
                   {isViewOnly ? "Cerrar" : "Cancelar"}
                 </Button>
                 {!isViewOnly && (
-                  <Button type="submit" disabled={isSavingLead}>
+                  <Button type="submit" disabled={isSavingLead || !!getMontoError()}>
                     {isSavingLead ? "Guardando..." : "Crear lead"}
                   </Button>
                 )}
