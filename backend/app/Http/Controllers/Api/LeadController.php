@@ -242,6 +242,26 @@ class LeadController extends Controller
                 ]);
                 Log::info('Tarea automática creada para lead', ['cedula' => $result['lead']->cedula]);
             }
+
+            // Tarea automática para la oportunidad creada junto con el lead
+            if ($result['opportunity']) {
+                $oppAutomation = TaskAutomation::where('event_type', 'opportunity_created')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($oppAutomation && $oppAutomation->assigned_to) {
+                    Task::create([
+                        'project_code' => (string) $result['opportunity']->id,
+                        'title' => $oppAutomation->title,
+                        'status' => 'pendiente',
+                        'priority' => $oppAutomation->priority ?? 'media',
+                        'assigned_to' => $oppAutomation->assigned_to,
+                        'start_date' => now()->toDateString(),
+                        'due_date' => now()->toDateString(),
+                    ]);
+                    Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $result['opportunity']->id]);
+                }
+            }
         } catch (\Exception $e) {
             Log::error('Error creando tarea automática', ['error' => $e->getMessage()]);
         }

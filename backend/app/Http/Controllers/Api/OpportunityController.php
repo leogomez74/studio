@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use App\Models\Lead;
 use App\Models\Person;
+use App\Models\Task;
+use App\Models\TaskAutomation;
+
 class OpportunityController extends Controller
 {
     /**
@@ -209,6 +212,28 @@ class OpportunityController extends Controller
             $validated['lead_cedula'],
             $opportunity->id
         );
+
+        // Crear tarea automática si está configurada
+        try {
+            $automation = TaskAutomation::where('event_type', 'opportunity_created')
+                ->where('is_active', true)
+                ->first();
+
+            if ($automation && $automation->assigned_to) {
+                Task::create([
+                    'project_code' => (string) $opportunity->id,
+                    'title' => $automation->title,
+                    'status' => 'pendiente',
+                    'priority' => $automation->priority ?? 'media',
+                    'assigned_to' => $automation->assigned_to,
+                    'start_date' => now()->toDateString(),
+                    'due_date' => now()->toDateString(),
+                ]);
+                Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $opportunity->id]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error creando tarea automática para oportunidad', ['error' => $e->getMessage()]);
+        }
 
         return response()->json([
             'opportunity' => $opportunity,

@@ -2818,6 +2818,10 @@ export default function ConfiguracionPage() {
     assigned_to: '',
     is_active: false,
   });
+  const [opportunityCreatedConfig, setOpportunityCreatedConfig] = useState({
+    assigned_to: '',
+    is_active: false,
+  });
 
   const fetchAutomations = useCallback(async () => {
     setAutomationsLoading(true);
@@ -2830,6 +2834,13 @@ export default function ConfiguracionPage() {
         setLeadCreatedConfig({
           assigned_to: leadAuto.assigned_to ? String(leadAuto.assigned_to) : '',
           is_active: leadAuto.is_active,
+        });
+      }
+      const oppAuto = data.find((a: any) => a.event_type === 'opportunity_created');
+      if (oppAuto) {
+        setOpportunityCreatedConfig({
+          assigned_to: oppAuto.assigned_to ? String(oppAuto.assigned_to) : '',
+          is_active: oppAuto.is_active,
         });
       }
     } catch (error) {
@@ -3745,6 +3756,49 @@ export default function ConfiguracionPage() {
                         disabled={savingAutomation === 'lead_created'}
                       >
                         {savingAutomation === 'lead_created' ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
+                        ) : (
+                          'Guardar Cambios'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium">Nueva Oportunidad Creada</h4>
+                      <p className="text-sm text-muted-foreground">Al generar una oportunidad, se crea tarea para realizar análisis, solicitar colillas y verificarlas.</p>
+                    </div>
+                    <Switch
+                      checked={opportunityCreatedConfig.is_active}
+                      onCheckedChange={(checked) => setOpportunityCreatedConfig(prev => ({ ...prev, is_active: checked }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div className="space-y-2">
+                      <Label>Asignar tarea a</Label>
+                      <Select
+                        value={opportunityCreatedConfig.assigned_to}
+                        onValueChange={(value) => setOpportunityCreatedConfig(prev => ({ ...prev, assigned_to: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar usuario" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users.map((user) => (
+                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Button
+                        onClick={() => saveAutomation('opportunity_created', 'Realizar análisis, solicitar colillas y verificarlas', opportunityCreatedConfig.assigned_to, opportunityCreatedConfig.is_active)}
+                        disabled={savingAutomation === 'opportunity_created'}
+                      >
+                        {savingAutomation === 'opportunity_created' ? (
                           <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
                         ) : (
                           'Guardar Cambios'
