@@ -921,6 +921,15 @@ export default function ClientesPage() {
   };
 
   const handleArchiveLead = async (lead: Lead) => {
+      // Validar que no tenga oportunidades asociadas
+      if (lead.opportunities && lead.opportunities.length > 0) {
+          toastWarning(
+              "No se puede archivar",
+              `Este lead tiene ${lead.opportunities.length} oportunidad(es) asociada(s). Debe eliminar o reasignar las oportunidades primero.`
+          );
+          return;
+      }
+
       if (!confirm(`¿Archivar a ${lead.name}?`)) return;
       try {
           await api.patch(`/api/leads/${lead.id}/toggle-active`);
@@ -1007,6 +1016,21 @@ export default function ClientesPage() {
 
       switch (bulkActionType) {
         case 'archive':
+          // Validar que ninguno tenga oportunidades asociadas
+          const selectedItems = activeTab === 'leads' ? leadsData.filter(l => currentSelection.selectedIds.has(l.id)) : clientsData.filter(c => currentSelection.selectedIds.has(c.id));
+          const itemsWithOpportunities = selectedItems.filter(item => item.opportunities && item.opportunities.length > 0);
+
+          if (itemsWithOpportunities.length > 0) {
+            const totalOpportunities = itemsWithOpportunities.reduce((sum, item) => sum + (item.opportunities?.length || 0), 0);
+            toastWarning(
+              "No se puede archivar",
+              `${itemsWithOpportunities.length} registro(s) tienen ${totalOpportunities} oportunidad(es) asociada(s). Debe eliminar o reasignar las oportunidades primero.`
+            );
+            setIsBulkProcessing(false);
+            setIsConfirmBulkActionOpen(false);
+            return;
+          }
+
           response = await api.patch('/api/leads/bulk-archive', { ids, action: 'archive' });
           successMessage = `${response.data.data.successful} registros archivados`;
           break;
@@ -1940,11 +1964,23 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PermissionButton module="crm" action="archive" size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
+                        <PermissionButton
+                          module="crm"
+                          action="archive"
+                          size="icon"
+                          variant="destructive"
+                          onClick={() => onAction('archive', lead)}
+                          disabled={lead.opportunities && lead.opportunities.length > 0}
+                        >
                           <Archive className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>
-                      <TooltipContent>Archivar</TooltipContent>
+                      <TooltipContent>
+                        {lead.opportunities && lead.opportunities.length > 0
+                          ? `No se puede archivar: tiene ${lead.opportunities.length} oportunidad(es) asociada(s)`
+                          : "Archivar"
+                        }
+                      </TooltipContent>
                     </Tooltip>
                   </div>
                 </TableCell>
