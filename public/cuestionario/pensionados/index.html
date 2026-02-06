@@ -155,11 +155,12 @@
                     <div class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-foreground mb-1">Monto requerido *</label>
-                            <select name="monto" id="montoSelect" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <select name="monto" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona un rango</option>
                                 <option value="100k-300k">100 mil - 300 mil</option>
                                 <option value="300k-500k">300 mil - 500 mil</option>
                                 <option value="500k-690k">500 mil - 690 mil</option>
+                                <option value="690+">690 mil o más</option>
                             </select>
                         </div>
                         <div>
@@ -273,65 +274,6 @@
         const API_BASE_URL = window.location.origin;
         const steps = ['step-1', 'step-2', 'step-3'];
         let currentStep = 0;
-
-        // Configuración de micro crédito (se carga desde la API)
-        let loanConfig = { monto_minimo: 100000, monto_maximo: 690000 };
-        let montosRangos = [];
-
-        function formatCurrencyLabel(num) {
-            return '₡' + num.toLocaleString('en-US');
-        }
-
-        function redondearMonto(num, direccion) {
-            let multiplo;
-            if (num < 500000) multiplo = 50000;
-            else if (num < 2000000) multiplo = 100000;
-            else multiplo = 500000;
-            return direccion === 'up' ? Math.ceil(num / multiplo) * multiplo : Math.floor(num / multiplo) * multiplo;
-        }
-
-        function generarRangosMonto(min, max) {
-            const rangos = [];
-            const paso = (max - min) / 3;
-            for (let i = 0; i < 3; i++) {
-                let desde = i === 0 ? min : redondearMonto(min + (paso * i), 'up');
-                let hasta = i === 2 ? max : redondearMonto(min + (paso * (i + 1)), 'down');
-                const desdeK = desde / 1000;
-                const hastaK = hasta / 1000;
-                let value = Math.round(desdeK) + 'k-' + Math.round(hastaK) + 'k';
-                rangos.push({ value, label: formatCurrencyLabel(desde) + ' - ' + formatCurrencyLabel(hasta), min: desde, max: hasta });
-            }
-            return rangos;
-        }
-
-        async function loadLoanConfigurations() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/loan-configurations`);
-                const configs = await response.json();
-                const micro = configs.find(c => c.tipo === 'microcredito');
-                if (micro) loanConfig = micro;
-            } catch (error) {
-                console.error('Error cargando configuraciones:', error);
-            }
-            montosRangos = generarRangosMonto(Number(loanConfig.monto_minimo), Number(loanConfig.monto_maximo));
-            updateMontoOptions();
-        }
-
-        function updateMontoOptions() {
-            const montoSelect = document.getElementById('montoSelect');
-            if (!montoSelect) return;
-            while (montoSelect.firstChild) montoSelect.removeChild(montoSelect.firstChild);
-            const defaultOpt = document.createElement('option');
-            defaultOpt.value = '';
-            defaultOpt.textContent = 'Selecciona un rango';
-            montoSelect.appendChild(defaultOpt);
-            montosRangos.forEach(function(r) {
-                const opt = document.createElement('option');
-                opt.value = r.value;
-                opt.textContent = r.label;
-                montoSelect.appendChild(opt);
-            });
-        }
 
         function showStep(index) {
             steps.forEach((id, i) => {
@@ -475,7 +417,6 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             checkQuestionnaireStatus();
-            loadLoanConfigurations();
             showStep(currentStep);
 
             // Formatear campos de montos con colones
