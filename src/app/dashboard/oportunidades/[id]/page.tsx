@@ -1346,24 +1346,42 @@ export default function OpportunityDetailPage() {
                     {
                       label: "Completitud de documentos",
                       value: (() => {
-                        const totalDocs = 5; // Cédula, Recibo, y 3 documentos de oportunidad
-                        const missingDocs = opportunity.missing_documents?.length || 0;
-                        const completeDocs = totalDocs - missingDocs;
-                        const percentage = Math.round((completeDocs / totalDocs) * 100);
+                        // Documentos heredados (obligatorios): Cédula y Recibo
+                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+
+                        // Documentos específicos: mínimo 3 esperados
+                        const minEspecificos = 3;
+                        const totalEspecificosEsperados = Math.max(minEspecificos, especificos.length);
+
+                        // Total de documentos
+                        const totalEsperado = 2 + totalEspecificosEsperados;
+                        const totalCompletos = heredadosCompletos + especificos.length;
+
+                        const percentage = Math.round((totalCompletos / totalEsperado) * 100);
                         return `${percentage}%`;
                       })(),
                       icon: FileCheck,
                       variant: (() => {
-                        const totalDocs = 5;
-                        const missingDocs = opportunity.missing_documents?.length || 0;
-                        const percentage = ((totalDocs - missingDocs) / totalDocs) * 100;
+                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+                        const minEspecificos = 3;
+                        const totalEspecificosEsperados = Math.max(minEspecificos, especificos.length);
+                        const totalEsperado = 2 + totalEspecificosEsperados;
+                        const totalCompletos = heredadosCompletos + especificos.length;
+                        const percentage = (totalCompletos / totalEsperado) * 100;
+
                         if (percentage >= 80) return "success";
                         if (percentage >= 50) return "warning";
                         return "danger";
                       })(),
-                      tooltip: opportunity.missing_documents?.length
-                        ? `Faltan: ${opportunity.missing_documents.join(', ')}`
-                        : "Todos los documentos completos"
+                      tooltip: (() => {
+                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+                        const parts = [];
+                        if (heredadosCompletos < 2) {
+                          parts.push(`Heredados: ${heredadosCompletos}/2`);
+                        }
+                        parts.push(`Específicos: ${especificos.length}/3 mín`);
+                        return parts.join(' • ');
+                      })()
                     },
                     {
                       label: "Monto estimado",
