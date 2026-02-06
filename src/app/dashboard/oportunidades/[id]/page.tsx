@@ -175,7 +175,7 @@ const getTodayDateString = (): string => {
 
 interface TareasTabProps {
   opportunityReference: string;
-  opportunityId: number;
+  opportunityId: string;
 }
 
 function TareasTab({ opportunityReference, opportunityId }: TareasTabProps) {
@@ -554,6 +554,7 @@ export default function OpportunityDetailPage() {
     leadId: "",
     opportunityId: "",
     assignedTo: "",
+    openedAt: "",
     divisa: "CRC",
     plazo: "36",
     numero_manchas: "",
@@ -1353,10 +1354,10 @@ export default function OpportunityDetailPage() {
                   <QuickStats stats={[
                     {
                       label: "Días desde creación",
-                      value: Math.floor((new Date().getTime() - new Date(opportunity.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+                      value: Math.floor((new Date().getTime() - new Date(opportunity.created_at!).getTime()) / (1000 * 60 * 60 * 24)),
                       icon: Calendar,
                       variant: "default",
-                      tooltip: `Creada el ${new Date(opportunity.created_at).toLocaleDateString('es-CR')}`
+                      tooltip: `Creada el ${new Date(opportunity.created_at!).toLocaleDateString('es-CR')}`
                     },
                     {
                       label: "Días hasta cierre esperado",

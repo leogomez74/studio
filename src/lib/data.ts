@@ -233,7 +233,8 @@ export type Opportunity = {
   lead?: Lead;
   amparo_id?: string;
   tags?: string[];
-  
+  missing_documents?: string[];
+
   // Legacy / UI fields
   leadCedula?: string;
   creditType?: 'Regular' | 'Micro-crédito';
