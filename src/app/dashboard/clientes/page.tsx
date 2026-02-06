@@ -1929,16 +1929,36 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
                   })()}
                 </TableCell>
                 <TableCell className="text-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => lead.opportunities && lead.opportunities.length > 0 && handleOpenOpportunitiesModal(lead)}
-                    disabled={!lead.opportunities || lead.opportunities.length === 0}
-                    className="h-8 px-3 gap-2"
-                  >
-                    <Handshake className="h-4 w-4" />
-                    {lead.opportunities?.length || 0}
-                  </Button>
+                  {(() => {
+                    const missingFields = checkMissingFields(lead);
+                    const hasOpportunities = lead.opportunities && lead.opportunities.length > 0;
+                    const isDisabled = !hasOpportunities || missingFields.length > 0;
+
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => hasOpportunities && missingFields.length === 0 && handleOpenOpportunitiesModal(lead)}
+                            disabled={isDisabled}
+                            className="h-8 px-3 gap-2"
+                          >
+                            <Handshake className="h-4 w-4" />
+                            {lead.opportunities?.length || 0}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {missingFields.length > 0
+                            ? "Complete los datos del lead para ver oportunidades"
+                            : hasOpportunities
+                            ? "Ver oportunidades asociadas"
+                            : "Sin oportunidades"
+                          }
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">
@@ -2151,16 +2171,36 @@ function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkE
                         <Badge className={badgeClassName}>{statusLabel}</Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => client.opportunities && client.opportunities.length > 0 && handleOpenOpportunitiesModal(client)}
-                        disabled={!client.opportunities || client.opportunities.length === 0}
-                        className="h-8 px-3 gap-2"
-                      >
-                        <Handshake className="h-4 w-4" />
-                        {client.opportunities?.length || 0}
-                      </Button>
+                      {(() => {
+                        const missingFields = checkMissingFields(client);
+                        const hasOpportunities = client.opportunities && client.opportunities.length > 0;
+                        const isDisabled = !hasOpportunities || missingFields.length > 0;
+
+                        return (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => hasOpportunities && missingFields.length === 0 && handleOpenOpportunitiesModal(client)}
+                                disabled={isDisabled}
+                                className="h-8 px-3 gap-2"
+                              >
+                                <Handshake className="h-4 w-4" />
+                                {client.opportunities?.length || 0}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {missingFields.length > 0
+                                ? "Complete los datos del cliente para ver oportunidades"
+                                : hasOpportunities
+                                ? "Ver oportunidades asociadas"
+                                : "Sin oportunidades"
+                              }
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap justify-end gap-2">
