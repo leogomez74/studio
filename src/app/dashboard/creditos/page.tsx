@@ -65,7 +65,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
 
@@ -457,7 +457,7 @@ export default function CreditsPage() {
       setCredits(apiData);
     } catch (error) {
       console.error("Error fetching credits:", error);
-      toast({ title: "Error", description: "No se pudieron cargar los créditos. Intente nuevamente.", variant: "destructive" });
+      toastError("Error", "No se pudieron cargar los créditos. Intente nuevamente.");
       setCredits([]);
     }
   }, [toast]);
@@ -634,11 +634,7 @@ export default function CreditsPage() {
       // Validar que el cliente tenga deductora asignada
       const selectedClient = clients.find(c => String(c.id) === values.clientId);
       if (!selectedClient?.deductora_id) {
-        toast({
-          title: "Error de validación",
-          description: "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crédito.",
-          variant: "destructive"
-        });
+        toastError("Error de validación", "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crédito.");
         setIsSaving(false);
         return;
       }
@@ -666,11 +662,11 @@ export default function CreditsPage() {
         await api.put(`/api/credits/${dialogCredit?.id}`, body);
       }
 
-      toast({ title: "Éxito", description: "Crédito guardado correctamente." });
+      toastSuccess("Éxito", "Crédito guardado correctamente.");
       setDialogState(null);
       fetchCredits();
     } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || error.message, variant: "destructive" });
+      toastError("Error", error.response?.data?.message || error.message);
     } finally {
       setIsSaving(false);
     }
@@ -744,11 +740,7 @@ export default function CreditsPage() {
       };
     } catch (error) {
       console.error('Error generating pagaré PDF', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudo generar el pagaré.',
-        variant: 'destructive',
-      });
+      toastError("Error", "No se pudo generar el pagaré.");
     }
   };
 
@@ -1294,18 +1286,11 @@ export default function CreditsPage() {
                                     onClick={async () => {
                                       try {
                                         await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
-                                        toast({
-                                          title: 'Crédito formalizado',
-                                          description: 'El plan de pagos se ha generado correctamente.',
-                                        });
+                                        toastSuccess("Crédito formalizado", "El plan de pagos se ha generado correctamente.");
                                         fetchCredits();
                                       } catch (error) {
                                         console.error('Error formalizando crédito:', error);
-                                        toast({
-                                          title: 'Error',
-                                          description: 'No se pudo formalizar el crédito.',
-                                          variant: 'destructive',
-                                        });
+                                        toastError("Error", "No se pudo formalizar el crédito.");
                                       }
                                     }}
                                   >
@@ -1327,7 +1312,12 @@ export default function CreditsPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => router.push(`/dashboard/creditos/${credit.id}?tab=plan-pagos`)}>
+                                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                      Ver Plan de Pagos
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
+                                      <FileText className="h-4 w-4 mr-2" />
                                       Gestionar documentos
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -1851,7 +1841,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
       setDocuments(res.data);
     } catch (e) {
       console.error(e);
-      toast({ title: "Error", description: "No se pudieron cargar los documentos.", variant: "destructive" });
+      toastError("Error", "No se pudieron cargar los documentos.");
     } finally {
       setIsLoading(false);
     }
@@ -1884,7 +1874,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      toast({ title: "Documento subido", description: "El documento se ha subido correctamente." });
+      toastSuccess("Documento subido", "El documento se ha subido correctamente.");
       setName("");
       setNotes("");
       setFile(null);
@@ -1893,7 +1883,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
       if (fileInput) fileInput.value = '';
       fetchDocuments();
     } catch (e: any) {
-      toast({ title: "Error", description: e.response?.data?.message || "No se pudo subir el documento.", variant: "destructive" });
+      toastError("Error", e.response?.data?.message || "No se pudo subir el documento.");
     } finally {
       setIsUploading(false);
     }
@@ -1916,7 +1906,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (e: any) {
-      toast({ title: "Error", description: "No se pudo descargar el documento.", variant: "destructive" });
+      toastError("Error", "No se pudo descargar el documento.");
     }
   };
 
@@ -1943,11 +1933,11 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
         notes: editNotes
       });
 
-      toast({ title: "Documento actualizado", description: "Los cambios se han guardado correctamente." });
+      toastSuccess("Documento actualizado", "Los cambios se han guardado correctamente.");
       handleCancelEdit();
       fetchDocuments();
     } catch (e: any) {
-      toast({ title: "Error", description: e.response?.data?.message || "No se pudo actualizar el documento.", variant: "destructive" });
+      toastError("Error", e.response?.data?.message || "No se pudo actualizar el documento.");
     } finally {
       setIsUpdating(false);
     }
@@ -1959,11 +1949,11 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
     setIsDeleting(true);
     try {
       await api.delete(`/api/credits/${credit.id}/documents/${deletingDocId}`);
-      toast({ title: "Documento eliminado", description: "El documento se ha eliminado correctamente." });
+      toastSuccess("Documento eliminado", "El documento se ha eliminado correctamente.");
       setDeletingDocId(null);
       fetchDocuments();
     } catch (e: any) {
-      toast({ title: "Error", description: e.response?.data?.message || "No se pudo eliminar el documento.", variant: "destructive" });
+      toastError("Error", e.response?.data?.message || "No se pudo eliminar el documento.");
     } finally {
       setIsDeleting(false);
     }

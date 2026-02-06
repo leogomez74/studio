@@ -61,6 +61,11 @@ Route::apiResource('instituciones', InstitucionController::class);
 Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
 Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
 Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula']);
+
+// Bulk actions for leads (MUST be before apiResource to avoid route conflicts)
+Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive'])->middleware('auth:sanctum');
+Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert'])->middleware('auth:sanctum');
+
 Route::apiResource('leads', LeadController::class);
 
 // Questionnaires
@@ -74,6 +79,9 @@ Route::get('/opportunities/{id}/files', [OpportunityController::class, 'getFiles
 Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadFile']);
 Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile']);
 Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
+
+// Bulk actions for opportunities (MUST be before apiResource to avoid route conflicts)
+Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete'])->middleware('auth:sanctum');
 
 // Oportunidades
 Route::apiResource('opportunities', OpportunityController::class);
@@ -213,6 +221,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     // Analisis CRUD (Protegido)
+    // Bulk actions for analisis (MUST be before apiResource to avoid route conflicts)
+    Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
+
     Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
     Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);

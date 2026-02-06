@@ -2818,6 +2818,14 @@ export default function ConfiguracionPage() {
     assigned_to: '',
     is_active: false,
   });
+  const [opportunityCreatedConfig, setOpportunityCreatedConfig] = useState({
+    assigned_to: '',
+    is_active: false,
+  });
+  const [analisisCreatedConfig, setAnalisisCreatedConfig] = useState({
+    assigned_to: '',
+    is_active: false,
+  });
 
   const fetchAutomations = useCallback(async () => {
     setAutomationsLoading(true);
@@ -2830,6 +2838,20 @@ export default function ConfiguracionPage() {
         setLeadCreatedConfig({
           assigned_to: leadAuto.assigned_to ? String(leadAuto.assigned_to) : '',
           is_active: leadAuto.is_active,
+        });
+      }
+      const oppAuto = data.find((a: any) => a.event_type === 'opportunity_created');
+      if (oppAuto) {
+        setOpportunityCreatedConfig({
+          assigned_to: oppAuto.assigned_to ? String(oppAuto.assigned_to) : '',
+          is_active: oppAuto.is_active,
+        });
+      }
+      const analisisAuto = data.find((a: any) => a.event_type === 'analisis_created');
+      if (analisisAuto) {
+        setAnalisisCreatedConfig({
+          assigned_to: analisisAuto.assigned_to ? String(analisisAuto.assigned_to) : '',
+          is_active: analisisAuto.is_active,
         });
       }
     } catch (error) {
@@ -3379,7 +3401,6 @@ export default function ConfiguracionPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Rol</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead>Responsable Default Leads</TableHead>
                     <TableHead>Fecha Creación</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
@@ -3414,13 +3435,6 @@ export default function ConfiguracionPage() {
                           {user.status || 'Activo'}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        {user.is_default_lead_assignee && (
-                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
-                            ✓ Responsable Default
-                          </span>
-                        )}
-                      </TableCell>
                       <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -3433,12 +3447,6 @@ export default function ConfiguracionPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => openEditUserDialog(user)}>Editar</DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleSetDefaultLeadAssignee(user)}
-                              disabled={user.is_default_lead_assignee}
-                            >
-                              {user.is_default_lead_assignee ? '✓ Responsable Default' : 'Configurar como Responsable Default'}
-                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUser(user)}>Eliminar</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -3745,6 +3753,92 @@ export default function ConfiguracionPage() {
                         disabled={savingAutomation === 'lead_created'}
                       >
                         {savingAutomation === 'lead_created' ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
+                        ) : (
+                          'Guardar Cambios'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium">Nueva Oportunidad Creada</h4>
+                      <p className="text-sm text-muted-foreground">Al generar una oportunidad, se crea tarea para realizar análisis, solicitar colillas y verificarlas.</p>
+                    </div>
+                    <Switch
+                      checked={opportunityCreatedConfig.is_active}
+                      onCheckedChange={(checked) => setOpportunityCreatedConfig(prev => ({ ...prev, is_active: checked }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div className="space-y-2">
+                      <Label>Asignar tarea a</Label>
+                      <Select
+                        value={opportunityCreatedConfig.assigned_to}
+                        onValueChange={(value) => setOpportunityCreatedConfig(prev => ({ ...prev, assigned_to: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar usuario" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users.map((user) => (
+                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Button
+                        onClick={() => saveAutomation('opportunity_created', 'Realizar análisis, solicitar colillas y verificarlas', opportunityCreatedConfig.assigned_to, opportunityCreatedConfig.is_active)}
+                        disabled={savingAutomation === 'opportunity_created'}
+                      >
+                        {savingAutomation === 'opportunity_created' ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
+                        ) : (
+                          'Guardar Cambios'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium">Análisis Creado</h4>
+                      <p className="text-sm text-muted-foreground">Al crear un análisis, se asigna tarea para enviar propuesta al equipo PEP, dar seguimiento y verificar estado.</p>
+                    </div>
+                    <Switch
+                      checked={analisisCreatedConfig.is_active}
+                      onCheckedChange={(checked) => setAnalisisCreatedConfig(prev => ({ ...prev, is_active: checked }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div className="space-y-2">
+                      <Label>Asignar tarea a</Label>
+                      <Select
+                        value={analisisCreatedConfig.assigned_to}
+                        onValueChange={(value) => setAnalisisCreatedConfig(prev => ({ ...prev, assigned_to: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar usuario" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users.map((user) => (
+                            <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Button
+                        onClick={() => saveAutomation('analisis_created', 'Enviar propuesta al equipo PEP, dar seguimiento y verificar estado', analisisCreatedConfig.assigned_to, analisisCreatedConfig.is_active)}
+                        disabled={savingAutomation === 'analisis_created'}
+                      >
+                        {savingAutomation === 'analisis_created' ? (
                           <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</>
                         ) : (
                           'Guardar Cambios'

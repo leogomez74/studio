@@ -18,7 +18,9 @@ import {
   X,
   Search,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Eye,
+  Handshake
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -46,11 +48,15 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
+import { useBulkSelection } from "@/hooks/use-bulk-selection";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { BulkActionsToolbar } from "@/components/bulk-actions-toolbar";
 
 // Importamos la conexión real y los tipos
 import api from '@/lib/axios';
-import { type Client, type Lead } from '@/lib/data';
+import { type Client, type Lead, type Opportunity } from '@/lib/data';
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PermissionButton } from "@/components/PermissionButton";
@@ -250,6 +256,16 @@ export default function ClientesPage() {
   const [isLeadFiltersOpen, setIsLeadFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("leads");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Bulk Selection Hooks (one for each tab)
+  const leadsSelection = useBulkSelection<Lead>();
+  const clientsSelection = useBulkSelection<Client>();
+  const inactivesSelection = useBulkSelection<Lead | Client>();
+
+  // Bulk Actions State
+  const [isConfirmBulkActionOpen, setIsConfirmBulkActionOpen] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<'archive' | 'restore' | 'convert' | 'delete' | null>(null);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
@@ -548,7 +564,7 @@ export default function ClientesPage() {
     }
 
     if (dataToExport.length === 0) {
-        toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+        toastWarning("Sin datos", "No hay datos para exportar");
         return;
     }
 
@@ -595,7 +611,7 @@ export default function ClientesPage() {
     }
 
     if (dataToExport.length === 0) {
-        toast({ title: "Sin datos", description: "No hay datos para exportar", variant: "destructive" });
+        toastWarning("Sin datos", "No hay datos para exportar");
         return;
     }
 
@@ -768,7 +784,7 @@ export default function ClientesPage() {
 
       if (!isVerified) {
         setIsSavingLead(false);
-        toast({ title: "Error", description: "El número no está registrado en WhatsApp", variant: "destructive" });
+        toastError("Error", "El número no está registrado en WhatsApp");
         return;
       }
     }
@@ -799,16 +815,16 @@ export default function ClientesPage() {
       if (editingId) {
           const endpoint = editingType === 'client' ? `/api/clients/${editingId}` : `/api/leads/${editingId}`;
           await api.put(endpoint, body);
-          toast({ title: "Actualizado", description: "Datos actualizados correctamente." });
+          toastSuccess("Actualizado", "Datos actualizados correctamente.");
       } else {
           const response = await api.post('/api/leads', body);
           const hasOpportunity = response.data?.opportunity !== null;
-          toast({
-            title: "Creado",
-            description: hasOpportunity
+          toastSuccess(
+            "Creado",
+            hasOpportunity
               ? "Lead y oportunidad registrados exitosamente."
               : "Lead registrado exitosamente."
-          });
+          );
       }
 
       closeLeadDialog();
@@ -828,13 +844,9 @@ export default function ClientesPage() {
           form.setError(key as keyof LeadFormValues, { type: "server", message });
         });
         
-        toast({
-          title: "Error de validación", 
-          description: "Por favor revisa los campos marcados en rojo.", 
-          variant: "destructive"
-        });
+        toastError("Error de validación", "Por favor revisa los campos marcados en rojo.");
       } else {
-        toast({ title: "Error", description: error.response?.data?.message || "No se pudo guardar.", variant: "destructive" });
+        toastError("Error", error.response?.data?.message || "No se pudo guardar.");
       }
     } finally {
       setIsSavingLead(false);
@@ -901,21 +913,30 @@ export default function ClientesPage() {
   const handleConvertLead = async (lead: Lead) => {
       try {
           await api.post(`/api/leads/${lead.id}/convert`);
-          toast({ title: "Convertido", description: `${lead.name} ahora es cliente.`, className: "bg-green-600 text-white" });
+          toastSuccess("Convertido", `${lead.name} ahora es cliente.`);
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo convertir.", variant: "destructive" });
+          toastError("Error", "No se pudo convertir.");
       }
   };
 
   const handleArchiveLead = async (lead: Lead) => {
+      // Validar que no tenga oportunidades asociadas
+      if (lead.opportunities && lead.opportunities.length > 0) {
+          toastWarning(
+              "No se puede archivar",
+              `Este lead tiene ${lead.opportunities.length} oportunidad(es) asociada(s). Debe eliminar o reasignar las oportunidades primero.`
+          );
+          return;
+      }
+
       if (!confirm(`¿Archivar a ${lead.name}?`)) return;
       try {
           await api.patch(`/api/leads/${lead.id}/toggle-active`);
-          toast({ title: "Archivado", description: "Lead archivado correctamente." });
+          toastSuccess("Archivado", "Lead archivado correctamente.");
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo archivar.", variant: "destructive" });
+          toastError("Error", "No se pudo archivar.");
       }
   };
 
@@ -924,10 +945,10 @@ export default function ClientesPage() {
       const endpoint = isLead ? `/api/leads/${item.id}/toggle-active` : `/api/clients/${item.id}/toggle-active`;
       try {
           await api.patch(endpoint);
-          toast({ title: "Restaurado", description: "Registro restaurado." });
+          toastSuccess("Restaurado", "Registro restaurado.");
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo restaurar.", variant: "destructive" });
+          toastError("Error", "No se pudo restaurar.");
       }
   };
 
@@ -957,17 +978,151 @@ export default function ClientesPage() {
       if (!clientToDelete) return;
       try {
           await api.delete(`/api/clients/${clientToDelete.id}`);
-          toast({ title: "Eliminado", description: "Cliente eliminado." });
+          toastSuccess("Eliminado", "Cliente eliminado.");
           fetchData();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" });
+          toastError("Error", "No se pudo eliminar.");
       } finally {
           setIsDeleteDialogOpen(false);
           setClientToDelete(null);
       }
   };
 
+  // --- Bulk Actions Handlers ---
 
+  const openBulkActionConfirmation = (action: 'archive' | 'restore' | 'convert' | 'delete') => {
+    setBulkActionType(action);
+    setIsConfirmBulkActionOpen(true);
+  };
+
+  const handleBulkAction = async () => {
+    if (!bulkActionType) return;
+
+    const currentSelection = activeTab === 'leads' ? leadsSelection : activeTab === 'clientes' ? clientsSelection : inactivesSelection;
+    const ids = Array.from(currentSelection.selectedIds);
+
+    if (ids.length === 0) return;
+
+    if (ids.length > 50) {
+      toastWarning("Límite excedido", "Máximo 50 elementos por operación");
+      return;
+    }
+
+    setIsBulkProcessing(true);
+
+    try {
+      let response;
+      let successMessage = "";
+
+      switch (bulkActionType) {
+        case 'archive':
+          // Validar que ninguno tenga oportunidades asociadas
+          const selectedItems = activeTab === 'leads' ? leadsData.filter(l => currentSelection.selectedIds.has(l.id)) : clientsData.filter(c => currentSelection.selectedIds.has(c.id));
+          const itemsWithOpportunities = selectedItems.filter(item => item.opportunities && item.opportunities.length > 0);
+
+          if (itemsWithOpportunities.length > 0) {
+            const totalOpportunities = itemsWithOpportunities.reduce((sum, item) => sum + (item.opportunities?.length || 0), 0);
+            toastWarning(
+              "No se puede archivar",
+              `${itemsWithOpportunities.length} registro(s) tienen ${totalOpportunities} oportunidad(es) asociada(s). Debe eliminar o reasignar las oportunidades primero.`
+            );
+            setIsBulkProcessing(false);
+            setIsConfirmBulkActionOpen(false);
+            return;
+          }
+
+          response = await api.patch('/api/leads/bulk-archive', { ids, action: 'archive' });
+          successMessage = `${response.data.data.successful} registros archivados`;
+          break;
+
+        case 'restore':
+          response = await api.patch('/api/leads/bulk-archive', { ids, action: 'restore' });
+          successMessage = `${response.data.data.successful} registros restaurados`;
+          break;
+
+        case 'convert':
+          // Validate all selected leads first
+          const selectedLeads = leadsData.filter(l => currentSelection.selectedIds.has(l.id));
+          const incompleteLeads = selectedLeads.filter(lead => {
+            const missingFields = checkMissingFields(lead);
+            return missingFields.length > 0;
+          });
+
+          if (incompleteLeads.length > 0) {
+            toastWarning("Leads incompletos", `${incompleteLeads.length} leads no tienen datos completos. Completa los datos antes de convertir.`);
+            setIsBulkProcessing(false);
+            setIsConfirmBulkActionOpen(false);
+            return;
+          }
+
+          response = await api.post('/api/leads/bulk-convert', { ids });
+          successMessage = `${response.data.data.successful} leads convertidos a clientes`;
+          break;
+
+        case 'delete':
+          // Use Promise.all with individual deletes
+          const deletePromises = ids.map(id => api.delete(`/api/clients/${id}`));
+          await Promise.all(deletePromises);
+          successMessage = `${ids.length} clientes eliminados`;
+          response = { data: { data: { successful: ids.length, failed: 0, errors: [] } } };
+          break;
+
+        default:
+          break;
+      }
+
+      const { successful, failed } = response?.data?.data || { successful: ids.length, failed: 0 };
+
+      if (failed > 0) {
+        toastWarning("Operación parcial", `${successful} exitosos, ${failed} fallidos`);
+      } else {
+        toastSuccess("Éxito", successMessage);
+      }
+
+      fetchData();
+      currentSelection.clearSelection();
+      setIsConfirmBulkActionOpen(false);
+
+    } catch (error: any) {
+      toastError("Error", error.response?.data?.message || "Error en operación masiva");
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkActionType(null);
+    }
+  };
+
+  const handleBulkExport = () => {
+    const currentSelection = activeTab === 'leads' ? leadsSelection : activeTab === 'clientes' ? clientsSelection : inactivesSelection;
+    const currentData = activeTab === 'leads' ? leadsData : activeTab === 'clientes' ? clientsData : inactiveData;
+
+    const selectedItems = currentData.filter(item => currentSelection.selectedIds.has(item.id));
+
+    if (selectedItems.length === 0) return;
+
+    // Export to CSV
+    const headers = ["Cédula", "Nombre", "Email", "Teléfono", "Estado", "Registrado"];
+    const rows = selectedItems.map(item => [
+      item.cedula || "-",
+      item.name || "-",
+      item.email || "-",
+      item.phone || "-",
+      (item as any).lead_status?.name || (item as any).status || "-",
+      new Date(item.created_at || "").toLocaleDateString()
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${activeTab}_seleccionados_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+
+    toastSuccess("Exportado", `${selectedItems.length} registros exportados`);
+  };
 
   const filteredInstituciones = useMemo(() => {
     if (!searchInstitucion) return instituciones;
@@ -1114,7 +1269,13 @@ export default function ClientesPage() {
                         </>
                     ) : (
                         <>
-                          <LeadsTable data={leadsData} onAction={handleLeadAction} />
+                          <LeadsTable
+                            data={leadsData}
+                            onAction={handleLeadAction}
+                            selection={leadsSelection}
+                            onBulkAction={openBulkActionConfirmation}
+                            onBulkExport={handleBulkExport}
+                          />
                           {totalItems > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
                               <div className="text-sm text-muted-foreground">
@@ -1186,7 +1347,14 @@ export default function ClientesPage() {
                         </>
                     ) : (
                         <>
-                          <ClientsTable data={clientsData} onEdit={handleEditClient} onDelete={confirmDeleteClient} />
+                          <ClientsTable
+                            data={clientsData}
+                            onEdit={handleEditClient}
+                            onDelete={confirmDeleteClient}
+                            selection={clientsSelection}
+                            onBulkAction={openBulkActionConfirmation}
+                            onBulkExport={handleBulkExport}
+                          />
                           {totalItems > 0 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
                               <div className="text-sm text-muted-foreground">
@@ -1245,7 +1413,13 @@ export default function ClientesPage() {
                           <UnifiedSearchTable data={unifiedSearchResults} activeTab={activeTab} onAction={handleRestore} />
                         </>
                     ) : (
-                        <InactiveTable data={inactiveData} onRestore={handleRestore} />
+                        <InactiveTable
+                          data={inactiveData}
+                          onRestore={handleRestore}
+                          selection={inactivesSelection}
+                          onBulkAction={openBulkActionConfirmation}
+                          onBulkExport={handleBulkExport}
+                        />
                     )}
                   </TabsContent>
                 </Tabs>
@@ -1573,6 +1747,48 @@ export default function ClientesPage() {
             </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Action Confirmation Dialog */}
+      <AlertDialog open={isConfirmBulkActionOpen} onOpenChange={setIsConfirmBulkActionOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkActionType === 'delete' && `¿Eliminar ${activeTab === 'leads' ? leadsSelection.selectedCount : activeTab === 'clientes' ? clientsSelection.selectedCount : inactivesSelection.selectedCount} registros?`}
+              {bulkActionType === 'archive' && `¿Archivar ${activeTab === 'leads' ? leadsSelection.selectedCount : clientsSelection.selectedCount} registros?`}
+              {bulkActionType === 'restore' && `¿Restaurar ${inactivesSelection.selectedCount} registros?`}
+              {bulkActionType === 'convert' && `¿Convertir ${leadsSelection.selectedCount} leads a clientes?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkActionType === 'delete' && 'Esta acción no se puede deshacer. Los registros se eliminarán permanentemente.'}
+              {bulkActionType === 'archive' && 'Los registros seleccionados serán archivados.'}
+              {bulkActionType === 'restore' && 'Los registros seleccionados serán restaurados y volverán a estar activos.'}
+              {bulkActionType === 'convert' && 'Los leads seleccionados se convertirán en clientes. Asegúrate de que todos tengan datos completos.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkAction}
+              className={bulkActionType === 'delete' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+              disabled={isBulkProcessing}
+            >
+              {isBulkProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Procesando...
+                </>
+              ) : (
+                <>
+                  {bulkActionType === 'delete' && 'Eliminar'}
+                  {bulkActionType === 'archive' && 'Archivar'}
+                  {bulkActionType === 'restore' && 'Restaurar'}
+                  {bulkActionType === 'convert' && 'Convertir'}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </TooltipProvider>
     </ProtectedPage>
   );
@@ -1582,24 +1798,73 @@ export default function ClientesPage() {
 type LeadsTableProps = {
   data: Lead[];
   onAction: (action: string, lead: Lead) => void;
+  selection: ReturnType<typeof useBulkSelection<Lead>>;
+  onBulkAction: (action: 'archive' | 'convert') => void;
+  onBulkExport: () => void;
 };
 
-function LeadsTable({ data, onAction }: LeadsTableProps) {
+function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: LeadsTableProps) {
   const { toast } = useToast();
+  const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
+  const [selectedPersonOpportunities, setSelectedPersonOpportunities] = useState<Opportunity[]>([]);
+  const [selectedPersonName, setSelectedPersonName] = useState("");
+
+  const handleOpenOpportunitiesModal = (person: Lead | Client) => {
+    const displayName = `${person.name || ''} ${person.apellido1 || ''}`.trim();
+    setSelectedPersonName(displayName);
+    setSelectedPersonOpportunities(person.opportunities || []);
+    setOpportunitiesModalOpen(true);
+  };
 
   if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos leads con los filtros seleccionados.</div>;
 
   return (
     <>
+      {/* Bulk Actions Toolbar */}
+      {selection.selectedCount > 0 && (
+        <BulkActionsToolbar
+          selectedCount={selection.selectedCount}
+          onClear={selection.clearSelection}
+          actions={[
+            {
+              label: 'Archivar',
+              icon: Archive,
+              onClick: () => onBulkAction('archive'),
+              variant: 'secondary'
+            },
+            {
+              label: 'Convertir a Clientes',
+              icon: ArrowUpRight,
+              onClick: () => onBulkAction('convert'),
+              variant: 'default'
+            },
+            {
+              label: 'Exportar',
+              icon: Download,
+              onClick: onBulkExport,
+              variant: 'secondary'
+            }
+          ]}
+        />
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12">
+              <Checkbox
+                checked={selection.isAllSelected}
+                onCheckedChange={() => selection.toggleAll(data)}
+                aria-label="Seleccionar todo"
+              />
+            </TableHead>
             <TableHead className="w-[11rem]">Cédula</TableHead>
             <TableHead>Lead</TableHead>
             <TableHead className="w-[7.5rem]">Estado</TableHead>
             <TableHead className="w-[10.5rem]">Contacto</TableHead>
             <TableHead className="text-right">Registrado</TableHead>
             <TableHead className="w-[9rem]">Registro de datos</TableHead>
+            <TableHead className="w-[8rem] text-center">Oportunidades</TableHead>
             <TableHead className="w-[20rem] text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -1610,6 +1875,13 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
             const badgeClassName = getStatusBadgeClassName(statusLabel);
             return (
               <TableRow key={lead.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={selection.isSelected(lead.id)}
+                    onCheckedChange={() => selection.toggleItem(lead.id)}
+                    aria-label={`Seleccionar lead ${lead.cedula}`}
+                  />
+                </TableCell>
                 <TableCell className="font-mono text-sm">
                   {lead.cedula ? (
                     <Link href={`/dashboard/leads/${lead.id}?mode=view`} className="text-primary hover:underline">
@@ -1656,6 +1928,18 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
                     );
                   })()}
                 </TableCell>
+                <TableCell className="text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => lead.opportunities && lead.opportunities.length > 0 && handleOpenOpportunitiesModal(lead)}
+                    disabled={!lead.opportunities || lead.opportunities.length === 0}
+                    className="h-8 px-3 gap-2"
+                  >
+                    <Handshake className="h-4 w-4" />
+                    {lead.opportunities?.length || 0}
+                  </Button>
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">
                     <Tooltip>
@@ -1680,11 +1964,23 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PermissionButton module="crm" action="archive" size="icon" variant="destructive" onClick={() => onAction('archive', lead)}>
+                        <PermissionButton
+                          module="crm"
+                          action="archive"
+                          size="icon"
+                          variant="destructive"
+                          onClick={() => onAction('archive', lead)}
+                          disabled={lead.opportunities && lead.opportunities.length > 0}
+                        >
                           <Archive className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>
-                      <TooltipContent>Archivar</TooltipContent>
+                      <TooltipContent>
+                        {lead.opportunities && lead.opportunities.length > 0
+                          ? `No se puede archivar: tiene ${lead.opportunities.length} oportunidad(es) asociada(s)`
+                          : "Archivar"
+                        }
+                      </TooltipContent>
                     </Tooltip>
                   </div>
                 </TableCell>
@@ -1693,20 +1989,131 @@ function LeadsTable({ data, onAction }: LeadsTableProps) {
           })}
         </TableBody>
       </Table>
+
+      {/* Modal de Oportunidades */}
+      <Dialog open={opportunitiesModalOpen} onOpenChange={setOpportunitiesModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Oportunidades de {selectedPersonName}</DialogTitle>
+            <DialogDescription>
+              {selectedPersonOpportunities.length === 0 ? 'No hay oportunidades registradas' : `${selectedPersonOpportunities.length} oportunidad(es) encontrada(s)`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto">
+            {selectedPersonOpportunities.length > 0 ? (
+              <div className="space-y-3">
+                {selectedPersonOpportunities.map((opportunity) => (
+                  <Card key={opportunity.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-medium">{opportunity.id}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {opportunity.status || 'Pendiente'}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Tipo: {opportunity.opportunity_type || 'N/A'}
+                          </div>
+                          {opportunity.amount && (
+                            <div className="text-sm font-medium">
+                              {new Intl.NumberFormat('es-CR', {
+                                style: 'currency',
+                                currency: 'CRC',
+                                minimumFractionDigits: 0
+                              }).format(opportunity.amount)}
+                            </div>
+                          )}
+                        </div>
+                        <Link href={`/dashboard/oportunidades/${opportunity.id}`}>
+                          <Button size="sm" className="gap-2">
+                            <Eye className="h-4 w-4" />
+                            Ver
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No hay oportunidades registradas para esta persona
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
-function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (client: Client) => void, onDelete: (client: Client) => void }) {
+function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkExport }: {
+  data: Client[],
+  onEdit: (client: Client) => void,
+  onDelete: (client: Client) => void,
+  selection: ReturnType<typeof useBulkSelection<Client>>,
+  onBulkAction: (action: 'archive' | 'delete') => void,
+  onBulkExport: () => void
+}) {
+    const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
+    const [selectedPersonOpportunities, setSelectedPersonOpportunities] = useState<Opportunity[]>([]);
+    const [selectedPersonName, setSelectedPersonName] = useState("");
+
+    const handleOpenOpportunitiesModal = (person: Lead | Client) => {
+      const displayName = `${person.name || ''} ${person.apellido1 || ''}`.trim();
+      setSelectedPersonName(displayName);
+      setSelectedPersonOpportunities(person.opportunities || []);
+      setOpportunitiesModalOpen(true);
+    };
+
     if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos clientes con los filtros seleccionados.</div>;
 
     return (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Cliente</TableHead>
+        <>
+          {/* Bulk Actions Toolbar */}
+          {selection.selectedCount > 0 && (
+            <BulkActionsToolbar
+              selectedCount={selection.selectedCount}
+              onClear={selection.clearSelection}
+              actions={[
+                {
+                  label: 'Archivar',
+                  icon: Archive,
+                  onClick: () => onBulkAction('archive'),
+                  variant: 'secondary'
+                },
+                {
+                  label: 'Eliminar',
+                  icon: Trash,
+                  onClick: () => onBulkAction('delete'),
+                  variant: 'destructive'
+                },
+                {
+                  label: 'Exportar',
+                  icon: Download,
+                  onClick: onBulkExport,
+                  variant: 'secondary'
+                }
+              ]}
+            />
+          )}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selection.isAllSelected}
+                        onCheckedChange={() => selection.toggleAll(data)}
+                    aria-label="Seleccionar todo"
+                  />
+                </TableHead>
+                <TableHead>Cliente</TableHead>
               <TableHead className="w-[11rem]">Cédula</TableHead>
               <TableHead className="w-[11rem]">Registrado</TableHead>
               <TableHead className="w-[16rem]">Estado</TableHead>
+              <TableHead className="w-[8rem] text-center">Oportunidades</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -1718,6 +2125,13 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
 
                 return (
                   <TableRow key={client.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selection.isSelected(client.id)}
+                        onCheckedChange={() => selection.toggleItem(client.id)}
+                        aria-label={`Seleccionar cliente ${client.cedula}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
@@ -1735,6 +2149,18 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
                     <TableCell>{formatRegistered(client.created_at)}</TableCell>
                     <TableCell>
                         <Badge className={badgeClassName}>{statusLabel}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => client.opportunities && client.opportunities.length > 0 && handleOpenOpportunitiesModal(client)}
+                        disabled={!client.opportunities || client.opportunities.length === 0}
+                        className="h-8 px-3 gap-2"
+                      >
+                        <Handshake className="h-4 w-4" />
+                        {client.opportunities?.length || 0}
+                      </Button>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap justify-end gap-2">
@@ -1761,6 +2187,63 @@ function ClientsTable({ data, onEdit, onDelete }: { data: Client[], onEdit: (cli
             })}
           </TableBody>
         </Table>
+
+        {/* Modal de Oportunidades */}
+        <Dialog open={opportunitiesModalOpen} onOpenChange={setOpportunitiesModalOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Oportunidades de {selectedPersonName}</DialogTitle>
+              <DialogDescription>
+                {selectedPersonOpportunities.length === 0 ? 'No hay oportunidades registradas' : `${selectedPersonOpportunities.length} oportunidad(es) encontrada(s)`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[400px] overflow-y-auto">
+              {selectedPersonOpportunities.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedPersonOpportunities.map((opportunity) => (
+                    <Card key={opportunity.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-medium">{opportunity.id}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {opportunity.status || 'Pendiente'}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Tipo: {opportunity.opportunity_type || 'N/A'}
+                            </div>
+                            {opportunity.amount && (
+                              <div className="text-sm font-medium">
+                                {new Intl.NumberFormat('es-CR', {
+                                  style: 'currency',
+                                  currency: 'CRC',
+                                  minimumFractionDigits: 0
+                                }).format(opportunity.amount)}
+                              </div>
+                            )}
+                          </div>
+                          <Link href={`/dashboard/oportunidades/${opportunity.id}`}>
+                            <Button size="sm" className="gap-2">
+                              <Eye className="h-4 w-4" />
+                              Ver
+                            </Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay oportunidades registradas para esta persona
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     )
 }
 
@@ -1866,14 +2349,56 @@ function UnifiedSearchTable({
   );
 }
 
-function InactiveTable({ data, onRestore }: { data: (Lead | Client)[], onRestore: (item: Lead | Client) => void }) {
+function InactiveTable({ data, onRestore, selection, onBulkAction, onBulkExport }: {
+  data: (Lead | Client)[],
+  onRestore: (item: Lead | Client) => void,
+  selection: ReturnType<typeof useBulkSelection<Lead | Client>>,
+  onBulkAction: (action: 'restore' | 'delete') => void,
+  onBulkExport: () => void
+}) {
     if (data.length === 0) return <div className="text-center p-8 text-muted-foreground">No encontramos registros inactivos.</div>;
 
     return (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Contacto</TableHead>
+        <>
+          {/* Bulk Actions Toolbar */}
+          {selection.selectedCount > 0 && (
+            <BulkActionsToolbar
+              selectedCount={selection.selectedCount}
+              onClear={selection.clearSelection}
+              actions={[
+                {
+                  label: 'Restaurar',
+                  icon: Sparkles,
+                  onClick: () => onBulkAction('restore'),
+                  variant: 'default'
+                },
+                {
+                  label: 'Eliminar',
+                  icon: Trash,
+                  onClick: () => onBulkAction('delete'),
+                  variant: 'destructive'
+                },
+                {
+                  label: 'Exportar',
+                  icon: Download,
+                  onClick: onBulkExport,
+                  variant: 'secondary'
+                }
+              ]}
+            />
+          )}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selection.isAllSelected}
+                        onCheckedChange={() => selection.toggleAll(data)}
+                    aria-label="Seleccionar todo"
+                  />
+                </TableHead>
+                <TableHead>Contacto</TableHead>
               <TableHead className="w-[10rem]">Estado</TableHead>
               <TableHead className="w-[12rem]">Última actualización</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -1887,6 +2412,13 @@ function InactiveTable({ data, onRestore }: { data: (Lead | Client)[], onRestore
 
                 return (
                   <TableRow key={item.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selection.isSelected(item.id)}
+                        onCheckedChange={() => selection.toggleItem(item.id)}
+                        aria-label={`Seleccionar registro ${item.cedula}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
@@ -1915,5 +2447,6 @@ function InactiveTable({ data, onRestore }: { data: (Lead | Client)[], onRestore
             })}
           </TableBody>
         </Table>
+      </>
     );
 }

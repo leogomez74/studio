@@ -17,7 +17,8 @@ import {
   Check,
   ChevronsUpDown,
   X,
-  AlertCircle
+  AlertCircle,
+  Trash
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -74,10 +75,13 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useDebounce } from "@/hooks/use-debounce";
+import { useBulkSelection } from "@/hooks/use-bulk-selection";
+import { BulkActionsToolbar } from "@/components/bulk-actions-toolbar";
 import api from "@/lib/axios";
 
 import { type Opportunity, type Lead, OPPORTUNITY_STATUSES, OPPORTUNITY_TYPES } from "@/lib/data";
@@ -207,6 +211,7 @@ export default function DealsPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]); // <--- AGREGADO: Estado para usuarios
+  const [defaultAnalisisAssignee, setDefaultAnalisisAssignee] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]); // <--- AGREGADO: Estado para productos
   const [instituciones, setInstituciones] = useState<Array<{ id: number; nombre: string; activa: boolean }>>([]); // <--- AGREGADO: Estado para instituciones
   const [isLoading, setIsLoading] = useState(true);
@@ -288,6 +293,22 @@ export default function DealsPage() {
     numero_embargos: "",
     salarios_anteriores: [] as Array<{ mes: string; bruto: string; neto: string }>,
   });
+
+  // Bulk Selection Hook
+  const {
+    selectedIds,
+    selectedCount,
+    isAllSelected,
+    isIndeterminate,
+    toggleItem,
+    toggleAll,
+    clearSelection,
+    isSelected
+  } = useBulkSelection<Opportunity>();
+
+  // Bulk Delete State
+  const [isConfirmBulkDeleteOpen, setIsConfirmBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Auto-ajustar meses según tipo de producto
   useEffect(() => {
@@ -417,7 +438,7 @@ export default function DealsPage() {
       }
     } catch (error) {
       console.error("Error fetching opportunities:", error);
-      toast({ title: "Error", description: "No se pudieron cargar las oportunidades.", variant: "destructive" });
+      toastError("Error", "No se pudieron cargar las oportunidades.");
     } finally {
       setIsLoading(false);
     }
@@ -439,8 +460,14 @@ export default function DealsPage() {
   // AGREGADO: Fetch Users para el select de responsables
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await api.get('/api/agents');
-      setUsers(response.data);
+      const [usersRes, automationsRes] = await Promise.all([
+        api.get('/api/agents'),
+        api.get('/api/task-automations'),
+      ]);
+      setUsers(usersRes.data);
+      const automations = Array.isArray(automationsRes.data) ? automationsRes.data : [];
+      const analisisAuto = automations.find((a: any) => a.event_type === 'analisis_created');
+      setDefaultAnalisisAssignee(analisisAuto?.assigned_to ? String(analisisAuto.assigned_to) : null);
     } catch (error) {
       console.error("Error fetching users:", error);
     }
@@ -556,17 +583,17 @@ export default function DealsPage() {
 
         if (dialogState === "edit" && dialogOpportunity) {
             await api.put(`/api/opportunities/${dialogOpportunity.id}`, body);
-            toast({ title: "Actualizado", description: "Oportunidad actualizada correctamente." });
+            toastSuccess("Actualizado", "Oportunidad actualizada correctamente.");
         } else {
             await api.post('/api/opportunities', body);
-            toast({ title: "Creado", description: "Oportunidad creada correctamente." });
+            toastSuccess("Creado", "Oportunidad creada correctamente.");
         }
 
         closeDialog();
         fetchOpportunities();
       } catch (error) {
           console.error("Error saving:", error);
-          toast({ title: "Error", description: "No se pudo guardar la oportunidad.", variant: "destructive" });
+          toastError("Error", "No se pudo guardar la oportunidad.");
       } finally {
           setIsSaving(false);
       }
@@ -589,15 +616,115 @@ export default function DealsPage() {
       setIsDeleting(true);
       try {
           await api.delete(`/api/opportunities/${opportunityToDelete.id}`);
-          toast({ title: "Eliminado", description: "Oportunidad eliminada." });
+          toastSuccess("Eliminado", "Oportunidad eliminada.");
           closeDeleteDialog();
           fetchOpportunities();
       } catch (error) {
-          toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" });
+          toastError("Error", "No se pudo eliminar.");
       } finally {
           setIsDeleting(false);
       }
-  }, [opportunityToDelete, closeDeleteDialog, fetchOpportunities, toast]);
+  }, [opportunityToDelete, closeDeleteDialog, fetchOpportunities]);
+
+  // --- Bulk Delete Logic ---
+
+  const handleBulkDelete = useCallback(async () => {
+    // Convert Set to array (IDs are references - strings)
+    const ids = Array.from(selectedIds);
+
+    if (ids.length === 0) return;
+
+    // Validate max items
+    if (ids.length > 50) {
+      toastWarning(
+        "Límite excedido",
+        "Máximo 50 elementos por operación"
+      );
+      return;
+    }
+
+    setIsBulkDeleting(true);
+
+    try {
+      const response = await api.delete('/api/opportunities/bulk', {
+        data: { ids }
+      });
+
+      const { successful, failed, errors } = response.data.data;
+
+      if (failed > 0) {
+        // Partial success - show warning with details
+        toastWarning(
+          "Operación parcial",
+          `${successful} eliminadas correctamente, ${failed} fallidas`,
+          {
+            action: {
+              label: "Ver detalles",
+              onClick: () => {
+                console.log("Errores:", errors);
+                alert(`Errores:\n${errors.map((e: any) => `- ${e.message}`).join('\n')}`);
+              }
+            }
+          }
+        );
+      } else {
+        // Full success
+        toastSuccess(
+          "Eliminadas",
+          `${successful} oportunidades eliminadas correctamente`
+        );
+      }
+
+      // Refresh and clear selection
+      fetchOpportunities();
+      clearSelection();
+      setIsConfirmBulkDeleteOpen(false);
+
+    } catch (error: any) {
+      toastError(
+        "Error",
+        error.response?.data?.message || "Error al eliminar oportunidades"
+      );
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }, [selectedIds, clearSelection, fetchOpportunities]);
+
+  // Bulk Export Selected
+  const handleBulkExport = useCallback(() => {
+    const selectedOpportunities = opportunities.filter(opp => selectedIds.has(opp.id));
+
+    if (selectedOpportunities.length === 0) return;
+
+    // Export to CSV
+    const headers = ["Número", "Lead", "Email", "Estado", "Tipo", "Monto", "Cierre Esperado", "Creado"];
+    const rows = selectedOpportunities.map(opp => [
+      formatOpportunityReference(opp.id),
+      opp.lead?.name || "Desconocido",
+      opp.lead?.email || "-",
+      opp.status || "Pendiente",
+      opp.opportunity_type || "-",
+      formatAmount(resolveEstimatedOpportunityAmount(opp.amount)),
+      opp.expected_close_date || "-",
+      new Date(opp.created_at || "").toLocaleDateString()
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `oportunidades_seleccionadas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+
+    toast({
+      title: "Exportado",
+      description: `${selectedOpportunities.length} oportunidades exportadas`
+    });
+  }, [selectedIds, opportunities, toast]);
 
   // --- Detail Logic ---
 
@@ -701,6 +828,19 @@ export default function DealsPage() {
 
     setAnalisisOpportunity(opportunity);
 
+    // Buscar responsable desde configuración de tareas automáticas
+    let defaultAssignedTo = "";
+    try {
+      const autoRes = await api.get('/api/task-automations');
+      const automations = Array.isArray(autoRes.data) ? autoRes.data : [];
+      const analisisAuto = automations.find((a: any) => a.event_type === 'analisis_created');
+      if (analisisAuto?.assignee?.name) {
+        defaultAssignedTo = analisisAuto.assignee.name;
+      }
+    } catch (e) {
+      console.error("Error fetching automations:", e);
+    }
+
     // La referencia es el ID de la oportunidad
     // Usar resolveEstimatedOpportunityAmount para obtener el monto correctamente
     const montoNumerico = resolveEstimatedOpportunityAmount(opportunity.amount);
@@ -723,7 +863,7 @@ export default function DealsPage() {
       propuesta: "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
-      assignedTo: "",
+      assignedTo: defaultAssignedTo,
       divisa: "CRC",
       plazo: "36",
       numero_manchas: "",
@@ -840,9 +980,13 @@ export default function DealsPage() {
     // Check if opportunity already has an analysis
     const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis || (opportunity as any).analisis;
     const isAnalizada = opportunity.status === 'Analizada';
+    const hasMissingDocuments = (opportunity as any).missing_documents?.length > 0;
 
     if (hasAnalysis) {
       return { label: "Análisis creado", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
+    }
+    if (hasMissingDocuments) {
+      return { label: "Complete los documentos antes de crear análisis", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
     }
     if (!isAnalizada) {
       return { label: "Solo oportunidades analizadas", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
@@ -1108,9 +1252,38 @@ export default function DealsPage() {
       </CardHeader>
       <CardContent className="space-y-6">
 
+        {/* Bulk Actions Toolbar */}
+        {selectedCount > 0 && (
+          <BulkActionsToolbar
+            selectedCount={selectedCount}
+            onClear={clearSelection}
+            actions={[
+              {
+                label: 'Eliminar',
+                icon: Trash,
+                onClick: () => setIsConfirmBulkDeleteOpen(true),
+                variant: 'destructive'
+              },
+              {
+                label: 'Exportar',
+                icon: Download,
+                onClick: handleBulkExport,
+                variant: 'secondary'
+              }
+            ]}
+          />
+        )}
+
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={() => toggleAll(visibleOpportunities)}
+                  aria-label="Seleccionar todo"
+                />
+              </TableHead>
               <TableHead aria-sort={getAriaSort("reference")}>
                 <button className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("reference")}>
                   Número {renderSortIcon("reference")}
@@ -1156,14 +1329,21 @@ export default function DealsPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
             ) : visibleOpportunities.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">No hay oportunidades.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">No hay oportunidades.</TableCell></TableRow>
             ) : (
               visibleOpportunities.map((opportunity) => {
                 const badgeVariant = opportunity.status?.toLowerCase() === "ganada" ? "default" : "secondary";
                 return (
                   <TableRow key={opportunity.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={isSelected(opportunity.id)}
+                        onCheckedChange={() => toggleItem(opportunity.id)}
+                        aria-label={`Seleccionar oportunidad ${opportunity.id}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-mono text-sm">
                         <div className="flex flex-col">
                             <Link href={`/dashboard/oportunidades/${opportunity.id}`} className="font-semibold text-primary hover:underline">
@@ -1183,24 +1363,27 @@ export default function DealsPage() {
                     <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
                     <TableCell>
                       {(opportunity as any).missing_documents?.length > 0 ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Badge variant="destructive" className="text-xs cursor-help">
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                Faltan {(opportunity as any).missing_documents.length}
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">Documentos faltantes:</p>
-                              <ul className="list-disc list-inside text-xs">
-                                {(opportunity as any).missing_documents.map((doc: string, idx: number) => (
-                                  <li key={idx}>{doc}</li>
-                                ))}
-                              </ul>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        <Link href={`/dashboard/oportunidades/${opportunity.id}#archivos`}>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="destructive" className="text-xs cursor-pointer hover:bg-red-700 transition-colors">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Faltan {(opportunity as any).missing_documents.length}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs font-medium mb-1">Click para ir a la sección de archivos</p>
+                                <p className="text-xs">Documentos faltantes:</p>
+                                <ul className="list-disc list-inside text-xs">
+                                  {(opportunity as any).missing_documents.map((doc: string, idx: number) => (
+                                    <li key={idx}>{doc}</li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Link>
                       ) : (
                         <Badge variant="outline" className="text-xs text-green-700 border-green-700">
                           Completo
@@ -1612,6 +1795,28 @@ export default function DealsPage() {
                     {isDeleting ? "Eliminando..." : "Eliminar"}
                 </AlertDialogAction>
             </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isConfirmBulkDeleteOpen} onOpenChange={setIsConfirmBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selectedCount} oportunidades?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Las oportunidades seleccionadas se eliminarán permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isBulkDeleting}
+            >
+              {isBulkDeleting ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       </Card>

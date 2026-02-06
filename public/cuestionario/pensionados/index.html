@@ -140,11 +140,11 @@
                             <label class="block text-sm font-medium text-foreground mb-1">Estado civil</label>
                             <select name="estado_civil" class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                                 <option value="">Selecciona</option>
-                                <option value="soltero">Soltero/a</option>
-                                <option value="casado">Casado/a</option>
-                                <option value="union_libre">Unión libre</option>
-                                <option value="viudo">Viudo/a</option>
-                                <option value="divorciado">Divorciado/a</option>
+                                <option value="Soltero(a)">Soltero(a)</option>
+                                <option value="Casado(a)">Casado(a)</option>
+                                <option value="Unión Libre">Unión Libre</option>
+                                <option value="Viudo(a)">Viudo(a)</option>
+                                <option value="Divorciado(a)">Divorciado(a)</option>
                             </select>
                         </div>
                     </div>
@@ -270,7 +270,7 @@
     </style>
 
     <script>
-        const API_BASE_URL = 'https://backend.pep.cr';
+        const API_BASE_URL = window.location.origin;
         const steps = ['step-1', 'step-2', 'step-3'];
         let currentStep = 0;
 
