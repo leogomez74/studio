@@ -291,7 +291,7 @@ export default function PagarePage() {
           fontWeight: 'bold',
           marginBottom: '5mm'
         }}>
-          PAGARE
+          PAGARÉ
         </h1>
 
         {/* Lugar y fecha */}
