@@ -37,7 +37,8 @@ class LeadController extends Controller
             ->with([
                 'assignedAgent:id,name',
                 'leadStatus:id,name,slug',
-                'documents:id,person_id,name,category,created_at'
+                'documents:id,person_id,name,category,created_at',
+                'opportunities:id,lead_cedula,opportunity_type,amount,status,expected_close_date,created_at'
             ]);
 
         // Filter by Active Status

@@ -91,6 +91,8 @@ export type Lead = {
   assigned_to_id?: number; // A veces se usa distinto a 'responsable'
   assignedTo?: string; // Nombre del responsable para mostrar en UI
   source?: string;
+  opportunities?: Opportunity[];
+  documents?: PersonDocument[];
 };
 
 export type PersonDocument = {
