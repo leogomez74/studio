@@ -517,6 +517,7 @@ export default function OpportunityDetailPage() {
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
+  const [defaultAnalisisAssignee, setDefaultAnalisisAssignee] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingType, setUpdatingType] = useState(false);
@@ -643,14 +644,18 @@ export default function OpportunityDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [opportunityRes, productsRes, usersRes] = await Promise.all([
+        const [opportunityRes, productsRes, usersRes, automationsRes] = await Promise.all([
           api.get(`/api/opportunities/${id}`),
           api.get('/api/products?all=true'),
           api.get('/api/agents?all=true'),
+          api.get('/api/task-automations'),
         ]);
 
         const opportunityData = opportunityRes.data.data || opportunityRes.data;
         const productsData = productsRes.data as Product[];
+        const automationsData = Array.isArray(automationsRes.data) ? automationsRes.data : [];
+        const analisisAuto = automationsData.find((a: any) => a.event_type === 'analisis_created');
+        setDefaultAnalisisAssignee(analisisAuto?.assigned_to ? String(analisisAuto.assigned_to) : null);
 
         setOpportunity(opportunityData);
         setProducts(productsData);
@@ -1021,23 +1026,21 @@ export default function OpportunityDetailPage() {
   };
 
   // Analisis Logic
-  const handleOpenAnalisisDialog = () => {
+  const handleOpenAnalisisDialog = async () => {
     if (!opportunity) return;
 
-    // VALIDACIÓN TEMPORALMENTE DESACTIVADA
-    // Validar que existan documentos específicos de la oportunidad
-    // if (especificos.length === 0) {
-    //   toast({
-    //     title: "Documentos requeridos",
-    //     description: "Debe cargar al menos un documento específico de la oportunidad antes de crear un análisis.",
-    //     variant: "destructive"
-    //   });
-    //   return;
-    // }
-
-    // Buscar el usuario responsable default
-    const defaultUser = users.find((u: any) => u.is_default_lead_assignee);
-    const defaultAssignedTo = defaultUser ? defaultUser.name : "";
+    // Buscar el usuario responsable desde la configuración de tareas automáticas
+    let defaultAssignedTo = "";
+    try {
+      const autoRes = await api.get('/api/task-automations');
+      const automations = Array.isArray(autoRes.data) ? autoRes.data : [];
+      const analisisAuto = automations.find((a: any) => a.event_type === 'analisis_created');
+      if (analisisAuto?.assignee?.name) {
+        defaultAssignedTo = analisisAuto.assignee.name;
+      }
+    } catch (e) {
+      console.error("Error fetching automations:", e);
+    }
 
     setAnalisisForm({
       reference: String(opportunity.id),

@@ -112,10 +112,18 @@ export function AnalisisWizardModal({
   // Cargar usuarios y datos del lead al abrir el modal
   useEffect(() => {
     if (open && opportunityId) {
-      // Cargar usuarios
-      api.get('/api/agents')
-        .then(res => setUsers(res.data))
-        .catch(err => console.error('Error loading users:', err));
+      // Cargar usuarios y luego configurar responsable por defecto desde automatizaciones
+      Promise.all([
+        api.get('/api/agents'),
+        api.get('/api/task-automations'),
+      ]).then(([usersRes, autoRes]) => {
+        setUsers(usersRes.data);
+        const automations = Array.isArray(autoRes.data) ? autoRes.data : [];
+        const analisisAuto = automations.find((a: any) => a.event_type === 'analisis_created');
+        if (analisisAuto?.assigned_to) {
+          setFormData(prev => ({ ...prev, assigned_to: String(analisisAuto.assigned_to) }));
+        }
+      }).catch(err => console.error('Error loading users/automations:', err));
 
       // Cargar oportunidad con lead para obtener profesion, puesto y nombramiento
       api.get(`/api/opportunities/${opportunityId}`)

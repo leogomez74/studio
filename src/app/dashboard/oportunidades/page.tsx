@@ -211,6 +211,7 @@ export default function DealsPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]); // <--- AGREGADO: Estado para usuarios
+  const [defaultAnalisisAssignee, setDefaultAnalisisAssignee] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]); // <--- AGREGADO: Estado para productos
   const [instituciones, setInstituciones] = useState<Array<{ id: number; nombre: string; activa: boolean }>>([]); // <--- AGREGADO: Estado para instituciones
   const [isLoading, setIsLoading] = useState(true);
@@ -459,8 +460,14 @@ export default function DealsPage() {
   // AGREGADO: Fetch Users para el select de responsables
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await api.get('/api/agents');
-      setUsers(response.data);
+      const [usersRes, automationsRes] = await Promise.all([
+        api.get('/api/agents'),
+        api.get('/api/task-automations'),
+      ]);
+      setUsers(usersRes.data);
+      const automations = Array.isArray(automationsRes.data) ? automationsRes.data : [];
+      const analisisAuto = automations.find((a: any) => a.event_type === 'analisis_created');
+      setDefaultAnalisisAssignee(analisisAuto?.assigned_to ? String(analisisAuto.assigned_to) : null);
     } catch (error) {
       console.error("Error fetching users:", error);
     }
@@ -821,6 +828,19 @@ export default function DealsPage() {
 
     setAnalisisOpportunity(opportunity);
 
+    // Buscar responsable desde configuración de tareas automáticas
+    let defaultAssignedTo = "";
+    try {
+      const autoRes = await api.get('/api/task-automations');
+      const automations = Array.isArray(autoRes.data) ? autoRes.data : [];
+      const analisisAuto = automations.find((a: any) => a.event_type === 'analisis_created');
+      if (analisisAuto?.assignee?.name) {
+        defaultAssignedTo = analisisAuto.assignee.name;
+      }
+    } catch (e) {
+      console.error("Error fetching automations:", e);
+    }
+
     // La referencia es el ID de la oportunidad
     // Usar resolveEstimatedOpportunityAmount para obtener el monto correctamente
     const montoNumerico = resolveEstimatedOpportunityAmount(opportunity.amount);
@@ -843,7 +863,7 @@ export default function DealsPage() {
       propuesta: "",
       leadId: opportunity.lead?.id ? String(opportunity.lead.id) : "",
       opportunityId: String(opportunity.id),
-      assignedTo: "",
+      assignedTo: defaultAssignedTo,
       divisa: "CRC",
       plazo: "36",
       numero_manchas: "",
