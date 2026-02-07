@@ -1821,6 +1821,10 @@ export default function OpportunityDetailPage() {
           fetchExistingAnalisis();
           toast({ title: "Análisis creado", description: "El análisis se ha creado correctamente" });
         }}
+        onTipoChange={(newTipo) => {
+          // Actualizar el estado local de la oportunidad con el nuevo tipo
+          setOpportunity(prev => prev ? { ...prev, opportunity_type: newTipo } : null);
+        }}
       />
 
       {/* OLD DIALOG - TO BE REMOVED */}

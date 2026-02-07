@@ -37,6 +37,7 @@ interface AnalisisWizardModalProps {
   producto?: string;
   divisa?: string;
   onSuccess: () => void;
+  onTipoChange?: (newTipo: string) => void;
 }
 
 interface FormData {
@@ -91,7 +92,8 @@ export function AnalisisWizardModal({
   monto_solicitado,
   producto,
   divisa = 'CRC',
-  onSuccess
+  onSuccess,
+  onTipoChange
 }: AnalisisWizardModalProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -101,13 +103,23 @@ export function AnalisisWizardModal({
   const [extraMonths, setExtraMonths] = useState(0);
   const [users, setUsers] = useState<Array<{ id: number; name: string }>>([]);
   const [leadData, setLeadData] = useState<{ profesion?: string; puesto?: string; estado_puesto?: string } | null>(null);
-  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; plazo_minimo: number; plazo_maximo: number; monto_minimo: number; monto_maximo: number }>>({});
-  const [plazoError, setPlazoError] = useState<string>('');
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number }>>({});
   const [montoError, setMontoError] = useState<string>('');
 
   // Estados para archivos (Paso 4)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // Estados para validación de cambio de tipo de crédito
+  const [currentProducto, setCurrentProducto] = useState<string>(producto || 'Micro Crédito');
+
+  // Sincronizar currentProducto con prop producto
+  useEffect(() => {
+    if (producto) {
+      console.log('[PRODUCTO RECIBIDO]', { producto });
+      setCurrentProducto(producto);
+    }
+  }, [producto]);
 
   // Cargar usuarios y datos del lead al abrir el modal
   useEffect(() => {
@@ -141,56 +153,109 @@ export function AnalisisWizardModal({
 
       // Cargar configuraciones de préstamos para validación
       api.get('/api/loan-configurations/rangos')
-        .then(res => setLoanConfigs(res.data))
+        .then(res => {
+          console.log('[LOAN CONFIGS LOADED]', res.data);
+          setLoanConfigs(res.data);
+        })
         .catch(err => console.error('Error loading loan configs:', err));
     }
   }, [open, opportunityId]);
 
-  // Validar plazo según configuración del tipo de crédito
-  useEffect(() => {
-    const plazoMeses = parseInt(formData.plazo) || 0;
-    if (!plazoMeses || !producto || Object.keys(loanConfigs).length === 0) {
-      setPlazoError('');
-      return;
-    }
-
-    // Determinar el tipo de crédito
-    const esMicroCredito = producto.toLowerCase().includes('micro');
-    const tipoCredito = esMicroCredito ? 'microcredito' : 'regular';
-    const config = loanConfigs[tipoCredito];
-
-    if (config) {
-      if (plazoMeses < config.plazo_minimo || plazoMeses > config.plazo_maximo) {
-        setPlazoError(`El plazo debe estar entre ${config.plazo_minimo} y ${config.plazo_maximo} meses para ${config.nombre}.`);
-      } else {
-        setPlazoError('');
-      }
-    }
-  }, [formData.plazo, producto, loanConfigs]);
-
-  // Validar monto sugerido según configuración del tipo de crédito
+  // Validar monto sugerido según tipo de crédito
   useEffect(() => {
     const monto = parseFloat(formData.monto_sugerido) || 0;
-    if (!monto || !producto || Object.keys(loanConfigs).length === 0) {
+    if (!monto || !currentProducto || Object.keys(loanConfigs).length === 0) {
       setMontoError('');
       return;
     }
 
-    // Determinar el tipo de crédito
-    const esMicroCredito = producto.toLowerCase().includes('micro');
+    console.log('[Validación Monto]', { monto, currentProducto, loanConfigs });
+
+    // Determinar el tipo de crédito actual
+    const esMicroCredito = currentProducto.toLowerCase().includes('micro');
     const tipoCredito = esMicroCredito ? 'microcredito' : 'regular';
     const config = loanConfigs[tipoCredito];
 
-    if (config) {
-      if (monto < config.monto_minimo || monto > config.monto_maximo) {
-        const minFormatted = formatCurrency(config.monto_minimo);
-        const maxFormatted = formatCurrency(config.monto_maximo);
-        setMontoError(`El monto debe estar entre ${minFormatted} y ${maxFormatted} para ${config.nombre}.`);
-      } else {
+    if (!config) {
+      console.warn('[Validación Monto] Configuración no encontrada para tipo:', tipoCredito);
+      return;
+    }
+
+    console.log('[Validación Monto]', { esMicroCredito, tipoCredito, config });
+
+    // Cambio automático: Si es Micro Crédito y monto sobrepasa el máximo → cambiar a Crédito
+    if (esMicroCredito && monto > config.monto_maximo) {
+      console.log('[CAMBIO AUTOMÁTICO] Micro Crédito → Crédito', { monto, max: config.monto_maximo });
+      const regularConfig = loanConfigs['regular'];
+
+      if (regularConfig && monto >= regularConfig.monto_minimo && monto <= regularConfig.monto_maximo) {
+        // El monto cabe en el rango de Crédito → cambio automático
+        setCurrentProducto('Crédito');
         setMontoError('');
+        toast({
+          title: "Tipo de crédito actualizado",
+          description: `El monto ingresado excede el límite de Micro Crédito. Se cambió automáticamente a Crédito.`,
+        });
+      } else {
+        // Monto demasiado alto incluso para crédito regular
+        const maxFormatted = formatCurrency(config.monto_maximo);
+        setMontoError(`El monto debe estar entre ${formatCurrency(config.monto_minimo)} y ${maxFormatted} para ${config.nombre}.`);
       }
     }
-  }, [formData.monto_sugerido, producto, loanConfigs]);
+    // Cambio automático: Si es Crédito y monto es menor al mínimo → cambiar a Micro Crédito
+    else if (!esMicroCredito && monto < config.monto_minimo) {
+      console.log('[CAMBIO AUTOMÁTICO] Crédito → Micro Crédito', { monto, min: config.monto_minimo });
+      const microConfig = loanConfigs['microcredito'];
+
+      if (microConfig && monto >= microConfig.monto_minimo && monto <= microConfig.monto_maximo) {
+        // El monto cabe en el rango de Micro Crédito → cambio automático
+        setCurrentProducto('Micro Crédito');
+        setMontoError('');
+        toast({
+          title: "Tipo de crédito actualizado",
+          description: `El monto ingresado está por debajo del mínimo de Crédito. Se cambió automáticamente a Micro Crédito.`,
+        });
+      } else {
+        // Monto demasiado bajo incluso para micro crédito
+        const minFormatted = formatCurrency(config.monto_minimo);
+        setMontoError(`El monto debe estar entre ${minFormatted} y ${formatCurrency(config.monto_maximo)} para ${config.nombre}.`);
+      }
+    }
+    // Validación normal si no hay cambio de tipo
+    else if (monto < config.monto_minimo || monto > config.monto_maximo) {
+      const minFormatted = formatCurrency(config.monto_minimo);
+      const maxFormatted = formatCurrency(config.monto_maximo);
+      setMontoError(`El monto debe estar entre ${minFormatted} y ${maxFormatted} para ${config.nombre}.`);
+    } else {
+      setMontoError('');
+    }
+  }, [formData.monto_sugerido, currentProducto, loanConfigs, toast]);
+
+  // Actualizar opportunity_type cuando cambia currentProducto automáticamente
+  useEffect(() => {
+    // Solo actualizar si currentProducto es diferente del producto original
+    // y si ya se han cargado los loan configs (para evitar updates en mount inicial)
+    if (!producto || !currentProducto || Object.keys(loanConfigs).length === 0) {
+      return;
+    }
+
+    if (currentProducto !== producto) {
+      console.log('[UPDATE OPPORTUNITY TYPE]', { from: producto, to: currentProducto, opportunityId });
+
+      // Actualizar la oportunidad con el nuevo tipo
+      api.put(`/api/opportunities/${opportunityId}`, { opportunity_type: currentProducto })
+        .then(() => {
+          console.log('[OPPORTUNITY TYPE UPDATED]', currentProducto);
+          // Notificar al padre que el tipo cambió
+          if (onTipoChange) {
+            onTipoChange(currentProducto);
+          }
+        })
+        .catch(err => {
+          console.error('[ERROR UPDATING OPPORTUNITY TYPE]', err);
+        });
+    }
+  }, [currentProducto, producto, opportunityId, loanConfigs, onTipoChange]);
 
   // Calcular cuota automáticamente cuando cambian monto_sugerido o plazo
   useEffect(() => {
@@ -198,8 +263,8 @@ export function AnalisisWizardModal({
     const plazoMeses = parseInt(formData.plazo) || 0;
 
     if (monto > 0 && plazoMeses > 0) {
-      // Determinar la tasa de interés según el tipo de producto
-      const esMicroCredito = producto?.toLowerCase().includes('micro') || false;
+      // Determinar la tasa de interés según el tipo de producto actual
+      const esMicroCredito = currentProducto?.toLowerCase().includes('micro') || false;
       const tasaAnual = esMicroCredito ? 54 : 36; // 54% para micro, 36% para regular
 
       // Fórmula del sistema de amortización francés (PMT)
@@ -211,7 +276,7 @@ export function AnalisisWizardModal({
     } else {
       setFormData(prev => ({ ...prev, cuota: '' }));
     }
-  }, [formData.monto_sugerido, formData.plazo, producto]);
+  }, [formData.monto_sugerido, formData.plazo, currentProducto]);
 
   // Calcular ingreso neto para cada mes
   const calcularIngresoNeto = (mes: number): number => {
@@ -331,8 +396,8 @@ export function AnalisisWizardModal({
       if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
         return;
       }
-      // Validar que no haya errores de plazo o monto según configuración
-      if (plazoError || montoError) {
+      // Validar que no haya errores de monto
+      if (montoError) {
         return;
       }
     }
@@ -370,7 +435,7 @@ export function AnalisisWizardModal({
       const payload: any = {
         opportunity_id: opportunityId,
         title: `Análisis ${opportunityId}`,
-        category: producto || 'Micro Crédito',
+        category: currentProducto || 'Micro Crédito',
         divisa: divisa,
         monto_solicitado: monto_solicitado || null,
         monto_sugerido: parseFloat(formData.monto_sugerido),
@@ -482,12 +547,19 @@ export function AnalisisWizardModal({
                 </div>
                 <div>
                   <Label htmlFor="producto">Producto</Label>
-                  <Input
-                    id="producto"
-                    value={producto || 'Micro Crédito'}
-                    readOnly
-                    className="bg-muted"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="producto"
+                      value={currentProducto || 'Micro Crédito'}
+                      readOnly
+                      className="bg-muted"
+                    />
+                    {currentProducto !== producto && (
+                      <Badge variant="default" className="whitespace-nowrap">
+                        Tipo cambiado
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="divisa">Divisa</Label>
@@ -541,11 +613,7 @@ export function AnalisisWizardModal({
                     onChange={(e) => updateFormData('plazo', e.target.value)}
                     placeholder="Ingresar plazo"
                     required
-                    className={plazoError ? 'border-red-500 focus-visible:ring-red-500' : ''}
                   />
-                  {plazoError && (
-                    <p className="text-sm text-red-500 mt-1">{plazoError}</p>
-                  )}
                 </div>
               </div>
 
@@ -591,7 +659,7 @@ export function AnalisisWizardModal({
         {/* Step 2: Ingresos Mensuales */}
         {currentStep === 2 && (() => {
           // Determinar meses según tipo de crédito
-          const esMicroCredito = producto?.toLowerCase().includes('micro') || false;
+          const esMicroCredito = currentProducto?.toLowerCase().includes('micro') || false;
           const fixedMonths = esMicroCredito ? 3 : 6;
           const maxExtra = 0; // No permitir agregar meses adicionales
           const totalMonths = fixedMonths + extraMonths;
@@ -1068,7 +1136,10 @@ export function AnalisisWizardModal({
           </Button>
 
           {currentStep < 4 ? (
-            <Button onClick={nextStep}>
+            <Button
+              onClick={nextStep}
+              disabled={currentStep === 1 && montoError !== ''}
+            >
               Siguiente
               <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
