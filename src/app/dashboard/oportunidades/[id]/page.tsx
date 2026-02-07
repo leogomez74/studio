@@ -565,9 +565,7 @@ export default function OpportunityDetailPage() {
 
   // Estados para archivos
   const [heredados, setHeredados] = useState<OpportunityFile[]>([]);
-  const [especificos, setEspecificos] = useState<OpportunityFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -628,7 +626,6 @@ export default function OpportunityDetailPage() {
       setLoadingFiles(true);
       const res = await api.get(`/api/opportunities/${id}/files`);
       setHeredados(res.data.heredados || []);
-      setEspecificos(res.data.especificos || []);
     } catch (error) {
       console.error("Error fetching files:", error);
     } finally {
@@ -754,47 +751,6 @@ export default function OpportunityDetailPage() {
     }
   }, [opportunity, id, toast, fetchFiles]);
 
-  // Subir archivo(s) específico(s) (genérico)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploading(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-          await api.post(`/api/opportunities/${id}/files`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-          successCount++;
-        } catch (error) {
-          console.error(`Error uploading file ${file.name}:`, error);
-          errorCount++;
-        }
-      }
-
-      if (successCount > 0) {
-        toast({
-          title: "Éxito",
-          description: `${successCount} archivo(s) subido(s) correctamente.${errorCount > 0 ? ` ${errorCount} fallaron.` : ''}`
-        });
-        fetchFiles();
-      } else {
-        toast({ title: "Error", description: "No se pudo subir ningún archivo.", variant: "destructive" });
-      }
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  };
-
   // Descargar archivo
   const handleDownloadFile = (file: OpportunityFile) => {
     const link = document.createElement('a');
@@ -882,8 +838,7 @@ export default function OpportunityDetailPage() {
 
   // Lightbox functions
   const getViewableFiles = () => {
-    const allFiles = [...heredados, ...especificos];
-    return allFiles.filter(f => isImageFile(f.name) || isPdfFile(f.name));
+    return heredados.filter(f => isImageFile(f.name) || isPdfFile(f.name));
   };
 
   const openLightbox = (file: OpportunityFile) => {
@@ -1375,41 +1330,23 @@ export default function OpportunityDetailPage() {
                     {
                       label: "% de documentos obligatorios subidos",
                       value: (() => {
-                        // Documentos heredados (obligatorios): Cédula y Recibo
-                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
-
-                        // Documentos específicos: mínimo 3 esperados
-                        const minEspecificos = 3;
-                        const totalEspecificosEsperados = Math.max(minEspecificos, especificos.length);
-
-                        // Total de documentos
-                        const totalEsperado = 2 + totalEspecificosEsperados;
-                        const totalCompletos = heredadosCompletos + especificos.length;
-
-                        const percentage = Math.round((totalCompletos / totalEsperado) * 100);
+                        // Solo Cédula y Recibo (documentos heredados obligatorios)
+                        const documentosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+                        const percentage = Math.round((documentosCompletos / 2) * 100);
                         return `${percentage}%`;
                       })(),
                       icon: FileCheck,
                       variant: (() => {
-                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
-                        const minEspecificos = 3;
-                        const totalEspecificosEsperados = Math.max(minEspecificos, especificos.length);
-                        const totalEsperado = 2 + totalEspecificosEsperados;
-                        const totalCompletos = heredadosCompletos + especificos.length;
-                        const percentage = (totalCompletos / totalEsperado) * 100;
+                        const documentosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+                        const percentage = (documentosCompletos / 2) * 100;
 
-                        if (percentage >= 80) return "success";
+                        if (percentage === 100) return "success";
                         if (percentage >= 50) return "warning";
                         return "danger";
                       })(),
                       tooltip: (() => {
-                        const heredadosCompletos = 2 - (opportunity.missing_documents?.length || 0);
-                        const parts = [];
-                        if (heredadosCompletos < 2) {
-                          parts.push(`Heredados: ${heredadosCompletos}/2`);
-                        }
-                        parts.push(`Específicos: ${especificos.length}/3 mín`);
-                        return parts.join(' • ');
+                        const documentosCompletos = 2 - (opportunity.missing_documents?.length || 0);
+                        return `${documentosCompletos}/2 documentos (Cédula y Recibo)`;
                       })()
                     },
                     {
@@ -1700,100 +1637,6 @@ export default function OpportunityDetailPage() {
                         </CardContent>
                       </Card>
                     </div>
-
-                    {/* Específicos de Oportunidad */}
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <FolderOpen className="h-4 w-4 text-green-500" />
-                          Específicos de Oportunidad
-                          <Badge variant="secondary" className="ml-auto">{especificos.length}</Badge>
-                        </CardTitle>
-                        <p className="text-xs text-muted-foreground">Documentos subidos directamente aquí</p>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {/* Upload para documentos específicos */}
-                        <div className="flex items-center gap-4 pb-3 border-b">
-                          <div className="grid w-full max-w-sm items-center gap-1.5">
-                            <Label htmlFor="file-upload">Agregar documento específico a esta oportunidad</Label>
-                            <Input
-                              id="file-upload"
-                              type="file"
-                              multiple
-                              onChange={handleFileUpload}
-                              disabled={uploading}
-                              className="cursor-pointer"
-                            />
-                          </div>
-                          {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
-                        </div>
-
-                        {/* Lista de archivos específicos */}
-                        {especificos.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-4">Sin archivos específicos</p>
-                        ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto">
-                            {especificos.map((file) => {
-                              const { icon: FileIcon, color } = getFileTypeInfo(file.name);
-                              return (
-                                <div key={file.path} className="border rounded-lg overflow-hidden">
-                                  {/* Miniatura */}
-                                  {(isImageFile(file.name) || isPdfFile(file.name)) ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => openLightbox(file)}
-                                      className="h-32 w-full bg-muted flex items-center justify-center cursor-pointer relative group"
-                                    >
-                                      {isImageFile(file.name) ? (
-                                        <img
-                                          src={file.url}
-                                          alt={file.name}
-                                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
-                                        />
-                                      ) : (
-                                        <iframe
-                                          src={file.url}
-                                          className="w-full h-full pointer-events-none"
-                                          title={file.name}
-                                        />
-                                      )}
-                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                        <Maximize2 className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                                      </div>
-                                    </button>
-                                  ) : (
-                                    <div className="h-32 bg-muted flex items-center justify-center">
-                                      <FileIcon className={`h-12 w-12 ${color}`} />
-                                    </div>
-                                  )}
-                                  {/* Info */}
-                                  <div className="p-2">
-                                    <a
-                                      href={file.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs font-medium hover:underline truncate block"
-                                    >
-                                      {file.name}
-                                    </a>
-                                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                                    <div className="flex gap-1 mt-2">
-                                      <Button variant="outline" size="sm" className="h-7 flex-1" onClick={() => handleDownloadFile(file)}>
-                                        <Download className="h-3 w-3 mr-1" />
-                                        <span className="text-xs">Descargar</span>
-                                      </Button>
-                                      <Button variant="ghost" size="sm" className="h-7" onClick={() => handleDeleteFile(file.name)}>
-                                        <Trash className="h-3 w-3 text-destructive" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
                   </>
                 )}
               </div>
