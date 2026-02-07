@@ -1643,6 +1643,14 @@ function CreditDetailClient({ id }: { id: string }) {
                 Exportar pagaré
               </Button>
 
+              <Button
+                className="h-9 rounded-md bg-green-900 text-white hover:bg-green-800 border-0 px-3"
+                onClick={() => router.push(`/dashboard/creditos/${credit.id}/hoja-cierre`)}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Hoja de Cierre
+              </Button>
+
               {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
                 <Button
                   variant="outline"
