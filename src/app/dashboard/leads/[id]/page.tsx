@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback, FormEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X, AlertCircle, Handshake, DollarSign } from "lucide-react";
+import { ArrowLeft, ArrowRight, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X, AlertCircle, Handshake, DollarSign } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { Button } from "@/components/ui/button";
@@ -927,20 +927,41 @@ export default function LeadDetailPage() {
                             Guardando...
                         </span>
                     )}
-                    <Button
-                        variant="default"
-                        onClick={handleOpenOpportunitiesModal}
-                        disabled={opportunities.length === 0}
-                        className="gap-2"
-                    >
-                        <Handshake className="h-4 w-4" />
-                        <span>Oportunidades</span>
-                        {opportunities.length > 0 && (
-                            <Badge variant="secondary" className="ml-1 bg-white text-slate-900 hover:bg-white">
-                                {opportunities.length}
-                            </Badge>
-                        )}
-                    </Button>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                    <Button
+                                        variant="default"
+                                        onClick={handleOpenOpportunitiesModal}
+                                        disabled={
+                                            opportunities.length === 0 ||
+                                            !checkIsComplete() ||
+                                            getMissingDocuments().length > 0
+                                        }
+                                        className="gap-2"
+                                    >
+                                        <Handshake className="h-4 w-4" />
+                                        <span>Oportunidades</span>
+                                        {opportunities.length > 0 && (
+                                            <Badge variant="secondary" className="ml-1 bg-white text-slate-900 hover:bg-white">
+                                                {opportunities.length}
+                                            </Badge>
+                                        )}
+                                    </Button>
+                                </span>
+                            </TooltipTrigger>
+                            {(opportunities.length === 0 || !checkIsComplete() || getMissingDocuments().length > 0) && (
+                                <TooltipContent>
+                                    <div className="text-xs space-y-1">
+                                        {opportunities.length === 0 && <p>• No hay oportunidades para mostrar</p>}
+                                        {!checkIsComplete() && <p>• Completa todos los campos requeridos ({getMissingFieldsCount()} faltantes)</p>}
+                                        {getMissingDocuments().length > 0 && <p>• Sube los documentos: {getMissingDocuments().join(', ')}</p>}
+                                    </div>
+                                </TooltipContent>
+                            )}
+                        </Tooltip>
+                    </TooltipProvider>
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -1715,26 +1736,15 @@ export default function LeadDetailPage() {
                             </Card>
                         </TabsContent>
 
-                        {/* Duplicate tabs at bottom for easy navigation */}
-                        <TabsList className="grid w-full grid-cols-3 mt-4">
-                            <TabsTrigger value="datos" className="relative">
-                                Datos
-                                {getMissingFieldsCount() > 0 && (
-                                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                                        {getMissingFieldsCount()}
-                                    </span>
-                                )}
-                            </TabsTrigger>
-                            <TabsTrigger value="tareas">Tareas</TabsTrigger>
-                            <TabsTrigger value="archivos" className="relative">
-                                Archivos
-                                {getMissingDocuments().length > 0 && (
-                                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                                        {getMissingDocuments().length}
-                                    </span>
-                                )}
-                            </TabsTrigger>
-                        </TabsList>
+                        {/* Continuar button at bottom - only show when not on archivos tab */}
+                        {activeTab !== "archivos" && (
+                            <div className="flex justify-end mt-4">
+                                <Button onClick={() => setActiveTab("archivos")}>
+                                    Continuar
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
                     </Tabs>
                 </div>
 
