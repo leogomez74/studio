@@ -603,6 +603,7 @@ export default function LeadDetailPage() {
     const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string, amount?: number}[]>([]);
     const [syncing, setSyncing] = useState(false);
     const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<string>("datos");
 
     // Validar si el registro está completo
     const REQUIRED_FIELDS = [
@@ -966,7 +967,7 @@ export default function LeadDetailPage() {
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
                 <div className={isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'}>
-                    <Tabs defaultValue="datos" className="w-full">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-3 mb-4">
                             <TabsTrigger value="datos" className="relative">
                                 Datos
@@ -1713,6 +1714,27 @@ export default function LeadDetailPage() {
                                 </CardContent>
                             </Card>
                         </TabsContent>
+
+                        {/* Duplicate tabs at bottom for easy navigation */}
+                        <TabsList className="grid w-full grid-cols-3 mt-4">
+                            <TabsTrigger value="datos" className="relative">
+                                Datos
+                                {getMissingFieldsCount() > 0 && (
+                                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                        {getMissingFieldsCount()}
+                                    </span>
+                                )}
+                            </TabsTrigger>
+                            <TabsTrigger value="tareas">Tareas</TabsTrigger>
+                            <TabsTrigger value="archivos" className="relative">
+                                Archivos
+                                {getMissingDocuments().length > 0 && (
+                                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                        {getMissingDocuments().length}
+                                    </span>
+                                )}
+                            </TabsTrigger>
+                        </TabsList>
                     </Tabs>
                 </div>
 
