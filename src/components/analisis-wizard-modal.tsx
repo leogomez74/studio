@@ -481,10 +481,10 @@ export function AnalisisWizardModal({
       toast({
         title: "Análisis creado",
         description: "Redirigiendo al análisis...",
-        duration: 3000,
+        duration: 1500,
       });
       if (createdId) {
-        setTimeout(() => router.push(`/dashboard/analisis/${createdId}`), 3000);
+        setTimeout(() => router.push(`/dashboard/analisis/${createdId}`), 1500);
       }
     } catch (error: any) {
       console.error('Error completo:', error);

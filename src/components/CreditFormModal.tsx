@@ -243,10 +243,10 @@ export function CreditFormModal({
       toast({
         title: "Crédito creado",
         description: `El crédito ${response.data?.data?.reference || response.data?.reference || ''} se ha creado. Redirigiendo...`,
-        duration: 3000,
+        duration: 1500,
       });
       if (createdId) {
-        setTimeout(() => router.push(`/dashboard/creditos/${createdId}`), 3000);
+        setTimeout(() => router.push(`/dashboard/creditos/${createdId}`), 1500);
       }
     } catch (err: any) {
       let mensaje = 'Error al crear crédito';
