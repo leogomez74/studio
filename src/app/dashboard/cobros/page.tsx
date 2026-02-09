@@ -288,6 +288,9 @@ export default function CobrosPage() {
   const [selectedDeductora, setSelectedDeductora] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fechaTestPlanilla, setFechaTestPlanilla] = useState<string>('');
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [showingPreview, setShowingPreview] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   useEffect(() => {
@@ -366,6 +369,8 @@ export default function CobrosPage() {
     setSelectedDeductora('');
     setSelectedFile(null);
     setFechaTestPlanilla('');
+    setPreviewData(null);
+    setShowingPreview(false);
     if (fileRef.current) fileRef.current.value = '';
   }, []);
 
@@ -423,18 +428,55 @@ export default function CobrosPage() {
     setSelectedFile(file);
   }, [toast]);
 
+  // Nueva función para obtener preview
+  const handleGetPreview = useCallback(async () => {
+    if (!selectedFile || !selectedDeductora) {
+      toast({ title: 'Datos incompletos', description: 'Seleccione deductora y archivo.', variant: 'destructive' });
+      return;
+    }
+
+    const form = new FormData();
+    form.append('file', selectedFile);
+    form.append('deductora_id', selectedDeductora);
+    if (fechaTestPlanilla) {
+      form.append('fecha_proceso', fechaTestPlanilla);
+    }
+
+    try {
+      setLoadingPreview(true);
+      const response = await api.post('/api/credit-payments/preview-planilla', form);
+      setPreviewData(response.data);
+      setShowingPreview(true);
+      toast({ title: 'Preview generado', description: 'Revise el resumen antes de procesar.' });
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al generar preview.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, [selectedFile, selectedDeductora, fechaTestPlanilla, toast]);
+
+  // Función modificada para procesar después del preview
   const handleProcesarPlanilla = useCallback(async () => {
     if (!selectedFile || !selectedDeductora) {
       toast({ title: 'Datos incompletos', description: 'Seleccione deductora y archivo.', variant: 'destructive' });
       return;
     }
+
+    if (!showingPreview) {
+      // Si no hay preview, generarlo primero
+      await handleGetPreview();
+      return;
+    }
+
+    // Si ya hay preview, procesar la planilla
     const form = new FormData();
     form.append('file', selectedFile);
     form.append('deductora_id', selectedDeductora);
-    // Enviar fecha de proceso si se ha seleccionado una
     if (fechaTestPlanilla) {
       form.append('fecha_test', fechaTestPlanilla);
     }
+
     try {
       setUploading(true);
       await api.post('/api/credit-payments/upload', form);
@@ -447,7 +489,7 @@ export default function CobrosPage() {
     } finally {
       setUploading(false);
     }
-  }, [selectedFile, selectedDeductora, fechaTestPlanilla, toast, closePlanillaModal]);
+  }, [selectedFile, selectedDeductora, fechaTestPlanilla, showingPreview, handleGetPreview, toast, closePlanillaModal]);
 
   const triggerFile = useCallback(() => fileRef.current?.click(), []);
 
@@ -562,9 +604,9 @@ export default function CobrosPage() {
 
                   {/* Modal para Subir Planilla */}
                   <Dialog open={planillaModalOpen} onOpenChange={setPlanillaModalOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className={showingPreview ? "sm:max-w-6xl max-h-[90vh] overflow-y-auto" : "sm:max-w-md"}>
                       <DialogHeader>
-                        <DialogTitle>Cargar Planilla de Pagos</DialogTitle>
+                        <DialogTitle>{showingPreview ? 'Resumen de Carga - Verificar antes de Procesar' : 'Cargar Planilla de Pagos'}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         {/* Opción 1: Seleccionar Deductora */}
@@ -642,20 +684,178 @@ export default function CobrosPage() {
                             </div>
                           )}
                         </div>
+
+                        {/* Vista Previa */}
+                        {showingPreview && previewData && (
+                          <div className="mt-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-lg font-semibold">Resumen de Carga</h3>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await api.get(`/api/credit-payments/export-preview-excel/${previewData.hash}`, {
+                                        responseType: 'blob'
+                                      });
+                                      const url = window.URL.createObjectURL(new Blob([response.data]));
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.setAttribute('download', `resumen_planilla_${previewData.fecha_proceso}.xlsx`);
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      link.remove();
+                                    } catch (err) {
+                                      toast({ title: 'Error', description: 'No se pudo descargar el Excel', variant: 'destructive' });
+                                    }
+                                  }}
+                                >
+                                  <FileDown className="mr-1 h-4 w-4" />
+                                  Excel
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await api.get(`/api/credit-payments/export-preview-pdf/${previewData.hash}`, {
+                                        responseType: 'blob'
+                                      });
+                                      const url = window.URL.createObjectURL(new Blob([response.data]));
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.setAttribute('download', `resumen_planilla_${previewData.fecha_proceso}.pdf`);
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      link.remove();
+                                    } catch (err) {
+                                      toast({ title: 'Error', description: 'No se pudo descargar el PDF', variant: 'destructive' });
+                                    }
+                                  }}
+                                >
+                                  <FileDown className="mr-1 h-4 w-4" />
+                                  PDF
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Totales */}
+                            <div className="grid grid-cols-4 gap-3 p-4 bg-gray-50 rounded-lg">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold">{previewData.totales.total_registros}</div>
+                                <div className="text-xs text-muted-foreground">Total Registros</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-green-600">{previewData.totales.completos}</div>
+                                <div className="text-xs text-muted-foreground">Completos</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-yellow-600">{previewData.totales.parciales}</div>
+                                <div className="text-xs text-muted-foreground">Parciales</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-red-600">{previewData.totales.no_encontrados}</div>
+                                <div className="text-xs text-muted-foreground">No Encontrados</div>
+                              </div>
+                            </div>
+
+                            {/* Tabla de Preview */}
+                            <div className="border rounded-lg overflow-hidden">
+                              <div className="max-h-96 overflow-y-auto">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-gray-100 sticky top-0">
+                                    <tr>
+                                      <th className="px-2 py-2 text-left">Cédula</th>
+                                      <th className="px-2 py-2 text-left">Nombre</th>
+                                      <th className="px-2 py-2 text-left">Crédito</th>
+                                      <th className="px-2 py-2 text-center">Cuota #</th>
+                                      <th className="px-2 py-2 text-right">Monto Planilla</th>
+                                      <th className="px-2 py-2 text-right">Cuota Esperada</th>
+                                      <th className="px-2 py-2 text-right">Diferencia</th>
+                                      <th className="px-2 py-2 text-center">Estado</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {previewData.preview.map((item: any, idx: number) => (
+                                      <tr key={idx} className="border-t hover:bg-gray-50">
+                                        <td className="px-2 py-2">{item.cedula}</td>
+                                        <td className="px-2 py-2">{item.nombre}</td>
+                                        <td className="px-2 py-2">{item.credito_referencia || '-'}</td>
+                                        <td className="px-2 py-2 text-center">{item.numero_cuota || '-'}</td>
+                                        <td className="px-2 py-2 text-right">₡{item.monto_planilla.toLocaleString('es-CR', {minimumFractionDigits: 2})}</td>
+                                        <td className="px-2 py-2 text-right">₡{item.cuota_esperada.toLocaleString('es-CR', {minimumFractionDigits: 2})}</td>
+                                        <td className={`px-2 py-2 text-right font-semibold ${item.diferencia < 0 ? 'text-red-600' : item.diferencia > 1 ? 'text-blue-600' : 'text-gray-600'}`}>
+                                          ₡{item.diferencia.toLocaleString('es-CR', {minimumFractionDigits: 2})}
+                                        </td>
+                                        <td className="px-2 py-2 text-center">
+                                          <span className={`inline-block px-2 py-1 rounded text-xs ${
+                                            item.estado === 'Completo' ? 'bg-green-100 text-green-800' :
+                                            item.estado === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                                            item.estado === 'No encontrado' ? 'bg-red-100 text-red-800' :
+                                            'bg-gray-100 text-gray-800'
+                                          }`}>
+                                            {item.estado}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+
+                            {/* Totales Monetarios */}
+                            <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-lg">
+                              <div>
+                                <div className="text-xs text-muted-foreground">Monto Total Planilla</div>
+                                <div className="text-lg font-bold">₡{previewData.totales.monto_total_planilla.toLocaleString('es-CR', {minimumFractionDigits: 2})}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground">Monto Total Esperado</div>
+                                <div className="text-lg font-bold">₡{previewData.totales.monto_total_esperado.toLocaleString('es-CR', {minimumFractionDigits: 2})}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground">Diferencia Total</div>
+                                <div className={`text-lg font-bold ${previewData.totales.diferencia_total < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  ₡{previewData.totales.diferencia_total.toLocaleString('es-CR', {minimumFractionDigits: 2})}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <DialogFooter className="gap-2">
                         <Button variant="outline" onClick={closePlanillaModal}>Cancelar</Button>
+                        {showingPreview && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowingPreview(false);
+                              setPreviewData(null);
+                            }}
+                          >
+                            ← Volver
+                          </Button>
+                        )}
                         <Button
                           onClick={handleProcesarPlanilla}
-                          disabled={!selectedDeductora || !selectedFile || uploading}
+                          disabled={!selectedDeductora || !selectedFile || uploading || loadingPreview}
                         >
-                          {uploading ? (
+                          {loadingPreview ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Analizando...
+                            </>
+                          ) : uploading ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               Procesando...
                             </>
+                          ) : showingPreview ? (
+                            '✓ Confirmar y Procesar'
                           ) : (
-                            'Procesar Planilla'
+                            'Ver Resumen'
                           )}
                         </Button>
                       </DialogFooter>

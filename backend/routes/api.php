@@ -249,6 +249,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Pagos de Crédito (Protegido)
     Route::apiResource('credit-payments', CreditPaymentController::class);
+    Route::post('credit-payments/preview-planilla', [CreditPaymentController::class, 'previewPlanilla']);
+    Route::get('credit-payments/export-preview-excel/{hash}', [CreditPaymentController::class, 'exportPreviewExcel']);
+    Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf']);
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
 
