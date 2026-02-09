@@ -225,41 +225,49 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     return `${baseUrl}${path}`;
   };
 
+  // Check if documents exist
+  const hasCedula = documents.some(doc => (doc as any).category === 'cedula');
+  const hasRecibo = documents.some(doc => (doc as any).category === 'recibo_servicio');
+
   return (
     <div className="space-y-4">
       {!readonly && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Selector para Cédula */}
-          <div className="grid w-full items-center gap-1.5">
-            <Label htmlFor="cedula-upload">Cédula</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                className='cursor-pointer flex-1'
-                id="cedula-upload"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
-                onChange={(e) => handleFileUpload(e, 'cedula')}
-                disabled={uploadingCedula}
-              />
-              {uploadingCedula && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+          {/* Selector para Cédula - Solo mostrar si no hay cédula subida */}
+          {!hasCedula && (
+            <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="cedula-upload">Cédula</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  className='cursor-pointer flex-1'
+                  id="cedula-upload"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
+                  onChange={(e) => handleFileUpload(e, 'cedula')}
+                  disabled={uploadingCedula}
+                />
+                {uploadingCedula && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Selector para Recibo de Servicio */}
-          <div className="grid w-full items-center gap-1.5">
-            <Label htmlFor="recibo-upload">Recibo de Servicio</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                className='cursor-pointer flex-1'
-                id="recibo-upload"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
-                onChange={(e) => handleFileUpload(e, 'recibo_servicio')}
-                disabled={uploadingRecibo}
-              />
-              {uploadingRecibo && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+          {/* Selector para Recibo de Servicio - Solo mostrar si no hay recibo subido */}
+          {!hasRecibo && (
+            <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="recibo-upload">Recibo de Servicio</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  className='cursor-pointer flex-1'
+                  id="recibo-upload"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
+                  onChange={(e) => handleFileUpload(e, 'recibo_servicio')}
+                  disabled={uploadingRecibo}
+                />
+                {uploadingRecibo && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
