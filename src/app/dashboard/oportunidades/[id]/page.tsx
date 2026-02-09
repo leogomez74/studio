@@ -1219,7 +1219,6 @@ export default function OpportunityDetailPage() {
           <Tabs defaultValue="resumen" className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
-              <TabsTrigger value="tareas">Tareas</TabsTrigger>
               <TabsTrigger value="archivos" className="relative">
                 Archivos
                 {getMissingDocuments().length > 0 && (
@@ -1228,6 +1227,7 @@ export default function OpportunityDetailPage() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="tareas">Tareas</TabsTrigger>
             </TabsList>
 
             <TabsContent value="resumen">
@@ -1440,10 +1440,6 @@ export default function OpportunityDetailPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="tareas">
-              <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
-            </TabsContent>
-
             <TabsContent value="archivos" id="archivos">
               <div className="space-y-4">
                 {loadingFiles ? (
@@ -1640,6 +1636,10 @@ export default function OpportunityDetailPage() {
                   </>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="tareas">
+              <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
             </TabsContent>
           </Tabs>
         </div>
