@@ -403,58 +403,9 @@ class CreditController extends Controller
             $credit->save();
         }
 
-        $saldoPendiente = $monto;
-
-        // Fecha de cobro de la primera cuota (Cuota #1)
-        $fechaCobro = $credit->fecha_primera_cuota
-            ? Carbon::parse($credit->fecha_primera_cuota)
-            : ($credit->opened_at ? Carbon::parse($credit->opened_at)->addMonths(2) : now()->addMonths(2));
-
-        // 3. Bucle de Generación (Empezamos en 1, la 0 ya existe por el Modelo)
-        for ($i = 1; $i <= $plazo; $i++) {
-            $interesMes = round($saldoPendiente * $tasaMensual, 2);
-            if ($i == $plazo) {
-                $amortizacionMes = $saldoPendiente;
-                $cuotaFija = $saldoPendiente + $interesMes;
-            } else {
-                $amortizacionMes = $cuotaFija - $interesMes;
-            }
-            $nuevoSaldo = round($saldoPendiente - $amortizacionMes, 2);
-            // Crear registro en plan_de_pagos usando las columnas nuevas
-            PlanDePago::create([
-                'credit_id' => $credit->id,
-                'numero_cuota' => $i,
-                'linea' => $credit->category ?? '1',
-                'proceso' => ($credit->opened_at ?? now())->format('Ym'),
-                'fecha_inicio' => $fechaCobro->copy()->subMonth(),
-                'fecha_corte' => $fechaCobro->copy(),
-                'fecha_pago' => null,
-                'tasa_actual' => $tasaAnual,
-                'plazo_actual' => $plazo,
-                'cuota' => $cuotaFija + $polizaPorCuota,
-                // Desglose financiero
-                'interes_corriente' => $interesMes,
-                'amortizacion' => $amortizacionMes,
-                'poliza' => $polizaPorCuota,
-                'interes_moratorio' => 0,
-                'saldo_anterior' => $saldoPendiente,
-                'saldo_nuevo' => max(0, $nuevoSaldo),
-                'dias' => 30,
-                'estado' => 'Pendiente',
-                'dias_mora' => 0,
-                // Inicializar movimientos en 0 (Limpio para futuros pagos)
-                'movimiento_total' => 0,
-                'movimiento_poliza' => 0,
-                'movimiento_interes_corriente' => 0,
-                'movimiento_interes_moratorio' => 0,
-                'movimiento_principal' => 0,
-                'movimiento_amortizacion' => 0,
-                'concepto' => 'Cuota Mensual',
-            ]);
-            // Ya no se guarda primera_deduccion en el modelo Credit
-            $saldoPendiente = $nuevoSaldo;
-            $fechaCobro->addMonth();
-        }
+        // NOTA: Las cuotas 1-N se generan automáticamente por el observer en PlanDePago::booted()
+        // cuando se crea la cuota 0 (inicialización). No es necesario generarlas manualmente aquí.
+        // El observer detecta la creación de numero_cuota = 0 y genera todas las cuotas restantes.
     }
 
     /**
@@ -663,13 +614,25 @@ class CreditController extends Controller
             ], 422);
         }
 
-        // Eliminar plan de pagos existente (excepto pagos aplicados)
+        // Eliminar TODAS las cuotas no pagadas (incluyendo la cuota 0 de inicialización)
+        // Esto asegura que el observer se active al crear la nueva cuota 0
         $credit->planDePagos()
             ->where('estado', '!=', 'Pagado')
             ->delete();
 
-        // Generar nuevo plan
+        // Resetear saldo del crédito al monto original
+        $credit->saldo = $credit->monto_credito;
+        $credit->save();
+
+        // Generar nuevo plan (creará cuota 0, y el observer generará automáticamente cuotas 1-N)
         $this->generateAmortizationSchedule($credit);
+
+        // Actualizar el campo cuota con el valor del plan generado
+        $primerCuota = $credit->planDePagos()->where('numero_cuota', 1)->first();
+        if ($primerCuota) {
+            $credit->cuota = $primerCuota->cuota;
+            $credit->save();
+        }
 
         return response()->json([
             'message' => 'Plan de pagos generado correctamente.',

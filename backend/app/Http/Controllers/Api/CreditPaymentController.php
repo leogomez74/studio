@@ -570,11 +570,12 @@ class CreditPaymentController extends Controller
                     $results[] = ['cedula' => $rawCedula, 'status' => 'skipped']; continue;
                 }
 
-                // Buscar crédito SOLO de la deductora seleccionada
-                $credit = Credit::where('deductora_id', $deductoraId)
-                    ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
-                        $q->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
-                    })->first();
+                // Buscar crédito por cédula del lead con la deductora seleccionada
+                $credit = Credit::whereHas('lead', function($q) use ($rawCedula, $cleanCedula, $deductoraId) {
+                    $q->where(function($query) use ($rawCedula, $cleanCedula) {
+                        $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                    })->where('deductora_id', $deductoraId);
+                })->first();
 
                 if ($credit) {
                     // Registrar que este crédito SÍ pagó
@@ -640,9 +641,11 @@ class CreditPaymentController extends Controller
         $moraResults = [];
 
         $creditosSinPago = Credit::whereIn('status', ['Formalizado', 'En Mora'])
-            ->where('deductora_id', $deductoraId)
             ->whereNotNull('formalized_at')
             ->whereNotIn('id', $creditosQuePagaron)
+            ->whereHas('lead', function($q) use ($deductoraId) {
+                $q->where('deductora_id', $deductoraId);
+            })
             ->get();
 
         foreach ($creditosSinPago as $credit) {
