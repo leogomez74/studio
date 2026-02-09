@@ -129,6 +129,7 @@ export function CreditFormModal({
     transporte: 10000,
     respaldo_deudor: 4950,
     descuento_factura: 0,
+    cancelacion_manchas: 0,
   });
 
   // Configuración de cargos adicionales por defecto
@@ -137,6 +138,7 @@ export function CreditFormModal({
     transporte: { porcentaje: null, fijo: 10000 },
     respaldo_deudor: { porcentaje: null, fijo: 4950, soloRegular: true },
     descuento_factura: { porcentaje: null, fijo: 0 },
+    cancelacion_manchas: { porcentaje: null, fijo: 0 },
   };
 
   const calcularCargosDefault = (monto: number, category: string) => {
@@ -146,6 +148,7 @@ export function CreditFormModal({
       transporte: CARGOS_CONFIG.transporte.fijo || 0,
       respaldo_deudor: esRegular ? (CARGOS_CONFIG.respaldo_deudor.fijo || 0) : 0,
       descuento_factura: CARGOS_CONFIG.descuento_factura.fijo || 0,
+      cancelacion_manchas: CARGOS_CONFIG.cancelacion_manchas.fijo || 0,
     };
   };
 
@@ -267,7 +270,7 @@ export function CreditFormModal({
         if (!isOpen) setCurrentStep(1); // Resetear paso al cerrar
       }}
     >
-      <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent className={`max-w-5xl ${creditForm.conCargosAdicionales ? 'max-h-[97vh]' : 'max-h-[95vh]'} overflow-hidden flex flex-col`}>
         <DialogHeader>
           <DialogTitle>Nuevo Crédito - Paso {currentStep} de {creditForm.conCargosAdicionales ? 2 : 1}</DialogTitle>
           <DialogDescription>Completa la información del crédito.</DialogDescription>
@@ -275,11 +278,11 @@ export function CreditFormModal({
 
         {/* Step indicator */}
         {creditForm.conCargosAdicionales && (
-          <div className="flex items-center justify-between mb-4 px-8">
+          <div className="flex items-center justify-between mb-2 px-8">
             {[1, 2].map((step) => (
               <div key={step} className="flex items-center">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
                     step === currentStep
                       ? 'bg-blue-600 text-white'
                       : step < currentStep
@@ -287,11 +290,11 @@ export function CreditFormModal({
                       : 'bg-gray-200 text-gray-500'
                   }`}
                 >
-                  {step < currentStep ? <Check className="w-5 h-5" /> : step}
+                  {step < currentStep ? <Check className="w-4 h-4" /> : step}
                 </div>
                 {step < 2 && (
                   <div
-                    className={`h-1 w-32 mx-2 ${
+                    className={`h-1 w-24 mx-2 ${
                       step < currentStep ? 'bg-green-600' : 'bg-gray-200'
                     }`}
                   />
@@ -508,12 +511,13 @@ export function CreditFormModal({
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
                 <h4 className="font-semibold text-lg">Cargos Adicionales (Editables)</h4>
                 <div className="grid grid-cols-2 gap-4">
-                {(['comision', 'transporte', 'respaldo_deudor', 'descuento_factura'] as const).map((campo) => {
+                {(['comision', 'transporte', 'respaldo_deudor', 'descuento_factura', 'cancelacion_manchas'] as const).map((campo) => {
                   const labels: Record<string, string> = {
                     comision: 'Comisión',
                     transporte: 'Transporte',
                     respaldo_deudor: 'Respaldo Deudor',
                     descuento_factura: 'Descuento de Factura',
+                    cancelacion_manchas: 'Cancelación de Manchas',
                   };
                   const val = cargosAdicionales[campo];
                   const displayValue = editingCargo === campo
@@ -555,7 +559,8 @@ export function CreditFormModal({
                       cargosAdicionales.comision -
                       cargosAdicionales.transporte -
                       cargosAdicionales.respaldo_deudor -
-                      cargosAdicionales.descuento_factura
+                      cargosAdicionales.descuento_factura -
+                      cargosAdicionales.cancelacion_manchas
                     )}
                   </p>
                 </div>
@@ -578,6 +583,10 @@ export function CreditFormModal({
                   <div className="flex justify-between">
                     <span>Descuento Factura:</span>
                     <span className="font-medium">{formatCurrency(cargosAdicionales.descuento_factura)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cancelación de Manchas:</span>
+                    <span className="font-medium">{formatCurrency(cargosAdicionales.cancelacion_manchas)}</span>
                   </div>
                 </div>
               </div>

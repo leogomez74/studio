@@ -14,14 +14,8 @@ interface CargosAdicionales {
   comision?: number;
   transporte?: number;
   respaldo_deudor?: number;
-  respaldo_1?: number;
-  respaldo_2?: number;
-  respaldo_3?: number;
-  respaldo_4?: number;
-  respaldo_5?: number;
-  otro_1?: number;
-  otro_2?: number;
-  otro_3?: number;
+  cancelacion_manchas?: number;
+  descuento_factura?: number;
   [key: string]: number | undefined;
 }
 
@@ -149,17 +143,10 @@ export default function HojaCierrePage() {
   const comision = cargosAdicionales.comision || 0;
   const transporte = cargosAdicionales.transporte || 0;
   const respaldoDeudor = cargosAdicionales.respaldo_deudor || 0;
-  const respaldo1 = cargosAdicionales.respaldo_1 || 0;
-  const respaldo2 = cargosAdicionales.respaldo_2 || 0;
-  const respaldo3 = cargosAdicionales.respaldo_3 || 0;
-  const respaldo4 = cargosAdicionales.respaldo_4 || 0;
-  const respaldo5 = cargosAdicionales.respaldo_5 || 0;
-  const otro1 = cargosAdicionales.otro_1 || 0;
-  const otro2 = cargosAdicionales.otro_2 || 0;
-  const otro3 = cargosAdicionales.otro_3 || 0;
+  const cancelacionManchas = cargosAdicionales.cancelacion_manchas || 0;
+  const descuentoFactura = cargosAdicionales.descuento_factura || 0;
 
-  const totalDeducciones = comision + transporte + respaldoDeudor + respaldo1 + respaldo2 +
-                          respaldo3 + respaldo4 + respaldo5 + otro1 + otro2 + otro3;
+  const totalDeducciones = comision + transporte + respaldoDeudor + cancelacionManchas + descuentoFactura;
   const montoNetoRecibir = montoAprobado - totalDeducciones;
 
   const clientName = credit.lead
@@ -248,52 +235,16 @@ export default function HojaCierrePage() {
                   <td className="text-right py-2 px-3">₡{formatCurrency(respaldoDeudor)}</td>
                 </tr>
               )}
-              {respaldo1 > 0 && (
+              {cancelacionManchas > 0 && (
                 <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Respaldo 1</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(respaldo1)}</td>
+                  <td className="py-2 px-3">Cancelación de Manchas</td>
+                  <td className="text-right py-2 px-3">₡{formatCurrency(cancelacionManchas)}</td>
                 </tr>
               )}
-              {respaldo2 > 0 && (
+              {descuentoFactura > 0 && (
                 <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Respaldo 2</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(respaldo2)}</td>
-                </tr>
-              )}
-              {respaldo3 > 0 && (
-                <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Respaldo 3</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(respaldo3)}</td>
-                </tr>
-              )}
-              {respaldo4 > 0 && (
-                <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Respaldo 4</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(respaldo4)}</td>
-                </tr>
-              )}
-              {respaldo5 > 0 && (
-                <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Respaldo 5</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(respaldo5)}</td>
-                </tr>
-              )}
-              {otro1 > 0 && (
-                <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Otro 1</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(otro1)}</td>
-                </tr>
-              )}
-              {otro2 > 0 && (
-                <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Otro 2</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(otro2)}</td>
-                </tr>
-              )}
-              {otro3 > 0 && (
-                <tr className="border-b border-gray-200">
-                  <td className="py-2 px-3">Otro 3</td>
-                  <td className="text-right py-2 px-3">₡{formatCurrency(otro3)}</td>
+                  <td className="py-2 px-3">Descuento Factura</td>
+                  <td className="text-right py-2 px-3">₡{formatCurrency(descuentoFactura)}</td>
                 </tr>
               )}
 

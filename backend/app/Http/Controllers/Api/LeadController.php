@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class LeadController extends Controller
 {
@@ -444,16 +445,50 @@ class LeadController extends Controller
                 ], 404);
             }
 
+            // Contadores para documentos eliminados
+            $deletedPersonDocs = 0;
+            $deletedCreditDocs = 0;
+
+            // 1. Eliminar documentos físicos de la persona
+            $personDocuments = DB::table('person_documents')
+                ->where('person_id', $person->id)
+                ->get();
+
+            foreach ($personDocuments as $doc) {
+                if ($doc->path && \Storage::disk('public')->exists($doc->path)) {
+                    \Storage::disk('public')->delete($doc->path);
+                    $deletedPersonDocs++;
+                }
+            }
+
             // Buscar oportunidades asociadas
             $opportunities = DB::table('opportunities')
                 ->where('lead_cedula', $cedula)
                 ->pluck('id');
 
             if ($opportunities->isNotEmpty()) {
-                // Eliminar créditos asociados a esas oportunidades
-                $deletedCredits = DB::table('credits')
+                // 2. Buscar créditos y eliminar sus documentos físicos
+                $credits = DB::table('credits')
                     ->whereIn('opportunity_id', $opportunities)
-                    ->delete();
+                    ->pluck('id');
+
+                if ($credits->isNotEmpty()) {
+                    $creditDocuments = DB::table('credit_documents')
+                        ->whereIn('credit_id', $credits)
+                        ->get();
+
+                    foreach ($creditDocuments as $doc) {
+                        if ($doc->path && \Storage::disk('public')->exists($doc->path)) {
+                            \Storage::disk('public')->delete($doc->path);
+                            $deletedCreditDocs++;
+                        }
+                    }
+
+                    // Eliminar créditos (CASCADE eliminará credit_documents de la BD)
+                    $deletedCredits = DB::table('credits')
+                        ->whereIn('id', $credits)
+                        ->delete();
+                }
 
                 // Buscar análisis y eliminar propuestas asociadas
                 $analisisRefs = DB::table('analisis')
@@ -477,19 +512,21 @@ class LeadController extends Controller
                     ->delete();
             }
 
-            // Finalmente, eliminar la persona
+            // Finalmente, eliminar la persona (CASCADE eliminará person_documents de la BD)
             $deletedPerson = DB::table('persons')->where('id', $person->id)->delete();
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Registro eliminado correctamente',
+                'message' => 'Registro y documentos eliminados correctamente',
                 'deleted' => [
                     'person' => $deletedPerson,
                     'opportunities' => $deletedOpportunities ?? 0,
                     'analisis' => $deletedAnalisis ?? 0,
-                    'credits' => $deletedCredits ?? 0
+                    'credits' => $deletedCredits ?? 0,
+                    'person_documents_files' => $deletedPersonDocs,
+                    'credit_documents_files' => $deletedCreditDocs
                 ]
             ]);
 
