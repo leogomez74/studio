@@ -314,10 +314,10 @@ export function CreateOpportunityDialog({
         toast({
           title: "Oportunidad creada",
           description: "Redirigiendo a la oportunidad...",
-          duration: 3000,
+          duration: 1500,
         });
         if (createdId) {
-          setTimeout(() => router.push(`/dashboard/oportunidades/${createdId}`), 3000);
+          setTimeout(() => router.push(`/dashboard/oportunidades/${createdId}`), 1500);
         }
       } catch (error: any) {
           console.error("Error saving:", error);

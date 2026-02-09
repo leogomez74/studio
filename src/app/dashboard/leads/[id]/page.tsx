@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback, FormEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X, AlertCircle, Handshake, DollarSign } from "lucide-react";
+import { ArrowLeft, ArrowRight, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, PlusCircle, Eye, X, AlertCircle, Handshake, DollarSign } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { Button } from "@/components/ui/button";
@@ -603,6 +603,7 @@ export default function LeadDetailPage() {
     const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string, amount?: number}[]>([]);
     const [syncing, setSyncing] = useState(false);
     const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<string>("datos");
 
     // Validar si el registro está completo
     const REQUIRED_FIELDS = [
@@ -926,20 +927,41 @@ export default function LeadDetailPage() {
                             Guardando...
                         </span>
                     )}
-                    <Button
-                        variant="default"
-                        onClick={handleOpenOpportunitiesModal}
-                        disabled={opportunities.length === 0}
-                        className="gap-2"
-                    >
-                        <Handshake className="h-4 w-4" />
-                        <span>Oportunidades</span>
-                        {opportunities.length > 0 && (
-                            <Badge variant="secondary" className="ml-1 bg-white text-slate-900 hover:bg-white">
-                                {opportunities.length}
-                            </Badge>
-                        )}
-                    </Button>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                    <Button
+                                        variant="default"
+                                        onClick={handleOpenOpportunitiesModal}
+                                        disabled={
+                                            opportunities.length === 0 ||
+                                            !checkIsComplete() ||
+                                            getMissingDocuments().length > 0
+                                        }
+                                        className="gap-2"
+                                    >
+                                        <Handshake className="h-4 w-4" />
+                                        <span>Oportunidades</span>
+                                        {opportunities.length > 0 && (
+                                            <Badge variant="secondary" className="ml-1 bg-white text-slate-900 hover:bg-white">
+                                                {opportunities.length}
+                                            </Badge>
+                                        )}
+                                    </Button>
+                                </span>
+                            </TooltipTrigger>
+                            {(opportunities.length === 0 || !checkIsComplete() || getMissingDocuments().length > 0) && (
+                                <TooltipContent>
+                                    <div className="text-xs space-y-1">
+                                        {opportunities.length === 0 && <p>• No hay oportunidades para mostrar</p>}
+                                        {!checkIsComplete() && <p>• Completa todos los campos requeridos ({getMissingFieldsCount()} faltantes)</p>}
+                                        {getMissingDocuments().length > 0 && <p>• Sube los documentos: {getMissingDocuments().join(', ')}</p>}
+                                    </div>
+                                </TooltipContent>
+                            )}
+                        </Tooltip>
+                    </TooltipProvider>
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -966,7 +988,7 @@ export default function LeadDetailPage() {
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
                 <div className={isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'}>
-                    <Tabs defaultValue="datos" className="w-full">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-3 mb-4">
                             <TabsTrigger value="datos" className="relative">
                                 Datos
@@ -1713,6 +1735,16 @@ export default function LeadDetailPage() {
                                 </CardContent>
                             </Card>
                         </TabsContent>
+
+                        {/* Continuar button at bottom - only show when not on archivos tab */}
+                        {activeTab !== "archivos" && (
+                            <div className="flex justify-end mt-4">
+                                <Button onClick={() => setActiveTab("archivos")}>
+                                    Continuar
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
                     </Tabs>
                 </div>
 
