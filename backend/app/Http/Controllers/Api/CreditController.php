@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class CreditController extends Controller
 {
@@ -257,6 +258,25 @@ class CreditController extends Controller
             }
             return $credit;
         });
+
+        // Disparar tarea automática para "credit_created"
+        $automation = \App\Models\TaskAutomation::where('event_type', 'credit_created')
+            ->where('is_active', true)
+            ->first();
+
+        if ($automation && $automation->assigned_to) {
+            \App\Models\Task::create([
+                'project_code' => $credit->reference,
+                'project_name' => $credit->title,
+                'title' => $automation->title,
+                'details' => 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.',
+                'status' => 'pendiente',
+                'priority' => $automation->priority ?? 'media',
+                'assigned_to' => $automation->assigned_to,
+                'credit_id' => $credit->id,
+                'lead_id' => $credit->lead_id,
+            ]);
+        }
 
         return response()->json($credit->load('planDePagos'), 201);
     }
@@ -726,7 +746,7 @@ class CreditController extends Controller
 
         $planDePagos = $credit->planDePagos;
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.plan_de_pagos', [
+        $pdf = Pdf::loadView('pdf.plan_de_pagos', [
             'credit' => $credit,
             'planDePagos' => $planDePagos,
         ]);

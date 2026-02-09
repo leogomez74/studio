@@ -2869,6 +2869,10 @@ export default function ConfiguracionPage() {
     assigned_to: '',
     is_active: false,
   });
+  const [creditCreatedConfig, setCreditCreatedConfig] = useState({
+    assigned_to: '1', // Default: Administrador (ID 1)
+    is_active: false,
+  });
 
   const fetchAutomations = useCallback(async () => {
     setAutomationsLoading(true);
@@ -2909,6 +2913,13 @@ export default function ConfiguracionPage() {
         setPepRechazadoConfig({
           assigned_to: pepRechazadoAuto.assigned_to ? String(pepRechazadoAuto.assigned_to) : '',
           is_active: pepRechazadoAuto.is_active,
+        });
+      }
+      const creditAuto = data.find((a: any) => a.event_type === 'credit_created');
+      if (creditAuto) {
+        setCreditCreatedConfig({
+          assigned_to: creditAuto.assigned_to ? String(creditAuto.assigned_to) : '1',
+          is_active: creditAuto.is_active,
         });
       }
     } catch (error) {
@@ -3887,6 +3898,32 @@ export default function ConfiguracionPage() {
                         const assignedTo = value === 'none' ? '' : value;
                         setPepRechazadoConfig(prev => ({ ...prev, assigned_to: assignedTo }));
                         saveAutomation('pep_rechazado', 'Informar al cliente que no califica para el crédito', assignedTo);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <h4 className="font-medium">Nuevo Crédito Creado</h4>
+                  <p className="text-sm text-muted-foreground mb-3">Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.</p>
+                  <div className="space-y-2">
+                    <Label>Asignar tarea a</Label>
+                    <Select
+                      value={creditCreatedConfig.assigned_to || 'none'}
+                      onValueChange={(value) => {
+                        const assignedTo = value === 'none' ? '' : value;
+                        setCreditCreatedConfig(prev => ({ ...prev, assigned_to: assignedTo }));
+                        saveAutomation('credit_created', 'Nuevo crédito creado', assignedTo);
                       }}
                     >
                       <SelectTrigger>
