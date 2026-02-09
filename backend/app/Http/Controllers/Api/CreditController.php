@@ -191,6 +191,9 @@ class CreditController extends Controller
             // A. Crear Cabecera
             $credit = Credit::create($validated);
 
+            // Establecer saldo igual al monto del crédito
+            $credit->saldo = $validated['monto_credito'];
+
             // B. Generar referencia con el ID real del crédito
             $credit->reference = $this->generateReferenceWithId($credit->id);
             $credit->save();
