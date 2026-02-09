@@ -608,7 +608,17 @@ class CreditController extends Controller
             }
         }
 
-        return response()->json($credit->load('planDePagos'));
+        // Cargar todas las relaciones necesarias (igual que en show)
+        return response()->json($credit->load([
+            'lead',
+            'opportunity',
+            'documents',
+            'payments',
+            'tasa',
+            'planDePagos' => function($q) {
+                $q->orderBy('numero_cuota', 'asc');
+            }
+        ]));
     }
 
     /**

@@ -767,6 +767,25 @@ export default function ClientDetailPage() {
     return value === null || value === undefined || value === '';
   }, [formData]);
 
+  // Validar que al menos 1 referencia esté completa
+  const hasAtLeastOneCompleteReference = useCallback(() => {
+    if (!formData) return false;
+
+    // Verificar Referencia 1
+    const ref1Complete =
+      formData.tel_amigo && formData.tel_amigo !== '' &&
+      formData.relacionado_a && formData.relacionado_a !== '' &&
+      formData.tipo_relacion && formData.tipo_relacion !== '';
+
+    // Verificar Referencia 2
+    const ref2Complete =
+      formData.tel_amigo_2 && formData.tel_amigo_2 !== '' &&
+      formData.relacionado_a_2 && formData.relacionado_a_2 !== '' &&
+      formData.tipo_relacion_2 && formData.tipo_relacion_2 !== '';
+
+    return ref1Complete || ref2Complete;
+  }, [formData]);
+
   const getMissingDocuments = useCallback(() => {
     const documents = (client as any)?.documents || [];
     if (documents.length === 0) return ['Cédula', 'Recibo de Servicio'];
@@ -787,12 +806,19 @@ export default function ClientDetailPage() {
 
   const getMissingFieldsCount = useCallback(() => {
     if (!formData) return 0;
-    return REQUIRED_FIELDS.filter(field => {
+    let count = REQUIRED_FIELDS.filter(field => {
       const value = (formData as any)[field];
       if (field === 'deductora_id') return !value || value === 0;
       return value === null || value === undefined || value === '';
     }).length;
-  }, [formData]);
+
+    // Agregar 1 si no hay al menos una referencia completa
+    if (!hasAtLeastOneCompleteReference()) {
+      count += 1;
+    }
+
+    return count;
+  }, [formData, hasAtLeastOneCompleteReference]);
 
   const handleInputChange = (field: keyof Client, value: string | number | boolean | null) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -1448,11 +1474,88 @@ export default function ClientDetailPage() {
               </div>
               <div className="space-y-2">
                 <Label>Teléfono Casa</Label>
-                <Input 
-                  value={formData.tel_casa || ""} 
-                  onChange={(e) => handleInputChange("tel_casa", e.target.value)} 
-                  disabled={!isEditMode} 
+                <Input
+                  value={formData.tel_casa || ""}
+                  onChange={(e) => handleInputChange("tel_casa", e.target.value)}
+                  disabled={!isEditMode}
                 />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Reference Information */}
+          <div>
+            <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+              Información de Referencia (Máx. 2)
+            </h3>
+
+            {/* Referencia 1 */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium mb-3 text-muted-foreground">Referencia 1</h4>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Número de Referencia</Label>
+                  <Input
+                    value={formData.tel_amigo || ""}
+                    onChange={(e) => handleInputChange("tel_amigo", e.target.value)}
+                    disabled={!isEditMode}
+                    placeholder="Número telefónico"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nombre de la Persona</Label>
+                  <Input
+                    value={formData.relacionado_a || ""}
+                    onChange={(e) => handleInputChange("relacionado_a", e.target.value)}
+                    disabled={!isEditMode}
+                    placeholder="Nombre completo"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Relación</Label>
+                  <Input
+                    value={formData.tipo_relacion || ""}
+                    onChange={(e) => handleInputChange("tipo_relacion", e.target.value)}
+                    disabled={!isEditMode}
+                    placeholder="Ej: Amigo, Familiar"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Referencia 2 */}
+            <div>
+              <h4 className="text-sm font-medium mb-3 text-muted-foreground">Referencia 2</h4>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Número de Referencia</Label>
+                  <Input
+                    value={formData.tel_amigo_2 || ""}
+                    onChange={(e) => handleInputChange("tel_amigo_2", e.target.value)}
+                    disabled={!isEditMode}
+                    placeholder="Número telefónico"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nombre de la Persona</Label>
+                  <Input
+                    value={formData.relacionado_a_2 || ""}
+                    onChange={(e) => handleInputChange("relacionado_a_2", e.target.value)}
+                    disabled={!isEditMode}
+                    placeholder="Nombre completo"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Relación</Label>
+                  <Input
+                    value={formData.tipo_relacion_2 || ""}
+                    onChange={(e) => handleInputChange("tipo_relacion_2", e.target.value)}
+                    disabled={!isEditMode}
+                    placeholder="Ej: Amigo, Familiar"
+                  />
+                </div>
               </div>
             </div>
           </div>
