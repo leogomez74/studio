@@ -1635,18 +1635,32 @@ function CreditDetailClient({ id }: { id: string }) {
                 Editar
               </Button>
               {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-                    const cleanBase = baseUrl.replace(/\/api\/?$/, '');
-                    window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
-                  }}
-                  className="bg-red-600 border-red-700 text-white hover:bg-red-700"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Reporte Plan de Pagos
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+                      const cleanBase = baseUrl.replace(/\/api\/?$/, '');
+                      window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
+                    }}
+                    className="bg-red-600 border-red-700 text-white hover:bg-red-700"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Plan PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+                      const cleanBase = baseUrl.replace(/\/api\/?$/, '');
+                      window.open(`${cleanBase}/api/credits/${id}/plan-excel`, '_blank');
+                    }}
+                    className="bg-green-600 border-green-700 text-white hover:bg-green-700"
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Plan Excel
+                  </Button>
+                </>
               )}
 
               <Button

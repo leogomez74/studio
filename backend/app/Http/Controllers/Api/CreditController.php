@@ -727,4 +727,84 @@ class CreditController extends Controller
 
         return $pdf->download($filename);
     }
+
+    public function downloadPlanExcel($id)
+    {
+        $credit = Credit::with(['lead', 'tasa', 'planDePagos' => function($q) {
+            $q->orderBy('numero_cuota', 'asc');
+        }])->findOrFail($id);
+
+        $planDePagos = $credit->planDePagos;
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Título
+        $sheet->setCellValue('A1', 'Plan de Pagos - ' . ($credit->numero_operacion ?? $credit->reference));
+        $sheet->mergeCells('A1:R1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        // Información del cliente
+        $sheet->setCellValue('A2', 'Cliente: ' . ($credit->lead->name ?? 'N/A'));
+        $sheet->setCellValue('F2', 'Saldo por Pagar: ₡' . number_format($credit->saldo ?? 0, 2));
+        $sheet->setCellValue('K2', 'Tasa: ' . ($credit->tasa_anual ?? 0) . '%');
+        $sheet->setCellValue('A3', 'Monto: ₡' . number_format($credit->monto_credito ?? 0, 2));
+        $sheet->setCellValue('F3', 'Estado: ' . $credit->status);
+        $sheet->setCellValue('K3', 'Plazo: ' . $credit->plazo . ' meses');
+
+        // Encabezados
+        $row = 5;
+        $headers = ['#', 'Estado', 'Fecha', 'Cuota', 'Poliza', 'Int.Corr', 'Int.C.Venc', 'Int.Mora', 'Amort', 'Capital', 'Saldo por Pagar', 'Mora', 'F.Mov', 'Mov.Total', 'Mov.Pol', 'Mov.Int.C', 'Mov.Int.V', 'Mov.Int.M', 'Mov.Amort', 'Mov.Princ'];
+        $col = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($col . $row, $header);
+            $sheet->getStyle($col . $row)->getFont()->setBold(true);
+            $sheet->getStyle($col . $row)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
+            $sheet->getStyle($col . $row)->getFont()->getColor()->setRGB('FFFFFF');
+            $col++;
+        }
+
+        // Datos
+        $row++;
+        foreach ($planDePagos as $pago) {
+            $sheet->setCellValue('A' . $row, $pago->numero_cuota);
+            $sheet->setCellValue('B' . $row, $pago->estado);
+            $sheet->setCellValue('C' . $row, $pago->fecha_corte ? \Carbon\Carbon::parse($pago->fecha_corte)->format('d/m/Y') : '-');
+            $sheet->setCellValue('D' . $row, number_format($pago->cuota ?? 0, 2));
+            $sheet->setCellValue('E' . $row, number_format($pago->poliza ?? 0, 2));
+            $sheet->setCellValue('F' . $row, number_format($pago->interes_corriente ?? 0, 2));
+            $sheet->setCellValue('G' . $row, '0,00');
+            $sheet->setCellValue('H' . $row, number_format($pago->interes_moratorio ?? 0, 2));
+            $sheet->setCellValue('I' . $row, number_format($pago->amortizacion ?? 0, 2));
+            $sheet->setCellValue('J' . $row, number_format($pago->saldo_anterior ?? 0, 2));
+            $sheet->setCellValue('K' . $row, number_format($pago->saldo_nuevo ?? 0, 2));
+            $sheet->setCellValue('L' . $row, $pago->dias_mora ?? 0);
+            $sheet->setCellValue('M' . $row, $pago->fecha_movimiento ? \Carbon\Carbon::parse($pago->fecha_movimiento)->format('d/m/Y') : '-');
+            $sheet->setCellValue('N' . $row, number_format($pago->movimiento_total ?? 0, 2));
+            $sheet->setCellValue('O' . $row, number_format($pago->movimiento_poliza ?? 0, 2));
+            $sheet->setCellValue('P' . $row, number_format($pago->movimiento_interes_corriente ?? 0, 2));
+            $sheet->setCellValue('Q' . $row, '0,00');
+            $sheet->setCellValue('R' . $row, number_format($pago->movimiento_interes_moratorio ?? 0, 2));
+            $sheet->setCellValue('S' . $row, number_format($pago->movimiento_amortizacion ?? 0, 2));
+            $sheet->setCellValue('T' . $row, number_format($pago->movimiento_principal ?? 0, 2));
+            $row++;
+        }
+
+        // Autosize columnas
+        foreach (range('A', 'T') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Descargar
+        $filename = 'plan_pagos_' . ($credit->numero_operacion ?? $credit->reference ?? $id) . '.xlsx';
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+
+        return response()->streamDownload(function() use ($writer) {
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
 }

@@ -41,6 +41,7 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // PDF público del Plan de Pagos
 Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
+Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
 
 // Utilidades / Listas
 Route::get('/agents', function () {
