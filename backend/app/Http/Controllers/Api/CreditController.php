@@ -304,11 +304,9 @@ class CreditController extends Controller
      */
     private function generateAmortizationSchedule(Credit $credit)
     {
-        // Calcular monto neto restando cargos_adicionales si existen
-        $montoOriginal = (float) $credit->monto_credito;
-        $cargos = $credit->cargos_adicionales ?? [];
-        $totalCargos = array_sum($cargos);
-        $monto = $montoOriginal - $totalCargos;
+        // Usar el monto_credito completo para el plan de pagos
+        // Los cargos_adicionales son solo informativos
+        $monto = (float) $credit->monto_credito;
 
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
