@@ -998,7 +998,6 @@ export default function LeadDetailPage() {
                                     </span>
                                 )}
                             </TabsTrigger>
-                            <TabsTrigger value="tareas">Tareas</TabsTrigger>
                             <TabsTrigger value="archivos" className="relative">
                                 Archivos
                                 {getMissingDocuments().length > 0 && (
@@ -1007,6 +1006,7 @@ export default function LeadDetailPage() {
                                     </span>
                                 )}
                             </TabsTrigger>
+                            <TabsTrigger value="tareas">Tareas</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="datos">
