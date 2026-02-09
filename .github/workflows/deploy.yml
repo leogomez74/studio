@@ -1,0 +1,47 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+
+jobs:
+  deploy:
+    name: "Deploy "
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        site:
+          - name: "Deploy"
+            path: "/var/www/nuevopep"
+            branch: "main"
+
+    steps:
+      - name: "📥 Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "🔑 Configurar acceso SSH"
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: "🚀 Deploy en ${{ matrix.site.name }}"
+        run: |
+          ssh -o StrictHostKeyChecking=no coder@${{ vars.REMOTEHOST }} "
+            cd ${{ matrix.site.path }} &&
+            git fetch origin ${{ matrix.site.branch }} &&
+            git reset --hard origin/${{ matrix.site.branch }} &&
+            cd backend &&
+            /usr/bin/php8.4 /usr/local/bin/composer install &&
+            /usr/bin/php8.4 artisan migrate --force &&
+            cd .. &&
+            export NVM_DIR=\"\$HOME/.nvm\" &&
+            [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\" &&
+            npm install &&
+            npm run build &&
+            pm2 restart nuevopep
+          "
