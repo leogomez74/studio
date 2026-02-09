@@ -26,7 +26,8 @@ class CreditController extends Controller
         $query = Credit::with([
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado,dias_mora'
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,amortizacion,saldo_nuevo,fecha_pago,estado,dias_mora',
+            'assignedTo:id,name'
         ]);
 
         if ($request->has('lead_id')) {
@@ -180,6 +181,11 @@ class CreditController extends Controller
         // Referencia temporal (se actualiza después con el ID real)
         $validated['reference'] = 'TEMP-' . time();
 
+        // Establecer garantía por defecto como "Pagaré" si no se especificó
+        if (empty($validated['garantia'])) {
+            $validated['garantia'] = 'Pagaré';
+        }
+
         // Si no se especificó assigned_to, asignar al responsable default de leads
         if (empty($validated['assigned_to'])) {
             $defaultAssignee = \App\Models\User::where('is_default_lead_assignee', true)->first();
@@ -265,6 +271,10 @@ class CreditController extends Controller
             ->first();
 
         if ($automation && $automation->assigned_to) {
+            // Asignar el responsable del crédito
+            $credit->update(['assigned_to' => $automation->assigned_to]);
+
+            // Crear la tarea automática
             \App\Models\Task::create([
                 'project_code' => $credit->reference,
                 'project_name' => $credit->title,
@@ -273,12 +283,10 @@ class CreditController extends Controller
                 'status' => 'pendiente',
                 'priority' => $automation->priority ?? 'media',
                 'assigned_to' => $automation->assigned_to,
-                'credit_id' => $credit->id,
-                'lead_id' => $credit->lead_id,
             ]);
         }
 
-        return response()->json($credit->load('planDePagos'), 201);
+        return response()->json($credit->load(['planDePagos', 'assignedTo:id,name']), 201);
     }
 
     /**
@@ -419,6 +427,7 @@ class CreditController extends Controller
             'documents',
             'payments',
             'tasa',  // ✓ Agregar relación tasa
+            'assignedTo:id,name',
             'planDePagos' => function($q) {
                 $q->orderBy('numero_cuota', 'asc');
             }
@@ -586,6 +595,7 @@ class CreditController extends Controller
             'documents',
             'payments',
             'tasa',
+            'assignedTo:id,name',
             'planDePagos' => function($q) {
                 $q->orderBy('numero_cuota', 'asc');
             }

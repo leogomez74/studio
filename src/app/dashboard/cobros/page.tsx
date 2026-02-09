@@ -268,7 +268,12 @@ export default function CobrosPage() {
   
   const [selectedLeadId, setSelectedLeadId] = useState<string>('');
   const [selectedCreditId, setSelectedCreditId] = useState<string>('');
-  
+
+  // Estado para búsqueda de clientes
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [clientSearchResults, setClientSearchResults] = useState<any[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
   const [paymentsState, setPaymentsState] = useState<PaymentWithRelations[]>([]);
   const [creditsList, setCreditsList] = useState<Credit[]>([]);
@@ -292,6 +297,28 @@ export default function CobrosPage() {
   const [showingPreview, setShowingPreview] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  // Búsqueda de clientes con debounce
+  useEffect(() => {
+    if (!clientSearchQuery || clientSearchQuery.length < 2) {
+      setClientSearchResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await api.get('/api/persons/search', {
+          params: { q: clientSearchQuery }
+        });
+        setClientSearchResults(response.data || []);
+      } catch (error) {
+        console.error('Error buscando clientes:', error);
+        setClientSearchResults([]);
+      }
+    }, 300); // Debounce de 300ms
+
+    return () => clearTimeout(timeoutId);
+  }, [clientSearchQuery]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -867,23 +894,80 @@ export default function CobrosPage() {
                       <DialogHeader><DialogTitle>Registrar Abono Manual</DialogTitle></DialogHeader>
                       <form onSubmit={handleRegistrarAbono} className="space-y-4">
                         
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Cliente (Lead)</label>
-                          <Select value={selectedLeadId} onValueChange={(val) => {
-                              setSelectedLeadId(val);
-                              setSelectedCreditId(''); 
-                          }}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Seleccione un cliente..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {uniqueLeads.map((lead: any) => (
-                                <SelectItem key={lead.id} value={String(lead.id)}>
-                                  {lead.name} {lead.cedula ? `(${lead.cedula})` : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="relative">
+                          <label className="block text-sm font-medium mb-1">Cliente</label>
+                          <Input
+                            placeholder="Buscar por nombre o cédula..."
+                            value={clientSearchQuery}
+                            onChange={(e) => {
+                              setClientSearchQuery(e.target.value);
+                              if (!e.target.value) {
+                                setSelectedLeadId('');
+                                setSelectedCreditId('');
+                              }
+                            }}
+                            onFocus={() => setIsDropdownOpen(true)}
+                            onBlur={() => {
+                              // Delay to allow click on dropdown items
+                              setTimeout(() => setIsDropdownOpen(false), 200);
+                            }}
+                            autoComplete="off"
+                          />
+                          {/* Dropdown personalizado */}
+                          {isDropdownOpen && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                              {(() => {
+                                // Normalizar texto para búsqueda insensitive
+                                const normalizeText = (text: string) => {
+                                  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                                };
+
+                                // Combinar uniqueLeads con resultados de búsqueda del backend
+                                const allClients = [...uniqueLeads, ...clientSearchResults];
+
+                                // Eliminar duplicados por ID
+                                const uniqueClients = Array.from(
+                                  new Map(allClients.map((c: any) => [c.id, c])).values()
+                                );
+
+                                // Filtrar por búsqueda si hay query, sino mostrar todos
+                                const filtered = clientSearchQuery.length >= 1
+                                  ? uniqueClients.filter((client: any) => {
+                                      const searchNorm = normalizeText(clientSearchQuery);
+                                      const nameNorm = normalizeText(client.name || client.label || '');
+                                      const cedulaNorm = normalizeText(client.cedula || '');
+                                      return nameNorm.includes(searchNorm) || cedulaNorm.includes(searchNorm);
+                                    })
+                                  : uniqueClients;
+
+                                if (filtered.length === 0) {
+                                  return (
+                                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                                      No se encontraron clientes
+                                    </div>
+                                  );
+                                }
+
+                                return filtered.map((client: any) => {
+                                  const label = client.label || `${client.name} ${client.cedula ? `(${client.cedula})` : ''}`;
+                                  return (
+                                    <div
+                                      key={client.id}
+                                      className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 transition-colors"
+                                      onClick={() => {
+                                        setSelectedLeadId(String(client.id));
+                                        setClientSearchQuery(label);
+                                        setSelectedCreditId('');
+                                        setIsDropdownOpen(false);
+                                      }}
+                                    >
+                                      {label}
+                                    </div>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          )}
                         </div>
 
                         <div>

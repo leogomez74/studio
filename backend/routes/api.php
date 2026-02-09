@@ -67,6 +67,9 @@ Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula']
 Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive'])->middleware('auth:sanctum');
 Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert'])->middleware('auth:sanctum');
 
+// Search persons (leads and clients) with autocomplete
+Route::get('/persons/search', [LeadController::class, 'search']);
+
 Route::apiResource('leads', LeadController::class);
 
 // Questionnaires

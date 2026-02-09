@@ -200,6 +200,14 @@ class Credit extends Model
     }
 
     /**
+     * Relación: Usuario asignado como responsable del crédito
+     */
+    public function assignedTo()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /**
      * Accessor: tasa_anual
      * Devuelve el valor congelado del campo si existe, sino usa la relación
      */
