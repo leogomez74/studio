@@ -65,6 +65,10 @@ export function CreditFormModal({
   const [isSaving, setIsSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
+  // Estado para deductoras
+  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string; codigo: string }[]>([]);
+  const [selectedDeductora, setSelectedDeductora] = useState<string>('');
+
   const [creditForm, setCreditForm] = useState({
     reference: '',
     title: '',
@@ -79,6 +83,15 @@ export function CreditFormModal({
     poliza: false,
     conCargosAdicionales: false,
   });
+
+  // Cargar deductoras al abrir el modal
+  useEffect(() => {
+    if (open && deductoras.length === 0) {
+      api.get('/api/deductoras')
+        .then(res => setDeductoras(res.data))
+        .catch(err => console.error('Error cargando deductoras:', err));
+    }
+  }, [open, deductoras.length]);
 
   // Sincronizar estado interno solo cuando el modal se ABRE (transición false → true)
   const prevOpenRef = useRef(false);
@@ -98,6 +111,10 @@ export function CreditFormModal({
         poliza: false,
         conCargosAdicionales: false,
       });
+      // Auto-llenar deductora desde el lead
+      const leadId = initialData.leadId || '';
+      const lead = leads.find(l => String(l.id) === leadId);
+      setSelectedDeductora(lead?.deductora_id ? String(lead.deductora_id) : 'sin_deductora');
       setCurrentStep(1);
     }
     prevOpenRef.current = open;
@@ -161,26 +178,6 @@ export function CreditFormModal({
       return;
     }
 
-    // Validar que el cliente tenga deductora asignada - fetch directo del cliente
-    try {
-      const clientResponse = await api.get(`/api/clients/${leadIdNumerico}`);
-      if (!clientResponse.data.deductora_id) {
-        toast({
-          variant: "destructive",
-          title: "Error de validación",
-          description: "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crédito.",
-        });
-        return;
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error de validación",
-        description: "No se pudo verificar los datos del cliente",
-      });
-      return;
-    }
-
     if (isNaN(montoNumerico) || montoNumerico < 2) {
       toast({
         variant: "destructive",
@@ -225,6 +222,7 @@ export function CreditFormModal({
       divisa: creditForm.divisa,
       plazo: plazoNumerico,
       poliza: creditForm.poliza,
+      deductora_id: selectedDeductora !== 'sin_deductora' ? parseInt(selectedDeductora) : null,
     };
 
     if (cargosParaEnviar) {
@@ -432,6 +430,30 @@ export function CreditFormModal({
                 disabled
                 className="bg-gray-50"
               />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Deductora</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={selectedDeductora === 'sin_deductora' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedDeductora('sin_deductora')}
+                >
+                  Sin deductora
+                </Button>
+                {deductoras.map((d) => (
+                  <Button
+                    key={d.id}
+                    type="button"
+                    variant={selectedDeductora === String(d.id) ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSelectedDeductora(String(d.id))}
+                  >
+                    {d.nombre}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
 

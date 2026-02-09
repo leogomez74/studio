@@ -206,8 +206,14 @@ class CreditController extends Controller
                 $this->generateAmortizationSchedule($credit);
             }
 
-            // C. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
+            // C. Sincronizar deductora_id al cliente/lead
             $lead = Lead::with('documents')->find($validated['lead_id']);
+            if ($lead && isset($validated['deductora_id'])) {
+                $lead->deductora_id = $validated['deductora_id'];
+                $lead->save();
+            }
+
+            // D. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
             if ($lead && $lead->documents->count() > 0) {
                 foreach ($lead->documents as $personDocument) {
                     // 1. Definir nueva ruta
