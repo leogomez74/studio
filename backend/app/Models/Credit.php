@@ -76,16 +76,38 @@ class Credit extends Model
      *
      * @var array<int, string>
      */
+    protected $appends = ['primera_deduccion', 'fecha_ultimo_pago'];
 
     /**
      * Get the date of the first deduction (primera_deduccion).
+     * Obtiene la fecha de corte de la primera cuota > 0 del plan de pagos.
      *
      * @return string|null
      */
     public function getPrimeraDeduccionAttribute(): ?string
     {
-        // Assuming the first deduction is the earliest planDePagos with numero_cuota > 0
-        $plan = $this->planDePagos()->where('numero_cuota', '>', 0)->orderBy('fecha_pago')->first();
+        $plan = $this->planDePagos()
+            ->where('numero_cuota', '>', 0)
+            ->whereNotNull('fecha_corte')
+            ->orderBy('numero_cuota', 'asc')
+            ->first();
+
+        return $plan ? optional($plan->fecha_corte)->toDateString() : null;
+    }
+
+    /**
+     * Get the date of the last payment (fecha_ultimo_pago).
+     * Obtiene la fecha del último pago registrado en el plan de pagos.
+     *
+     * @return string|null
+     */
+    public function getFechaUltimoPagoAttribute(): ?string
+    {
+        $plan = $this->planDePagos()
+            ->whereNotNull('fecha_pago')
+            ->orderBy('fecha_pago', 'desc')
+            ->first();
+
         return $plan ? optional($plan->fecha_pago)->toDateString() : null;
     }
 

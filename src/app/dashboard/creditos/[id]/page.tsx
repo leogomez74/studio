@@ -1952,13 +1952,13 @@ function CreditDetailClient({ id }: { id: string }) {
                           <div className="space-y-2">
                             <Label>Último Pago</Label>
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {formatDate(credit.fecha_ultimo_pago)}
+                                {formatDate(formData.fecha_ultimo_pago)}
                               </p>
                           </div>
                           <div className="space-y-2">
                             <Label>Primera Deducción</Label>
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {formatDate(credit.primera_deduccion)}
+                                {formatDate(formData.primera_deduccion)}
                               </p>
                           </div>
                           <div className="space-y-2">
@@ -2034,7 +2034,7 @@ function CreditDetailClient({ id }: { id: string }) {
                               </Select>
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {agents.find(a => a.id === (formData as any).assigned_to_id)?.name || "-"}
+                                {users.find(u => u.id === formData.lead?.assigned_to_id)?.name || "-"}
                               </p>
                             )}
                           </div>
