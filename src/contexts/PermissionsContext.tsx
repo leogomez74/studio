@@ -10,6 +10,7 @@ export interface ModulePermissions {
   edit: boolean;
   delete: boolean;
   archive?: boolean;
+  assign?: boolean;
 }
 
 export interface UserPermissions {
@@ -19,7 +20,7 @@ export interface UserPermissions {
 interface PermissionsContextType {
   permissions: UserPermissions;
   loading: boolean;
-  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive') => boolean;
+  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign') => boolean;
   canViewModule: (module: string) => boolean;
   refreshPermissions: () => Promise<void>;
 }
@@ -86,7 +87,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     fetchPermissions();
   }, [token, user?.id]);
 
-  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive'): boolean => {
+  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign'): boolean => {
     // Solo permitir visualización durante la carga para evitar flickering
     // Pero NO permitir acciones como create, edit, delete, archive
     if (loading) {
@@ -110,6 +111,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         return modulePerms.delete;
       case 'archive':
         return modulePerms.archive ?? false;
+      case 'assign':
+        return modulePerms.assign ?? false;
       default:
         return false;
     }

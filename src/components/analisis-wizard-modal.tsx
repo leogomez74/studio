@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, Check, Plus, X, FolderOpen, Loader2, FileTex
 import { formatCurrency } from '@/lib/analisis';
 import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import type {
   DeduccionMensual,
   ManchaDetalle,
@@ -97,6 +98,8 @@ export function AnalisisWizardModal({
 }: AnalisisWizardModalProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const { hasPermission } = usePermissions();
+  const canEditResponsable = hasPermission('analizados', 'assign');
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -638,6 +641,7 @@ export function AnalisisWizardModal({
                   <Select
                     value={formData.assigned_to}
                     onValueChange={(value) => updateFormData('assigned_to', value)}
+                    disabled={!canEditResponsable}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un responsable" />
@@ -650,6 +654,9 @@ export function AnalisisWizardModal({
                       ))}
                     </SelectContent>
                   </Select>
+                  {!canEditResponsable && (
+                    <p className="text-xs text-muted-foreground mt-1">Asignado automáticamente según su rol.</p>
+                  )}
                 </div>
               </div>
             </CardContent>

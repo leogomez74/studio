@@ -66,6 +66,7 @@ class RoleController extends Controller
                         'can_edit' => $perms['edit'] ?? false,
                         'can_delete' => $perms['delete'] ?? false,
                         'can_archive' => $perms['archive'] ?? false,
+                        'can_assign' => $perms['assign'] ?? false,
                     ]);
                 }
             }
@@ -146,6 +147,7 @@ class RoleController extends Controller
                         'can_edit' => $perms['edit'] ?? false,
                         'can_delete' => $perms['delete'] ?? false,
                         'can_archive' => $perms['archive'] ?? false,
+                        'can_assign' => $perms['assign'] ?? false,
                     ]);
                 }
             }

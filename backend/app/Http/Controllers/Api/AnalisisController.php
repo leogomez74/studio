@@ -126,8 +126,22 @@ class AnalisisController extends Controller
             $validated['category'] = $this->determineCategoryFromData($validated);
         }
 
-        // Si no se especificó assigned_to, asignar al responsable default de leads
-        if (empty($validated['assigned_to'])) {
+        // Verificar si el usuario tiene permiso para cambiar el responsable
+        $user = $request->user();
+        $canEditResponsable = false;
+        if ($user && $user->role) {
+            if ($user->role->full_access) {
+                $canEditResponsable = true;
+            } else {
+                $permission = \App\Models\RolePermission::where('role_id', $user->role_id)
+                    ->where('module_key', 'analizados')
+                    ->first();
+                $canEditResponsable = $permission && $permission->can_assign;
+            }
+        }
+
+        // Si no tiene permiso o no se especificó assigned_to, asignar al responsable default
+        if (!$canEditResponsable || empty($validated['assigned_to'])) {
             $defaultAssignee = \App\Models\User::where('is_default_lead_assignee', true)->first();
             if ($defaultAssignee) {
                 $validated['assigned_to'] = $defaultAssignee->id;
