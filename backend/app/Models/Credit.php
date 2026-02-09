@@ -97,9 +97,12 @@ class Credit extends Model
                 throw new \InvalidArgumentException('El campo tasa_id es obligatorio. No se puede crear un crédito sin una tasa asignada.');
             }
 
-            // Saldo inicial = monto_credito (los cargos ya fueron descontados antes de crear el crédito)
+            // Saldo inicial = monto_credito - cargos_adicionales
             if (!isset($credit->saldo)) {
-                $credit->saldo = (float) ($credit->monto_credito ?? 0);
+                $montoOriginal = (float) ($credit->monto_credito ?? 0);
+                $cargos = $credit->cargos_adicionales ?? [];
+                $totalCargos = is_array($cargos) ? array_sum($cargos) : 0;
+                $credit->saldo = $montoOriginal - $totalCargos;
             }
         });
 

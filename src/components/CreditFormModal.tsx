@@ -202,21 +202,15 @@ export function CreditFormModal({
       ? cargosAdicionales
       : undefined;
 
-    // Calcular monto neto restando los cargos si están habilitados
-    const montoConCargos = creditForm.conCargosAdicionales
-      ? montoNumerico -
-        cargosAdicionales.comision -
-        cargosAdicionales.transporte -
-        cargosAdicionales.respaldo_deudor -
-        cargosAdicionales.descuento_factura
-      : montoNumerico;
+    // El monto_credito siempre debe ser el monto ORIGINAL (sin restar deducciones)
+    // Las deducciones se guardan en cargos_adicionales y se calculan después
 
     const payload: Record<string, any> = {
       reference: creditForm.reference,
       title: creditForm.title,
       status: creditForm.status,
       category: creditForm.category,
-      monto_credito: montoConCargos, // Enviar monto con cargos si están habilitados
+      monto_credito: montoNumerico, // Enviar monto ORIGINAL sin restar deducciones
       lead_id: leadIdNumerico,
       description: creditForm.description,
       divisa: creditForm.divisa,

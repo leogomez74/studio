@@ -115,7 +115,7 @@ class CreditController extends Controller
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
         ]);
 
-        // Validar que monto_credito > 0 (ya viene con cargos descontados desde el frontend)
+        // Validar que monto_credito > 0 (este es el monto ORIGINAL, sin restar deducciones)
         if ($validated['monto_credito'] <= 0) {
             return response()->json([
                 'message' => 'El monto del crédito debe ser mayor a 0.',
@@ -264,8 +264,10 @@ class CreditController extends Controller
      */
     private function calculateAndSetCuota(Credit $credit): void
     {
-        // monto_credito ya viene con los cargos descontados desde el frontend
-        $monto = (float) $credit->monto_credito;
+        // Calcular monto neto restando cargos_adicionales
+        $montoOriginal = (float) $credit->monto_credito;
+        $cargos = $credit->cargos_adicionales ?? [];
+        $monto = $montoOriginal - array_sum($cargos);
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
 
@@ -299,8 +301,11 @@ class CreditController extends Controller
      */
     private function generateAmortizationSchedule(Credit $credit)
     {
-        // monto_credito ya viene con los cargos descontados desde el frontend
-        $monto = (float) $credit->monto_credito;
+        // Calcular monto neto restando cargos_adicionales si existen
+        $montoOriginal = (float) $credit->monto_credito;
+        $cargos = $credit->cargos_adicionales ?? [];
+        $totalCargos = array_sum($cargos);
+        $monto = $montoOriginal - $totalCargos;
 
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
@@ -469,17 +474,19 @@ class CreditController extends Controller
         $totalCapital = $paidPayments->sum('amortizacion');
         $totalInteres = $paidPayments->sum('interes_corriente') + $paidPayments->sum('interes_moratorio');
 
-        // monto_credito ya tiene los cargos descontados, cargos_adicionales es solo metadata
-        $totalCargos = array_sum($credit->cargos_adicionales ?? []);
+        // Calcular monto neto restando cargos del monto original
+        $cargos = $credit->cargos_adicionales ?? [];
+        $totalCargos = array_sum($cargos);
+        $montoNeto = $credit->monto_credito - $totalCargos;
 
         return response()->json([
             'credit_id' => $credit->id,
             'numero_operacion' => $credit->numero_operacion,
             'client_name' => $credit->lead ? $credit->lead->name : 'N/A',
             'monto_original' => $credit->monto_credito,
-            'cargos_adicionales' => $credit->cargos_adicionales ?? [],
+            'cargos_adicionales' => $cargos,
             'total_cargos' => $totalCargos,
-            'monto_neto' => $credit->monto_credito,
+            'monto_neto' => $montoNeto,
             'saldo_actual' => $credit->saldo,
             'total_capital_pagado' => $totalCapital,
             'total_intereses_pagados' => $totalInteres,

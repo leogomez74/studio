@@ -25,6 +25,7 @@ export interface DeduccionMensual {
 }
 
 export interface ManchaDetalle {
+  fecha: string;
   descripcion: string;
   monto: number;
 }
