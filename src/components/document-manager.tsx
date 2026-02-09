@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -51,8 +50,8 @@ const getFileTypeInfo = (mimeType?: string | null, fileName?: string) => {
 
 export function DocumentManager({ personId, initialDocuments = [], readonly = false, onDocumentChange }: DocumentManagerProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
-  const [uploading, setUploading] = useState(false);
-  const [category, setCategory] = useState<string>('otro');
+  const [uploadingCedula, setUploadingCedula] = useState(false);
+  const [uploadingRecibo, setUploadingRecibo] = useState(false);
   const { toast } = useToast();
 
   // Lightbox state
@@ -113,7 +112,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxOpen, goToPrevious, goToNext]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, category: 'cedula' | 'recibo_servicio') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -131,13 +130,31 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
       }
     }
 
+    // Check if trying to upload recibo when one already exists
+    if (category === 'recibo_servicio') {
+      const existingRecibo = documents.find(doc => (doc as any).category === 'recibo_servicio');
+      if (existingRecibo) {
+        toast({
+          title: 'Error',
+          description: 'Ya existe un recibo de servicio registrado. Elimínelo primero para subir uno nuevo.',
+          variant: 'destructive'
+        });
+        e.target.value = '';
+        return;
+      }
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('person_id', String(personId));
     formData.append('category', category);
 
     try {
-      setUploading(true);
+      if (category === 'cedula') {
+        setUploadingCedula(true);
+      } else {
+        setUploadingRecibo(true);
+      }
       const response = await api.post('/api/person-documents', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -159,7 +176,11 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
       console.error('Error uploading document:', error);
       toast({ title: 'Error', description: 'No se pudo subir el documento.', variant: 'destructive' });
     } finally {
-      setUploading(false);
+      if (category === 'cedula') {
+        setUploadingCedula(false);
+      } else {
+        setUploadingRecibo(false);
+      }
       // Reset input
       e.target.value = '';
     }
@@ -204,34 +225,49 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     return `${baseUrl}${path}`;
   };
 
+  // Check if documents exist
+  const hasCedula = documents.some(doc => (doc as any).category === 'cedula');
+  const hasRecibo = documents.some(doc => (doc as any).category === 'recibo_servicio');
+
   return (
     <div className="space-y-4">
       {!readonly && (
-        <div className="flex items-end gap-4">
-          <div className="grid w-full max-w-xs items-center gap-1.5">
-            <Label htmlFor="document-category">Tipo de Documento</Label>
-            <Select value={category} onValueChange={setCategory} disabled={uploading}>
-              <SelectTrigger id="document-category">
-                <SelectValue placeholder="Seleccionar tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cedula">Cédula</SelectItem>
-                <SelectItem value="recibo_servicio">Recibo de Servicio</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid w-full max-w-sm items-center gap-1.5 transition-colors cursor-pointer">
-            <Label htmlFor="document-upload">Archivo</Label>
-            <Input
-              className='cursor-pointer'
-              id="document-upload"
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
-              onChange={handleFileUpload}
-              disabled={uploading}
-            />
-          </div>
-          {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Selector para Cédula - Solo mostrar si no hay cédula subida */}
+          {!hasCedula && (
+            <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="cedula-upload">Cédula</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  className='cursor-pointer flex-1'
+                  id="cedula-upload"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
+                  onChange={(e) => handleFileUpload(e, 'cedula')}
+                  disabled={uploadingCedula}
+                />
+                {uploadingCedula && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              </div>
+            </div>
+          )}
+
+          {/* Selector para Recibo de Servicio - Solo mostrar si no hay recibo subido */}
+          {!hasRecibo && (
+            <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="recibo-upload">Recibo de Servicio</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  className='cursor-pointer flex-1'
+                  id="recibo-upload"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
+                  onChange={(e) => handleFileUpload(e, 'recibo_servicio')}
+                  disabled={uploadingRecibo}
+                />
+                {uploadingRecibo && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

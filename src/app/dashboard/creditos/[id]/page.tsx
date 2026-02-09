@@ -233,6 +233,13 @@ const CARGOS_CONFIG = {
     soloRegular: false,
     descripcion: 'Monto variable'
   },
+  cancelacion_manchas: {
+    label: 'Cancelación de manchas',
+    porcentaje: null as number | null,
+    fijo: null as number | null,
+    soloRegular: false,
+    descripcion: 'Monto variable para cancelación de manchas'
+  },
 };
 
 type TipoCargoAdicional = keyof typeof CARGOS_CONFIG;
@@ -242,6 +249,7 @@ interface CargosAdicionales {
   transporte: number;
   respaldo_deudor: number;
   descuento_factura: number;
+  cancelacion_manchas: number;
 }
 
 interface CreditItem {
@@ -781,7 +789,11 @@ function CreditDetailClient({ id }: { id: string }) {
     transporte: 0,
     respaldo_deudor: 0,
     descuento_factura: 0,
+    cancelacion_manchas: 0,
   });
+
+  // Estado para trackear el campo de cargo en edición
+  const [editingCargo, setEditingCargo] = useState<TipoCargoAdicional | null>(null);
   
   // Combobox/Select Data
   const [users, setUsers] = useState<{id: number, name: string}[]>([]);
@@ -1122,6 +1134,7 @@ function CreditDetailClient({ id }: { id: string }) {
       transporte: 0,
       respaldo_deudor: 0,
       descuento_factura: 0,
+      cancelacion_manchas: 0,
     };
 
     (Object.entries(CARGOS_CONFIG) as [TipoCargoAdicional, typeof CARGOS_CONFIG[TipoCargoAdicional]][]).forEach(([key, config]) => {
@@ -1564,6 +1577,7 @@ function CreditDetailClient({ id }: { id: string }) {
         transporte: 0,
         respaldo_deudor: 0,
         descuento_factura: 0,
+        cancelacion_manchas: 0,
       });
     }
     setIsEditMode(false);
@@ -1853,11 +1867,15 @@ function CreditDetailClient({ id }: { id: string }) {
                                   {isEditMode ? (
                                     <Input
                                       type="text"
-                                      value={cargosAdicionales[key] ? formatCurrency(cargosAdicionales[key]) : ""}
+                                      value={editingCargo === key
+                                        ? String(cargosAdicionales[key] || '')
+                                        : (cargosAdicionales[key] ? formatCurrency(cargosAdicionales[key]) : "")}
                                       onChange={(e) => {
                                         const raw = e.target.value.replace(/[^0-9]/g, '');
                                         handleCargoChange(key, Number(raw) || 0);
                                       }}
+                                      onFocus={() => setEditingCargo(key)}
+                                      onBlur={() => setEditingCargo(null)}
                                       placeholder={getPlaceholder()}
                                       className={`h-9 ${deshabilitado ? 'opacity-50' : ''}`}
                                       disabled={deshabilitado}

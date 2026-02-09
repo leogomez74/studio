@@ -85,7 +85,7 @@ export function DashboardHeader() {
   const [deletingDaniel, setDeletingDaniel] = useState(false);
 
   const handleDeleteLeo = async () => {
-    const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 108760664? Esta acción eliminará también todas las oportunidades, análisis y créditos asociados.');
+    const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 108760664? Esta acción eliminará también todas las oportunidades, análisis, créditos y sus documentos asociados.');
 
     if (!confirmed) return;
 
@@ -96,9 +96,12 @@ export function DashboardHeader() {
       });
 
       if (response.data.success) {
+        const deleted = response.data.deleted;
+        const docsInfo = `Documentos: ${deleted.person_documents_files || 0} de persona, ${deleted.credit_documents_files || 0} de créditos`;
+
         toast({
           title: 'Eliminado correctamente',
-          description: response.data.message,
+          description: `${response.data.message}. ${docsInfo}`,
         });
       }
     } catch (error: any) {
@@ -121,7 +124,7 @@ export function DashboardHeader() {
   };
 
   const handleDeleteDaniel = async () => {
-    const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 118760656? Esta acción eliminará también todas las oportunidades, análisis y créditos asociados.');
+    const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 118760656? Esta acción eliminará también todas las oportunidades, análisis, créditos y sus documentos asociados.');
 
     if (!confirmed) return;
 
@@ -132,9 +135,12 @@ export function DashboardHeader() {
       });
 
       if (response.data.success) {
+        const deleted = response.data.deleted;
+        const docsInfo = `Documentos: ${deleted.person_documents_files || 0} de persona, ${deleted.credit_documents_files || 0} de créditos`;
+
         toast({
           title: 'Eliminado correctamente',
-          description: response.data.message,
+          description: `${response.data.message}. ${docsInfo}`,
         });
       }
     } catch (error: any) {
