@@ -1280,14 +1280,6 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Teléfono Amigo</Label>
-                                        <Input
-                                            value={(formData as any).telefono3 || ""}
-                                            onChange={(e) => handleInputChange("telefono3" as keyof Lead, e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
                                         <Label>WhatsApp {isFieldMissing('whatsapp') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.whatsapp || ""}
