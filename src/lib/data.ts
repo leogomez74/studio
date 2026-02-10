@@ -86,6 +86,11 @@ export type Lead = {
   relacionado_a?: string;
   tipo_relacion?: string;
 
+  // Referencia 2
+  tel_amigo_2?: string;
+  relacionado_a_2?: string;
+  tipo_relacion_2?: string;
+
   // --- Campos Calculados / Relaciones (No fillable directo, pero retornados por API) ---
   lead_status?: { id: number; name: string; color?: string } | string;
   assigned_to_id?: number; // A veces se usa distinto a 'responsable'
@@ -172,6 +177,9 @@ export type Client = {
       fecha_nacimiento?: string;
       relacionado_a?: string;
       tipo_relacion?: string;
+      tel_amigo_2?: string;
+      relacionado_a_2?: string;
+      tipo_relacion_2?: string;
       notes?: string;
       source?: string;
       genero?: string;

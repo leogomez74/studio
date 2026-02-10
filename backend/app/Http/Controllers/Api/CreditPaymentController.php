@@ -7,10 +7,14 @@ use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Credit;
 use App\Models\LoanConfiguration;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Carbon\Carbon;
 
 class CreditPaymentController extends Controller
@@ -24,6 +28,420 @@ class CreditPaymentController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         return response()->json($payments);
+    }
+
+    /**
+     * Preliminar de planilla - Analiza sin aplicar cambios
+     */
+    public function previewPlanilla(Request $request)
+    {
+        $validated = $request->validate([
+            'deductora_id' => 'required|exists:deductoras,id',
+            'fecha_proceso' => 'nullable|date',
+            'file' => 'required|file|mimes:xlsx,xls,csv'
+        ]);
+
+        $deductoraId = $validated['deductora_id'];
+        $fechaProceso = $validated['fecha_proceso'] ?? now()->format('Y-m-d');
+
+        $file = $request->file('file');
+        $path = $file->store('uploads/planillas_preview', 'public');
+        $fullPath = storage_path('app/public/' . $path);
+
+        $preview = [];
+        $totales = [
+            'total_registros' => 0,
+            'completos' => 0,
+            'parciales' => 0,
+            'no_encontrados' => 0,
+            'monto_total_planilla' => 0,
+            'monto_total_esperado' => 0,
+            'diferencia_total' => 0,
+        ];
+
+        try {
+            $readerType = IOFactory::identify($fullPath);
+            $reader = IOFactory::createReader($readerType);
+
+            $delimiter = ',';
+            if ($readerType === 'Csv') {
+                $handle = fopen($fullPath, 'r');
+                if ($handle) {
+                    $sample = '';
+                    $lineCount = 0;
+                    while (($line = fgets($handle)) !== false && $lineCount < 5) {
+                        $sample .= $line;
+                        $lineCount++;
+                    }
+                    fclose($handle);
+                    if (substr_count($sample, ';') > substr_count($sample, ',')) {
+                        $delimiter = ';';
+                    }
+                }
+                if ($reader instanceof Csv) {
+                    $reader->setDelimiter($delimiter);
+                }
+            }
+
+            $spreadsheet = $reader->load($fullPath);
+            $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+            $header = reset($rows);
+
+            // Detectar columnas
+            $montoCol = null;
+            $cedulaCol = null;
+            foreach ($header as $col => $val) {
+                $v = mb_strtolower(trim((string)$val));
+                if (str_contains($v, 'monto') || str_contains($v, 'abono')) {
+                    $montoCol = $col;
+                }
+                if (str_contains($v, 'cedula') || str_contains($v, 'cédula')) {
+                    $cedulaCol = $col;
+                }
+            }
+
+            if (!$montoCol || !$cedulaCol || $montoCol === $cedulaCol) {
+                return response()->json([
+                    'message' => 'No se pudieron detectar las columnas Cédula y Monto'
+                ], 422);
+            }
+
+            // Procesar cada fila
+            $rowIndex = 0;
+            foreach ($rows as $row) {
+                $rowIndex++;
+                if ($rowIndex === 1) continue; // Skip header
+
+                $rawCedula = trim((string)($row[$cedulaCol] ?? ''));
+                $rawMonto = trim((string)($row[$montoCol] ?? ''));
+                $cleanCedula = preg_replace('/[^0-9]/', '', $rawCedula);
+
+                if ($cleanCedula === '' || $rawMonto === '') {
+                    continue;
+                }
+
+                // Detectar formato del monto
+                $lastComma = strrpos($rawMonto, ',');
+                $lastDot = strrpos($rawMonto, '.');
+                if ($lastComma !== false && $lastDot !== false) {
+                    if ($lastComma > $lastDot) {
+                        $cleanMonto = str_replace('.', '', $rawMonto);
+                        $cleanMonto = str_replace(',', '.', $cleanMonto);
+                    } else {
+                        $cleanMonto = str_replace(',', '', $rawMonto);
+                    }
+                } elseif ($lastComma !== false && $lastDot === false) {
+                    $cleanMonto = str_replace(',', '.', $rawMonto);
+                } else {
+                    $cleanMonto = $rawMonto;
+                }
+                $montoPlanilla = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
+
+                // Buscar crédito
+                $credit = Credit::with(['lead', 'planDePagos' => function($q) {
+                    $q->whereIn('estado', ['Mora', 'Pendiente', 'Parcial'])
+                      ->where('numero_cuota', '>', 0)
+                      ->orderByRaw("FIELD(estado, 'Mora', 'Parcial', 'Pendiente')")
+                      ->orderBy('numero_cuota', 'asc');
+                }])->whereHas('lead', function($q) use ($rawCedula, $cleanCedula, $deductoraId) {
+                    $q->where(function($query) use ($rawCedula, $cleanCedula) {
+                        $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                    })->where('deductora_id', $deductoraId);
+                })->first();
+
+                if ($credit) {
+                    // Obtener la primera cuota pendiente
+                    $cuotaPendiente = $credit->planDePagos->first();
+
+                    if ($cuotaPendiente) {
+                        $totalExigible = $cuotaPendiente->cuota
+                                       + $cuotaPendiente->interes_moratorio
+                                       + ($cuotaPendiente->int_corriente_vencido ?? 0);
+
+                        $diferencia = $montoPlanilla - $totalExigible;
+                        $estado = abs($diferencia) < 1 ? 'Completo' : ($diferencia < 0 ? 'Parcial' : 'Sobrepago');
+
+                        if ($estado === 'Completo') $totales['completos']++;
+                        if ($estado === 'Parcial') $totales['parciales']++;
+
+                        $preview[] = [
+                            'cedula' => $rawCedula,
+                            'nombre' => $credit->lead->name ?? 'N/A',
+                            'credito_referencia' => $credit->reference,
+                            'numero_cuota' => $cuotaPendiente->numero_cuota,
+                            'monto_planilla' => $montoPlanilla,
+                            'cuota_esperada' => $totalExigible,
+                            'cuota_base' => $cuotaPendiente->cuota,
+                            'interes_mora' => $cuotaPendiente->interes_moratorio,
+                            'diferencia' => $diferencia,
+                            'estado' => $estado,
+                        ];
+
+                        $totales['monto_total_planilla'] += $montoPlanilla;
+                        $totales['monto_total_esperado'] += $totalExigible;
+                    } else {
+                        $preview[] = [
+                            'cedula' => $rawCedula,
+                            'nombre' => $credit->lead->name ?? 'N/A',
+                            'credito_referencia' => $credit->reference,
+                            'numero_cuota' => null,
+                            'monto_planilla' => $montoPlanilla,
+                            'cuota_esperada' => 0,
+                            'cuota_base' => 0,
+                            'interes_mora' => 0,
+                            'diferencia' => 0,
+                            'estado' => 'Sin cuotas pendientes',
+                        ];
+                    }
+
+                    $totales['total_registros']++;
+                } else {
+                    $preview[] = [
+                        'cedula' => $rawCedula,
+                        'nombre' => 'NO ENCONTRADO',
+                        'credito_referencia' => null,
+                        'numero_cuota' => null,
+                        'monto_planilla' => $montoPlanilla,
+                        'cuota_esperada' => 0,
+                        'cuota_base' => 0,
+                        'interes_mora' => 0,
+                        'diferencia' => 0,
+                        'estado' => 'No encontrado',
+                    ];
+
+                    $totales['no_encontrados']++;
+                }
+            }
+
+            $totales['diferencia_total'] = $totales['monto_total_planilla'] - $totales['monto_total_esperado'];
+
+            // Eliminar archivo temporal
+            Storage::disk('public')->delete($path);
+
+            // Guardar preview en cache por 10 minutos para exportación
+            $hash = md5(json_encode($preview) . time());
+            Cache::put('planilla_preview_' . $hash, [
+                'preview' => $preview,
+                'totales' => $totales,
+                'deductora_id' => $deductoraId,
+                'fecha_proceso' => $fechaProceso,
+            ], now()->addMinutes(10));
+
+            return response()->json([
+                'preview' => $preview,
+                'totales' => $totales,
+                'deductora_id' => $deductoraId,
+                'fecha_proceso' => $fechaProceso,
+                'hash' => $hash,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al procesar el archivo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Exportar preview de planilla en Excel
+     */
+    public function exportPreviewExcel($hash)
+    {
+        $data = Cache::get('planilla_preview_' . $hash);
+
+        if (!$data) {
+            return response()->json(['message' => 'Datos no encontrados o expirados'], 404);
+        }
+
+        $preview = $data['preview'];
+        $totales = $data['totales'];
+        $fechaProceso = $data['fecha_proceso'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Título
+        $sheet->setCellValue('A1', 'RESUMEN DE CARGA DE PLANILLA');
+        $sheet->mergeCells('A1:J1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        // Información general
+        $sheet->setCellValue('A2', 'Fecha de Proceso:');
+        $sheet->setCellValue('B2', $fechaProceso);
+        $sheet->setCellValue('A3', 'Total Registros:');
+        $sheet->setCellValue('B3', $totales['total_registros']);
+        $sheet->setCellValue('D3', 'Completos:');
+        $sheet->setCellValue('E3', $totales['completos']);
+        $sheet->setCellValue('F3', 'Parciales:');
+        $sheet->setCellValue('G3', $totales['parciales']);
+
+        // Encabezados
+        $row = 5;
+        $headers = ['Cédula', 'Nombre', 'Crédito', 'Cuota #', 'Monto Planilla', 'Cuota Esperada', 'Cuota Base', 'Int. Mora', 'Diferencia', 'Estado'];
+        $col = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($col . $row, $header);
+            $col++;
+        }
+        $sheet->getStyle('A' . $row . ':J' . $row)->getFont()->setBold(true);
+        $sheet->getStyle('A' . $row . ':J' . $row)->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB('4472C4');
+        $sheet->getStyle('A' . $row . ':J' . $row)->getFont()->getColor()->setRGB('FFFFFF');
+
+        // Datos
+        $row++;
+        foreach ($preview as $item) {
+            $sheet->setCellValue('A' . $row, $item['cedula']);
+            $sheet->setCellValue('B' . $row, $item['nombre']);
+            $sheet->setCellValue('C' . $row, $item['credito_referencia'] ?? '');
+            $sheet->setCellValue('D' . $row, $item['numero_cuota'] ?? '');
+            $sheet->setCellValue('E' . $row, $item['monto_planilla']);
+            $sheet->setCellValue('F' . $row, $item['cuota_esperada']);
+            $sheet->setCellValue('G' . $row, $item['cuota_base']);
+            $sheet->setCellValue('H' . $row, $item['interes_mora']);
+            $sheet->setCellValue('I' . $row, $item['diferencia']);
+            $sheet->setCellValue('J' . $row, $item['estado']);
+
+            // Colorear según estado
+            if ($item['estado'] === 'Parcial') {
+                $sheet->getStyle('J' . $row)->getFill()
+                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('FFF3CD');
+            } elseif ($item['estado'] === 'No encontrado') {
+                $sheet->getStyle('J' . $row)->getFill()
+                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('F8D7DA');
+            }
+
+            $row++;
+        }
+
+        // Totales
+        $row++;
+        $sheet->setCellValue('D' . $row, 'TOTALES:');
+        $sheet->setCellValue('E' . $row, $totales['monto_total_planilla']);
+        $sheet->setCellValue('F' . $row, $totales['monto_total_esperado']);
+        $sheet->setCellValue('I' . $row, $totales['diferencia_total']);
+        $sheet->getStyle('D' . $row . ':I' . $row)->getFont()->setBold(true);
+
+        // Autosize columnas
+        foreach (range('A', 'J') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Guardar
+        $writer = new Xlsx($spreadsheet);
+        $filename = 'resumen_planilla_' . $fechaProceso . '.xlsx';
+        $tempFile = storage_path('app/public/' . $filename);
+        $writer->save($tempFile);
+
+        return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Exportar preview de planilla en PDF
+     */
+    public function exportPreviewPdf($hash)
+    {
+        $data = Cache::get('planilla_preview_' . $hash);
+
+        if (!$data) {
+            return response()->json(['message' => 'Datos no encontrados o expirados'], 404);
+        }
+
+        $preview = $data['preview'];
+        $totales = $data['totales'];
+        $fechaProceso = $data['fecha_proceso'];
+
+        // Generar HTML para PDF
+        $html = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Resumen de Planilla</title>
+            <style>
+                body { font-family: Arial, sans-serif; font-size: 10px; }
+                h1 { text-align: center; color: #333; font-size: 16px; margin-bottom: 10px; }
+                .info { text-align: center; margin-bottom: 15px; font-size: 9px; }
+                .totales { margin-bottom: 15px; padding: 10px; background: #f5f5f5; }
+                .totales-grid { display: table; width: 100%; margin-bottom: 10px; }
+                .totales-item { display: table-cell; text-align: center; padding: 5px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                th { background-color: #4472C4; color: white; padding: 6px 4px; text-align: left; font-size: 9px; }
+                td { padding: 5px 4px; border-bottom: 1px solid #ddd; font-size: 8px; }
+                .text-right { text-align: right; }
+                .text-center { text-align: center; }
+                .badge { padding: 2px 6px; border-radius: 3px; font-size: 7px; }
+                .badge-green { background: #d4edda; color: #155724; }
+                .badge-yellow { background: #fff3cd; color: #856404; }
+                .badge-red { background: #f8d7da; color: #721c24; }
+                .total-row { font-weight: bold; background: #e3f2fd; }
+            </style>
+        </head>
+        <body>
+            <h1>RESUMEN DE CARGA DE PLANILLA</h1>
+            <div class="info">
+                Fecha de Proceso: ' . $fechaProceso . '<br>
+                Total: ' . $totales['total_registros'] . ' | Completos: ' . $totales['completos'] . ' | Parciales: ' . $totales['parciales'] . ' | No Encontrados: ' . $totales['no_encontrados'] . '
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cédula</th>
+                        <th>Nombre</th>
+                        <th>Crédito</th>
+                        <th class="text-center">Cuota #</th>
+                        <th class="text-right">Monto Planilla</th>
+                        <th class="text-right">Cuota Esperada</th>
+                        <th class="text-right">Diferencia</th>
+                        <th class="text-center">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>';
+
+        foreach ($preview as $item) {
+            $badgeClass = 'badge ';
+            if ($item['estado'] === 'Completo') $badgeClass .= 'badge-green';
+            elseif ($item['estado'] === 'Parcial') $badgeClass .= 'badge-yellow';
+            else $badgeClass .= 'badge-red';
+
+            $html .= '<tr>
+                <td>' . htmlspecialchars($item['cedula']) . '</td>
+                <td>' . htmlspecialchars($item['nombre']) . '</td>
+                <td>' . htmlspecialchars($item['credito_referencia'] ?? '-') . '</td>
+                <td class="text-center">' . ($item['numero_cuota'] ?? '-') . '</td>
+                <td class="text-right">' . number_format($item['monto_planilla'], 2) . '</td>
+                <td class="text-right">' . number_format($item['cuota_esperada'], 2) . '</td>
+                <td class="text-right">' . number_format($item['diferencia'], 2) . '</td>
+                <td class="text-center"><span class="' . $badgeClass . '">' . htmlspecialchars($item['estado']) . '</span></td>
+            </tr>';
+        }
+
+        $html .= '
+                    <tr class="total-row">
+                        <td colspan="4" class="text-right">TOTALES:</td>
+                        <td class="text-right">' . number_format($totales['monto_total_planilla'], 2) . '</td>
+                        <td class="text-right">' . number_format($totales['monto_total_esperado'], 2) . '</td>
+                        <td class="text-right">' . number_format($totales['diferencia_total'], 2) . '</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </body>
+        </html>';
+
+        // Generar PDF con Dompdf
+        $pdf = \PDF::loadHTML($html);
+        $pdf->setPaper('letter', 'landscape');
+
+        $filename = 'resumen_planilla_' . $fechaProceso . '.pdf';
+
+        return $pdf->download($filename);
     }
 
     /**
@@ -570,11 +988,12 @@ class CreditPaymentController extends Controller
                     $results[] = ['cedula' => $rawCedula, 'status' => 'skipped']; continue;
                 }
 
-                // Buscar crédito SOLO de la deductora seleccionada
-                $credit = Credit::where('deductora_id', $deductoraId)
-                    ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
-                        $q->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
-                    })->first();
+                // Buscar crédito por cédula del lead con la deductora seleccionada
+                $credit = Credit::whereHas('lead', function($q) use ($rawCedula, $cleanCedula, $deductoraId) {
+                    $q->where(function($query) use ($rawCedula, $cleanCedula) {
+                        $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                    })->where('deductora_id', $deductoraId);
+                })->first();
 
                 if ($credit) {
                     // Registrar que este crédito SÍ pagó
@@ -640,9 +1059,11 @@ class CreditPaymentController extends Controller
         $moraResults = [];
 
         $creditosSinPago = Credit::whereIn('status', ['Formalizado', 'En Mora'])
-            ->where('deductora_id', $deductoraId)
             ->whereNotNull('formalized_at')
             ->whereNotIn('id', $creditosQuePagaron)
+            ->whereHas('lead', function($q) use ($deductoraId) {
+                $q->where('deductora_id', $deductoraId);
+            })
             ->get();
 
         foreach ($creditosSinPago as $credit) {

@@ -104,6 +104,12 @@ class LeadController extends Controller
         }
 
         $perPage = min((int) $request->input('per_page', 10), 100);
+
+        // Si se solicita 'all', retornar sin paginar
+        if ($request->get('all') === 'true') {
+            return response()->json($query->latest()->get());
+        }
+
         $leads = $query->latest()->paginate($perPage);
 
         return response()->json($leads);
@@ -707,5 +713,44 @@ class LeadController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Buscar persons (leads y clientes) con autocompletar
+     * Búsqueda insensitive en nombre, apellidos y cédula
+     */
+    public function search(Request $request)
+    {
+        $query = $request->input('q', '');
+
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        // Buscar solo en Clientes (person_type_id = 2)
+        $results = Person::select('id', 'name', 'apellido1', 'apellido2', 'cedula', 'person_type_id')
+            ->where(function($q) use ($query) {
+                $q->where('name', 'LIKE', "%{$query}%")
+                  ->orWhere('apellido1', 'LIKE', "%{$query}%")
+                  ->orWhere('apellido2', 'LIKE', "%{$query}%")
+                  ->orWhere('cedula', 'LIKE', "%{$query}%");
+            })
+            ->where('is_active', true)
+            ->where('person_type_id', 2) // Solo clientes
+            ->limit(20)
+            ->get()
+            ->map(function($person) {
+                $fullName = trim("{$person->name} {$person->apellido1} {$person->apellido2}");
+
+                return [
+                    'id' => $person->id,
+                    'name' => $fullName,
+                    'cedula' => $person->cedula,
+                    'type' => 'Cliente',
+                    'label' => $fullName . ($person->cedula ? " ({$person->cedula})" : '')
+                ];
+            });
+
+        return response()->json($results);
     }
 }

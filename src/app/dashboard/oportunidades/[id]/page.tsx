@@ -565,6 +565,7 @@ export default function OpportunityDetailPage() {
 
   // Estados para archivos
   const [heredados, setHeredados] = useState<OpportunityFile[]>([]);
+  const [especificos, setEspecificos] = useState<OpportunityFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
 
   // Lightbox state
@@ -626,6 +627,7 @@ export default function OpportunityDetailPage() {
       setLoadingFiles(true);
       const res = await api.get(`/api/opportunities/${id}/files`);
       setHeredados(res.data.heredados || []);
+      setEspecificos(res.data.especificos || []);
     } catch (error) {
       console.error("Error fetching files:", error);
     } finally {
@@ -791,6 +793,9 @@ export default function OpportunityDetailPage() {
     if (!getReciboFile()) {
       missing.push('Archivo de Recibo');
     }
+    if (especificos.length === 0) {
+      missing.push('Documento Específico de la Oportunidad');
+    }
     return missing;
   };
 
@@ -838,7 +843,8 @@ export default function OpportunityDetailPage() {
 
   // Lightbox functions
   const getViewableFiles = () => {
-    return heredados.filter(f => isImageFile(f.name) || isPdfFile(f.name));
+    const allFiles = [...heredados, ...especificos];
+    return allFiles.filter(f => isImageFile(f.name) || isPdfFile(f.name));
   };
 
   const openLightbox = (file: OpportunityFile) => {

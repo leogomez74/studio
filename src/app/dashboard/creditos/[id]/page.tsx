@@ -295,6 +295,8 @@ interface CreditItem {
   plazo?: number | null;
   cuotas_atrasadas?: number | null;
   deductora?: { id: number; nombre: string } | null;
+  assigned_to?: number | null;
+  assignedTo?: { id: number; name: string } | null;
   divisa?: string | null;
   linea?: string | null;
   primera_deduccion?: string | null;
@@ -819,6 +821,8 @@ function CreditDetailClient({ id }: { id: string }) {
   // Deductoras
   const [deductoras, setDeductoras] = useState<DeductoraOption[]>([]);
   const [isLoadingDeductoras, setIsLoadingDeductoras] = useState(true);
+  // Tasks (for Responsable fallback)
+  const [creditTasks, setCreditTasks] = useState<TaskItem[]>([]);
 
   // Active Tab (controlled by query parameter)
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -1013,6 +1017,10 @@ function CreditDetailClient({ id }: { id: string }) {
       }
 
       setCredit(data);
+      // Set default value for garantía if not present
+      if (!data.garantia) {
+        data.garantia = 'Pagaré';
+      }
       setFormData(data);
       // Inicializar cargos adicionales
       if (data.cargos_adicionales) {
@@ -1082,7 +1090,57 @@ function CreditDetailClient({ id }: { id: string }) {
       }
     };
     fetchAgents();
-  }, []);
+
+    // Fetch tasks for Responsable fallback
+    const fetchCreditTasks = async () => {
+      try {
+        const response = await api.get('/api/tareas');
+        const data = response.data.data || response.data;
+        const allTasks = Array.isArray(data) ? data : [];
+
+        console.log('[DEBUG RESPONSABLE] ==================================');
+        console.log('[DEBUG RESPONSABLE] Total de tareas cargadas:', allTasks.length);
+
+        // Función para normalizar texto (eliminar acentos y convertir a minúsculas)
+        const normalizeText = (text: string) => {
+          return text
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, ''); // Elimina acentos
+        };
+
+        // Filtrar tareas con título "Nuevo credito creado" (insensitive a acentos y mayúsculas)
+        const filteredTasks = allTasks.filter((task: TaskItem) => {
+          if (!task.title) return false;
+          const normalizedTitle = normalizeText(task.title);
+          return (
+            normalizedTitle.includes('nuevo') &&
+            normalizedTitle.includes('credito') &&
+            normalizedTitle.includes('creado')
+          );
+        });
+
+        console.log('[DEBUG RESPONSABLE] Tareas con título "Nuevo credito creado":', filteredTasks);
+        console.log('[DEBUG RESPONSABLE] Número de tareas encontradas:', filteredTasks.length);
+
+        if (filteredTasks.length > 0) {
+          console.log('[DEBUG RESPONSABLE] Primera tarea:', filteredTasks[0]);
+          if (filteredTasks[0].assignee) {
+            console.log('[DEBUG RESPONSABLE] Responsable encontrado:', filteredTasks[0].assignee.name);
+          }
+        } else {
+          console.log('[DEBUG RESPONSABLE] NO se encontró tarea de crédito creado');
+        }
+        console.log('[DEBUG RESPONSABLE] ==================================');
+
+        setCreditTasks(filteredTasks);
+      } catch (error) {
+        console.error("Error fetching credit tasks:", error);
+        setCreditTasks([]);
+      }
+    };
+    fetchCreditTasks();
+  }, [id]);
 
   // Recalcular cargos cuando cambia el tipo de crédito
   useEffect(() => {
@@ -2011,13 +2069,13 @@ function CreditDetailClient({ id }: { id: string }) {
                           <div className="space-y-2">
                             <Label>Último Pago</Label>
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {formatDate(credit.fecha_ultimo_pago)}
+                                {formatDate(formData.fecha_ultimo_pago)}
                               </p>
                           </div>
                           <div className="space-y-2">
                             <Label>Primera Deducción</Label>
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {formatDate(credit.primera_deduccion)}
+                                {formatDate(formData.primera_deduccion)}
                               </p>
                           </div>
                           <div className="space-y-2">
@@ -2079,8 +2137,8 @@ function CreditDetailClient({ id }: { id: string }) {
                             <Label>Responsable</Label>
                             {isEditMode ? (
                               <Select
-                                value={String(formData.lead?.assigned_to_id ?? "")}
-                                onValueChange={value => handleInputChange('lead', { ...(formData.lead || {}), assigned_to_id: parseInt(value) }) }
+                                value={String(formData.assigned_to ?? "")}
+                                onValueChange={value => handleInputChange('assigned_to', parseInt(value)) }
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Seleccionar responsable" />
@@ -2093,7 +2151,32 @@ function CreditDetailClient({ id }: { id: string }) {
                               </Select>
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {agents.find(a => a.id === (formData as any).assigned_to_id)?.name || "-"}
+                                {(() => {
+                                  console.log('[DEBUG DISPLAY] ==================================');
+                                  console.log('[DEBUG DISPLAY] formData.assignedTo:', formData.assignedTo);
+                                  console.log('[DEBUG DISPLAY] formData.assigned_to:', formData.assigned_to);
+                                  console.log('[DEBUG DISPLAY] creditTasks:', creditTasks);
+                                  console.log('[DEBUG DISPLAY] creditTasks.length:', creditTasks.length);
+
+                                  // Primero intentar mostrar el responsable del crédito
+                                  if (formData.assignedTo?.name) {
+                                    console.log('[DEBUG DISPLAY] Mostrando responsable del crédito:', formData.assignedTo.name);
+                                    return formData.assignedTo.name;
+                                  }
+
+                                  // Si no hay, buscar en las tareas asociadas al crédito
+                                  const taskWithAssignee = creditTasks.find(task => task.assignee?.name);
+                                  console.log('[DEBUG DISPLAY] Tarea con assignee encontrada:', taskWithAssignee);
+
+                                  if (taskWithAssignee?.assignee?.name) {
+                                    console.log('[DEBUG DISPLAY] Mostrando responsable de tarea:', taskWithAssignee.assignee.name);
+                                    return taskWithAssignee.assignee.name;
+                                  }
+
+                                  console.log('[DEBUG DISPLAY] No se encontró responsable, mostrando "-"');
+                                  console.log('[DEBUG DISPLAY] ==================================');
+                                  return "-";
+                                })()}
                               </p>
                             )}
                           </div>

@@ -613,14 +613,35 @@ export default function LeadDetailPage() {
         'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
     ];
 
+    // Validar que al menos 1 referencia esté completa
+    const hasAtLeastOneCompleteReference = useCallback(() => {
+        if (!formData) return false;
+
+        // Verificar Referencia 1
+        const ref1Complete =
+            formData.tel_amigo && formData.tel_amigo !== '' &&
+            formData.relacionado_a && formData.relacionado_a !== '' &&
+            formData.tipo_relacion && formData.tipo_relacion !== '';
+
+        // Verificar Referencia 2
+        const ref2Complete =
+            formData.tel_amigo_2 && formData.tel_amigo_2 !== '' &&
+            formData.relacionado_a_2 && formData.relacionado_a_2 !== '' &&
+            formData.tipo_relacion_2 && formData.tipo_relacion_2 !== '';
+
+        return ref1Complete || ref2Complete;
+    }, [formData]);
+
     const checkIsComplete = useCallback(() => {
         if (!formData) return false;
-        return REQUIRED_FIELDS.every(field => {
+        const allFieldsFilled = REQUIRED_FIELDS.every(field => {
             const value = (formData as any)[field];
             if (field === 'deductora_id') return value && value !== 0;
             return value !== null && value !== undefined && value !== '';
         });
-    }, [formData]);
+        const hasReference = hasAtLeastOneCompleteReference();
+        return allFieldsFilled && hasReference;
+    }, [formData, hasAtLeastOneCompleteReference]);
 
     const isFieldMissing = useCallback((field: string) => {
         if (!formData || !REQUIRED_FIELDS.includes(field)) return false;
@@ -660,12 +681,19 @@ export default function LeadDetailPage() {
 
     const getMissingFieldsCount = useCallback(() => {
         if (!formData) return 0;
-        return REQUIRED_FIELDS.filter(field => {
+        let count = REQUIRED_FIELDS.filter(field => {
             const value = (formData as any)[field];
             if (field === 'deductora_id') return !value || value === 0;
             return value === null || value === undefined || value === '';
         }).length;
-    }, [formData]);
+
+        // Agregar 1 si no hay al menos una referencia completa
+        if (!hasAtLeastOneCompleteReference()) {
+            count += 1;
+        }
+
+        return count;
+    }, [formData, hasAtLeastOneCompleteReference]);
 
     // Protección: redirigir si intenta editar sin permiso
     useEffect(() => {
@@ -787,6 +815,7 @@ export default function LeadDetailPage() {
             'profesion', 'sector', 'puesto', 'estado_puesto',
             'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion',
             'institucion_direccion', 'actividad_economica', 'tipo_sociedad', 'nombramientos',
+            'tel_amigo_2', 'relacionado_a_2', 'tipo_relacion_2',
         ];
         const payload = Object.fromEntries(
             Object.entries(formData).filter(([key]) => EDITABLE_FIELDS.includes(key))
@@ -955,7 +984,12 @@ export default function LeadDetailPage() {
                                 <TooltipContent>
                                     <div className="text-xs space-y-1">
                                         {opportunities.length === 0 && <p>• No hay oportunidades para mostrar</p>}
-                                        {!checkIsComplete() && <p>• Completa todos los campos requeridos ({getMissingFieldsCount()} faltantes)</p>}
+                                        {!checkIsComplete() && (
+                                            <>
+                                                <p>• Completa todos los campos requeridos ({getMissingFieldsCount()} faltantes)</p>
+                                                {!hasAtLeastOneCompleteReference() && <p>• Al menos 1 referencia completa (teléfono, nombre y relación)</p>}
+                                            </>
+                                        )}
                                         {getMissingDocuments().length > 0 && <p>• Sube los documentos: {getMissingDocuments().join(', ')}</p>}
                                     </div>
                                 </TooltipContent>
@@ -1246,14 +1280,6 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Teléfono Amigo</Label>
-                                        <Input
-                                            value={(formData as any).telefono3 || ""}
-                                            onChange={(e) => handleInputChange("telefono3" as keyof Lead, e.target.value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
                                         <Label>WhatsApp {isFieldMissing('whatsapp') && <span className="text-red-500">*</span>}</Label>
                                         <Input
                                             value={formData.whatsapp || ""}
@@ -1268,6 +1294,93 @@ export default function LeadDetailPage() {
                                             onChange={(e) => handleInputChange("tel_casa" as keyof Lead, e.target.value)}
                                             disabled={!isEditMode} onBlur={handleBlur}
                                         />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <Separator />
+
+                            {/* Reference Information */}
+                            <div>
+                                <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                                    Información de Referencia (Máx. 2)
+                                    {hasAtLeastOneCompleteReference() ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-300">
+                                            <Check className="h-3 w-3 mr-1" />
+                                            Completo
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                            1 pendiente
+                                        </Badge>
+                                    )}
+                                </h3>
+
+                                {/* Referencia 1 */}
+                                <div className="mb-6">
+                                    <h4 className="text-sm font-medium mb-3 text-muted-foreground">Referencia 1</h4>
+                                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        <div className="space-y-2">
+                                            <Label>Número de Referencia {!hasAtLeastOneCompleteReference() && !(formData as any).tel_amigo && <span className="text-red-500">*</span>}</Label>
+                                            <Input
+                                                value={(formData as any).tel_amigo || ""}
+                                                onChange={(e) => handleInputChange("tel_amigo" as keyof Lead, e.target.value)}
+                                                disabled={!isEditMode} onBlur={handleBlur}
+                                                placeholder="Número telefónico"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Nombre de la Persona {!hasAtLeastOneCompleteReference() && !(formData as any).relacionado_a && <span className="text-red-500">*</span>}</Label>
+                                            <Input
+                                                value={(formData as any).relacionado_a || ""}
+                                                onChange={(e) => handleInputChange("relacionado_a" as keyof Lead, e.target.value)}
+                                                disabled={!isEditMode} onBlur={handleBlur}
+                                                placeholder="Nombre completo"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Relación {!hasAtLeastOneCompleteReference() && !(formData as any).tipo_relacion && <span className="text-red-500">*</span>}</Label>
+                                            <Input
+                                                value={(formData as any).tipo_relacion || ""}
+                                                onChange={(e) => handleInputChange("tipo_relacion" as keyof Lead, e.target.value)}
+                                                disabled={!isEditMode} onBlur={handleBlur}
+                                                placeholder="Ej: Amigo, Familiar"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Referencia 2 */}
+                                <div>
+                                    <h4 className="text-sm font-medium mb-3 text-muted-foreground">Referencia 2</h4>
+                                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        <div className="space-y-2">
+                                            <Label>Número de Referencia</Label>
+                                            <Input
+                                                value={(formData as any).tel_amigo_2 || ""}
+                                                onChange={(e) => handleInputChange("tel_amigo_2" as keyof Lead, e.target.value)}
+                                                disabled={!isEditMode} onBlur={handleBlur}
+                                                placeholder="Número telefónico"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Nombre de la Persona</Label>
+                                            <Input
+                                                value={(formData as any).relacionado_a_2 || ""}
+                                                onChange={(e) => handleInputChange("relacionado_a_2" as keyof Lead, e.target.value)}
+                                                disabled={!isEditMode} onBlur={handleBlur}
+                                                placeholder="Nombre completo"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Relación</Label>
+                                            <Input
+                                                value={(formData as any).tipo_relacion_2 || ""}
+                                                onChange={(e) => handleInputChange("tipo_relacion_2" as keyof Lead, e.target.value)}
+                                                disabled={!isEditMode} onBlur={handleBlur}
+                                                placeholder="Ej: Amigo, Familiar"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
