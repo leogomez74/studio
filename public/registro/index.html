@@ -192,7 +192,7 @@
                      <div class="grid md:grid-cols-2 gap-4">
                         <div class="form-group">
                             <label for="phone" class="block text-sm font-medium text-foreground mb-1">Teléfono (WhatsApp) *</label>
-                            <input type="tel" id="phone" name="phone" placeholder="88887777" minlength="7" maxlength="8" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
+                            <input type="tel" id="phone" name="phone" placeholder="8888-7777" minlength="7" maxlength="10" required class="w-full px-3 py-2 bg-background border border-input rounded-md text-sm">
                             <input type="hidden" id="phonePrefix" value="+506">
                             <p id="phone-error" class="hidden text-xs text-red-500 mt-1"></p>
                             <p id="whatsappLoading" class="hidden text-xs text-primary mt-1">Verificando WhatsApp...</p>
@@ -676,12 +676,19 @@
             setFieldsDisabled(false);
         });
 
+        function formatPhoneCR(digits) {
+            if (digits.length <= 4) return digits;
+            return digits.slice(0, 4) + '-' + digits.slice(4);
+        }
+
         document.getElementById('phone').addEventListener('input', function(e) {
             const isForeign = document.getElementById('isExtranjero').value === 'true';
             const rawDigits = sanitizePhone(e.target.value);
             const prefixLength = isForeign ? getSelectedPrefixDigits().length : 0;
             const maxLength = Math.max(4, 15 - prefixLength);
-            e.target.value = rawDigits.slice(0, maxLength);
+            const trimmed = rawDigits.slice(0, maxLength);
+            // Formato visual XXXX-XXXX para números CR
+            e.target.value = (!isForeign && trimmed.length > 0) ? formatPhoneCR(trimmed) : trimmed;
             // Reset WhatsApp verification when number changes
             whatsappVerified = false;
             lastPhoneChecked = '';

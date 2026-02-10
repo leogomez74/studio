@@ -380,11 +380,14 @@
             return montoValue === '690+' ? 'regular' : 'microcredito';
         }
 
-        function formatSalario(value) {
-            // Solo números
-            const numericValue = value.replace(/[^0-9]/g, '');
-            // Formato con comas
-            return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        function formatColones(value) {
+            const num = value.replace(/[^0-9]/g, '');
+            if (!num) return '';
+            return '₡' + parseInt(num).toLocaleString('es-CR');
+        }
+
+        function getRawNumber(value) {
+            return value.replace(/[^0-9]/g, '');
         }
 
         function updateDynamicBlocks() {
@@ -477,7 +480,7 @@
                     const monto = document.querySelector('select[name="monto"]').value;
                     const uso = document.querySelector('select[name="uso_credito"]').value;
                     const institucion = document.getElementById('institucionValue').value;
-                    const salario = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
+                    const salario = getRawNumber(document.getElementById('salarioExacto').value);
                     const tieneDeudas = document.querySelector('select[name="tiene_deudas"]').value;
 
                     if (!monto || !uso || !institucion || !salario || !tieneDeudas) {
@@ -517,7 +520,7 @@
                 data.monto = montoValue;
                 data.uso_credito = document.querySelector('select[name="uso_credito"]').value;
                 data.institucion_labora = document.getElementById('institucionValue').value;
-                data.salario_exacto = document.getElementById('salarioExacto').value.replace(/[^0-9]/g, '');
+                data.salario_exacto = getRawNumber(document.getElementById('salarioExacto').value);
                 data.tiene_deudas = document.querySelector('select[name="tiene_deudas"]').value;
             }
             if (interes === 'servicios_legales' || interes === 'ambos') {
@@ -658,7 +661,7 @@
             const interes = document.querySelector('input[name="interes"]:checked')?.value;
 
             // Obtener valor numérico del salario
-            const salarioValue = parseInt(salarioExacto.value.replace(/[^0-9]/g, ''));
+            const salarioValue = parseInt(getRawNumber(salarioExacto.value));
 
             // Solo verificar si el interés incluye crédito y el salario es menor a 300,000
             if ((interes === 'credito' || interes === 'ambos') && salarioValue < 300000) {
@@ -725,20 +728,11 @@
                 });
             });
             // Salario - formatear y validar
-            document.getElementById('salarioExacto').addEventListener('input', (e) => {
-                const formatted = formatSalario(e.target.value);
-                e.target.value = formatted;
-                validateSalario();
-            });
-            // Rango de ingreso - validar salario y verificar salario bajo
-            // Event listener para formatear salario con comas
             const salarioInput = document.getElementById('salarioExacto');
             salarioInput.addEventListener('input', (e) => {
-                const formatted = formatSalario(e.target.value);
-                e.target.value = formatted;
+                const raw = getRawNumber(e.target.value);
+                e.target.value = raw ? formatColones(raw) : '';
             });
-
-            // Event listener para verificar salario bajo cuando cambia el salario
             salarioInput.addEventListener('blur', () => {
                 checkSalarioBajo();
             });

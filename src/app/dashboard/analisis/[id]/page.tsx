@@ -1269,12 +1269,13 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.manchas_detalle && analisis.manchas_detalle.length > 0 ? (
+                  {analisis.mancha_detalles && analisis.mancha_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.manchas_detalle.map((mancha, idx) => (
-                        <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm">
-                          <p className="font-medium text-gray-700">{mancha.descripcion}</p>
-                          <p className="text-orange-700 font-semibold mt-1">
+                      {analisis.mancha_detalles.map((mancha: any, idx: number) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm space-y-1">
+                          <p className="font-medium text-gray-700">{mancha.descripcion || 'Sin descripción'}</p>
+                          <p className="text-gray-600">Inicio: {new Date(mancha.fecha_inicio).toLocaleDateString('es-CR')}{mancha.fecha_fin ? ` — Fin: ${new Date(mancha.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-orange-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(mancha.monto)}
                           </p>
                         </div>
@@ -1302,15 +1303,15 @@ export default function AnalisisDetailPage() {
                 <CollapsibleContent>
                   {analisis.juicios_detalle && analisis.juicios_detalle.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.juicios_detalle.map((juicio, idx) => (
+                      {analisis.juicios_detalle.map((juicio: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
                           <div className="flex items-center justify-between">
-                            <p className="font-medium text-gray-700">Expediente: {juicio.expediente}</p>
+                            <p className="font-medium text-gray-700">Expediente: {juicio.expediente || '-'}</p>
                             <Badge variant={juicio.estado === 'activo' ? 'destructive' : 'secondary'}>
                               {juicio.estado}
                             </Badge>
                           </div>
-                          <p className="text-gray-600">Fecha: {new Date(juicio.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="text-gray-600">Inicio: {new Date(juicio.fecha_inicio).toLocaleDateString('es-CR')}{juicio.fecha_fin ? ` — Fin: ${new Date(juicio.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
                           <p className="text-red-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(juicio.monto)}
                           </p>
@@ -1339,10 +1340,10 @@ export default function AnalisisDetailPage() {
                 <CollapsibleContent>
                   {analisis.embargos_detalle && analisis.embargos_detalle.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.embargos_detalle.map((embargo, idx) => (
+                      {analisis.embargos_detalle.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
-                          <p className="font-medium text-gray-700">{embargo.motivo}</p>
-                          <p className="text-gray-600">Fecha: {new Date(embargo.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
+                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}{embargo.fecha_fin ? ` — Fin: ${new Date(embargo.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
                           <p className="text-purple-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
                           </p>
@@ -1413,13 +1414,17 @@ export default function AnalisisDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Monto</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={propuestaForm.monto}
-                      onChange={(e) => setPropuestaForm(prev => ({ ...prev, monto: e.target.value }))}
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        className="pl-7"
+                        placeholder="0"
+                        value={propuestaForm.monto ? Number(propuestaForm.monto).toLocaleString('en-US') : ''}
+                        onChange={(e) => setPropuestaForm(prev => ({ ...prev, monto: e.target.value.replace(/[^\d]/g, '') }))}
+                      />
+                    </div>
                   </div>
                   <div>
                     <Label className="text-xs">Plazo (meses)</Label>
@@ -1889,8 +1894,10 @@ export default function AnalisisDetailPage() {
         }}
         products={products}
         leads={leads}
+        manchasDetalle={analisis?.mancha_detalles}
+        analisisId={analisis?.id}
         onSuccess={async () => {
-          // Refrescar análisis para actualizar has_credit
+          // Refrescar análisis para actualizar has_credit y manchas
           const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
           setAnalisis(resAnalisis.data);
         }}

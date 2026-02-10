@@ -148,7 +148,24 @@ class AnalisisController extends Controller
             }
         }
 
+        // Extraer detalles antes de crear el análisis
+        $manchasData = $validated['manchas_detalle'] ?? [];
+        $juiciosData = $validated['juicios_detalle'] ?? [];
+        $embargosData = $validated['embargos_detalle'] ?? [];
+        unset($validated['manchas_detalle'], $validated['juicios_detalle'], $validated['embargos_detalle']);
+
         $analisis = Analisis::create($validated);
+
+        // Guardar detalles en tablas relacionadas
+        foreach ($manchasData as $mancha) {
+            $analisis->manchaDetalles()->create($mancha);
+        }
+        foreach ($juiciosData as $juicio) {
+            $analisis->juicioDetalles()->create($juicio);
+        }
+        foreach ($embargosData as $embargo) {
+            $analisis->embargoDetalles()->create($embargo);
+        }
 
         // Crear automáticamente la primera propuesta con el monto sugerido y plazo
         if (!empty($validated['monto_sugerido']) && !empty($validated['plazo'])) {
@@ -201,7 +218,7 @@ class AnalisisController extends Controller
 
     public function show(int $id)
     {
-        $analisis = Analisis::with(['opportunity', 'lead', 'propuestas.aceptadaPorUser:id,name'])->findOrFail($id);
+        $analisis = Analisis::with(['opportunity', 'lead', 'propuestas.aceptadaPorUser:id,name', 'manchaDetalles', 'juicioDetalles', 'embargoDetalles'])->findOrFail($id);
 
         // Agregar información de si tiene crédito asociado y su ID
         $analisis->has_credit = $analisis->has_credit;
@@ -276,7 +293,33 @@ class AnalisisController extends Controller
             $validated['estado_cliente'] = null;
         }
 
+        // Extraer detalles antes de actualizar
+        $manchasData = $validated['manchas_detalle'] ?? null;
+        $juiciosData = $validated['juicios_detalle'] ?? null;
+        $embargosData = $validated['embargos_detalle'] ?? null;
+        unset($validated['manchas_detalle'], $validated['juicios_detalle'], $validated['embargos_detalle']);
+
         $analisis->update($validated);
+
+        // Sincronizar detalles en tablas relacionadas (reemplazar todos)
+        if ($manchasData !== null) {
+            $analisis->manchaDetalles()->delete();
+            foreach ($manchasData as $mancha) {
+                $analisis->manchaDetalles()->create($mancha);
+            }
+        }
+        if ($juiciosData !== null) {
+            $analisis->juicioDetalles()->delete();
+            foreach ($juiciosData as $juicio) {
+                $analisis->juicioDetalles()->create($juicio);
+            }
+        }
+        if ($embargosData !== null) {
+            $analisis->embargoDetalles()->delete();
+            foreach ($embargosData as $embargo) {
+                $analisis->embargoDetalles()->create($embargo);
+            }
+        }
 
         // Crear tarea automática al aceptar o rechazar estado PEP
         if ($isAceptandoPep || $isRechazandoPep) {

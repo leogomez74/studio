@@ -265,6 +265,10 @@ export default function CobrosPage() {
   // --- NUEVO: Estado para estrategia de Abono Extraordinario ---
   // 'reduce_amount' = Bajar Cuota | 'reduce_term' = Bajar Plazo
   const [extraordinaryStrategy, setExtraordinaryStrategy] = useState<'reduce_amount' | 'reduce_term'>('reduce_amount');
+
+  // --- Estado para Cancelación Anticipada ---
+  const [cancelacionData, setCancelacionData] = useState<any>(null);
+  const [loadingCancelacion, setLoadingCancelacion] = useState(false);
   
   const [selectedLeadId, setSelectedLeadId] = useState<string>('');
   const [selectedCreditId, setSelectedCreditId] = useState<string>('');
@@ -381,6 +385,28 @@ export default function CobrosPage() {
     return creditsList.find(c => String(c.id) === selectedCreditId);
   }, [creditsList, selectedCreditId]);
 
+  // Calcular cancelación anticipada cuando se selecciona un crédito con ese tipo
+  useEffect(() => {
+    if (tipoCobro === 'cancelacion_anticipada' && selectedCreditId) {
+      setLoadingCancelacion(true);
+      setCancelacionData(null);
+      api.post('/api/credit-payments/cancelacion-anticipada/calcular', {
+        credit_id: selectedCreditId
+      })
+        .then(res => {
+          setCancelacionData(res.data);
+          setMonto(String(res.data.monto_total_cancelar));
+        })
+        .catch(err => {
+          const msg = err.response?.data?.message || 'Error al calcular cancelación anticipada.';
+          toast({ title: 'Error', description: msg, variant: 'destructive' });
+        })
+        .finally(() => setLoadingCancelacion(false));
+    } else {
+      setCancelacionData(null);
+    }
+  }, [tipoCobro, selectedCreditId, toast]);
+
   // Cargar deductoras cuando se abre el modal de planilla
   useEffect(() => {
     if (planillaModalOpen && deductoras.length === 0) {
@@ -407,16 +433,38 @@ export default function CobrosPage() {
     setTipoCobro('normal');
     setMonto('');
     setFecha('');
-    setSelectedLeadId('');   
+    setSelectedLeadId('');
     setSelectedCreditId('');
     setExtraordinaryStrategy('reduce_amount'); // Reset strategy
+    setCancelacionData(null); // Reset cancelación anticipada
   }, []);
 
   const handleRegistrarAbono = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (!selectedCreditId || !monto || !fecha) {
-        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito, monto y fecha.', variant: 'destructive' });
+      if (!selectedCreditId || !fecha) {
+        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito y fecha.', variant: 'destructive' });
+        return;
+      }
+
+      // Cancelación Anticipada: usar endpoint específico
+      if (tipoCobro === 'cancelacion_anticipada') {
+        if (!cancelacionData) {
+          toast({ title: 'Error', description: 'Espere a que se calcule el monto de cancelación.', variant: 'destructive' });
+          return;
+        }
+        await api.post('/api/credit-payments/cancelacion-anticipada', {
+          credit_id: selectedCreditId,
+          fecha: fecha,
+        });
+        toast({ title: 'Éxito', description: 'Cancelación anticipada procesada. El crédito ha sido cerrado.' });
+        setPlanRefreshKey(k => k + 1);
+        closeAbonoModal();
+        return;
+      }
+
+      if (!monto) {
+        toast({ title: 'Faltan datos', description: 'Ingrese el monto.', variant: 'destructive' });
         return;
       }
 
@@ -476,8 +524,18 @@ export default function CobrosPage() {
       setShowingPreview(true);
       toast({ title: 'Preview generado', description: 'Revise el resumen antes de procesar.' });
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al generar preview.';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const data = err.response?.data;
+      let msg = data?.message || 'Error al generar preview.';
+      if (data?.errores) {
+        msg += '\n\n' + data.errores.join('\n');
+      }
+      if (data?.columnas_encontradas) {
+        msg += '\n\nColumnas encontradas en el archivo: ' + data.columnas_encontradas.join(', ');
+      }
+      if (data?.ayuda) {
+        msg += '\n\n' + data.ayuda;
+      }
+      toast({ title: 'Error en el archivo', description: msg, variant: 'destructive', duration: 15000 });
     } finally {
       setLoadingPreview(false);
     }
@@ -511,8 +569,18 @@ export default function CobrosPage() {
       setPlanRefreshKey(k => k + 1);
       closePlanillaModal();
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al procesar planilla.';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const data = err.response?.data;
+      let msg = data?.message || 'Error al procesar planilla.';
+      if (data?.errores) {
+        msg += '\n\n' + data.errores.join('\n');
+      }
+      if (data?.columnas_encontradas) {
+        msg += '\n\nColumnas encontradas en el archivo: ' + data.columnas_encontradas.join(', ');
+      }
+      if (data?.ayuda) {
+        msg += '\n\n' + data.ayuda;
+      }
+      toast({ title: 'Error en el archivo', description: msg, variant: 'destructive', duration: 15000 });
     } finally {
       setUploading(false);
     }
@@ -578,10 +646,10 @@ export default function CobrosPage() {
         <CardDescription>Administra los créditos en mora y visualiza el historial de abonos.</CardDescription>
       </CardHeader>
       
-      <Tabs defaultValue="gestion" className="w-full">
+      <Tabs defaultValue="abonos" className="w-full">
         <TabsList>
-          <TabsTrigger value="gestion">Gestión de Cobros</TabsTrigger>
           <TabsTrigger value="abonos">Historial de Abonos</TabsTrigger>
+          <TabsTrigger value="gestion">Gestión de Cobros</TabsTrigger>
         </TabsList>
 
         <TabsContent value="gestion">
@@ -982,18 +1050,24 @@ export default function CobrosPage() {
                             </SelectTrigger>
                             <SelectContent>
                               {availableCredits.length > 0 ? (
-                                availableCredits.map((c: any) => (
-                                  <SelectItem key={c.id} value={String(c.id)}>
-                                    {c.reference || c.numero_operacion || `ID: ${c.id}`} - Saldo: ₡{Number(c.saldo ).toLocaleString()}
-                                  </SelectItem>
-                                ))
+                                availableCredits.map((c: any) => {
+                                  const interesesMora = (c.plan_de_pagos || [])
+                                    .filter((p: any) => p.estado === 'Mora')
+                                    .reduce((sum: number, p: any) => sum + (Number(p.int_corriente_vencido) || 0), 0);
+                                  const saldoTotal = (Number(c.saldo) || 0) + interesesMora;
+                                  return (
+                                    <SelectItem key={c.id} value={String(c.id)}>
+                                      {c.reference || c.numero_operacion || `ID: ${c.id}`} - Saldo: ₡{saldoTotal.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                    </SelectItem>
+                                  );
+                                })
                               ) : (
                                 <div className="p-2 text-sm text-muted-foreground">Este cliente no tiene créditos activos.</div>
                               )}
                             </SelectContent>
                           </Select>
                           
-                          {selectedCredit && selectedCredit.status !== 'Formalizado' && (
+                          {selectedCredit && selectedCredit.status !== 'Formalizado' && !(tipoCobro === 'cancelacion_anticipada' && selectedCredit.status === 'En Mora') && (
                             <div className="mt-3 p-4 text-[14px] leading-tight bg-amber-50 border border-amber-200 text-red-700 rounded-md flex items-start gap-2">
                               <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                               <span>Este crédito no está <strong>Formalizado</strong> (Estado: {selectedCredit.status}). No se pueden registrar abonos manuales hasta que el crédito sea formalizado y tenga un plan de pagos.</span>
@@ -1010,7 +1084,6 @@ export default function CobrosPage() {
                                   if (val === 'adelanto' && selectedCreditId) {
                                     api.get(`/api/credits/${selectedCreditId}`)
                                       .then(res => {
-                                        // Filtrar cuotas pendientes
                                         const cuotas = res.data.plan_de_pagos?.filter((c: any) => c.estado !== 'Pagado');
                                         setCuotasDisponibles(cuotas || []);
                                       });
@@ -1023,8 +1096,8 @@ export default function CobrosPage() {
                                     <SelectContent>
                                     <SelectItem value="normal">Normal</SelectItem>
                                     <SelectItem value="adelanto">Adelanto de Cuotas</SelectItem>
-                                    {/* --- OPCIÓN NUEVA --- */}
                                     <SelectItem value="extraordinario">Abono Extraordinario</SelectItem>
+                                    <SelectItem value="cancelacion_anticipada">Cancelación Anticipada</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -1097,13 +1170,121 @@ export default function CobrosPage() {
                         )}
                         {/* ----------------------------------------------- */}
 
+                        {/* --- PANEL CANCELACIÓN ANTICIPADA --- */}
+                        {tipoCobro === 'cancelacion_anticipada' && (
+                          <div className="bg-muted/50 p-4 rounded-md border border-dashed border-primary/50 space-y-3">
+                            <div className="flex items-center gap-2 text-primary">
+                              <AlertTriangle className="h-4 w-4" />
+                              <span className="text-sm font-medium">Cancelación Anticipada del Crédito</span>
+                            </div>
+                            {loadingCancelacion ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Calculando monto...
+                              </div>
+                            ) : cancelacionData ? (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">Cuota actual:</span>
+                                    <span className="ml-2 font-medium">#{cancelacionData.cuota_actual}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Saldo capital:</span>
+                                    <span className="ml-2 font-medium">₡{Number(cancelacionData.saldo_capital).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                  {cancelacionData.intereses_vencidos > 0 && (
+                                    <div>
+                                      <span className="text-muted-foreground">Intereses vencidos:</span>
+                                      <span className="ml-2 font-medium text-destructive">₡{Number(cancelacionData.intereses_vencidos).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="text-muted-foreground">Saldo total:</span>
+                                    <span className="ml-2 font-bold">₡{Number(cancelacionData.saldo_pendiente).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                </div>
+
+                                {cancelacionData.aplica_penalizacion && (
+                                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
+                                    <div className="flex items-start gap-2 text-amber-800">
+                                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                                      <div>
+                                        <strong>Penalización aplicada:</strong> El cliente está en la cuota #{cancelacionData.cuota_actual} (antes de la cuota 12).
+                                        Se aplican <strong>{cancelacionData.cuotas_penalizacion} cuotas adicionales</strong> de penalización.
+                                        <div className="mt-1">
+                                          Penalización: <strong>₡{Number(cancelacionData.monto_penalizacion).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {!cancelacionData.aplica_penalizacion && (
+                                  <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm">
+                                    <div className="flex items-center gap-2 text-green-800">
+                                      <Check className="h-4 w-4 shrink-0" />
+                                      <span>Sin penalización. El cliente ha superado la cuota 12.</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg text-center">
+                                  <div className="text-sm text-muted-foreground">Monto Total a Cancelar</div>
+                                  <div className="text-2xl font-bold text-primary">
+                                    ₡{Number(cancelacionData.monto_total_cancelar).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : selectedCreditId ? (
+                              <div className="text-sm text-muted-foreground">Seleccione un crédito para calcular el monto.</div>
+                            ) : null}
+                          </div>
+                        )}
+                        {/* ----------------------------------------------- */}
+
+                        {/* Monto solo visible cuando NO es cancelación anticipada */}
+                        {tipoCobro !== 'cancelacion_anticipada' && (
                         <div>
                           <label className="block text-sm font-medium mb-1">Monto (CRC)</label>
-                          <Input type="number" min="0" step="0.01" value={monto} onChange={e => setMonto(e.target.value)} required />
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              className="pl-7"
+                              placeholder="0.00"
+                              value={(() => {
+                                if (!monto) return '';
+                                const [intPart, decPart] = monto.split('.');
+                                const formatted = Number(intPart || '0').toLocaleString('en-US');
+                                return decPart !== undefined ? `${formatted}.${decPart}` : formatted;
+                              })()}
+                              onChange={e => {
+                                const raw = e.target.value.replace(/,/g, '');
+                                if (raw === '' || /^\d*\.?\d{0,2}$/.test(raw)) {
+                                  setMonto(raw);
+                                }
+                              }}
+                              required
+                            />
+                          </div>
                         </div>
+                        )}
 
                         <DialogFooter>
-                          <Button type="submit" disabled={!selectedCreditId || selectedCredit?.status !== 'Formalizado'}>Aplicar Pago</Button>
+                          <Button
+                            type="submit"
+                            disabled={
+                              !selectedCreditId ||
+                              (tipoCobro === 'cancelacion_anticipada'
+                                ? (!cancelacionData || loadingCancelacion || !['Formalizado', 'En Mora'].includes(selectedCredit?.status || ''))
+                                : selectedCredit?.status !== 'Formalizado'
+                              )
+                            }
+                          >
+                            {tipoCobro === 'cancelacion_anticipada' ? 'Confirmar Cancelación' : 'Aplicar Pago'}
+                          </Button>
                           <Button type="button" variant="outline" onClick={closeAbonoModal}>Cancelar</Button>
                         </DialogFooter>
                       </form>

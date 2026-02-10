@@ -48,9 +48,7 @@ class Analisis extends Model
         'nombramiento',
         'salarios_anteriores',
         'deducciones',
-        'manchas_detalle',
-        'juicios_detalle',
-        'embargos_detalle',
+        // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales',
     ];
 
@@ -77,9 +75,7 @@ class Analisis extends Model
         'numero_embargos' => 'integer',
         'salarios_anteriores' => 'array',
         'deducciones' => 'array',
-        'manchas_detalle' => 'array',
-        'juicios_detalle' => 'array',
-        'embargos_detalle' => 'array',
+        // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales' => 'array',
     ];
 
@@ -115,6 +111,21 @@ class Analisis extends Model
     public function propuestas()
     {
         return $this->hasMany(Propuesta::class, 'analisis_reference', 'reference');
+    }
+
+    public function manchaDetalles()
+    {
+        return $this->hasMany(ManchaDetalle::class);
+    }
+
+    public function juicioDetalles()
+    {
+        return $this->hasMany(JuicioDetalle::class);
+    }
+
+    public function embargoDetalles()
+    {
+        return $this->hasMany(EmbargoDetalle::class);
     }
 
     /**

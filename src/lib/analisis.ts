@@ -25,20 +25,23 @@ export interface DeduccionMensual {
 }
 
 export interface ManchaDetalle {
-  fecha: string;
+  fecha_inicio: string;
+  fecha_fin?: string;
   descripcion: string;
   monto: number;
 }
 
 export interface JuicioDetalle {
-  fecha: string;
+  fecha_inicio: string;
+  fecha_fin?: string;
   estado: 'activo' | 'cerrado';
   expediente: string;
   monto: number;
 }
 
 export interface EmbargoDetalle {
-  fecha: string;
+  fecha_inicio: string;
+  fecha_fin?: string;
   motivo: string;
   monto: number;
 }
@@ -103,6 +106,7 @@ export interface AnalisisItem {
   deducciones?: DeduccionItem[];
   deducciones_mensuales?: DeduccionMensual[];
   manchas_detalle?: ManchaDetalle[];
+  mancha_detalles?: ManchaDetalle[];
   juicios_detalle?: JuicioDetalle[];
   embargos_detalle?: EmbargoDetalle[];
   propuestas?: Propuesta[];

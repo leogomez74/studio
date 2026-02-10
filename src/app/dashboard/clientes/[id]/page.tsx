@@ -755,7 +755,7 @@ export default function ClientDetailPage() {
 
   const REQUIRED_FIELDS = [
     'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento', 'estado_civil',
-    'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
+    'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'sector',
     'province', 'canton', 'distrito', 'direccion1',
     'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
   ];
@@ -763,7 +763,6 @@ export default function ClientDetailPage() {
   const isFieldMissing = useCallback((field: string) => {
     if (!formData || !REQUIRED_FIELDS.includes(field)) return false;
     const value = (formData as any)[field];
-    if (field === 'deductora_id') return !value || value === 0;
     return value === null || value === undefined || value === '';
   }, [formData]);
 
@@ -808,7 +807,6 @@ export default function ClientDetailPage() {
     if (!formData) return 0;
     let count = REQUIRED_FIELDS.filter(field => {
       const value = (formData as any)[field];
-      if (field === 'deductora_id') return !value || value === 0;
       return value === null || value === undefined || value === '';
     }).length;
 
@@ -1831,8 +1829,18 @@ export default function ClientDetailPage() {
                 )}
               </div>
                <div className="space-y-2">
-                <Label>Deductora {isFieldMissing('deductora_id') && <span className="text-red-500">*</span>}</Label>
+                <Label>Deductora</Label>
                 <div className="flex items-center gap-6">
+                  <Button
+                    type="button"
+                    variant={!formData.deductora_id || formData.deductora_id === 0 ? "default" : "outline"}
+                    size="default"
+                    onClick={() => isEditMode && handleInputChange("deductora_id", null)}
+                    disabled={!isEditMode}
+                    className={`flex-1 ${!formData.deductora_id || formData.deductora_id === 0 ? "bg-primary text-primary-foreground" : ""}`}
+                  >
+                    Sin deductora
+                  </Button>
                   {deductoras.map((deductora) => (
                     <Button
                       key={deductora.id}
