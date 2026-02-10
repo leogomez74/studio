@@ -62,6 +62,7 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
   const [montoNuevo, setMontoNuevo] = useState('');
   const [plazo, setPlazo] = useState('');
   const [poliza, setPoliza] = useState(false);
+  const [cargosEnabled, setCargosEnabled] = useState(false);
   const [comision, setComision] = useState('');
   const [transporte, setTransporte] = useState('10000');
   const [respaldoDeudor, setRespaldoDeudor] = useState('4950');
@@ -74,7 +75,7 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
   const transporteNum = parseFloat(transporte) || 0;
   const respaldoNum = parseFloat(respaldoDeudor) || 0;
   const descuentoNum = parseFloat(descuentoFactura) || 0;
-  const totalCargos = comisionNum + transporteNum + respaldoNum + descuentoNum;
+  const totalCargos = cargosEnabled ? comisionNum + transporteNum + respaldoNum + descuentoNum : 0;
   const montoEntregado = montoNum - saldoActual - totalCargos;
   const isValid = montoNum >= saldoActual && montoEntregado >= 0 && parseFloat(plazo) >= 1;
 
@@ -96,6 +97,7 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
       setMontoNuevo('');
       setPlazo('');
       setPoliza(credit.poliza ?? false);
+      setCargosEnabled(false);
       const defaultComision = '0';
       setComision(defaultComision);
       setTransporte('10000');
@@ -123,12 +125,14 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
         tipo_credito: credit.tipo_credito || 'regular',
         category: credit.category,
         poliza,
-        cargos_adicionales: {
-          comision: comisionNum,
-          transporte: transporteNum,
-          respaldo_deudor: respaldoNum,
-          descuento_factura: descuentoNum,
-        },
+        cargos_adicionales: cargosEnabled
+          ? {
+              comision: comisionNum,
+              transporte: transporteNum,
+              respaldo_deudor: respaldoNum,
+              descuento_factura: descuentoNum,
+            }
+          : { comision: 0, transporte: 0, respaldo_deudor: 0, descuento_factura: 0 },
       };
 
       const res = await api.post(`/api/credits/${credit.id}/refundicion`, body);
@@ -237,27 +241,37 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
           </div>
 
           {/* Cargos adicionales */}
-          <details className="border rounded-md p-3">
-            <summary className="cursor-pointer text-sm font-medium">Cargos Adicionales ({formatCurrency(totalCargos)})</summary>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Comision (3%)</Label>
-                <Input type="number" value={comision} onChange={(e) => setComision(e.target.value)} />
+          <div className="border rounded-md p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Switch checked={cargosEnabled} onCheckedChange={setCargosEnabled} />
+                <Label className="text-sm font-medium">Cargos Adicionales</Label>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Transporte</Label>
-                <Input type="number" value={transporte} onChange={(e) => setTransporte(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Respaldo Deudor</Label>
-                <Input type="number" value={respaldoDeudor} onChange={(e) => setRespaldoDeudor(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Descuento Factura</Label>
-                <Input type="number" value={descuentoFactura} onChange={(e) => setDescuentoFactura(e.target.value)} />
-              </div>
+              {cargosEnabled && (
+                <Badge variant="secondary" className="text-xs">{formatCurrency(totalCargos)}</Badge>
+              )}
             </div>
-          </details>
+            {cargosEnabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Comision (3%)</Label>
+                  <Input type="number" value={comision} onChange={(e) => setComision(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Transporte</Label>
+                  <Input type="number" value={transporte} onChange={(e) => setTransporte(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Respaldo Deudor</Label>
+                  <Input type="number" value={respaldoDeudor} onChange={(e) => setRespaldoDeudor(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Descuento Factura</Label>
+                  <Input type="number" value={descuentoFactura} onChange={(e) => setDescuentoFactura(e.target.value)} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <Separator />
@@ -277,10 +291,12 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
                 <span>(-) Saldo absorbido del credito viejo</span>
                 <span className="font-medium">-{formatCurrency(saldoActual)}</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>(-) Cargos adicionales</span>
-                <span className="font-medium">-{formatCurrency(totalCargos)}</span>
-              </div>
+              {cargosEnabled && totalCargos > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>(-) Cargos adicionales</span>
+                  <span className="font-medium">-{formatCurrency(totalCargos)}</span>
+                </div>
+              )}
               <Separator />
               <div className="flex justify-between text-lg font-bold">
                 <span>Monto entregado al cliente</span>
