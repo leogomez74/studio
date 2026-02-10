@@ -35,7 +35,8 @@ import {
   Calendar,
   Clock,
   FileCheck,
-  DollarSign
+  DollarSign,
+  ArrowRight
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -536,6 +537,7 @@ export default function OpportunityDetailPage() {
   // Analisis state
   const [existingAnalisis, setExistingAnalisis] = useState<any>(null);
   const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("resumen");
   const [analysisStarted, setAnalysisStarted] = useState(false); // Track if analysis process started
   const [analisisForm, setAnalisisForm] = useState({
     reference: "",
@@ -1222,7 +1224,7 @@ export default function OpportunityDetailPage() {
       <div className="grid grid-cols-1 gap-6">
         {/* Main Content - Full Width (Chat panel commented out) */}
         <div className="space-y-6">
-          <Tabs defaultValue="resumen" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
               <TabsTrigger value="archivos" className="relative">
@@ -1647,6 +1649,16 @@ export default function OpportunityDetailPage() {
             <TabsContent value="tareas">
               <TareasTab opportunityReference={opportunity.id} opportunityId={opportunity.id} />
             </TabsContent>
+
+            {/* Botón de navegación */}
+            {activeTab === "resumen" && (
+              <div className="flex justify-end mt-4">
+                <Button onClick={() => setActiveTab("archivos")}>
+                  Continuar
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </Tabs>
         </div>
 

@@ -8,6 +8,8 @@ use App\Models\CreditDocument;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Lead;
+use App\Models\Analisis;
+use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
 use App\Helpers\NumberToWords;
 use Illuminate\Http\Request;
@@ -116,6 +118,11 @@ class CreditController extends Controller
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
             'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
+            'cargos_adicionales.cancelacion_manchas' => 'nullable|numeric|min:0',
+
+            // Manchas canceladas (IDs de la tabla mancha_detalles)
+            'manchas_canceladas' => 'nullable|array',
+            'manchas_canceladas.*' => 'integer|exists:mancha_detalles,id',
         ]);
 
         // Validar que monto_credito > 0 (este es el monto ORIGINAL, sin restar deducciones)
@@ -224,7 +231,13 @@ class CreditController extends Controller
                 $lead->save();
             }
 
-            // D. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
+            // D. Poner en 0 las manchas canceladas en el análisis (tabla mancha_detalles)
+            if (!empty($validated['manchas_canceladas'])) {
+                ManchaDetalle::whereIn('id', $validated['manchas_canceladas'])
+                    ->update(['monto' => 0]);
+            }
+
+            // E. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
             if ($lead && $lead->documents->count() > 0) {
                 foreach ($lead->documents as $personDocument) {
                     // 1. Definir nueva ruta

@@ -1890,8 +1890,10 @@ export default function AnalisisDetailPage() {
         }}
         products={products}
         leads={leads}
+        manchasDetalle={analisis?.mancha_detalles}
+        analisisId={analisis?.id}
         onSuccess={async () => {
-          // Refrescar análisis para actualizar has_credit
+          // Refrescar análisis para actualizar has_credit y manchas
           const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
           setAnalisis(resAnalisis.data);
         }}

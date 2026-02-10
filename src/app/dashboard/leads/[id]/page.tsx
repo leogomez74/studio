@@ -1885,9 +1885,15 @@ export default function LeadDetailPage() {
                                     )}
                                 </Tooltip>
                             </TooltipProvider>
-                            {activeTab !== "archivos" && (
+                            {activeTab === "datos" && (
                                 <Button onClick={() => setActiveTab("archivos")}>
                                     Continuar
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            )}
+                            {activeTab === "archivos" && (
+                                <Button onClick={() => setIsOpportunityDialogOpen(true)}>
+                                    Crear Oportunidad
                                     <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
                             )}
