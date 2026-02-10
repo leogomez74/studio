@@ -44,6 +44,27 @@ class CreditPaymentController extends Controller
         $deductoraId = $validated['deductora_id'];
         $fechaProceso = $validated['fecha_proceso'] ?? now()->format('Y-m-d');
 
+        // VALIDACIÓN: Solo 1 planilla por deductora por mes
+        $fechaProcesoCarbon = Carbon::parse($fechaProceso);
+        $mesInicio = $fechaProcesoCarbon->copy()->startOfMonth();
+        $mesFin = $fechaProcesoCarbon->copy()->endOfMonth();
+        $yaExiste = CreditPayment::where('source', 'Planilla')
+            ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
+            ->whereHas('credit', function ($q) use ($deductoraId) {
+                $q->where('deductora_id', $deductoraId);
+            })
+            ->exists();
+
+        if ($yaExiste) {
+            $deductoraNombre = \App\Models\Deductora::find($deductoraId)->nombre ?? 'Desconocida';
+            $mesNombre = $fechaProcesoCarbon->translatedFormat('F Y');
+            return response()->json([
+                'message' => "La planilla del mes de {$mesNombre} correspondiente a {$deductoraNombre} ya ha sido cargada.",
+                'deductora' => $deductoraNombre,
+                'mes' => $mesNombre,
+            ], 422);
+        }
+
         $file = $request->file('file');
         $path = $file->store('uploads/planillas_preview', 'public');
         $fullPath = storage_path('app/public/' . $path);
@@ -943,6 +964,26 @@ class CreditPaymentController extends Controller
         // Usar fecha de prueba si se proporciona (solo para desarrollo/testing)
         $fechaTest = $request->input('fecha_test');
         $fechaPago = $fechaTest ? Carbon::parse($fechaTest) : now();
+
+        // VALIDACIÓN: Solo 1 planilla por deductora por mes
+        $mesInicio = $fechaPago->copy()->startOfMonth();
+        $mesFin = $fechaPago->copy()->endOfMonth();
+        $yaExiste = CreditPayment::where('source', 'Planilla')
+            ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
+            ->whereHas('credit', function ($q) use ($deductoraId) {
+                $q->where('deductora_id', $deductoraId);
+            })
+            ->exists();
+
+        if ($yaExiste) {
+            $deductoraNombre = \App\Models\Deductora::find($deductoraId)->nombre ?? 'Desconocida';
+            $mesNombre = $fechaPago->translatedFormat('F Y');
+            return response()->json([
+                'message' => "La planilla del mes de {$mesNombre} correspondiente a {$deductoraNombre} ya ha sido cargada.",
+                'deductora' => $deductoraNombre,
+                'mes' => $mesNombre,
+            ], 422);
+        }
 
         // Mes que se está pagando (planillas llegan 1 mes después)
         $mesPago = $fechaPago->copy()->subMonth();
