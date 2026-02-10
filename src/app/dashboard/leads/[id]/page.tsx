@@ -605,10 +605,23 @@ export default function LeadDetailPage() {
     const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<string>("datos");
 
+    // Formatear teléfono CR: XXXX-XXXX
+    const formatPhoneCR = (value: string | null | undefined): string => {
+        if (!value) return '';
+        const digits = value.replace(/\D/g, '');
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 8) return digits.slice(0, 4) + '-' + digits.slice(4);
+        return digits; // Números internacionales sin formatear
+    };
+
+    const parsePhone = (value: string): string => {
+        return value.replace(/\D/g, '');
+    };
+
     // Validar si el registro está completo
     const REQUIRED_FIELDS = [
         'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento', 'estado_civil',
-        'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector',
+        'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'sector',
         'province', 'canton', 'distrito', 'direccion1',
         'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
     ];
@@ -636,7 +649,6 @@ export default function LeadDetailPage() {
         if (!formData) return false;
         const allFieldsFilled = REQUIRED_FIELDS.every(field => {
             const value = (formData as any)[field];
-            if (field === 'deductora_id') return value && value !== 0;
             return value !== null && value !== undefined && value !== '';
         });
         const hasReference = hasAtLeastOneCompleteReference();
@@ -646,7 +658,6 @@ export default function LeadDetailPage() {
     const isFieldMissing = useCallback((field: string) => {
         if (!formData || !REQUIRED_FIELDS.includes(field)) return false;
         const value = (formData as any)[field];
-        if (field === 'deductora_id') return !value || value === 0;
         return value === null || value === undefined || value === '';
     }, [formData]);
 
@@ -659,7 +670,7 @@ export default function LeadDetailPage() {
     const personalFields = ['name', 'apellido1', 'cedula', 'fecha_nacimiento', 'estado_civil'];
     const contactFields = ['email', 'phone', 'whatsapp'];
     const addressFields = ['province', 'canton', 'distrito', 'direccion1'];
-    const employmentFields = ['profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'deductora_id', 'sector', 'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'];
+    const employmentFields = ['profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'sector', 'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'];
 
     const getMissingDocuments = useCallback(() => {
         const documents = (lead as any)?.documents || [];
@@ -683,7 +694,6 @@ export default function LeadDetailPage() {
         if (!formData) return 0;
         let count = REQUIRED_FIELDS.filter(field => {
             const value = (formData as any)[field];
-            if (field === 'deductora_id') return !value || value === 0;
             return value === null || value === undefined || value === '';
         }).length;
 
@@ -1230,33 +1240,41 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Teléfono Móvil {isFieldMissing('phone') && <span className="text-red-500">*</span>}</Label>
                                         <Input
-                                            value={formData.phone || ""}
-                                            onChange={(e) => handleInputChange("phone", e.target.value)}
+                                            value={formatPhoneCR(formData.phone)}
+                                            onChange={(e) => handleInputChange("phone", parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Teléfono 2</Label>
                                         <Input
-                                            value={(formData as any).telefono2 || ""}
-                                            onChange={(e) => handleInputChange("telefono2" as keyof Lead, e.target.value)}
+                                            value={formatPhoneCR((formData as any).telefono2)}
+                                            onChange={(e) => handleInputChange("telefono2" as keyof Lead, parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>WhatsApp {isFieldMissing('whatsapp') && <span className="text-red-500">*</span>}</Label>
                                         <Input
-                                            value={formData.whatsapp || ""}
-                                            onChange={(e) => handleInputChange("whatsapp", e.target.value)}
+                                            value={formatPhoneCR(formData.whatsapp)}
+                                            onChange={(e) => handleInputChange("whatsapp", parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Teléfono Casa</Label>
                                         <Input
-                                            value={(formData as any).tel_casa || ""}
-                                            onChange={(e) => handleInputChange("tel_casa" as keyof Lead, e.target.value)}
+                                            value={formatPhoneCR((formData as any).tel_casa)}
+                                            onChange={(e) => handleInputChange("tel_casa" as keyof Lead, parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                 </div>
@@ -1287,10 +1305,11 @@ export default function LeadDetailPage() {
                                         <div className="space-y-2">
                                             <Label>Número de Referencia {!hasAtLeastOneCompleteReference() && !(formData as any).tel_amigo && <span className="text-red-500">*</span>}</Label>
                                             <Input
-                                                value={(formData as any).tel_amigo || ""}
-                                                onChange={(e) => handleInputChange("tel_amigo" as keyof Lead, e.target.value)}
+                                                value={formatPhoneCR((formData as any).tel_amigo)}
+                                                onChange={(e) => handleInputChange("tel_amigo" as keyof Lead, parsePhone(e.target.value))}
                                                 disabled={!isEditMode} onBlur={handleBlur}
-                                                placeholder="Número telefónico"
+                                                inputMode="tel"
+                                                placeholder="8888-7777"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -1321,10 +1340,11 @@ export default function LeadDetailPage() {
                                         <div className="space-y-2">
                                             <Label>Número de Referencia</Label>
                                             <Input
-                                                value={(formData as any).tel_amigo_2 || ""}
-                                                onChange={(e) => handleInputChange("tel_amigo_2" as keyof Lead, e.target.value)}
+                                                value={formatPhoneCR((formData as any).tel_amigo_2)}
+                                                onChange={(e) => handleInputChange("tel_amigo_2" as keyof Lead, parsePhone(e.target.value))}
                                                 disabled={!isEditMode} onBlur={handleBlur}
-                                                placeholder="Número telefónico"
+                                                inputMode="tel"
+                                                placeholder="8888-7777"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -1645,16 +1665,26 @@ export default function LeadDetailPage() {
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Deductora {isFieldMissing('deductora_id') && <span className="text-red-500">*</span>}</Label>
+                                        <Label>Deductora</Label>
                                         <div className="flex items-center gap-6">
+                                            <Button
+                                                type="button"
+                                                variant={!(formData as any).deductora_id || (formData as any).deductora_id === 0 ? "default" : "outline"}
+                                                size="default"
+                                                onClick={() => { if (isEditMode) { handleInputChange("deductora_id" as keyof Lead, null); setTimeout(autoSave, 100); } }}
+                                                disabled={!isEditMode}
+                                                className={`flex-1 ${!(formData as any).deductora_id || (formData as any).deductora_id === 0 ? "bg-primary text-primary-foreground" : ""}`}
+                                            >
+                                                Sin deductora
+                                            </Button>
                                             {deductoras.map((deductora) => (
                                                 <Button
                                                     key={deductora.id}
                                                     type="button"
                                                     variant={(formData as any).deductora_id === deductora.id ? "default" : "outline"}
                                                     size="default"
-                                                    onClick={() => isEditMode && handleInputChange("deductora_id" as keyof Lead, deductora.id)}
-                                                    disabled={!isEditMode} onBlur={handleBlur}
+                                                    onClick={() => { if (isEditMode) { handleInputChange("deductora_id" as keyof Lead, deductora.id); setTimeout(autoSave, 100); } }}
+                                                    disabled={!isEditMode}
                                                     className={`flex-1 ${(formData as any).deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
                                                 >
                                                     {deductora.nombre}

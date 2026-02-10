@@ -416,14 +416,19 @@ export default function CalculosPage() {
           </div>
           {/* Campo para el monto del préstamo */}
           <div className="space-y-2">
-            <Label htmlFor="amount">Monto del Préstamo (₡)</Label>
-            <Input
-              id="amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Ej: 5000000"
-            />
+            <Label htmlFor="amount">Monto del Préstamo</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+              <Input
+                id="amount"
+                type="text"
+                inputMode="numeric"
+                className="pl-7"
+                value={amount ? Number(amount).toLocaleString('en-US') : ''}
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ''))}
+                placeholder="5,000,000"
+              />
+            </div>
           </div>
           {/* Campo para la tasa de interés */}
           <div className="space-y-2">
