@@ -247,6 +247,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
     Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
 
+    // Refundición de Créditos
+    Route::get('credits/{id}/refundicion-preview', [\App\Http\Controllers\Api\CreditController::class, 'refundicionPreview']);
+    Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion']);
+
     // Pagos de Crédito (Protegido)
     Route::apiResource('credit-payments', CreditPaymentController::class);
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);

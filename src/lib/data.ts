@@ -290,6 +290,16 @@ export type Credit = {
     dias_mora?: number;
   }> | null;
 
+  // Refundición
+  refundicion_parent_id?: number | null;
+  refundicion_child_id?: number | null;
+  refundicion_saldo_absorbido?: number | null;
+  refundicion_monto_entregado?: number | null;
+  refundicion_at?: string | null;
+  cierre_motivo?: string | null;
+  refundicion_parent?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
+  refundicion_child?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
+
   // Legacy / UI fields for cobro-judicial
   operationNumber?: string;
   expediente?: string;

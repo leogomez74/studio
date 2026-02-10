@@ -47,6 +47,7 @@ import {
   Download,
   FileSpreadsheet,
   PlusCircle,
+  RefreshCw,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -106,6 +107,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CaseChat } from '@/components/case-chat';
 import { DocumentManager } from '@/components/document-manager';
 import { CreditDocumentManager } from '@/components/credit-document-manager';
+import { RefundicionModal } from '@/components/RefundicionModal';
 
 // --- Interfaces ---
 
@@ -302,6 +304,15 @@ interface CreditItem {
   poliza?: boolean | null;
   // Cargos adicionales
   cargos_adicionales?: CargosAdicionales | null;
+  // Refundición
+  refundicion_parent_id?: number | null;
+  refundicion_child_id?: number | null;
+  refundicion_saldo_absorbido?: number | null;
+  refundicion_monto_entregado?: number | null;
+  refundicion_at?: string | null;
+  cierre_motivo?: string | null;
+  refundicion_parent?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
+  refundicion_child?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
 }
 
 // --- Types for Tareas ---
@@ -777,6 +788,9 @@ function CreditDetailClient({ id }: { id: string }) {
   const [credit, setCredit] = useState<CreditItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPanelVisible, setIsPanelVisible] = useState(false);
+
+  // Refundición State
+  const [refundicionOpen, setRefundicionOpen] = useState(false);
 
   // Edit State
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1689,6 +1703,17 @@ function CreditDetailClient({ id }: { id: string }) {
                   Formalizar
                 </Button>
               )}
+
+              {['Formalizado', 'En Mora'].includes(credit.status || '') && (credit.saldo ?? 0) > 0 && !credit.refundicion_child_id && (
+                <Button
+                  variant="outline"
+                  className="border-orange-500 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                  onClick={() => setRefundicionOpen(true)}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refundir
+                </Button>
+              )}
             </>
           ) : (
             <>
@@ -1704,6 +1729,40 @@ function CreditDetailClient({ id }: { id: string }) {
           )}
         </div>
       </div>
+
+      {/* Banners de refundición */}
+      {credit.cierre_motivo === 'Refundición' && credit.refundicion_child && (
+        <div className="flex items-center gap-3 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm">
+          <RefreshCw className="h-4 w-4 text-orange-600 flex-shrink-0" />
+          <span>
+            Este crédito fue <strong>refundido</strong>. Nuevo crédito:{' '}
+            <Link href={`/dashboard/creditos/${credit.refundicion_child.id}`} className="font-medium text-orange-700 underline hover:text-orange-800">
+              {credit.refundicion_child.reference}
+            </Link>
+            {credit.refundicion_saldo_absorbido != null && (
+              <> — Saldo absorbido: <strong>₡{formatNumber(credit.refundicion_saldo_absorbido)}</strong></>
+            )}
+          </span>
+        </div>
+      )}
+
+      {credit.refundicion_parent && (
+        <div className="flex items-center gap-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+          <RefreshCw className="h-4 w-4 text-blue-600 flex-shrink-0" />
+          <span>
+            Proviene de <strong>refundición</strong>. Crédito original:{' '}
+            <Link href={`/dashboard/creditos/${credit.refundicion_parent.id}`} className="font-medium text-blue-700 underline hover:text-blue-800">
+              {credit.refundicion_parent.reference}
+            </Link>
+            {credit.refundicion_saldo_absorbido != null && (
+              <> — Saldo absorbido: <strong>₡{formatNumber(credit.refundicion_saldo_absorbido)}</strong></>
+            )}
+            {credit.refundicion_monto_entregado != null && (
+              <> — Entregado al cliente: <strong>₡{formatNumber(credit.refundicion_monto_entregado)}</strong></>
+            )}
+          </span>
+        </div>
+      )}
 
       <div className="space-y-6">
         <div className="space-y-6">
@@ -2321,6 +2380,32 @@ function CreditDetailClient({ id }: { id: string }) {
           </Tabs>
         </div>
       </div>
+
+      {/* Modal de Refundición */}
+      {credit && (
+        <RefundicionModal
+          open={refundicionOpen}
+          onOpenChange={setRefundicionOpen}
+          credit={{
+            id: credit.id,
+            reference: credit.reference,
+            monto_credito: credit.monto_credito ?? 0,
+            saldo: credit.saldo ?? 0,
+            cuota: credit.cuota ?? 0,
+            plazo: credit.plazo ?? 0,
+            tasa_anual: credit.tasa_anual ?? 0,
+            status: credit.status || '',
+            tipo_credito: credit.tipo_credito ?? undefined,
+            category: credit.category ?? undefined,
+            lead_id: credit.lead_id,
+            opportunity_id: credit.opportunity_id ?? undefined,
+            deductora_id: credit.deductora?.id,
+            poliza: credit.poliza ?? undefined,
+            lead: credit.lead ? { id: credit.lead.id, name: credit.lead.name, cedula: credit.lead.cedula?.toString() } : undefined,
+          }}
+          onSuccess={fetchCredit}
+        />
+      )}
     </div>
   );
 }

@@ -24,6 +24,12 @@ class Credit extends Model
         self::STATUS_POR_FIRMAR,
     ];
 
+    // Estados que permiten refundición
+    public const REFUNDIBLE_STATUSES = [
+        self::STATUS_FORMALIZADO,
+        self::STATUS_EN_MORA,
+    ];
+
     protected $fillable = [
         'reference',
         'title',
@@ -54,6 +60,12 @@ class Credit extends Model
         'poliza_actual',
         'cargos_adicionales',
         'formalized_at',
+        'refundicion_parent_id',
+        'refundicion_child_id',
+        'refundicion_saldo_absorbido',
+        'refundicion_monto_entregado',
+        'refundicion_at',
+        'cierre_motivo',
     ];
 
     protected $casts = [
@@ -69,6 +81,9 @@ class Credit extends Model
         'poliza' => 'boolean',
         'cargos_adicionales' => 'array',
         'formalized_at' => 'datetime',
+        'refundicion_saldo_absorbido' => 'decimal:2',
+        'refundicion_monto_entregado' => 'decimal:2',
+        'refundicion_at' => 'datetime',
     ];
 
     /**
@@ -190,5 +205,31 @@ class Credit extends Model
 
         // Fallback: usar valor de la relación si está cargada
         return $this->tasa ? $this->tasa->tasa : null;
+    }
+
+    /**
+     * Crédito viejo que fue absorbido por este (en el crédito NUEVO)
+     */
+    public function refundicionParent()
+    {
+        return $this->belongsTo(Credit::class, 'refundicion_parent_id');
+    }
+
+    /**
+     * Crédito nuevo que reemplazó a este (en el crédito VIEJO)
+     */
+    public function refundicionChild()
+    {
+        return $this->belongsTo(Credit::class, 'refundicion_child_id');
+    }
+
+    /**
+     * Scope: créditos elegibles para refundición
+     */
+    public function scopeRefundible($query)
+    {
+        return $query->whereIn('status', self::REFUNDIBLE_STATUSES)
+            ->where('saldo', '>', 0)
+            ->whereNull('refundicion_child_id');
     }
 }

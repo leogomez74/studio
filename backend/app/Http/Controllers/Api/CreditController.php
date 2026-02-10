@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Credit;
 use App\Models\CreditDocument;
+use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Lead;
 use App\Models\LoanConfiguration;
@@ -447,7 +448,9 @@ class CreditController extends Controller
             'opportunity',
             'documents',
             'payments',
-            'tasa',  // ✓ Agregar relación tasa
+            'tasa',
+            'refundicionParent:id,reference,monto_credito,saldo',
+            'refundicionChild:id,reference,monto_credito,saldo',
             'planDePagos' => function($q) {
                 $q->orderBy('numero_cuota', 'asc');
             }
@@ -806,5 +809,189 @@ class CreditController extends Controller
         }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    // =====================================================================
+    // REFUNDICIÓN DE CRÉDITOS
+    // =====================================================================
+
+    /**
+     * Preview de refundición (cálculos sin crear nada)
+     */
+    public function refundicionPreview(Request $request, $id)
+    {
+        $credit = Credit::findOrFail($id);
+
+        $nuevoMonto = (float) $request->get('monto_credito', 0);
+        $cargos = $request->get('cargos_adicionales', []);
+        $totalCargos = is_array($cargos) ? array_sum(array_map('floatval', $cargos)) : 0;
+        $saldoActual = (float) $credit->saldo;
+        $montoEntregado = $nuevoMonto - $saldoActual - $totalCargos;
+
+        return response()->json([
+            'saldo_actual' => $saldoActual,
+            'monto_nuevo' => $nuevoMonto,
+            'cargos_nuevos' => $totalCargos,
+            'monto_entregado' => max(0, $montoEntregado),
+            'is_valid' => $nuevoMonto >= $saldoActual && $montoEntregado >= 0,
+            'credit_status' => $credit->status,
+            'can_refundir' => in_array($credit->status, Credit::REFUNDIBLE_STATUSES)
+                && $saldoActual > 0
+                && is_null($credit->refundicion_child_id),
+        ]);
+    }
+
+    /**
+     * Ejecutar refundición de crédito
+     */
+    public function refundicion(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string',
+            'monto_credito' => 'required|numeric|min:1',
+            'plazo' => 'required|integer|min:1',
+            'tasa_id' => 'nullable|exists:tasas,id',
+            'tipo_credito' => 'nullable|string',
+            'category' => 'nullable|string',
+            'assigned_to' => 'nullable|string',
+            'opened_at' => 'nullable|date',
+            'description' => 'nullable|string',
+            'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
+            'poliza' => 'nullable|boolean',
+            'fecha_primera_cuota' => 'nullable|date',
+            'cargos_adicionales' => 'nullable|array',
+            'cargos_adicionales.comision' => 'nullable|numeric|min:0',
+            'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
+            'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
+            'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
+        ]);
+
+        $result = DB::transaction(function () use ($id, $validated) {
+            // 1. Bloquear y cargar crédito viejo
+            $oldCredit = Credit::lockForUpdate()->findOrFail($id);
+            $oldCredit->load('lead');
+
+            // 2. Validaciones de negocio
+            if (!in_array($oldCredit->status, Credit::REFUNDIBLE_STATUSES)) {
+                abort(422, 'El crédito debe estar Formalizado o En Mora para refundición. Estado actual: ' . $oldCredit->status);
+            }
+            if ((float) $oldCredit->saldo <= 0) {
+                abort(422, 'El crédito no tiene saldo pendiente.');
+            }
+            if ($oldCredit->refundicion_child_id) {
+                abort(422, 'Este crédito ya fue refundido anteriormente.');
+            }
+
+            $saldoViejo = (float) $oldCredit->saldo;
+            if ($validated['monto_credito'] < $saldoViejo) {
+                abort(422, 'El monto nuevo (₡' . number_format($validated['monto_credito'], 2) . ') debe ser mayor o igual al saldo actual (₡' . number_format($saldoViejo, 2) . ').');
+            }
+
+            // 3. Calcular montos
+            $saldoAbsorbido = $saldoViejo;
+            $cargosNuevos = $validated['cargos_adicionales'] ?? [];
+            $totalCargos = is_array($cargosNuevos) ? array_sum($cargosNuevos) : 0;
+            $montoEntregado = $validated['monto_credito'] - $saldoAbsorbido - $totalCargos;
+
+            // 4. Cerrar crédito viejo
+            // 4a. Cancelar cuotas pendientes del plan
+            PlanDePago::where('credit_id', $oldCredit->id)
+                ->whereIn('estado', ['Pendiente', 'Vigente', 'Mora', 'Parcial'])
+                ->update(['estado' => 'Cancelado por Refundición']);
+
+            // 4b. Registrar payment sintético de la absorción
+            CreditPayment::create([
+                'credit_id' => $oldCredit->id,
+                'numero_cuota' => 0,
+                'fecha_pago' => now(),
+                'monto' => $saldoAbsorbido,
+                'saldo_anterior' => $saldoAbsorbido,
+                'nuevo_saldo' => 0,
+                'estado' => 'Aplicado',
+                'amortizacion' => $saldoAbsorbido,
+                'interes_corriente' => 0,
+                'interes_moratorio' => 0,
+                'source' => 'Refundición',
+                'cedula' => $oldCredit->lead->cedula ?? null,
+                'movimiento_total' => $saldoAbsorbido,
+                'movimiento_amortizacion' => $saldoAbsorbido,
+            ]);
+
+            // 4c. Actualizar estado del crédito viejo
+            $oldCredit->saldo = 0;
+            $oldCredit->status = Credit::STATUS_CERRADO;
+            $oldCredit->cierre_motivo = 'Refundición';
+            $oldCredit->refundicion_at = now();
+            $oldCredit->save();
+
+            // 5. Resolver tasa para el crédito nuevo
+            $tipoCredito = $validated['tipo_credito'] ?? $oldCredit->tipo_credito ?? 'regular';
+            $tasaId = $validated['tasa_id'] ?? null;
+
+            if (!$tasaId) {
+                $config = LoanConfiguration::where('tipo', $tipoCredito)->where('activo', true)->first();
+                if ($config && $config->tasa_id) {
+                    $tasaId = $config->tasa_id;
+                } else {
+                    $tasaFallback = \App\Models\Tasa::vigente(now())->first();
+                    $tasaId = $tasaFallback ? $tasaFallback->id : $oldCredit->tasa_id;
+                }
+            }
+
+            $tasaObj = \App\Models\Tasa::find($tasaId);
+
+            // 6. Crear crédito nuevo
+            $newCredit = Credit::create([
+                'reference' => 'TEMP-' . time(),
+                'title' => $validated['title'],
+                'status' => Credit::STATUS_FORMALIZADO,
+                'category' => $validated['category'] ?? $oldCredit->category,
+                'lead_id' => $oldCredit->lead_id,
+                'opportunity_id' => $oldCredit->opportunity_id,
+                'assigned_to' => $validated['assigned_to'] ?? $oldCredit->assigned_to,
+                'opened_at' => $validated['opened_at'] ?? now(),
+                'description' => $validated['description'] ?? 'Refundición del crédito ' . $oldCredit->reference,
+                'tipo_credito' => $tipoCredito,
+                'monto_credito' => $validated['monto_credito'],
+                'plazo' => $validated['plazo'],
+                'tasa_id' => $tasaId,
+                'tasa_anual' => $tasaObj ? $tasaObj->tasa : $oldCredit->tasa_anual,
+                'tasa_maxima' => $tasaObj ? $tasaObj->tasa_maxima : $oldCredit->tasa_maxima,
+                'deductora_id' => $validated['deductora_id'] ?? $oldCredit->deductora_id,
+                'poliza' => $validated['poliza'] ?? $oldCredit->poliza,
+                'cargos_adicionales' => $cargosNuevos,
+                'formalized_at' => now(),
+                'refundicion_parent_id' => $oldCredit->id,
+                'refundicion_saldo_absorbido' => $saldoAbsorbido,
+                'refundicion_monto_entregado' => $montoEntregado,
+                'refundicion_at' => now(),
+            ]);
+
+            // 7. Referencia real y saldo
+            $newCredit->reference = $this->generateReferenceWithId($newCredit->id);
+            $newCredit->saldo = $validated['monto_credito'];
+            $newCredit->save();
+
+            // 8. Vincular crédito viejo → nuevo
+            $oldCredit->refundicion_child_id = $newCredit->id;
+            $oldCredit->save();
+
+            // 9. Calcular cuota y generar plan de amortización
+            $this->calculateAndSetCuota($newCredit);
+            $this->generateAmortizationSchedule($newCredit);
+
+            return [
+                'old_credit' => $oldCredit->fresh()->load('planDePagos'),
+                'new_credit' => $newCredit->fresh()->load('planDePagos'),
+                'resumen' => [
+                    'saldo_absorbido' => $saldoAbsorbido,
+                    'monto_nuevo' => $validated['monto_credito'],
+                    'cargos_nuevos' => $totalCargos,
+                    'monto_entregado' => $montoEntregado,
+                ],
+            ];
+        });
+
+        return response()->json($result, 201);
     }
 }
