@@ -7,6 +7,7 @@ use App\Models\Opportunity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Models\Lead;
 use App\Models\Person;
 use App\Models\Task;
@@ -877,7 +878,7 @@ class OpportunityController extends Controller
         $errors = [];
 
         try {
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
             foreach ($ids as $id) {
                 try {
@@ -922,7 +923,7 @@ class OpportunityController extends Controller
             }
 
             if (config('bulk-actions.use_transactions', true)) {
-                \DB::commit();
+                DB::commit();
             }
 
             return response()->json([
@@ -935,7 +936,7 @@ class OpportunityController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
 
             return response()->json([
                 'success' => false,
