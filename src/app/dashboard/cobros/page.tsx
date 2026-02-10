@@ -1103,11 +1103,21 @@ export default function CobrosPage() {
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
                             <Input
                               type="text"
-                              inputMode="numeric"
+                              inputMode="decimal"
                               className="pl-7"
-                              placeholder="0"
-                              value={monto ? Number(monto).toLocaleString('en-US') : ''}
-                              onChange={e => setMonto(e.target.value.replace(/[^\d]/g, ''))}
+                              placeholder="0.00"
+                              value={(() => {
+                                if (!monto) return '';
+                                const [intPart, decPart] = monto.split('.');
+                                const formatted = Number(intPart || '0').toLocaleString('en-US');
+                                return decPart !== undefined ? `${formatted}.${decPart}` : formatted;
+                              })()}
+                              onChange={e => {
+                                const raw = e.target.value.replace(/,/g, '');
+                                if (raw === '' || /^\d*\.?\d{0,2}$/.test(raw)) {
+                                  setMonto(raw);
+                                }
+                              }}
                               required
                             />
                           </div>
