@@ -50,6 +50,8 @@ interface CreditFormModalProps {
   products: Array<{ id: number; name: string; }>;
   leads: Array<{ id: number; name?: string; deductora_id?: number; }>;
   onSuccess?: () => void;
+  manchasDetalle?: Array<{ fecha: string; descripcion: string; monto: number }>;
+  analisisId?: number;
 }
 
 export function CreditFormModal({
@@ -58,7 +60,9 @@ export function CreditFormModal({
   initialData = {},
   products,
   leads,
-  onSuccess
+  onSuccess,
+  manchasDetalle,
+  analisisId,
 }: CreditFormModalProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -115,10 +119,14 @@ export function CreditFormModal({
       const leadId = initialData.leadId || '';
       const lead = leads.find(l => String(l.id) === leadId);
       setSelectedDeductora(lead?.deductora_id ? String(lead.deductora_id) : 'sin_deductora');
+      setSelectedManchas([]);
       setCurrentStep(1);
     }
     prevOpenRef.current = open;
   }, [open]);
+
+  // Manchas seleccionadas para cancelación
+  const [selectedManchas, setSelectedManchas] = useState<number[]>([]);
 
   // Campo de cargo actualmente en edición (para mostrar valor raw vs formateado)
   const [editingCargo, setEditingCargo] = useState<string | null>(null);
@@ -224,6 +232,13 @@ export function CreditFormModal({
 
     if (cargosParaEnviar) {
       payload.cargos_adicionales = cargosParaEnviar;
+    }
+
+    if (analisisId) {
+      payload.analisis_id = analisisId;
+    }
+    if (selectedManchas.length > 0) {
+      payload.manchas_canceladas = selectedManchas;
     }
 
     try {
@@ -511,13 +526,12 @@ export function CreditFormModal({
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
                 <h4 className="font-semibold text-lg">Cargos Adicionales (Editables)</h4>
                 <div className="grid grid-cols-2 gap-4">
-                {(['comision', 'transporte', 'respaldo_deudor', 'descuento_factura', 'cancelacion_manchas'] as const).map((campo) => {
+                {(['comision', 'transporte', 'respaldo_deudor', 'descuento_factura'] as const).map((campo) => {
                   const labels: Record<string, string> = {
                     comision: 'Comisión',
                     transporte: 'Transporte',
                     respaldo_deudor: 'Respaldo Deudor',
                     descuento_factura: 'Descuento de Factura',
-                    cancelacion_manchas: 'Cancelación de Manchas',
                   };
                   const val = cargosAdicionales[campo];
                   const displayValue = editingCargo === campo
@@ -541,6 +555,71 @@ export function CreditFormModal({
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Cancelación de Manchas */}
+              <div className="mt-4 pt-4 border-t">
+                <Label className="text-sm font-semibold">Cancelación de Manchas</Label>
+                {manchasDetalle && manchasDetalle.filter(m => m.monto > 0).length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    {manchasDetalle.map((mancha, idx) => {
+                      if (mancha.monto <= 0) return null;
+                      const isSelected = selectedManchas.includes(idx);
+                      return (
+                        <label
+                          key={idx}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-orange-50 border-orange-300'
+                              : 'bg-white border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              const newSelected = isSelected
+                                ? selectedManchas.filter(i => i !== idx)
+                                : [...selectedManchas, idx];
+                              setSelectedManchas(newSelected);
+                              const total = newSelected.reduce((sum, i) => sum + (manchasDetalle[i]?.monto || 0), 0);
+                              setCargosAdicionales(prev => ({ ...prev, cancelacion_manchas: total }));
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{mancha.descripcion}</p>
+                          </div>
+                          <span className="text-sm font-semibold text-orange-700">
+                            {formatCurrency(mancha.monto)}
+                          </span>
+                        </label>
+                      );
+                    })}
+                    <div className="flex justify-between items-center pt-2 text-sm">
+                      <span className="text-muted-foreground">Total manchas seleccionadas:</span>
+                      <span className="font-bold text-orange-700">{formatCurrency(cargosAdicionales.cancelacion_manchas)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2">
+                    <Input
+                      id="cancelacion_manchas"
+                      type="text"
+                      value={editingCargo === 'cancelacion_manchas'
+                        ? (cargosAdicionales.cancelacion_manchas || '')
+                        : (cargosAdicionales.cancelacion_manchas ? cargosAdicionales.cancelacion_manchas.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '')}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^\d.]/g, '');
+                        setCargosAdicionales(prev => ({ ...prev, cancelacion_manchas: raw === '' ? 0 : parseFloat(raw) }));
+                      }}
+                      onFocus={() => setEditingCargo('cancelacion_manchas')}
+                      onBlur={() => setEditingCargo(null)}
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">No hay manchas registradas en el análisis. Ingrese el monto manualmente.</p>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -8,6 +8,7 @@ use App\Models\CreditDocument;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Lead;
+use App\Models\Analisis;
 use App\Models\LoanConfiguration;
 use App\Helpers\NumberToWords;
 use Illuminate\Http\Request;
@@ -116,6 +117,12 @@ class CreditController extends Controller
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
             'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
+            'cargos_adicionales.cancelacion_manchas' => 'nullable|numeric|min:0',
+
+            // Manchas canceladas
+            'analisis_id' => 'nullable|integer|exists:analisis,id',
+            'manchas_canceladas' => 'nullable|array',
+            'manchas_canceladas.*' => 'integer|min:0',
         ]);
 
         // Validar que monto_credito > 0 (este es el monto ORIGINAL, sin restar deducciones)
@@ -224,7 +231,22 @@ class CreditController extends Controller
                 $lead->save();
             }
 
-            // D. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
+            // D. Poner en 0 las manchas canceladas en el análisis
+            if (!empty($validated['manchas_canceladas']) && !empty($validated['analisis_id'])) {
+                $analisis = Analisis::find($validated['analisis_id']);
+                if ($analisis && $analisis->manchas_detalle) {
+                    $manchas = $analisis->manchas_detalle;
+                    foreach ($validated['manchas_canceladas'] as $index) {
+                        if (isset($manchas[$index])) {
+                            $manchas[$index]['monto'] = 0;
+                        }
+                    }
+                    $analisis->manchas_detalle = $manchas;
+                    $analisis->save();
+                }
+            }
+
+            // E. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
             if ($lead && $lead->documents->count() > 0) {
                 foreach ($lead->documents as $personDocument) {
                     // 1. Definir nueva ruta
