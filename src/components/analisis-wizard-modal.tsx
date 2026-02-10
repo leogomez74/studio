@@ -893,9 +893,9 @@ export function AnalisisWizardModal({
                   {formData.manchas_detalle.map((mancha, index) => (
                     <div key={index} className="border rounded-lg p-4 space-y-3">
                       <Badge variant="destructive">Mancha {index + 1}</Badge>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-4 gap-3">
                         <div>
-                          <Label htmlFor={`mancha_fecha_inicio_${index}`}>Fecha de Inicio *</Label>
+                          <Label htmlFor={`mancha_fecha_inicio_${index}`}>Fecha Inicio *</Label>
                           <Input
                             id={`mancha_fecha_inicio_${index}`}
                             type="date"
@@ -909,7 +909,7 @@ export function AnalisisWizardModal({
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`mancha_fecha_fin_${index}`}>Fecha de Fin</Label>
+                          <Label htmlFor={`mancha_fecha_fin_${index}`}>Fecha Fin</Label>
                           <Input
                             id={`mancha_fecha_fin_${index}`}
                             type="date"
@@ -919,21 +919,6 @@ export function AnalisisWizardModal({
                               newManchas[index].fecha_fin = e.target.value;
                               updateFormData('manchas_detalle', newManchas);
                             }}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label htmlFor={`mancha_desc_${index}`}>Descripción</Label>
-                          <Input
-                            id={`mancha_desc_${index}`}
-                            value={mancha.descripcion}
-                            onChange={(e) => {
-                              const newManchas = [...formData.manchas_detalle];
-                              newManchas[index].descripcion = e.target.value;
-                              updateFormData('manchas_detalle', newManchas);
-                            }}
-                            placeholder="Descripción de la mancha"
                           />
                         </div>
                         <div>
@@ -955,6 +940,19 @@ export function AnalisisWizardModal({
                             />
                           </div>
                         </div>
+                        <div>
+                          <Label htmlFor={`mancha_desc_${index}`}>Descripción</Label>
+                          <Input
+                            id={`mancha_desc_${index}`}
+                            value={mancha.descripcion}
+                            onChange={(e) => {
+                              const newManchas = [...formData.manchas_detalle];
+                              newManchas[index].descripcion = e.target.value;
+                              updateFormData('manchas_detalle', newManchas);
+                            }}
+                            placeholder="Descripción"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -968,9 +966,9 @@ export function AnalisisWizardModal({
                   {formData.juicios_detalle.map((juicio, index) => (
                     <div key={index} className="border rounded-lg p-4 space-y-3">
                       <Badge variant="destructive">Juicio {index + 1}</Badge>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-5 gap-3">
                         <div>
-                          <Label htmlFor={`juicio_fecha_inicio_${index}`}>Fecha de Inicio *</Label>
+                          <Label htmlFor={`juicio_fecha_inicio_${index}`}>Fecha Inicio *</Label>
                           <Input
                             id={`juicio_fecha_inicio_${index}`}
                             type="date"
@@ -984,7 +982,7 @@ export function AnalisisWizardModal({
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`juicio_fecha_fin_${index}`}>Fecha de Fin</Label>
+                          <Label htmlFor={`juicio_fecha_fin_${index}`}>Fecha Fin</Label>
                           <Input
                             id={`juicio_fecha_fin_${index}`}
                             type="date"
@@ -1016,7 +1014,7 @@ export function AnalisisWizardModal({
                           </Select>
                         </div>
                         <div>
-                          <Label htmlFor={`juicio_expediente_${index}`}>Número de Expediente</Label>
+                          <Label htmlFor={`juicio_expediente_${index}`}>Expediente</Label>
                           <Input
                             id={`juicio_expediente_${index}`}
                             value={juicio.expediente}
@@ -1025,10 +1023,10 @@ export function AnalisisWizardModal({
                               newJuicios[index].expediente = e.target.value;
                               updateFormData('juicios_detalle', newJuicios);
                             }}
-                            placeholder="Ej: EXP-2024-001"
+                            placeholder="EXP-2024-001"
                           />
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <Label htmlFor={`juicio_monto_${index}`}>Monto</Label>
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
@@ -1060,9 +1058,9 @@ export function AnalisisWizardModal({
                   {formData.embargos_detalle.map((embargo, index) => (
                     <div key={index} className="border rounded-lg p-4 space-y-3">
                       <Badge variant="destructive">Embargo {index + 1}</Badge>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-4 gap-3">
                         <div>
-                          <Label htmlFor={`embargo_fecha_inicio_${index}`}>Fecha de Inicio *</Label>
+                          <Label htmlFor={`embargo_fecha_inicio_${index}`}>Fecha Inicio *</Label>
                           <Input
                             id={`embargo_fecha_inicio_${index}`}
                             type="date"
@@ -1076,7 +1074,7 @@ export function AnalisisWizardModal({
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`embargo_fecha_fin_${index}`}>Fecha de Fin</Label>
+                          <Label htmlFor={`embargo_fecha_fin_${index}`}>Fecha Fin</Label>
                           <Input
                             id={`embargo_fecha_fin_${index}`}
                             type="date"
@@ -1117,7 +1115,7 @@ export function AnalisisWizardModal({
                               newEmbargos[index].motivo = e.target.value;
                               updateFormData('embargos_detalle', newEmbargos);
                             }}
-                            placeholder="Motivo del embargo"
+                            placeholder="Motivo"
                           />
                         </div>
                       </div>
