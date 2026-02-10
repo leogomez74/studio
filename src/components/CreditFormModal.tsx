@@ -50,7 +50,7 @@ interface CreditFormModalProps {
   products: Array<{ id: number; name: string; }>;
   leads: Array<{ id: number; name?: string; deductora_id?: number; }>;
   onSuccess?: () => void;
-  manchasDetalle?: Array<{ fecha: string; descripcion: string; monto: number }>;
+  manchasDetalle?: Array<{ id: number; fecha_inicio: string; fecha_fin?: string; descripcion: string; monto: number }>;
   analisisId?: number;
 }
 
@@ -234,9 +234,6 @@ export function CreditFormModal({
       payload.cargos_adicionales = cargosParaEnviar;
     }
 
-    if (analisisId) {
-      payload.analisis_id = analisisId;
-    }
     if (selectedManchas.length > 0) {
       payload.manchas_canceladas = selectedManchas;
     }
@@ -560,14 +557,14 @@ export function CreditFormModal({
               {/* Cancelación de Manchas */}
               <div className="mt-4 pt-4 border-t">
                 <Label className="text-sm font-semibold">Cancelación de Manchas</Label>
-                {manchasDetalle && manchasDetalle.filter(m => m.monto > 0).length > 0 ? (
+                {manchasDetalle && manchasDetalle.filter(m => Number(m.monto) > 0).length > 0 ? (
                   <div className="mt-2 space-y-2">
-                    {manchasDetalle.map((mancha, idx) => {
-                      if (mancha.monto <= 0) return null;
-                      const isSelected = selectedManchas.includes(idx);
+                    {manchasDetalle.map((mancha) => {
+                      if (Number(mancha.monto) <= 0) return null;
+                      const isSelected = selectedManchas.includes(mancha.id);
                       return (
                         <label
-                          key={idx}
+                          key={mancha.id}
                           className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                             isSelected
                               ? 'bg-orange-50 border-orange-300'
@@ -579,10 +576,12 @@ export function CreditFormModal({
                             checked={isSelected}
                             onChange={() => {
                               const newSelected = isSelected
-                                ? selectedManchas.filter(i => i !== idx)
-                                : [...selectedManchas, idx];
+                                ? selectedManchas.filter(i => i !== mancha.id)
+                                : [...selectedManchas, mancha.id];
                               setSelectedManchas(newSelected);
-                              const total = newSelected.reduce((sum, i) => sum + (manchasDetalle[i]?.monto || 0), 0);
+                              const total = manchasDetalle
+                                .filter(m => newSelected.includes(m.id))
+                                .reduce((sum, m) => sum + Number(m.monto), 0);
                               setCargosAdicionales(prev => ({ ...prev, cancelacion_manchas: total }));
                             }}
                             className="h-4 w-4 rounded border-gray-300"

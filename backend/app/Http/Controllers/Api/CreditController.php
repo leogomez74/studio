@@ -9,6 +9,7 @@ use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Lead;
 use App\Models\Analisis;
+use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
 use App\Helpers\NumberToWords;
 use Illuminate\Http\Request;
@@ -119,10 +120,9 @@ class CreditController extends Controller
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
             'cargos_adicionales.cancelacion_manchas' => 'nullable|numeric|min:0',
 
-            // Manchas canceladas
-            'analisis_id' => 'nullable|integer|exists:analisis,id',
+            // Manchas canceladas (IDs de la tabla mancha_detalles)
             'manchas_canceladas' => 'nullable|array',
-            'manchas_canceladas.*' => 'integer|min:0',
+            'manchas_canceladas.*' => 'integer|exists:mancha_detalles,id',
         ]);
 
         // Validar que monto_credito > 0 (este es el monto ORIGINAL, sin restar deducciones)
@@ -231,19 +231,10 @@ class CreditController extends Controller
                 $lead->save();
             }
 
-            // D. Poner en 0 las manchas canceladas en el análisis
-            if (!empty($validated['manchas_canceladas']) && !empty($validated['analisis_id'])) {
-                $analisis = Analisis::find($validated['analisis_id']);
-                if ($analisis && $analisis->manchas_detalle) {
-                    $manchas = $analisis->manchas_detalle;
-                    foreach ($validated['manchas_canceladas'] as $index) {
-                        if (isset($manchas[$index])) {
-                            $manchas[$index]['monto'] = 0;
-                        }
-                    }
-                    $analisis->manchas_detalle = $manchas;
-                    $analisis->save();
-                }
+            // D. Poner en 0 las manchas canceladas en el análisis (tabla mancha_detalles)
+            if (!empty($validated['manchas_canceladas'])) {
+                ManchaDetalle::whereIn('id', $validated['manchas_canceladas'])
+                    ->update(['monto' => 0]);
             }
 
             // E. MOVER documentos del Lead (Buzón) al Crédito (Expediente)

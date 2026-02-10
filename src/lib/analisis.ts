@@ -106,6 +106,7 @@ export interface AnalisisItem {
   deducciones?: DeduccionItem[];
   deducciones_mensuales?: DeduccionMensual[];
   manchas_detalle?: ManchaDetalle[];
+  mancha_detalles?: ManchaDetalle[];
   juicios_detalle?: JuicioDetalle[];
   embargos_detalle?: EmbargoDetalle[];
   propuestas?: Propuesta[];

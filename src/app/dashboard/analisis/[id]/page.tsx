@@ -1890,7 +1890,7 @@ export default function AnalisisDetailPage() {
         }}
         products={products}
         leads={leads}
-        manchasDetalle={analisis?.manchas_detalle}
+        manchasDetalle={analisis?.mancha_detalles}
         analisisId={analisis?.id}
         onSuccess={async () => {
           // Refrescar análisis para actualizar has_credit y manchas
