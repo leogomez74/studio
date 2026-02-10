@@ -1301,9 +1301,9 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.juicio_detalles && analisis.juicio_detalles.length > 0 ? (
+                  {analisis.juicios_detalle && analisis.juicios_detalle.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.juicio_detalles.map((juicio: any, idx: number) => (
+                      {analisis.juicios_detalle.map((juicio: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-gray-700">Expediente: {juicio.expediente || '-'}</p>
@@ -1338,9 +1338,9 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.embargo_detalles && analisis.embargo_detalles.length > 0 ? (
+                  {analisis.embargos_detalle && analisis.embargos_detalle.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.embargo_detalles.map((embargo: any, idx: number) => (
+                      {analisis.embargos_detalle.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
                           <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
                           <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}{embargo.fecha_fin ? ` — Fin: ${new Date(embargo.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
@@ -1414,13 +1414,17 @@ export default function AnalisisDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Monto</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={propuestaForm.monto}
-                      onChange={(e) => setPropuestaForm(prev => ({ ...prev, monto: e.target.value }))}
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        className="pl-7"
+                        placeholder="0"
+                        value={propuestaForm.monto ? Number(propuestaForm.monto).toLocaleString('en-US') : ''}
+                        onChange={(e) => setPropuestaForm(prev => ({ ...prev, monto: e.target.value.replace(/[^\d]/g, '') }))}
+                      />
+                    </div>
                   </div>
                   <div>
                     <Label className="text-xs">Plazo (meses)</Label>
