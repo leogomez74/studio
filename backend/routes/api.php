@@ -264,6 +264,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
     Route::apiResource('credit-payments', CreditPaymentController::class);
 
+    // Saldos Pendientes (sobrantes de planilla)
+    Route::get('saldos-pendientes', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'index']);
+    Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar']);
+
     // Tasas (Protegido)
     Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);
     Route::get('tasas/nombre/{nombre}', [\App\Http\Controllers\Api\TasaController::class, 'porNombre']);

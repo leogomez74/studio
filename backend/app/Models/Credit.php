@@ -262,4 +262,9 @@ class Credit extends Model
             ->where('saldo', '>', 0)
             ->whereNull('refundicion_child_id');
     }
+
+    public function saldosPendientes()
+    {
+        return $this->hasMany(SaldoPendiente::class);
+    }
 }

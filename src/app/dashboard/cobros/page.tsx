@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -302,6 +302,14 @@ export default function CobrosPage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
+  // Estados para Saldos Pendientes
+  const [saldosPendientes, setSaldosPendientes] = useState<any[]>([]);
+  const [loadingSaldos, setLoadingSaldos] = useState(false);
+  const [procesandoSaldo, setProcesandoSaldo] = useState<number | null>(null);
+
+  // Resultado de planilla con sobrantes
+  const [planillaResult, setPlanillaResult] = useState<any>(null);
+
   // Búsqueda de clientes con debounce
   useEffect(() => {
     if (!clientSearchQuery || clientSearchQuery.length < 2) {
@@ -324,6 +332,18 @@ export default function CobrosPage() {
     return () => clearTimeout(timeoutId);
   }, [clientSearchQuery]);
 
+  const fetchSaldosPendientes = useCallback(async () => {
+    setLoadingSaldos(true);
+    try {
+      const res = await api.get('/api/saldos-pendientes');
+      setSaldosPendientes(res.data || []);
+    } catch (err) {
+      console.error('Error fetching saldos pendientes:', err);
+    } finally {
+      setLoadingSaldos(false);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoadingCredits(true);
@@ -341,7 +361,8 @@ export default function CobrosPage() {
       }
     };
     fetchData();
-  }, [planRefreshKey, toast]);
+    fetchSaldosPendientes();
+  }, [planRefreshKey, toast, fetchSaldosPendientes]);
 
   // Dynamic filtering of credits by arrears - using live API data
   const filterCreditsByArrearsRange = useCallback((credits: Credit[], daysStart: number, daysEnd: number | null = null) => {
@@ -564,8 +585,17 @@ export default function CobrosPage() {
 
     try {
       setUploading(true);
-      await api.post('/api/credit-payments/upload', form);
-      toast({ title: 'Cargado', description: 'Planilla procesada correctamente.' });
+      const uploadRes = await api.post('/api/credit-payments/upload', form);
+      const saldosSobrantes = uploadRes.data?.saldos_pendientes || [];
+      if (saldosSobrantes.length > 0) {
+        toast({
+          title: 'Planilla procesada con sobrantes',
+          description: `Se detectaron ${saldosSobrantes.length} sobrante(s). Revise la pestaña "Saldos por Asignar".`,
+          duration: 8000,
+        });
+      } else {
+        toast({ title: 'Cargado', description: 'Planilla procesada correctamente.' });
+      }
       setPlanRefreshKey(k => k + 1);
       closePlanillaModal();
     } catch (err: any) {
@@ -638,6 +668,23 @@ export default function CobrosPage() {
     doc.save(`historial_abonos_${Date.now()}.pdf`);
   };
 
+  const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital') => {
+    setProcesandoSaldo(saldoId);
+    try {
+      const res = await api.post(`/api/saldos-pendientes/${saldoId}/asignar`, { accion });
+      toast({
+        title: 'Éxito',
+        description: res.data.message,
+      });
+      setPlanRefreshKey(k => k + 1);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al asignar saldo.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setProcesandoSaldo(null);
+    }
+  };
+
   return (
     <ProtectedPage module="cobros">
       <div className="space-y-6">
@@ -650,6 +697,15 @@ export default function CobrosPage() {
         <TabsList>
           <TabsTrigger value="abonos">Historial de Abonos</TabsTrigger>
           <TabsTrigger value="gestion">Gestión de Cobros</TabsTrigger>
+          <TabsTrigger value="saldos" className="relative">
+            <Wallet className="mr-1.5 h-4 w-4" />
+            Saldos por Asignar
+            {saldosPendientes.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-xs font-bold">
+                {saldosPendientes.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gestion">
@@ -1339,6 +1395,105 @@ export default function CobrosPage() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="saldos">
+          <Card>
+            <CardHeader className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Saldos por Asignar</CardTitle>
+                  <CardDescription>Sobrantes de planilla pendientes de asignación. Puede aplicarlos a la siguiente cuota o como abono a capital.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchSaldosPendientes} disabled={loadingSaldos}>
+                  {loadingSaldos ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingSaldos ? (
+                <div className="p-8 flex justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : saldosPendientes.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Wallet className="mx-auto h-12 w-12 mb-3 opacity-30" />
+                  <p className="text-sm">No hay saldos pendientes por asignar.</p>
+                  <p className="text-xs mt-1">Los sobrantes aparecerán aquí cuando se cargue una planilla donde un cliente pague más que su cuota.</p>
+                </div>
+              ) : (
+                <div className="relative w-full overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Cédula</TableHead>
+                        <TableHead>Crédito</TableHead>
+                        <TableHead className="text-right">Monto Sobrante</TableHead>
+                        <TableHead className="text-right">Saldo Crédito</TableHead>
+                        <TableHead>Deductora</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-center">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {saldosPendientes.map((saldo: any) => (
+                        <TableRow key={saldo.id}>
+                          <TableCell className="font-medium">{saldo.lead_name}</TableCell>
+                          <TableCell className="text-sm">{saldo.cedula}</TableCell>
+                          <TableCell>
+                            <Link href={`/dashboard/creditos/${saldo.credit_id}`} className="text-primary hover:underline text-sm">
+                              {saldo.credit_reference}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold text-orange-600">
+                            ₡{Number(saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            ₡{Number(saldo.saldo_credito).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-sm">{saldo.deductora}</TableCell>
+                          <TableCell className="text-sm">
+                            {saldo.fecha_origen ? new Date(saldo.fecha_origen).toLocaleDateString() : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                disabled={procesandoSaldo === saldo.id}
+                                onClick={() => handleAsignarSaldo(saldo.id, 'cuota')}
+                              >
+                                {procesandoSaldo === saldo.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>Aplicar a Cuota</>
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                disabled={procesandoSaldo === saldo.id}
+                                onClick={() => handleAsignarSaldo(saldo.id, 'capital')}
+                              >
+                                {procesandoSaldo === saldo.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>Aplicar a Capital</>
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -15,6 +15,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Models\SaldoPendiente;
 use Carbon\Carbon;
 
 class CreditPaymentController extends Controller
@@ -790,7 +791,7 @@ class CreditPaymentController extends Controller
      * Lógica "Cascada" (Waterfall) para pagos regulares
      * IMPUTACIÓN: Mora -> Interés -> Cargos -> Capital
      */
-    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null)
+    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false)
     {
         $dineroDisponible = $montoEntrante;
 
@@ -916,6 +917,11 @@ class CreditPaymentController extends Controller
             }
 
             $cuota->save();
+
+            // En modo planilla (singleCuota), solo procesar UNA cuota y parar
+            if ($singleCuotaMode && $cuota->estado === 'Pagado') {
+                break;
+            }
         }
 
         // --- CORRECCIÓN: Actualizar Saldo de forma INCREMENTAL ---
@@ -942,6 +948,14 @@ class CreditPaymentController extends Controller
         ]);
 
         return $paymentRecord;
+    }
+
+    /**
+     * Wrapper público para que otros controllers puedan usar processPaymentTransaction
+     */
+    public function processPaymentTransactionPublic(Credit $credit, float $montoEntrante, $fecha, string $source, ?string $cedulaRef = null): CreditPayment
+    {
+        return $this->processPaymentTransaction($credit, $montoEntrante, $fecha, $source, $cedulaRef);
     }
 
     /**
@@ -1083,12 +1097,29 @@ class CreditPaymentController extends Controller
                     if ($montoPagado > 0) {
                         $creditId = $credit->id;
                         $payment = DB::transaction(function () use ($creditId, $montoPagado, $fechaPago, $rawCedula) {
-                            // 🔒 LOCK: Obtener crédito con bloqueo pesimista dentro de la transacción
                             $credit = Credit::lockForUpdate()->findOrFail($creditId);
-                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula);
+                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula, null, true);
                         });
                         if ($payment) {
-                            $results[] = ['cedula' => $rawCedula, 'monto' => $montoPagado, 'status' => 'applied', 'lead' => $credit->lead->name ?? 'N/A'];
+                            $resultItem = ['cedula' => $rawCedula, 'monto' => $montoPagado, 'status' => 'applied', 'lead' => $credit->lead->name ?? 'N/A'];
+
+                            // Detectar sobrante: si movimiento_total > 0.50 hay excedente
+                            $sobrante = (float) $payment->movimiento_total;
+                            if ($sobrante > 0.50) {
+                                $saldo = SaldoPendiente::create([
+                                    'credit_id' => $payment->credit_id,
+                                    'credit_payment_id' => $payment->id,
+                                    'monto' => $sobrante,
+                                    'origen' => 'Planilla',
+                                    'fecha_origen' => $fechaPago,
+                                    'estado' => 'pendiente',
+                                    'cedula' => $rawCedula,
+                                ]);
+                                $resultItem['sobrante'] = $sobrante;
+                                $resultItem['saldo_pendiente_id'] = $saldo->id;
+                            }
+
+                            $results[] = $resultItem;
                         } else {
                             $results[] = ['cedula' => $rawCedula, 'status' => 'paid_or_error'];
                         }
@@ -1099,10 +1130,24 @@ class CreditPaymentController extends Controller
             // PASO 2: Calcular mora para créditos de ESTA deductora que NO pagaron
             $moraResults = $this->calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora);
 
+            // Recopilar saldos pendientes creados en esta carga
+            $saldosPendientes = collect($results)
+                ->filter(fn($r) => isset($r['sobrante']))
+                ->map(fn($r) => [
+                    'cedula' => $r['cedula'],
+                    'lead' => $r['lead'] ?? 'N/A',
+                    'monto_pagado' => $r['monto'],
+                    'sobrante' => $r['sobrante'],
+                    'saldo_pendiente_id' => $r['saldo_pendiente_id'],
+                ])
+                ->values()
+                ->all();
+
             return response()->json([
                 'message' => 'Proceso completado',
                 'results' => $results,
-                'mora_aplicada' => $moraResults
+                'mora_aplicada' => $moraResults,
+                'saldos_pendientes' => $saldosPendientes,
             ]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error', 'error' => $e->getMessage()], 500);
