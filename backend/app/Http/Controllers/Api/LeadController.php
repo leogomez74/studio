@@ -104,6 +104,12 @@ class LeadController extends Controller
         }
 
         $perPage = min((int) $request->input('per_page', 10), 100);
+
+        // Si se solicita 'all', retornar sin paginar
+        if ($request->get('all') === 'true') {
+            return response()->json($query->latest()->get());
+        }
+
         $leads = $query->latest()->paginate($perPage);
 
         return response()->json($leads);
@@ -741,7 +747,7 @@ class LeadController extends Controller
                     'name' => $fullName,
                     'cedula' => $person->cedula,
                     'type' => 'Cliente',
-                    'label' => $fullName . ($person->cedula ? " ({$person->cedula})" : '')"
+                    'label' => $fullName . ($person->cedula ? " ({$person->cedula})" : '')
                 ];
             });
 
