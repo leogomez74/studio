@@ -1269,12 +1269,13 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.manchas_detalle && analisis.manchas_detalle.length > 0 ? (
+                  {analisis.mancha_detalles && analisis.mancha_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.manchas_detalle.map((mancha, idx) => (
-                        <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm">
-                          <p className="font-medium text-gray-700">{mancha.descripcion}</p>
-                          <p className="text-orange-700 font-semibold mt-1">
+                      {analisis.mancha_detalles.map((mancha: any, idx: number) => (
+                        <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm space-y-1">
+                          <p className="font-medium text-gray-700">{mancha.descripcion || 'Sin descripción'}</p>
+                          <p className="text-gray-600">Inicio: {new Date(mancha.fecha_inicio).toLocaleDateString('es-CR')}{mancha.fecha_fin ? ` — Fin: ${new Date(mancha.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-orange-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(mancha.monto)}
                           </p>
                         </div>
@@ -1300,17 +1301,17 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.juicios_detalle && analisis.juicios_detalle.length > 0 ? (
+                  {analisis.juicio_detalles && analisis.juicio_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.juicios_detalle.map((juicio, idx) => (
+                      {analisis.juicio_detalles.map((juicio: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
                           <div className="flex items-center justify-between">
-                            <p className="font-medium text-gray-700">Expediente: {juicio.expediente}</p>
+                            <p className="font-medium text-gray-700">Expediente: {juicio.expediente || '-'}</p>
                             <Badge variant={juicio.estado === 'activo' ? 'destructive' : 'secondary'}>
                               {juicio.estado}
                             </Badge>
                           </div>
-                          <p className="text-gray-600">Fecha: {new Date(juicio.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="text-gray-600">Inicio: {new Date(juicio.fecha_inicio).toLocaleDateString('es-CR')}{juicio.fecha_fin ? ` — Fin: ${new Date(juicio.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
                           <p className="text-red-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(juicio.monto)}
                           </p>
@@ -1337,12 +1338,12 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.embargos_detalle && analisis.embargos_detalle.length > 0 ? (
+                  {analisis.embargo_detalles && analisis.embargo_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.embargos_detalle.map((embargo, idx) => (
+                      {analisis.embargo_detalles.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
-                          <p className="font-medium text-gray-700">{embargo.motivo}</p>
-                          <p className="text-gray-600">Fecha: {new Date(embargo.fecha).toLocaleDateString('es-CR')}</p>
+                          <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
+                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}{embargo.fecha_fin ? ` — Fin: ${new Date(embargo.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
                           <p className="text-purple-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
                           </p>
