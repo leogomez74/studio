@@ -461,8 +461,8 @@ class LeadController extends Controller
                 ->get();
 
             foreach ($personDocuments as $doc) {
-                if ($doc->path && \Storage::disk('public')->exists($doc->path)) {
-                    \Storage::disk('public')->delete($doc->path);
+                if ($doc->path && Storage::disk('public')->exists($doc->path)) {
+                    Storage::disk('public')->delete($doc->path);
                     $deletedPersonDocs++;
                 }
             }
@@ -484,8 +484,8 @@ class LeadController extends Controller
                         ->get();
 
                     foreach ($creditDocuments as $doc) {
-                        if ($doc->path && \Storage::disk('public')->exists($doc->path)) {
-                            \Storage::disk('public')->delete($doc->path);
+                        if ($doc->path && Storage::disk('public')->exists($doc->path)) {
+                            Storage::disk('public')->delete($doc->path);
                             $deletedCreditDocs++;
                         }
                     }

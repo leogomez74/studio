@@ -720,6 +720,7 @@ class CreditController extends Controller
 
         return response()->json($credit);
     }
+    
 
     /**
      * Genera y descarga el PDF del Plan de Pagos (ruta pública, sin auth)
@@ -786,7 +787,7 @@ class CreditController extends Controller
         foreach ($planDePagos as $pago) {
             $sheet->setCellValue('A' . $row, $pago->numero_cuota);
             $sheet->setCellValue('B' . $row, $pago->estado);
-            $sheet->setCellValue('C' . $row, $pago->fecha_corte ? \Carbon\Carbon::parse($pago->fecha_corte)->format('d/m/Y') : '-');
+            $sheet->setCellValue('C' . $row, $pago->fecha_corte ? Carbon::parse($pago->fecha_corte)->format('d/m/Y') : '-');
             $sheet->setCellValue('D' . $row, number_format($pago->cuota ?? 0, 2));
             $sheet->setCellValue('E' . $row, number_format($pago->poliza ?? 0, 2));
             $sheet->setCellValue('F' . $row, number_format($pago->interes_corriente ?? 0, 2));
@@ -796,7 +797,7 @@ class CreditController extends Controller
             $sheet->setCellValue('J' . $row, number_format($pago->saldo_anterior ?? 0, 2));
             $sheet->setCellValue('K' . $row, number_format($pago->saldo_nuevo ?? 0, 2));
             $sheet->setCellValue('L' . $row, $pago->dias_mora ?? 0);
-            $sheet->setCellValue('M' . $row, $pago->fecha_movimiento ? \Carbon\Carbon::parse($pago->fecha_movimiento)->format('d/m/Y') : '-');
+            $sheet->setCellValue('M' . $row, $pago->fecha_movimiento ? Carbon::parse($pago->fecha_movimiento)->format('d/m/Y') : '-');
             $sheet->setCellValue('N' . $row, number_format($pago->movimiento_total ?? 0, 2));
             $sheet->setCellValue('O' . $row, number_format($pago->movimiento_poliza ?? 0, 2));
             $sheet->setCellValue('P' . $row, number_format($pago->movimiento_interes_corriente ?? 0, 2));
