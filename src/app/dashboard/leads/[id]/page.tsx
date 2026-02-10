@@ -1312,6 +1312,16 @@ export default function LeadDetailPage() {
                             <div>
                                 <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
                                     Información de Referencia (Máx. 2)
+                                    {hasAtLeastOneCompleteReference() ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-300">
+                                            <Check className="h-3 w-3 mr-1" />
+                                            Completo
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                            1 pendiente
+                                        </Badge>
+                                    )}
                                 </h3>
 
                                 {/* Referencia 1 */}
@@ -1319,7 +1329,7 @@ export default function LeadDetailPage() {
                                     <h4 className="text-sm font-medium mb-3 text-muted-foreground">Referencia 1</h4>
                                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                         <div className="space-y-2">
-                                            <Label>Número de Referencia</Label>
+                                            <Label>Número de Referencia {!hasAtLeastOneCompleteReference() && !(formData as any).tel_amigo && <span className="text-red-500">*</span>}</Label>
                                             <Input
                                                 value={(formData as any).tel_amigo || ""}
                                                 onChange={(e) => handleInputChange("tel_amigo" as keyof Lead, e.target.value)}
@@ -1328,7 +1338,7 @@ export default function LeadDetailPage() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Nombre de la Persona</Label>
+                                            <Label>Nombre de la Persona {!hasAtLeastOneCompleteReference() && !(formData as any).relacionado_a && <span className="text-red-500">*</span>}</Label>
                                             <Input
                                                 value={(formData as any).relacionado_a || ""}
                                                 onChange={(e) => handleInputChange("relacionado_a" as keyof Lead, e.target.value)}
@@ -1337,7 +1347,7 @@ export default function LeadDetailPage() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Relación</Label>
+                                            <Label>Relación {!hasAtLeastOneCompleteReference() && !(formData as any).tipo_relacion && <span className="text-red-500">*</span>}</Label>
                                             <Input
                                                 value={(formData as any).tipo_relacion || ""}
                                                 onChange={(e) => handleInputChange("tipo_relacion" as keyof Lead, e.target.value)}
