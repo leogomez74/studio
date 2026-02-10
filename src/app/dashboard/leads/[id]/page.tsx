@@ -915,6 +915,10 @@ export default function LeadDetailPage() {
     };
 
     const handleOpenOpportunitiesModal = () => {
+        if (opportunities.length === 1) {
+            router.push(`/dashboard/oportunidades/${opportunities[0].id}`);
+            return;
+        }
         setOpportunitiesModalOpen(true);
     };
 
@@ -956,46 +960,6 @@ export default function LeadDetailPage() {
                             Guardando...
                         </span>
                     )}
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span className="inline-flex">
-                                    <Button
-                                        variant="default"
-                                        onClick={handleOpenOpportunitiesModal}
-                                        disabled={
-                                            opportunities.length === 0 ||
-                                            !checkIsComplete() ||
-                                            getMissingDocuments().length > 0
-                                        }
-                                        className="gap-2"
-                                    >
-                                        <Handshake className="h-4 w-4" />
-                                        <span>Oportunidades</span>
-                                        {opportunities.length > 0 && (
-                                            <Badge variant="secondary" className="ml-1 bg-white text-slate-900 hover:bg-white">
-                                                {opportunities.length}
-                                            </Badge>
-                                        )}
-                                    </Button>
-                                </span>
-                            </TooltipTrigger>
-                            {(opportunities.length === 0 || !checkIsComplete() || getMissingDocuments().length > 0) && (
-                                <TooltipContent>
-                                    <div className="text-xs space-y-1">
-                                        {opportunities.length === 0 && <p>• No hay oportunidades para mostrar</p>}
-                                        {!checkIsComplete() && (
-                                            <>
-                                                <p>• Completa todos los campos requeridos ({getMissingFieldsCount()} faltantes)</p>
-                                                {!hasAtLeastOneCompleteReference() && <p>• Al menos 1 referencia completa (teléfono, nombre y relación)</p>}
-                                            </>
-                                        )}
-                                        {getMissingDocuments().length > 0 && <p>• Sube los documentos: {getMissingDocuments().join(', ')}</p>}
-                                    </div>
-                                </TooltipContent>
-                            )}
-                        </Tooltip>
-                    </TooltipProvider>
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -1849,15 +1813,55 @@ export default function LeadDetailPage() {
                             </Card>
                         </TabsContent>
 
-                        {/* Continuar button at bottom - only show when not on archivos tab */}
-                        {activeTab !== "archivos" && (
-                            <div className="flex justify-end mt-4">
+                        {/* Botones de acción al fondo */}
+                        <div className="flex justify-end gap-2 mt-4">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-flex">
+                                            <Button
+                                                variant="default"
+                                                onClick={handleOpenOpportunitiesModal}
+                                                disabled={
+                                                    opportunities.length === 0 ||
+                                                    !checkIsComplete() ||
+                                                    getMissingDocuments().length > 0
+                                                }
+                                                className="gap-2"
+                                            >
+                                                <Handshake className="h-4 w-4" />
+                                                <span>Oportunidades</span>
+                                                {opportunities.length > 0 && (
+                                                    <Badge variant="secondary" className="ml-1 bg-white text-slate-900 hover:bg-white">
+                                                        {opportunities.length}
+                                                    </Badge>
+                                                )}
+                                            </Button>
+                                        </span>
+                                    </TooltipTrigger>
+                                    {(opportunities.length === 0 || !checkIsComplete() || getMissingDocuments().length > 0) && (
+                                        <TooltipContent>
+                                            <div className="text-xs space-y-1">
+                                                {opportunities.length === 0 && <p>• No hay oportunidades para mostrar</p>}
+                                                {!checkIsComplete() && (
+                                                    <>
+                                                        <p>• Completa todos los campos requeridos ({getMissingFieldsCount()} faltantes)</p>
+                                                        {!hasAtLeastOneCompleteReference() && <p>• Al menos 1 referencia completa (teléfono, nombre y relación)</p>}
+                                                    </>
+                                                )}
+                                                {getMissingDocuments().length > 0 && <p>• Sube los documentos: {getMissingDocuments().join(', ')}</p>}
+                                            </div>
+                                        </TooltipContent>
+                                    )}
+                                </Tooltip>
+                            </TooltipProvider>
+                            {activeTab !== "archivos" && (
                                 <Button onClick={() => setActiveTab("archivos")}>
                                     Continuar
                                     <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </Tabs>
                 </div>
 
