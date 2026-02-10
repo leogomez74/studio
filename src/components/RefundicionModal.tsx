@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -58,7 +59,14 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Products (tipos de crédito)
+  const [products, setProducts] = useState<{ id: number; name: string }[]>([]);
+  // Loan configurations (rangos de monto/plazo)
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number; plazo_minimo: number; plazo_maximo: number }>>({});
+  const [montoError, setMontoError] = useState('');
+
   // Form state
+  const [tipoCredito, setTipoCredito] = useState('');
   const [montoNuevo, setMontoNuevo] = useState('');
   const [plazo, setPlazo] = useState('');
   const [poliza, setPoliza] = useState(false);
@@ -68,20 +76,25 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
   const [respaldoDeudor, setRespaldoDeudor] = useState('4950');
   const [descuentoFactura, setDescuentoFactura] = useState('0');
 
+  // Determinar config key según tipo seleccionado
+  const configKey = tipoCredito === 'Micro Crédito' ? 'microcredito' : 'regular';
+  const currentConfig = loanConfigs[configKey];
+
   // Calculated values
   const saldoActual = credit.saldo ?? 0;
   const montoNum = parseFloat(montoNuevo) || 0;
+  const plazoNum = parseInt(plazo) || 0;
   const comisionNum = parseFloat(comision) || 0;
   const transporteNum = parseFloat(transporte) || 0;
   const respaldoNum = parseFloat(respaldoDeudor) || 0;
   const descuentoNum = parseFloat(descuentoFactura) || 0;
   const totalCargos = cargosEnabled ? comisionNum + transporteNum + respaldoNum + descuentoNum : 0;
   const montoEntregado = montoNum - saldoActual - totalCargos;
-  const isValid = montoNum >= saldoActual && montoEntregado >= 0 && parseFloat(plazo) >= 1;
+  const plazoValid = plazoNum >= (currentConfig?.plazo_minimo || 1) && (!currentConfig?.plazo_maximo || plazoNum <= currentConfig.plazo_maximo);
+  const isValid = montoNum >= saldoActual && montoEntregado >= 0 && plazoNum >= 1 && plazoValid && !montoError;
 
   // PMT estimation
   const tasaMensual = (credit.tasa_anual || 0) / 100 / 12;
-  const plazoNum = parseInt(plazo) || 0;
   const montoNeto = montoNum - totalCargos;
   let cuotaEstimada = 0;
   if (montoNeto > 0 && plazoNum > 0 && tasaMensual > 0) {
@@ -91,9 +104,25 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
     cuotaEstimada = montoNeto / plazoNum;
   }
 
+  // Fetch products y loan configurations
+  useEffect(() => {
+    if (open) {
+      api.get('/api/products')
+        .then(res => {
+          const data = res.data.data || res.data;
+          setProducts(Array.isArray(data) ? data : []);
+        })
+        .catch(() => setProducts([]));
+      api.get('/api/loan-configurations/rangos')
+        .then(res => setLoanConfigs(res.data || {}))
+        .catch(() => setLoanConfigs({}));
+    }
+  }, [open]);
+
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
+      setTipoCredito(credit.category || credit.tipo_credito || 'Crédito');
       setMontoNuevo('');
       setPlazo('');
       setPoliza(credit.poliza ?? false);
@@ -105,6 +134,21 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
       setDescuentoFactura('0');
     }
   }, [open, credit]);
+
+  // Validar monto y plazo contra límites de loan_configurations
+  useEffect(() => {
+    if (!currentConfig || montoNum === 0) {
+      setMontoError('');
+      return;
+    }
+    if (montoNum < currentConfig.monto_minimo) {
+      setMontoError(`El monto mínimo para ${currentConfig.nombre} es ${formatCurrency(currentConfig.monto_minimo)}`);
+    } else if (montoNum > currentConfig.monto_maximo) {
+      setMontoError(`El monto máximo para ${currentConfig.nombre} es ${formatCurrency(currentConfig.monto_maximo)}`);
+    } else {
+      setMontoError('');
+    }
+  }, [montoNum, currentConfig]);
 
   // Auto-calculate comision at 3%
   useEffect(() => {
@@ -122,8 +166,8 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
         title: `Refundición - ${credit.lead?.name || 'Cliente'}`,
         monto_credito: montoNum,
         plazo: plazoNum,
-        tipo_credito: credit.tipo_credito || 'regular',
-        category: credit.category,
+        tipo_credito: tipoCredito === 'Micro Crédito' ? 'microcredito' : 'regular',
+        category: tipoCredito,
         poliza,
         cargos_adicionales: cargosEnabled
           ? {
@@ -203,6 +247,29 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
         <div className="space-y-4">
           <h3 className="font-medium text-sm">Nuevo Credito</h3>
 
+          <div className="space-y-2">
+            <Label>Tipo de credito *</Label>
+            <Select value={tipoCredito} onValueChange={setTipoCredito}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {products.length > 0 ? (
+                  products.map((product) => (
+                    <SelectItem key={product.id} value={product.name}>
+                      {product.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="Micro Crédito">Micro Crédito</SelectItem>
+                    <SelectItem value="Crédito">Crédito</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="monto_nuevo">Monto del nuevo credito *</Label>
@@ -221,17 +288,27 @@ export function RefundicionModal({ open, onOpenChange, credit, onSuccess }: Refu
               {montoNum > 0 && montoNum < saldoActual && (
                 <p className="text-xs text-red-500">El monto debe ser mayor o igual al saldo pendiente ({formatCurrency(saldoActual)})</p>
               )}
+              {montoError && (
+                <p className="text-xs text-red-500">{montoError}</p>
+              )}
+              {currentConfig && !montoError && (
+                <p className="text-xs text-muted-foreground">Rango: {formatCurrency(currentConfig.monto_minimo)} - {formatCurrency(currentConfig.monto_maximo)}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="plazo_nuevo">Plazo (meses) *</Label>
               <Input
                 id="plazo_nuevo"
                 type="number"
-                placeholder="Ej: 36"
+                placeholder={currentConfig ? `${currentConfig.plazo_minimo} - ${currentConfig.plazo_maximo}` : 'Ej: 36'}
                 value={plazo}
                 onChange={(e) => setPlazo(e.target.value)}
-                min={1}
+                min={currentConfig?.plazo_minimo || 1}
+                max={currentConfig?.plazo_maximo}
               />
+              {currentConfig && plazoNum > 0 && (plazoNum < currentConfig.plazo_minimo || plazoNum > currentConfig.plazo_maximo) && (
+                <p className="text-xs text-red-500">El plazo debe estar entre {currentConfig.plazo_minimo} y {currentConfig.plazo_maximo} meses</p>
+              )}
             </div>
           </div>
 
