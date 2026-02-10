@@ -261,6 +261,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf']);
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
+    Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada']);
+    Route::post('credit-payments/cancelacion-anticipada', [CreditPaymentController::class, 'cancelacionAnticipada']);
 
     // Tasas (Protegido)
     Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);

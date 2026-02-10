@@ -853,7 +853,11 @@ function CreditDetailClient({ id }: { id: string }) {
     md += `| Cliente | ${credit.lead?.name || 'N/A'} |\n`;
     md += `| Cédula | ${credit.lead?.cedula || 'N/A'} |\n`;
     md += `| Monto Original | ₡${formatNumber(credit.monto_credito)} |\n`;
-    md += `| Saldo Actual | ₡${formatNumber(credit.saldo)} |\n`;
+    const interesesVencidosMd = (credit.plan_de_pagos || [])
+      .filter(p => p.estado === 'Mora')
+      .reduce((sum, p) => sum + (Number(p.int_corriente_vencido) || 0), 0);
+    const saldoTotalMd = (Number(credit.saldo) || 0) + interesesVencidosMd;
+    md += `| Saldo Actual | ₡${formatNumber(saldoTotalMd)} |\n`;
     md += `| Estado Crédito | ${credit.status} |\n`;
     md += `| Tasa Anual | ${credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00'}% |\n`;
     md += `| Plazo | ${credit.plazo} meses |\n`;
@@ -1907,9 +1911,24 @@ function CreditDetailClient({ id }: { id: string }) {
                           </div>
                           <div className="space-y-2">
                             <Label>Saldo Actual</Label>
-                              <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
-                                ₡{formatCurrency(credit.saldo)}
-                              </p>
+                              {(() => {
+                                const interesesVencidos = (credit.plan_de_pagos || [])
+                                  .filter(p => p.estado === 'Mora')
+                                  .reduce((sum, p) => sum + (Number(p.int_corriente_vencido) || 0), 0);
+                                const saldoTotal = (Number(credit.saldo) || 0) + interesesVencidos;
+                                return (
+                                  <div>
+                                    <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
+                                      ₡{formatCurrency(saldoTotal)}
+                                    </p>
+                                    {interesesVencidos > 0 && (
+                                      <p className="text-xs text-destructive mt-1">
+                                        Incluye ₡{formatCurrency(interesesVencidos)} en intereses vencidos
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                           </div>
                           <div className="space-y-2">
                             <Label>Monto de Desembolso</Label>
