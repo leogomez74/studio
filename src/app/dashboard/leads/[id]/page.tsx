@@ -605,6 +605,19 @@ export default function LeadDetailPage() {
     const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<string>("datos");
 
+    // Formatear teléfono CR: XXXX-XXXX
+    const formatPhoneCR = (value: string | null | undefined): string => {
+        if (!value) return '';
+        const digits = value.replace(/\D/g, '');
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 8) return digits.slice(0, 4) + '-' + digits.slice(4);
+        return digits; // Números internacionales sin formatear
+    };
+
+    const parsePhone = (value: string): string => {
+        return value.replace(/\D/g, '');
+    };
+
     // Validar si el registro está completo
     const REQUIRED_FIELDS = [
         'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento', 'estado_civil',
@@ -1227,33 +1240,41 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Teléfono Móvil {isFieldMissing('phone') && <span className="text-red-500">*</span>}</Label>
                                         <Input
-                                            value={formData.phone || ""}
-                                            onChange={(e) => handleInputChange("phone", e.target.value)}
+                                            value={formatPhoneCR(formData.phone)}
+                                            onChange={(e) => handleInputChange("phone", parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Teléfono 2</Label>
                                         <Input
-                                            value={(formData as any).telefono2 || ""}
-                                            onChange={(e) => handleInputChange("telefono2" as keyof Lead, e.target.value)}
+                                            value={formatPhoneCR((formData as any).telefono2)}
+                                            onChange={(e) => handleInputChange("telefono2" as keyof Lead, parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>WhatsApp {isFieldMissing('whatsapp') && <span className="text-red-500">*</span>}</Label>
                                         <Input
-                                            value={formData.whatsapp || ""}
-                                            onChange={(e) => handleInputChange("whatsapp", e.target.value)}
+                                            value={formatPhoneCR(formData.whatsapp)}
+                                            onChange={(e) => handleInputChange("whatsapp", parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Teléfono Casa</Label>
                                         <Input
-                                            value={(formData as any).tel_casa || ""}
-                                            onChange={(e) => handleInputChange("tel_casa" as keyof Lead, e.target.value)}
+                                            value={formatPhoneCR((formData as any).tel_casa)}
+                                            onChange={(e) => handleInputChange("tel_casa" as keyof Lead, parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
+                                            inputMode="tel"
+                                            placeholder="8888-7777"
                                         />
                                     </div>
                                 </div>
@@ -1284,10 +1305,11 @@ export default function LeadDetailPage() {
                                         <div className="space-y-2">
                                             <Label>Número de Referencia {!hasAtLeastOneCompleteReference() && !(formData as any).tel_amigo && <span className="text-red-500">*</span>}</Label>
                                             <Input
-                                                value={(formData as any).tel_amigo || ""}
-                                                onChange={(e) => handleInputChange("tel_amigo" as keyof Lead, e.target.value)}
+                                                value={formatPhoneCR((formData as any).tel_amigo)}
+                                                onChange={(e) => handleInputChange("tel_amigo" as keyof Lead, parsePhone(e.target.value))}
                                                 disabled={!isEditMode} onBlur={handleBlur}
-                                                placeholder="Número telefónico"
+                                                inputMode="tel"
+                                                placeholder="8888-7777"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -1318,10 +1340,11 @@ export default function LeadDetailPage() {
                                         <div className="space-y-2">
                                             <Label>Número de Referencia</Label>
                                             <Input
-                                                value={(formData as any).tel_amigo_2 || ""}
-                                                onChange={(e) => handleInputChange("tel_amigo_2" as keyof Lead, e.target.value)}
+                                                value={formatPhoneCR((formData as any).tel_amigo_2)}
+                                                onChange={(e) => handleInputChange("tel_amigo_2" as keyof Lead, parsePhone(e.target.value))}
                                                 disabled={!isEditMode} onBlur={handleBlur}
-                                                placeholder="Número telefónico"
+                                                inputMode="tel"
+                                                placeholder="8888-7777"
                                             />
                                         </div>
                                         <div className="space-y-2">

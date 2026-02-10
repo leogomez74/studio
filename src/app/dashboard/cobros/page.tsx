@@ -1099,7 +1099,18 @@ export default function CobrosPage() {
 
                         <div>
                           <label className="block text-sm font-medium mb-1">Monto (CRC)</label>
-                          <Input type="number" min="0" step="0.01" value={monto} onChange={e => setMonto(e.target.value)} required />
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              className="pl-7"
+                              placeholder="0"
+                              value={monto ? Number(monto).toLocaleString('en-US') : ''}
+                              onChange={e => setMonto(e.target.value.replace(/[^\d]/g, ''))}
+                              required
+                            />
+                          </div>
                         </div>
 
                         <DialogFooter>
