@@ -480,7 +480,7 @@ export default function AnalisisPage() {
                   <td className="px-6 py-4 text-gray-700">
                     {item.lead?.id ? (
                       <Link
-                        href={`/dashboard/clientes/${item.lead.id}`}
+                        href={`/dashboard/${item.lead.person_type_id === 2 ? 'clientes' : 'leads'}/${item.lead.id}`}
                         className="text-blue-600 hover:underline"
                       >
                         {item.lead.name}

@@ -1247,7 +1247,7 @@ export default function AnalisisDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Nombre</p>
                   {lead?.id ? (
-                    <Link href={`/dashboard/clientes/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                    <Link href={`/dashboard/${lead.person_type_id === 2 ? 'clientes' : 'leads'}/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
                       {lead.name}
                     </Link>
                   ) : (
