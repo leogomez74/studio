@@ -1771,8 +1771,26 @@ export default function CobrosPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => {
-                                    window.open(`${process.env.NEXT_PUBLIC_API_URL}/api/planilla-uploads/${planilla.id}/download`, '_blank');
+                                  onClick={async () => {
+                                    try {
+                                      const response = await api.get(`/api/planilla-uploads/${planilla.id}/download`, {
+                                        responseType: 'blob'
+                                      });
+                                      const url = window.URL.createObjectURL(new Blob([response.data]));
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.setAttribute('download', planilla.nombre_archivo || 'planilla.csv');
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      link.remove();
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (err) {
+                                      toast({
+                                        title: 'Error',
+                                        description: 'No se pudo descargar el archivo',
+                                        variant: 'destructive',
+                                      });
+                                    }
                                   }}
                                   title="Descargar planilla"
                                 >
