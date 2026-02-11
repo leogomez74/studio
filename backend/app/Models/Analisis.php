@@ -153,31 +153,49 @@ class Analisis extends Model
 
     /**
      * Accessor para saber si tiene crédito asociado
+     * Busca por opportunity_id o por lead_id si el crédito no tiene opportunity asignada (créditos viejos)
      */
     public function getHasCreditAttribute(): bool
     {
-        return Credit::where('opportunity_id', $this->opportunity_id)
-            ->exists();
+        return Credit::where(function ($query) {
+            $query->where('opportunity_id', $this->opportunity_id)
+                  ->orWhere(function ($q) {
+                      $q->where('lead_id', $this->lead_id)
+                        ->whereNull('opportunity_id');
+                  });
+        })->exists();
     }
 
     /**
      * Accessor para obtener el ID del crédito asociado
+     * Busca por opportunity_id o por lead_id si el crédito no tiene opportunity asignada (créditos viejos)
      */
     public function getCreditIdAttribute(): ?int
     {
-        $credit = Credit::where('opportunity_id', $this->opportunity_id)
-            ->first();
+        $credit = Credit::where(function ($query) {
+            $query->where('opportunity_id', $this->opportunity_id)
+                  ->orWhere(function ($q) {
+                      $q->where('lead_id', $this->lead_id)
+                        ->whereNull('opportunity_id');
+                  });
+        })->first();
 
         return $credit?->id;
     }
 
     /**
      * Accessor para obtener el status del crédito asociado
+     * Busca por opportunity_id o por lead_id si el crédito no tiene opportunity asignada (créditos viejos)
      */
     public function getCreditStatusAttribute(): ?string
     {
-        $credit = Credit::where('opportunity_id', $this->opportunity_id)
-            ->first();
+        $credit = Credit::where(function ($query) {
+            $query->where('opportunity_id', $this->opportunity_id)
+                  ->orWhere(function ($q) {
+                      $q->where('lead_id', $this->lead_id)
+                        ->whereNull('opportunity_id');
+                  });
+        })->first();
 
         return $credit?->status;
     }
