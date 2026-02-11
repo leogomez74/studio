@@ -1026,9 +1026,10 @@ class CreditPaymentController extends Controller
             'fecha_planilla' => $mesPago->format('Y-m-d'),
             'uploaded_at' => now(),
             'nombre_archivo' => $file->getClientOriginalName(),
+            'ruta_archivo' => $path,
             'cantidad_pagos' => 0, // Se actualizará después
             'monto_total' => 0, // Se actualizará después
-            'estado' => 'activa',
+            'estado' => 'procesada',
         ]);
 
         try {

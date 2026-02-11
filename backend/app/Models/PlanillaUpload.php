@@ -14,6 +14,7 @@ class PlanillaUpload extends Model
         'fecha_planilla',
         'uploaded_at',
         'nombre_archivo',
+        'ruta_archivo',
         'cantidad_pagos',
         'monto_total',
         'estado',

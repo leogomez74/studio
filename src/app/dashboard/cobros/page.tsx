@@ -328,6 +328,18 @@ export default function CobrosPage() {
 
   // Historial de Planillas
   const [planillas, setPlanillas] = useState<any[]>([]);
+  const [planillasPagination, setPlanillasPagination] = useState({
+    current_page: 1,
+    last_page: 1,
+    per_page: 15,
+    total: 0
+  });
+  const [planillasFilters, setPlanillasFilters] = useState({
+    deductora_id: 'all',
+    estado: 'all',
+    fecha_desde: '',
+    fecha_hasta: ''
+  });
   const [anularDialogOpen, setAnularDialogOpen] = useState(false);
   const [planillaToAnular, setPlanillaToAnular] = useState<any>(null);
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
@@ -369,14 +381,33 @@ export default function CobrosPage() {
     }
   }, []);
 
-  const fetchPlanillas = useCallback(async () => {
+  const fetchPlanillas = useCallback(async (page = 1) => {
     try {
-      const res = await api.get('/api/planilla-uploads');
-      setPlanillas(res.data);
+      const params: any = {
+        page,
+        per_page: 15,
+        ...planillasFilters
+      };
+
+      // Remover parámetros vacíos o "all"
+      Object.keys(params).forEach(key => {
+        if (params[key] === '' || params[key] === null || params[key] === undefined || params[key] === 'all') {
+          delete params[key];
+        }
+      });
+
+      const res = await api.get('/api/planilla-uploads', { params });
+      setPlanillas(res.data.data || []);
+      setPlanillasPagination({
+        current_page: res.data.current_page,
+        last_page: res.data.last_page,
+        per_page: res.data.per_page,
+        total: res.data.total
+      });
     } catch (err) {
       console.error('Error fetching planillas:', err);
     }
-  }, []);
+  }, [planillasFilters]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1622,63 +1653,191 @@ export default function CobrosPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Fecha Planilla</TableHead>
-                    <TableHead>Deductora</TableHead>
-                    <TableHead>Usuario</TableHead>
-                    <TableHead>Pagos</TableHead>
-                    <TableHead>Monto Total</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {planillas.map((planilla) => (
-                    <TableRow key={planilla.id}>
-                      <TableCell>{planilla.id}</TableCell>
-                      <TableCell>
-                        {new Date(planilla.fecha_planilla).toLocaleDateString('es-CR')}
-                      </TableCell>
-                      <TableCell>{planilla.deductora?.nombre || '-'}</TableCell>
-                      <TableCell>{planilla.user?.name || '-'}</TableCell>
-                      <TableCell>{planilla.cantidad_pagos}</TableCell>
-                      <TableCell>
-                        {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                          .format(planilla.monto_total)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={planilla.estado === 'activa' ? 'default' : 'destructive'}>
-                          {planilla.estado}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {planilla.estado === 'activa' && user?.role?.name === 'Administrador' && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setPlanillaToAnular(planilla);
-                              setAnularDialogOpen(true);
-                            }}
-                          >
-                            Anular
-                          </Button>
-                        )}
-                        {planilla.estado === 'anulada' && (
-                          <div className="text-xs text-muted-foreground">
-                            Anulada: {new Date(planilla.anulada_at).toLocaleDateString('es-CR')}
-                            <br />
-                            Por: {planilla.anulada_por?.name || planilla.anulada_por}
-                          </div>
-                        )}
-                      </TableCell>
+              {/* Filtros */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                  <Label htmlFor="filter-deductora">Deductora</Label>
+                  <Select
+                    value={planillasFilters.deductora_id}
+                    onValueChange={(value) => {
+                      setPlanillasFilters({ ...planillasFilters, deductora_id: value });
+                      fetchPlanillas(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-deductora">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {deductoras.map(d => (
+                        <SelectItem key={d.id} value={String(d.id)}>{d.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="filter-estado">Estado</Label>
+                  <Select
+                    value={planillasFilters.estado}
+                    onValueChange={(value) => {
+                      setPlanillasFilters({ ...planillasFilters, estado: value });
+                      fetchPlanillas(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-estado">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="procesada">Procesada</SelectItem>
+                      <SelectItem value="anulada">Anulada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="filter-fecha-desde">Desde</Label>
+                  <Input
+                    id="filter-fecha-desde"
+                    type="date"
+                    value={planillasFilters.fecha_desde}
+                    onChange={(e) => {
+                      setPlanillasFilters({ ...planillasFilters, fecha_desde: e.target.value });
+                      fetchPlanillas(1);
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="filter-fecha-hasta">Hasta</Label>
+                  <Input
+                    id="filter-fecha-hasta"
+                    type="date"
+                    value={planillasFilters.fecha_hasta}
+                    onChange={(e) => {
+                      setPlanillasFilters({ ...planillasFilters, fecha_hasta: e.target.value });
+                      fetchPlanillas(1);
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Tabla */}
+              <div className="mb-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Fecha Planilla</TableHead>
+                      <TableHead>Deductora</TableHead>
+                      <TableHead>Usuario</TableHead>
+                      <TableHead>Pagos</TableHead>
+                      <TableHead>Monto Total</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acciones</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {planillas.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground">
+                          No hay planillas registradas
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      planillas.map((planilla) => (
+                        <TableRow key={planilla.id}>
+                          <TableCell>{planilla.id}</TableCell>
+                          <TableCell>
+                            {new Date(planilla.fecha_planilla).toLocaleDateString('es-CR')}
+                          </TableCell>
+                          <TableCell>{planilla.deductora?.nombre || '-'}</TableCell>
+                          <TableCell>{planilla.user?.name || '-'}</TableCell>
+                          <TableCell>{planilla.cantidad_pagos}</TableCell>
+                          <TableCell>
+                            {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                              .format(planilla.monto_total)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={planilla.estado === 'procesada' ? 'default' : 'destructive'}>
+                              {planilla.estado}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              {/* Botón de descarga (siempre visible si hay archivo) */}
+                              {planilla.ruta_archivo && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    window.open(`${process.env.NEXT_PUBLIC_API_URL}/api/planilla-uploads/${planilla.id}/download`, '_blank');
+                                  }}
+                                  title="Descargar planilla"
+                                >
+                                  <FileDown className="h-4 w-4" />
+                                </Button>
+                              )}
+
+                              {/* Botón anular (solo Admin y procesada) */}
+                              {planilla.estado === 'procesada' && user?.role?.name === 'Administrador' && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPlanillaToAnular(planilla);
+                                    setAnularDialogOpen(true);
+                                  }}
+                                >
+                                  Anular
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Info de anulación */}
+                            {planilla.estado === 'anulada' && (
+                              <div className="text-xs text-muted-foreground mt-2">
+                                Anulada: {new Date(planilla.anulada_at).toLocaleDateString('es-CR')}
+                                <br />
+                                Por: {planilla.anulada_por?.name || planilla.anulada_por}
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Paginación */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {planillas.length > 0 ? ((planillasPagination.current_page - 1) * planillasPagination.per_page) + 1 : 0} a {Math.min(planillasPagination.current_page * planillasPagination.per_page, planillasPagination.total)} de {planillasPagination.total} planillas
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={planillasPagination.current_page === 1}
+                    onClick={() => fetchPlanillas(planillasPagination.current_page - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <div className="flex items-center gap-2 text-sm">
+                    Página {planillasPagination.current_page} de {planillasPagination.last_page}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={planillasPagination.current_page === planillasPagination.last_page}
+                    onClick={() => fetchPlanillas(planillasPagination.current_page + 1)}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -14,22 +14,44 @@ use Illuminate\Support\Facades\DB;
 class PlanillaUploadController extends Controller
 {
     /**
-     * Listar historial de planillas
+     * Listar historial de planillas con paginación y filtros
      */
     public function index(Request $request)
     {
+        $perPage = $request->get('per_page', 15); // Por defecto 15 por página
+
         $query = PlanillaUpload::with(['deductora', 'user', 'anuladaPor'])
             ->orderBy('uploaded_at', 'desc');
 
-        // Filtros opcionales
-        if ($request->has('deductora_id')) {
+        // Filtro por deductora
+        if ($request->has('deductora_id') && $request->deductora_id) {
             $query->where('deductora_id', $request->deductora_id);
         }
-        if ($request->has('estado')) {
+
+        // Filtro por estado
+        if ($request->has('estado') && $request->estado) {
             $query->where('estado', $request->estado);
         }
 
-        return response()->json($query->get());
+        // Filtro por rango de fechas
+        if ($request->has('fecha_desde')) {
+            $query->whereDate('fecha_planilla', '>=', $request->fecha_desde);
+        }
+        if ($request->has('fecha_hasta')) {
+            $query->whereDate('fecha_planilla', '<=', $request->fecha_hasta);
+        }
+
+        // Filtro por usuario que cargó
+        if ($request->has('user_id') && $request->user_id) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        // Búsqueda por nombre de archivo
+        if ($request->has('search') && $request->search) {
+            $query->where('nombre_archivo', 'like', '%' . $request->search . '%');
+        }
+
+        return response()->json($query->paginate($perPage));
     }
 
     /**
@@ -137,5 +159,29 @@ class PlanillaUploadController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Descargar archivo de planilla
+     */
+    public function download($id)
+    {
+        $planilla = PlanillaUpload::findOrFail($id);
+
+        if (!$planilla->ruta_archivo) {
+            return response()->json([
+                'message' => 'El archivo no está disponible'
+            ], 404);
+        }
+
+        $filePath = storage_path('app/public/' . $planilla->ruta_archivo);
+
+        if (!file_exists($filePath)) {
+            return response()->json([
+                'message' => 'El archivo no se encontró en el servidor'
+            ], 404);
+        }
+
+        return response()->download($filePath, $planilla->nombre_archivo);
     }
 }

@@ -272,6 +272,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Historial de Planillas
     Route::get('planilla-uploads', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'index']);
     Route::get('planilla-uploads/{id}', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'show']);
+    Route::get('planilla-uploads/{id}/download', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'download']);
     Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular']);
 
     // Tasas (Protegido)
