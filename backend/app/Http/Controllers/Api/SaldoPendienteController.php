@@ -50,10 +50,111 @@ class SaldoPendienteController extends Controller
     }
 
     /**
+     * Preview de asignación: muestra cómo se aplicará el saldo sin ejecutar
+     */
+    public function previewAsignacion(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'accion' => 'required|in:cuota,capital',
+        ]);
+
+        // Solo administradores pueden aplicar saldos
+        $user = $request->user();
+        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
+            return response()->json(['message' => 'Solo administradores pueden aplicar saldos'], 403);
+        }
+
+        $saldo = SaldoPendiente::where('estado', 'pendiente')->findOrFail($id);
+        $credit = $saldo->credit;
+        $accion = $validated['accion'];
+
+        $preview = [
+            'saldo_id' => $saldo->id,
+            'monto_disponible' => (float) $saldo->monto,
+            'accion' => $accion,
+            'credit' => [
+                'id' => $credit->id,
+                'numero_operacion' => $credit->numero_operacion,
+                'saldo_actual' => (float) $credit->saldo,
+            ],
+        ];
+
+        if ($accion === 'cuota') {
+            // Simular cascada: interes_moratorio → interes_corriente → poliza → amortizacion
+            $cuota = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->where('estado', 'Pendiente')
+                ->orderBy('numero_cuota')
+                ->first();
+
+            if (!$cuota) {
+                return response()->json(['message' => 'No hay cuotas pendientes'], 400);
+            }
+
+            $dinero = (float) $saldo->monto;
+            $aplicado = [
+                'interes_moratorio' => 0,
+                'interes_corriente' => 0,
+                'poliza' => 0,
+                'amortizacion' => 0,
+            ];
+
+            // Cascada waterfall
+            $pendienteMora = max(0, ((float) $cuota->interes_moratorio) - ((float) $cuota->movimiento_interes_moratorio ?? 0));
+            if ($dinero > 0 && $pendienteMora > 0) {
+                $aplicado['interes_moratorio'] = min($dinero, $pendienteMora);
+                $dinero -= $aplicado['interes_moratorio'];
+            }
+
+            $pendienteInteres = max(0, ((float) $cuota->interes_corriente) - ((float) $cuota->movimiento_interes_corriente ?? 0));
+            if ($dinero > 0 && $pendienteInteres > 0) {
+                $aplicado['interes_corriente'] = min($dinero, $pendienteInteres);
+                $dinero -= $aplicado['interes_corriente'];
+            }
+
+            $pendientePoliza = max(0, ((float) $cuota->poliza) - ((float) $cuota->movimiento_poliza ?? 0));
+            if ($dinero > 0 && $pendientePoliza > 0) {
+                $aplicado['poliza'] = min($dinero, $pendientePoliza);
+                $dinero -= $aplicado['poliza'];
+            }
+
+            $pendienteAmortizacion = max(0, ((float) $cuota->amortizacion) - ((float) $cuota->movimiento_amortizacion ?? 0));
+            if ($dinero > 0 && $pendienteAmortizacion > 0) {
+                $aplicado['amortizacion'] = min($dinero, $pendienteAmortizacion);
+                $dinero -= $aplicado['amortizacion'];
+            }
+
+            $preview['destino'] = 'Cuota #' . $cuota->numero_cuota;
+            $preview['distribucion'] = $aplicado;
+            $preview['saldo_nuevo_credit'] = (float) $credit->saldo - $aplicado['amortizacion'];
+            $preview['excedente'] = $dinero;
+
+        } else {
+            // Aplicar a capital
+            $montoAplicar = min((float) $saldo->monto, (float) $credit->saldo);
+
+            $preview['destino'] = 'Abono a Capital';
+            $preview['distribucion'] = [
+                'amortizacion' => $montoAplicar,
+            ];
+            $preview['saldo_nuevo_credit'] = max(0, (float) $credit->saldo - $montoAplicar);
+            $preview['excedente'] = (float) $saldo->monto - $montoAplicar;
+        }
+
+        return response()->json($preview);
+    }
+
+    /**
      * Asignar un saldo pendiente: aplicar a cuota o aplicar a capital
      */
     public function asignar(Request $request, int $id)
     {
+        // Solo administradores pueden aplicar saldos
+        $user = $request->user();
+        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
+            return response()->json(['message' => 'Solo administradores pueden aplicar saldos'], 403);
+        }
+
         $validated = $request->validate([
             'accion' => 'required|in:cuota,capital',
             'notas' => 'nullable|string|max:500',
