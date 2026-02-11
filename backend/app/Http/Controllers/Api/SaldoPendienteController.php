@@ -27,15 +27,17 @@ class SaldoPendienteController extends Controller
         }
 
         $saldos = $query->get()->map(function ($saldo) {
+            $person = $saldo->credit->lead;
             return [
                 'id' => $saldo->id,
                 'credit_id' => $saldo->credit_id,
                 'lead_id' => $saldo->credit->lead_id ?? null,
+                'person_type_id' => $person->person_type_id ?? null,
                 'credit_reference' => $saldo->credit->reference ?? '',
-                'lead_name' => $saldo->credit->lead
-                    ? ($saldo->credit->lead->name . ' ' . ($saldo->credit->lead->apellido1 ?? ''))
+                'lead_name' => $person
+                    ? ($person->name . ' ' . ($person->apellido1 ?? ''))
                     : 'N/A',
-                'cedula' => $saldo->cedula ?? ($saldo->credit->lead->cedula ?? ''),
+                'cedula' => $saldo->cedula ?? ($person->cedula ?? ''),
                 'deductora' => $saldo->credit->deductora->nombre ?? 'N/A',
                 'monto' => (float) $saldo->monto,
                 'origen' => $saldo->origen,

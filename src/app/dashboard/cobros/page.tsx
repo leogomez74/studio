@@ -1584,7 +1584,13 @@ export default function CobrosPage() {
                         <TableRow key={saldo.id}>
                           <TableCell className="font-medium">
                             {saldo.lead_id ? (
-                              <Link href={`/dashboard/leads/${saldo.lead_id}?mode=view`} className="text-primary hover:underline">
+                              <Link
+                                href={saldo.person_type_id === 1
+                                  ? `/dashboard/leads/${saldo.lead_id}?mode=view`
+                                  : `/dashboard/clientes/${saldo.lead_id}?mode=view`
+                                }
+                                className="text-primary hover:underline"
+                              >
                                 {saldo.lead_name}
                               </Link>
                             ) : (
