@@ -555,6 +555,7 @@ export default function AnalisisDetailPage() {
     plazo: '36',
     poliza: false,
     conCargosAdicionales: false,
+    deductora_id: undefined as number | undefined,
   });
   const [products, setProducts] = useState<Array<{ id: number; name: string; }>>([]);
   const [leads, setLeads] = useState<Array<{ id: number; name?: string; deductora_id?: number; }>>([]);
@@ -1142,6 +1143,7 @@ export default function AnalisisDetailPage() {
                           plazo: analisis.plazo ? String(analisis.plazo) : '36',
                           poliza: false,
                           conCargosAdicionales: true,
+                          deductora_id: analisis.lead?.deductora_id,
                         });
                         setIsCreditDialogOpen(true);
                       } catch (err) {
@@ -1301,9 +1303,9 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.juicios_detalle && analisis.juicios_detalle.length > 0 ? (
+                  {analisis.juicio_detalles && analisis.juicio_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.juicios_detalle.map((juicio: any, idx: number) => (
+                      {analisis.juicio_detalles.map((juicio: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-gray-700">Expediente: {juicio.expediente || '-'}</p>
@@ -1338,9 +1340,9 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.embargos_detalle && analisis.embargos_detalle.length > 0 ? (
+                  {analisis.embargo_detalles && analisis.embargo_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.embargos_detalle.map((embargo: any, idx: number) => (
+                      {analisis.embargo_detalles.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
                           <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
                           <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}{embargo.fecha_fin ? ` — Fin: ${new Date(embargo.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
@@ -1891,6 +1893,7 @@ export default function AnalisisDetailPage() {
           divisa: creditForm.divisa,
           plazo: creditForm.plazo,
           description: creditForm.description,
+          deductora_id: creditForm.deductora_id,
         }}
         products={products}
         leads={leads}
@@ -2045,6 +2048,7 @@ export default function AnalisisDetailPage() {
                         plazo: analisis.plazo ? String(analisis.plazo) : '36',
                         poliza: false,
                         conCargosAdicionales: true,
+                        deductora_id: analisis.lead?.deductora_id,
                       });
                       setIsCreditDialogOpen(true);
                     } catch (err) {

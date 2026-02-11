@@ -46,6 +46,7 @@ interface CreditFormModalProps {
     divisa?: string;
     plazo?: string;
     description?: string;
+    deductora_id?: number;
   };
   products: Array<{ id: number; name: string; }>;
   leads: Array<{ id: number; name?: string; deductora_id?: number; }>;
@@ -115,10 +116,16 @@ export function CreditFormModal({
         poliza: false,
         conCargosAdicionales: false,
       });
-      // Auto-llenar deductora desde el lead
-      const leadId = initialData.leadId || '';
-      const lead = leads.find(l => String(l.id) === leadId);
-      setSelectedDeductora(lead?.deductora_id ? String(lead.deductora_id) : 'sin_deductora');
+      // Auto-llenar deductora desde initialData o desde el lead en el array
+      if (initialData.deductora_id) {
+        // Prioridad 1: usar deductora_id directamente si viene en initialData
+        setSelectedDeductora(String(initialData.deductora_id));
+      } else {
+        // Prioridad 2: buscar en el array de leads
+        const leadId = initialData.leadId || '';
+        const lead = leads.find(l => String(l.id) === leadId);
+        setSelectedDeductora(lead?.deductora_id ? String(lead.deductora_id) : 'sin_deductora');
+      }
       setSelectedManchas([]);
       setCurrentStep(1);
     }
