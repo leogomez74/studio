@@ -179,11 +179,12 @@ class CreditPaymentController extends Controller
                       ->where('numero_cuota', '>', 0)
                       ->orderByRaw("FIELD(estado, 'Mora', 'Parcial', 'Pendiente')")
                       ->orderBy('numero_cuota', 'asc');
-                }])->whereHas('lead', function($q) use ($rawCedula, $cleanCedula, $deductoraId) {
-                    $q->where(function($query) use ($rawCedula, $cleanCedula) {
-                        $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
-                    })->where('deductora_id', $deductoraId);
-                })->first();
+                }])->where('deductora_id', $deductoraId)
+                    ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
+                        $q->where(function($query) use ($rawCedula, $cleanCedula) {
+                            $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                        });
+                    })->first();
 
                 if ($credit) {
                     // Obtener la primera cuota pendiente
@@ -1085,12 +1086,13 @@ class CreditPaymentController extends Controller
                     $results[] = ['cedula' => $rawCedula, 'status' => 'skipped']; continue;
                 }
 
-                // Buscar crédito por cédula del lead con la deductora seleccionada
-                $credit = Credit::whereHas('lead', function($q) use ($rawCedula, $cleanCedula, $deductoraId) {
-                    $q->where(function($query) use ($rawCedula, $cleanCedula) {
-                        $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
-                    })->where('deductora_id', $deductoraId);
-                })->first();
+                // Buscar crédito por cédula del lead y deductora del crédito
+                $credit = Credit::where('deductora_id', $deductoraId)
+                    ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
+                        $q->where(function($query) use ($rawCedula, $cleanCedula) {
+                            $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                        });
+                    })->first();
 
                 if ($credit) {
                     // Registrar que este crédito SÍ pagó
@@ -1339,9 +1341,7 @@ class CreditPaymentController extends Controller
         $creditosSinPago = Credit::whereIn('status', ['Formalizado', 'En Mora'])
             ->whereNotNull('formalized_at')
             ->whereNotIn('id', $creditosQuePagaron)
-            ->whereHas('lead', function($q) use ($deductoraId) {
-                $q->where('deductora_id', $deductoraId);
-            })
+            ->where('deductora_id', $deductoraId)
             ->get();
 
         foreach ($creditosSinPago as $credit) {

@@ -526,7 +526,7 @@ export default function CobrosPage() {
         return true;
       }
       // Buscar por deductora
-      if (saldo.deductora_nombre && saldo.deductora_nombre.toLowerCase().includes(query)) {
+      if (saldo.deductora && saldo.deductora.toLowerCase().includes(query)) {
         return true;
       }
       return false;
@@ -1702,7 +1702,7 @@ export default function CobrosPage() {
                         <TableRow key={saldo.id}>
                           <TableCell className="font-medium">
                             {saldo.lead_id ? (
-                              <Link href={`/dashboard/leads/${saldo.lead_id}?mode=view`} className="text-primary hover:underline">
+                              <Link href={`/dashboard/clientes/${saldo.lead_id}?mode=view`} className="text-primary hover:underline">
                                 {saldo.lead_name}
                               </Link>
                             ) : (
