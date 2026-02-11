@@ -507,6 +507,9 @@ export default function AnalisisDetailPage() {
   const [editPlazo, setEditPlazo] = useState<number>(36);
   const [saving, setSaving] = useState(false);
 
+  // Loan configurations para validación de montos
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number }>>({});
+
   // Propuestas state
   const [propuestas, setPropuestas] = useState<Propuesta[]>([]);
   const [loadingPropuestas, setLoadingPropuestas] = useState(false);
@@ -664,6 +667,11 @@ export default function AnalisisDetailPage() {
           setPropuestas(data.propuestas);
         }
 
+        // Cargar configuraciones de préstamos para validación de propuestas
+        api.get('/api/loan-configurations/rangos')
+          .then(res => setLoanConfigs(res.data))
+          .catch(() => {});
+
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
 
@@ -818,8 +826,43 @@ export default function AnalisisDetailPage() {
       return;
     }
 
+    // Validación y cambio automático de categoría según monto
+    if (analisis.category && Object.keys(loanConfigs).length > 0) {
+      const esMicro = analisis.category.toLowerCase().includes('micro');
+      const tipoCredito = esMicro ? 'microcredito' : 'regular';
+      const config = loanConfigs[tipoCredito];
+
+      if (config) {
+        if (esMicro && monto > config.monto_maximo) {
+          const regularConfig = loanConfigs['regular'];
+          if (regularConfig && monto >= regularConfig.monto_minimo && monto <= regularConfig.monto_maximo) {
+            await api.put(`/api/analisis/${analisisId}`, { category: 'Crédito' });
+            setAnalisis(prev => prev ? { ...prev, category: 'Crédito' } : null);
+            toast({ title: 'Tipo de crédito actualizado', description: 'El monto excede Micro Crédito. Se cambió automáticamente a Crédito.' });
+          } else {
+            toast({ title: 'Error', description: `El monto debe estar entre ₡${config.monto_minimo.toLocaleString()} y ₡${config.monto_maximo.toLocaleString()} para ${config.nombre}.`, variant: 'destructive' });
+            return;
+          }
+        } else if (!esMicro && monto < config.monto_minimo) {
+          const microConfig = loanConfigs['microcredito'];
+          if (microConfig && monto >= microConfig.monto_minimo && monto <= microConfig.monto_maximo) {
+            await api.put(`/api/analisis/${analisisId}`, { category: 'Micro Crédito' });
+            setAnalisis(prev => prev ? { ...prev, category: 'Micro Crédito' } : null);
+            toast({ title: 'Tipo de crédito actualizado', description: 'El monto está por debajo del mínimo de Crédito. Se cambió automáticamente a Micro Crédito.' });
+          } else {
+            toast({ title: 'Error', description: `El monto debe estar entre ₡${config.monto_minimo.toLocaleString()} y ₡${config.monto_maximo.toLocaleString()} para ${config.nombre}.`, variant: 'destructive' });
+            return;
+          }
+        } else if (monto < config.monto_minimo || monto > config.monto_maximo) {
+          toast({ title: 'Error', description: `El monto debe estar entre ₡${config.monto_minimo.toLocaleString()} y ₡${config.monto_maximo.toLocaleString()} para ${config.nombre}.`, variant: 'destructive' });
+          return;
+        }
+      }
+    }
+
     // Validación: Micro crédito requiere mínimo 6 meses de plazo
-    if (analisis.category?.toLowerCase().includes('micro') && plazo < 6) {
+    const currentCategory = analisis.category?.toLowerCase().includes('micro') ? 'micro' : 'regular';
+    if (currentCategory === 'micro' && plazo < 6) {
       toast({
         title: 'Error',
         description: 'Para Micro crédito el plazo mínimo es de 6 meses.',
@@ -1143,7 +1186,7 @@ export default function AnalisisDetailPage() {
                           plazo: analisis.plazo ? String(analisis.plazo) : '36',
                           poliza: false,
                           conCargosAdicionales: true,
-                          deductora_id: analisis.lead?.deductora_id,
+                          deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
                         });
                         setIsCreditDialogOpen(true);
                       } catch (err) {
@@ -2048,7 +2091,7 @@ export default function AnalisisDetailPage() {
                         plazo: analisis.plazo ? String(analisis.plazo) : '36',
                         poliza: false,
                         conCargosAdicionales: true,
-                        deductora_id: analisis.lead?.deductora_id,
+                        deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
                       });
                       setIsCreditDialogOpen(true);
                     } catch (err) {
