@@ -555,6 +555,7 @@ export default function AnalisisDetailPage() {
     plazo: '36',
     poliza: false,
     conCargosAdicionales: false,
+    deductora_id: undefined as number | undefined,
   });
   const [products, setProducts] = useState<Array<{ id: number; name: string; }>>([]);
   const [leads, setLeads] = useState<Array<{ id: number; name?: string; deductora_id?: number; }>>([]);
@@ -1142,6 +1143,7 @@ export default function AnalisisDetailPage() {
                           plazo: analisis.plazo ? String(analisis.plazo) : '36',
                           poliza: false,
                           conCargosAdicionales: true,
+                          deductora_id: analisis.lead?.deductora_id,
                         });
                         setIsCreditDialogOpen(true);
                       } catch (err) {
@@ -1887,6 +1889,7 @@ export default function AnalisisDetailPage() {
           divisa: creditForm.divisa,
           plazo: creditForm.plazo,
           description: creditForm.description,
+          deductora_id: creditForm.deductora_id,
         }}
         products={products}
         leads={leads}
@@ -2041,6 +2044,7 @@ export default function AnalisisDetailPage() {
                         plazo: analisis.plazo ? String(analisis.plazo) : '36',
                         poliza: false,
                         conCargosAdicionales: true,
+                        deductora_id: analisis.lead?.deductora_id,
                       });
                       setIsCreditDialogOpen(true);
                     } catch (err) {
