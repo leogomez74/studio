@@ -903,6 +903,10 @@ class CreditPaymentController extends Controller
             $cuota->movimiento_total += $totalPagadoEnEstaTransaccion;
             $cuota->movimiento_amortizacion += $pagoPrincipal;
             $cuota->fecha_movimiento = $fecha;
+            // La fecha de pago es igual a la fecha de movimiento
+            if (!$cuota->fecha_pago) {
+                $cuota->fecha_pago = $fecha;
+            }
 
             // Calcular total exigible incluyendo int_corriente_vencido
             $totalExigible = $cuota->interes_corriente
@@ -914,7 +918,6 @@ class CreditPaymentController extends Controller
             if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
                 $teniaMora = ((float) ($cuota->int_corriente_vencido ?? 0) > 0) || ((float) ($cuota->interes_moratorio ?? 0) > 0) || ((int) ($cuota->dias_mora ?? 0) > 0);
                 $cuota->estado = 'Pagado';
-                $cuota->fecha_pago = $fecha;
                 $cuota->concepto = $teniaMora ? 'Pago registrado (mora)' : 'Pago registrado';
             } else {
                 $cuota->estado = 'Parcial';
