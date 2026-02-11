@@ -117,7 +117,11 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
                       {credit.reference || credit.numero_operacion || credit.id}
                     </Link>
                   </TableCell>
-                  <TableCell>{credit.lead?.name || "-"}</TableCell>
+                  <TableCell>
+                    {credit.lead
+                      ? `${credit.lead.name || ''} ${(credit.lead as any).apellido1 || ''} ${(credit.lead as any).apellido2 || ''}`.trim() || '-'
+                      : '-'}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell">
                     ₡{credit.cuota ? Number(credit.cuota).toLocaleString('de-DE') : '0'}
                   </TableCell>
@@ -192,8 +196,10 @@ const getSourceVariant = (source: Payment['source']) => {
 const PaymentTableRow = React.memo(function PaymentTableRow({ payment }: { payment: PaymentWithRelations }) {
   const credit = payment.credit;
   const lead = credit?.lead;
-  
-  const leadName = lead?.name || (payment.cedula ? String(payment.cedula) : 'Desconocido');
+
+  const leadName = lead
+    ? `${lead.name || ''} ${(lead as any).apellido1 || ''} ${(lead as any).apellido2 || ''}`.trim() || 'Sin nombre'
+    : (payment.cedula ? String(payment.cedula) : 'Desconocido');
   const operationNumber = credit?.numero_operacion || credit?.reference || '-';
   
   const amount = parseFloat(String(payment.monto || 0));
