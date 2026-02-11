@@ -41,7 +41,7 @@ class CreditPaymentController extends Controller
         $validated = $request->validate([
             'deductora_id' => 'required|exists:deductoras,id',
             'fecha_proceso' => 'nullable|date',
-            'file' => 'required|file|mimes:xlsx,xls,csv'
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         ]);
 
         $deductoraId = $validated['deductora_id'];
@@ -977,7 +977,7 @@ class CreditPaymentController extends Controller
     public function upload(Request $request)
     {
         $validated = $request->validate([
-            'file' => 'required|file',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'deductora_id' => 'required|exists:deductoras,id',
             'fecha_test' => 'nullable|date', // Solo para pruebas en localhost
         ]);
