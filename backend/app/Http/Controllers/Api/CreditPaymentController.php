@@ -77,6 +77,7 @@ class CreditPaymentController extends Controller
             'total_registros' => 0,
             'completos' => 0,
             'parciales' => 0,
+            'sobrepagos' => 0,
             'no_encontrados' => 0,
             'monto_total_planilla' => 0,
             'monto_total_esperado' => 0,
@@ -198,6 +199,7 @@ class CreditPaymentController extends Controller
 
                         if ($estado === 'Completo') $totales['completos']++;
                         if ($estado === 'Parcial') $totales['parciales']++;
+                        if ($estado === 'Sobrepago') $totales['sobrepagos']++;
 
                         $preview[] = [
                             'cedula' => $rawCedula,

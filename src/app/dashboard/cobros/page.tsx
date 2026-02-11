@@ -1029,7 +1029,7 @@ export default function CobrosPage() {
                             </div>
 
                             {/* Totales */}
-                            <div className="grid grid-cols-4 gap-3 p-4 bg-gray-50 rounded-lg">
+                            <div className="grid grid-cols-5 gap-3 p-4 bg-gray-50 rounded-lg">
                               <div className="text-center">
                                 <div className="text-2xl font-bold">{previewData.totales.total_registros}</div>
                                 <div className="text-xs text-muted-foreground">Total Registros</div>
@@ -1041,6 +1041,10 @@ export default function CobrosPage() {
                               <div className="text-center">
                                 <div className="text-2xl font-bold text-yellow-600">{previewData.totales.parciales}</div>
                                 <div className="text-xs text-muted-foreground">Parciales</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-blue-600">{previewData.totales.sobrepagos || 0}</div>
+                                <div className="text-xs text-muted-foreground">Sobrepagos</div>
                               </div>
                               <div className="text-center">
                                 <div className="text-2xl font-bold text-red-600">{previewData.totales.no_encontrados}</div>
