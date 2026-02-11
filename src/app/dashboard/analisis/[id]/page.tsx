@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -1109,6 +1109,16 @@ export default function AnalisisDetailPage() {
         </div>
 
         {/* Fila 2: Botones de Estado - PEP izquierda, Cliente derecha */}
+        {(analisis?.credit_status === 'Formalizado' || analisis?.has_credit || analisis?.credit_id) && (
+          <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-amber-50 border border-amber-200 rounded-md">
+            <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+            <span className="text-xs text-amber-700">
+              {analisis?.credit_status === 'Formalizado'
+                ? 'Crédito formalizado — los estados no pueden modificarse.'
+                : 'Ya existe un crédito asociado a este análisis.'}
+            </span>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 flex-wrap">
           {/* Estado PEP - Izquierda */}
           <div className="flex items-center gap-2">
@@ -1247,7 +1257,7 @@ export default function AnalisisDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Nombre</p>
                   {lead?.id ? (
-                    <Link href={`/dashboard/clientes/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                    <Link href={`/dashboard/${lead.person_type_id === 2 ? 'clientes' : 'leads'}/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
                       {lead.name}
                     </Link>
                   ) : (
@@ -2014,6 +2024,16 @@ export default function AnalisisDetailPage() {
       </Dialog>
 
       {/* Barra inferior - Estado PEP izquierda, Estado Cliente derecha */}
+      {(analisis?.credit_status === 'Formalizado' || analisis?.has_credit || analisis?.credit_id) && (
+        <div className="flex items-center gap-2 px-3 py-1.5 mt-6 bg-amber-50 border border-amber-200 rounded-md">
+          <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+          <span className="text-xs text-amber-700">
+            {analisis?.credit_status === 'Formalizado'
+              ? 'Crédito formalizado — los estados no pueden modificarse.'
+              : 'Ya existe un crédito asociado a este análisis.'}
+          </span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mt-6 pt-4 border-t flex-wrap">
         {/* Estado PEP - Izquierda */}
         <div className="flex items-center gap-2">
