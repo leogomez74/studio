@@ -15,6 +15,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Models\SaldoPendiente;
 use Carbon\Carbon;
 
 class CreditPaymentController extends Controller
@@ -43,6 +44,27 @@ class CreditPaymentController extends Controller
 
         $deductoraId = $validated['deductora_id'];
         $fechaProceso = $validated['fecha_proceso'] ?? now()->format('Y-m-d');
+
+        // VALIDACIÓN: Solo 1 planilla por deductora por mes
+        $fechaProcesoCarbon = Carbon::parse($fechaProceso);
+        $mesInicio = $fechaProcesoCarbon->copy()->startOfMonth();
+        $mesFin = $fechaProcesoCarbon->copy()->endOfMonth();
+        $yaExiste = CreditPayment::where('source', 'Planilla')
+            ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
+            ->whereHas('credit', function ($q) use ($deductoraId) {
+                $q->where('deductora_id', $deductoraId);
+            })
+            ->exists();
+
+        if ($yaExiste) {
+            $deductoraNombre = \App\Models\Deductora::find($deductoraId)->nombre ?? 'Desconocida';
+            $mesNombre = $fechaProcesoCarbon->translatedFormat('F Y');
+            return response()->json([
+                'message' => "La planilla del mes de {$mesNombre} correspondiente a {$deductoraNombre} ya ha sido cargada.",
+                'deductora' => $deductoraNombre,
+                'mes' => $mesNombre,
+            ], 422);
+        }
 
         $file = $request->file('file');
         $path = $file->store('uploads/planillas_preview', 'public');
@@ -90,8 +112,10 @@ class CreditPaymentController extends Controller
             // Detectar columnas
             $montoCol = null;
             $cedulaCol = null;
+            $columnasEncontradas = [];
             foreach ($header as $col => $val) {
                 $v = mb_strtolower(trim((string)$val));
+                if ($v !== '') $columnasEncontradas[] = trim((string)$val);
                 if (str_contains($v, 'monto') || str_contains($v, 'abono')) {
                     $montoCol = $col;
                 }
@@ -101,8 +125,17 @@ class CreditPaymentController extends Controller
             }
 
             if (!$montoCol || !$cedulaCol || $montoCol === $cedulaCol) {
+                $errores = [];
+                if (!$cedulaCol) $errores[] = 'No se encontró la columna "Cédula"';
+                if (!$montoCol) $errores[] = 'No se encontró la columna "Monto" o "Abono"';
+                if ($montoCol && $cedulaCol && $montoCol === $cedulaCol) $errores[] = 'Las columnas "Cédula" y "Monto" apuntan a la misma columna';
+
                 return response()->json([
-                    'message' => 'No se pudieron detectar las columnas Cédula y Monto'
+                    'message' => 'Error en el encabezado del archivo Excel',
+                    'errores' => $errores,
+                    'columnas_encontradas' => $columnasEncontradas,
+                    'columnas_requeridas' => ['Cédula (o cedula)', 'Monto (o abono)'],
+                    'ayuda' => 'El archivo debe tener un encabezado en la primera fila con al menos las columnas: "Cédula" y "Monto". Verifique que los nombres coincidan.'
                 ], 422);
             }
 
@@ -758,7 +791,7 @@ class CreditPaymentController extends Controller
      * Lógica "Cascada" (Waterfall) para pagos regulares
      * IMPUTACIÓN: Mora -> Interés -> Cargos -> Capital
      */
-    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null)
+    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false)
     {
         $dineroDisponible = $montoEntrante;
 
@@ -884,6 +917,11 @@ class CreditPaymentController extends Controller
             }
 
             $cuota->save();
+
+            // En modo planilla (singleCuota), solo procesar UNA cuota y parar
+            if ($singleCuotaMode && $cuota->estado === 'Pagado') {
+                break;
+            }
         }
 
         // --- CORRECCIÓN: Actualizar Saldo de forma INCREMENTAL ---
@@ -913,6 +951,14 @@ class CreditPaymentController extends Controller
     }
 
     /**
+     * Wrapper público para que otros controllers puedan usar processPaymentTransaction
+     */
+    public function processPaymentTransactionPublic(Credit $credit, float $montoEntrante, $fecha, string $source, ?string $cedulaRef = null): CreditPayment
+    {
+        return $this->processPaymentTransaction($credit, $montoEntrante, $fecha, $source, $cedulaRef);
+    }
+
+    /**
      * Carga masiva de planilla con cálculo de mora
      *
      * Flujo:
@@ -932,6 +978,26 @@ class CreditPaymentController extends Controller
         // Usar fecha de prueba si se proporciona (solo para desarrollo/testing)
         $fechaTest = $request->input('fecha_test');
         $fechaPago = $fechaTest ? Carbon::parse($fechaTest) : now();
+
+        // VALIDACIÓN: Solo 1 planilla por deductora por mes
+        $mesInicio = $fechaPago->copy()->startOfMonth();
+        $mesFin = $fechaPago->copy()->endOfMonth();
+        $yaExiste = CreditPayment::where('source', 'Planilla')
+            ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
+            ->whereHas('credit', function ($q) use ($deductoraId) {
+                $q->where('deductora_id', $deductoraId);
+            })
+            ->exists();
+
+        if ($yaExiste) {
+            $deductoraNombre = \App\Models\Deductora::find($deductoraId)->nombre ?? 'Desconocida';
+            $mesNombre = $fechaPago->translatedFormat('F Y');
+            return response()->json([
+                'message' => "La planilla del mes de {$mesNombre} correspondiente a {$deductoraNombre} ya ha sido cargada.",
+                'deductora' => $deductoraNombre,
+                'mes' => $mesNombre,
+            ], 422);
+        }
 
         // Mes que se está pagando (planillas llegan 1 mes después)
         $mesPago = $fechaPago->copy()->subMonth();
@@ -967,13 +1033,26 @@ class CreditPaymentController extends Controller
             $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
             $header = reset($rows);
             $montoCol = null; $cedulaCol = null;
+            $columnasEncontradas = [];
             foreach ($header as $col => $val) {
                 $v = mb_strtolower(trim((string)$val));
+                if ($v !== '') $columnasEncontradas[] = trim((string)$val);
                 if (str_contains($v, 'monto') || str_contains($v, 'abono')) $montoCol = $col;
                 if (str_contains($v, 'cedula') || str_contains($v, 'cédula')) $cedulaCol = $col;
             }
             if (!$montoCol || !$cedulaCol || $montoCol === $cedulaCol) {
-                return response()->json(['message' => 'Error de columnas'], 422);
+                $errores = [];
+                if (!$cedulaCol) $errores[] = 'No se encontró la columna "Cédula"';
+                if (!$montoCol) $errores[] = 'No se encontró la columna "Monto" o "Abono"';
+                if ($montoCol && $cedulaCol && $montoCol === $cedulaCol) $errores[] = 'Las columnas "Cédula" y "Monto" apuntan a la misma columna';
+
+                return response()->json([
+                    'message' => 'Error en el encabezado del archivo Excel',
+                    'errores' => $errores,
+                    'columnas_encontradas' => $columnasEncontradas,
+                    'columnas_requeridas' => ['Cédula (o cedula)', 'Monto (o abono)'],
+                    'ayuda' => 'El archivo debe tener un encabezado en la primera fila con al menos las columnas: "Cédula" y "Monto". Verifique que los nombres coincidan.'
+                ], 422);
             }
 
             // PASO 1: Procesar pagos de personas EN la lista
@@ -1018,12 +1097,29 @@ class CreditPaymentController extends Controller
                     if ($montoPagado > 0) {
                         $creditId = $credit->id;
                         $payment = DB::transaction(function () use ($creditId, $montoPagado, $fechaPago, $rawCedula) {
-                            // 🔒 LOCK: Obtener crédito con bloqueo pesimista dentro de la transacción
                             $credit = Credit::lockForUpdate()->findOrFail($creditId);
-                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula);
+                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula, null, true);
                         });
                         if ($payment) {
-                            $results[] = ['cedula' => $rawCedula, 'monto' => $montoPagado, 'status' => 'applied', 'lead' => $credit->lead->name ?? 'N/A'];
+                            $resultItem = ['cedula' => $rawCedula, 'monto' => $montoPagado, 'status' => 'applied', 'lead' => $credit->lead->name ?? 'N/A'];
+
+                            // Detectar sobrante: si movimiento_total > 0.50 hay excedente
+                            $sobrante = (float) $payment->movimiento_total;
+                            if ($sobrante > 0.50) {
+                                $saldo = SaldoPendiente::create([
+                                    'credit_id' => $payment->credit_id,
+                                    'credit_payment_id' => $payment->id,
+                                    'monto' => $sobrante,
+                                    'origen' => 'Planilla',
+                                    'fecha_origen' => $fechaPago,
+                                    'estado' => 'pendiente',
+                                    'cedula' => $rawCedula,
+                                ]);
+                                $resultItem['sobrante'] = $sobrante;
+                                $resultItem['saldo_pendiente_id'] = $saldo->id;
+                            }
+
+                            $results[] = $resultItem;
                         } else {
                             $results[] = ['cedula' => $rawCedula, 'status' => 'paid_or_error'];
                         }
@@ -1034,10 +1130,24 @@ class CreditPaymentController extends Controller
             // PASO 2: Calcular mora para créditos de ESTA deductora que NO pagaron
             $moraResults = $this->calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora);
 
+            // Recopilar saldos pendientes creados en esta carga
+            $saldosPendientes = collect($results)
+                ->filter(fn($r) => isset($r['sobrante']))
+                ->map(fn($r) => [
+                    'cedula' => $r['cedula'],
+                    'lead' => $r['lead'] ?? 'N/A',
+                    'monto_pagado' => $r['monto'],
+                    'sobrante' => $r['sobrante'],
+                    'saldo_pendiente_id' => $r['saldo_pendiente_id'],
+                ])
+                ->values()
+                ->all();
+
             return response()->json([
                 'message' => 'Proceso completado',
                 'results' => $results,
-                'mora_aplicada' => $moraResults
+                'mora_aplicada' => $moraResults,
+                'saldos_pendientes' => $saldosPendientes,
             ]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error', 'error' => $e->getMessage()], 500);
@@ -1046,7 +1156,149 @@ class CreditPaymentController extends Controller
 
     /**
      * Calcula mora para créditos formalizados de una deductora que NO están en la planilla
-     *
+     * Calcula el monto total para cancelación anticipada de un crédito.
+     * Si la última cuota pagada es menor a 12, se penaliza con 3 cuotas adicionales.
+     */
+    public function calcularCancelacionAnticipada(Request $request)
+    {
+        $validated = $request->validate([
+            'credit_id' => 'required|exists:credits,id',
+        ]);
+
+        $credit = Credit::findOrFail($validated['credit_id']);
+
+        // Buscar la última cuota pagada
+        $ultimaCuotaPagada = $credit->planDePagos()
+            ->where('numero_cuota', '>', 0)
+            ->whereIn('estado', ['Pagado', 'Pagada'])
+            ->orderBy('numero_cuota', 'desc')
+            ->first();
+
+        $numeroCuotaActual = $ultimaCuotaPagada ? $ultimaCuotaPagada->numero_cuota : 0;
+
+        // Saldo de capital pendiente
+        $saldoCapital = (float) $credit->saldo;
+
+        // Sumar intereses vencidos de cuotas en mora
+        $interesesVencidos = (float) $credit->planDePagos()
+            ->where('numero_cuota', '>', 0)
+            ->where('estado', 'Mora')
+            ->sum('int_corriente_vencido');
+
+        $saldoPendiente = round($saldoCapital + $interesesVencidos, 2);
+
+        // Valor de la cuota mensual
+        $cuotaMensual = (float) $credit->cuota;
+
+        // Penalización: 3 cuotas si está antes de la cuota 12
+        $penalizacion = 0;
+        $cuotasPenalizacion = 0;
+        if ($numeroCuotaActual < 12) {
+            $cuotasPenalizacion = 3;
+            $penalizacion = round($cuotaMensual * $cuotasPenalizacion, 2);
+        }
+
+        $montoTotalCancelar = round($saldoPendiente + $penalizacion, 2);
+
+        return response()->json([
+            'credit_id' => $credit->id,
+            'cuota_actual' => $numeroCuotaActual,
+            'saldo_capital' => $saldoCapital,
+            'intereses_vencidos' => $interesesVencidos,
+            'saldo_pendiente' => $saldoPendiente,
+            'cuota_mensual' => $cuotaMensual,
+            'aplica_penalizacion' => $numeroCuotaActual < 12,
+            'cuotas_penalizacion' => $cuotasPenalizacion,
+            'monto_penalizacion' => $penalizacion,
+            'monto_total_cancelar' => $montoTotalCancelar,
+        ]);
+    }
+
+    /**
+     * Procesa la cancelación anticipada de un crédito.
+     * Aplica penalización si corresponde y cierra el crédito.
+     */
+    public function cancelacionAnticipada(Request $request)
+    {
+        $validated = $request->validate([
+            'credit_id' => 'required|exists:credits,id',
+            'fecha'     => 'required|date',
+        ]);
+
+        return DB::transaction(function () use ($validated) {
+            $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
+
+            // Calcular montos
+            $ultimaCuotaPagada = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->whereIn('estado', ['Pagado', 'Pagada'])
+                ->orderBy('numero_cuota', 'desc')
+                ->first();
+
+            $numeroCuotaActual = $ultimaCuotaPagada ? $ultimaCuotaPagada->numero_cuota : 0;
+            $saldoCapital = (float) $credit->saldo;
+            $cuotaMensual = (float) $credit->cuota;
+
+            // Sumar intereses vencidos de cuotas en mora
+            $interesesVencidos = (float) $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->where('estado', 'Mora')
+                ->sum('int_corriente_vencido');
+
+            $saldoPendiente = round($saldoCapital + $interesesVencidos, 2);
+
+            $penalizacion = 0;
+            if ($numeroCuotaActual < 12) {
+                $penalizacion = round($cuotaMensual * 3, 2);
+            }
+
+            $montoTotalCancelar = round($saldoPendiente + $penalizacion, 2);
+
+            // Registrar pago de cancelación anticipada
+            $payment = CreditPayment::create([
+                'credit_id'      => $credit->id,
+                'numero_cuota'   => 0,
+                'fecha_pago'     => $validated['fecha'],
+                'monto'          => $montoTotalCancelar,
+                'cuota'          => 0,
+                'cargos'         => 0,
+                'poliza'         => 0,
+                'interes_corriente' => $interesesVencidos,
+                'interes_moratorio' => 0,
+                'amortizacion'   => $saldoCapital,
+                'saldo_anterior' => $saldoPendiente,
+                'nuevo_saldo'    => 0,
+                'estado'         => 'Aplicado',
+                'source'         => 'Cancelación Anticipada',
+                'cedula'         => $credit->lead->cedula ?? null,
+            ]);
+
+            // Marcar todas las cuotas pendientes como pagadas
+            $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->whereIn('estado', ['Pendiente', 'Mora'])
+                ->update([
+                    'estado' => 'Pagado',
+                    'fecha_pago' => $validated['fecha'],
+                ]);
+
+            // Cerrar el crédito
+            $credit->saldo = 0;
+            $credit->status = 'Cerrado';
+            $credit->save();
+
+            return response()->json([
+                'message' => 'Crédito cancelado anticipadamente',
+                'payment' => $payment,
+                'monto_total' => $montoTotalCancelar,
+                'penalizacion' => $penalizacion,
+                'cuota_actual' => $numeroCuotaActual,
+                'aplico_penalizacion' => $numeroCuotaActual < 12,
+            ]);
+        });
+    }
+
+    /**
      * Lógica:
      * 1. Marca la cuota pendiente más antigua como "Mora" SIN modificar montos originales
      * 2. Mueve interes_corriente → int_corriente_vencido

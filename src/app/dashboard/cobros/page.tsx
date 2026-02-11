@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -117,7 +117,11 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
                       {credit.reference || credit.numero_operacion || credit.id}
                     </Link>
                   </TableCell>
-                  <TableCell>{credit.lead?.name || "-"}</TableCell>
+                  <TableCell>
+                    {credit.lead
+                      ? `${credit.lead.name || ''} ${(credit.lead as any).apellido1 || ''} ${(credit.lead as any).apellido2 || ''}`.trim() || '-'
+                      : '-'}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell">
                     ₡{credit.cuota ? Number(credit.cuota).toLocaleString('de-DE') : '0'}
                   </TableCell>
@@ -192,8 +196,10 @@ const getSourceVariant = (source: Payment['source']) => {
 const PaymentTableRow = React.memo(function PaymentTableRow({ payment }: { payment: PaymentWithRelations }) {
   const credit = payment.credit;
   const lead = credit?.lead;
-  
-  const leadName = lead?.name || (payment.cedula ? String(payment.cedula) : 'Desconocido');
+
+  const leadName = lead
+    ? `${lead.name || ''} ${(lead as any).apellido1 || ''} ${(lead as any).apellido2 || ''}`.trim() || 'Sin nombre'
+    : (payment.cedula ? String(payment.cedula) : 'Desconocido');
   const operationNumber = credit?.numero_operacion || credit?.reference || '-';
   
   const amount = parseFloat(String(payment.monto || 0));
@@ -265,6 +271,10 @@ export default function CobrosPage() {
   // --- NUEVO: Estado para estrategia de Abono Extraordinario ---
   // 'reduce_amount' = Bajar Cuota | 'reduce_term' = Bajar Plazo
   const [extraordinaryStrategy, setExtraordinaryStrategy] = useState<'reduce_amount' | 'reduce_term'>('reduce_amount');
+
+  // --- Estado para Cancelación Anticipada ---
+  const [cancelacionData, setCancelacionData] = useState<any>(null);
+  const [loadingCancelacion, setLoadingCancelacion] = useState(false);
   
   const [selectedLeadId, setSelectedLeadId] = useState<string>('');
   const [selectedCreditId, setSelectedCreditId] = useState<string>('');
@@ -298,6 +308,14 @@ export default function CobrosPage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
+  // Estados para Saldos Pendientes
+  const [saldosPendientes, setSaldosPendientes] = useState<any[]>([]);
+  const [loadingSaldos, setLoadingSaldos] = useState(false);
+  const [procesandoSaldo, setProcesandoSaldo] = useState<number | null>(null);
+
+  // Resultado de planilla con sobrantes
+  const [planillaResult, setPlanillaResult] = useState<any>(null);
+
   // Búsqueda de clientes con debounce
   useEffect(() => {
     if (!clientSearchQuery || clientSearchQuery.length < 2) {
@@ -320,6 +338,18 @@ export default function CobrosPage() {
     return () => clearTimeout(timeoutId);
   }, [clientSearchQuery]);
 
+  const fetchSaldosPendientes = useCallback(async () => {
+    setLoadingSaldos(true);
+    try {
+      const res = await api.get('/api/saldos-pendientes');
+      setSaldosPendientes(res.data || []);
+    } catch (err) {
+      console.error('Error fetching saldos pendientes:', err);
+    } finally {
+      setLoadingSaldos(false);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoadingCredits(true);
@@ -337,7 +367,8 @@ export default function CobrosPage() {
       }
     };
     fetchData();
-  }, [planRefreshKey, toast]);
+    fetchSaldosPendientes();
+  }, [planRefreshKey, toast, fetchSaldosPendientes]);
 
   // Dynamic filtering of credits by arrears - using live API data
   const filterCreditsByArrearsRange = useCallback((credits: Credit[], daysStart: number, daysEnd: number | null = null) => {
@@ -381,6 +412,28 @@ export default function CobrosPage() {
     return creditsList.find(c => String(c.id) === selectedCreditId);
   }, [creditsList, selectedCreditId]);
 
+  // Calcular cancelación anticipada cuando se selecciona un crédito con ese tipo
+  useEffect(() => {
+    if (tipoCobro === 'cancelacion_anticipada' && selectedCreditId) {
+      setLoadingCancelacion(true);
+      setCancelacionData(null);
+      api.post('/api/credit-payments/cancelacion-anticipada/calcular', {
+        credit_id: selectedCreditId
+      })
+        .then(res => {
+          setCancelacionData(res.data);
+          setMonto(String(res.data.monto_total_cancelar));
+        })
+        .catch(err => {
+          const msg = err.response?.data?.message || 'Error al calcular cancelación anticipada.';
+          toast({ title: 'Error', description: msg, variant: 'destructive' });
+        })
+        .finally(() => setLoadingCancelacion(false));
+    } else {
+      setCancelacionData(null);
+    }
+  }, [tipoCobro, selectedCreditId, toast]);
+
   // Cargar deductoras cuando se abre el modal de planilla
   useEffect(() => {
     if (planillaModalOpen && deductoras.length === 0) {
@@ -407,16 +460,38 @@ export default function CobrosPage() {
     setTipoCobro('normal');
     setMonto('');
     setFecha('');
-    setSelectedLeadId('');   
+    setSelectedLeadId('');
     setSelectedCreditId('');
     setExtraordinaryStrategy('reduce_amount'); // Reset strategy
+    setCancelacionData(null); // Reset cancelación anticipada
   }, []);
 
   const handleRegistrarAbono = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (!selectedCreditId || !monto || !fecha) {
-        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito, monto y fecha.', variant: 'destructive' });
+      if (!selectedCreditId || !fecha) {
+        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito y fecha.', variant: 'destructive' });
+        return;
+      }
+
+      // Cancelación Anticipada: usar endpoint específico
+      if (tipoCobro === 'cancelacion_anticipada') {
+        if (!cancelacionData) {
+          toast({ title: 'Error', description: 'Espere a que se calcule el monto de cancelación.', variant: 'destructive' });
+          return;
+        }
+        await api.post('/api/credit-payments/cancelacion-anticipada', {
+          credit_id: selectedCreditId,
+          fecha: fecha,
+        });
+        toast({ title: 'Éxito', description: 'Cancelación anticipada procesada. El crédito ha sido cerrado.' });
+        setPlanRefreshKey(k => k + 1);
+        closeAbonoModal();
+        return;
+      }
+
+      if (!monto) {
+        toast({ title: 'Faltan datos', description: 'Ingrese el monto.', variant: 'destructive' });
         return;
       }
 
@@ -476,8 +551,18 @@ export default function CobrosPage() {
       setShowingPreview(true);
       toast({ title: 'Preview generado', description: 'Revise el resumen antes de procesar.' });
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al generar preview.';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const data = err.response?.data;
+      let msg = data?.message || 'Error al generar preview.';
+      if (data?.errores) {
+        msg += '\n\n' + data.errores.join('\n');
+      }
+      if (data?.columnas_encontradas) {
+        msg += '\n\nColumnas encontradas en el archivo: ' + data.columnas_encontradas.join(', ');
+      }
+      if (data?.ayuda) {
+        msg += '\n\n' + data.ayuda;
+      }
+      toast({ title: 'Error en el archivo', description: msg, variant: 'destructive', duration: 15000 });
     } finally {
       setLoadingPreview(false);
     }
@@ -506,13 +591,32 @@ export default function CobrosPage() {
 
     try {
       setUploading(true);
-      await api.post('/api/credit-payments/upload', form);
-      toast({ title: 'Cargado', description: 'Planilla procesada correctamente.' });
+      const uploadRes = await api.post('/api/credit-payments/upload', form);
+      const saldosSobrantes = uploadRes.data?.saldos_pendientes || [];
+      if (saldosSobrantes.length > 0) {
+        toast({
+          title: 'Planilla procesada con sobrantes',
+          description: `Se detectaron ${saldosSobrantes.length} sobrante(s). Revise la pestaña "Saldos por Asignar".`,
+          duration: 8000,
+        });
+      } else {
+        toast({ title: 'Cargado', description: 'Planilla procesada correctamente.' });
+      }
       setPlanRefreshKey(k => k + 1);
       closePlanillaModal();
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al procesar planilla.';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const data = err.response?.data;
+      let msg = data?.message || 'Error al procesar planilla.';
+      if (data?.errores) {
+        msg += '\n\n' + data.errores.join('\n');
+      }
+      if (data?.columnas_encontradas) {
+        msg += '\n\nColumnas encontradas en el archivo: ' + data.columnas_encontradas.join(', ');
+      }
+      if (data?.ayuda) {
+        msg += '\n\n' + data.ayuda;
+      }
+      toast({ title: 'Error en el archivo', description: msg, variant: 'destructive', duration: 15000 });
     } finally {
       setUploading(false);
     }
@@ -570,6 +674,25 @@ export default function CobrosPage() {
     doc.save(`historial_abonos_${Date.now()}.pdf`);
   };
 
+  const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital') => {
+    setProcesandoSaldo(saldoId);
+    try {
+      const res = await api.post(`/api/saldos-pendientes/${saldoId}/asignar`, { accion });
+      toast({
+        title: 'Éxito',
+        description: res.data.message,
+      });
+      setPlanRefreshKey(k => k + 1);
+      // Recargar lista de saldos pendientes para que desaparezca el asignado
+      await fetchSaldosPendientes();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al asignar saldo.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setProcesandoSaldo(null);
+    }
+  };
+
   return (
     <ProtectedPage module="cobros">
       <div className="space-y-6">
@@ -578,10 +701,19 @@ export default function CobrosPage() {
         <CardDescription>Administra los créditos en mora y visualiza el historial de abonos.</CardDescription>
       </CardHeader>
       
-      <Tabs defaultValue="gestion" className="w-full">
+      <Tabs defaultValue="abonos" className="w-full">
         <TabsList>
-          <TabsTrigger value="gestion">Gestión de Cobros</TabsTrigger>
           <TabsTrigger value="abonos">Historial de Abonos</TabsTrigger>
+          <TabsTrigger value="gestion">Gestión de Cobros</TabsTrigger>
+          <TabsTrigger value="saldos" className="relative">
+            <Wallet className="mr-1.5 h-4 w-4" />
+            Saldos por Asignar
+            {saldosPendientes.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-xs font-bold">
+                {saldosPendientes.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gestion">
@@ -982,18 +1114,24 @@ export default function CobrosPage() {
                             </SelectTrigger>
                             <SelectContent>
                               {availableCredits.length > 0 ? (
-                                availableCredits.map((c: any) => (
-                                  <SelectItem key={c.id} value={String(c.id)}>
-                                    {c.reference || c.numero_operacion || `ID: ${c.id}`} - Saldo: ₡{Number(c.saldo ).toLocaleString()}
-                                  </SelectItem>
-                                ))
+                                availableCredits.map((c: any) => {
+                                  const interesesMora = (c.plan_de_pagos || [])
+                                    .filter((p: any) => p.estado === 'Mora')
+                                    .reduce((sum: number, p: any) => sum + (Number(p.int_corriente_vencido) || 0), 0);
+                                  const saldoTotal = (Number(c.saldo) || 0) + interesesMora;
+                                  return (
+                                    <SelectItem key={c.id} value={String(c.id)}>
+                                      {c.reference || c.numero_operacion || `ID: ${c.id}`} - Saldo: ₡{saldoTotal.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                    </SelectItem>
+                                  );
+                                })
                               ) : (
                                 <div className="p-2 text-sm text-muted-foreground">Este cliente no tiene créditos activos.</div>
                               )}
                             </SelectContent>
                           </Select>
                           
-                          {selectedCredit && selectedCredit.status !== 'Formalizado' && (
+                          {selectedCredit && selectedCredit.status !== 'Formalizado' && !(tipoCobro === 'cancelacion_anticipada' && selectedCredit.status === 'En Mora') && (
                             <div className="mt-3 p-4 text-[14px] leading-tight bg-amber-50 border border-amber-200 text-red-700 rounded-md flex items-start gap-2">
                               <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                               <span>Este crédito no está <strong>Formalizado</strong> (Estado: {selectedCredit.status}). No se pueden registrar abonos manuales hasta que el crédito sea formalizado y tenga un plan de pagos.</span>
@@ -1010,7 +1148,6 @@ export default function CobrosPage() {
                                   if (val === 'adelanto' && selectedCreditId) {
                                     api.get(`/api/credits/${selectedCreditId}`)
                                       .then(res => {
-                                        // Filtrar cuotas pendientes
                                         const cuotas = res.data.plan_de_pagos?.filter((c: any) => c.estado !== 'Pagado');
                                         setCuotasDisponibles(cuotas || []);
                                       });
@@ -1023,8 +1160,8 @@ export default function CobrosPage() {
                                     <SelectContent>
                                     <SelectItem value="normal">Normal</SelectItem>
                                     <SelectItem value="adelanto">Adelanto de Cuotas</SelectItem>
-                                    {/* --- OPCIÓN NUEVA --- */}
                                     <SelectItem value="extraordinario">Abono Extraordinario</SelectItem>
+                                    <SelectItem value="cancelacion_anticipada">Cancelación Anticipada</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -1097,6 +1234,81 @@ export default function CobrosPage() {
                         )}
                         {/* ----------------------------------------------- */}
 
+                        {/* --- PANEL CANCELACIÓN ANTICIPADA --- */}
+                        {tipoCobro === 'cancelacion_anticipada' && (
+                          <div className="bg-muted/50 p-4 rounded-md border border-dashed border-primary/50 space-y-3">
+                            <div className="flex items-center gap-2 text-primary">
+                              <AlertTriangle className="h-4 w-4" />
+                              <span className="text-sm font-medium">Cancelación Anticipada del Crédito</span>
+                            </div>
+                            {loadingCancelacion ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Calculando monto...
+                              </div>
+                            ) : cancelacionData ? (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">Cuota actual:</span>
+                                    <span className="ml-2 font-medium">#{cancelacionData.cuota_actual}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Saldo capital:</span>
+                                    <span className="ml-2 font-medium">₡{Number(cancelacionData.saldo_capital).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                  {cancelacionData.intereses_vencidos > 0 && (
+                                    <div>
+                                      <span className="text-muted-foreground">Intereses vencidos:</span>
+                                      <span className="ml-2 font-medium text-destructive">₡{Number(cancelacionData.intereses_vencidos).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="text-muted-foreground">Saldo total:</span>
+                                    <span className="ml-2 font-bold">₡{Number(cancelacionData.saldo_pendiente).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                </div>
+
+                                {cancelacionData.aplica_penalizacion && (
+                                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
+                                    <div className="flex items-start gap-2 text-amber-800">
+                                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                                      <div>
+                                        <strong>Penalización aplicada:</strong> El cliente está en la cuota #{cancelacionData.cuota_actual} (antes de la cuota 12).
+                                        Se aplican <strong>{cancelacionData.cuotas_penalizacion} cuotas adicionales</strong> de penalización.
+                                        <div className="mt-1">
+                                          Penalización: <strong>₡{Number(cancelacionData.monto_penalizacion).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {!cancelacionData.aplica_penalizacion && (
+                                  <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm">
+                                    <div className="flex items-center gap-2 text-green-800">
+                                      <Check className="h-4 w-4 shrink-0" />
+                                      <span>Sin penalización. El cliente ha superado la cuota 12.</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg text-center">
+                                  <div className="text-sm text-muted-foreground">Monto Total a Cancelar</div>
+                                  <div className="text-2xl font-bold text-primary">
+                                    ₡{Number(cancelacionData.monto_total_cancelar).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : selectedCreditId ? (
+                              <div className="text-sm text-muted-foreground">Seleccione un crédito para calcular el monto.</div>
+                            ) : null}
+                          </div>
+                        )}
+                        {/* ----------------------------------------------- */}
+
+                        {/* Monto solo visible cuando NO es cancelación anticipada */}
+                        {tipoCobro !== 'cancelacion_anticipada' && (
                         <div>
                           <label className="block text-sm font-medium mb-1">Monto (CRC)</label>
                           <div className="relative">
@@ -1122,9 +1334,21 @@ export default function CobrosPage() {
                             />
                           </div>
                         </div>
+                        )}
 
                         <DialogFooter>
-                          <Button type="submit" disabled={!selectedCreditId || selectedCredit?.status !== 'Formalizado'}>Aplicar Pago</Button>
+                          <Button
+                            type="submit"
+                            disabled={
+                              !selectedCreditId ||
+                              (tipoCobro === 'cancelacion_anticipada'
+                                ? (!cancelacionData || loadingCancelacion || !['Formalizado', 'En Mora'].includes(selectedCredit?.status || ''))
+                                : selectedCredit?.status !== 'Formalizado'
+                              )
+                            }
+                          >
+                            {tipoCobro === 'cancelacion_anticipada' ? 'Confirmar Cancelación' : 'Aplicar Pago'}
+                          </Button>
                           <Button type="button" variant="outline" onClick={closeAbonoModal}>Cancelar</Button>
                         </DialogFooter>
                       </form>
@@ -1179,6 +1403,113 @@ export default function CobrosPage() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="saldos">
+          <Card>
+            <CardHeader className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Saldos por Asignar</CardTitle>
+                  <CardDescription>Sobrantes de planilla pendientes de asignación. Puede aplicarlos a la siguiente cuota o como abono a capital.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchSaldosPendientes} disabled={loadingSaldos}>
+                  {loadingSaldos ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingSaldos ? (
+                <div className="p-8 flex justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : saldosPendientes.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Wallet className="mx-auto h-12 w-12 mb-3 opacity-30" />
+                  <p className="text-sm">No hay saldos pendientes por asignar.</p>
+                  <p className="text-xs mt-1">Los sobrantes aparecerán aquí cuando se cargue una planilla donde un cliente pague más que su cuota.</p>
+                </div>
+              ) : (
+                <div className="relative w-full overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Cédula</TableHead>
+                        <TableHead>Crédito</TableHead>
+                        <TableHead className="text-right">Monto Sobrante</TableHead>
+                        <TableHead className="text-right">Saldo Crédito</TableHead>
+                        <TableHead>Deductora</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-center">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {saldosPendientes.map((saldo: any) => (
+                        <TableRow key={saldo.id}>
+                          <TableCell className="font-medium">
+                            {saldo.lead_id ? (
+                              <Link href={`/dashboard/leads/${saldo.lead_id}?mode=view`} className="text-primary hover:underline">
+                                {saldo.lead_name}
+                              </Link>
+                            ) : (
+                              saldo.lead_name
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">{saldo.cedula}</TableCell>
+                          <TableCell>
+                            <Link href={`/dashboard/creditos/${saldo.credit_id}`} className="text-primary hover:underline text-sm">
+                              {saldo.credit_reference}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold text-orange-600">
+                            ₡{Number(saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            ₡{Number(saldo.saldo_credito).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-sm">{saldo.deductora}</TableCell>
+                          <TableCell className="text-sm">
+                            {saldo.fecha_origen ? new Date(saldo.fecha_origen).toLocaleDateString() : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                disabled={procesandoSaldo === saldo.id}
+                                onClick={() => handleAsignarSaldo(saldo.id, 'cuota')}
+                              >
+                                {procesandoSaldo === saldo.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>Aplicar a Cuota</>
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                disabled={procesandoSaldo === saldo.id}
+                                onClick={() => handleAsignarSaldo(saldo.id, 'capital')}
+                              >
+                                {procesandoSaldo === saldo.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>Aplicar a Capital</>
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

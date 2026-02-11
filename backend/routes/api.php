@@ -254,13 +254,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('credits/{id}/refundicion-preview', [\App\Http\Controllers\Api\CreditController::class, 'refundicionPreview']);
     Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion']);
 
-    // Pagos de Crédito (Protegido)
-    Route::apiResource('credit-payments', CreditPaymentController::class);
+    // Pagos de Crédito - Rutas específicas ANTES del apiResource
+    Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada']);
+    Route::post('credit-payments/cancelacion-anticipada', [CreditPaymentController::class, 'cancelacionAnticipada']);
     Route::post('credit-payments/preview-planilla', [CreditPaymentController::class, 'previewPlanilla']);
     Route::get('credit-payments/export-preview-excel/{hash}', [CreditPaymentController::class, 'exportPreviewExcel']);
     Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf']);
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
+    Route::apiResource('credit-payments', CreditPaymentController::class);
+
+    // Saldos Pendientes (sobrantes de planilla)
+    Route::get('saldos-pendientes', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'index']);
+    Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar']);
 
     // Tasas (Protegido)
     Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);

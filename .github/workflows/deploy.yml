@@ -38,6 +38,7 @@ jobs:
             cd backend &&
             /usr/bin/php8.4 /usr/local/bin/composer install &&
             /usr/bin/php8.4 artisan migrate --force &&
+            /usr/bin/php8.4 artisan optimize:clear &&
             cd .. &&
             export NVM_DIR=\"\$HOME/.nvm\" &&
             [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\" &&

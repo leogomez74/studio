@@ -61,4 +61,9 @@ class CreditPayment extends Model
     {
         return $this->belongsTo(Credit::class);
     }
+
+    public function saldoPendiente()
+    {
+        return $this->hasOne(SaldoPendiente::class);
+    }
 }
