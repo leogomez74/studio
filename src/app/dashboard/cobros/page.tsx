@@ -293,6 +293,9 @@ export default function CobrosPage() {
   const [creditsList, setCreditsList] = useState<Credit[]>([]);
   const [isLoadingCredits, setIsLoadingCredits] = useState(true);
 
+  // Estado de búsqueda general
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Paginación - Historial de Abonos
   const [abonosPage, setAbonosPage] = useState(1);
   const [abonosPerPage, setAbonosPerPage] = useState(10);
@@ -442,16 +445,104 @@ export default function CobrosPage() {
     });
   }, []);
 
+  // Filtrado por búsqueda general para créditos
+  const filteredCreditsList = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return creditsList;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return creditsList.filter(credit => {
+      // Buscar por cédula del cliente
+      if (credit.lead?.cedula && String(credit.lead.cedula).toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por nombre del cliente
+      if (credit.lead?.name && credit.lead.name.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por referencia del crédito
+      if (credit.reference && credit.reference.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por número de operación
+      if (credit.numero_operacion && credit.numero_operacion.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por deductora
+      if (credit.deductora?.nombre && credit.deductora.nombre.toLowerCase().includes(query)) {
+        return true;
+      }
+      return false;
+    });
+  }, [creditsList, searchQuery]);
+
+  // Filtrado por búsqueda general para pagos/abonos
+  const filteredPayments = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return paymentsState;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return paymentsState.filter(payment => {
+      // Buscar por cédula del deudor
+      if (payment.cedula && String(payment.cedula).toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por nombre del cliente en el crédito relacionado
+      if (payment.credit?.lead?.name && payment.credit.lead.name.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por referencia del crédito
+      if (payment.credit?.reference && payment.credit.reference.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por número de operación
+      if (payment.credit?.numero_operacion && payment.credit.numero_operacion.toLowerCase().includes(query)) {
+        return true;
+      }
+      return false;
+    });
+  }, [paymentsState, searchQuery]);
+
+  // Filtrado por búsqueda general para saldos pendientes
+  const filteredSaldosPendientes = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return saldosPendientes;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return saldosPendientes.filter((saldo: any) => {
+      // Buscar por cédula
+      if (saldo.cedula && String(saldo.cedula).toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por nombre del cliente
+      if (saldo.nombre_cliente && saldo.nombre_cliente.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por referencia del crédito
+      if (saldo.credito_referencia && saldo.credito_referencia.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Buscar por deductora
+      if (saldo.deductora_nombre && saldo.deductora_nombre.toLowerCase().includes(query)) {
+        return true;
+      }
+      return false;
+    });
+  }, [saldosPendientes, searchQuery]);
+
   // Filtered credit lists using live data
   const alDiaCredits = useMemo(() =>
-    creditsList.filter(c => c.status === 'Al día' || c.status === 'Formalizado'),
-    [creditsList]
+    filteredCreditsList.filter(c => c.status === 'Al día' || c.status === 'Formalizado'),
+    [filteredCreditsList]
   );
-  const mora30 = useMemo(() => filterCreditsByArrearsRange(creditsList, 1, 30), [creditsList, filterCreditsByArrearsRange]);
-  const mora60 = useMemo(() => filterCreditsByArrearsRange(creditsList, 31, 60), [creditsList, filterCreditsByArrearsRange]);
-  const mora90 = useMemo(() => filterCreditsByArrearsRange(creditsList, 61, 90), [creditsList, filterCreditsByArrearsRange]);
-  const mora180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 91, 180), [creditsList, filterCreditsByArrearsRange]);
-  const mas180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 181, null), [creditsList, filterCreditsByArrearsRange]);
+  const mora30 = useMemo(() => filterCreditsByArrearsRange(filteredCreditsList, 1, 30), [filteredCreditsList, filterCreditsByArrearsRange]);
+  const mora60 = useMemo(() => filterCreditsByArrearsRange(filteredCreditsList, 31, 60), [filteredCreditsList, filterCreditsByArrearsRange]);
+  const mora90 = useMemo(() => filterCreditsByArrearsRange(filteredCreditsList, 61, 90), [filteredCreditsList, filterCreditsByArrearsRange]);
+  const mora180 = useMemo(() => filterCreditsByArrearsRange(filteredCreditsList, 91, 180), [filteredCreditsList, filterCreditsByArrearsRange]);
+  const mas180 = useMemo(() => filterCreditsByArrearsRange(filteredCreditsList, 181, null), [filteredCreditsList, filterCreditsByArrearsRange]);
 
   const uniqueLeads = useMemo(() => {
     const leadsMap = new Map();
@@ -848,7 +939,16 @@ export default function CobrosPage() {
         <TabsContent value="gestion">
              <Tabs defaultValue="al-dia" className="w-full">
                 <Card>
-                    <CardHeader className="pt-4">
+                    <CardHeader className="pt-4 space-y-4">
+                        <div className="w-full max-w-sm">
+                            <Input
+                                type="text"
+                                placeholder="Buscar por cédula, cliente, crédito o deductora..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full"
+                            />
+                        </div>
                         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                             <TabsTrigger value="al-dia">Al día ({alDiaCredits.length})</TabsTrigger>
                             <TabsTrigger value="30-dias">30 días ({mora30.length})</TabsTrigger>
@@ -870,7 +970,7 @@ export default function CobrosPage() {
 
         <TabsContent value="abonos">
           <Card>
-            <CardHeader className="pt-4">
+            <CardHeader className="pt-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Historial de Abonos Recibidos</CardTitle>
@@ -1490,6 +1590,15 @@ export default function CobrosPage() {
 
                 </div>
               </div>
+              <div className="w-full max-w-sm mt-4">
+                <Input
+                  type="text"
+                  placeholder="Buscar por cédula, cliente, crédito o deductora..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -1505,7 +1614,7 @@ export default function CobrosPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentsState.slice((abonosPage - 1) * abonosPerPage, abonosPage * abonosPerPage).map((payment) => (
+                  {filteredPayments.slice((abonosPage - 1) * abonosPerPage, abonosPage * abonosPerPage).map((payment) => (
                     <PaymentTableRow key={payment.id} payment={payment} />
                   ))}
                 </TableBody>
@@ -1530,8 +1639,8 @@ export default function CobrosPage() {
                   <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage <= 1} onClick={() => setAbonosPage(abonosPage - 1)}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm">{abonosPage} / {Math.ceil(paymentsState.length / abonosPerPage) || 1}</span>
-                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage >= Math.ceil(paymentsState.length / abonosPerPage)} onClick={() => setAbonosPage(abonosPage + 1)}>
+                  <span className="text-sm">{abonosPage} / {Math.ceil(filteredPayments.length / abonosPerPage) || 1}</span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage >= Math.ceil(filteredPayments.length / abonosPerPage)} onClick={() => setAbonosPage(abonosPage + 1)}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1542,7 +1651,7 @@ export default function CobrosPage() {
 
         <TabsContent value="saldos">
           <Card>
-            <CardHeader className="pt-4">
+            <CardHeader className="pt-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Saldos por Asignar</CardTitle>
@@ -1551,6 +1660,15 @@ export default function CobrosPage() {
                 <Button variant="outline" size="sm" onClick={fetchSaldosPendientes} disabled={loadingSaldos}>
                   {loadingSaldos ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar'}
                 </Button>
+              </div>
+              <div className="w-full max-w-sm">
+                <Input
+                  type="text"
+                  placeholder="Buscar por cédula, cliente, crédito o deductora..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
               </div>
             </CardHeader>
             <CardContent>
@@ -1580,7 +1698,7 @@ export default function CobrosPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {saldosPendientes.map((saldo: any) => (
+                      {filteredSaldosPendientes.map((saldo: any) => (
                         <TableRow key={saldo.id}>
                           <TableCell className="font-medium">
                             {saldo.lead_id ? (
@@ -1650,11 +1768,22 @@ export default function CobrosPage() {
         {/* Tab: Historial de Planillas */}
         <TabsContent value="planillas">
           <Card>
-            <CardHeader>
-              <CardTitle>Historial de Planillas Cargadas</CardTitle>
-              <CardDescription>
-                Registro de todas las planillas procesadas. Solo administradores pueden anular.
-              </CardDescription>
+            <CardHeader className="space-y-4">
+              <div>
+                <CardTitle>Historial de Planillas Cargadas</CardTitle>
+                <CardDescription>
+                  Registro de todas las planillas procesadas. Solo administradores pueden anular.
+                </CardDescription>
+              </div>
+              <div className="w-full max-w-sm">
+                <Input
+                  type="text"
+                  placeholder="Buscar por cédula, cliente, crédito o deductora..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
+              </div>
             </CardHeader>
             <CardContent>
               {/* Filtros */}
