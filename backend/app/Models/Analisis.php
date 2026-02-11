@@ -153,50 +153,28 @@ class Analisis extends Model
 
     /**
      * Accessor para saber si tiene crédito asociado
-     * Busca por opportunity_id o por lead_id si el crédito no tiene opportunity asignada (créditos viejos)
+     * Solo busca por opportunity_id para permitir múltiples créditos por cliente
      */
     public function getHasCreditAttribute(): bool
     {
-        return Credit::where(function ($query) {
-            $query->where('opportunity_id', $this->opportunity_id)
-                  ->orWhere(function ($q) {
-                      $q->where('lead_id', $this->lead_id)
-                        ->whereNull('opportunity_id');
-                  });
-        })->exists();
+        return Credit::where('opportunity_id', $this->opportunity_id)->exists();
     }
 
     /**
      * Accessor para obtener el ID del crédito asociado
-     * Busca por opportunity_id o por lead_id si el crédito no tiene opportunity asignada (créditos viejos)
+     * Solo busca por opportunity_id para permitir múltiples créditos por cliente
      */
     public function getCreditIdAttribute(): ?int
     {
-        $credit = Credit::where(function ($query) {
-            $query->where('opportunity_id', $this->opportunity_id)
-                  ->orWhere(function ($q) {
-                      $q->where('lead_id', $this->lead_id)
-                        ->whereNull('opportunity_id');
-                  });
-        })->first();
-
-        return $credit?->id;
+        return Credit::where('opportunity_id', $this->opportunity_id)->value('id');
     }
 
     /**
      * Accessor para obtener el status del crédito asociado
-     * Busca por opportunity_id o por lead_id si el crédito no tiene opportunity asignada (créditos viejos)
+     * Solo busca por opportunity_id para permitir múltiples créditos por cliente
      */
     public function getCreditStatusAttribute(): ?string
     {
-        $credit = Credit::where(function ($query) {
-            $query->where('opportunity_id', $this->opportunity_id)
-                  ->orWhere(function ($q) {
-                      $q->where('lead_id', $this->lead_id)
-                        ->whereNull('opportunity_id');
-                  });
-        })->first();
-
-        return $credit?->status;
+        return Credit::where('opportunity_id', $this->opportunity_id)->value('status');
     }
 }

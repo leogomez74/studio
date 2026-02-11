@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 
 class CreditController extends Controller
 {
@@ -206,6 +207,13 @@ class CreditController extends Controller
             // A. Crear Cabecera
             $credit = Credit::create($validated);
 
+            // DEBUG: Log para verificar crédito creado
+            Log::info('CreditController@store - Crédito creado:', [
+                'id' => $credit->id,
+                'opportunity_id' => $credit->opportunity_id,
+                'deductora_id' => $credit->deductora_id,
+            ]);
+
             // Establecer saldo igual al monto del crédito
             $credit->saldo = $validated['monto_credito'];
 
@@ -224,18 +232,14 @@ class CreditController extends Controller
                 $this->generateAmortizationSchedule($credit);
             }
 
-            // C. Sincronizar deductora_id al cliente/lead
-            $lead = Lead::with('documents')->find($validated['lead_id']);
-            if ($lead && isset($validated['deductora_id'])) {
-                $lead->deductora_id = $validated['deductora_id'];
-                $lead->save();
-            }
-
-            // D. Poner en 0 las manchas canceladas en el análisis (tabla mancha_detalles)
+            // C. Poner en 0 las manchas canceladas en el análisis (tabla mancha_detalles)
             if (!empty($validated['manchas_canceladas'])) {
                 ManchaDetalle::whereIn('id', $validated['manchas_canceladas'])
                     ->update(['monto' => 0]);
             }
+
+            // D. Cargar lead con documentos para mover al expediente del crédito
+            $lead = Lead::with('documents')->find($validated['lead_id']);
 
             // E. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
             if ($lead && $lead->documents->count() > 0) {

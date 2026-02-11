@@ -47,6 +47,7 @@ interface CreditFormModalProps {
     plazo?: string;
     description?: string;
     deductora_id?: number;
+    opportunity_id?: number;
   };
   products: Array<{ id: number; name: string; }>;
   leads: Array<{ id: number; name?: string; deductora_id?: string | number; }>;
@@ -235,6 +236,7 @@ export function CreditFormModal({
       plazo: plazoNumerico,
       poliza: creditForm.poliza,
       deductora_id: selectedDeductora !== 'sin_deductora' ? parseInt(selectedDeductora) : null,
+      opportunity_id: initialData.opportunity_id || null,
     };
 
     if (cargosParaEnviar) {
