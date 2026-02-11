@@ -16,6 +16,7 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Models\SaldoPendiente;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
 class CreditPaymentController extends Controller
@@ -469,7 +470,7 @@ class CreditPaymentController extends Controller
         </html>';
 
         // Generar PDF con Dompdf
-        $pdf = \PDF::loadHTML($html);
+        $pdf = Pdf::loadHTML($html);
         $pdf->setPaper('letter', 'landscape');
 
         $filename = 'resumen_planilla_' . $fechaProceso . '.pdf';
