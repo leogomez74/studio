@@ -677,6 +677,8 @@ export default function CobrosPage() {
         description: res.data.message,
       });
       setPlanRefreshKey(k => k + 1);
+      // Recargar lista de saldos pendientes para que desaparezca el asignado
+      await fetchSaldosPendientes();
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Error al asignar saldo.';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
@@ -1441,7 +1443,15 @@ export default function CobrosPage() {
                     <TableBody>
                       {saldosPendientes.map((saldo: any) => (
                         <TableRow key={saldo.id}>
-                          <TableCell className="font-medium">{saldo.lead_name}</TableCell>
+                          <TableCell className="font-medium">
+                            {saldo.lead_id ? (
+                              <Link href={`/dashboard/leads/${saldo.lead_id}?mode=view`} className="text-primary hover:underline">
+                                {saldo.lead_name}
+                              </Link>
+                            ) : (
+                              saldo.lead_name
+                            )}
+                          </TableCell>
                           <TableCell className="text-sm">{saldo.cedula}</TableCell>
                           <TableCell>
                             <Link href={`/dashboard/creditos/${saldo.credit_id}`} className="text-primary hover:underline text-sm">

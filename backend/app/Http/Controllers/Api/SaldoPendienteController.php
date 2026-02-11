@@ -30,6 +30,7 @@ class SaldoPendienteController extends Controller
             return [
                 'id' => $saldo->id,
                 'credit_id' => $saldo->credit_id,
+                'lead_id' => $saldo->credit->lead_id ?? null,
                 'credit_reference' => $saldo->credit->reference ?? '',
                 'lead_name' => $saldo->credit->lead
                     ? ($saldo->credit->lead->name . ' ' . ($saldo->credit->lead->apellido1 ?? ''))
