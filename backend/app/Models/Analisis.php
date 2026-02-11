@@ -79,6 +79,12 @@ class Analisis extends Model
         'deducciones_mensuales' => 'array',
     ];
 
+    protected $hidden = [
+        'manchas_detalle',
+        'juicios_detalle',
+        'embargos_detalle',
+    ];
+
     protected $appends = [
         'has_credit',
         'credit_id',

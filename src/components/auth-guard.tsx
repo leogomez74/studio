@@ -35,8 +35,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     clearStoredAuth();
     setToken(null);
     setUser(null);
-    router.replace("/?auth=required");
-  }, [router]);
+    // Hard reload para garantizar que se limpie todo el estado
+    if (typeof window !== 'undefined') {
+      window.location.href = "/?auth=required";
+    }
+  }, []);
 
   const fetchUser = useCallback(
     async (currentToken: string) => {

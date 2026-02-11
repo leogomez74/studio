@@ -16,6 +16,8 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Models\SaldoPendiente;
+use App\Models\PlanillaUpload;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
 class CreditPaymentController extends Controller
@@ -75,6 +77,7 @@ class CreditPaymentController extends Controller
             'total_registros' => 0,
             'completos' => 0,
             'parciales' => 0,
+            'sobrepagos' => 0,
             'no_encontrados' => 0,
             'monto_total_planilla' => 0,
             'monto_total_esperado' => 0,
@@ -196,6 +199,7 @@ class CreditPaymentController extends Controller
 
                         if ($estado === 'Completo') $totales['completos']++;
                         if ($estado === 'Parcial') $totales['parciales']++;
+                        if ($estado === 'Sobrepago') $totales['sobrepagos']++;
 
                         $preview[] = [
                             'cedula' => $rawCedula,
@@ -469,7 +473,7 @@ class CreditPaymentController extends Controller
         </html>';
 
         // Generar PDF con Dompdf
-        $pdf = \PDF::loadHTML($html);
+        $pdf = Pdf::loadHTML($html);
         $pdf->setPaper('letter', 'landscape');
 
         $filename = 'resumen_planilla_' . $fechaProceso . '.pdf';
@@ -791,7 +795,7 @@ class CreditPaymentController extends Controller
      * Lógica "Cascada" (Waterfall) para pagos regulares
      * IMPUTACIÓN: Mora -> Interés -> Cargos -> Capital
      */
-    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false)
+    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null)
     {
         $dineroDisponible = $montoEntrante;
 
@@ -932,6 +936,7 @@ class CreditPaymentController extends Controller
         // Recibo
         $paymentRecord = CreditPayment::create([
             'credit_id'      => $credit->id,
+            'planilla_upload_id' => $planillaUploadId,
             'numero_cuota'   => $primerCuotaAfectada ? $primerCuotaAfectada->numero_cuota : 0,
             'fecha_cuota'    => $primerCuotaAfectada ? $primerCuotaAfectada->fecha_corte : null,
             'fecha_pago'     => $fecha,
@@ -953,9 +958,9 @@ class CreditPaymentController extends Controller
     /**
      * Wrapper público para que otros controllers puedan usar processPaymentTransaction
      */
-    public function processPaymentTransactionPublic(Credit $credit, float $montoEntrante, $fecha, string $source, ?string $cedulaRef = null): CreditPayment
+    public function processPaymentTransactionPublic(Credit $credit, float $montoEntrante, $fecha, string $source, ?string $cedulaRef = null, $planillaUploadId = null): CreditPayment
     {
-        return $this->processPaymentTransaction($credit, $montoEntrante, $fecha, $source, $cedulaRef);
+        return $this->processPaymentTransaction($credit, $montoEntrante, $fecha, $source, $cedulaRef, null, false, $planillaUploadId);
     }
 
     /**
@@ -1015,6 +1020,19 @@ class CreditPaymentController extends Controller
 
         // IDs de créditos que SÍ pagaron (para excluir del cálculo de mora)
         $creditosQuePagaron = [];
+
+        // Crear registro de planilla ANTES de procesar
+        $planillaUpload = PlanillaUpload::create([
+            'deductora_id' => $deductoraId,
+            'user_id' => $request->user()->id,
+            'fecha_planilla' => $mesPago->format('Y-m-d'),
+            'uploaded_at' => now(),
+            'nombre_archivo' => $file->getClientOriginalName(),
+            'ruta_archivo' => $path,
+            'cantidad_pagos' => 0, // Se actualizará después
+            'monto_total' => 0, // Se actualizará después
+            'estado' => 'procesada',
+        ]);
 
         try {
             $readerType = IOFactory::identify($fullPath);
@@ -1096,9 +1114,10 @@ class CreditPaymentController extends Controller
                     $montoPagado = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
                     if ($montoPagado > 0) {
                         $creditId = $credit->id;
-                        $payment = DB::transaction(function () use ($creditId, $montoPagado, $fechaPago, $rawCedula) {
+                        $planillaId = $planillaUpload->id;
+                        $payment = DB::transaction(function () use ($creditId, $montoPagado, $fechaPago, $rawCedula, $planillaId) {
                             $credit = Credit::lockForUpdate()->findOrFail($creditId);
-                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula, null, true);
+                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId);
                         });
                         if ($payment) {
                             $resultItem = ['cedula' => $rawCedula, 'monto' => $montoPagado, 'status' => 'applied', 'lead' => $credit->lead->name ?? 'N/A'];
@@ -1143,8 +1162,15 @@ class CreditPaymentController extends Controller
                 ->values()
                 ->all();
 
+            // Actualizar totales de la planilla
+            $planillaUpload->update([
+                'cantidad_pagos' => count($results),
+                'monto_total' => CreditPayment::where('planilla_upload_id', $planillaUpload->id)->sum('monto'),
+            ]);
+
             return response()->json([
                 'message' => 'Proceso completado',
+                'planilla_id' => $planillaUpload->id,
                 'results' => $results,
                 'mora_aplicada' => $moraResults,
                 'saldos_pendientes' => $saldosPendientes,

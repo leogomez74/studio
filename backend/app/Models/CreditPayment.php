@@ -11,6 +11,7 @@ class CreditPayment extends Model
 
     protected $fillable = [
         'credit_id',
+        'planilla_upload_id',
         'numero_cuota',
         'proceso',
         'fecha_cuota',
@@ -60,6 +61,11 @@ class CreditPayment extends Model
     public function credit()
     {
         return $this->belongsTo(Credit::class);
+    }
+
+    public function planillaUpload()
+    {
+        return $this->belongsTo(PlanillaUpload::class);
     }
 
     public function saldoPendiente()

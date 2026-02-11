@@ -106,7 +106,7 @@ export function AnalisisWizardModal({
   const [extraMonths, setExtraMonths] = useState(0);
   const [users, setUsers] = useState<Array<{ id: number; name: string }>>([]);
   const [leadData, setLeadData] = useState<{ profesion?: string; puesto?: string; estado_puesto?: string } | null>(null);
-  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number }>>({});
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number; tasa_anual: string }>>({});
   const [montoError, setMontoError] = useState<string>('');
 
   // Estados para archivos (Paso 4)
@@ -266,9 +266,11 @@ export function AnalisisWizardModal({
     const plazoMeses = parseInt(formData.plazo) || 0;
 
     if (monto > 0 && plazoMeses > 0) {
-      // Determinar la tasa de interés según el tipo de producto actual
+      // Obtener la tasa de interés real desde loanConfigs
       const esMicroCredito = currentProducto?.toLowerCase().includes('micro') || false;
-      const tasaAnual = esMicroCredito ? 54 : 36; // 54% para micro, 36% para regular
+      const tipoCredito = esMicroCredito ? 'microcredito' : 'regular';
+      const config = loanConfigs[tipoCredito];
+      const tasaAnual = config ? parseFloat(String(config.tasa_anual)) : (esMicroCredito ? 54 : 36);
 
       // Fórmula del sistema de amortización francés (PMT)
       const tasaMensual = (tasaAnual / 100) / 12;
@@ -279,7 +281,7 @@ export function AnalisisWizardModal({
     } else {
       setFormData(prev => ({ ...prev, cuota: '' }));
     }
-  }, [formData.monto_sugerido, formData.plazo, currentProducto]);
+  }, [formData.monto_sugerido, formData.plazo, currentProducto, loanConfigs]);
 
   // Calcular ingreso neto para cada mes
   const calcularIngresoNeto = (mes: number): number => {

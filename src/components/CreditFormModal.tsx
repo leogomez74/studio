@@ -49,7 +49,7 @@ interface CreditFormModalProps {
     deductora_id?: number;
   };
   products: Array<{ id: number; name: string; }>;
-  leads: Array<{ id: number; name?: string; deductora_id?: number; }>;
+  leads: Array<{ id: number; name?: string; deductora_id?: string | number; }>;
   onSuccess?: () => void;
   manchasDetalle?: Array<{ id: number; fecha_inicio: string; fecha_fin?: string; descripcion: string; monto: number }>;
   analisisId?: number;
@@ -540,7 +540,7 @@ export function CreditFormModal({
                   const val = cargosAdicionales[campo];
                   const displayValue = editingCargo === campo
                     ? (val || '')
-                    : (val ? val.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '');
+                    : (val ? formatCurrency(val) : '');
                   return (
                     <div key={campo}>
                       <Label htmlFor={campo}>{labels[campo]}</Label>
@@ -549,12 +549,12 @@ export function CreditFormModal({
                         type="text"
                         value={displayValue}
                         onChange={(e) => {
-                          const raw = e.target.value.replace(/[^\d.]/g, '');
+                          const raw = parseCurrencyToNumber(e.target.value);
                           setCargosAdicionales(prev => ({ ...prev, [campo]: raw === '' ? 0 : parseFloat(raw) }));
                         }}
                         onFocus={() => setEditingCargo(campo)}
                         onBlur={() => setEditingCargo(null)}
-                        placeholder="0.00"
+                        placeholder="₡0.00"
                       />
                     </div>
                   );
@@ -614,14 +614,14 @@ export function CreditFormModal({
                       type="text"
                       value={editingCargo === 'cancelacion_manchas'
                         ? (cargosAdicionales.cancelacion_manchas || '')
-                        : (cargosAdicionales.cancelacion_manchas ? cargosAdicionales.cancelacion_manchas.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '')}
+                        : (cargosAdicionales.cancelacion_manchas ? formatCurrency(cargosAdicionales.cancelacion_manchas) : '')}
                       onChange={(e) => {
-                        const raw = e.target.value.replace(/[^\d.]/g, '');
+                        const raw = parseCurrencyToNumber(e.target.value);
                         setCargosAdicionales(prev => ({ ...prev, cancelacion_manchas: raw === '' ? 0 : parseFloat(raw) }));
                       }}
                       onFocus={() => setEditingCargo('cancelacion_manchas')}
                       onBlur={() => setEditingCargo(null)}
-                      placeholder="0.00"
+                      placeholder="₡0.00"
                     />
                     <p className="text-xs text-muted-foreground mt-1">No hay manchas registradas en el análisis. Ingrese el monto manualmente.</p>
                   </div>

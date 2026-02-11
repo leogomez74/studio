@@ -507,6 +507,9 @@ export default function AnalisisDetailPage() {
   const [editPlazo, setEditPlazo] = useState<number>(36);
   const [saving, setSaving] = useState(false);
 
+  // Loan configurations para validación de montos
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number }>>({});
+
   // Propuestas state
   const [propuestas, setPropuestas] = useState<Propuesta[]>([]);
   const [loadingPropuestas, setLoadingPropuestas] = useState(false);
@@ -663,6 +666,11 @@ export default function AnalisisDetailPage() {
         if (data.propuestas) {
           setPropuestas(data.propuestas);
         }
+
+        // Cargar configuraciones de préstamos para validación de propuestas
+        api.get('/api/loan-configurations/rangos')
+          .then(res => setLoanConfigs(res.data))
+          .catch(() => {});
 
         // Cargar archivos del filesystem (heredados/específicos)
         fetchAnalisisFiles();
@@ -885,12 +893,66 @@ export default function AnalisisDetailPage() {
 
   const handleAceptarPropuesta = async (id: number) => {
     try {
+      // Guardar monto de la propuesta ANTES de aceptar (el state puede cambiar después)
+      const propuestaAceptada = propuestas.find(p => p.id === id);
+      const montoPropuesta = propuestaAceptada?.monto || 0;
+
       await api.patch(`/api/propuestas/${id}/aceptar`);
       toast({ title: 'Propuesta aceptada', description: 'Las demás propuestas pendientes fueron denegadas automáticamente.' });
       fetchPropuestas();
+
+      // Cargar loanConfigs fresh si no están disponibles
+      let configs = loanConfigs;
+      if (Object.keys(configs).length === 0) {
+        const configRes = await api.get('/api/loan-configurations/rangos');
+        configs = configRes.data;
+        setLoanConfigs(configs);
+      }
+
       // Refrescar el análisis para reflejar monto/plazo y estado_pep de la propuesta aceptada
       const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
       const data = resAnalisis.data as AnalisisItem;
+
+      // Cambio automático de categoría según monto de la propuesta aceptada
+      const monto = parseFloat(String(montoPropuesta));
+      if (monto > 0 && data.category && Object.keys(configs).length > 0) {
+        const esMicro = data.category.toLowerCase().includes('micro');
+        const tipoCredito = esMicro ? 'microcredito' : 'regular';
+        const config = configs[tipoCredito];
+        const configMin = parseFloat(String(config?.monto_minimo));
+        const configMax = parseFloat(String(config?.monto_maximo));
+
+        if (config) {
+          let nuevoTipo: string | null = null;
+
+          if (esMicro && monto > configMax) {
+            const regularConfig = configs['regular'];
+            const regMin = parseFloat(String(regularConfig?.monto_minimo));
+            const regMax = parseFloat(String(regularConfig?.monto_maximo));
+            if (regularConfig && monto >= regMin && monto <= regMax) {
+              nuevoTipo = 'Crédito';
+            }
+          } else if (!esMicro && monto < configMin) {
+            const microConfig = configs['microcredito'];
+            const microMin = parseFloat(String(microConfig?.monto_minimo));
+            const microMax = parseFloat(String(microConfig?.monto_maximo));
+            if (microConfig && monto >= microMin && monto <= microMax) {
+              nuevoTipo = 'Micro Crédito';
+            }
+          }
+
+          if (nuevoTipo) {
+            await api.put(`/api/analisis/${analisisId}`, { category: nuevoTipo });
+            if (data.opportunity_id) {
+              await api.put(`/api/opportunities/${data.opportunity_id}`, { opportunity_type: nuevoTipo });
+            }
+            data.category = nuevoTipo;
+            if (data.opportunity) data.opportunity.opportunity_type = nuevoTipo;
+            toast({ title: 'Tipo de crédito actualizado', description: `Se cambió automáticamente a ${nuevoTipo} según el monto de la propuesta.` });
+          }
+        }
+      }
+
       setAnalisis(data);
       setEstadoPep(data.estado_pep || 'Aceptado');
       setEstadoCliente(data.estado_cliente || 'Pendiente');
@@ -1143,7 +1205,7 @@ export default function AnalisisDetailPage() {
                           plazo: analisis.plazo ? String(analisis.plazo) : '36',
                           poliza: false,
                           conCargosAdicionales: true,
-                          deductora_id: analisis.lead?.deductora_id,
+                          deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
                         });
                         setIsCreditDialogOpen(true);
                       } catch (err) {
@@ -1303,9 +1365,9 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.juicios_detalle && analisis.juicios_detalle.length > 0 ? (
+                  {analisis.juicio_detalles && analisis.juicio_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.juicios_detalle.map((juicio: any, idx: number) => (
+                      {analisis.juicio_detalles.map((juicio: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-gray-700">Expediente: {juicio.expediente || '-'}</p>
@@ -1340,9 +1402,9 @@ export default function AnalisisDetailPage() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {analisis.embargos_detalle && analisis.embargos_detalle.length > 0 ? (
+                  {analisis.embargo_detalles && analisis.embargo_detalles.length > 0 ? (
                     <div className="mt-2 space-y-2 pl-4">
-                      {analisis.embargos_detalle.map((embargo: any, idx: number) => (
+                      {analisis.embargo_detalles.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
                           <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
                           <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}{embargo.fecha_fin ? ` — Fin: ${new Date(embargo.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
@@ -2048,7 +2110,7 @@ export default function AnalisisDetailPage() {
                         plazo: analisis.plazo ? String(analisis.plazo) : '36',
                         poliza: false,
                         conCargosAdicionales: true,
-                        deductora_id: analisis.lead?.deductora_id,
+                        deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
                       });
                       setIsCreditDialogOpen(true);
                     } catch (err) {

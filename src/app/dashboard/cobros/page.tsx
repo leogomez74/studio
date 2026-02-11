@@ -6,9 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
 import { ProtectedPage } from "@/components/ProtectedPage";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { useAuth } from '@/components/auth-guard';
 import {
   Card,
   CardContent,
@@ -316,6 +320,33 @@ export default function CobrosPage() {
   // Resultado de planilla con sobrantes
   const [planillaResult, setPlanillaResult] = useState<any>(null);
 
+  // Modal de confirmación para aplicar saldos
+  const [previewSaldoData, setPreviewSaldoData] = useState<any>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingSaldoId, setPendingSaldoId] = useState<number | null>(null);
+  const [pendingAccion, setPendingAccion] = useState<'cuota' | 'capital' | null>(null);
+
+  // Historial de Planillas
+  const [planillas, setPlanillas] = useState<any[]>([]);
+  const [planillasPagination, setPlanillasPagination] = useState({
+    current_page: 1,
+    last_page: 1,
+    per_page: 15,
+    total: 0
+  });
+  const [planillasFilters, setPlanillasFilters] = useState({
+    deductora_id: 'all',
+    estado: 'all',
+    fecha_desde: '',
+    fecha_hasta: ''
+  });
+  const [anularDialogOpen, setAnularDialogOpen] = useState(false);
+  const [planillaToAnular, setPlanillaToAnular] = useState<any>(null);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
+
+  // Usuario actual (para verificar permisos)
+  const { user } = useAuth();
+
   // Búsqueda de clientes con debounce
   useEffect(() => {
     if (!clientSearchQuery || clientSearchQuery.length < 2) {
@@ -350,6 +381,34 @@ export default function CobrosPage() {
     }
   }, []);
 
+  const fetchPlanillas = useCallback(async (page = 1) => {
+    try {
+      const params: any = {
+        page,
+        per_page: 15,
+        ...planillasFilters
+      };
+
+      // Remover parámetros vacíos o "all"
+      Object.keys(params).forEach(key => {
+        if (params[key] === '' || params[key] === null || params[key] === undefined || params[key] === 'all') {
+          delete params[key];
+        }
+      });
+
+      const res = await api.get('/api/planilla-uploads', { params });
+      setPlanillas(res.data.data || []);
+      setPlanillasPagination({
+        current_page: res.data.current_page,
+        last_page: res.data.last_page,
+        per_page: res.data.per_page,
+        total: res.data.total
+      });
+    } catch (err) {
+      console.error('Error fetching planillas:', err);
+    }
+  }, [planillasFilters]);
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoadingCredits(true);
@@ -368,7 +427,8 @@ export default function CobrosPage() {
     };
     fetchData();
     fetchSaldosPendientes();
-  }, [planRefreshKey, toast, fetchSaldosPendientes]);
+    fetchPlanillas();
+  }, [planRefreshKey, toast, fetchSaldosPendientes, fetchPlanillas]);
 
   // Dynamic filtering of credits by arrears - using live API data
   const filterCreditsByArrearsRange = useCallback((credits: Credit[], daysStart: number, daysEnd: number | null = null) => {
@@ -675,21 +735,89 @@ export default function CobrosPage() {
   };
 
   const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital') => {
-    setProcesandoSaldo(saldoId);
+    // Verificar permiso de administrador
+    if (user?.role?.name !== 'Administrador' && !user?.role?.full_access) {
+      toast({
+        title: 'Acceso denegado',
+        description: 'Solo administradores pueden aplicar saldos',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Obtener preview
     try {
-      const res = await api.post(`/api/saldos-pendientes/${saldoId}/asignar`, { accion });
+      const res = await api.post(`/api/saldos-pendientes/${saldoId}/preview`, { accion });
+      setPreviewSaldoData(res.data);
+      setPendingSaldoId(saldoId);
+      setPendingAccion(accion);
+      setConfirmDialogOpen(true);
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Error al obtener preview',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const confirmarAsignacion = async () => {
+    if (!pendingSaldoId || !pendingAccion) return;
+
+    setProcesandoSaldo(pendingSaldoId);
+    try {
+      const res = await api.post(`/api/saldos-pendientes/${pendingSaldoId}/asignar`, {
+        accion: pendingAccion
+      });
       toast({
         title: 'Éxito',
         description: res.data.message,
       });
+      setConfirmDialogOpen(false);
+      setPreviewSaldoData(null);
       setPlanRefreshKey(k => k + 1);
-      // Recargar lista de saldos pendientes para que desaparezca el asignado
       await fetchSaldosPendientes();
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al asignar saldo.';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Error al asignar saldo',
+        variant: 'destructive',
+      });
     } finally {
       setProcesandoSaldo(null);
+      setPendingSaldoId(null);
+      setPendingAccion(null);
+    }
+  };
+
+  const handleAnularPlanilla = async () => {
+    if (!planillaToAnular || !motivoAnulacion.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Debe proporcionar un motivo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const res = await api.post(`/api/planilla-uploads/${planillaToAnular.id}/anular`, {
+        motivo: motivoAnulacion,
+      });
+      toast({
+        title: 'Éxito',
+        description: 'Planilla anulada correctamente',
+      });
+      setAnularDialogOpen(false);
+      setPlanillaToAnular(null);
+      setMotivoAnulacion('');
+      await fetchPlanillas();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Error al anular planilla',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -714,6 +842,7 @@ export default function CobrosPage() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="planillas">Historial de Planillas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="gestion">
@@ -900,7 +1029,7 @@ export default function CobrosPage() {
                             </div>
 
                             {/* Totales */}
-                            <div className="grid grid-cols-4 gap-3 p-4 bg-gray-50 rounded-lg">
+                            <div className="grid grid-cols-5 gap-3 p-4 bg-gray-50 rounded-lg">
                               <div className="text-center">
                                 <div className="text-2xl font-bold">{previewData.totales.total_registros}</div>
                                 <div className="text-xs text-muted-foreground">Total Registros</div>
@@ -912,6 +1041,10 @@ export default function CobrosPage() {
                               <div className="text-center">
                                 <div className="text-2xl font-bold text-yellow-600">{previewData.totales.parciales}</div>
                                 <div className="text-xs text-muted-foreground">Parciales</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-blue-600">{previewData.totales.sobrepagos || 0}</div>
+                                <div className="text-xs text-muted-foreground">Sobrepagos</div>
                               </div>
                               <div className="text-center">
                                 <div className="text-2xl font-bold text-red-600">{previewData.totales.no_encontrados}</div>
@@ -1513,7 +1646,369 @@ export default function CobrosPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Tab: Historial de Planillas */}
+        <TabsContent value="planillas">
+          <Card>
+            <CardHeader>
+              <CardTitle>Historial de Planillas Cargadas</CardTitle>
+              <CardDescription>
+                Registro de todas las planillas procesadas. Solo administradores pueden anular.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Filtros */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                  <Label htmlFor="filter-deductora">Deductora</Label>
+                  <Select
+                    value={planillasFilters.deductora_id}
+                    onValueChange={(value) => {
+                      setPlanillasFilters({ ...planillasFilters, deductora_id: value });
+                      fetchPlanillas(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-deductora">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {deductoras.map(d => (
+                        <SelectItem key={d.id} value={String(d.id)}>{d.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="filter-estado">Estado</Label>
+                  <Select
+                    value={planillasFilters.estado}
+                    onValueChange={(value) => {
+                      setPlanillasFilters({ ...planillasFilters, estado: value });
+                      fetchPlanillas(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-estado">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="procesada">Procesada</SelectItem>
+                      <SelectItem value="anulada">Anulada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="filter-fecha-desde">Desde</Label>
+                  <Input
+                    id="filter-fecha-desde"
+                    type="date"
+                    value={planillasFilters.fecha_desde}
+                    onChange={(e) => {
+                      setPlanillasFilters({ ...planillasFilters, fecha_desde: e.target.value });
+                      fetchPlanillas(1);
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="filter-fecha-hasta">Hasta</Label>
+                  <Input
+                    id="filter-fecha-hasta"
+                    type="date"
+                    value={planillasFilters.fecha_hasta}
+                    onChange={(e) => {
+                      setPlanillasFilters({ ...planillasFilters, fecha_hasta: e.target.value });
+                      fetchPlanillas(1);
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Tabla */}
+              <div className="mb-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Fecha Planilla</TableHead>
+                      <TableHead>Deductora</TableHead>
+                      <TableHead>Usuario</TableHead>
+                      <TableHead>Pagos</TableHead>
+                      <TableHead>Monto Total</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {planillas.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground">
+                          No hay planillas registradas
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      planillas.map((planilla) => (
+                        <TableRow key={planilla.id}>
+                          <TableCell>{planilla.id}</TableCell>
+                          <TableCell>
+                            {new Date(planilla.fecha_planilla).toLocaleDateString('es-CR')}
+                          </TableCell>
+                          <TableCell>{planilla.deductora?.nombre || '-'}</TableCell>
+                          <TableCell>{planilla.user?.name || '-'}</TableCell>
+                          <TableCell>{planilla.cantidad_pagos}</TableCell>
+                          <TableCell>
+                            {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                              .format(planilla.monto_total)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={planilla.estado === 'procesada' ? 'default' : 'destructive'}>
+                              {planilla.estado}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              {/* Botón de descarga (siempre visible si hay archivo) */}
+                              {planilla.ruta_archivo && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await api.get(`/api/planilla-uploads/${planilla.id}/download`, {
+                                        responseType: 'blob'
+                                      });
+                                      const url = window.URL.createObjectURL(new Blob([response.data]));
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.setAttribute('download', planilla.nombre_archivo || 'planilla.csv');
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      link.remove();
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (err) {
+                                      toast({
+                                        title: 'Error',
+                                        description: 'No se pudo descargar el archivo',
+                                        variant: 'destructive',
+                                      });
+                                    }
+                                  }}
+                                  title="Descargar planilla"
+                                >
+                                  <FileDown className="h-4 w-4" />
+                                </Button>
+                              )}
+
+                              {/* Botón anular (solo Admin y procesada) */}
+                              {planilla.estado === 'procesada' && user?.role?.name === 'Administrador' && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPlanillaToAnular(planilla);
+                                    setAnularDialogOpen(true);
+                                  }}
+                                >
+                                  Anular
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Info de anulación */}
+                            {planilla.estado === 'anulada' && (
+                              <div className="text-xs text-muted-foreground mt-2">
+                                Anulada: {new Date(planilla.anulada_at).toLocaleDateString('es-CR')}
+                                <br />
+                                Por: {planilla.anulada_por?.name || planilla.anulada_por}
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Paginación */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {planillas.length > 0 ? ((planillasPagination.current_page - 1) * planillasPagination.per_page) + 1 : 0} a {Math.min(planillasPagination.current_page * planillasPagination.per_page, planillasPagination.total)} de {planillasPagination.total} planillas
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={planillasPagination.current_page === 1}
+                    onClick={() => fetchPlanillas(planillasPagination.current_page - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <div className="flex items-center gap-2 text-sm">
+                    Página {planillasPagination.current_page} de {planillasPagination.last_page}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={planillasPagination.current_page === planillasPagination.last_page}
+                    onClick={() => fetchPlanillas(planillasPagination.current_page + 1)}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Modal: Confirmación de Aplicación de Saldo */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Aplicación de Saldo</DialogTitle>
+          </DialogHeader>
+
+          {previewSaldoData && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Monto disponible</p>
+                <p className="text-lg font-bold">
+                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                    .format(previewSaldoData.monto_disponible)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground">Destino</p>
+                <p className="font-semibold">{previewSaldoData.destino}</p>
+              </div>
+
+              {previewSaldoData.distribucion && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Distribución:</p>
+                  <div className="space-y-1 text-sm">
+                    {previewSaldoData.distribucion.interes_moratorio > 0 && (
+                      <div className="flex justify-between">
+                        <span>Interés Moratorio:</span>
+                        <span className="font-mono">
+                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                            .format(previewSaldoData.distribucion.interes_moratorio)}
+                        </span>
+                      </div>
+                    )}
+                    {previewSaldoData.distribucion.interes_corriente > 0 && (
+                      <div className="flex justify-between">
+                        <span>Interés Corriente:</span>
+                        <span className="font-mono">
+                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                            .format(previewSaldoData.distribucion.interes_corriente)}
+                        </span>
+                      </div>
+                    )}
+                    {previewSaldoData.distribucion.amortizacion > 0 && (
+                      <div className="flex justify-between">
+                        <span>Capital:</span>
+                        <span className="font-mono">
+                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                            .format(previewSaldoData.distribucion.amortizacion)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground">Saldo del crédito</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm line-through">
+                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                      .format(previewSaldoData.credit.saldo_actual)}
+                  </span>
+                  <span>→</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                      .format(previewSaldoData.saldo_nuevo_credit)}
+                  </span>
+                </div>
+              </div>
+
+              {previewSaldoData.excedente > 0.50 && (
+                <Alert>
+                  <AlertDescription>
+                    Excedente de ₡{previewSaldoData.excedente.toFixed(2)} quedará pendiente
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarAsignacion}>
+              Confirmar Aplicación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Anular Planilla */}
+      <Dialog open={anularDialogOpen} onOpenChange={setAnularDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Anular Planilla</DialogTitle>
+            <DialogDescription>
+              Esta acción revertirá TODOS los movimientos de esta planilla. Es irreversible.
+            </DialogDescription>
+          </DialogHeader>
+
+          {planillaToAnular && (
+            <div className="space-y-4">
+              <Alert variant="destructive">
+                <AlertDescription>
+                  <strong>Planilla #{planillaToAnular.id}</strong>
+                  <br />
+                  Fecha: {new Date(planillaToAnular.fecha_planilla).toLocaleDateString('es-CR')}
+                  <br />
+                  Deductora: {planillaToAnular.deductora?.nombre}
+                  <br />
+                  Pagos procesados: {planillaToAnular.cantidad_pagos}
+                </AlertDescription>
+              </Alert>
+
+              <div>
+                <Label htmlFor="motivo">Motivo de anulación *</Label>
+                <Textarea
+                  id="motivo"
+                  placeholder="Ej: Error en el archivo, se cargó mes incorrecto, etc."
+                  value={motivoAnulacion}
+                  onChange={(e) => setMotivoAnulacion(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnularDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleAnularPlanilla}
+              disabled={!motivoAnulacion.trim()}
+            >
+              Confirmar Anulación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
     </ProtectedPage>
   );

@@ -18,6 +18,8 @@ $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 use App\Models\Credit;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
+use App\Models\PlanillaUpload;
+use App\Models\SaldoPendiente;
 use App\Models\Person;
 use App\Models\Tasa;
 use App\Models\LoanConfiguration;
@@ -35,9 +37,17 @@ echo "========================================\n\n";
 // ============================================================
 echo "1. Limpiando datos existentes...\n";
 
+$saldosDeleted = SaldoPendiente::count();
+SaldoPendiente::query()->delete();
+echo "   ✓ Saldos pendientes eliminados: {$saldosDeleted}\n";
+
 $paymentsDeleted = CreditPayment::count();
 CreditPayment::query()->delete();
 echo "   ✓ Pagos eliminados: {$paymentsDeleted}\n";
+
+$planillasDeleted = PlanillaUpload::count();
+PlanillaUpload::query()->delete();
+echo "   ✓ Planillas eliminadas: {$planillasDeleted}\n";
 
 $planesDeleted = PlanDePago::count();
 PlanDePago::query()->delete();
@@ -48,7 +58,9 @@ Credit::query()->delete();
 echo "   ✓ Créditos eliminados: {$creditsDeleted}\n";
 
 // Reset auto-increment
+DB::statement('ALTER TABLE saldos_pendientes AUTO_INCREMENT = 1');
 DB::statement('ALTER TABLE credit_payments AUTO_INCREMENT = 1');
+DB::statement('ALTER TABLE planilla_uploads AUTO_INCREMENT = 1');
 DB::statement('ALTER TABLE plan_de_pagos AUTO_INCREMENT = 1');
 DB::statement('ALTER TABLE credits AUTO_INCREMENT = 1');
 
@@ -149,7 +161,7 @@ foreach ($shuffledLeads as $index => $lead) {
 
     try {
         DB::transaction(function () use (
-            $lead, $deductoraId, $tipo, $tasa, $monto, $plazo, $cuotaFija,
+            $lead, $deductoraId, $tipo, $tasa, $monto, $plazo, $cuotaFija, $esMicro,
             $fechaFormalizacion, $year, &$creditosCreados, &$creditosPorDeductora, &$creditosPorTipo
         ) {
             // Crear crédito
@@ -170,7 +182,7 @@ foreach ($shuffledLeads as $index => $lead) {
             $credit->tasa_maxima = $tasa->tasa_maxima;
             $credit->deductora_id = $deductoraId;
             $credit->saldo = $monto;
-            $credit->poliza = false;
+            $credit->poliza = false; // Los microcréditos NO llevan póliza
             $credit->garantia = 'Pagaré';
             $credit->formalized_at = $fechaFormalizacion;
             $credit->save();

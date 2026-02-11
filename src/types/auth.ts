@@ -5,6 +5,12 @@ export interface AuthUser {
   email_verified_at?: string;
   created_at: string;
   updated_at: string;
+  role?: {
+    id: number;
+    name: string;
+    description?: string;
+    full_access: boolean;
+  };
 }
 
 export interface AuthState {
