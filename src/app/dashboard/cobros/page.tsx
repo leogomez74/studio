@@ -303,7 +303,7 @@ export default function CobrosPage() {
 
   // Estados para el modal de Subir Planilla
   const [planillaModalOpen, setPlanillaModalOpen] = useState(false);
-  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string; codigo: string }[]>([]);
+  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string }[]>([]);
   const [selectedDeductora, setSelectedDeductora] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fechaTestPlanilla, setFechaTestPlanilla] = useState<string>('');
@@ -316,6 +316,13 @@ export default function CobrosPage() {
   const [saldosPendientes, setSaldosPendientes] = useState<any[]>([]);
   const [loadingSaldos, setLoadingSaldos] = useState(false);
   const [procesandoSaldo, setProcesandoSaldo] = useState<number | null>(null);
+  const [saldosPage, setSaldosPage] = useState(1);
+  const [saldosPerPage, setSaldosPerPage] = useState(10);
+  const [saldosTotal, setSaldosTotal] = useState(0);
+  const [saldosFilterDeductora, setSaldosFilterDeductora] = useState('all');
+  const [saldosFilterFechaDesde, setSaldosFilterFechaDesde] = useState('');
+  const [saldosFilterFechaHasta, setSaldosFilterFechaHasta] = useState('');
+  const [saldosSearch, setSaldosSearch] = useState('');
 
   // Resultado de planilla con sobrantes
   const [planillaResult, setPlanillaResult] = useState<any>(null);
@@ -338,7 +345,8 @@ export default function CobrosPage() {
     deductora_id: 'all',
     estado: 'all',
     fecha_desde: '',
-    fecha_hasta: ''
+    fecha_hasta: '',
+    search: ''
   });
   const [anularDialogOpen, setAnularDialogOpen] = useState(false);
   const [planillaToAnular, setPlanillaToAnular] = useState<any>(null);
@@ -372,14 +380,31 @@ export default function CobrosPage() {
   const fetchSaldosPendientes = useCallback(async () => {
     setLoadingSaldos(true);
     try {
-      const res = await api.get('/api/saldos-pendientes');
-      setSaldosPendientes(res.data || []);
+      const params: any = {
+        page: saldosPage,
+        per_page: saldosPerPage,
+      };
+      if (saldosFilterDeductora && saldosFilterDeductora !== 'all') {
+        params.deductora_id = saldosFilterDeductora;
+      }
+      if (saldosFilterFechaDesde) {
+        params.fecha_desde = saldosFilterFechaDesde;
+      }
+      if (saldosFilterFechaHasta) {
+        params.fecha_hasta = saldosFilterFechaHasta;
+      }
+      if (saldosSearch) {
+        params.search = saldosSearch;
+      }
+      const res = await api.get('/api/saldos-pendientes', { params });
+      setSaldosPendientes(res.data.data || res.data || []);
+      setSaldosTotal(res.data.total || res.data.length || 0);
     } catch (err) {
       console.error('Error fetching saldos pendientes:', err);
     } finally {
       setLoadingSaldos(false);
     }
-  }, []);
+  }, [saldosPage, saldosPerPage, saldosFilterDeductora, saldosFilterFechaDesde, saldosFilterFechaHasta, saldosSearch]);
 
   const fetchPlanillas = useCallback(async (page = 1) => {
     try {
@@ -494,14 +519,19 @@ export default function CobrosPage() {
     }
   }, [tipoCobro, selectedCreditId, toast]);
 
-  // Cargar deductoras cuando se abre el modal de planilla
+  // Cargar deductoras al montar el componente (necesarias para filtros)
   useEffect(() => {
-    if (planillaModalOpen && deductoras.length === 0) {
-      api.get('/api/deductoras')
-        .then(res => setDeductoras(res.data))
-        .catch(err => console.error('Error cargando deductoras:', err));
-    }
-  }, [planillaModalOpen, deductoras.length]);
+    console.log('Cargando deductoras...');
+    api.get('/api/deductoras')
+      .then(res => {
+        console.log('Deductoras recibidas:', res.data);
+        setDeductoras(res.data);
+      })
+      .catch(err => {
+        console.error('Error cargando deductoras:', err);
+        console.error('Detalles del error:', err.response?.data);
+      });
+  }, []);
 
   const openPlanillaModal = useCallback(() => setPlanillaModalOpen(true), []);
   const closePlanillaModal = useCallback(() => {
@@ -1552,6 +1582,69 @@ export default function CobrosPage() {
                   {loadingSaldos ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar'}
                 </Button>
               </div>
+
+              {/* Filtros */}
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4">
+                <div>
+                  <Label htmlFor="saldos-search">Buscar</Label>
+                  <Input
+                    id="saldos-search"
+                    type="text"
+                    placeholder="Cédula, nombre o crédito..."
+                    value={saldosSearch}
+                    onChange={(e) => { setSaldosSearch(e.target.value); setSaldosPage(1); }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="saldos-deductora">Deductora</Label>
+                  <Select value={saldosFilterDeductora} onValueChange={(val) => { setSaldosFilterDeductora(val); setSaldosPage(1); }}>
+                    <SelectTrigger id="saldos-deductora">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {deductoras.map((d) => (
+                        <SelectItem key={d.id} value={d.id.toString()}>{d.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="saldos-fecha-desde">Desde</Label>
+                  <Input
+                    id="saldos-fecha-desde"
+                    type="date"
+                    value={saldosFilterFechaDesde}
+                    onChange={(e) => { setSaldosFilterFechaDesde(e.target.value); setSaldosPage(1); }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="saldos-fecha-hasta">Hasta</Label>
+                  <Input
+                    id="saldos-fecha-hasta"
+                    type="date"
+                    value={saldosFilterFechaHasta}
+                    onChange={(e) => { setSaldosFilterFechaHasta(e.target.value); setSaldosPage(1); }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="saldos-per-page">Por página</Label>
+                  <Select value={saldosPerPage.toString()} onValueChange={(val) => { setSaldosPerPage(parseInt(val)); setSaldosPage(1); }}>
+                    <SelectTrigger id="saldos-per-page">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {loadingSaldos ? (
@@ -1649,6 +1742,36 @@ export default function CobrosPage() {
                   </Table>
                 </div>
               )}
+
+              {/* Paginación */}
+              {!loadingSaldos && saldosPendientes.length > 0 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando {((saldosPage - 1) * saldosPerPage) + 1} a {Math.min(saldosPage * saldosPerPage, saldosTotal)} de {saldosTotal} registros
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={saldosPage <= 1}
+                      onClick={() => setSaldosPage(saldosPage - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm">{saldosPage} / {Math.ceil(saldosTotal / saldosPerPage) || 1}</span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={saldosPage >= Math.ceil(saldosTotal / saldosPerPage)}
+                      onClick={() => setSaldosPage(saldosPage + 1)}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1664,7 +1787,7 @@ export default function CobrosPage() {
             </CardHeader>
             <CardContent>
               {/* Filtros */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                 <div>
                   <Label htmlFor="filter-deductora">Deductora</Label>
                   <Select
