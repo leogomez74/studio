@@ -25,11 +25,11 @@ export interface DeduccionMensual {
 }
 
 export interface ManchaDetalle {
-  id?: number;
+  id: number;
   fecha_inicio: string;
   fecha_fin?: string;
-  descripcion?: string;
-  monto?: number;
+  descripcion: string;
+  monto: number;
 }
 
 export interface JuicioDetalle {

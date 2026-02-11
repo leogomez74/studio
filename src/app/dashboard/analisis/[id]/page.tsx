@@ -826,43 +826,8 @@ export default function AnalisisDetailPage() {
       return;
     }
 
-    // Validación y cambio automático de categoría según monto
-    if (analisis.category && Object.keys(loanConfigs).length > 0) {
-      const esMicro = analisis.category.toLowerCase().includes('micro');
-      const tipoCredito = esMicro ? 'microcredito' : 'regular';
-      const config = loanConfigs[tipoCredito];
-
-      if (config) {
-        if (esMicro && monto > config.monto_maximo) {
-          const regularConfig = loanConfigs['regular'];
-          if (regularConfig && monto >= regularConfig.monto_minimo && monto <= regularConfig.monto_maximo) {
-            await api.put(`/api/analisis/${analisisId}`, { category: 'Crédito' });
-            setAnalisis(prev => prev ? { ...prev, category: 'Crédito' } : null);
-            toast({ title: 'Tipo de crédito actualizado', description: 'El monto excede Micro Crédito. Se cambió automáticamente a Crédito.' });
-          } else {
-            toast({ title: 'Error', description: `El monto debe estar entre ₡${config.monto_minimo.toLocaleString()} y ₡${config.monto_maximo.toLocaleString()} para ${config.nombre}.`, variant: 'destructive' });
-            return;
-          }
-        } else if (!esMicro && monto < config.monto_minimo) {
-          const microConfig = loanConfigs['microcredito'];
-          if (microConfig && monto >= microConfig.monto_minimo && monto <= microConfig.monto_maximo) {
-            await api.put(`/api/analisis/${analisisId}`, { category: 'Micro Crédito' });
-            setAnalisis(prev => prev ? { ...prev, category: 'Micro Crédito' } : null);
-            toast({ title: 'Tipo de crédito actualizado', description: 'El monto está por debajo del mínimo de Crédito. Se cambió automáticamente a Micro Crédito.' });
-          } else {
-            toast({ title: 'Error', description: `El monto debe estar entre ₡${config.monto_minimo.toLocaleString()} y ₡${config.monto_maximo.toLocaleString()} para ${config.nombre}.`, variant: 'destructive' });
-            return;
-          }
-        } else if (monto < config.monto_minimo || monto > config.monto_maximo) {
-          toast({ title: 'Error', description: `El monto debe estar entre ₡${config.monto_minimo.toLocaleString()} y ₡${config.monto_maximo.toLocaleString()} para ${config.nombre}.`, variant: 'destructive' });
-          return;
-        }
-      }
-    }
-
     // Validación: Micro crédito requiere mínimo 6 meses de plazo
-    const currentCategory = analisis.category?.toLowerCase().includes('micro') ? 'micro' : 'regular';
-    if (currentCategory === 'micro' && plazo < 6) {
+    if (analisis.category?.toLowerCase().includes('micro') && plazo < 6) {
       toast({
         title: 'Error',
         description: 'Para Micro crédito el plazo mínimo es de 6 meses.',
@@ -928,12 +893,66 @@ export default function AnalisisDetailPage() {
 
   const handleAceptarPropuesta = async (id: number) => {
     try {
+      // Guardar monto de la propuesta ANTES de aceptar (el state puede cambiar después)
+      const propuestaAceptada = propuestas.find(p => p.id === id);
+      const montoPropuesta = propuestaAceptada?.monto || 0;
+
       await api.patch(`/api/propuestas/${id}/aceptar`);
       toast({ title: 'Propuesta aceptada', description: 'Las demás propuestas pendientes fueron denegadas automáticamente.' });
       fetchPropuestas();
+
+      // Cargar loanConfigs fresh si no están disponibles
+      let configs = loanConfigs;
+      if (Object.keys(configs).length === 0) {
+        const configRes = await api.get('/api/loan-configurations/rangos');
+        configs = configRes.data;
+        setLoanConfigs(configs);
+      }
+
       // Refrescar el análisis para reflejar monto/plazo y estado_pep de la propuesta aceptada
       const resAnalisis = await api.get(`/api/analisis/${analisisId}`);
       const data = resAnalisis.data as AnalisisItem;
+
+      // Cambio automático de categoría según monto de la propuesta aceptada
+      const monto = parseFloat(String(montoPropuesta));
+      if (monto > 0 && data.category && Object.keys(configs).length > 0) {
+        const esMicro = data.category.toLowerCase().includes('micro');
+        const tipoCredito = esMicro ? 'microcredito' : 'regular';
+        const config = configs[tipoCredito];
+        const configMin = parseFloat(String(config?.monto_minimo));
+        const configMax = parseFloat(String(config?.monto_maximo));
+
+        if (config) {
+          let nuevoTipo: string | null = null;
+
+          if (esMicro && monto > configMax) {
+            const regularConfig = configs['regular'];
+            const regMin = parseFloat(String(regularConfig?.monto_minimo));
+            const regMax = parseFloat(String(regularConfig?.monto_maximo));
+            if (regularConfig && monto >= regMin && monto <= regMax) {
+              nuevoTipo = 'Crédito';
+            }
+          } else if (!esMicro && monto < configMin) {
+            const microConfig = configs['microcredito'];
+            const microMin = parseFloat(String(microConfig?.monto_minimo));
+            const microMax = parseFloat(String(microConfig?.monto_maximo));
+            if (microConfig && monto >= microMin && monto <= microMax) {
+              nuevoTipo = 'Micro Crédito';
+            }
+          }
+
+          if (nuevoTipo) {
+            await api.put(`/api/analisis/${analisisId}`, { category: nuevoTipo });
+            if (data.opportunity_id) {
+              await api.put(`/api/opportunities/${data.opportunity_id}`, { opportunity_type: nuevoTipo });
+            }
+            data.category = nuevoTipo;
+            if (data.opportunity) data.opportunity.opportunity_type = nuevoTipo;
+            toast({ title: 'Tipo de crédito actualizado', description: `Se cambió automáticamente a ${nuevoTipo} según el monto de la propuesta.` });
+          }
+        }
+      }
+
       setAnalisis(data);
       setEstadoPep(data.estado_pep || 'Aceptado');
       setEstadoCliente(data.estado_cliente || 'Pendiente');
