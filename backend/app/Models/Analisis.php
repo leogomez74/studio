@@ -135,8 +135,8 @@ class Analisis extends Model
     }
 
     /**
-     * Verificar si ya existe un crédito asociado a este análisis
-     * Un crédito puede estar vinculado por opportunity_id o lead_id
+     * Relación con el crédito asociado a este análisis
+     * Un crédito está vinculado por opportunity_id
      */
     public function credit()
     {
@@ -157,10 +157,6 @@ class Analisis extends Model
     public function getHasCreditAttribute(): bool
     {
         return Credit::where('opportunity_id', $this->opportunity_id)
-            ->orWhere(function ($query) {
-                $query->where('lead_id', $this->lead_id)
-                      ->whereNotNull('lead_id');
-            })
             ->exists();
     }
 
@@ -170,10 +166,6 @@ class Analisis extends Model
     public function getCreditIdAttribute(): ?int
     {
         $credit = Credit::where('opportunity_id', $this->opportunity_id)
-            ->orWhere(function ($query) {
-                $query->where('lead_id', $this->lead_id)
-                      ->whereNotNull('lead_id');
-            })
             ->first();
 
         return $credit?->id;
@@ -185,10 +177,6 @@ class Analisis extends Model
     public function getCreditStatusAttribute(): ?string
     {
         $credit = Credit::where('opportunity_id', $this->opportunity_id)
-            ->orWhere(function ($query) {
-                $query->where('lead_id', $this->lead_id)
-                      ->whereNotNull('lead_id');
-            })
             ->first();
 
         return $credit?->status;
