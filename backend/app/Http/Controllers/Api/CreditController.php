@@ -524,6 +524,7 @@ class CreditController extends Controller
             'plazo' => 'nullable|integer',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
+            'opportunity_id' => 'nullable|string',
             'cargos_adicionales' => 'nullable|array',
             'cargos_adicionales.comision' => 'nullable|numeric|min:0',
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
