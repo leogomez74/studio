@@ -582,6 +582,22 @@ class CreditPaymentController extends Controller
 
             $numeroCuotaInicio = $siguienteCuota->numero_cuota;
 
+            // Snapshot para reverso: capturar estado ANTES de modificar
+            $planSnapshot = $credit->planDePagos()
+                ->where('numero_cuota', '>=', $numeroCuotaInicio)
+                ->get()->map(fn($c) => $c->toArray())->toArray();
+
+            $reversalSnapshot = [
+                'type' => 'extraordinario',
+                'strategy' => $strategy,
+                'original_saldo' => (float) $credit->saldo,
+                'original_plazo' => (int) $credit->plazo,
+                'original_cuota' => (float) $credit->cuota,
+                'original_status' => $credit->status,
+                'start_cuota_num' => $numeroCuotaInicio,
+                'plan_rows' => $planSnapshot,
+            ];
+
             // 2. Aplicar directo al Saldo (Capital Vivo)
             $saldoActual = (float) $credit->saldo;
 
@@ -608,7 +624,8 @@ class CreditPaymentController extends Controller
                 'source'         => 'Extraordinario',
                 'movimiento_total' => $montoAbono,
                 'interes_corriente' => 0,
-                'cedula'         => $credit->lead->cedula ?? null
+                'cedula'         => $credit->lead->cedula ?? null,
+                'reversal_snapshot' => $reversalSnapshot
             ]);
 
             // 3. Regenerar Proyección
@@ -1345,6 +1362,24 @@ class CreditPaymentController extends Controller
 
             $montoTotalCancelar = round($saldoPendiente + $penalizacion, 2);
 
+            // Snapshot para reverso: capturar cuotas que serán marcadas como Pagado
+            $cuotasAfectadas = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->whereIn('estado', ['Pendiente', 'Mora'])
+                ->get();
+
+            $reversalSnapshot = [
+                'type' => 'cancelacion_anticipada',
+                'original_credit_saldo' => (float) $credit->saldo,
+                'original_status' => $credit->status,
+                'cuotas_afectadas' => $cuotasAfectadas->map(fn($c) => [
+                    'plan_de_pago_id' => $c->id,
+                    'numero_cuota' => $c->numero_cuota,
+                    'estado_anterior' => $c->estado,
+                    'fecha_pago_anterior' => $c->fecha_pago,
+                ])->toArray(),
+            ];
+
             // Registrar pago de cancelación anticipada
             $payment = CreditPayment::create([
                 'credit_id'      => $credit->id,
@@ -1362,6 +1397,7 @@ class CreditPaymentController extends Controller
                 'estado'         => 'Aplicado',
                 'source'         => 'Cancelación Anticipada',
                 'cedula'         => $credit->lead->cedula ?? null,
+                'reversal_snapshot' => $reversalSnapshot,
             ]);
 
             // Marcar todas las cuotas pendientes como pagadas
@@ -1619,6 +1655,7 @@ class CreditPaymentController extends Controller
 
     /**
      * Revertir un pago (solo el último pago vigente del crédito).
+     * Soporta todos los tipos: Ventanilla, Adelanto, Planilla, Extraordinario, Cancelación Anticipada.
      */
     public function reversePayment(Request $request, int $paymentId)
     {
@@ -1636,15 +1673,7 @@ class CreditPaymentController extends Controller
                 ], 422);
             }
 
-            // 2. Validar tipo de pago reversible
-            $sourcesNoReversibles = ['Extraordinario', 'Cancelación Anticipada', 'Planilla'];
-            if (in_array($payment->source, $sourcesNoReversibles)) {
-                return response()->json([
-                    'message' => "No se puede revertir un pago de tipo '{$payment->source}'. Solo pagos manuales (Ventanilla, Adelanto) son reversibles."
-                ], 422);
-            }
-
-            // 3. Validar que sea el último pago vigente del crédito (LIFO)
+            // 2. Validar que sea el último pago vigente del crédito (LIFO)
             $lastPayment = CreditPayment::where('credit_id', $payment->credit_id)
                 ->where('estado_reverso', 'Vigente')
                 ->orderBy('id', 'desc')
@@ -1656,17 +1685,25 @@ class CreditPaymentController extends Controller
                 ], 422);
             }
 
-            // 4. Validar que tenga detalles registrados
+            // 3. Bloquear crédito
+            $credit = Credit::lockForUpdate()->findOrFail($payment->credit_id);
+
+            // 4. Routing por tipo de pago
+            if ($payment->source === 'Extraordinario') {
+                return $this->reverseExtraordinario($payment, $credit, $validated['motivo']);
+            }
+
+            if ($payment->source === 'Cancelación Anticipada') {
+                return $this->reverseCancelacionAnticipada($payment, $credit, $validated['motivo']);
+            }
+
+            // 5. Reversal basado en credit_payment_details (Ventanilla, Adelanto, Planilla)
             if ($payment->details->isEmpty()) {
                 return response()->json([
                     'message' => 'Este pago no tiene detalles de cuotas registrados. Los pagos anteriores al sistema de reverso no pueden revertirse.'
                 ], 422);
             }
 
-            // 5. Bloquear crédito
-            $credit = Credit::lockForUpdate()->findOrFail($payment->credit_id);
-
-            // 6. Revertir movimientos en cada cuota afectada
             $capitalRevertido = 0.0;
             $cuotasRevertidas = 0;
 
@@ -1685,13 +1722,11 @@ class CreditPaymentController extends Controller
 
                 // Restaurar estado anterior o recalcular
                 if ($cuota->movimiento_total <= 0.005) {
-                    // Nada pagado → restaurar al estado original
                     $cuota->estado = $detail->estado_anterior;
                     $cuota->concepto = null;
                     $cuota->fecha_pago = null;
                     $cuota->fecha_movimiento = null;
                 } else {
-                    // Aún hay pagos parciales de otra transacción
                     $totalExigible = $cuota->interes_corriente
                         + ($cuota->int_corriente_vencido ?? 0)
                         + $cuota->interes_moratorio
@@ -1711,21 +1746,21 @@ class CreditPaymentController extends Controller
                 $cuotasRevertidas++;
             }
 
-            // 7. Restaurar saldo del crédito
+            // Planilla: limpiar SaldoPendiente asociado
+            if ($payment->source === 'Planilla') {
+                SaldoPendiente::where('credit_payment_id', $payment->id)->delete();
+            }
+
+            // Restaurar saldo del crédito
             $credit->saldo = round((float) $credit->saldo + $capitalRevertido, 2);
 
-            // 8. Si estaba cerrado por este pago, reabrir
             if ($credit->status === 'Cerrado') {
                 $credit->status = 'Formalizado';
             }
             $credit->save();
 
-            // 9. Marcar pago como anulado
-            $payment->estado_reverso = 'Anulado';
-            $payment->motivo_anulacion = $validated['motivo'];
-            $payment->anulado_por = Auth::id();
-            $payment->fecha_anulacion = now();
-            $payment->save();
+            // Marcar pago como anulado
+            $this->markPaymentAsAnulado($payment, $validated['motivo']);
 
             return response()->json([
                 'message' => 'Pago revertido exitosamente.',
@@ -1734,6 +1769,104 @@ class CreditPaymentController extends Controller
                 'capital_revertido' => $capitalRevertido,
             ]);
         });
+    }
+
+    /**
+     * Revertir un abono extraordinario usando el snapshot del plan.
+     */
+    private function reverseExtraordinario(CreditPayment $payment, Credit $credit, string $motivo)
+    {
+        $snapshot = $payment->reversal_snapshot;
+        if (!$snapshot || empty($snapshot['plan_rows'])) {
+            return response()->json([
+                'message' => 'Este pago extraordinario no tiene snapshot de reverso. Los pagos anteriores al sistema de reverso no pueden revertirse.'
+            ], 422);
+        }
+
+        $startCuotaNum = $snapshot['start_cuota_num'];
+
+        // 1. Eliminar cuotas regeneradas
+        PlanDePago::where('credit_id', $credit->id)
+            ->where('numero_cuota', '>=', $startCuotaNum)
+            ->delete();
+
+        // 2. Restaurar cuotas originales desde snapshot
+        foreach ($snapshot['plan_rows'] as $row) {
+            unset($row['id'], $row['created_at'], $row['updated_at']);
+            PlanDePago::create($row);
+        }
+
+        // 3. Restaurar valores del crédito
+        $credit->saldo = $snapshot['original_saldo'];
+        $credit->plazo = $snapshot['original_plazo'];
+        $credit->cuota = $snapshot['original_cuota'];
+        if (isset($snapshot['original_status']) && in_array($credit->status, ['Finalizado', 'Cerrado'])) {
+            $credit->status = $snapshot['original_status'];
+        }
+        $credit->save();
+
+        // 4. Marcar pago como anulado
+        $this->markPaymentAsAnulado($payment, $motivo);
+
+        return response()->json([
+            'message' => 'Abono extraordinario revertido. Plan de pagos restaurado.',
+            'saldo_restaurado' => $credit->saldo,
+            'cuotas_restauradas' => count($snapshot['plan_rows']),
+            'capital_revertido' => (float) $payment->monto,
+        ]);
+    }
+
+    /**
+     * Revertir una cancelación anticipada usando el snapshot de cuotas.
+     */
+    private function reverseCancelacionAnticipada(CreditPayment $payment, Credit $credit, string $motivo)
+    {
+        $snapshot = $payment->reversal_snapshot;
+        if (!$snapshot || empty($snapshot['cuotas_afectadas'])) {
+            return response()->json([
+                'message' => 'Este pago de cancelación anticipada no tiene snapshot de reverso. Los pagos anteriores al sistema de reverso no pueden revertirse.'
+            ], 422);
+        }
+
+        $cuotasRevertidas = 0;
+
+        // 1. Restaurar cada cuota a su estado original
+        foreach ($snapshot['cuotas_afectadas'] as $cuotaInfo) {
+            $cuota = PlanDePago::lockForUpdate()->find($cuotaInfo['plan_de_pago_id']);
+            if (!$cuota) continue;
+
+            $cuota->estado = $cuotaInfo['estado_anterior'];
+            $cuota->fecha_pago = $cuotaInfo['fecha_pago_anterior'];
+            $cuota->save();
+            $cuotasRevertidas++;
+        }
+
+        // 2. Restaurar valores del crédito
+        $credit->saldo = $snapshot['original_credit_saldo'];
+        $credit->status = $snapshot['original_status'];
+        $credit->save();
+
+        // 3. Marcar pago como anulado
+        $this->markPaymentAsAnulado($payment, $motivo);
+
+        return response()->json([
+            'message' => 'Cancelación anticipada revertida. Crédito reabierto.',
+            'saldo_restaurado' => $credit->saldo,
+            'cuotas_revertidas' => $cuotasRevertidas,
+            'capital_revertido' => $snapshot['original_credit_saldo'],
+        ]);
+    }
+
+    /**
+     * Marcar un CreditPayment como anulado.
+     */
+    private function markPaymentAsAnulado(CreditPayment $payment, string $motivo): void
+    {
+        $payment->estado_reverso = 'Anulado';
+        $payment->motivo_anulacion = $motivo;
+        $payment->anulado_por = Auth::id();
+        $payment->fecha_anulacion = now();
+        $payment->save();
     }
 
     public function show(string $id) { return response()->json([], 200); }

@@ -41,6 +41,7 @@ class CreditPayment extends Model
         'motivo_anulacion',
         'anulado_por',
         'fecha_anulacion',
+        'reversal_snapshot',
     ];
 
     protected $casts = [
@@ -60,6 +61,7 @@ class CreditPayment extends Model
         'movimiento_total' => 'decimal:2',
         'movimiento_amortizacion' => 'decimal:2',
         'tasa_actual' => 'decimal:2',
+        'reversal_snapshot' => 'array',
     ];
 
     public function credit()
