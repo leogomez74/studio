@@ -332,6 +332,7 @@ export default function CobrosPage() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingSaldoId, setPendingSaldoId] = useState<number | null>(null);
   const [pendingAccion, setPendingAccion] = useState<'cuota' | 'capital' | null>(null);
+  const [pendingCreditId, setPendingCreditId] = useState<number | null>(null);
 
   // Historial de Planillas
   const [planillas, setPlanillas] = useState<any[]>([]);
@@ -764,7 +765,7 @@ export default function CobrosPage() {
     doc.save(`historial_abonos_${Date.now()}.pdf`);
   };
 
-  const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital') => {
+  const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital', creditId?: number) => {
     // Verificar permiso de administrador
     if (user?.role?.name !== 'Administrador' && !user?.role?.full_access) {
       toast({
@@ -777,10 +778,13 @@ export default function CobrosPage() {
 
     // Obtener preview
     try {
-      const res = await api.post(`/api/saldos-pendientes/${saldoId}/preview`, { accion });
+      const body: any = { accion };
+      if (creditId) body.credit_id = creditId;
+      const res = await api.post(`/api/saldos-pendientes/${saldoId}/preview`, body);
       setPreviewSaldoData(res.data);
       setPendingSaldoId(saldoId);
       setPendingAccion(accion);
+      setPendingCreditId(creditId || null);
       setConfirmDialogOpen(true);
     } catch (err: any) {
       toast({
@@ -796,9 +800,9 @@ export default function CobrosPage() {
 
     setProcesandoSaldo(pendingSaldoId);
     try {
-      const res = await api.post(`/api/saldos-pendientes/${pendingSaldoId}/asignar`, {
-        accion: pendingAccion
-      });
+      const body: any = { accion: pendingAccion };
+      if (pendingCreditId) body.credit_id = pendingCreditId;
+      const res = await api.post(`/api/saldos-pendientes/${pendingSaldoId}/asignar`, body);
       toast({
         title: 'Éxito',
         description: res.data.message,
@@ -817,6 +821,7 @@ export default function CobrosPage() {
       setProcesandoSaldo(null);
       setPendingSaldoId(null);
       setPendingAccion(null);
+      setPendingCreditId(null);
     }
   };
 
@@ -1664,17 +1669,15 @@ export default function CobrosPage() {
                       <TableRow>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Cédula</TableHead>
-                        <TableHead>Crédito</TableHead>
                         <TableHead className="text-right">Monto Sobrante</TableHead>
-                        <TableHead className="text-right">Saldo Crédito</TableHead>
                         <TableHead>Deductora</TableHead>
                         <TableHead>Fecha</TableHead>
-                        <TableHead className="text-center">Acciones</TableHead>
+                        <TableHead>Distribución Posible</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {saldosPendientes.map((saldo: any) => (
-                        <TableRow key={saldo.id}>
+                        <TableRow key={saldo.id} className="align-top">
                           <TableCell className="font-medium">
                             {saldo.lead_id ? (
                               <Link
@@ -1691,50 +1694,75 @@ export default function CobrosPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-sm">{saldo.cedula}</TableCell>
-                          <TableCell>
-                            <Link href={`/dashboard/creditos/${saldo.credit_id}`} className="text-primary hover:underline text-sm">
-                              {saldo.credit_reference}
-                            </Link>
-                          </TableCell>
                           <TableCell className="text-right font-mono font-semibold text-orange-600">
                             ₡{Number(saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-sm">
-                            ₡{Number(saldo.saldo_credito).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                           </TableCell>
                           <TableCell className="text-sm">{saldo.deductora}</TableCell>
                           <TableCell className="text-sm">
                             {saldo.fecha_origen ? new Date(saldo.fecha_origen).toLocaleDateString() : '-'}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-center gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-xs"
-                                disabled={procesandoSaldo === saldo.id}
-                                onClick={() => handleAsignarSaldo(saldo.id, 'cuota')}
-                              >
-                                {procesandoSaldo === saldo.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <>Aplicar a Cuota</>
-                                )}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-xs"
-                                disabled={procesandoSaldo === saldo.id}
-                                onClick={() => handleAsignarSaldo(saldo.id, 'capital')}
-                              >
-                                {procesandoSaldo === saldo.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <>Aplicar a Capital</>
-                                )}
-                              </Button>
-                            </div>
+                            {saldo.distribuciones && saldo.distribuciones.length > 0 ? (
+                              <div className="space-y-2">
+                                {saldo.distribuciones.map((dist: any) => (
+                                  <div key={dist.credit_id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md border text-xs">
+                                    <div className="flex-1 min-w-0">
+                                      <Link href={`/dashboard/creditos/${dist.credit_id}`} className="text-primary hover:underline font-medium">
+                                        {dist.reference}
+                                      </Link>
+                                      <div className="text-muted-foreground mt-0.5">
+                                        Cuota: ₡{Number(dist.cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                        {' · '}
+                                        <span className="font-semibold text-blue-700">Hasta {dist.max_cuotas} cuota{dist.max_cuotas !== 1 ? 's' : ''}</span>
+                                        {' · '}
+                                        Saldo: ₡{Number(dist.saldo_credito).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1 shrink-0">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs h-7 px-2"
+                                        disabled={procesandoSaldo === saldo.id}
+                                        onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id)}
+                                      >
+                                        {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Cuota'}
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs h-7 px-2"
+                                        disabled={procesandoSaldo === saldo.id}
+                                        onClick={() => handleAsignarSaldo(saldo.id, 'capital', dist.credit_id)}
+                                      >
+                                        {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Capital'}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  disabled={procesandoSaldo === saldo.id}
+                                  onClick={() => handleAsignarSaldo(saldo.id, 'cuota')}
+                                >
+                                  {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Cuota'}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  disabled={procesandoSaldo === saldo.id}
+                                  onClick={() => handleAsignarSaldo(saldo.id, 'capital')}
+                                >
+                                  {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Capital'}
+                                </Button>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

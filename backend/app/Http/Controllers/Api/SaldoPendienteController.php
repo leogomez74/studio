@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\CreditPaymentController;
 use App\Models\SaldoPendiente;
 use App\Models\Credit;
-use App\Models\PlanDePago;
+use App\Models\CreditPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class SaldoPendienteController extends Controller
 {
@@ -64,6 +64,30 @@ class SaldoPendienteController extends Controller
 
         $mapped = $saldos->getCollection()->map(function ($saldo) {
             $person = $saldo->credit->lead;
+            $cedula = $saldo->cedula ?? ($person->cedula ?? '');
+            $deductoraId = $saldo->credit->deductora_id;
+
+            // Buscar TODOS los créditos de esta cédula + deductora para distribuciones
+            $allCredits = Credit::where('deductora_id', $deductoraId)
+                ->whereIn('status', ['Formalizado', 'En Mora'])
+                ->whereHas('lead', function($q) use ($cedula) {
+                    $q->where('cedula', $cedula);
+                })
+                ->orderBy('formalized_at', 'asc')
+                ->get();
+
+            $distribuciones = $allCredits->map(function ($credit) use ($saldo) {
+                $cuotaAmount = (float) $credit->cuota;
+                $maxCuotas = $cuotaAmount > 0 ? floor((float) $saldo->monto / $cuotaAmount) : 0;
+                return [
+                    'credit_id' => $credit->id,
+                    'reference' => $credit->reference ?? $credit->numero_operacion,
+                    'cuota' => $cuotaAmount,
+                    'max_cuotas' => (int) $maxCuotas,
+                    'saldo_credito' => (float) $credit->saldo,
+                ];
+            })->values()->all();
+
             return [
                 'id' => $saldo->id,
                 'credit_id' => $saldo->credit_id,
@@ -73,7 +97,7 @@ class SaldoPendienteController extends Controller
                 'lead_name' => $person
                     ? ($person->name . ' ' . ($person->apellido1 ?? ''))
                     : 'N/A',
-                'cedula' => $saldo->cedula ?? ($person->cedula ?? ''),
+                'cedula' => $cedula,
                 'deductora' => $saldo->credit->deductora->nombre ?? 'N/A',
                 'monto' => (float) $saldo->monto,
                 'origen' => $saldo->origen,
@@ -81,6 +105,7 @@ class SaldoPendienteController extends Controller
                 'estado' => $saldo->estado,
                 'notas' => $saldo->notas,
                 'saldo_credito' => (float) $saldo->credit->saldo,
+                'distribuciones' => $distribuciones,
             ];
         });
 
@@ -100,6 +125,7 @@ class SaldoPendienteController extends Controller
     {
         $validated = $request->validate([
             'accion' => 'required|in:cuota,capital',
+            'credit_id' => 'nullable|exists:credits,id',
         ]);
 
         // Solo administradores pueden aplicar saldos
@@ -109,7 +135,8 @@ class SaldoPendienteController extends Controller
         }
 
         $saldo = SaldoPendiente::where('estado', 'pendiente')->findOrFail($id);
-        $credit = $saldo->credit;
+        $targetCreditId = $validated['credit_id'] ?? $saldo->credit_id;
+        $credit = Credit::findOrFail($targetCreditId);
         $accion = $validated['accion'];
 
         $preview = [
@@ -201,79 +228,113 @@ class SaldoPendienteController extends Controller
 
         $validated = $request->validate([
             'accion' => 'required|in:cuota,capital',
+            'credit_id' => 'nullable|exists:credits,id',
+            'monto' => 'nullable|numeric|min:0.01',
             'notas' => 'nullable|string|max:500',
         ]);
 
         $saldo = SaldoPendiente::where('estado', 'pendiente')->findOrFail($id);
         $accion = $validated['accion'];
 
-        return DB::transaction(function () use ($saldo, $accion, $validated) {
-            $credit = Credit::lockForUpdate()->findOrFail($saldo->credit_id);
+        // Permitir aplicar a un crédito diferente (de la misma cédula)
+        $targetCreditId = $validated['credit_id'] ?? $saldo->credit_id;
+        // Permitir aplicar un monto parcial del sobrante
+        $montoAplicar = isset($validated['monto'])
+            ? min((float) $validated['monto'], (float) $saldo->monto)
+            : (float) $saldo->monto;
+
+        return DB::transaction(function () use ($saldo, $accion, $validated, $targetCreditId, $montoAplicar) {
+            $credit = Credit::lockForUpdate()->findOrFail($targetCreditId);
 
             if ($accion === 'cuota') {
                 // Aplicar como pago a la siguiente cuota pendiente
                 $controller = new CreditPaymentController();
                 $payment = $controller->processPaymentTransactionPublic(
                     $credit,
-                    (float) $saldo->monto,
+                    $montoAplicar,
                     now(),
                     'Saldo Pendiente',
                     $saldo->cedula
                 );
 
-                $saldo->estado = 'asignado_cuota';
-                $saldo->asignado_at = now();
-                $saldo->notas = $validated['notas'] ?? 'Aplicado a cuota #' . $payment->numero_cuota;
-                $saldo->save();
+                // Calcular restante del saldo
+                $restante = (float) $saldo->monto - $montoAplicar;
+
+                if ($restante > 0.50) {
+                    // Queda saldo pendiente: actualizar monto
+                    $saldo->monto = $restante;
+                    $saldo->notas = ($saldo->notas ? $saldo->notas . ' | ' : '') .
+                        sprintf('Cuota #%d aplicada (₡%s) a %s', $payment->numero_cuota, number_format($montoAplicar, 2), $credit->reference);
+                    $saldo->save();
+                } else {
+                    // Todo consumido
+                    $saldo->estado = 'asignado_cuota';
+                    $saldo->asignado_at = now();
+                    $saldo->notas = $validated['notas'] ?? 'Aplicado a cuota #' . $payment->numero_cuota . ' de ' . $credit->reference;
+                    $saldo->save();
+                }
 
                 return response()->json([
                     'message' => 'Saldo aplicado a cuota exitosamente',
-                    'saldo' => $saldo,
+                    'saldo' => $saldo->fresh(),
                     'payment' => $payment,
                     'nuevo_saldo_credito' => (float) $credit->fresh()->saldo,
+                    'restante' => $restante > 0.50 ? $restante : 0,
                 ]);
 
             } else {
                 // Aplicar a capital: reduce saldo directamente
                 $saldoAnterior = (float) $credit->saldo;
-                $montoAplicar = min((float) $saldo->monto, $saldoAnterior);
-                $credit->saldo = max(0, $saldoAnterior - $montoAplicar);
+                $montoCapital = min($montoAplicar, $saldoAnterior);
+                $credit->saldo = max(0, $saldoAnterior - $montoCapital);
                 $credit->save();
 
                 // Registrar como un CreditPayment de tipo "Abono a Capital"
-                $payment = \App\Models\CreditPayment::create([
+                $payment = CreditPayment::create([
                     'credit_id' => $credit->id,
                     'numero_cuota' => 0,
                     'fecha_pago' => now(),
-                    'monto' => $montoAplicar,
+                    'monto' => $montoCapital,
                     'cuota' => 0,
                     'saldo_anterior' => $saldoAnterior,
                     'nuevo_saldo' => $credit->saldo,
                     'estado' => 'Aplicado',
-                    'amortizacion' => $montoAplicar,
+                    'amortizacion' => $montoCapital,
                     'source' => 'Abono a Capital',
                     'cedula' => $saldo->cedula,
                     'movimiento_total' => 0,
-                    'movimiento_amortizacion' => $montoAplicar,
+                    'movimiento_amortizacion' => $montoCapital,
                 ]);
 
-                $saldo->estado = 'asignado_capital';
-                $saldo->asignado_at = now();
-                $saldo->notas = $validated['notas'] ?? sprintf(
-                    'Abono a capital: ₡%s → Saldo anterior: ₡%s → Nuevo saldo: ₡%s',
-                    number_format($montoAplicar, 2),
-                    number_format($saldoAnterior, 2),
-                    number_format($credit->saldo, 2)
-                );
-                $saldo->save();
+                // Calcular restante del saldo
+                $restante = (float) $saldo->monto - $montoCapital;
+
+                if ($restante > 0.50) {
+                    $saldo->monto = $restante;
+                    $saldo->notas = ($saldo->notas ? $saldo->notas . ' | ' : '') .
+                        sprintf('Capital ₡%s aplicado a %s', number_format($montoCapital, 2), $credit->reference);
+                    $saldo->save();
+                } else {
+                    $saldo->estado = 'asignado_capital';
+                    $saldo->asignado_at = now();
+                    $saldo->notas = $validated['notas'] ?? sprintf(
+                        'Abono a capital: ₡%s → Saldo anterior: ₡%s → Nuevo saldo: ₡%s (%s)',
+                        number_format($montoCapital, 2),
+                        number_format($saldoAnterior, 2),
+                        number_format($credit->saldo, 2),
+                        $credit->reference
+                    );
+                    $saldo->save();
+                }
 
                 return response()->json([
-                    'message' => 'Saldo aplicado a capital exitosamente. Los intereses corrientes se reducirán en la siguiente cuota.',
-                    'saldo' => $saldo,
+                    'message' => 'Saldo aplicado a capital exitosamente.',
+                    'saldo' => $saldo->fresh(),
                     'payment' => $payment,
                     'saldo_anterior' => $saldoAnterior,
                     'nuevo_saldo_credito' => (float) $credit->saldo,
-                    'capital_reducido' => $montoAplicar,
+                    'capital_reducido' => $montoCapital,
+                    'restante' => $restante > 0.50 ? $restante : 0,
                 ]);
             }
         });

@@ -1090,67 +1090,103 @@ class CreditPaymentController extends Controller
                     $results[] = ['cedula' => $rawCedula, 'status' => 'skipped']; continue;
                 }
 
-                // Buscar crédito formalizado por cédula del lead y deductora del crédito
-                $credit = Credit::where('deductora_id', $deductoraId)
-                    ->where('status', 'Formalizado')
+                // Detectar formato de monto: europeo (8.167,97) vs americano (8,167.97)
+                $lastComma = strrpos($rawMonto, ',');
+                $lastDot = strrpos($rawMonto, '.');
+                if ($lastComma !== false && $lastDot !== false) {
+                    if ($lastComma > $lastDot) {
+                        $cleanMonto = str_replace('.', '', $rawMonto);
+                        $cleanMonto = str_replace(',', '.', $cleanMonto);
+                    } else {
+                        $cleanMonto = str_replace(',', '', $rawMonto);
+                    }
+                } elseif ($lastComma !== false && $lastDot === false) {
+                    $cleanMonto = str_replace(',', '.', $rawMonto);
+                } else {
+                    $cleanMonto = $rawMonto;
+                }
+                $montoPagado = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
+
+                if ($montoPagado <= 0) {
+                    $results[] = ['cedula' => $rawCedula, 'status' => 'zero_amount'];
+                    continue;
+                }
+
+                // Buscar TODOS los créditos por cédula + deductora, ordenados por antigüedad
+                $credits = Credit::where('deductora_id', $deductoraId)
+                    ->whereIn('status', ['Formalizado', 'En Mora'])
                     ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
                         $q->where(function($query) use ($rawCedula, $cleanCedula) {
                             $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
                         });
-                    })->first();
+                    })
+                    ->orderBy('formalized_at', 'asc')
+                    ->get();
 
-                if ($credit) {
-                    // Registrar que este crédito SÍ pagó
-                    $creditosQuePagaron[] = $credit->id;
+                if ($credits->isEmpty()) {
+                    $results[] = ['cedula' => $rawCedula, 'status' => 'not_found'];
+                    continue;
+                }
 
-                    // Detectar formato: europeo (8.167,97) vs americano (8,167.97)
-                    $lastComma = strrpos($rawMonto, ',');
-                    $lastDot = strrpos($rawMonto, '.');
-                    if ($lastComma !== false && $lastDot !== false) {
-                        if ($lastComma > $lastDot) {
-                            $cleanMonto = str_replace('.', '', $rawMonto);
-                            $cleanMonto = str_replace(',', '.', $cleanMonto);
-                        } else {
-                            $cleanMonto = str_replace(',', '', $rawMonto);
+                // CASCADA: Pagar cuota de cada crédito (más viejo primero)
+                $dineroDisponible = $montoPagado;
+                $payments = [];
+                $planillaId = $planillaUpload->id;
+
+                foreach ($credits as $cascadeCredit) {
+                    if ($dineroDisponible <= 0.005) break;
+
+                    $creditosQuePagaron[] = $cascadeCredit->id;
+                    $cascadeCreditId = $cascadeCredit->id;
+                    $montoParaCredito = $dineroDisponible;
+
+                    $payment = DB::transaction(function () use ($cascadeCreditId, $montoParaCredito, $fechaPago, $rawCedula, $planillaId) {
+                        $c = Credit::lockForUpdate()->findOrFail($cascadeCreditId);
+                        return $this->processPaymentTransaction($c, $montoParaCredito, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId);
+                    });
+
+                    if ($payment) {
+                        $payments[] = $payment;
+                        $dineroDisponible = (float) $payment->movimiento_total;
+
+                        // Limpiar movimiento_total de pagos intermedios (sobrante pasa al siguiente crédito)
+                        if ($dineroDisponible > 0.005 && $credits->count() > 1) {
+                            $payment->update(['movimiento_total' => 0]);
                         }
-                    } elseif ($lastComma !== false && $lastDot === false) {
-                        $cleanMonto = str_replace(',', '.', $rawMonto);
-                    } else {
-                        $cleanMonto = $rawMonto;
                     }
-                    $montoPagado = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
-                    if ($montoPagado > 0) {
-                        $creditId = $credit->id;
-                        $planillaId = $planillaUpload->id;
-                        $payment = DB::transaction(function () use ($creditId, $montoPagado, $fechaPago, $rawCedula, $planillaId) {
-                            $credit = Credit::lockForUpdate()->findOrFail($creditId);
-                            return $this->processPaymentTransaction($credit, $montoPagado, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId);
-                        });
-                        if ($payment) {
-                            $resultItem = ['cedula' => $rawCedula, 'monto' => $montoPagado, 'status' => 'applied', 'lead' => $credit->lead->name ?? 'N/A'];
+                }
 
-                            // Detectar sobrante: si movimiento_total > 0.50 hay excedente
-                            $sobrante = (float) $payment->movimiento_total;
-                            if ($sobrante > 0.50) {
-                                $saldo = SaldoPendiente::create([
-                                    'credit_id' => $payment->credit_id,
-                                    'credit_payment_id' => $payment->id,
-                                    'monto' => $sobrante,
-                                    'origen' => 'Planilla',
-                                    'fecha_origen' => $fechaPago,
-                                    'estado' => 'pendiente',
-                                    'cedula' => $rawCedula,
-                                ]);
-                                $resultItem['sobrante'] = $sobrante;
-                                $resultItem['saldo_pendiente_id'] = $saldo->id;
-                            }
+                $resultItem = [
+                    'cedula' => $rawCedula,
+                    'monto' => $montoPagado,
+                    'status' => 'applied',
+                    'lead' => $credits->first()->lead->name ?? 'N/A',
+                    'credits_procesados' => count($payments),
+                ];
 
-                            $results[] = $resultItem;
-                        } else {
-                            $results[] = ['cedula' => $rawCedula, 'status' => 'paid_or_error'];
-                        }
-                    } else { $results[] = ['cedula' => $rawCedula, 'status' => 'zero_amount']; }
-                } else { $results[] = ['cedula' => $rawCedula, 'status' => 'not_found']; }
+                // Sobrante final (después de pagar todos los créditos en cascada)
+                if ($dineroDisponible > 0.50 && count($payments) > 0) {
+                    $lastPayment = end($payments);
+                    $lastPayment->update(['movimiento_total' => $dineroDisponible]);
+
+                    $saldo = SaldoPendiente::create([
+                        'credit_id' => $lastPayment->credit_id,
+                        'credit_payment_id' => $lastPayment->id,
+                        'monto' => $dineroDisponible,
+                        'origen' => 'Planilla',
+                        'fecha_origen' => $fechaPago,
+                        'estado' => 'pendiente',
+                        'cedula' => $rawCedula,
+                    ]);
+                    $resultItem['sobrante'] = $dineroDisponible;
+                    $resultItem['saldo_pendiente_id'] = $saldo->id;
+                }
+
+                if (count($payments) === 0) {
+                    $resultItem['status'] = 'paid_or_error';
+                }
+
+                $results[] = $resultItem;
             }
 
             // PASO 2: Calcular mora para créditos de ESTA deductora que NO pagaron
