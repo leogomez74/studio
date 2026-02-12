@@ -106,6 +106,7 @@ export default function PagarePage() {
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
   const pagareRef = useRef<HTMLDivElement>(null);
+  const paginaDosRef = useRef<HTMLDivElement>(null);
   const autorizacionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -231,16 +232,28 @@ export default function PagarePage() {
       const x1 = (pdfWidth - finalWidth1) / 2;
       pdf.addImage(imgData1, 'PNG', x1, 0, finalWidth1, finalHeight1);
 
-      // Página 2: Autorización de Deducción
-      if (showAutorizacion && autorizacionRef.current) {
+      // Página 2: (reservada - en blanco por ahora)
+      if (paginaDosRef.current) {
         pdf.addPage();
-        const canvas2 = await captureElement(autorizacionRef.current);
+        const canvas2 = await captureElement(paginaDosRef.current);
         const imgData2 = canvas2.toDataURL('image/png');
         const ratio2 = Math.min(pdfWidth / canvas2.width, pdfHeight / canvas2.height);
         const finalWidth2 = canvas2.width * ratio2;
         const finalHeight2 = canvas2.height * ratio2;
         const x2 = (pdfWidth - finalWidth2) / 2;
         pdf.addImage(imgData2, 'PNG', x2, 0, finalWidth2, finalHeight2);
+      }
+
+      // Página 3: Autorización de Deducción
+      if (showAutorizacion && autorizacionRef.current) {
+        pdf.addPage();
+        const canvas3 = await captureElement(autorizacionRef.current);
+        const imgData3 = canvas3.toDataURL('image/png');
+        const ratio3 = Math.min(pdfWidth / canvas3.width, pdfHeight / canvas3.height);
+        const finalWidth3 = canvas3.width * ratio3;
+        const finalHeight3 = canvas3.height * ratio3;
+        const x3 = (pdfWidth - finalWidth3) / 2;
+        pdf.addImage(imgData3, 'PNG', x3, 0, finalWidth3, finalHeight3);
       }
 
       // Abrir PDF en nueva ventana para imprimir
@@ -406,7 +419,74 @@ export default function PagarePage() {
         </div>
       </div>
 
-      {/* Página 2: Autorización de Deducción (formato unificado) */}
+      {/* Página 2: Declaración Jurada */}
+      <div
+        ref={paginaDosRef}
+        className="bg-white mx-auto shadow-lg mb-8"
+        style={{
+          width: '216mm',
+          minHeight: '279mm',
+          padding: '15mm 20mm',
+          fontFamily: 'Arial, Helvetica, sans-serif',
+          fontSize: '10pt',
+          lineHeight: '1.5'
+        }}
+      >
+        {/* Título con borde */}
+        <div style={{
+          border: '2px solid #000',
+          padding: '4mm 10mm',
+          marginBottom: '8mm',
+          marginTop: '10mm'
+        }}>
+          <h1 style={{
+            textAlign: 'center',
+            fontSize: '14pt',
+            fontWeight: 'bold',
+            margin: 0
+          }}>
+            DECLARACION JURADA
+          </h1>
+        </div>
+
+        {/* Contenido */}
+        <div style={{ textAlign: 'justify', fontSize: '10pt', lineHeight: '1.8' }}>
+          <p style={{ marginBottom: '5mm' }}>
+            Yo, <strong>{nombre}</strong> , con domicilio en la zona de <strong>{direccion}</strong> portador de la cédula de identidad número <strong>{cedula}</strong> , <strong>DECLARO:</strong> Que soy deudor del documento PAGARÉ , firmado el día {todayWithDay} manifiesto que hago de mi conocimiento que el principal método de pago es el de deducción de planilla y el mismo es irrenunciable, para evitar el incumplimiento de pago, o cualquier atraso en la cancelación de cuotas en caso de que por alguna situación no se realice la deducción respectiva, utilizaré cualquiera de los medios de pago autorizados que tiene la empresa CREDIPEP S.A., los cuales son:
+          </p>
+
+          <p style={{ marginBottom: '3mm' }}>
+            <strong>A)</strong> Directamente a la cuenta bancaria del Banco de Costa Rica, Cuenta Iban: <strong>CR90015201001033990109</strong>, a nombre de Credipep Sociedad Anónima, cédula jurídica: <strong>3-101-515511</strong>
+          </p>
+
+          <p style={{ marginBottom: '3mm' }}>
+            <strong>B)</strong> Al Sinpe Móvil: <strong>6150-61-33</strong>, a nombre de Credipep Sociedad Anónima,
+          </p>
+
+          <p style={{ marginBottom: '5mm' }}>
+            <strong>C)</strong> En caso de cheque, este debe ir a nombre de: <strong>CREDIPEP SOCIEDAD ANÓNIMA.</strong> De lo cual también manifiesto que debo enviar el comprobante de pago correspondiente, al correo electrónico: <strong>cobros1@pep.cr</strong> y al teléfono: <strong>6150-6133</strong>
+          </p>
+
+          <p>
+            Declaro lo anterior advertido sobre el valor y trascendencia de mis manifestaciones, las cuales entiendo a plenitud y acepto de conformidad. ES TODO SAN JOSE a las ONCE HORAS del {todayWithDay}
+          </p>
+        </div>
+
+        {/* Firmas */}
+        <div style={{ marginTop: '20mm' }}>
+          <p style={{ marginBottom: '8mm', fontSize: '10pt' }}>
+            <strong>Nombre:</strong> {'  '} _____________________________________________
+          </p>
+          <p style={{ marginBottom: '8mm', fontSize: '10pt' }}>
+            <strong>Cedula:</strong> {'   '} _____________________________________________
+          </p>
+          <p style={{ marginBottom: '8mm', fontSize: '10pt' }}>
+            <strong>Firma:</strong> {'    '} _____________________________________________
+          </p>
+        </div>
+      </div>
+
+      {/* Página 3: Autorización de Deducción (formato unificado) */}
       {showAutorizacion && (
         <div
           ref={autorizacionRef}
