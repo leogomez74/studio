@@ -304,7 +304,7 @@ export default function CobrosPage() {
 
   // Estados para el modal de Subir Planilla
   const [planillaModalOpen, setPlanillaModalOpen] = useState(false);
-  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string }[]>([]);
+  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string; codigo?: string }[]>([]);
   const [selectedDeductora, setSelectedDeductora] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fechaTestPlanilla, setFechaTestPlanilla] = useState<string>('');
@@ -561,8 +561,8 @@ export default function CobrosPage() {
   const handleRegistrarAbono = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (!selectedCreditId || !fecha) {
-        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito y fecha.', variant: 'destructive' });
+      if (!selectedCreditId || !fecha || !nroReferenciaBancaria.trim()) {
+        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito, fecha y Nro. Referencia Bancaria.', variant: 'destructive' });
         return;
       }
 
@@ -1510,6 +1510,7 @@ export default function CobrosPage() {
                             placeholder="Ej: 123456789"
                             value={nroReferenciaBancaria}
                             onChange={e => setNroReferenciaBancaria(e.target.value)}
+                            required
                           />
                         </div>
 
