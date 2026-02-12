@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
@@ -825,6 +826,7 @@ class CreditPaymentController extends Controller
 
         // --- CORRECCIÓN: Variable para acumular solo lo amortizado HOY ---
         $capitalAmortizadoHoy = 0.0;
+        $paymentDetails = [];
 
         foreach ($cuotasArr as $i => $cuota) {
             if ($dineroDisponible <= 0.005) break;
@@ -925,6 +927,21 @@ class CreditPaymentController extends Controller
                 $cuota->concepto = 'Pago parcial';
             }
 
+            // Registrar detalle de lo que este pago aportó a esta cuota
+            if ($totalPagadoEnEstaTransaccion > 0) {
+                $paymentDetails[] = [
+                    'plan_de_pago_id' => $cuota->id,
+                    'numero_cuota' => $cuota->numero_cuota,
+                    'estado_anterior' => $cuota->getOriginal('estado'),
+                    'pago_mora' => $pagoMora,
+                    'pago_int_vencido' => $pagoIntVencido,
+                    'pago_int_corriente' => $pagoIntCorriente,
+                    'pago_poliza' => $pagoPoliza,
+                    'pago_principal' => $pagoPrincipal,
+                    'pago_total' => $totalPagadoEnEstaTransaccion,
+                ];
+            }
+
             $cuota->save();
 
             // En modo planilla (singleCuota), solo procesar UNA cuota y parar
@@ -956,6 +973,11 @@ class CreditPaymentController extends Controller
             'movimiento_total'  => $dineroDisponible > 0 ? $dineroDisponible : 0,
             'cedula'            => $cedulaRef
         ]);
+
+        // Guardar detalles por cuota para posible reverso
+        foreach ($paymentDetails as $detail) {
+            $paymentRecord->details()->create($detail);
+        }
 
         return $paymentRecord;
     }
@@ -1593,6 +1615,125 @@ class CreditPaymentController extends Controller
             $numero++;
             $fechaBase = $fechaCorte->copy();
         }
+    }
+
+    /**
+     * Revertir un pago (solo el último pago vigente del crédito).
+     */
+    public function reversePayment(Request $request, int $paymentId)
+    {
+        $validated = $request->validate([
+            'motivo' => 'required|string|max:255',
+        ]);
+
+        return DB::transaction(function () use ($paymentId, $validated) {
+            $payment = CreditPayment::with('details')->findOrFail($paymentId);
+
+            // 1. Validar que no esté ya anulado
+            if ($payment->estado_reverso === 'Anulado') {
+                return response()->json([
+                    'message' => 'Este pago ya fue anulado anteriormente.'
+                ], 422);
+            }
+
+            // 2. Validar tipo de pago reversible
+            $sourcesNoReversibles = ['Extraordinario', 'Cancelación Anticipada', 'Planilla'];
+            if (in_array($payment->source, $sourcesNoReversibles)) {
+                return response()->json([
+                    'message' => "No se puede revertir un pago de tipo '{$payment->source}'. Solo pagos manuales (Ventanilla, Adelanto) son reversibles."
+                ], 422);
+            }
+
+            // 3. Validar que sea el último pago vigente del crédito (LIFO)
+            $lastPayment = CreditPayment::where('credit_id', $payment->credit_id)
+                ->where('estado_reverso', 'Vigente')
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if (!$lastPayment || $lastPayment->id !== $payment->id) {
+                return response()->json([
+                    'message' => 'Solo se puede revertir el último pago vigente del crédito. Revierta primero el pago #' . ($lastPayment->id ?? 'N/A') . '.'
+                ], 422);
+            }
+
+            // 4. Validar que tenga detalles registrados
+            if ($payment->details->isEmpty()) {
+                return response()->json([
+                    'message' => 'Este pago no tiene detalles de cuotas registrados. Los pagos anteriores al sistema de reverso no pueden revertirse.'
+                ], 422);
+            }
+
+            // 5. Bloquear crédito
+            $credit = Credit::lockForUpdate()->findOrFail($payment->credit_id);
+
+            // 6. Revertir movimientos en cada cuota afectada
+            $capitalRevertido = 0.0;
+            $cuotasRevertidas = 0;
+
+            foreach ($payment->details as $detail) {
+                $cuota = PlanDePago::lockForUpdate()->find($detail->plan_de_pago_id);
+                if (!$cuota) continue;
+
+                // Restar los deltas exactos
+                $cuota->movimiento_interes_moratorio = max(0, $cuota->movimiento_interes_moratorio - $detail->pago_mora);
+                $cuota->movimiento_int_corriente_vencido = max(0, ($cuota->movimiento_int_corriente_vencido ?? 0) - $detail->pago_int_vencido);
+                $cuota->movimiento_interes_corriente = max(0, $cuota->movimiento_interes_corriente - $detail->pago_int_corriente);
+                $cuota->movimiento_poliza = max(0, $cuota->movimiento_poliza - $detail->pago_poliza);
+                $cuota->movimiento_principal = max(0, $cuota->movimiento_principal - $detail->pago_principal);
+                $cuota->movimiento_amortizacion = max(0, $cuota->movimiento_amortizacion - $detail->pago_principal);
+                $cuota->movimiento_total = max(0, $cuota->movimiento_total - $detail->pago_total);
+
+                // Restaurar estado anterior o recalcular
+                if ($cuota->movimiento_total <= 0.005) {
+                    // Nada pagado → restaurar al estado original
+                    $cuota->estado = $detail->estado_anterior;
+                    $cuota->concepto = null;
+                    $cuota->fecha_pago = null;
+                    $cuota->fecha_movimiento = null;
+                } else {
+                    // Aún hay pagos parciales de otra transacción
+                    $totalExigible = $cuota->interes_corriente
+                        + ($cuota->int_corriente_vencido ?? 0)
+                        + $cuota->interes_moratorio
+                        + $cuota->poliza
+                        + $cuota->amortizacion;
+
+                    if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
+                        $cuota->estado = 'Pagado';
+                    } else {
+                        $cuota->estado = 'Parcial';
+                        $cuota->concepto = 'Pago parcial';
+                    }
+                }
+
+                $cuota->save();
+                $capitalRevertido += (float) $detail->pago_principal;
+                $cuotasRevertidas++;
+            }
+
+            // 7. Restaurar saldo del crédito
+            $credit->saldo = round((float) $credit->saldo + $capitalRevertido, 2);
+
+            // 8. Si estaba cerrado por este pago, reabrir
+            if ($credit->status === 'Cerrado') {
+                $credit->status = 'Formalizado';
+            }
+            $credit->save();
+
+            // 9. Marcar pago como anulado
+            $payment->estado_reverso = 'Anulado';
+            $payment->motivo_anulacion = $validated['motivo'];
+            $payment->anulado_por = Auth::id();
+            $payment->fecha_anulacion = now();
+            $payment->save();
+
+            return response()->json([
+                'message' => 'Pago revertido exitosamente.',
+                'saldo_restaurado' => $credit->saldo,
+                'cuotas_revertidas' => $cuotasRevertidas,
+                'capital_revertido' => $capitalRevertido,
+            ]);
+        });
     }
 
     public function show(string $id) { return response()->json([], 200); }

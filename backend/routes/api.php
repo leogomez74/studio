@@ -262,6 +262,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf']);
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
+    Route::post('credit-payments/{id}/reverse', [CreditPaymentController::class, 'reversePayment']);
     Route::apiResource('credit-payments', CreditPaymentController::class);
 
     // Saldos Pendientes (sobrantes de planilla)

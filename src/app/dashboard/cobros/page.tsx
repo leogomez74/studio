@@ -1,12 +1,13 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -57,6 +58,9 @@ interface PaymentWithRelations extends Payment {
     created_at?: string;
     fecha_pago?: string;
     cuota?: number | string;
+    estado_reverso?: string;
+    motivo_anulacion?: string | null;
+    fecha_anulacion?: string | null;
 }
 
 const getStatusVariantCobros = (status: Credit['status']) => {
@@ -197,7 +201,9 @@ const getSourceVariant = (source: Payment['source']) => {
   }
 };
 
-const PaymentTableRow = React.memo(function PaymentTableRow({ payment }: { payment: PaymentWithRelations }) {
+const REVERSIBLE_SOURCES = ['Ventanilla', 'Adelanto Simple', 'Adelanto de Cuotas'];
+
+const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canReverse, onReverse }: { payment: PaymentWithRelations; canReverse?: boolean; onReverse?: (payment: PaymentWithRelations) => void }) {
   const credit = payment.credit;
   const lead = credit?.lead;
 
@@ -205,18 +211,20 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment }: { payme
     ? `${lead.name || ''} ${(lead as any).apellido1 || ''} ${(lead as any).apellido2 || ''}`.trim() || 'Sin nombre'
     : (payment.cedula ? String(payment.cedula) : 'Desconocido');
   const operationNumber = credit?.numero_operacion || credit?.reference || '-';
-  
+
   const amount = parseFloat(String(payment.monto || 0));
   const cuotaSnapshot = parseFloat(String(payment.cuota || amount));
   const difference = cuotaSnapshot - amount;
   const hasDifference = Math.abs(difference) > 1.0;
 
-  const dateDisplay = payment.fecha_pago 
-    ? new Date(payment.fecha_pago).toLocaleDateString() 
+  const dateDisplay = payment.fecha_pago
+    ? new Date(payment.fecha_pago).toLocaleDateString()
     : (payment.created_at ? new Date(payment.created_at).toLocaleDateString() : '-');
 
+  const isAnulado = payment.estado_reverso === 'Anulado';
+
   return (
-    <TableRow>
+    <TableRow className={isAnulado ? 'opacity-50' : ''}>
       <TableCell className="font-medium">
         {credit ? (
             <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
@@ -224,18 +232,18 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment }: { payme
             </Link>
         ) : <span className="text-muted-foreground">-</span>}
       </TableCell>
-      
+
       <TableCell>
         <div className="flex flex-col">
             <span className="font-medium">{leadName}</span>
             <span className="text-xs text-muted-foreground">{payment.cedula}</span>
         </div>
       </TableCell>
-      
+
       <TableCell className="text-right font-mono">
         ₡{amount.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
       </TableCell>
-      
+
       <TableCell className="text-right font-mono text-xs">
         {hasDifference ? (
           <div className={difference > 0 ? "text-destructive flex justify-end items-center gap-1" : "text-green-600 flex justify-end items-center gap-1"}>
@@ -244,15 +252,31 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment }: { payme
           </div>
         ) : <span className="text-muted-foreground">-</span>}
       </TableCell>
-      
+
       <TableCell>{dateDisplay}</TableCell>
       <TableCell><Badge variant={getSourceVariant(payment.source)}>{payment.source}</Badge></TableCell>
-      
+
+      <TableCell>
+        {isAnulado ? (
+          <Badge variant="destructive" className="text-[10px]">Anulado</Badge>
+        ) : (
+          <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">Vigente</Badge>
+        )}
+      </TableCell>
+
       <TableCell className="text-right">
-        <Button variant="ghost" size="icon">
-          <Receipt className="h-4 w-4" />
-          <span className="sr-only">Ver Recibo</span>
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          {canReverse && !isAnulado && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onReverse?.(payment)}>
+              <Undo2 className="h-4 w-4" />
+              <span className="sr-only">Revertir</span>
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Receipt className="h-4 w-4" />
+            <span className="sr-only">Ver Recibo</span>
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -300,6 +324,12 @@ export default function CobrosPage() {
   // Paginación - Gestión de Cobros
   const [cobrosPage, setCobrosPage] = useState(1);
   const [cobrosPerPage, setCobrosPerPage] = useState(10);
+
+  // Reverso de pago
+  const [reverseDialogOpen, setReverseDialogOpen] = useState(false);
+  const [reversePayment, setReversePaymentState] = useState<PaymentWithRelations | null>(null);
+  const [reverseMotivo, setReverseMotivo] = useState('');
+  const [reversingPayment, setReversingPayment] = useState(false);
 
   // Estados para el modal de Subir Planilla
   const [planillaModalOpen, setPlanillaModalOpen] = useState(false);
@@ -607,6 +637,53 @@ export default function CobrosPage() {
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Error al registrar el abono.';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
+    }
+  };
+
+  // Determinar cuál es el último pago vigente por crédito
+  const lastVigenteByCredit = useMemo(() => {
+    const map: Record<number, number> = {};
+    // paymentsState viene ordenado por id desc normalmente
+    const sorted = [...paymentsState]
+      .filter(p => p.estado_reverso !== 'Anulado' && REVERSIBLE_SOURCES.includes(p.source))
+      .sort((a, b) => Number(b.id) - Number(a.id));
+    for (const p of sorted) {
+      const creditId = p.credit?.id;
+      if (creditId && !map[creditId]) {
+        map[creditId] = Number(p.id);
+      }
+    }
+    return map;
+  }, [paymentsState]);
+
+  const openReverseDialog = useCallback((payment: PaymentWithRelations) => {
+    setReversePaymentState(payment);
+    setReverseMotivo('');
+    setReverseDialogOpen(true);
+  }, []);
+
+  const handleConfirmReverse = async () => {
+    if (!reversePayment || !reverseMotivo.trim()) {
+      toast({ title: 'Motivo requerido', description: 'Ingrese el motivo de la anulación.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setReversingPayment(true);
+      await api.post(`/api/credit-payments/${reversePayment.id}/reverse`, {
+        motivo: reverseMotivo.trim(),
+      });
+      toast({ title: 'Pago revertido', description: 'El abono ha sido anulado correctamente.' });
+      setReverseDialogOpen(false);
+      setReversePaymentState(null);
+      // Refresh data
+      const paymentsRes = await api.get('/api/credit-payments');
+      setPaymentsState(paymentsRes.data);
+      setPlanRefreshKey(k => k + 1);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al revertir el pago.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setReversingPayment(false);
     }
   };
 
@@ -1536,12 +1613,18 @@ export default function CobrosPage() {
                     <TableHead className="text-right">Diferencia</TableHead>
                     <TableHead>Fecha de Pago</TableHead>
                     <TableHead>Fuente</TableHead>
+                    <TableHead>Estado</TableHead>
                     <TableHead><span className="sr-only">Acciones</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paymentsState.slice((abonosPage - 1) * abonosPerPage, abonosPage * abonosPerPage).map((payment) => (
-                    <PaymentTableRow key={payment.id} payment={payment} />
+                    <PaymentTableRow
+                      key={payment.id}
+                      payment={payment}
+                      canReverse={lastVigenteByCredit[payment.credit?.id ?? 0] === Number(payment.id)}
+                      onReverse={openReverseDialog}
+                    />
                   ))}
                 </TableBody>
               </Table>
@@ -2166,6 +2249,49 @@ export default function CobrosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* AlertDialog para Revertir Pago */}
+      <AlertDialog open={reverseDialogOpen} onOpenChange={setReverseDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revertir Abono</AlertDialogTitle>
+            <AlertDialogDescription>
+              {reversePayment && (
+                <>
+                  Se revertirá el pago de <strong>₡{parseFloat(String(reversePayment.monto || 0)).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                  {reversePayment.fecha_pago && <> del <strong>{new Date(reversePayment.fecha_pago).toLocaleDateString()}</strong></>}
+                  {reversePayment.credit?.numero_operacion && <> (Operación: <strong>{reversePayment.credit.numero_operacion}</strong>)</>}.
+                  <br /><br />
+                  Esta acción restaurará los movimientos en las cuotas afectadas y el saldo del crédito.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Label htmlFor="motivo-anulacion">Motivo de anulación <span className="text-destructive">*</span></Label>
+            <Textarea
+              id="motivo-anulacion"
+              placeholder="Ingrese el motivo de la anulación..."
+              value={reverseMotivo}
+              onChange={(e) => setReverseMotivo(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reversingPayment}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmReverse(); }}
+              disabled={reversingPayment || !reverseMotivo.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {reversingPayment ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Revirtiendo...</>
+              ) : (
+                'Confirmar Reversión'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div >
     </ProtectedPage>
   );

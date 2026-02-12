@@ -36,7 +36,11 @@ class CreditPayment extends Model
         'dias',
         'dias_mora',
         'source', // Origen del pago (Ventanilla, Planilla, etc.)
-        'cedula'  // Referencia para cargas masivas
+        'cedula',  // Referencia para cargas masivas
+        'estado_reverso',
+        'motivo_anulacion',
+        'anulado_por',
+        'fecha_anulacion',
     ];
 
     protected $casts = [
@@ -71,5 +75,15 @@ class CreditPayment extends Model
     public function saldoPendiente()
     {
         return $this->hasOne(SaldoPendiente::class);
+    }
+
+    public function details()
+    {
+        return $this->hasMany(CreditPaymentDetail::class);
+    }
+
+    public function anuladoPor()
+    {
+        return $this->belongsTo(User::class, 'anulado_por');
     }
 }
