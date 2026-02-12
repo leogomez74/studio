@@ -107,7 +107,6 @@ export default function PagarePage() {
   const [printing, setPrinting] = useState(false);
   const pagareRef = useRef<HTMLDivElement>(null);
   const autorizacionRef = useRef<HTMLDivElement>(null);
-  const autorizacionCSGRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -168,9 +167,8 @@ export default function PagarePage() {
   const deductora = deductoras.find(d => d.id === deductoraId);
   const deductoraNombre = deductora?.nombre || '';
 
-  // Determinar qué autorización mostrar
-  const showAutorizacionCoope = deductoraId === 1 || deductoraId === 2; // COOPENACIONAL o COOPESERVICIOS
-  const showAutorizacionCSG = deductoraId === 3; // Coope San Gabriel
+  // Mostrar autorización si hay deductora asignada
+  const showAutorizacion = !!deductoraId;
 
   // Variables de fecha
   const now = new Date();
@@ -180,17 +178,13 @@ export default function PagarePage() {
   const today = `${dia} ${mes}, ${anio}`;
 
   // Fecha con día de la semana para autorización
-  const todayWithDay = new Date().toLocaleDateString('es-CR', {
+  // Fecha con día de la semana para autorización (ej: "lunes, 9 de febrero de 2026")
+  const todayWithDay = now.toLocaleDateString('es-CR', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-  }).toUpperCase();
-
-  // Componentes de fecha para Coope San Gabriel
-  const diaNumero = dia;
-  const diaSemana = now.toLocaleDateString('es-CR', { weekday: 'long' }).toUpperCase();
-  const mesNombre = now.toLocaleDateString('es-CR', { month: 'long' }).toUpperCase();
+  });
 
   const handlePrint = async () => {
     if (!pagareRef.current || !credit) return;
@@ -237,8 +231,8 @@ export default function PagarePage() {
       const x1 = (pdfWidth - finalWidth1) / 2;
       pdf.addImage(imgData1, 'PNG', x1, 0, finalWidth1, finalHeight1);
 
-      // Página 2: Autorización de Deducción (COOPENACIONAL o COOPESERVICIOS)
-      if (showAutorizacionCoope && autorizacionRef.current) {
+      // Página 2: Autorización de Deducción
+      if (showAutorizacion && autorizacionRef.current) {
         pdf.addPage();
         const canvas2 = await captureElement(autorizacionRef.current);
         const imgData2 = canvas2.toDataURL('image/png');
@@ -247,18 +241,6 @@ export default function PagarePage() {
         const finalHeight2 = canvas2.height * ratio2;
         const x2 = (pdfWidth - finalWidth2) / 2;
         pdf.addImage(imgData2, 'PNG', x2, 0, finalWidth2, finalHeight2);
-      }
-
-      // Página 2: Autorización de Deducción (Coope San Gabriel)
-      if (showAutorizacionCSG && autorizacionCSGRef.current) {
-        pdf.addPage();
-        const canvas3 = await captureElement(autorizacionCSGRef.current);
-        const imgData3 = canvas3.toDataURL('image/png');
-        const ratio3 = Math.min(pdfWidth / canvas3.width, pdfHeight / canvas3.height);
-        const finalWidth3 = canvas3.width * ratio3;
-        const finalHeight3 = canvas3.height * ratio3;
-        const x3 = (pdfWidth - finalWidth3) / 2;
-        pdf.addImage(imgData3, 'PNG', x3, 0, finalWidth3, finalHeight3);
       }
 
       // Abrir PDF en nueva ventana para imprimir
@@ -424,14 +406,14 @@ export default function PagarePage() {
         </div>
       </div>
 
-      {/* Página 2: Autorización de Deducción - COOPENACIONAL o COOPESERVICIOS */}
-      {showAutorizacionCoope && (
+      {/* Página 2: Autorización de Deducción (formato unificado) */}
+      {showAutorizacion && (
         <div
           ref={autorizacionRef}
           className="bg-white mx-auto shadow-lg mb-8"
           style={{
-            width: '210mm',
-            minHeight: '297mm',
+            width: '216mm',
+            minHeight: '279mm',
             padding: '20mm 25mm',
             fontFamily: 'Arial, Helvetica, sans-serif',
             fontSize: '11pt',
@@ -443,112 +425,42 @@ export default function PagarePage() {
             textAlign: 'center',
             fontSize: '18pt',
             fontWeight: 'bold',
-            marginBottom: '15mm',
-            borderBottom: '2px solid #000',
-            paddingBottom: '5mm'
+            marginBottom: '3mm',
+            textDecoration: 'underline'
           }}>
             AUTORIZACION DE DEDUCCION
           </h1>
 
           {/* Contenido */}
-          <div style={{ textAlign: 'justify', marginBottom: '20mm' }}>
-            <p style={{ marginBottom: '10mm', lineHeight: '2' }}>
-              Yo <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 5mm' }}>{nombre}</span> Cedula <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 5mm' }}>{cedula.replace(/-/g, '')}</span> autorizo irrevocablemente a <span style={{ fontWeight: 'bold', backgroundColor: '#e0f7fa', padding: '0 2mm' }}>{deductoraNombre.toUpperCase()}</span> o a cualquier tercero con el que la cooperativa tenga un convenio de cooperación, que deduzca de mi salario o pensión, la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(cuotaMensual)}</span> que incluye intereses y principal durante un plazo de <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 3mm' }}>{plazo}</span> meses para cancelar la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(monto)}</span> y que corresponden al financiamiento de la operación crediticia <span style={{ fontWeight: 'bold' }}>{credit.numero_operacion || credit.reference || ''}</span> . Si por alguna razón no se aplica la deducción de mi salario o pensión, me comprometo a realizar el pago de la misma por el medio o los medios que se informen oportunamente o en su efecto autorizo a modificar el plazo o la cuota por falta de pago.
+          <div style={{ textAlign: 'justify' }}>
+            <p style={{ lineHeight: '2' }}>
+              Yo <strong>{nombre}</strong> Cedula <strong>{cedula.replace(/-/g, '')}</strong> autorizo irrevocablemente a <strong>COOPENACIONAL, COOPESERVICIOS Y COOPESANGABRIEL</strong> o a cualquier tercero con el que la cooperativa tenga un convenio de cooperación, que deduzca de mi salario o pensión, la suma de <strong>₡ {formatCurrency(cuotaMensual)}</strong> que incluye intereses y principal durante un plazo de <strong>{plazo}</strong> meses para cancelar la suma de <strong>₡ {formatCurrency(monto)}</strong> y que corresponden al financiamiento de la operación crediticia <strong>{credit.numero_operacion || credit.reference || ''}</strong> . Si por alguna razón no se aplica la deducción de mi salario o pensión, me comprometo a realizar el pago de la misma por el medio o los medios que se informen oportunamente o en su efecto autorizo a modificar el plazo o la cuota por falta de pago.
             </p>
           </div>
-
-          {/* Línea de firma */}
-          <div style={{
-            borderTop: '1px solid #000',
-            width: '60%',
-            margin: '30mm auto 5mm auto'
-          }} />
 
           {/* Fecha */}
-          <p style={{
-            textAlign: 'center',
-            fontWeight: 'bold',
-            fontSize: '11pt'
-          }}>
-            {todayWithDay}
-          </p>
-        </div>
-      )}
-
-      {/* Página 2: Autorización de Deducción - Coope San Gabriel */}
-      {showAutorizacionCSG && (
-        <div
-          ref={autorizacionCSGRef}
-          className="bg-white mx-auto shadow-lg mb-8"
-          style={{
-            width: '210mm',
-            minHeight: '297mm',
-            padding: '15mm 20mm',
-            fontFamily: 'Arial, Helvetica, sans-serif',
-            fontSize: '10pt',
-            lineHeight: '1.5'
-          }}
-        >
-          {/* Título con borde redondeado */}
           <div style={{
-            border: '2px solid #000',
-            borderRadius: '15px',
-            padding: '8mm 15mm',
-            marginBottom: '10mm'
+            borderTop: '1px solid #000',
+            borderBottom: '1px solid #000',
+            width: '50%',
+            margin: '30mm auto 3mm auto',
+            padding: '3mm 0'
           }}>
-            <h1 style={{
-              textAlign: 'center',
-              fontSize: '16pt',
-              fontWeight: 'bold',
-              margin: 0
-            }}>
-              AUTORIZACION DE DEDUCCION
-            </h1>
+            <p style={{ textAlign: 'center', fontSize: '11pt' }}>
+              {todayWithDay}
+            </p>
           </div>
 
-          {/* Contenido principal con borde redondeado */}
+          {/* Firma */}
           <div style={{
-            border: '2px solid #000',
-            borderRadius: '15px',
-            padding: '8mm 10mm',
-            marginBottom: '10mm'
+            borderTop: '1px solid #000',
+            width: '50%',
+            margin: '25mm auto 3mm auto',
+            paddingTop: '3mm'
           }}>
-            <p style={{ textAlign: 'justify', marginBottom: '8mm', lineHeight: '1.8' }}>
-              Autorizo a <span style={{ fontWeight: 'bold', backgroundColor: '#e0f7fa', padding: '0 2mm' }}>Coope San Gabriel R.L.(CSG)</span> para que deduzca de mi salario, pensión o la respectiva cuenta bancaria domiciliada, la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(cuotaMensual)}</span> correspondiente a las cuotas mensuales, ajustables y consecutivas las cuales incluyen intereses, principal y Fondo de Ayuda Cooperativa (FAC) no reembolsable. Además, consiento en que de la primera cuota se rebaje un Certificado de Aportación a Coope San Gabriel R.L. por la suma de ₡100, esto en cumplimiento con el estatuto de la Cooperativa en materia de asociados y según normativa vigente que rige a las cooperativas. El plazo del crédito <span style={{ fontWeight: 'bold', textDecoration: 'underline', padding: '0 3mm' }}>{plazo}</span> meses para cancelar la suma de <span style={{ fontWeight: 'bold' }}>₡ {formatCurrency(monto)}</span> de principal más intereses sobre correspondiente al financiamiento de la operación <span style={{ fontWeight: 'bold' }}>{credit.numero_operacion || credit.reference || ''}</span> . Si por alguna razón, NO SE REALIZA LA DEDUCCION, del mes o meses al cobro de mi salario o pensión, me comprometo a realizar el pago de la misma en las cuentas bancarias que Credipep S.A designe para tal fin, incluyendo los cargos administrativos correspondientes o en su defecto, autorizo a la Credipep S.A a aumentar el plazo de la operación en el número de meses equivalentes al número de cuotas pendientes o gestione el cobro a mi patrono, conforme a lo establecido en el artículo 69, inciso K, del código de trabajo.
+            <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
+              FIRMA
             </p>
-
-            <p style={{ textAlign: 'justify', marginBottom: '8mm', lineHeight: '1.8' }}>
-              Adicionalmente, me responsabilizo a actualizar los datos correspondientes a domicilio y telefonía en caso de presentar alguna modificación, de acuerdo a la ley 8204 y a la Ley de Notificaciones.
-            </p>
-
-            <p style={{ textAlign: 'justify', marginBottom: '8mm', lineHeight: '1.8' }}>
-              El firmante declara bajo la fe de juramento que consiente, conoce, acepta y leyó las cláusulas aquí pactadas en la fecha del anverso en esta solicitud y que cuenta para este acto con la capacidad jurídica suficiente para suscribir el presente acuerdo.
-            </p>
-
-            {/* Fecha */}
-            <div style={{ marginTop: '10mm' }}>
-              <p>
-                <span>Fecha: </span>
-                <span style={{ fontWeight: 'bold' }}>{diaNumero} DE {mesNombre} DEL {anio}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Firmas */}
-          <div style={{ marginTop: '15mm' }}>
-            <table style={{ width: '100%' }}>
-              <tbody>
-                <tr>
-                  <td style={{ width: '45%', borderTop: '1px solid #000', paddingTop: '3mm', textAlign: 'center' }}>
-                    FIRMA DEUDOR
-                  </td>
-                  <td style={{ width: '10%' }}></td>
-                  <td style={{ width: '45%', borderTop: '1px solid #000', paddingTop: '3mm', textAlign: 'center' }}>
-                    CEDULA O NUMERO DE IDENTIFICACION
-                  </td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       )}
