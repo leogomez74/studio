@@ -129,6 +129,7 @@ class SaldoPendienteController extends Controller
         $validated = $request->validate([
             'accion' => 'required|in:cuota,capital',
             'credit_id' => 'nullable|exists:credits,id',
+            'monto' => 'nullable|numeric|min:0.01',
         ]);
 
         // Solo administradores pueden aplicar saldos
@@ -142,22 +143,28 @@ class SaldoPendienteController extends Controller
         $credit = Credit::findOrFail($targetCreditId);
         $accion = $validated['accion'];
 
+        // Monto a aplicar: parcial o total
+        $montoAplicar = isset($validated['monto'])
+            ? min((float) $validated['monto'], (float) $saldo->monto)
+            : (float) $saldo->monto;
+
         $preview = [
             'saldo_id' => $saldo->id,
             'monto_disponible' => (float) $saldo->monto,
+            'monto_a_aplicar' => $montoAplicar,
             'accion' => $accion,
             'credit' => [
                 'id' => $credit->id,
+                'reference' => $credit->reference,
                 'numero_operacion' => $credit->numero_operacion,
                 'saldo_actual' => (float) $credit->saldo,
             ],
         ];
 
         if ($accion === 'cuota') {
-            // Simular cascada: interes_moratorio → interes_corriente → poliza → amortizacion
             $cuota = $credit->planDePagos()
                 ->where('numero_cuota', '>', 0)
-                ->where('estado', 'Pendiente')
+                ->whereIn('estado', ['Pendiente', 'Parcial', 'Mora'])
                 ->orderBy('numero_cuota')
                 ->first();
 
@@ -165,7 +172,7 @@ class SaldoPendienteController extends Controller
                 return response()->json(['message' => 'No hay cuotas pendientes'], 400);
             }
 
-            $dinero = (float) $saldo->monto;
+            $dinero = $montoAplicar;
             $aplicado = [
                 'interes_moratorio' => 0,
                 'interes_corriente' => 0,
@@ -201,18 +208,19 @@ class SaldoPendienteController extends Controller
             $preview['destino'] = 'Cuota #' . $cuota->numero_cuota;
             $preview['distribucion'] = $aplicado;
             $preview['saldo_nuevo_credit'] = (float) $credit->saldo - $aplicado['amortizacion'];
+            $preview['restante_saldo'] = (float) $saldo->monto - $montoAplicar;
             $preview['excedente'] = $dinero;
 
         } else {
             // Aplicar a capital
-            $montoAplicar = min((float) $saldo->monto, (float) $credit->saldo);
+            $capitalAplicar = min($montoAplicar, (float) $credit->saldo);
 
             $preview['destino'] = 'Abono a Capital';
             $preview['distribucion'] = [
-                'amortizacion' => $montoAplicar,
+                'amortizacion' => $capitalAplicar,
             ];
-            $preview['saldo_nuevo_credit'] = max(0, (float) $credit->saldo - $montoAplicar);
-            $preview['excedente'] = (float) $saldo->monto - $montoAplicar;
+            $preview['saldo_nuevo_credit'] = max(0, (float) $credit->saldo - $capitalAplicar);
+            $preview['restante_saldo'] = (float) $saldo->monto - $capitalAplicar;
         }
 
         return response()->json($preview);
