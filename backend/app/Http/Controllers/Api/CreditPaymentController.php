@@ -532,7 +532,6 @@ class CreditPaymentController extends Controller
             'fecha'     => 'required|date',
             'extraordinary_strategy' => 'nullable|required_if:tipo,extraordinario|in:reduce_amount,reduce_term',
             'cuotas'    => 'nullable|array', // IDs de cuotas seleccionadas para adelanto
-            'nro_referencia_bancaria' => 'required|string|max:100',
         ]);
 
         // CASO 1: PAGO NORMAL / ADELANTO SIMPLE (Sin Recálculo)
@@ -549,10 +548,7 @@ class CreditPaymentController extends Controller
                     $validated['fecha'],
                     ($validated['tipo'] ?? '') === 'adelanto' ? 'Adelanto de Cuotas' : 'Adelanto Simple',
                     $credit->lead->cedula ?? null,
-                    $cuotasSeleccionadas,
-                    false,
-                    null,
-                    $validated['nro_referencia_bancaria'] ?? null
+                    $cuotasSeleccionadas
                 );
             });
 
@@ -584,12 +580,6 @@ class CreditPaymentController extends Controller
             }
 
             $numeroCuotaInicio = $siguienteCuota->numero_cuota;
-
-            // Guardar referencia bancaria en la cuota
-            if (!empty($validated['nro_referencia_bancaria'])) {
-                $siguienteCuota->numero_documento = $validated['nro_referencia_bancaria'];
-                $siguienteCuota->save();
-            }
 
             // 2. Aplicar directo al Saldo (Capital Vivo)
             $saldoActual = (float) $credit->saldo;
@@ -807,7 +797,7 @@ class CreditPaymentController extends Controller
      * Lógica "Cascada" (Waterfall) para pagos regulares
      * IMPUTACIÓN: Mora -> Interés -> Cargos -> Capital
      */
-    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null, ?string $nroReferenciaBancaria = null)
+    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null)
     {
         $dineroDisponible = $montoEntrante;
 
@@ -917,11 +907,6 @@ class CreditPaymentController extends Controller
             // La fecha de pago es igual a la fecha de movimiento
             if (!$cuota->fecha_pago) {
                 $cuota->fecha_pago = $fecha;
-            }
-
-            // Guardar referencia bancaria si viene de abono manual
-            if ($nroReferenciaBancaria) {
-                $cuota->numero_documento = $nroReferenciaBancaria;
             }
 
             // Calcular total exigible incluyendo int_corriente_vencido
@@ -1271,7 +1256,6 @@ class CreditPaymentController extends Controller
         $validated = $request->validate([
             'credit_id' => 'required|exists:credits,id',
             'fecha'     => 'required|date',
-            'nro_referencia_bancaria' => 'required|string|max:100',
         ]);
 
         return DB::transaction(function () use ($validated) {
@@ -1329,7 +1313,6 @@ class CreditPaymentController extends Controller
                 ->update([
                     'estado' => 'Pagado',
                     'fecha_pago' => $validated['fecha'],
-                    'numero_documento' => $validated['nro_referencia_bancaria'],
                 ]);
 
             // Cerrar el crédito
