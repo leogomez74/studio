@@ -1350,7 +1350,7 @@ export default function AnalisisDetailPage() {
                       {analisis.mancha_detalles.map((mancha: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm space-y-1">
                           <p className="font-medium text-gray-700">{mancha.descripcion || 'Sin descripción'}</p>
-                          <p className="text-gray-600">Inicio: {new Date(mancha.fecha_inicio).toLocaleDateString('es-CR')}{mancha.fecha_fin ? ` — Fin: ${new Date(mancha.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-gray-600">Inicio: {new Date(mancha.fecha_inicio).toLocaleDateString('es-CR')}</p>
                           <p className="text-orange-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(mancha.monto)}
                           </p>
@@ -1387,7 +1387,7 @@ export default function AnalisisDetailPage() {
                               {juicio.estado}
                             </Badge>
                           </div>
-                          <p className="text-gray-600">Inicio: {new Date(juicio.fecha_inicio).toLocaleDateString('es-CR')}{juicio.fecha_fin ? ` — Fin: ${new Date(juicio.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-gray-600">Inicio: {new Date(juicio.fecha_inicio).toLocaleDateString('es-CR')}</p>
                           <p className="text-red-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(juicio.monto)}
                           </p>
@@ -1419,7 +1419,7 @@ export default function AnalisisDetailPage() {
                       {analisis.embargo_detalles.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
                           <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
-                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}{embargo.fecha_fin ? ` — Fin: ${new Date(embargo.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}</p>
                           <p className="text-purple-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
                           </p>
