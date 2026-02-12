@@ -41,7 +41,7 @@ class CreditPaymentController extends Controller
         $validated = $request->validate([
             'deductora_id' => 'required|exists:deductoras,id',
             'fecha_proceso' => 'nullable|date',
-            'file' => 'required|file|mimes:xlsx,xls,csv'
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         ]);
 
         $deductoraId = $validated['deductora_id'];
@@ -173,17 +173,19 @@ class CreditPaymentController extends Controller
                 }
                 $montoPlanilla = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
 
-                // Buscar crédito
+                // Buscar crédito formalizado
                 $credit = Credit::with(['lead', 'planDePagos' => function($q) {
                     $q->whereIn('estado', ['Mora', 'Pendiente', 'Parcial'])
                       ->where('numero_cuota', '>', 0)
                       ->orderByRaw("FIELD(estado, 'Mora', 'Parcial', 'Pendiente')")
                       ->orderBy('numero_cuota', 'asc');
-                }])->whereHas('lead', function($q) use ($rawCedula, $cleanCedula, $deductoraId) {
-                    $q->where(function($query) use ($rawCedula, $cleanCedula) {
-                        $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
-                    })->where('deductora_id', $deductoraId);
-                })->first();
+                }])->where('deductora_id', $deductoraId)
+                    ->where('status', 'Formalizado')
+                    ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
+                        $q->where(function($query) use ($rawCedula, $cleanCedula) {
+                            $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                        });
+                    })->first();
 
                 if ($credit) {
                     // Obtener la primera cuota pendiente
@@ -902,6 +904,10 @@ class CreditPaymentController extends Controller
             $cuota->movimiento_total += $totalPagadoEnEstaTransaccion;
             $cuota->movimiento_amortizacion += $pagoPrincipal;
             $cuota->fecha_movimiento = $fecha;
+            // La fecha de pago es igual a la fecha de movimiento
+            if (!$cuota->fecha_pago) {
+                $cuota->fecha_pago = $fecha;
+            }
 
             // Calcular total exigible incluyendo int_corriente_vencido
             $totalExigible = $cuota->interes_corriente
@@ -913,7 +919,6 @@ class CreditPaymentController extends Controller
             if ($cuota->movimiento_total >= ($totalExigible - 0.05)) {
                 $teniaMora = ((float) ($cuota->int_corriente_vencido ?? 0) > 0) || ((float) ($cuota->interes_moratorio ?? 0) > 0) || ((int) ($cuota->dias_mora ?? 0) > 0);
                 $cuota->estado = 'Pagado';
-                $cuota->fecha_pago = $fecha;
                 $cuota->concepto = $teniaMora ? 'Pago registrado (mora)' : 'Pago registrado';
             } else {
                 $cuota->estado = 'Parcial';
@@ -973,7 +978,7 @@ class CreditPaymentController extends Controller
     public function upload(Request $request)
     {
         $validated = $request->validate([
-            'file' => 'required|file',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'deductora_id' => 'required|exists:deductoras,id',
             'fecha_test' => 'nullable|date', // Solo para pruebas en localhost
         ]);
@@ -1085,12 +1090,14 @@ class CreditPaymentController extends Controller
                     $results[] = ['cedula' => $rawCedula, 'status' => 'skipped']; continue;
                 }
 
-                // Buscar crédito por cédula del lead con la deductora seleccionada
-                $credit = Credit::whereHas('lead', function($q) use ($rawCedula, $cleanCedula, $deductoraId) {
-                    $q->where(function($query) use ($rawCedula, $cleanCedula) {
-                        $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
-                    })->where('deductora_id', $deductoraId);
-                })->first();
+                // Buscar crédito formalizado por cédula del lead y deductora del crédito
+                $credit = Credit::where('deductora_id', $deductoraId)
+                    ->where('status', 'Formalizado')
+                    ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
+                        $q->where(function($query) use ($rawCedula, $cleanCedula) {
+                            $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
+                        });
+                    })->first();
 
                 if ($credit) {
                     // Registrar que este crédito SÍ pagó
@@ -1339,9 +1346,7 @@ class CreditPaymentController extends Controller
         $creditosSinPago = Credit::whereIn('status', ['Formalizado', 'En Mora'])
             ->whereNotNull('formalized_at')
             ->whereNotIn('id', $creditosQuePagaron)
-            ->whereHas('lead', function($q) use ($deductoraId) {
-                $q->where('deductora_id', $deductoraId);
-            })
+            ->where('deductora_id', $deductoraId)
             ->get();
 
         foreach ($creditosSinPago as $credit) {

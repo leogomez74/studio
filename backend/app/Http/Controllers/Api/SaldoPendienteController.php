@@ -26,16 +26,54 @@ class SaldoPendienteController extends Controller
             $query->where('estado', 'pendiente');
         }
 
-        $saldos = $query->get()->map(function ($saldo) {
+        // Filtro por deductora
+        if ($request->has('deductora_id')) {
+            $query->whereHas('credit', function ($q) use ($request) {
+                $q->where('deductora_id', $request->deductora_id);
+            });
+        }
+
+        // Filtro por rango de fechas
+        if ($request->has('fecha_desde')) {
+            $query->where('fecha_origen', '>=', $request->fecha_desde);
+        }
+        if ($request->has('fecha_hasta')) {
+            $query->where('fecha_origen', '<=', $request->fecha_hasta);
+        }
+
+        // Búsqueda global: cédula, nombre de cliente, referencia de crédito
+        if ($request->has('search') && $request->search) {
+            $searchTerm = $request->search;
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('cedula', 'like', '%' . $searchTerm . '%')
+                  ->orWhereHas('credit', function($creditQuery) use ($searchTerm) {
+                      $creditQuery->where('reference', 'like', '%' . $searchTerm . '%')
+                          ->orWhereHas('lead', function($leadQuery) use ($searchTerm) {
+                              $leadQuery->where('name', 'like', '%' . $searchTerm . '%')
+                                  ->orWhere('apellido1', 'like', '%' . $searchTerm . '%');
+                          });
+                  });
+            });
+        }
+
+        // Paginación
+        $perPage = $request->get('per_page', 10);
+        $page = $request->get('page', 1);
+
+        $saldos = $query->paginate($perPage, ['*'], 'page', $page);
+
+        $mapped = $saldos->getCollection()->map(function ($saldo) {
+            $person = $saldo->credit->lead;
             return [
                 'id' => $saldo->id,
                 'credit_id' => $saldo->credit_id,
                 'lead_id' => $saldo->credit->lead_id ?? null,
+                'person_type_id' => $person->person_type_id ?? null,
                 'credit_reference' => $saldo->credit->reference ?? '',
-                'lead_name' => $saldo->credit->lead
-                    ? ($saldo->credit->lead->name . ' ' . ($saldo->credit->lead->apellido1 ?? ''))
+                'lead_name' => $person
+                    ? ($person->name . ' ' . ($person->apellido1 ?? ''))
                     : 'N/A',
-                'cedula' => $saldo->cedula ?? ($saldo->credit->lead->cedula ?? ''),
+                'cedula' => $saldo->cedula ?? ($person->cedula ?? ''),
                 'deductora' => $saldo->credit->deductora->nombre ?? 'N/A',
                 'monto' => (float) $saldo->monto,
                 'origen' => $saldo->origen,
@@ -46,7 +84,13 @@ class SaldoPendienteController extends Controller
             ];
         });
 
-        return response()->json($saldos);
+        return response()->json([
+            'data' => $mapped,
+            'total' => $saldos->total(),
+            'per_page' => $saldos->perPage(),
+            'current_page' => $saldos->currentPage(),
+            'last_page' => $saldos->lastPage(),
+        ]);
     }
 
     /**

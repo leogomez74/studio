@@ -144,13 +144,16 @@ class PlanDePago extends Model
                     $saldo_nuevo = round($saldo_anterior - $amortizacion, 2);
                     $saldo_nuevo = max(0, $saldo_nuevo); // Evitar negativos
 
+                    // Calcular fecha de corte: último día del mes correspondiente
+                    $fechaCorte = $plan->fecha_inicio ? $plan->fecha_inicio->copy()->addMonths($i)->endOfMonth() : null;
+
                     self::create([
                         'credit_id' => $credit->id,
                         'linea' => $plan->linea,
                         'numero_cuota' => $i,
                         'proceso' => $plan->proceso,
                         'fecha_inicio' => $plan->fecha_inicio,
-                        'fecha_corte' => $plan->fecha_corte,
+                        'fecha_corte' => $fechaCorte,
                         'fecha_pago' => null,
                         'tasa_actual' => $plan->tasa_actual,
                         'plazo_actual' => $plazo,

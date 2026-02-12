@@ -46,9 +46,16 @@ class PlanillaUploadController extends Controller
             $query->where('user_id', $request->user_id);
         }
 
-        // Búsqueda por nombre de archivo
+        // Búsqueda global: ID, nombre de archivo, o usuario
         if ($request->has('search') && $request->search) {
-            $query->where('nombre_archivo', 'like', '%' . $request->search . '%');
+            $searchTerm = $request->search;
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('id', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('nombre_archivo', 'like', '%' . $searchTerm . '%')
+                  ->orWhereHas('user', function($userQuery) use ($searchTerm) {
+                      $userQuery->where('name', 'like', '%' . $searchTerm . '%');
+                  });
+            });
         }
 
         return response()->json($query->paginate($perPage));

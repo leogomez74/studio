@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -559,6 +559,7 @@ export default function AnalisisDetailPage() {
     poliza: false,
     conCargosAdicionales: false,
     deductora_id: undefined as number | undefined,
+    opportunity_id: undefined as number | undefined,
   });
   const [products, setProducts] = useState<Array<{ id: number; name: string; }>>([]);
   const [leads, setLeads] = useState<Array<{ id: number; name?: string; deductora_id?: number; }>>([]);
@@ -1109,6 +1110,16 @@ export default function AnalisisDetailPage() {
         </div>
 
         {/* Fila 2: Botones de Estado - PEP izquierda, Cliente derecha */}
+        {(analisis?.credit_status === 'Formalizado' || analisis?.has_credit || analisis?.credit_id) && (
+          <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-amber-50 border border-amber-200 rounded-md">
+            <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+            <span className="text-xs text-amber-700">
+              {analisis?.credit_status === 'Formalizado'
+                ? 'Crédito formalizado — los estados no pueden modificarse.'
+                : 'Ya existe un crédito asociado a este análisis.'}
+            </span>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 flex-wrap">
           {/* Estado PEP - Izquierda */}
           <div className="flex items-center gap-2">
@@ -1206,6 +1217,7 @@ export default function AnalisisDetailPage() {
                           poliza: false,
                           conCargosAdicionales: true,
                           deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
+                          opportunity_id: analisis.opportunity_id,
                         });
                         setIsCreditDialogOpen(true);
                       } catch (err) {
@@ -1338,7 +1350,7 @@ export default function AnalisisDetailPage() {
                       {analisis.mancha_detalles.map((mancha: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-orange-100 text-sm space-y-1">
                           <p className="font-medium text-gray-700">{mancha.descripcion || 'Sin descripción'}</p>
-                          <p className="text-gray-600">Inicio: {new Date(mancha.fecha_inicio).toLocaleDateString('es-CR')}{mancha.fecha_fin ? ` — Fin: ${new Date(mancha.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-gray-600">Inicio: {new Date(mancha.fecha_inicio).toLocaleDateString('es-CR')}</p>
                           <p className="text-orange-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(mancha.monto)}
                           </p>
@@ -1375,7 +1387,7 @@ export default function AnalisisDetailPage() {
                               {juicio.estado}
                             </Badge>
                           </div>
-                          <p className="text-gray-600">Inicio: {new Date(juicio.fecha_inicio).toLocaleDateString('es-CR')}{juicio.fecha_fin ? ` — Fin: ${new Date(juicio.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-gray-600">Inicio: {new Date(juicio.fecha_inicio).toLocaleDateString('es-CR')}</p>
                           <p className="text-red-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(juicio.monto)}
                           </p>
@@ -1407,7 +1419,7 @@ export default function AnalisisDetailPage() {
                       {analisis.embargo_detalles.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
                           <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
-                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}{embargo.fecha_fin ? ` — Fin: ${new Date(embargo.fecha_fin).toLocaleDateString('es-CR')}` : ''}</p>
+                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}</p>
                           <p className="text-purple-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
                           </p>
@@ -1956,6 +1968,7 @@ export default function AnalisisDetailPage() {
           plazo: creditForm.plazo,
           description: creditForm.description,
           deductora_id: creditForm.deductora_id,
+          opportunity_id: creditForm.opportunity_id,
         }}
         products={products}
         leads={leads}
@@ -2014,6 +2027,16 @@ export default function AnalisisDetailPage() {
       </Dialog>
 
       {/* Barra inferior - Estado PEP izquierda, Estado Cliente derecha */}
+      {(analisis?.credit_status === 'Formalizado' || analisis?.has_credit || analisis?.credit_id) && (
+        <div className="flex items-center gap-2 px-3 py-1.5 mt-6 bg-amber-50 border border-amber-200 rounded-md">
+          <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+          <span className="text-xs text-amber-700">
+            {analisis?.credit_status === 'Formalizado'
+              ? 'Crédito formalizado — los estados no pueden modificarse.'
+              : 'Ya existe un crédito asociado a este análisis.'}
+          </span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mt-6 pt-4 border-t flex-wrap">
         {/* Estado PEP - Izquierda */}
         <div className="flex items-center gap-2">
@@ -2111,6 +2134,7 @@ export default function AnalisisDetailPage() {
                         poliza: false,
                         conCargosAdicionales: true,
                         deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
+                        opportunity_id: analisis.opportunity_id,
                       });
                       setIsCreditDialogOpen(true);
                     } catch (err) {

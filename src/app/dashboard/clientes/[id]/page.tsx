@@ -1828,34 +1828,6 @@ export default function ClientDetailPage() {
                   />
                 )}
               </div>
-               <div className="space-y-2">
-                <Label>Deductora</Label>
-                <div className="flex items-center gap-6">
-                  <Button
-                    type="button"
-                    variant={!formData.deductora_id || formData.deductora_id === 0 ? "default" : "outline"}
-                    size="default"
-                    onClick={() => isEditMode && handleInputChange("deductora_id", null)}
-                    disabled={!isEditMode}
-                    className={`flex-1 ${!formData.deductora_id || formData.deductora_id === 0 ? "bg-primary text-primary-foreground" : ""}`}
-                  >
-                    Sin deductora
-                  </Button>
-                  {deductoras.map((deductora) => (
-                    <Button
-                      key={deductora.id}
-                      type="button"
-                      variant={formData.deductora_id === deductora.id ? "default" : "outline"}
-                      size="default"
-                      onClick={() => isEditMode && handleInputChange("deductora_id", deductora.id)}
-                      disabled={!isEditMode}
-                      className={`flex-1 ${formData.deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
-                    >
-                      {deductora.nombre}
-                    </Button>
-                  ))}
-                </div>
-              </div>
 
               {/* Work Address */}
                <div className="col-span-3">

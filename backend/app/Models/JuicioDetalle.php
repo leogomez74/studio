@@ -12,7 +12,6 @@ class JuicioDetalle extends Model
     protected $fillable = [
         'analisis_id',
         'fecha_inicio',
-        'fecha_fin',
         'estado',
         'expediente',
         'monto',
@@ -20,7 +19,6 @@ class JuicioDetalle extends Model
 
     protected $casts = [
         'fecha_inicio' => 'date',
-        'fecha_fin' => 'date',
         'monto' => 'decimal:2',
     ];
 
