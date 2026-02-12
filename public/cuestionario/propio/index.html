@@ -237,6 +237,17 @@
                             🔒 Tu información está segura y protegida. Cumplimos con la Ley de Protección de Datos Personales y toda la información será tratada de forma confidencial.
                         </p>
                     </div>
+
+                    <div class="mt-4 space-y-3">
+                        <label class="flex items-start gap-2 cursor-pointer">
+                            <input type="checkbox" id="checkCIC" class="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="text-xs text-muted-foreground">Autorizo a Credipep S.A. a consultar mi información crediticia en el CIC de SUGEF. <a href="#" class="text-primary hover:underline">Ver autorización consulta CIC aquí</a>. <span class="text-red-500">*</span></span>
+                        </label>
+                        <label class="flex items-start gap-2 cursor-pointer">
+                            <input type="checkbox" id="checkTerms" class="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="text-xs text-muted-foreground">Acepto la <a href="#" class="text-primary hover:underline">política de privacidad</a> como también los <a href="#" class="text-primary hover:underline">términos y condiciones</a>. <span class="text-red-500">*</span></span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="flex items-center justify-between pt-2">
@@ -417,6 +428,14 @@
             document.getElementById('questionnaireForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 if (!validateStep(2)) return;
+
+                // Validar checkboxes obligatorios
+                const checkCIC = document.getElementById('checkCIC');
+                const checkTerms = document.getElementById('checkTerms');
+                if (!checkCIC.checked || !checkTerms.checked) {
+                    showAlert('Debes aceptar la autorización CIC y los términos y condiciones para continuar.', 'error');
+                    return;
+                }
 
                 // Collect form data
                 const data = collectData();
