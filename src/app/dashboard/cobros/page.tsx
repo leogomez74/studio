@@ -284,7 +284,6 @@ export default function CobrosPage() {
   const [selectedCreditId, setSelectedCreditId] = useState<string>('');
 
   // Estado para búsqueda de clientes
-  const [nroReferenciaBancaria, setNroReferenciaBancaria] = useState('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [clientSearchResults, setClientSearchResults] = useState<any[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -555,14 +554,13 @@ export default function CobrosPage() {
     setSelectedCreditId('');
     setExtraordinaryStrategy('reduce_amount'); // Reset strategy
     setCancelacionData(null); // Reset cancelación anticipada
-    setNroReferenciaBancaria(''); // Reset referencia bancaria
   }, []);
 
   const handleRegistrarAbono = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (!selectedCreditId || !fecha || !nroReferenciaBancaria.trim()) {
-        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito, fecha y Nro. Referencia Bancaria.', variant: 'destructive' });
+      if (!selectedCreditId || !fecha) {
+        toast({ title: 'Faltan datos', description: 'Seleccione Lead, Crédito y fecha.', variant: 'destructive' });
         return;
       }
 
@@ -575,7 +573,6 @@ export default function CobrosPage() {
         await api.post('/api/credit-payments/cancelacion-anticipada', {
           credit_id: selectedCreditId,
           fecha: fecha,
-          nro_referencia_bancaria: nroReferenciaBancaria || null,
         });
         toast({ title: 'Éxito', description: 'Cancelación anticipada procesada. El crédito ha sido cerrado.' });
         setPlanRefreshKey(k => k + 1);
@@ -601,7 +598,6 @@ export default function CobrosPage() {
         fecha: fecha,
         extraordinary_strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : null,
         cuotas: tipoCobro === 'adelanto' ? cuotasSeleccionadas : undefined,
-        nro_referencia_bancaria: nroReferenciaBancaria || null,
       });
 
       toast({ title: 'Éxito', description: `Abono registrado.` });
@@ -1502,17 +1498,6 @@ export default function CobrosPage() {
                           </div>
                         </div>
                         )}
-
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Nro. Referencia Bancaria</label>
-                          <Input
-                            type="text"
-                            placeholder="Ej: 123456789"
-                            value={nroReferenciaBancaria}
-                            onChange={e => setNroReferenciaBancaria(e.target.value)}
-                            required
-                          />
-                        </div>
 
                         <DialogFooter>
                           <Button
