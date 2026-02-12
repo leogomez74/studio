@@ -501,12 +501,9 @@ class CreditController extends Controller
         // Permitir formalización desde cualquier estado
         $isFormalizing = isset($request->status) && strtolower($request->status) === 'formalizado';
 
-        // Permitir backfill de opportunity_id en cualquier estado (solo metadata de enlace)
-        $isOnlyOpportunityUpdate = $request->has('opportunity_id') && count($request->except(['opportunity_id', '_method'])) === 0;
-
         // PROTECCIÓN: Solo permitir edición si el crédito está en estado editable
-        // EXCEPCIÓN: Permitir cambio a "Formalizado" o actualización de opportunity_id
-        if (!$isFormalizing && !$isOnlyOpportunityUpdate && !\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
+        // EXCEPCIÓN: Permitir cambio a "Formalizado" desde cualquier estado
+        if (!$isFormalizing && !\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
             return response()->json([
                 'message' => 'No se puede editar un crédito en estado "' . $credit->status . '". Solo se pueden editar créditos en estado "' . implode('" o "', Credit::EDITABLE_STATUSES) . '".',
                 'current_status' => $credit->status,
