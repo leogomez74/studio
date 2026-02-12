@@ -201,7 +201,7 @@ const getSourceVariant = (source: Payment['source']) => {
   }
 };
 
-const REVERSIBLE_SOURCES = ['Ventanilla', 'Adelanto Simple', 'Adelanto de Cuotas'];
+const REVERSIBLE_SOURCES = ['Ventanilla', 'Adelanto Simple', 'Adelanto de Cuotas', 'Planilla', 'Extraordinario', 'Cancelación Anticipada'];
 
 const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canReverse, onReverse }: { payment: PaymentWithRelations; canReverse?: boolean; onReverse?: (payment: PaymentWithRelations) => void }) {
   const credit = payment.credit;
@@ -2275,6 +2275,12 @@ export default function CobrosPage() {
                   {reversePayment.credit?.numero_operacion && <> (Operación: <strong>{reversePayment.credit.numero_operacion}</strong>)</>}.
                   <br /><br />
                   Esta acción restaurará los movimientos en las cuotas afectadas y el saldo del crédito.
+                  {reversePayment.source === 'Extraordinario' && (
+                    <><br /><br /><strong className="text-amber-600">Esto restaurará la tabla de amortización previa al abono extraordinario.</strong></>
+                  )}
+                  {reversePayment.source === 'Cancelación Anticipada' && (
+                    <><br /><br /><strong className="text-amber-600">Esto reabrirá el crédito y restaurará todas las cuotas a su estado anterior.</strong></>
+                  )}
                 </>
               )}
             </AlertDialogDescription>
