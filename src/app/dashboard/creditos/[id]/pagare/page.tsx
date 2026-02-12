@@ -323,7 +323,7 @@ export default function PagarePage() {
           marginBottom: '4mm',
           marginTop: '2mm'
         }}>
-          PAGARE
+          PAGARÉ
         </h1>
 
         {/* Lugar y fecha */}
