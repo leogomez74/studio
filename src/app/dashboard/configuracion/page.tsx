@@ -2633,6 +2633,7 @@ export default function ConfiguracionPage() {
     interestRate: '',
     minTerm: '',
     maxTerm: '',
+    permitirMultiplesCreditos: true,
   });
 
   const [microConfig, setMicroConfig] = useState({
@@ -2641,6 +2642,7 @@ export default function ConfiguracionPage() {
     interestRate: '',
     minTerm: '',
     maxTerm: '',
+    permitirMultiplesCreditos: true,
   });
 
   const [loadingLoanConfigs, setLoadingLoanConfigs] = useState(false);
@@ -2688,6 +2690,7 @@ export default function ConfiguracionPage() {
           interestRate: regular.tasa?.tasa?.toString() || '',
           minTerm: regular.plazo_minimo?.toString() || '',
           maxTerm: regular.plazo_maximo?.toString() || '',
+          permitirMultiplesCreditos: regular.permitir_multiples_creditos ?? true,
         });
       }
 
@@ -2698,6 +2701,7 @@ export default function ConfiguracionPage() {
           interestRate: micro.tasa?.tasa?.toString() || '',
           minTerm: micro.plazo_minimo?.toString() || '',
           maxTerm: micro.plazo_maximo?.toString() || '',
+          permitirMultiplesCreditos: micro.permitir_multiples_creditos ?? true,
         });
       }
     } catch (error) {
@@ -2814,6 +2818,7 @@ export default function ConfiguracionPage() {
         tasa_anual: interestRate,
         plazo_minimo: minTerm,
         plazo_maximo: maxTerm,
+        permitir_multiples_creditos: config.permitirMultiplesCreditos,
       });
 
       toast({
@@ -3212,6 +3217,20 @@ export default function ConfiguracionPage() {
                     />
                   </div>
                 </div>
+                <div className="flex items-center justify-between space-x-2 pt-4 border-t">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="regular-multiples">Permitir Múltiples Créditos</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Permite que un cliente tenga más de un crédito activo simultáneamente
+                    </p>
+                  </div>
+                  <Switch
+                    id="regular-multiples"
+                    checked={regularConfig.permitirMultiplesCreditos}
+                    onCheckedChange={(checked) => setRegularConfig(prev => ({ ...prev, permitirMultiplesCreditos: checked }))}
+                    disabled={savingRegular}
+                  />
+                </div>
               </CardContent>
               <CardFooter>
                 <Button onClick={() => handleSave('regular')} disabled={savingRegular}>
@@ -3305,6 +3324,20 @@ export default function ConfiguracionPage() {
                       disabled={savingMicro}
                     />
                   </div>
+                </div>
+                <div className="flex items-center justify-between space-x-2 pt-4 border-t">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="micro-multiples">Permitir Múltiples Créditos</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Permite que un cliente tenga más de un crédito activo simultáneamente
+                    </p>
+                  </div>
+                  <Switch
+                    id="micro-multiples"
+                    checked={microConfig.permitirMultiplesCreditos}
+                    onCheckedChange={(checked) => setMicroConfig(prev => ({ ...prev, permitirMultiplesCreditos: checked }))}
+                    disabled={savingMicro}
+                  />
                 </div>
               </CardContent>
               <CardFooter>

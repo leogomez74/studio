@@ -148,6 +148,19 @@ class CreditController extends Controller
         $config = LoanConfiguration::where('tipo', $tipoCredito)->where('activo', true)->first();
 
         if ($config) {
+            // Validar si se permiten múltiples créditos por cliente
+            if (!$config->permitir_multiples_creditos) {
+                $creditosActivos = Credit::where('lead_id', $validated['lead_id'])
+                    ->whereIn('status', ['Aprobado', 'Pendiente', 'En Revision'])
+                    ->count();
+
+                if ($creditosActivos > 0) {
+                    return response()->json([
+                        'message' => 'Este cliente ya tiene un crédito activo. No se permiten múltiples créditos simultáneos según la configuración actual.',
+                    ], 422);
+                }
+            }
+
             // Validar monto dentro del rango permitido
             if ($validated['monto_credito'] < $config->monto_minimo || $validated['monto_credito'] > $config->monto_maximo) {
                 return response()->json([
