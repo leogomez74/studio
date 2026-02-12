@@ -200,7 +200,7 @@ export default function PagarePage() {
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4',
+        format: 'letter',
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -280,7 +280,7 @@ export default function PagarePage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
-      <div className="mb-4 flex justify-between items-center max-w-[210mm] mx-auto">
+      <div className="mb-4 flex justify-between items-center max-w-[216mm] mx-auto">
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => router.back()}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -305,130 +305,121 @@ export default function PagarePage() {
         ref={pagareRef}
         className="bg-white mx-auto shadow-lg mb-8"
         style={{
-          width: '210mm',
-          minHeight: '297mm',
-          padding: '15mm 20mm',
-          fontFamily: 'Helvetica, Arial, sans-serif',
+          width: '216mm',
+          minHeight: '279mm',
+          padding: '8mm 12mm',
+          fontFamily: 'Arial, Helvetica, sans-serif',
           fontSize: '9pt',
-          lineHeight: '1.4'
+          lineHeight: '1.3'
         }}
       >
         {/* Encabezado */}
-        <div style={{ marginBottom: '10mm' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>OPERACIÓN Nº</span>
-            <span style={{ fontSize: '9pt' }}>{credit.numero_operacion || credit.reference || ''}</span>
-          </div>
+        <div style={{ marginBottom: '6mm' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>OPERACIÓN Nº</span>
+          {'    '}
+          <span style={{ fontSize: '9pt' }}>{credit.numero_operacion || credit.reference || ''}</span>
         </div>
 
         {/* Título */}
         <h1 style={{
           textAlign: 'center',
-          fontSize: '24pt',
+          fontSize: '26pt',
           fontWeight: 'bold',
-          marginBottom: '5mm'
+          marginBottom: '4mm',
+          marginTop: '2mm'
         }}>
-          PAGARÉ
+          PAGARE
         </h1>
 
         {/* Lugar y fecha */}
-        <p style={{ marginBottom: '5mm' }}>
-          San José, Costa Rica, el día {today}
+        <p style={{ marginBottom: '3mm' }}>
+          San Jose, Costa Rica, el día {today}
         </p>
 
         {/* Sección DEUDOR */}
-        <div style={{ marginBottom: '5mm' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '3mm' }}>DEUDOR</p>
+        <div style={{ marginBottom: '3mm' }}>
+          <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '2mm' }}>DEUDOR</p>
 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               <tr>
-                <td style={{ width: '35%', paddingBottom: '2mm' }}>Nombre y apellidos del deudor:</td>
-                <td style={{ paddingBottom: '2mm' }}>{nombre}</td>
+                <td style={{ width: '35%', paddingBottom: '1mm', fontWeight: 'bold' }}>Nombre y apellidos del deudor:</td>
+                <td style={{ paddingBottom: '1mm' }}>{nombre}</td>
               </tr>
               <tr>
-                <td style={{ paddingBottom: '2mm' }}>Número de cédula de identidad:</td>
-                <td style={{ paddingBottom: '2mm' }}>{cedula}</td>
+                <td style={{ paddingBottom: '1mm', fontWeight: 'bold' }}>Numero de cedula de identidad:</td>
+                <td style={{ paddingBottom: '1mm' }}>{cedula}</td>
               </tr>
               <tr>
-                <td style={{ paddingBottom: '2mm' }}>Estado civil:</td>
-                <td style={{ paddingBottom: '2mm' }}>{estadoCivil}</td>
+                <td style={{ paddingBottom: '1mm', fontWeight: 'bold' }}>Estado civil:</td>
+                <td style={{ paddingBottom: '1mm' }}>{estadoCivil}</td>
               </tr>
               <tr>
-                <td style={{ paddingBottom: '2mm' }}>Profesión/Oficio:</td>
-                <td style={{ paddingBottom: '2mm' }}>{profesion}</td>
+                <td style={{ paddingBottom: '1mm', fontWeight: 'bold' }}>Profesion/Oficio:</td>
+                <td style={{ paddingBottom: '1mm' }}>{profesion}</td>
               </tr>
               <tr>
-                <td style={{ paddingBottom: '2mm' }}>Dirección de domicilio:</td>
-                <td style={{ paddingBottom: '2mm' }}>{direccion}</td>
+                <td style={{ paddingBottom: '1mm', fontWeight: 'bold', verticalAlign: 'top' }}>Direccion de domicilio:</td>
+                <td style={{ paddingBottom: '1mm' }}>{direccion}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Montos */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3mm' }}>
+        {/* Montos y condiciones */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2mm' }}>
           <tbody>
             <tr>
-              <td style={{ width: '30%', fontWeight: 'bold', paddingBottom: '2mm' }}>Monto en numeros:</td>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>{divisaSymbol}</td>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', textAlign: 'right' }}>{formatCurrency(monto)}</td>
+              <td style={{ width: '30%', fontWeight: 'bold', paddingBottom: '1mm' }}>Monto en numeros:</td>
+              <td style={{ fontWeight: 'bold', paddingBottom: '1mm' }}>{divisaSymbol} {formatCurrency(monto)}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>Monto en letras:</td>
-              <td colSpan={2} style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>
+              <td style={{ fontWeight: 'bold', paddingBottom: '1mm' }}>Monto en letras:</td>
+              <td colSpan={2} style={{ fontWeight: 'bold', paddingBottom: '1mm' }}>
                 {credit.monto_letras || 'CUATROCIENTOS MIL 00/100 DE COLONES EXACTOS'}
               </td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>Tasa de interes corriente:</td>
-              <td colSpan={2} style={{ paddingBottom: '2mm' }}>
+              <td style={{ fontWeight: 'bold', paddingBottom: '1mm' }}>Tasa de interes Corriente:</td>
+              <td colSpan={2} style={{ paddingBottom: '1mm' }}>
                 Tasa fija mensual del {tasaMensual}%
               </td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', verticalAlign: 'top' }}>Tasa de interes moratoria:</td>
-              <td colSpan={2} style={{ paddingBottom: '2mm', textAlign: 'justify' }}>
+              <td style={{ fontWeight: 'bold', paddingBottom: '1mm', verticalAlign: 'top' }}>Tasa de interes moratoria:</td>
+              <td colSpan={2} style={{ paddingBottom: '1mm', textAlign: 'justify' }}>
                 Tasa mensual del {tasaMoratoria}% ( {tasaMoratoriaTexto} por ciento). (Tasa de interes corriente aumentada en un 30% según lo estipulado en el artículo 498 del codigo de comercio de Costa Rica)
               </td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', verticalAlign: 'top' }}>plazo en numero de meses:</td>
-              <td colSpan={2} style={{ paddingBottom: '2mm', textAlign: 'justify' }}>
+              <td style={{ fontWeight: 'bold', paddingBottom: '1mm', verticalAlign: 'top' }}>plazo en numero de meses:</td>
+              <td colSpan={2} style={{ paddingBottom: '1mm', textAlign: 'justify' }}>
                 {credit.plazo || 0} meses a partir del día primero del mes inmediato siguiente a la fecha del presente Pagaré.
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* Forma de pago */}
-        <div style={{ marginBottom: '5mm' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '2mm', fontSize: '9pt' }}>Forma de pago:</p>
-          <p style={{ textAlign: 'justify', fontSize: '8pt', lineHeight: '1.6' }}>
-            Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables meses", variables y consecutivas de principal e intereses de <strong>{divisaSymbol} {formatCurrency(cuotaMensual)}</strong> cada una pagaderas los días primero de cada mes. Yo, la persona indicada como "deudor" en este documento, <strong>PROMETO pagar INCONDICIONALMENTE</strong> este PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José, San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento determinado y en los porcentajes señalados como "tasa de interés corriente" Los pagos mensuales de capital más intereses se pagarán con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden para representación de un compromiso incondicional de pago de sumas de dinero.
+        {/* Forma de pago + Abonos extraordinarios (bloque continuo) */}
+        <div style={{ marginBottom: '3mm' }}>
+          <p style={{ textAlign: 'justify', fontSize: '8.5pt', lineHeight: '1.5' }}>
+            <strong>Forma de pago:</strong>{'   '}Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables meses", variables y consecutivas de principal e intereses de <strong>{divisaSymbol} {formatCurrency(cuotaMensual)}</strong> cada una pagaderas los días primero de cada mes. Yo, la persona indicada como "deudor" en este documento, <strong>PROMETO pagar INCONDICIONALMENTE</strong> este PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José, San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento determinado y en los porcentajes señalados como "tasa de interés corriente" Los pagos mensuales de capital más intereses se pagarán con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden para representación de un compromiso incondicional de pago de sumas de dinero.
           </p>
-        </div>
-
-        {/* Abonos extraordinarios */}
-        <div style={{ marginBottom: '8mm' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '2mm', fontSize: '9pt' }}>
-            SOBRE LOS ABONOS EXTRAORIDINARIOS Y CANCELACIÓN ANTICIPADA:
-          </p>
-          <p style={{ textAlign: 'justify', fontSize: '8pt', lineHeight: '1.6' }}>
-            Se indica y aclara al deudor de este pagaré, que, por los abonos extraordinarios y cancelación anticipada antes de los primeros doce meses naturales a partir del primer dia siguiente a la firma de este crédito se penalizará con tres meses de interéses corrientes, (los cuales tendrá como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).
+          <p style={{ textAlign: 'justify', fontSize: '8.5pt', lineHeight: '1.5', marginTop: '1mm' }}>
+            <strong>SOBRE LOS ABONOS EXTRAORDINARIOS Y CANCELACIÓN ANTICIPADA:</strong>{'  '}Se indica y aclara al deudor de este pagaré, que, por los <strong>abonos extraordinarios</strong> y <strong>cancelación anticipada</strong> antes de los primeros doce meses naturales a partir del primer dia siguiente a la firma de este crédito se penalizará con tres meses de interéses corrientes, (los cuales tendrá como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).
           </p>
         </div>
 
         {/* Firmas */}
-        <div style={{ marginTop: '15mm' }}>
-          <p style={{ marginBottom: '8mm', fontSize: '9pt' }}>
-            Nombre: _____________________________________
+        <div style={{ marginTop: '12mm' }}>
+          <p style={{ marginBottom: '10mm', fontSize: '9pt' }}>
+            <strong>Nombre:</strong> _____________________________________
           </p>
-          <p style={{ marginBottom: '8mm', fontSize: '9pt' }}>
-            Cédula: ______________________________________
+          <p style={{ marginBottom: '10mm', fontSize: '9pt' }}>
+            <strong>Cédula:</strong> ______________________________________
           </p>
-          <p style={{ marginBottom: '8mm', fontSize: '9pt' }}>
-            Firma: _______________________________________
+          <p style={{ marginBottom: '10mm', fontSize: '9pt' }}>
+            <strong>Firma:</strong> _______________________________________
           </p>
         </div>
       </div>
@@ -442,7 +433,7 @@ export default function PagarePage() {
             width: '210mm',
             minHeight: '297mm',
             padding: '20mm 25mm',
-            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontFamily: 'Arial, Helvetica, sans-serif',
             fontSize: '11pt',
             lineHeight: '1.6'
           }}
@@ -493,7 +484,7 @@ export default function PagarePage() {
             width: '210mm',
             minHeight: '297mm',
             padding: '15mm 20mm',
-            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontFamily: 'Arial, Helvetica, sans-serif',
             fontSize: '10pt',
             lineHeight: '1.5'
           }}
