@@ -125,6 +125,7 @@ export default function AnalisisPage() {
     plazo: '36',
     poliza: false,
     conCargosAdicionales: false,
+    opportunity_id: undefined as number | undefined,
   });
 
   // Estado para cargos adicionales editables
@@ -672,6 +673,7 @@ export default function AnalisisPage() {
                                 plazo: item.plazo ? String(item.plazo) : '36',
                                 poliza: false,
                                 conCargosAdicionales: true,
+                                opportunity_id: item.opportunity_id,
                               });
                               setCurrentStep(1); // Resetear al abrir
                               setIsCreditDialogOpen(true);
@@ -769,6 +771,7 @@ export default function AnalisisPage() {
           divisa: creditForm.divisa,
           plazo: creditForm.plazo,
           description: creditForm.description,
+          opportunity_id: creditForm.opportunity_id,
         }}
         products={products}
         leads={leads.map(l => ({ ...l, id: Number(l.id) }))}

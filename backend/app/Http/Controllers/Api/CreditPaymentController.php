@@ -41,7 +41,7 @@ class CreditPaymentController extends Controller
         $validated = $request->validate([
             'deductora_id' => 'required|exists:deductoras,id',
             'fecha_proceso' => 'nullable|date',
-            'file' => 'required|file|mimes:xlsx,xls,csv'
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         ]);
 
         $deductoraId = $validated['deductora_id'];
@@ -173,13 +173,14 @@ class CreditPaymentController extends Controller
                 }
                 $montoPlanilla = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
 
-                // Buscar crédito
+                // Buscar crédito formalizado
                 $credit = Credit::with(['lead', 'planDePagos' => function($q) {
                     $q->whereIn('estado', ['Mora', 'Pendiente', 'Parcial'])
                       ->where('numero_cuota', '>', 0)
                       ->orderByRaw("FIELD(estado, 'Mora', 'Parcial', 'Pendiente')")
                       ->orderBy('numero_cuota', 'asc');
                 }])->where('deductora_id', $deductoraId)
+                    ->where('status', 'Formalizado')
                     ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
                         $q->where(function($query) use ($rawCedula, $cleanCedula) {
                             $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
@@ -977,7 +978,7 @@ class CreditPaymentController extends Controller
     public function upload(Request $request)
     {
         $validated = $request->validate([
-            'file' => 'required|file',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'deductora_id' => 'required|exists:deductoras,id',
             'fecha_test' => 'nullable|date', // Solo para pruebas en localhost
         ]);
@@ -1089,8 +1090,9 @@ class CreditPaymentController extends Controller
                     $results[] = ['cedula' => $rawCedula, 'status' => 'skipped']; continue;
                 }
 
-                // Buscar crédito por cédula del lead y deductora del crédito
+                // Buscar crédito formalizado por cédula del lead y deductora del crédito
                 $credit = Credit::where('deductora_id', $deductoraId)
+                    ->where('status', 'Formalizado')
                     ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
                         $q->where(function($query) use ($rawCedula, $cleanCedula) {
                             $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);

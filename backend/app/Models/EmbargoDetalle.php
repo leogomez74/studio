@@ -12,14 +12,12 @@ class EmbargoDetalle extends Model
     protected $fillable = [
         'analisis_id',
         'fecha_inicio',
-        'fecha_fin',
         'motivo',
         'monto',
     ];
 
     protected $casts = [
         'fecha_inicio' => 'date',
-        'fecha_fin' => 'date',
         'monto' => 'decimal:2',
     ];
 

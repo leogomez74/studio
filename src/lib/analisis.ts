@@ -27,7 +27,6 @@ export interface DeduccionMensual {
 export interface ManchaDetalle {
   id: number;
   fecha_inicio: string;
-  fecha_fin?: string;
   descripcion: string;
   monto: number;
 }
@@ -35,7 +34,6 @@ export interface ManchaDetalle {
 export interface JuicioDetalle {
   id?: number;
   fecha_inicio: string;
-  fecha_fin?: string;
   estado?: 'activo' | 'cerrado';
   expediente?: string;
   monto?: number;
@@ -44,7 +42,6 @@ export interface JuicioDetalle {
 export interface EmbargoDetalle {
   id?: number;
   fecha_inicio: string;
-  fecha_fin?: string;
   motivo?: string;
   monto?: number;
 }

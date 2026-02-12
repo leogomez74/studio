@@ -58,20 +58,17 @@ class UpdateAnalisisRequest extends FormRequest
             // Manchas detalle
             'manchas_detalle' => 'nullable|array|max:50',
             'manchas_detalle.*.fecha_inicio' => 'required|date',
-            'manchas_detalle.*.fecha_fin' => 'nullable|date',
             'manchas_detalle.*.descripcion' => 'nullable|string|max:500',
             'manchas_detalle.*.monto' => 'nullable|numeric|min:0|max:999999999.99',
             // Juicios detalle
             'juicios_detalle' => 'nullable|array|max:50',
             'juicios_detalle.*.fecha_inicio' => 'required|date',
-            'juicios_detalle.*.fecha_fin' => 'nullable|date',
             'juicios_detalle.*.estado' => 'nullable|string|in:activo,cerrado',
             'juicios_detalle.*.expediente' => 'nullable|string|max:100',
             'juicios_detalle.*.monto' => 'nullable|numeric|min:0|max:999999999.99',
             // Embargos detalle
             'embargos_detalle' => 'nullable|array|max:50',
             'embargos_detalle.*.fecha_inicio' => 'required|date',
-            'embargos_detalle.*.fecha_fin' => 'nullable|date',
             'embargos_detalle.*.motivo' => 'nullable|string|max:500',
             'embargos_detalle.*.monto' => 'nullable|numeric|min:0|max:999999999.99',
             'salarios_anteriores' => 'nullable|array|max:10',

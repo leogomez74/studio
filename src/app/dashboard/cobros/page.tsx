@@ -303,7 +303,7 @@ export default function CobrosPage() {
 
   // Estados para el modal de Subir Planilla
   const [planillaModalOpen, setPlanillaModalOpen] = useState(false);
-  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string }[]>([]);
+  const [deductoras, setDeductoras] = useState<{ id: number; nombre: string; codigo?: string }[]>([]);
   const [selectedDeductora, setSelectedDeductora] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fechaTestPlanilla, setFechaTestPlanilla] = useState<string>('');
@@ -597,7 +597,7 @@ export default function CobrosPage() {
         monto: parseFloat(monto),
         fecha: fecha,
         extraordinary_strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : null,
-        cuotas: tipoCobro === 'adelanto' ? cuotasSeleccionadas : undefined
+        cuotas: tipoCobro === 'adelanto' ? cuotasSeleccionadas : undefined,
       });
 
       toast({ title: 'Éxito', description: `Abono registrado.` });

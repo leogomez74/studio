@@ -67,6 +67,36 @@ const calcularCuotaMensual = (monto: number, plazo: number, tasaAnual: number): 
   return cuota;
 };
 
+// Convertir número decimal a formato de texto con centavos (ej: 5.50 -> "CINCO 50/100")
+const numeroATasaTexto = (numero: number): string => {
+  const unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+  const decenas = ['', '', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+  const especiales = ['DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE'];
+
+  const parteEntera = Math.floor(numero);
+  const centavos = Math.round((numero - parteEntera) * 100);
+
+  let texto = '';
+
+  if (parteEntera >= 10 && parteEntera <= 19) {
+    texto = especiales[parteEntera - 10];
+  } else {
+    const dec = Math.floor(parteEntera / 10);
+    const uni = parteEntera % 10;
+
+    if (dec > 0) {
+      texto = decenas[dec];
+      if (uni > 0) {
+        texto += ' Y ' + unidades[uni];
+      }
+    } else {
+      texto = unidades[uni];
+    }
+  }
+
+  return `${texto} ${centavos.toString().padStart(2, '0')}/100`.trim();
+};
+
 export default function PagarePage() {
   const params = useParams();
   const router = useRouter();
@@ -118,9 +148,15 @@ export default function PagarePage() {
   const monto = Number(credit.monto_credito ?? 0);
   const plazo = Number(credit.plazo ?? 0);
   const tasaNumber = Number(credit.tasa_anual ?? 0);
-  const tasaMensual = (tasaNumber / 12).toFixed(2);
-  const tasaMoratoria = ((tasaNumber / 12) * 1.3).toFixed(2);
+  const tasaMensualNum = tasaNumber / 12;
+  const tasaMensual = tasaMensualNum.toFixed(2);
+  const tasaMoratoriaNum = tasaMensualNum * 1.3;
+  const tasaMoratoria = tasaMoratoriaNum.toFixed(2);
   const divisaSymbol = credit.divisa === 'CRC' || !credit.divisa ? '₡' : credit.divisa;
+
+  // Convertir tasas a texto
+  const tasaMensualTexto = numeroATasaTexto(parseFloat(tasaMensual));
+  const tasaMoratoriaTexto = numeroATasaTexto(parseFloat(tasaMoratoria));
 
   // Obtener la cuota mensual desde plan_de_pagos o calcularla
   const cuotaMensual = credit.plan_de_pagos?.find(p => p.numero_cuota === 1)?.cuota
@@ -136,11 +172,12 @@ export default function PagarePage() {
   const showAutorizacionCoope = deductoraId === 1 || deductoraId === 2; // COOPENACIONAL o COOPESERVICIOS
   const showAutorizacionCSG = deductoraId === 3; // Coope San Gabriel
 
-  const today = new Date().toLocaleDateString('es-CR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).toUpperCase();
+  // Variables de fecha
+  const now = new Date();
+  const dia = now.getDate();
+  const mes = now.toLocaleDateString('es-CR', { month: 'long' });
+  const anio = now.getFullYear();
+  const today = `${dia} ${mes}, ${anio}`;
 
   // Fecha con día de la semana para autorización
   const todayWithDay = new Date().toLocaleDateString('es-CR', {
@@ -151,11 +188,9 @@ export default function PagarePage() {
   }).toUpperCase();
 
   // Componentes de fecha para Coope San Gabriel
-  const now = new Date();
-  const diaNumero = now.getDate();
+  const diaNumero = dia;
   const diaSemana = now.toLocaleDateString('es-CR', { weekday: 'long' }).toUpperCase();
   const mesNombre = now.toLocaleDateString('es-CR', { month: 'long' }).toUpperCase();
-  const anio = now.getFullYear();
 
   const handlePrint = async () => {
     if (!pagareRef.current || !credit) return;
@@ -279,9 +314,11 @@ export default function PagarePage() {
         }}
       >
         {/* Encabezado */}
-        <div style={{ textAlign: 'right', marginBottom: '5mm' }}>
-          <span>OPERACIÓN N° </span>
-          <span style={{ marginLeft: '10px' }}>{credit.numero_operacion || credit.reference || 'x123'}</span>
+        <div style={{ marginBottom: '10mm' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>OPERACIÓN Nº</span>
+            <span style={{ fontSize: '9pt' }}>{credit.numero_operacion || credit.reference || ''}</span>
+          </div>
         </div>
 
         {/* Título */}
@@ -333,20 +370,31 @@ export default function PagarePage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3mm' }}>
           <tbody>
             <tr>
-              <td style={{ width: '35%', fontWeight: 'bold', paddingBottom: '2mm' }}>Monto en números:</td>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>{divisaSymbol}  {formatCurrency(monto)}</td>
+              <td style={{ width: '30%', fontWeight: 'bold', paddingBottom: '2mm' }}>Monto en numeros:</td>
+              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>{divisaSymbol}</td>
+              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', textAlign: 'right' }}>{formatCurrency(monto)}</td>
             </tr>
             <tr>
               <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>Monto en letras:</td>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>{credit.monto_letras || ''}</td>
+              <td colSpan={2} style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>
+                {credit.monto_letras || 'CUATROCIENTOS MIL 00/100 DE COLONES EXACTOS'}
+              </td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>Tasa de interés corriente:</td>
-              <td style={{ paddingBottom: '2mm' }}>Tasa fija mensual del {tasaMensual}%</td>
+              <td style={{ fontWeight: 'bold', paddingBottom: '2mm' }}>Tasa de interes corriente:</td>
+              <td colSpan={2} style={{ paddingBottom: '2mm' }}>
+                Tasa fija mensual del {tasaMensual}%
+              </td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', verticalAlign: 'top' }}>Plazo en número de meses:</td>
-              <td style={{ paddingBottom: '2mm', textAlign: 'justify' }}>
+              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', verticalAlign: 'top' }}>Tasa de interes moratoria:</td>
+              <td colSpan={2} style={{ paddingBottom: '2mm', textAlign: 'justify' }}>
+                Tasa mensual del {tasaMoratoria}% ( {tasaMoratoriaTexto} por ciento). (Tasa de interes corriente aumentada en un 30% según lo estipulado en el artículo 498 del codigo de comercio de Costa Rica)
+              </td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 'bold', paddingBottom: '2mm', verticalAlign: 'top' }}>plazo en numero de meses:</td>
+              <td colSpan={2} style={{ paddingBottom: '2mm', textAlign: 'justify' }}>
                 {credit.plazo || 0} meses a partir del día primero del mes inmediato siguiente a la fecha del presente Pagaré.
               </td>
             </tr>
@@ -355,42 +403,33 @@ export default function PagarePage() {
 
         {/* Forma de pago */}
         <div style={{ marginBottom: '5mm' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '2mm' }}>Forma de pago:</p>
-          <p style={{ textAlign: 'justify', fontSize: '8pt' }}>
-            Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables meses", anuales y consecutivas de principal e intereses de {divisaSymbol} {formatCurrency(cuotaMensual)} cada una, pagaderas los días primero de cada mes. Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este
-            PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José,
-            San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca
-            de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en
-            Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago
-            se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones
-            costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento
-            determinado y en los porcentajes señalados como "tasa de interés corriente". Los pagos mensuales de capital más intereses se pagarán con la periodicidad de pago indicada. Renuncio a mi domicilio y
-            requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique.
-            Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho
-            al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título
-            se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden
-            para representación de un compromiso incondicional de pago de sumas de dinero.
+          <p style={{ fontWeight: 'bold', marginBottom: '2mm', fontSize: '9pt' }}>Forma de pago:</p>
+          <p style={{ textAlign: 'justify', fontSize: '8pt', lineHeight: '1.6' }}>
+            Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables meses", variables y consecutivas de principal e intereses de <strong>{divisaSymbol} {formatCurrency(cuotaMensual)}</strong> cada una pagaderas los días primero de cada mes. Yo, la persona indicada como "deudor" en este documento, <strong>PROMETO pagar INCONDICIONALMENTE</strong> este PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José, San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento determinado y en los porcentajes señalados como "tasa de interés corriente" Los pagos mensuales de capital más intereses se pagarán con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden para representación de un compromiso incondicional de pago de sumas de dinero.
           </p>
         </div>
 
         {/* Abonos extraordinarios */}
-        <div style={{ marginBottom: '10mm' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '2mm' }}>
-            SOBRE LOS ABONOS EXTRAORDINARIOS Y CANCELACIÓN ANTICIPADA:
+        <div style={{ marginBottom: '8mm' }}>
+          <p style={{ fontWeight: 'bold', marginBottom: '2mm', fontSize: '9pt' }}>
+            SOBRE LOS ABONOS EXTRAORIDINARIOS Y CANCELACIÓN ANTICIPADA:
           </p>
-          <p style={{ textAlign: 'justify', fontSize: '8pt' }}>
-            Se indica y aclara al deudor de este pagaré, que, por los abonos extraordinarios y cancelación
-            anticipada antes de los primeros doce meses naturales a partir del primer día siguiente a la
-            firma de este crédito se penalizará con tres meses de intereses corrientes, (los cuales tendrá
-            como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).
+          <p style={{ textAlign: 'justify', fontSize: '8pt', lineHeight: '1.6' }}>
+            Se indica y aclara al deudor de este pagaré, que, por los abonos extraordinarios y cancelación anticipada antes de los primeros doce meses naturales a partir del primer dia siguiente a la firma de este crédito se penalizará con tres meses de interéses corrientes, (los cuales tendrá como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).
           </p>
         </div>
 
         {/* Firmas */}
         <div style={{ marginTop: '15mm' }}>
-          <p style={{ marginBottom: '8mm' }}>Nombre: _________________________________________________</p>
-          <p style={{ marginBottom: '8mm' }}>Cédula: _________________________________________________</p>
-          <p style={{ marginBottom: '8mm' }}>Firma: _________________________________________________</p>
+          <p style={{ marginBottom: '8mm', fontSize: '9pt' }}>
+            Nombre: _____________________________________
+          </p>
+          <p style={{ marginBottom: '8mm', fontSize: '9pt' }}>
+            Cédula: ______________________________________
+          </p>
+          <p style={{ marginBottom: '8mm', fontSize: '9pt' }}>
+            Firma: _______________________________________
+          </p>
         </div>
       </div>
 

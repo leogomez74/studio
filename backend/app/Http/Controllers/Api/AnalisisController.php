@@ -86,6 +86,7 @@ class AnalisisController extends Controller
         $analisis->getCollection()->transform(function ($item) {
             $item->has_credit = $item->has_credit;
             $item->credit_id = $item->credit_id;
+            $item->credit_status = $item->credit_status;
             return $item;
         });
 
@@ -223,6 +224,7 @@ class AnalisisController extends Controller
         // Agregar información de si tiene crédito asociado y su ID
         $analisis->has_credit = $analisis->has_credit;
         $analisis->credit_id = $analisis->credit_id;
+        $analisis->credit_status = $analisis->credit_status;
 
         return response()->json($analisis);
     }

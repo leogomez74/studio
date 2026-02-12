@@ -294,6 +294,7 @@ interface CreditItem {
   tasa?: { id: number; tasa: number } | null;
   plazo?: number | null;
   cuotas_atrasadas?: number | null;
+  deductora_id?: number | null;
   deductora?: { id: number; nombre: string } | null;
   assigned_to?: number | null;
   assignedTo?: { id: number; name: string } | null;
@@ -862,7 +863,7 @@ function CreditDetailClient({ id }: { id: string }) {
     md += `| Tasa Anual | ${credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00'}% |\n`;
     md += `| Plazo | ${credit.plazo} meses |\n`;
     md += `| Cuota Fija | ₡${formatNumber(credit.cuota)} |\n`;
-    md += `| Deductora | ${credit.lead?.deductora_id || 'N/A'} |\n`;
+    md += `| Deductora | ${credit.deductora_id || 'N/A'} |\n`;
     md += `| Formalizado | ${formatDate(credit.formalized_at)} |\n\n`;
 
     md += `## Tabla de Amortización\n\n`;
@@ -1958,8 +1959,8 @@ function CreditDetailClient({ id }: { id: string }) {
                             <Label>Entidad Deductora</Label>
                             <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
                               {(() => {
-                                // Always use lead's deductora_id for lookup
-                                const idDeductora = credit.lead?.deductora_id;
+                                // Use credit's deductora_id (each credit has its own deductora)
+                                const idDeductora = credit.deductora_id;
                                 if (!idDeductora) return "-";
                                 const encontrada = deductoras.find(d => String(d.id) === String(idDeductora));
                                 return encontrada ? encontrada.nombre : idDeductora;

@@ -12,14 +12,12 @@ class ManchaDetalle extends Model
     protected $fillable = [
         'analisis_id',
         'fecha_inicio',
-        'fecha_fin',
         'descripcion',
         'monto',
     ];
 
     protected $casts = [
         'fecha_inicio' => 'date',
-        'fecha_fin' => 'date',
         'monto' => 'decimal:2',
     ];
 
