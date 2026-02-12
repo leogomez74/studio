@@ -174,51 +174,75 @@ class CreditPaymentController extends Controller
                 }
                 $montoPlanilla = (float) preg_replace('/[^0-9\.]/', '', $cleanMonto);
 
-                // Buscar crédito formalizado
-                $credit = Credit::with(['lead', 'planDePagos' => function($q) {
+                // Buscar TODOS los créditos formalizados para esta cédula + deductora (cascada)
+                $allCredits = Credit::with(['lead', 'planDePagos' => function($q) {
                     $q->whereIn('estado', ['Mora', 'Pendiente', 'Parcial'])
                       ->where('numero_cuota', '>', 0)
                       ->orderByRaw("FIELD(estado, 'Mora', 'Parcial', 'Pendiente')")
                       ->orderBy('numero_cuota', 'asc');
                 }])->where('deductora_id', $deductoraId)
-                    ->where('status', 'Formalizado')
+                    ->whereIn('status', ['Formalizado', 'En Mora'])
                     ->whereHas('lead', function($q) use ($rawCedula, $cleanCedula) {
                         $q->where(function($query) use ($rawCedula, $cleanCedula) {
                             $query->where('cedula', $rawCedula)->orWhere('cedula', $cleanCedula);
                         });
-                    })->first();
+                    })
+                    ->orderBy('formalized_at', 'asc')
+                    ->get();
 
-                if ($credit) {
-                    // Obtener la primera cuota pendiente
-                    $cuotaPendiente = $credit->planDePagos->first();
+                if ($allCredits->isNotEmpty()) {
+                    $credit = $allCredits->first();
+                    $totalExigibleAll = 0;
+                    $creditosDetalle = [];
 
-                    if ($cuotaPendiente) {
-                        $totalExigible = $cuotaPendiente->cuota
-                                       + $cuotaPendiente->interes_moratorio
-                                       + ($cuotaPendiente->int_corriente_vencido ?? 0);
+                    foreach ($allCredits as $c) {
+                        $cuota = $c->planDePagos->first();
+                        if ($cuota) {
+                            $exigible = $cuota->cuota
+                                      + $cuota->interes_moratorio
+                                      + ($cuota->int_corriente_vencido ?? 0);
+                            $totalExigibleAll += $exigible;
+                            $creditosDetalle[] = [
+                                'referencia' => $c->reference,
+                                'numero_cuota' => $cuota->numero_cuota,
+                                'cuota' => $cuota->cuota,
+                                'interes_mora' => $cuota->interes_moratorio,
+                                'exigible' => $exigible,
+                            ];
+                        }
+                    }
 
-                        $diferencia = $montoPlanilla - $totalExigible;
+                    if ($totalExigibleAll > 0) {
+                        $diferencia = $montoPlanilla - $totalExigibleAll;
                         $estado = abs($diferencia) < 1 ? 'Completo' : ($diferencia < 0 ? 'Parcial' : 'Sobrepago');
 
                         if ($estado === 'Completo') $totales['completos']++;
                         if ($estado === 'Parcial') $totales['parciales']++;
                         if ($estado === 'Sobrepago') $totales['sobrepagos']++;
 
+                        // Referencia: mostrar primer crédito + cantidad total
+                        $refDisplay = $credit->reference;
+                        if (count($creditosDetalle) > 1) {
+                            $refDisplay .= ' (+' . (count($creditosDetalle) - 1) . ')';
+                        }
+
                         $preview[] = [
                             'cedula' => $rawCedula,
                             'nombre' => $credit->lead->name ?? 'N/A',
-                            'credito_referencia' => $credit->reference,
-                            'numero_cuota' => $cuotaPendiente->numero_cuota,
+                            'credito_referencia' => $refDisplay,
+                            'numero_cuota' => $creditosDetalle[0]['numero_cuota'],
                             'monto_planilla' => $montoPlanilla,
-                            'cuota_esperada' => $totalExigible,
-                            'cuota_base' => $cuotaPendiente->cuota,
-                            'interes_mora' => $cuotaPendiente->interes_moratorio,
-                            'diferencia' => $diferencia,
+                            'cuota_esperada' => round($totalExigibleAll, 2),
+                            'cuota_base' => round(collect($creditosDetalle)->sum('cuota'), 2),
+                            'interes_mora' => round(collect($creditosDetalle)->sum('interes_mora'), 2),
+                            'diferencia' => round($diferencia, 2),
                             'estado' => $estado,
+                            'creditos_count' => count($creditosDetalle),
+                            'creditos_detalle' => $creditosDetalle,
                         ];
 
                         $totales['monto_total_planilla'] += $montoPlanilla;
-                        $totales['monto_total_esperado'] += $totalExigible;
+                        $totales['monto_total_esperado'] += $totalExigibleAll;
                     } else {
                         $preview[] = [
                             'cedula' => $rawCedula,
@@ -231,6 +255,8 @@ class CreditPaymentController extends Controller
                             'interes_mora' => 0,
                             'diferencia' => 0,
                             'estado' => 'Sin cuotas pendientes',
+                            'creditos_count' => 0,
+                            'creditos_detalle' => [],
                         ];
                     }
 
