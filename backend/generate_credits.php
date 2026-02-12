@@ -1,13 +1,18 @@
 <?php
 /**
- * Script para generar ~140 créditos de prueba con leads existentes.
+ * Script para generar créditos de prueba con 2 créditos por persona.
  *
  * USO: php generate_credits.php
  *
  * - Borra todos los pagos, planes de pago y créditos existentes
- * - Crea ~140 créditos formalizados con plan de pagos
+ * - Cada lead recibe 2 micro créditos:
+ *   - Crédito 1: Formalizado en Diciembre 2025 (viejo)
+ *   - Crédito 2: Formalizado hoy (nuevo)
  * - Mezcla deductoras (COOPENACIONAL, COOPESERVICIOS, Coope San Gabriel)
- * - Genera archivos Excel de planilla por deductora
+ * - Genera archivos Excel de planilla:
+ *   - Meses 1-2: Solo cuota del crédito 1
+ *   - Mes 3: Cuota de ambos créditos combinada
+ *   - Mes 4: Ambos créditos + ₡50,000 sobrante
  */
 
 require __DIR__.'/vendor/autoload.php';
@@ -30,6 +35,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 echo "========================================\n";
 echo "  GENERADOR DE CRÉDITOS DE PRUEBA\n";
+echo "  (2 créditos por persona)\n";
 echo "========================================\n\n";
 
 // ============================================================
@@ -76,8 +82,6 @@ echo "   Leads disponibles: {$leads->count()}\n";
 
 $tasaRegular = Tasa::find(1);    // 36%
 $tasaMicro = Tasa::find(2);      // 51.21%
-$configRegular = LoanConfiguration::where('tipo', 'regular')->first();
-$configMicro = LoanConfiguration::where('tipo', 'microcredito')->first();
 
 if (!$tasaRegular || !$tasaMicro) {
     echo "ERROR: No se encontraron las tasas necesarias.\n";
@@ -87,29 +91,35 @@ if (!$tasaRegular || !$tasaMicro) {
 echo "   Tasa Regular: {$tasaRegular->tasa}% (ID: {$tasaRegular->id})\n";
 echo "   Tasa Micro: {$tasaMicro->tasa}% (ID: {$tasaMicro->id})\n";
 
-// Distribución de deductoras: 70% COOPENACIONAL, 15% COOPESERVICIOS, 15% Coope San Gabriel
-$deductoraDistribucion = [
-    1 => 0.70,  // COOPENACIONAL
-    2 => 0.15,  // COOPESERVICIOS
-    3 => 0.15,  // Coope San Gabriel R.L
-];
-
 echo "\n";
 
 // ============================================================
-// PASO 3: Generar créditos
+// PASO 3: Generar créditos (2 por persona)
 // ============================================================
-echo "3. Generando créditos...\n";
+echo "3. Generando créditos (2 por persona)...\n";
 
-$totalCreditos = 140;
-$shuffledLeads = $leads->shuffle()->take($totalCreditos);
+// Usamos hasta 70 leads = 140 créditos
+$totalLeads = min(70, $leads->count());
+$shuffledLeads = $leads->shuffle()->take($totalLeads);
 
 $creditosCreados = 0;
 $creditosPorDeductora = [1 => 0, 2 => 0, 3 => 0];
-$creditosPorTipo = ['regular' => 0, 'microcredito' => 0];
 
 $year = date('y');
-$fechaFormalizacion = Carbon::now();
+$fechaDiciembre = Carbon::parse('2025-12-01');
+$fechaHoy = Carbon::now();
+
+// Rangos de montos para cada crédito
+$montosCredito1 = [200000, 250000, 300000, 350000, 400000, 450000, 500000, 550000, 600000, 650000];
+$montosCredito2 = [100000, 150000, 180000, 200000, 250000, 300000, 350000];
+$plazosDisponibles = [12, 18, 24, 30, 36];
+
+// Datos para planillas (cédula => [cuota1, cuota2, nombre])
+$planillaData = [
+    1 => [], // COOPENACIONAL
+    2 => [], // COOPESERVICIOS
+    3 => [], // Coope San Gabriel
+];
 
 foreach ($shuffledLeads as $index => $lead) {
     // Determinar deductora
@@ -122,93 +132,69 @@ foreach ($shuffledLeads as $index => $lead) {
         $deductoraId = 3; // Coope San Gabriel
     }
 
-    // Determinar tipo de crédito (60% regular, 40% micro)
-    $esMicro = mt_rand(1, 100) <= 40;
+    // Montos y plazos aleatorios
+    $monto1 = $montosCredito1[array_rand($montosCredito1)];
+    $monto2 = $montosCredito2[array_rand($montosCredito2)];
+    $plazo1 = $plazosDisponibles[array_rand($plazosDisponibles)];
+    $plazo2 = $plazosDisponibles[array_rand($plazosDisponibles)];
 
-    if ($esMicro) {
-        $tipo = 'microcredito';
-        $tasa = $tasaMicro;
-        $montoMin = 100000;
-        $montoMax = 690000;
-        $plazoMin = 6;
-        $plazoMax = 60;
-    } else {
-        $tipo = 'regular';
-        $tasa = $tasaRegular;
-        $montoMin = 690000;
-        $montoMax = 2200000;
-        $plazoMin = 12;
-        $plazoMax = 60;
-    }
+    // Usar tasa micro para ambos
+    $tasa = $tasaMicro;
+    $tasaAnual = (float) $tasa->tasa;
+    $tasaMensual = ($tasaAnual / 100) / 12;
 
-    // Generar monto aleatorio (redondeado a miles)
-    $monto = round(mt_rand($montoMin, $montoMax) / 1000) * 1000;
+    // Calcular cuotas (sistema francés)
+    $factor1 = pow(1 + $tasaMensual, $plazo1);
+    $cuota1 = round($monto1 * ($tasaMensual * $factor1) / ($factor1 - 1), 2);
 
-    // Generar plazo aleatorio (múltiplos de 6 preferidos)
-    $plazosComunes = $esMicro
-        ? [6, 12, 18, 24, 30, 36]
-        : [12, 18, 24, 30, 36, 42, 48, 54, 60];
-    $plazo = $plazosComunes[array_rand($plazosComunes)];
-
-    // Calcular cuota (sistema francés)
-    $tasaMensual = ((float) $tasa->tasa / 100) / 12;
-    if ($tasaMensual > 0) {
-        $factor = pow(1 + $tasaMensual, $plazo);
-        $cuotaFija = round($monto * ($tasaMensual * $factor) / ($factor - 1), 2);
-    } else {
-        $cuotaFija = round($monto / $plazo, 2);
-    }
+    $factor2 = pow(1 + $tasaMensual, $plazo2);
+    $cuota2 = round($monto2 * ($tasaMensual * $factor2) / ($factor2 - 1), 2);
 
     try {
         DB::transaction(function () use (
-            $lead, $deductoraId, $tipo, $tasa, $monto, $plazo, $cuotaFija, $esMicro,
-            $fechaFormalizacion, $year, &$creditosCreados, &$creditosPorDeductora, &$creditosPorTipo
+            $lead, $deductoraId, $tasa, $tasaAnual, $tasaMensual,
+            $monto1, $plazo1, $cuota1, $fechaDiciembre,
+            $monto2, $plazo2, $cuota2, $fechaHoy,
+            $year, &$creditosCreados, &$creditosPorDeductora, &$planillaData
         ) {
-            // Crear crédito
-            $credit = new Credit();
-            $credit->reference = 'TEMP-' . time() . '-' . mt_rand(1000, 9999);
-            $credit->title = $lead->name . ' ' . ($lead->apellido1 ?? '');
-            $credit->status = 'Formalizado';
-            $credit->category = $tipo === 'microcredito' ? 'Micro Crédito' : 'Crédito Regular';
-            $credit->lead_id = $lead->id;
-            $credit->assigned_to = null;
-            $credit->opened_at = $fechaFormalizacion;
-            $credit->tipo_credito = $tipo;
-            $credit->monto_credito = $monto;
-            $credit->cuota = $cuotaFija;
-            $credit->plazo = $plazo;
-            $credit->tasa_id = $tasa->id;
-            $credit->tasa_anual = $tasa->tasa;
-            $credit->tasa_maxima = $tasa->tasa_maxima;
-            $credit->deductora_id = $deductoraId;
-            $credit->saldo = $monto;
-            $credit->poliza = false; // Los microcréditos NO llevan póliza
-            $credit->garantia = 'Pagaré';
-            $credit->formalized_at = $fechaFormalizacion;
-            $credit->save();
+            // ---- CRÉDITO 1: Formalizado Diciembre 2025 ----
+            $credit1 = new Credit();
+            $credit1->reference = 'TEMP-1-' . time() . '-' . mt_rand(1000, 9999);
+            $credit1->title = $lead->name . ' ' . ($lead->apellido1 ?? '');
+            $credit1->status = 'Formalizado';
+            $credit1->category = 'Micro Crédito';
+            $credit1->lead_id = $lead->id;
+            $credit1->assigned_to = null;
+            $credit1->opened_at = $fechaDiciembre;
+            $credit1->tipo_credito = 'microcredito';
+            $credit1->monto_credito = $monto1;
+            $credit1->cuota = $cuota1;
+            $credit1->plazo = $plazo1;
+            $credit1->tasa_id = $tasa->id;
+            $credit1->tasa_anual = $tasaAnual;
+            $credit1->tasa_maxima = $tasa->tasa_maxima;
+            $credit1->deductora_id = $deductoraId;
+            $credit1->saldo = $monto1;
+            $credit1->poliza = false;
+            $credit1->garantia = 'Pagaré';
+            $credit1->formalized_at = $fechaDiciembre;
+            $credit1->fecha_culminacion_credito = $fechaDiciembre->copy()->addMonths($plazo1);
+            $credit1->save();
 
-            // Referencia real
-            $credit->reference = sprintf('%s-%05d-01-CRED', $year, $credit->id);
-            $credit->save();
+            $credit1->reference = sprintf('%s-%05d-01-CRED', $year, $credit1->id);
+            $credit1->save();
 
-            // Actualizar deductora del lead
-            $lead->deductora_id = $deductoraId;
-            $lead->save();
-
-            // Generar plan de pagos - Cuota 0 (inicialización)
-            $tasaAnual = (float) $tasa->tasa;
-            $tasaMensual = ($tasaAnual / 100) / 12;
-
+            // Plan de pagos - Cuota 0 (desembolso)
             PlanDePago::create([
-                'credit_id' => $credit->id,
+                'credit_id' => $credit1->id,
                 'linea' => '1',
                 'numero_cuota' => 0,
-                'proceso' => $fechaFormalizacion->format('Ym'),
-                'fecha_inicio' => $fechaFormalizacion,
+                'proceso' => $fechaDiciembre->format('Ym'),
+                'fecha_inicio' => $fechaDiciembre,
                 'fecha_corte' => null,
                 'fecha_pago' => null,
                 'tasa_actual' => $tasaAnual,
-                'plazo_actual' => $plazo,
+                'plazo_actual' => $plazo1,
                 'cuota' => 0,
                 'poliza' => 0,
                 'interes_corriente' => 0,
@@ -216,35 +202,103 @@ foreach ($shuffledLeads as $index => $lead) {
                 'interes_moratorio' => 0,
                 'amortizacion' => 0,
                 'saldo_anterior' => 0,
-                'saldo_nuevo' => $monto,
+                'saldo_nuevo' => $monto1,
                 'dias' => 0,
                 'estado' => 'Vigente',
                 'dias_mora' => 0,
-                'fecha_movimiento' => $fechaFormalizacion,
-                'movimiento_total' => $monto,
+                'fecha_movimiento' => $fechaDiciembre,
+                'movimiento_total' => $monto1,
                 'movimiento_poliza' => 0,
                 'movimiento_interes_corriente' => 0,
                 'movimiento_interes_moratorio' => 0,
-                'movimiento_principal' => $monto,
+                'movimiento_principal' => $monto1,
                 'movimiento_amortizacion' => 0,
                 'movimiento_caja_usuario' => 'Sistema',
                 'tipo_documento' => 'Formalización',
                 'concepto' => 'Desembolso Inicial',
             ]);
 
-            // Las cuotas 1-N se generan automáticamente por el observer de PlanDePago::booted()
+            // ---- CRÉDITO 2: Formalizado HOY ----
+            $credit2 = new Credit();
+            $credit2->reference = 'TEMP-2-' . time() . '-' . mt_rand(1000, 9999);
+            $credit2->title = $lead->name . ' ' . ($lead->apellido1 ?? '');
+            $credit2->status = 'Formalizado';
+            $credit2->category = 'Micro Crédito';
+            $credit2->lead_id = $lead->id;
+            $credit2->assigned_to = null;
+            $credit2->opened_at = $fechaHoy;
+            $credit2->tipo_credito = 'microcredito';
+            $credit2->monto_credito = $monto2;
+            $credit2->cuota = $cuota2;
+            $credit2->plazo = $plazo2;
+            $credit2->tasa_id = $tasa->id;
+            $credit2->tasa_anual = $tasaAnual;
+            $credit2->tasa_maxima = $tasa->tasa_maxima;
+            $credit2->deductora_id = $deductoraId;
+            $credit2->saldo = $monto2;
+            $credit2->poliza = false;
+            $credit2->garantia = 'Pagaré';
+            $credit2->formalized_at = $fechaHoy;
+            $credit2->fecha_culminacion_credito = $fechaHoy->copy()->addMonths($plazo2);
+            $credit2->save();
 
-            // Calcular fecha culminación
-            $credit->fecha_culminacion_credito = $fechaFormalizacion->copy()->addMonths($plazo);
-            $credit->save();
+            $credit2->reference = sprintf('%s-%05d-01-CRED', $year, $credit2->id);
+            $credit2->save();
 
-            $creditosCreados++;
-            $creditosPorDeductora[$deductoraId]++;
-            $creditosPorTipo[$tipo]++;
+            // Plan de pagos - Cuota 0 (desembolso)
+            PlanDePago::create([
+                'credit_id' => $credit2->id,
+                'linea' => '1',
+                'numero_cuota' => 0,
+                'proceso' => $fechaHoy->format('Ym'),
+                'fecha_inicio' => $fechaHoy,
+                'fecha_corte' => null,
+                'fecha_pago' => null,
+                'tasa_actual' => $tasaAnual,
+                'plazo_actual' => $plazo2,
+                'cuota' => 0,
+                'poliza' => 0,
+                'interes_corriente' => 0,
+                'int_corriente_vencido' => 0,
+                'interes_moratorio' => 0,
+                'amortizacion' => 0,
+                'saldo_anterior' => 0,
+                'saldo_nuevo' => $monto2,
+                'dias' => 0,
+                'estado' => 'Vigente',
+                'dias_mora' => 0,
+                'fecha_movimiento' => $fechaHoy,
+                'movimiento_total' => $monto2,
+                'movimiento_poliza' => 0,
+                'movimiento_interes_corriente' => 0,
+                'movimiento_interes_moratorio' => 0,
+                'movimiento_principal' => $monto2,
+                'movimiento_amortizacion' => 0,
+                'movimiento_caja_usuario' => 'Sistema',
+                'tipo_documento' => 'Formalización',
+                'concepto' => 'Desembolso Inicial',
+            ]);
+
+            // Actualizar deductora del lead
+            $lead->deductora_id = $deductoraId;
+            $lead->save();
+
+            $creditosCreados += 2;
+            $creditosPorDeductora[$deductoraId] += 2;
+
+            // Guardar datos para planillas
+            $cedula = $lead->cedula;
+            $nombre = $lead->name . ' ' . ($lead->apellido1 ?? '');
+            $planillaData[$deductoraId][$cedula] = [
+                'nombre' => $nombre,
+                'cuota1' => $cuota1,
+                'cuota2' => $cuota2,
+                'cuota_total' => round($cuota1 + $cuota2, 2),
+            ];
         });
 
-        if (($creditosCreados % 20) === 0) {
-            echo "   Progreso: {$creditosCreados}/{$totalCreditos}\n";
+        if (($index + 1) % 20 === 0) {
+            echo "   Progreso: " . ($index + 1) . "/{$totalLeads} leads procesados\n";
         }
     } catch (\Exception $e) {
         echo "   ✗ Error con lead {$lead->id} ({$lead->name}): {$e->getMessage()}\n";
@@ -256,9 +310,6 @@ echo "   Por deductora:\n";
 echo "     - COOPENACIONAL: {$creditosPorDeductora[1]}\n";
 echo "     - COOPESERVICIOS: {$creditosPorDeductora[2]}\n";
 echo "     - Coope San Gabriel: {$creditosPorDeductora[3]}\n";
-echo "   Por tipo:\n";
-echo "     - Regular: {$creditosPorTipo['regular']}\n";
-echo "     - Micro-crédito: {$creditosPorTipo['microcredito']}\n";
 
 echo "\n";
 
@@ -274,27 +325,19 @@ $deductoraNombres = [
 ];
 
 foreach ($deductoraNombres as $dedId => $dedNombre) {
-    $credits = Credit::with('lead')
-        ->where('status', 'Formalizado')
-        ->where('deductora_id', $dedId)
-        ->where('cuota', '>', 0)
-        ->get();
-
-    if ($credits->isEmpty()) {
+    $data = $planillaData[$dedId] ?? [];
+    if (empty($data)) {
         echo "   - {$dedNombre}: Sin créditos, saltando...\n";
         continue;
     }
 
+    // ---- PLANILLA MES 1: Solo crédito 1 (viejo, Diciembre) ----
     $spreadsheet = new Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
-    $sheet->setTitle('Planilla');
-
-    // Encabezados
+    $sheet->setTitle('Planilla Mes 1');
     $sheet->setCellValue('A1', 'Cédula');
     $sheet->setCellValue('B1', 'Monto');
     $sheet->setCellValue('C1', 'Nombre');
-
-    // Estilo encabezados
     $sheet->getStyle('A1:C1')->getFont()->setBold(true);
     $sheet->getStyle('A1:C1')->getFill()
         ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
@@ -302,78 +345,92 @@ foreach ($deductoraNombres as $dedId => $dedNombre) {
     $sheet->getStyle('A1:C1')->getFont()->getColor()->setRGB('FFFFFF');
 
     $row = 2;
-    foreach ($credits as $c) {
-        if ($c->lead && $c->lead->cedula) {
-            $sheet->setCellValue('A' . $row, $c->lead->cedula);
-            $sheet->setCellValue('B' . $row, (float) $c->cuota);
-            $sheet->setCellValue('C' . $row, $c->lead->name . ' ' . ($c->lead->apellido1 ?? ''));
-            $row++;
-        }
-    }
-
-    // Autosize
-    $sheet->getColumnDimension('A')->setAutoSize(true);
-    $sheet->getColumnDimension('B')->setAutoSize(true);
-    $sheet->getColumnDimension('C')->setAutoSize(true);
-
-    // Formato numérico para montos
-    $sheet->getStyle('B2:B' . ($row - 1))->getNumberFormat()
-        ->setFormatCode('#,##0.00');
-
-    $filename = "planilla_{$dedNombre}.xlsx";
-    $filepath = storage_path("app/public/{$filename}");
-    $writer = new Xlsx($spreadsheet);
-    $writer->save($filepath);
-
-    $totalRegistros = $row - 2;
-    echo "   ✓ {$filename} ({$totalRegistros} registros)\n";
-}
-
-// También generar una planilla combinada con TODAS las deductoras
-$allCredits = Credit::with('lead')
-    ->where('status', 'Formalizado')
-    ->where('cuota', '>', 0)
-    ->get();
-
-$spreadsheet = new Spreadsheet();
-$sheet = $spreadsheet->getActiveSheet();
-$sheet->setTitle('Planilla Completa');
-
-$sheet->setCellValue('A1', 'Cédula');
-$sheet->setCellValue('B1', 'Monto');
-$sheet->setCellValue('C1', 'Nombre');
-$sheet->setCellValue('D1', 'Deductora');
-
-$sheet->getStyle('A1:D1')->getFont()->setBold(true);
-$sheet->getStyle('A1:D1')->getFill()
-    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-    ->getStartColor()->setRGB('4472C4');
-$sheet->getStyle('A1:D1')->getFont()->getColor()->setRGB('FFFFFF');
-
-$row = 2;
-foreach ($allCredits as $c) {
-    if ($c->lead && $c->lead->cedula) {
-        $sheet->setCellValue('A' . $row, $c->lead->cedula);
-        $sheet->setCellValue('B' . $row, (float) $c->cuota);
-        $sheet->setCellValue('C' . $row, $c->lead->name . ' ' . ($c->lead->apellido1 ?? ''));
-        $sheet->setCellValue('D' . $row, $deductoraNombres[$c->deductora_id] ?? 'N/A');
+    foreach ($data as $cedula => $info) {
+        $sheet->setCellValue('A' . $row, $cedula);
+        $sheet->setCellValue('B' . $row, $info['cuota1']);
+        $sheet->setCellValue('C' . $row, $info['nombre']);
         $row++;
     }
-}
+    foreach (['A', 'B', 'C'] as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+    $sheet->getStyle('B2:B' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0.00');
 
-foreach (['A', 'B', 'C', 'D'] as $col) {
-    $sheet->getColumnDimension($col)->setAutoSize(true);
-}
-$sheet->getStyle('B2:B' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0.00');
+    $filename = "planilla_{$dedNombre}_mes1_solo_credito1.xlsx";
+    $writer = new Xlsx($spreadsheet);
+    $writer->save(storage_path("app/public/{$filename}"));
+    echo "   ✓ {$filename} (" . count($data) . " registros) - Solo cuota crédito viejo\n";
 
-$writer = new Xlsx($spreadsheet);
-$writer->save(storage_path('app/public/planilla_TODAS.xlsx'));
-echo "   ✓ planilla_TODAS.xlsx (" . ($row - 2) . " registros)\n";
+    // ---- PLANILLA MES 2: Solo crédito 1 (igual al mes 1) ----
+    $filename2 = "planilla_{$dedNombre}_mes2_solo_credito1.xlsx";
+    $writer->save(storage_path("app/public/{$filename2}"));
+    echo "   ✓ {$filename2} (" . count($data) . " registros) - Solo cuota crédito viejo\n";
+
+    // ---- PLANILLA MES 3: Ambos créditos (cuota combinada) ----
+    $spreadsheet3 = new Spreadsheet();
+    $sheet3 = $spreadsheet3->getActiveSheet();
+    $sheet3->setTitle('Planilla Mes 3');
+    $sheet3->setCellValue('A1', 'Cédula');
+    $sheet3->setCellValue('B1', 'Monto');
+    $sheet3->setCellValue('C1', 'Nombre');
+    $sheet3->getStyle('A1:C1')->getFont()->setBold(true);
+    $sheet3->getStyle('A1:C1')->getFill()
+        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+        ->getStartColor()->setRGB('28A745');
+    $sheet3->getStyle('A1:C1')->getFont()->getColor()->setRGB('FFFFFF');
+
+    $row = 2;
+    foreach ($data as $cedula => $info) {
+        $sheet3->setCellValue('A' . $row, $cedula);
+        $sheet3->setCellValue('B' . $row, $info['cuota_total']);
+        $sheet3->setCellValue('C' . $row, $info['nombre']);
+        $row++;
+    }
+    foreach (['A', 'B', 'C'] as $col) $sheet3->getColumnDimension($col)->setAutoSize(true);
+    $sheet3->getStyle('B2:B' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0.00');
+
+    $filename3 = "planilla_{$dedNombre}_mes3_ambos_creditos.xlsx";
+    $writer3 = new Xlsx($spreadsheet3);
+    $writer3->save(storage_path("app/public/{$filename3}"));
+    echo "   ✓ {$filename3} (" . count($data) . " registros) - Cuota combinada ambos créditos\n";
+
+    // ---- PLANILLA MES 4: Ambos + sobrante ₡50,000 ----
+    $spreadsheet4 = new Spreadsheet();
+    $sheet4 = $spreadsheet4->getActiveSheet();
+    $sheet4->setTitle('Planilla Mes 4');
+    $sheet4->setCellValue('A1', 'Cédula');
+    $sheet4->setCellValue('B1', 'Monto');
+    $sheet4->setCellValue('C1', 'Nombre');
+    $sheet4->getStyle('A1:C1')->getFont()->setBold(true);
+    $sheet4->getStyle('A1:C1')->getFill()
+        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+        ->getStartColor()->setRGB('DC3545');
+    $sheet4->getStyle('A1:C1')->getFont()->getColor()->setRGB('FFFFFF');
+
+    $row = 2;
+    foreach ($data as $cedula => $info) {
+        $sheet4->setCellValue('A' . $row, $cedula);
+        $sheet4->setCellValue('B' . $row, round($info['cuota_total'] + 50000, 2));
+        $sheet4->setCellValue('C' . $row, $info['nombre']);
+        $row++;
+    }
+    foreach (['A', 'B', 'C'] as $col) $sheet4->getColumnDimension($col)->setAutoSize(true);
+    $sheet4->getStyle('B2:B' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0.00');
+
+    $filename4 = "planilla_{$dedNombre}_mes4_con_sobrante.xlsx";
+    $writer4 = new Xlsx($spreadsheet4);
+    $writer4->save(storage_path("app/public/{$filename4}"));
+    echo "   ✓ {$filename4} (" . count($data) . " registros) - Ambos + ₡50,000 sobrante\n";
+
+    echo "\n";
+}
 
 echo "\n========================================\n";
 echo "  RESUMEN FINAL\n";
 echo "========================================\n";
 echo "Créditos creados: {$creditosCreados}\n";
 echo "Planes de pago generados: " . PlanDePago::count() . "\n";
-echo "Archivos Excel en: storage/app/public/\n";
+echo "\nPlanillas generadas por deductora:\n";
+echo "  - mes1/mes2: Solo cuota crédito 1 (Dic 2025)\n";
+echo "  - mes3: Cuota combinada ambos créditos\n";
+echo "  - mes4: Ambos + ₡50,000 sobrante por persona\n";
+echo "\nArchivos Excel en: storage/app/public/\n";
 echo "========================================\n";

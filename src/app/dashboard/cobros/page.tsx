@@ -1705,20 +1705,33 @@ export default function CobrosPage() {
                             {saldo.distribuciones && saldo.distribuciones.length > 0 ? (
                               <div className="space-y-2">
                                 {saldo.distribuciones.map((dist: any) => (
-                                  <div key={dist.credit_id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md border text-xs">
-                                    <div className="flex-1 min-w-0">
+                                  <div key={dist.credit_id} className="p-2 bg-gray-50 rounded-md border text-xs">
+                                    <div className="flex items-center justify-between mb-1.5">
                                       <Link href={`/dashboard/creditos/${dist.credit_id}`} className="text-primary hover:underline font-medium">
                                         {dist.reference}
                                       </Link>
-                                      <div className="text-muted-foreground mt-0.5">
-                                        Cuota: ₡{Number(dist.cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                                        {' · '}
-                                        <span className="font-semibold text-blue-700">Hasta {dist.max_cuotas} cuota{dist.max_cuotas !== 1 ? 's' : ''}</span>
-                                        {' · '}
+                                      <span className="text-muted-foreground">
                                         Saldo: ₡{Number(dist.saldo_credito).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                                      </div>
+                                      </span>
                                     </div>
-                                    <div className="flex gap-1 shrink-0">
+                                    <div className="text-muted-foreground mb-1.5">
+                                      Cuota: ₡{Number(dist.cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                      {' · '}
+                                      <span className="font-semibold text-blue-700">
+                                        {dist.max_cuotas > 0
+                                          ? `${dist.max_cuotas} cuota${dist.max_cuotas !== 1 ? 's' : ''} completa${dist.max_cuotas !== 1 ? 's' : ''}`
+                                          : 'Sin cuotas completas'}
+                                      </span>
+                                      {dist.restante > 0 && (
+                                        <>
+                                          {' + '}
+                                          <span className="font-semibold text-amber-600">
+                                            ₡{Number(dist.restante).toLocaleString('de-DE', { minimumFractionDigits: 2 })} parcial
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1726,7 +1739,7 @@ export default function CobrosPage() {
                                         disabled={procesandoSaldo === saldo.id}
                                         onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id)}
                                       >
-                                        {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Cuota'}
+                                        {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar Cuota'}
                                       </Button>
                                       <Button
                                         variant="outline"
@@ -1735,7 +1748,7 @@ export default function CobrosPage() {
                                         disabled={procesandoSaldo === saldo.id}
                                         onClick={() => handleAsignarSaldo(saldo.id, 'capital', dist.credit_id)}
                                       >
-                                        {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Capital'}
+                                        {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar Capital'}
                                       </Button>
                                     </div>
                                   </div>

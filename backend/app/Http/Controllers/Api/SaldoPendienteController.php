@@ -78,12 +78,15 @@ class SaldoPendienteController extends Controller
 
             $distribuciones = $allCredits->map(function ($credit) use ($saldo) {
                 $cuotaAmount = (float) $credit->cuota;
-                $maxCuotas = $cuotaAmount > 0 ? floor((float) $saldo->monto / $cuotaAmount) : 0;
+                $montoSobrante = (float) $saldo->monto;
+                $maxCuotas = $cuotaAmount > 0 ? (int) floor($montoSobrante / $cuotaAmount) : 0;
+                $restante = $cuotaAmount > 0 ? round($montoSobrante - ($maxCuotas * $cuotaAmount), 2) : $montoSobrante;
                 return [
                     'credit_id' => $credit->id,
                     'reference' => $credit->reference ?? $credit->numero_operacion,
                     'cuota' => $cuotaAmount,
-                    'max_cuotas' => (int) $maxCuotas,
+                    'max_cuotas' => $maxCuotas,
+                    'restante' => $restante,
                     'saldo_credito' => (float) $credit->saldo,
                 ];
             })->values()->all();
