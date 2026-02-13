@@ -204,61 +204,44 @@ class CreditPaymentController extends Controller
 
                 if ($allCredits->isNotEmpty()) {
                     $credit = $allCredits->first();
-                    $totalExigibleAll = 0;
-                    $creditosDetalle = [];
+                    $nombre = $credit->lead->name ?? 'N/A';
+
+                    // Simular cascada igual que el upload: distribuir dinero crédito por crédito
+                    $dineroSimulado = $montoPlanilla;
+                    $filasCredito = [];
 
                     foreach ($allCredits as $c) {
                         $cuota = $c->planDePagos->first();
-                        if ($cuota) {
-                            $exigible = $cuota->cuota
-                                      + $cuota->interes_moratorio
-                                      + ($cuota->int_corriente_vencido ?? 0);
-                            $totalExigibleAll += $exigible;
-                            $creditosDetalle[] = [
-                                'referencia' => $c->reference,
-                                'numero_cuota' => $cuota->numero_cuota,
-                                'cuota' => $cuota->cuota,
-                                'interes_mora' => $cuota->interes_moratorio,
-                                'exigible' => $exigible,
-                            ];
+                        if (!$cuota) continue;
+
+                        $exigible = (float) $cuota->cuota
+                                  + (float) $cuota->interes_moratorio
+                                  + (float) ($cuota->int_corriente_vencido ?? 0);
+
+                        $alcanzado = $dineroSimulado > 0.005;
+                        $asignado = 0;
+
+                        if ($alcanzado) {
+                            $asignado = min($dineroSimulado, $exigible);
+                            $dineroSimulado -= $asignado;
                         }
+
+                        $filasCredito[] = [
+                            'credit' => $c,
+                            'cuota' => $cuota,
+                            'exigible' => $exigible,
+                            'asignado' => $asignado,
+                            'alcanzado' => $alcanzado,
+                        ];
                     }
 
-                    if ($totalExigibleAll > 0) {
-                        $diferencia = $montoPlanilla - $totalExigibleAll;
-                        $estado = abs($diferencia) < 1 ? 'Completo' : ($diferencia < 0 ? 'Parcial' : 'Sobrepago');
+                    $sobrante = $dineroSimulado;
+                    $creditosConCuota = array_filter($filasCredito, fn($f) => $f['alcanzado']);
 
-                        if ($estado === 'Completo') $totales['completos']++;
-                        if ($estado === 'Parcial') $totales['parciales']++;
-                        if ($estado === 'Sobrepago') $totales['sobrepagos']++;
-
-                        // Referencia: mostrar primer crédito + cantidad total
-                        $refDisplay = $credit->reference;
-                        if (count($creditosDetalle) > 1) {
-                            $refDisplay .= ' (+' . (count($creditosDetalle) - 1) . ')';
-                        }
-
+                    if (empty($creditosConCuota)) {
                         $preview[] = [
                             'cedula' => $rawCedula,
-                            'nombre' => $credit->lead->name ?? 'N/A',
-                            'credito_referencia' => $refDisplay,
-                            'numero_cuota' => $creditosDetalle[0]['numero_cuota'],
-                            'monto_planilla' => $montoPlanilla,
-                            'cuota_esperada' => round($totalExigibleAll, 2),
-                            'cuota_base' => round(collect($creditosDetalle)->sum('cuota'), 2),
-                            'interes_mora' => round(collect($creditosDetalle)->sum('interes_mora'), 2),
-                            'diferencia' => round($diferencia, 2),
-                            'estado' => $estado,
-                            'creditos_count' => count($creditosDetalle),
-                            'creditos_detalle' => $creditosDetalle,
-                        ];
-
-                        $totales['monto_total_planilla'] += $montoPlanilla;
-                        $totales['monto_total_esperado'] += $totalExigibleAll;
-                    } else {
-                        $preview[] = [
-                            'cedula' => $rawCedula,
-                            'nombre' => $credit->lead->name ?? 'N/A',
+                            'nombre' => $nombre,
                             'credito_referencia' => $credit->reference,
                             'numero_cuota' => null,
                             'monto_planilla' => $montoPlanilla,
@@ -267,12 +250,64 @@ class CreditPaymentController extends Controller
                             'interes_mora' => 0,
                             'diferencia' => 0,
                             'estado' => 'Sin cuotas pendientes',
-                            'creditos_count' => 0,
-                            'creditos_detalle' => [],
                         ];
-                    }
+                    } else {
+                        // Cada crédito alcanzado = una fila separada en el preview
+                        $esPrimero = true;
+                        foreach ($filasCredito as $fila) {
+                            if (!$fila['alcanzado']) continue;
 
-                    $totales['total_registros']++;
+                            $exigible = $fila['exigible'];
+                            $asignado = $fila['asignado'];
+                            $diferencia = $asignado - $exigible;
+
+                            if (abs($diferencia) < 1) {
+                                $estado = 'Completo';
+                            } elseif ($diferencia < 0) {
+                                $estado = 'Parcial';
+                            } else {
+                                $estado = 'Completo';
+                            }
+
+                            // Sobrepago solo en el último crédito si queda excedente
+                            if ($esPrimero) {
+                                $totales['total_registros']++;
+                                $totales['monto_total_planilla'] += $montoPlanilla;
+                            }
+
+                            if ($estado === 'Completo') $totales['completos']++;
+                            if ($estado === 'Parcial') $totales['parciales']++;
+
+                            $totales['monto_total_esperado'] += $exigible;
+
+                            $preview[] = [
+                                'cedula' => $rawCedula,
+                                'nombre' => $nombre,
+                                'credito_referencia' => $fila['credit']->reference,
+                                'numero_cuota' => $fila['cuota']->numero_cuota,
+                                'monto_planilla' => $esPrimero ? $montoPlanilla : null,
+                                'cuota_esperada' => round($exigible, 2),
+                                'cuota_base' => round((float) $fila['cuota']->cuota, 2),
+                                'interes_mora' => round((float) $fila['cuota']->interes_moratorio, 2),
+                                'diferencia' => round($diferencia, 2),
+                                'estado' => $estado,
+                                'es_cascada' => !$esPrimero,
+                            ];
+
+                            $esPrimero = false;
+                        }
+
+                        // Si queda sobrante después de todos los créditos
+                        if ($sobrante > 0.50) {
+                            $totales['sobrepagos']++;
+                            // Marcar el último crédito como sobrepago
+                            $lastIdx = count($preview) - 1;
+                            $preview[$lastIdx]['estado'] = 'Sobrepago';
+                            $preview[$lastIdx]['diferencia'] = round($sobrante, 2);
+                            // Descontar del completo que se contó
+                            $totales['completos']--;
+                        }
+                    }
                 } else {
                     $preview[] = [
                         'cedula' => $rawCedula,
@@ -1010,15 +1045,16 @@ class CreditPaymentController extends Controller
         $credit->saldo = max(0.0, $credit->saldo - $capitalAmortizadoHoy);
         $credit->save();
 
-        // Recibo
+        // Recibo: monto = lo realmente consumido por este crédito (no el monto total de entrada)
+        $montoConsumido = $montoEntrante - max(0, $dineroDisponible);
         $paymentRecord = CreditPayment::create([
             'credit_id'      => $credit->id,
             'planilla_upload_id' => $planillaUploadId,
             'numero_cuota'   => $primerCuotaAfectada ? $primerCuotaAfectada->numero_cuota : 0,
             'fecha_cuota'    => $primerCuotaAfectada ? $primerCuotaAfectada->fecha_corte : null,
             'fecha_pago'     => $fecha,
-            'monto'          => $montoEntrante,
-            'cuota'          => $saldoAnteriorSnapshot,
+            'monto'          => $montoConsumido,
+            'cuota'          => $primerCuotaAfectada ? (float) $primerCuotaAfectada->cuota : 0,
             'saldo_anterior' => $saldoCreditoAntes,
             'nuevo_saldo'    => $credit->saldo,
             'estado'         => 'Aplicado',
@@ -1422,6 +1458,7 @@ class CreditPaymentController extends Controller
             $payment = CreditPayment::create([
                 'credit_id'      => $credit->id,
                 'numero_cuota'   => 0,
+                'fecha_cuota'    => $validated['fecha'],
                 'fecha_pago'     => $validated['fecha'],
                 'monto'          => $montoTotalCancelar,
                 'cuota'          => 0,

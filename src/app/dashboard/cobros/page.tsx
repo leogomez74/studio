@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, Undo2 } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/components/auth-guard';
 import {
   Card,
@@ -267,10 +268,18 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
           {canReverse && !isAnulado && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onReverse?.(payment)}>
-              <Undo2 className="h-4 w-4" />
-              <span className="sr-only">Revertir</span>
-            </Button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => onReverse?.(payment)}>
+                    <RotateCcw className="h-3.5 w-3.5 text-white" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>Revertir abono</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           <Link href={`/dashboard/cobros/recibo/${payment.id}`}>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -365,6 +374,7 @@ export default function CobrosPage() {
   const [pendingSaldoId, setPendingSaldoId] = useState<number | null>(null);
   const [pendingAccion, setPendingAccion] = useState<'cuota' | 'capital' | null>(null);
   const [pendingCreditId, setPendingCreditId] = useState<number | null>(null);
+  const [pendingMonto, setPendingMonto] = useState<number | null>(null);
 
   // Historial de Planillas
   const [planillas, setPlanillas] = useState<any[]>([]);
@@ -844,7 +854,7 @@ export default function CobrosPage() {
     doc.save(`historial_abonos_${Date.now()}.pdf`);
   };
 
-  const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital', creditId?: number) => {
+  const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital', creditId?: number, monto?: number) => {
     // Verificar permiso de administrador
     if (user?.role?.name !== 'Administrador' && !user?.role?.full_access) {
       toast({
@@ -859,11 +869,13 @@ export default function CobrosPage() {
     try {
       const body: any = { accion };
       if (creditId) body.credit_id = creditId;
+      if (monto) body.monto = monto;
       const res = await api.post(`/api/saldos-pendientes/${saldoId}/preview`, body);
       setPreviewSaldoData(res.data);
       setPendingSaldoId(saldoId);
       setPendingAccion(accion);
       setPendingCreditId(creditId || null);
+      setPendingMonto(monto || null);
       setConfirmDialogOpen(true);
     } catch (err: any) {
       toast({
@@ -881,6 +893,7 @@ export default function CobrosPage() {
     try {
       const body: any = { accion: pendingAccion };
       if (pendingCreditId) body.credit_id = pendingCreditId;
+      if (pendingMonto) body.monto = pendingMonto;
       const res = await api.post(`/api/saldos-pendientes/${pendingSaldoId}/asignar`, body);
       toast({
         title: 'Éxito',
@@ -901,6 +914,7 @@ export default function CobrosPage() {
       setPendingSaldoId(null);
       setPendingAccion(null);
       setPendingCreditId(null);
+      setPendingMonto(null);
     }
   };
 
@@ -1184,12 +1198,19 @@ export default function CobrosPage() {
                                   </thead>
                                   <tbody>
                                     {previewData.preview.map((item: any, idx: number) => (
-                                      <tr key={idx} className="border-t hover:bg-gray-50">
-                                        <td className="px-2 py-2">{item.cedula}</td>
-                                        <td className="px-2 py-2">{item.nombre}</td>
-                                        <td className="px-2 py-2">{item.credito_referencia || '-'}</td>
+                                      <tr key={idx} className={`border-t hover:bg-gray-50 ${item.es_cascada ? 'bg-blue-50/50' : ''}`}>
+                                        <td className="px-2 py-2">{item.es_cascada ? '' : item.cedula}</td>
+                                        <td className="px-2 py-2">{item.es_cascada ? '' : item.nombre}</td>
+                                        <td className="px-2 py-2">
+                                          {item.es_cascada && <span className="text-blue-500 mr-1">&#8627;</span>}
+                                          {item.credito_referencia || '-'}
+                                        </td>
                                         <td className="px-2 py-2 text-center">{item.numero_cuota || '-'}</td>
-                                        <td className="px-2 py-2 text-right">₡{item.monto_planilla.toLocaleString('es-CR', {minimumFractionDigits: 2})}</td>
+                                        <td className="px-2 py-2 text-right">
+                                          {item.monto_planilla != null
+                                            ? `₡${item.monto_planilla.toLocaleString('es-CR', {minimumFractionDigits: 2})}`
+                                            : ''}
+                                        </td>
                                         <td className="px-2 py-2 text-right">₡{item.cuota_esperada.toLocaleString('es-CR', {minimumFractionDigits: 2})}</td>
                                         <td className={`px-2 py-2 text-right font-semibold ${item.diferencia < 0 ? 'text-red-600' : item.diferencia > 1 ? 'text-blue-600' : 'text-gray-600'}`}>
                                           ₡{item.diferencia.toLocaleString('es-CR', {minimumFractionDigits: 2})}
@@ -1198,6 +1219,7 @@ export default function CobrosPage() {
                                           <span className={`inline-block px-2 py-1 rounded text-xs ${
                                             item.estado === 'Completo' ? 'bg-green-100 text-green-800' :
                                             item.estado === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                                            item.estado === 'Sobrepago' ? 'bg-blue-100 text-blue-800' :
                                             item.estado === 'No encontrado' ? 'bg-red-100 text-red-800' :
                                             'bg-gray-100 text-gray-800'
                                           }`}>
@@ -1799,37 +1821,47 @@ export default function CobrosPage() {
                                         Saldo: ₡{Number(dist.saldo_credito).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                                       </span>
                                     </div>
-                                    <div className="text-muted-foreground mb-1.5">
+                                    <div className="text-muted-foreground mb-1">
                                       Cuota: ₡{Number(dist.cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                                      {' · '}
-                                      <span className="font-semibold text-blue-700">
-                                        {dist.max_cuotas > 0
-                                          ? `${dist.max_cuotas} cuota${dist.max_cuotas !== 1 ? 's' : ''} completa${dist.max_cuotas !== 1 ? 's' : ''}`
-                                          : 'Sin cuotas completas'}
-                                      </span>
-                                      {dist.restante > 0 && (
+                                      {dist.max_cuotas > 0 && (
                                         <>
-                                          {' + '}
-                                          <span className="font-semibold text-amber-600">
-                                            ₡{Number(dist.restante).toLocaleString('de-DE', { minimumFractionDigits: 2 })} parcial
+                                          {' · '}
+                                          <span className="text-blue-700">
+                                            Alcanza {dist.max_cuotas} cuota{dist.max_cuotas !== 1 ? 's' : ''}
                                           </span>
                                         </>
                                       )}
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex flex-wrap gap-1">
+                                      {/* Botones individuales por cuota completa */}
+                                      {Array.from({ length: Math.min(dist.max_cuotas, 5) }, (_, i) => (
+                                        <Button
+                                          key={i}
+                                          variant="outline"
+                                          size="sm"
+                                          className="text-xs h-7 px-2"
+                                          disabled={procesandoSaldo === saldo.id}
+                                          onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, dist.cuota)}
+                                        >
+                                          {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Cuota ${i + 1}`}
+                                        </Button>
+                                      ))}
+                                      {/* Botón parcial: un solo botón con la lógica correcta */}
+                                      {((dist.restante > 1 && dist.restante < dist.cuota) || (dist.max_cuotas === 0 && saldo.monto > 1)) && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="text-xs h-7 px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                                          disabled={procesandoSaldo === saldo.id}
+                                          onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto)}
+                                        >
+                                          {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Parcial ₡${Number(dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                                        </Button>
+                                      )}
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="text-xs h-7 px-2"
-                                        disabled={procesandoSaldo === saldo.id}
-                                        onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id)}
-                                      >
-                                        {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar Cuota'}
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-xs h-7 px-2"
+                                        className="text-xs h-7 px-2 border-amber-300 text-amber-700 hover:bg-amber-50"
                                         disabled={procesandoSaldo === saldo.id}
                                         onClick={() => handleAsignarSaldo(saldo.id, 'capital', dist.credit_id)}
                                       >
@@ -2129,17 +2161,34 @@ export default function CobrosPage() {
 
           {previewSaldoData && (
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Monto disponible</p>
-                <p className="text-lg font-bold">
-                  {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                    .format(previewSaldoData.monto_disponible)}
-                </p>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Saldo disponible</p>
+                  <p className="text-lg font-bold">
+                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                      .format(previewSaldoData.monto_disponible)}
+                  </p>
+                </div>
+                {previewSaldoData.monto_a_aplicar && previewSaldoData.monto_a_aplicar !== previewSaldoData.monto_disponible && (
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground">Monto a aplicar</p>
+                    <p className="text-lg font-bold text-blue-600">
+                      {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                        .format(previewSaldoData.monto_a_aplicar)}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <p className="text-sm text-muted-foreground">Destino</p>
-                <p className="font-semibold">{previewSaldoData.destino}</p>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Crédito</p>
+                  <p className="font-medium text-sm">{previewSaldoData.credit?.reference || previewSaldoData.credit?.numero_operacion || '-'}</p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Destino</p>
+                  <p className="font-semibold">{previewSaldoData.destino}</p>
+                </div>
               </div>
 
               {previewSaldoData.distribucion && (
@@ -2161,6 +2210,15 @@ export default function CobrosPage() {
                         <span className="font-mono">
                           {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
                             .format(previewSaldoData.distribucion.interes_corriente)}
+                        </span>
+                      </div>
+                    )}
+                    {previewSaldoData.distribucion.poliza > 0 && (
+                      <div className="flex justify-between">
+                        <span>Póliza:</span>
+                        <span className="font-mono">
+                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
+                            .format(previewSaldoData.distribucion.poliza)}
                         </span>
                       </div>
                     )}
@@ -2192,10 +2250,17 @@ export default function CobrosPage() {
                 </div>
               </div>
 
+              {previewSaldoData.restante_saldo > 0.50 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                  <p className="text-sm text-amber-800">
+                    Saldo restante después de aplicar: <strong>₡{Number(previewSaldoData.restante_saldo).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                  </p>
+                </div>
+              )}
               {previewSaldoData.excedente > 0.50 && (
                 <Alert>
                   <AlertDescription>
-                    Excedente de ₡{previewSaldoData.excedente.toFixed(2)} quedará pendiente
+                    Excedente de ₡{previewSaldoData.excedente.toFixed(2)} no se puede aplicar a esta cuota
                   </AlertDescription>
                 </Alert>
               )}

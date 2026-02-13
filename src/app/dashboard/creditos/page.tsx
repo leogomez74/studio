@@ -466,7 +466,15 @@ export default function CreditsPage() {
     try {
       const response = await api.get('/api/clients');
       const data = response.data.data || response.data;
-      setClients(data.map((c: any) => ({ id: c.id, name: c.name, email: c.email, cedula: c.cedula, deductora_id: c.deductora_id })));
+      setClients(data.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        apellido1: c.apellido1,
+        apellido2: c.apellido2,
+        email: c.email,
+        cedula: c.cedula,
+        deductora_id: c.deductora_id
+      })));
     } catch (error) {
       console.error("Error fetching clients:", error);
     }
@@ -524,7 +532,8 @@ export default function CreditsPage() {
       return {
         ...credit,
         client: matchedClient || credit.client,
-        lead: matchedClient || credit.lead
+        // No sobrescribir lead si ya existe con datos completos del API
+        lead: credit.lead || matchedClient
       };
     }));
   }, [clients]);
@@ -654,6 +663,7 @@ export default function CreditsPage() {
         divisa: values.divisa,
         plazo: values.plazo,
         poliza: values.poliza,
+        deductora_id: selectedClient?.deductora_id || null,
       };
 
       if (dialogState === "create") {
@@ -685,14 +695,19 @@ export default function CreditsPage() {
     };
 
     const headers = [
-      "Referencia", "Título", "Estado", "Categoría", "Cliente", "Monto", "Saldo", "Cuota", "Divisa"
+      "Referencia", "Título", "Estado", "Categoría", "Cliente", "Cédula", "Monto", "Saldo", "Cuota", "Divisa"
     ];
+    const person = credit.client || credit.lead;
+    const nombreCompleto = person
+      ? `${person.name || ''} ${person.apellido1 || ''} ${person.apellido2 || ''}`.trim()
+      : '';
     const row = [
       escapeCSV(credit.reference),
       escapeCSV(credit.title),
       escapeCSV(credit.status),
       escapeCSV(credit.category),
-      escapeCSV(credit.client?.name || credit.lead?.name || ""),
+      escapeCSV(nombreCompleto),
+      escapeCSV(credit.lead?.cedula || ''),
       escapeCSV(credit.monto_credito),
       escapeCSV(credit.saldo),
       escapeCSV(credit.cuota),
@@ -1194,9 +1209,10 @@ export default function CreditsPage() {
                   <Table className="min-w-[1800px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-right sticky left-0 bg-background z-10">Acciones</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Nombre</TableHead>
+                        <TableHead className="text-right sticky left-0 bg-background z-10 w-[180px]">Acciones</TableHead>
+                        <TableHead className="w-[130px]">Estado</TableHead>
+                        <TableHead className="min-w-[200px]">Nombre</TableHead>
+                        <TableHead className="w-[120px]">Cédula</TableHead>
                         <TableHead>No. Operación</TableHead>
                         <TableHead>Divisa</TableHead>
                         <TableHead>Monto</TableHead>
@@ -1215,6 +1231,20 @@ export default function CreditsPage() {
                     </TableHeader>
                     <TableBody>
                       {paginationData.items.map((credit) => {
+                        // --- LÓGICA CALCULADA EN FRONTEND ---
+                        // Helper: Nombre completo
+                        const getFullName = () => {
+                          const person = credit.client || credit.lead;
+                          if (!person) return '-';
+                          const parts = [
+                            person.name,
+                            person.apellido1,
+                            person.apellido2
+                          ].filter(Boolean);
+                          return parts.length > 0 ? parts.join(' ') : '-';
+                        };
+                        const nombreCompleto = getFullName();
+
                         // --- LÓGICA CALCULADA EN FRONTEND ---
                         const pagosOrdenados = credit.plan_de_pagos?.length
                           ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
@@ -1240,8 +1270,8 @@ export default function CreditsPage() {
 
                         return (
                           <TableRow key={credit.id}>
-                            <TableCell className="text-right sticky left-0 bg-background z-10">
-                              <div className="flex items-center gap-2">
+                            <TableCell className="text-right sticky left-0 bg-background z-10 w-[180px]">
+                              <div className="flex items-center gap-1">
                                 <Button
                                   variant="outline"
                                   size="icon"
@@ -1253,12 +1283,18 @@ export default function CreditsPage() {
                                     <Eye className="h-4 w-4" />
                                   </Link>
                                 </Button>
-                                {['Formalizado', 'En Mora'].includes(credit.status || '') ? (
+                                {['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') ? (
                                   <Button
                                     variant="outline"
                                     size="icon"
                                     disabled
-                                    title={credit.status === 'En Mora' ? "No se puede editar un crédito en mora" : "No se puede editar un crédito formalizado"}
+                                    title={
+                                      credit.status === 'En Mora'
+                                        ? "No se puede editar un crédito en mora"
+                                        : credit.status === 'Cerrado'
+                                        ? "No se puede editar un crédito cerrado"
+                                        : "No se puede editar un crédito formalizado"
+                                    }
                                     className="border-gray-300 text-gray-400 cursor-not-allowed"
                                   >
                                     <Pencil className="h-4 w-4" />
@@ -1277,7 +1313,7 @@ export default function CreditsPage() {
                                   </Button>
                                 )}
 
-                                {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
+                                {!['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') && (
                                   <Button
                                     variant="outline"
                                     size="icon"
@@ -1324,7 +1360,7 @@ export default function CreditsPage() {
                                 </DropdownMenu>
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-[130px]">
                               {(() => {
                                 const badgeStyle = getStatusBadgeStyle(credit.status);
                                 return (
@@ -1334,7 +1370,8 @@ export default function CreditsPage() {
                                 );
                               })()}
                             </TableCell>
-                            <TableCell>{credit.client?.name || credit.lead?.name}</TableCell>
+                            <TableCell className="text-sm capitalize min-w-[200px]">{nombreCompleto.toLowerCase()}</TableCell>
+                            <TableCell className="w-[120px]">{credit.lead?.cedula || '-'}</TableCell>
                             <TableCell className="font-medium">
                               <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
                                 {credit.numero_operacion || credit.reference || "-"}
@@ -1356,7 +1393,7 @@ export default function CreditsPage() {
 
                             <TableCell>{calculateCuotasAtrasadas(credit)}</TableCell>
                             <TableCell>
-                              {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "-"}
+                              {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
                             </TableCell>
                           </TableRow>
                         );
