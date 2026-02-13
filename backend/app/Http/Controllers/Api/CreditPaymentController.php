@@ -691,8 +691,9 @@ class CreditPaymentController extends Controller
                 $penalizacion = round($penalizacion, 2);
             }
 
-            // Monto total a aplicar = monto del abono + penalización
-            $montoTotalAplicar = $montoAbono + $penalizacion;
+            // La penalización se RESTA del monto que se abona, no se suma
+            // El cliente paga $montoAbono, pero solo ($montoAbono - $penalizacion) se aplica al saldo
+            $montoAplicarAlSaldo = max(0, $montoAbono - $penalizacion);
 
             // Snapshot para reverso: capturar estado ANTES de modificar
             $planSnapshot = $credit->planDePagos()
@@ -711,16 +712,17 @@ class CreditPaymentController extends Controller
                 'monto_abono' => $montoAbono,
                 'penalizacion' => $penalizacion,
                 'intereses_penalizacion' => $interesesPenalizacion,
+                'monto_aplicado_al_saldo' => $montoAplicarAlSaldo,
             ];
 
             // 2. Aplicar directo al Saldo (Capital Vivo)
             $saldoActual = (float) $credit->saldo;
 
-            if ($montoTotalAplicar >= $saldoActual) {
-                $montoTotalAplicar = $saldoActual;
+            if ($montoAplicarAlSaldo >= $saldoActual) {
+                $montoAplicarAlSaldo = $saldoActual;
                 $nuevoCapitalBase = 0;
             } else {
-                $nuevoCapitalBase = round($saldoActual - $montoTotalAplicar, 2);
+                $nuevoCapitalBase = round($saldoActual - $montoAplicarAlSaldo, 2);
             }
 
             $credit->saldo = $nuevoCapitalBase;
@@ -728,21 +730,21 @@ class CreditPaymentController extends Controller
 
             // Recibo de abono a capital (incluye penalización si aplica)
             $estadoTexto = $penalizacion > 0
-                ? 'Abono Extraordinario (Penalización: ₡' . number_format($penalizacion, 2) . ')'
+                ? 'Abono Extraordinario (Penalización: ₡' . number_format($penalizacion, 2) . ' - Aplicado: ₡' . number_format($montoAplicarAlSaldo, 2) . ')'
                 : 'Abono Extraordinario';
 
             $paymentRecord = CreditPayment::create([
                 'credit_id'      => $credit->id,
                 'numero_cuota'   => 0,
                 'fecha_pago'     => $fechaPago,
-                'monto'          => $montoTotalAplicar,
+                'monto'          => $montoAbono, // Monto que pagó el cliente
                 'saldo_anterior' => $saldoActual,
                 'nuevo_saldo'    => $nuevoCapitalBase,
                 'estado'         => $estadoTexto,
-                'amortizacion'   => $montoTotalAplicar,
+                'amortizacion'   => $montoAplicarAlSaldo, // Lo que realmente se aplicó al saldo
                 'source'         => 'Extraordinario',
-                'movimiento_total' => $montoTotalAplicar,
-                'interes_corriente' => 0,
+                'movimiento_total' => $montoAbono,
+                'interes_corriente' => $penalizacion, // Registrar la penalización como "interés"
                 'cedula'         => $credit->lead->cedula ?? null,
                 'reversal_snapshot' => $reversalSnapshot,
                 'estado_reverso' => 'Vigente'
@@ -1628,10 +1630,11 @@ class CreditPaymentController extends Controller
             $penalizacion = round($penalizacion, 2);
         }
 
-        $montoTotalAplicar = $montoAbono + $penalizacion;
+        // La penalización se RESTA del monto que se abona, no se suma
+        $montoAplicarAlSaldo = max(0, $montoAbono - $penalizacion);
 
         // Calcular nuevo saldo después de aplicar el abono
-        $nuevoSaldo = max(0, $saldoActual - $montoTotalAplicar);
+        $nuevoSaldo = max(0, $saldoActual - $montoAplicarAlSaldo);
 
         // Buscar la primera cuota pendiente para calcular cuántas faltan
         $siguienteCuota = $credit->planDePagos()
@@ -1740,7 +1743,7 @@ class CreditPaymentController extends Controller
             'cuotas_penalizacion' => $cuotasPenalizacion,
             'intereses_penalizacion' => $interesesPenalizacion,
             'monto_penalizacion' => $penalizacion,
-            'monto_total_aplicar' => $montoTotalAplicar,
+            'monto_aplicar_al_saldo' => $montoAplicarAlSaldo,
             'saldo_actual' => $saldoActual,
             'nuevo_saldo' => $nuevoSaldo,
             'cuota_actual_valor' => $cuotaActual,

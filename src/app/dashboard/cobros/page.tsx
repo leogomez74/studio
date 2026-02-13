@@ -1509,12 +1509,12 @@ export default function CobrosPage() {
                                     {/* Resumen del impacto */}
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                       <div className="p-2 bg-background border rounded">
-                                        <div className="text-muted-foreground text-xs">Monto abono</div>
+                                        <div className="text-muted-foreground text-xs">Monto pagado</div>
                                         <div className="font-bold">₡{Number(extraordinaryPreview.monto_abono).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
                                       </div>
                                       <div className="p-2 bg-background border rounded">
-                                        <div className="text-muted-foreground text-xs">Total a aplicar</div>
-                                        <div className="font-bold text-orange-600">₡{Number(extraordinaryPreview.monto_total_aplicar).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-muted-foreground text-xs">Aplicado al saldo</div>
+                                        <div className="font-bold text-green-600">₡{Number(extraordinaryPreview.monto_aplicar_al_saldo).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
                                       </div>
                                     </div>
 
