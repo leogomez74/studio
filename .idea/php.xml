@@ -134,6 +134,13 @@
       <path value="$PROJECT_DIR$/backend/vendor/maennchen/zipstream-php" />
       <path value="$PROJECT_DIR$/backend/vendor/phpoffice/phpspreadsheet" />
       <path value="$PROJECT_DIR$/backend/vendor/laravel/sanctum" />
+      <path value="$PROJECT_DIR$/backend/vendor/masterminds/html5" />
+      <path value="$PROJECT_DIR$/backend/vendor/sabberworm/php-css-parser" />
+      <path value="$PROJECT_DIR$/backend/vendor/dompdf/dompdf" />
+      <path value="$PROJECT_DIR$/backend/vendor/dompdf/php-font-lib" />
+      <path value="$PROJECT_DIR$/backend/vendor/dompdf/php-svg-lib" />
+      <path value="$PROJECT_DIR$/backend/vendor/barryvdh/laravel-dompdf" />
+      <path value="$PROJECT_DIR$/backend/vendor/thecodingmachine/safe" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.2" />
