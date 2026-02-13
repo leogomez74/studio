@@ -1005,6 +1005,48 @@ export default function CobrosPage() {
     }
   };
 
+  const handleReintegrarSaldo = async (saldoId: number) => {
+    // Verificar permiso de administrador
+    if (user?.role?.name !== 'Administrador' && !user?.role?.full_access) {
+      toast({
+        title: 'Acceso denegado',
+        description: 'Solo administradores pueden reintegrar saldos',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Confirmar acción
+    const confirmar = window.confirm(
+      '¿Está seguro que desea reintegrar este saldo?\n\nEsto marcará el saldo como procesado sin aplicarlo a ningún crédito. Esta acción no se puede deshacer.'
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoSaldo(saldoId);
+    try {
+      const res = await api.post(`/api/saldos-pendientes/${saldoId}/reintegrar`, {
+        motivo: 'Reintegrado desde interfaz de usuario'
+      });
+      toast({
+        title: 'Éxito',
+        description: res.data.message,
+      });
+      await fetchSaldosPendientes();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Error al reintegrar saldo',
+        variant: 'destructive',
+      });
+      if (err.response?.data?.reload) {
+        await fetchSaldosPendientes();
+      }
+    } finally {
+      setProcesandoSaldo(null);
+    }
+  };
+
   const handleAnularPlanilla = async () => {
     if (!planillaToAnular || !motivoAnulacion.trim()) {
       toast({
@@ -1961,26 +2003,49 @@ export default function CobrosPage() {
                                     </div>
                                   </div>
                                 ))}
+                                {/* Botón de Reintegro - aplicable a todo el saldo */}
+                                <div className="mt-2 pt-2 border-t">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs h-7 px-2 w-full border-red-300 text-red-700 hover:bg-red-50"
+                                    disabled={procesandoSaldo === saldo.id}
+                                    onClick={() => handleReintegrarSaldo(saldo.id)}
+                                  >
+                                    {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reintegro de Saldo'}
+                                  </Button>
+                                </div>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs"
+                                    disabled={procesandoSaldo === saldo.id}
+                                    onClick={() => handleAsignarSaldo(saldo.id, 'cuota')}
+                                  >
+                                    {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Cuota'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs"
+                                    disabled={procesandoSaldo === saldo.id}
+                                    onClick={() => handleAsignarSaldo(saldo.id, 'capital')}
+                                  >
+                                    {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Capital'}
+                                  </Button>
+                                </div>
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="text-xs"
+                                  className="text-xs w-full border-red-300 text-red-700 hover:bg-red-50"
                                   disabled={procesandoSaldo === saldo.id}
-                                  onClick={() => handleAsignarSaldo(saldo.id, 'cuota')}
+                                  onClick={() => handleReintegrarSaldo(saldo.id)}
                                 >
-                                  {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Cuota'}
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-xs"
-                                  disabled={procesandoSaldo === saldo.id}
-                                  onClick={() => handleAsignarSaldo(saldo.id, 'capital')}
-                                >
-                                  {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Capital'}
+                                  {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reintegro de Saldo'}
                                 </Button>
                               </div>
                             )}

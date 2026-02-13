@@ -500,4 +500,46 @@ class SaldoPendienteController extends Controller
             }
         });
     }
+
+    /**
+     * Reintegrar un saldo pendiente (marcarlo como procesado sin aplicarlo)
+     */
+    public function reintegrar(Request $request, int $id)
+    {
+        // Solo administradores pueden reintegrar saldos
+        $user = $request->user();
+        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
+            return response()->json(['message' => 'Solo administradores pueden reintegrar saldos'], 403);
+        }
+
+        $validated = $request->validate([
+            'motivo' => 'nullable|string|max:500',
+        ]);
+
+        $saldo = SaldoPendiente::where('estado', 'pendiente')->find($id);
+        if (!$saldo) {
+            return response()->json([
+                'message' => 'Este saldo ya no está disponible. Puede haber sido aplicado o eliminado.',
+                'reload' => true
+            ], 404);
+        }
+
+        return DB::transaction(function () use ($saldo, $validated, $user) {
+            $monto = (float) $saldo->monto;
+            $credit = $saldo->credit;
+
+            // Marcar como reintegrado
+            $saldo->estado = 'reintegrado';
+            $saldo->asignado_at = now();
+            $saldo->notas = $validated['motivo'] ?? 'Saldo reintegrado - No aplicado a crédito';
+            $saldo->save();
+
+            return response()->json([
+                'message' => sprintf('Saldo de ₡%s reintegrado exitosamente', number_format($monto, 2)),
+                'saldo' => $saldo->fresh(),
+                'monto_reintegrado' => $monto,
+                'credit_reference' => $credit->reference ?? $credit->numero_operacion,
+            ]);
+        });
+    }
 }

@@ -278,6 +278,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('saldos-pendientes', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'index']);
     Route::post('saldos-pendientes/{id}/preview', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'previewAsignacion']);
     Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar']);
+    Route::post('saldos-pendientes/{id}/reintegrar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'reintegrar']);
 
     // Historial de Planillas
     Route::get('planilla-uploads', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'index']);
