@@ -112,8 +112,7 @@ import { CaseChat } from '@/components/case-chat';
 import { DocumentManager } from '@/components/document-manager';
 import { CreditDocumentManager } from '@/components/credit-document-manager';
 import { RefundicionModal } from '@/components/RefundicionModal';
-import { useAuth } from '@/components/auth-guard';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { SaldosPorAsignar } from '@/components/saldos-por-asignar';
 
 // --- Interfaces ---
 
@@ -793,11 +792,13 @@ function CreditDetailClient({ id }: { id: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const [credit, setCredit] = useState<CreditItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPanelVisible, setIsPanelVisible] = useState(false);
+
+  // Saldos count para badge
+  const [saldosCount, setSaldosCount] = useState(0);
 
   // Refundición State
   const [refundicionOpen, setRefundicionOpen] = useState(false);
@@ -835,18 +836,6 @@ function CreditDetailClient({ id }: { id: string }) {
   const [isLoadingDeductoras, setIsLoadingDeductoras] = useState(true);
   // Tasks (for Responsable fallback)
   const [creditTasks, setCreditTasks] = useState<TaskItem[]>([]);
-
-  // Saldos por Asignar state
-  const [saldosPendientes, setSaldosPendientes] = useState<any[]>([]);
-  const [loadingSaldos, setLoadingSaldos] = useState(false);
-  const [procesandoSaldo, setProcesandoSaldo] = useState<number | null>(null);
-  const [saldosTotal, setSaldosTotal] = useState(0);
-  const [previewSaldoData, setPreviewSaldoData] = useState<any>(null);
-  const [confirmSaldoDialogOpen, setConfirmSaldoDialogOpen] = useState(false);
-  const [pendingSaldoId, setPendingSaldoId] = useState<number | null>(null);
-  const [pendingAccion, setPendingAccion] = useState<'cuota' | 'capital' | null>(null);
-  const [pendingCreditId, setPendingCreditId] = useState<number | null>(null);
-  const [pendingMonto, setPendingMonto] = useState<number | null>(null);
 
   // Active Tab (controlled by query parameter)
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -1082,72 +1071,7 @@ function CreditDetailClient({ id }: { id: string }) {
     }
   }, [searchParams]);
 
-  // --- Saldos por Asignar ---
-  const fetchSaldosPendientes = useCallback(async () => {
-    if (!credit?.lead?.cedula) return;
-    setLoadingSaldos(true);
-    try {
-      const res = await api.get('/api/saldos-pendientes', {
-        params: { cedula: credit.lead.cedula, per_page: 50 },
-      });
-      setSaldosPendientes(res.data.data || []);
-      setSaldosTotal(res.data.total || 0);
-    } catch (err) {
-      console.error('Error fetching saldos pendientes:', err);
-    } finally {
-      setLoadingSaldos(false);
-    }
-  }, [credit?.lead?.cedula]);
 
-  useEffect(() => {
-    if (credit?.lead?.cedula) {
-      fetchSaldosPendientes();
-    }
-  }, [credit?.lead?.cedula, fetchSaldosPendientes]);
-
-  const handleAsignarSaldo = async (saldoId: number, accion: 'cuota' | 'capital', creditId?: number, monto?: number) => {
-    if (user?.role?.name !== 'Administrador' && !user?.role?.full_access) {
-      toast({ title: 'Acceso denegado', description: 'Solo administradores pueden aplicar saldos', variant: 'destructive' });
-      return;
-    }
-    try {
-      const body: any = { accion };
-      if (creditId) body.credit_id = creditId;
-      if (monto) body.monto = monto;
-      const res = await api.post(`/api/saldos-pendientes/${saldoId}/preview`, body);
-      setPreviewSaldoData(res.data);
-      setPendingSaldoId(saldoId);
-      setPendingAccion(accion);
-      setPendingCreditId(creditId || null);
-      setPendingMonto(monto || null);
-      setConfirmSaldoDialogOpen(true);
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.response?.data?.message || 'Error al obtener preview', variant: 'destructive' });
-    }
-  };
-
-  const confirmarAsignacionSaldo = async () => {
-    if (!pendingSaldoId || !pendingAccion) return;
-    setProcesandoSaldo(pendingSaldoId);
-    try {
-      const body: any = { accion: pendingAccion };
-      if (pendingCreditId) body.credit_id = pendingCreditId;
-      if (pendingMonto) body.monto = pendingMonto;
-      const res = await api.post(`/api/saldos-pendientes/${pendingSaldoId}/asignar`, body);
-      toast({ title: 'Éxito', description: res.data.message });
-      setConfirmSaldoDialogOpen(false);
-      setPreviewSaldoData(null);
-      await Promise.all([fetchSaldosPendientes(), fetchCredit()]);
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.response?.data?.message || 'Error al asignar saldo', variant: 'destructive' });
-    } finally {
-      setProcesandoSaldo(null);
-      setPendingSaldoId(null);
-      setPendingAccion(null);
-      setPendingCreditId(null);
-      setPendingMonto(null);
-    }
-  };
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -1933,12 +1857,12 @@ function CreditDetailClient({ id }: { id: string }) {
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="credito">Crédito</TabsTrigger>
               <TabsTrigger value="plan-pagos">Plan de Pagos</TabsTrigger>
-              <TabsTrigger value="saldos" className="gap-1.5">
+              <TabsTrigger value="saldos" className="gap-1.5 relative">
                 <Wallet className="h-4 w-4" />
                 Saldos por Asignar
-                {saldosPendientes.length > 0 && (
-                  <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-xs font-bold">
-                    {saldosPendientes.length}
+                {saldosCount > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-xs font-bold">
+                    {saldosCount}
                   </span>
                 )}
               </TabsTrigger>
@@ -2606,148 +2530,15 @@ function CreditDetailClient({ id }: { id: string }) {
             </TabsContent>
 
             {/* Tab: Saldos por Asignar */}
-            <TabsContent value="saldos">
-              <Card>
-                <CardHeader className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Saldos por Asignar</CardTitle>
-                      <CardDescription>
-                        Sobrantes de planilla pendientes de asignación para {credit.lead?.name || 'este cliente'} (Cédula: {credit.lead?.cedula || '-'}).
-                      </CardDescription>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={fetchSaldosPendientes} disabled={loadingSaldos}>
-                      {loadingSaldos ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingSaldos ? (
-                    <div className="p-8 flex justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : saldosPendientes.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground">
-                      <Wallet className="mx-auto h-12 w-12 mb-3 opacity-30" />
-                      <p className="text-sm">No hay saldos pendientes por asignar.</p>
-                      <p className="text-xs mt-1">Los sobrantes aparecerán aquí cuando se cargue una planilla donde este cliente pague más que su cuota.</p>
-                    </div>
-                  ) : (
-                    <ScrollableTableContainer>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Crédito Origen</TableHead>
-                            <TableHead className="text-right">Monto Sobrante</TableHead>
-                            <TableHead>Deductora</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Distribución Posible</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {saldosPendientes.map((saldo: any) => (
-                            <TableRow key={saldo.id} className="align-top">
-                              <TableCell className="font-medium">
-                                <Link href={`/dashboard/creditos/${saldo.credit_id}`} className="text-primary hover:underline">
-                                  {saldo.credit_reference}
-                                </Link>
-                              </TableCell>
-                              <TableCell className="text-right font-mono font-semibold text-orange-600">
-                                ₡{Number(saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                              </TableCell>
-                              <TableCell className="text-sm">{saldo.deductora}</TableCell>
-                              <TableCell className="text-sm">
-                                {saldo.fecha_origen ? new Date(saldo.fecha_origen).toLocaleDateString() : '-'}
-                              </TableCell>
-                              <TableCell>
-                                {saldo.distribuciones && saldo.distribuciones.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {saldo.distribuciones.map((dist: any) => (
-                                      <div key={dist.credit_id} className="p-2 bg-gray-50 rounded-md border text-xs">
-                                        <div className="flex items-center justify-between mb-1.5">
-                                          <Link href={`/dashboard/creditos/${dist.credit_id}`} className="text-primary hover:underline font-medium">
-                                            {dist.reference}
-                                          </Link>
-                                          <span className="text-muted-foreground">
-                                            Saldo: ₡{Number(dist.saldo_credito).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                                          </span>
-                                        </div>
-                                        <div className="text-muted-foreground mb-1">
-                                          Cuota: ₡{Number(dist.cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                                          {dist.max_cuotas > 0 && (
-                                            <>
-                                              {' · '}
-                                              <span className="text-blue-700">
-                                                Alcanza {dist.max_cuotas} cuota{dist.max_cuotas !== 1 ? 's' : ''}
-                                              </span>
-                                            </>
-                                          )}
-                                        </div>
-                                        <div className="flex flex-wrap gap-1">
-                                          {Array.from({ length: Math.min(dist.max_cuotas, 5) }, (_, i) => (
-                                            <Button
-                                              key={i}
-                                              variant="outline"
-                                              size="sm"
-                                              className="text-xs h-7 px-2"
-                                              disabled={procesandoSaldo === saldo.id}
-                                              onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, dist.cuota)}
-                                            >
-                                              {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Cuota ${i + 1}`}
-                                            </Button>
-                                          ))}
-                                          {((dist.restante > 1 && dist.restante < dist.cuota) || (dist.max_cuotas === 0 && saldo.monto > 1)) && (
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              className="text-xs h-7 px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                                              disabled={procesandoSaldo === saldo.id}
-                                              onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto)}
-                                            >
-                                              {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Parcial ₡${Number(dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-                                            </Button>
-                                          )}
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-xs h-7 px-2 border-amber-300 text-amber-700 hover:bg-amber-50"
-                                            disabled={procesandoSaldo === saldo.id}
-                                            onClick={() => handleAsignarSaldo(saldo.id, 'capital', dist.credit_id)}
-                                          >
-                                            {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar Capital'}
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1">
-                                    <Button variant="outline" size="sm" className="text-xs" disabled={procesandoSaldo === saldo.id} onClick={() => handleAsignarSaldo(saldo.id, 'cuota')}>
-                                      {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Cuota'}
-                                    </Button>
-                                    <Button variant="outline" size="sm" className="text-xs" disabled={procesandoSaldo === saldo.id} onClick={() => handleAsignarSaldo(saldo.id, 'capital')}>
-                                      {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar a Capital'}
-                                    </Button>
-                                  </div>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </ScrollableTableContainer>
-                  )}
-
-                  {/* Paginación */}
-                  {!loadingSaldos && saldosTotal > saldosPendientes.length && (
-                    <div className="flex items-center justify-center mt-4">
-                      <p className="text-sm text-muted-foreground">
-                        Mostrando {saldosPendientes.length} de {saldosTotal} saldos pendientes
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+            <TabsContent value="saldos" forceMount className="data-[state=inactive]:hidden">
+              {credit?.lead?.cedula && (
+                <SaldosPorAsignar
+                  cedula={credit.lead.cedula.toString()}
+                  clientName={credit.lead?.name}
+                  onAssigned={fetchCredit}
+                  onCountChange={setSaldosCount}
+                />
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -2778,132 +2569,6 @@ function CreditDetailClient({ id }: { id: string }) {
           onSuccess={fetchCredit}
         />
       )}
-
-      {/* Modal de Confirmación de Saldo */}
-      <Dialog open={confirmSaldoDialogOpen} onOpenChange={setConfirmSaldoDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirmar Aplicación de Saldo</DialogTitle>
-          </DialogHeader>
-
-          {previewSaldoData && (
-            <div className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">Saldo disponible</p>
-                  <p className="text-lg font-bold">
-                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                      .format(previewSaldoData.monto_disponible)}
-                  </p>
-                </div>
-                {previewSaldoData.monto_a_aplicar && previewSaldoData.monto_a_aplicar !== previewSaldoData.monto_disponible && (
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">Monto a aplicar</p>
-                    <p className="text-lg font-bold text-blue-600">
-                      {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                        .format(previewSaldoData.monto_a_aplicar)}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">Crédito</p>
-                  <p className="font-medium text-sm">{previewSaldoData.credit?.reference || previewSaldoData.credit?.numero_operacion || '-'}</p>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">Destino</p>
-                  <p className="font-semibold">{previewSaldoData.destino}</p>
-                </div>
-              </div>
-
-              {previewSaldoData.distribucion && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Distribución:</p>
-                  <div className="space-y-1 text-sm">
-                    {previewSaldoData.distribucion.interes_moratorio > 0 && (
-                      <div className="flex justify-between">
-                        <span>Interés Moratorio:</span>
-                        <span className="font-mono">
-                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                            .format(previewSaldoData.distribucion.interes_moratorio)}
-                        </span>
-                      </div>
-                    )}
-                    {previewSaldoData.distribucion.interes_corriente > 0 && (
-                      <div className="flex justify-between">
-                        <span>Interés Corriente:</span>
-                        <span className="font-mono">
-                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                            .format(previewSaldoData.distribucion.interes_corriente)}
-                        </span>
-                      </div>
-                    )}
-                    {previewSaldoData.distribucion.poliza > 0 && (
-                      <div className="flex justify-between">
-                        <span>Póliza:</span>
-                        <span className="font-mono">
-                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                            .format(previewSaldoData.distribucion.poliza)}
-                        </span>
-                      </div>
-                    )}
-                    {previewSaldoData.distribucion.amortizacion > 0 && (
-                      <div className="flex justify-between">
-                        <span>Capital:</span>
-                        <span className="font-mono">
-                          {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                            .format(previewSaldoData.distribucion.amortizacion)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="border-t pt-4">
-                <p className="text-sm text-muted-foreground">Saldo del crédito</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm line-through">
-                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                      .format(previewSaldoData.credit.saldo_actual)}
-                  </span>
-                  <span>→</span>
-                  <span className="text-lg font-bold text-green-600">
-                    {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' })
-                      .format(previewSaldoData.saldo_nuevo_credit)}
-                  </span>
-                </div>
-              </div>
-
-              {previewSaldoData.restante_saldo > 0.50 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
-                  <p className="text-sm text-amber-800">
-                    Saldo restante después de aplicar: <strong>₡{Number(previewSaldoData.restante_saldo).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
-                  </p>
-                </div>
-              )}
-              {previewSaldoData.excedente > 0.50 && (
-                <Alert>
-                  <AlertDescription>
-                    Excedente de ₡{previewSaldoData.excedente.toFixed(2)} no se puede aplicar a esta cuota
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmSaldoDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmarAsignacionSaldo}>
-              Confirmar Aplicación
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal de Formalización */}
       <Dialog open={formalizarDialogOpen} onOpenChange={setFormalizarDialogOpen}>
