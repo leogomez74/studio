@@ -657,6 +657,43 @@ class CreditPaymentController extends Controller
 
             $numeroCuotaInicio = $siguienteCuota->numero_cuota;
 
+            // Determinar la última cuota pagada para calcular penalización
+            $ultimaCuotaPagada = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->whereIn('estado', ['Pagado', 'Pagada'])
+                ->orderBy('numero_cuota', 'desc')
+                ->first();
+
+            $numeroCuotaActual = $ultimaCuotaPagada ? $ultimaCuotaPagada->numero_cuota : 0;
+
+            // Calcular penalización si está antes de la cuota 12
+            $penalizacion = 0;
+            $interesesPenalizacion = [];
+            if ($numeroCuotaActual < 12) {
+                // Obtener las próximas 3 cuotas pendientes
+                $proximasCuotas = $credit->planDePagos()
+                    ->where('numero_cuota', '>', $numeroCuotaActual)
+                    ->where('estado', '!=', 'Pagado')
+                    ->orderBy('numero_cuota')
+                    ->take(3)
+                    ->get();
+
+                // Sumar solo los intereses corrientes como penalización
+                foreach ($proximasCuotas as $cuota) {
+                    $interesCorriente = (float) $cuota->interes_corriente;
+                    $interesesPenalizacion[] = [
+                        'numero_cuota' => $cuota->numero_cuota,
+                        'interes_corriente' => $interesCorriente
+                    ];
+                    $penalizacion += $interesCorriente;
+                }
+
+                $penalizacion = round($penalizacion, 2);
+            }
+
+            // Monto total a aplicar = monto del abono + penalización
+            $montoTotalAplicar = $montoAbono + $penalizacion;
+
             // Snapshot para reverso: capturar estado ANTES de modificar
             $planSnapshot = $credit->planDePagos()
                 ->where('numero_cuota', '>=', $numeroCuotaInicio)
@@ -671,33 +708,40 @@ class CreditPaymentController extends Controller
                 'original_status' => $credit->status,
                 'start_cuota_num' => $numeroCuotaInicio,
                 'plan_rows' => $planSnapshot,
+                'monto_abono' => $montoAbono,
+                'penalizacion' => $penalizacion,
+                'intereses_penalizacion' => $interesesPenalizacion,
             ];
 
             // 2. Aplicar directo al Saldo (Capital Vivo)
             $saldoActual = (float) $credit->saldo;
 
-            if ($montoAbono >= $saldoActual) {
-                $montoAbono = $saldoActual;
+            if ($montoTotalAplicar >= $saldoActual) {
+                $montoTotalAplicar = $saldoActual;
                 $nuevoCapitalBase = 0;
             } else {
-                $nuevoCapitalBase = round($saldoActual - $montoAbono, 2);
+                $nuevoCapitalBase = round($saldoActual - $montoTotalAplicar, 2);
             }
 
             $credit->saldo = $nuevoCapitalBase;
             $credit->save();
 
-            // Recibo de abono a capital
+            // Recibo de abono a capital (incluye penalización si aplica)
+            $estadoTexto = $penalizacion > 0
+                ? 'Abono Extraordinario (Penalización: ₡' . number_format($penalizacion, 2) . ')'
+                : 'Abono Extraordinario';
+
             $paymentRecord = CreditPayment::create([
                 'credit_id'      => $credit->id,
                 'numero_cuota'   => 0,
                 'fecha_pago'     => $fechaPago,
-                'monto'          => $montoAbono,
+                'monto'          => $montoTotalAplicar,
                 'saldo_anterior' => $saldoActual,
                 'nuevo_saldo'    => $nuevoCapitalBase,
-                'estado'         => 'Abono Extraordinario',
-                'amortizacion'   => $montoAbono,
+                'estado'         => $estadoTexto,
+                'amortizacion'   => $montoTotalAplicar,
                 'source'         => 'Extraordinario',
-                'movimiento_total' => $montoAbono,
+                'movimiento_total' => $montoTotalAplicar,
                 'interes_corriente' => 0,
                 'cedula'         => $credit->lead->cedula ?? null,
                 'reversal_snapshot' => $reversalSnapshot,
@@ -1525,6 +1569,170 @@ class CreditPaymentController extends Controller
             'intereses_penalizacion' => $interesesPenalizacion,
             'monto_penalizacion' => $penalizacion,
             'monto_total_cancelar' => $montoTotalCancelar,
+        ]);
+    }
+
+    /**
+     * Preview del abono extraordinario con penalización y cálculo de nueva cuota/plazo
+     */
+    public function previewAbonoExtraordinario(Request $request)
+    {
+        $validated = $request->validate([
+            'credit_id' => 'required|exists:credits,id',
+            'monto' => 'required|numeric|min:0.01',
+            'strategy' => 'required|in:reduce_amount,reduce_term',
+        ]);
+
+        $credit = Credit::findOrFail($validated['credit_id']);
+        $montoAbono = (float) $validated['monto'];
+        $strategy = $validated['strategy'];
+
+        // Buscar la última cuota pagada para determinar penalización
+        $ultimaCuotaPagada = $credit->planDePagos()
+            ->where('numero_cuota', '>', 0)
+            ->whereIn('estado', ['Pagado', 'Pagada'])
+            ->orderBy('numero_cuota', 'desc')
+            ->first();
+
+        $numeroCuotaActual = $ultimaCuotaPagada ? $ultimaCuotaPagada->numero_cuota : 0;
+        $saldoActual = (float) $credit->saldo;
+        $cuotaActual = (float) $credit->cuota;
+        $plazoActual = (int) $credit->plazo;
+
+        // Calcular penalización si está antes de la cuota 12
+        $penalizacion = 0;
+        $cuotasPenalizacion = 0;
+        $interesesPenalizacion = [];
+        $aplicaPenalizacion = $numeroCuotaActual < 12;
+
+        if ($aplicaPenalizacion) {
+            // Obtener las próximas 3 cuotas pendientes
+            $proximasCuotas = $credit->planDePagos()
+                ->where('numero_cuota', '>', $numeroCuotaActual)
+                ->where('estado', '!=', 'Pagado')
+                ->orderBy('numero_cuota')
+                ->take(3)
+                ->get();
+
+            // Sumar solo los intereses corrientes
+            foreach ($proximasCuotas as $cuota) {
+                $interesCorriente = (float) $cuota->interes_corriente;
+                $interesesPenalizacion[] = [
+                    'numero_cuota' => $cuota->numero_cuota,
+                    'interes_corriente' => $interesCorriente
+                ];
+                $penalizacion += $interesCorriente;
+            }
+
+            $cuotasPenalizacion = count($proximasCuotas);
+            $penalizacion = round($penalizacion, 2);
+        }
+
+        $montoTotalAplicar = $montoAbono + $penalizacion;
+
+        // Calcular nuevo saldo después de aplicar el abono
+        $nuevoSaldo = max(0, $saldoActual - $montoTotalAplicar);
+
+        // Buscar la primera cuota pendiente para calcular cuántas faltan
+        $siguienteCuota = $credit->planDePagos()
+            ->where('estado', '!=', 'Pagado')
+            ->where('numero_cuota', '>', 0)
+            ->orderBy('numero_cuota', 'asc')
+            ->first();
+
+        if (!$siguienteCuota) {
+            return response()->json(['message' => 'No hay cuotas pendientes'], 400);
+        }
+
+        $numeroCuotaInicio = $siguienteCuota->numero_cuota;
+        $cuotasRestantes = $plazoActual - $numeroCuotaInicio + 1;
+
+        $tasaAnual = (float) $credit->tasa_anual;
+        $tasaMensual = ($tasaAnual / 100) / 12;
+
+        $nuevaCuota = $cuotaActual;
+        $nuevoPlazo = $plazoActual;
+
+        if ($nuevoSaldo > 0) {
+            if ($strategy === 'reduce_amount') {
+                // Reducir cuota, mantener plazo
+                if ($tasaMensual > 0) {
+                    $potencia = pow(1 + $tasaMensual, $cuotasRestantes);
+                    $nuevaCuota = $nuevoSaldo * ($tasaMensual * $potencia) / ($potencia - 1);
+                } else {
+                    $nuevaCuota = $nuevoSaldo / $cuotasRestantes;
+                }
+                $nuevaCuota = round($nuevaCuota, 2);
+            } else {
+                // Reducir plazo, mantener cuota
+                if ($tasaMensual > 0) {
+                    $denominador = $cuotaActual * $tasaMensual;
+                    if ($denominador > 0) {
+                        $ratio = $nuevoSaldo / $denominador;
+                        $nuevoPlazo = $numeroCuotaInicio - 1 + ceil(log(1 / (1 - ($ratio * $tasaMensual))) / log(1 + $tasaMensual));
+                    } else {
+                        $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($nuevoSaldo / $cuotaActual);
+                    }
+                } else {
+                    $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($nuevoSaldo / $cuotaActual);
+                }
+            }
+        }
+
+        // Calcular las próximas 3 cuotas futuras con los nuevos valores
+        $cuotasFuturas = [];
+        if ($nuevoSaldo > 0) {
+            $saldoIteracion = $nuevoSaldo;
+            $cuotasAProyectar = min(3, $cuotasRestantes);
+
+            for ($i = 0; $i < $cuotasAProyectar; $i++) {
+                $numeroRealCuota = $numeroCuotaInicio + $i;
+                $interesFuturo = round($saldoIteracion * $tasaMensual, 2);
+
+                if ($strategy === 'reduce_amount') {
+                    // Cuota reducida
+                    $amortizacionFutura = round($nuevaCuota - $interesFuturo, 2);
+                    $cuotaFutura = $nuevaCuota;
+                } else {
+                    // Plazo reducido, cuota se mantiene
+                    $amortizacionFutura = round($cuotaActual - $interesFuturo, 2);
+                    $cuotaFutura = $cuotaActual;
+                }
+
+                $nuevoSaldoIteracion = max(0, round($saldoIteracion - $amortizacionFutura, 2));
+
+                $cuotasFuturas[] = [
+                    'numero_cuota' => $numeroRealCuota,
+                    'cuota' => $cuotaFutura,
+                    'interes_corriente' => $interesFuturo,
+                    'amortizacion' => $amortizacionFutura,
+                    'saldo' => $nuevoSaldoIteracion,
+                ];
+
+                $saldoIteracion = $nuevoSaldoIteracion;
+            }
+        }
+
+        return response()->json([
+            'credit_id' => $credit->id,
+            'cuota_actual' => $numeroCuotaActual,
+            'strategy' => $strategy,
+            'monto_abono' => $montoAbono,
+            'aplica_penalizacion' => $aplicaPenalizacion,
+            'cuotas_penalizacion' => $cuotasPenalizacion,
+            'intereses_penalizacion' => $interesesPenalizacion,
+            'monto_penalizacion' => $penalizacion,
+            'monto_total_aplicar' => $montoTotalAplicar,
+            'saldo_actual' => $saldoActual,
+            'nuevo_saldo' => $nuevoSaldo,
+            'cuota_actual_valor' => $cuotaActual,
+            'nueva_cuota' => $nuevaCuota,
+            'plazo_actual' => $plazoActual,
+            'nuevo_plazo' => $nuevoPlazo,
+            'cuotas_restantes' => $cuotasRestantes,
+            'ahorro_cuota' => $strategy === 'reduce_amount' ? round($cuotaActual - $nuevaCuota, 2) : 0,
+            'ahorro_plazo' => $strategy === 'reduce_term' ? $plazoActual - $nuevoPlazo : 0,
+            'cuotas_futuras' => $cuotasFuturas,
         ]);
     }
 
