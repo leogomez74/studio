@@ -1673,73 +1673,100 @@ export default function CobrosPage() {
                                 )}
 
                                 {extraordinaryPreview && !loadingExtraordinaryPreview && (
-                                  <div className="space-y-2 pt-2 border-t max-h-[400px] overflow-y-auto">
-                                    {/* Penalización o sin penalización */}
-                                    {extraordinaryPreview.aplica_penalizacion ? (
-                                      <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs">
-                                        <div className="flex items-start gap-1.5 text-amber-800">
-                                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                                          <div className="space-y-1">
-                                            <div><strong>Penalización:</strong> {extraordinaryPreview.cuotas_penalizacion} intereses = <strong>₡{Number(extraordinaryPreview.monto_penalizacion).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong></div>
-                                            <div className="text-[10px] opacity-80">Cuota #{extraordinaryPreview.cuota_actual} (antes de cuota 12)</div>
+                                  <div className="space-y-3 pt-2 border-t max-h-[500px] overflow-y-auto pr-2">
+                                    {/* Penalización */}
+                                    {extraordinaryPreview.aplica_penalizacion && (
+                                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
+                                        <div className="flex items-start gap-2 text-amber-800">
+                                          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                                          <div className="space-y-2">
+                                            <div>
+                                              <strong>Penalización aplicada:</strong> Está en la cuota #{extraordinaryPreview.cuota_actual} (antes de la cuota 12).
+                                            </div>
+                                            <div>
+                                              Se suman los <strong>{extraordinaryPreview.cuotas_penalizacion} intereses corrientes</strong> de las próximas cuotas por vencer como penalización.
+                                            </div>
+                                            {extraordinaryPreview.intereses_penalizacion && extraordinaryPreview.intereses_penalizacion.length > 0 && (
+                                              <div className="text-xs bg-amber-100/50 p-2 rounded border border-amber-300">
+                                                <div className="font-medium mb-1">Detalle de penalización:</div>
+                                                {extraordinaryPreview.intereses_penalizacion.map((item: any) => (
+                                                  <div key={item.numero_cuota} className="flex justify-between">
+                                                    <span>Cuota #{item.numero_cuota}:</span>
+                                                    <span className="font-mono">₡{Number(item.interes_corriente).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                            <div className="pt-1 border-t border-amber-300">
+                                              Total penalización: <strong>₡{Number(extraordinaryPreview.monto_penalizacion).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    ) : (
-                                      <div className="p-2 bg-green-50 border border-green-200 rounded text-xs flex items-center gap-1.5 text-green-800">
-                                        <Check className="h-3.5 w-3.5 shrink-0" />
-                                        <span>Sin penalización</span>
                                       </div>
                                     )}
 
-                                    {/* Resumen compacto */}
-                                    <div className="grid grid-cols-2 gap-2 text-xs">
-                                      <div className="p-1.5 bg-background border rounded">
-                                        <div className="text-muted-foreground text-[10px]">Abono</div>
-                                        <div className="font-bold text-sm">₡{Number(extraordinaryPreview.monto_abono).toLocaleString('de-DE', { minimumFractionDigits: 0 })}</div>
+                                    {!extraordinaryPreview.aplica_penalizacion && (
+                                      <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm">
+                                        <div className="flex items-center gap-2 text-green-800">
+                                          <Check className="h-4 w-4 shrink-0" />
+                                          <span>Sin penalización. Ha superado la cuota 12.</span>
+                                        </div>
                                       </div>
-                                      <div className="p-1.5 bg-background border rounded">
-                                        <div className="text-muted-foreground text-[10px]">Total</div>
-                                        <div className="font-bold text-sm text-orange-600">₡{Number(extraordinaryPreview.monto_total_aplicar).toLocaleString('de-DE', { minimumFractionDigits: 0 })}</div>
+                                    )}
+
+                                    {/* Resumen del impacto */}
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="p-2 bg-background border rounded">
+                                        <div className="text-muted-foreground text-xs">Monto abono</div>
+                                        <div className="font-bold">₡{Number(extraordinaryPreview.monto_abono).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
+                                      </div>
+                                      <div className="p-2 bg-background border rounded">
+                                        <div className="text-muted-foreground text-xs">Total a aplicar</div>
+                                        <div className="font-bold text-orange-600">₡{Number(extraordinaryPreview.monto_total_aplicar).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
                                       </div>
                                     </div>
 
-                                    {/* Impacto */}
-                                    <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                                      {extraordinaryStrategy === 'reduce_amount' ? (
-                                        <div className="space-y-1">
-                                          <div className="font-medium text-blue-900 text-[11px]">Nueva cuota:</div>
+                                    {/* Impacto en cuota/plazo */}
+                                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm space-y-2">
+                                      {extraordinaryStrategy === 'reduce_amount' && (
+                                        <>
+                                          <div className="font-medium text-blue-900">Impacto en la cuota mensual:</div>
                                           <div className="flex items-center gap-2">
-                                            <span className="line-through text-muted-foreground">₡{Number(extraordinaryPreview.cuota_actual_valor).toLocaleString('de-DE', { minimumFractionDigits: 0 })}</span>
+                                            <span className="line-through text-muted-foreground">₡{Number(extraordinaryPreview.cuota_actual_valor).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
                                             <span>→</span>
-                                            <span className="font-bold text-green-600">₡{Number(extraordinaryPreview.nueva_cuota).toLocaleString('de-DE', { minimumFractionDigits: 0 })}</span>
+                                            <span className="text-lg font-bold text-green-600">₡{Number(extraordinaryPreview.nueva_cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
                                           </div>
-                                          <div className="text-[10px] text-green-700">Ahorro: ₡{Number(extraordinaryPreview.ahorro_cuota).toLocaleString('de-DE', { minimumFractionDigits: 0 })}/mes</div>
-                                        </div>
-                                      ) : (
-                                        <div className="space-y-1">
-                                          <div className="font-medium text-blue-900 text-[11px]">Nuevo plazo:</div>
+                                          <div className="text-xs text-green-700">
+                                            Ahorro por cuota: <strong>₡{Number(extraordinaryPreview.ahorro_cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                                          </div>
+                                        </>
+                                      )}
+                                      {extraordinaryStrategy === 'reduce_term' && (
+                                        <>
+                                          <div className="font-medium text-blue-900">Impacto en el plazo:</div>
                                           <div className="flex items-center gap-2">
-                                            <span className="line-through text-muted-foreground">{extraordinaryPreview.plazo_actual}</span>
+                                            <span className="line-through text-muted-foreground">{extraordinaryPreview.plazo_actual} cuotas</span>
                                             <span>→</span>
-                                            <span className="font-bold text-green-600">{extraordinaryPreview.nuevo_plazo} cuotas</span>
+                                            <span className="text-lg font-bold text-green-600">{extraordinaryPreview.nuevo_plazo} cuotas</span>
                                           </div>
-                                          <div className="text-[10px] text-green-700">{extraordinaryPreview.ahorro_plazo} cuotas menos</div>
-                                        </div>
+                                          <div className="text-xs text-green-700">
+                                            Cuotas menos: <strong>{extraordinaryPreview.ahorro_plazo}</strong>
+                                          </div>
+                                        </>
                                       )}
                                     </div>
 
-                                    {/* Próximas cuotas compacto */}
+                                    {/* Próximas cuotas */}
                                     {extraordinaryPreview.cuotas_futuras && extraordinaryPreview.cuotas_futuras.length > 0 && (
-                                      <div className="p-2 bg-muted/30 border rounded text-[10px]">
-                                        <div className="font-medium mb-1 text-xs">Próximas cuotas:</div>
-                                        <div className="space-y-0.5">
+                                      <div className="p-3 bg-muted/30 border rounded-md text-xs">
+                                        <div className="font-medium mb-2 text-sm">Próximas cuotas con los nuevos intereses:</div>
+                                        <div className="space-y-1">
                                           {extraordinaryPreview.cuotas_futuras.map((cuota: any) => (
-                                            <div key={cuota.numero_cuota} className="flex justify-between items-center">
-                                              <span>#{cuota.numero_cuota}</span>
-                                              <div className="flex gap-2 font-mono">
-                                                <span className="text-muted-foreground">Int ₡{Number(cuota.interes_corriente).toLocaleString('de-DE', { minimumFractionDigits: 0 })}</span>
-                                                <span>₡{Number(cuota.cuota).toLocaleString('de-DE', { minimumFractionDigits: 0 })}</span>
+                                            <div key={cuota.numero_cuota} className="flex justify-between items-center py-1 border-b last:border-0">
+                                              <span>Cuota #{cuota.numero_cuota}</span>
+                                              <div className="flex gap-3 font-mono">
+                                                <span className="text-muted-foreground">Int: ₡{Number(cuota.interes_corriente).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                                <span>Total: ₡{Number(cuota.cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
                                               </div>
                                             </div>
                                           ))}
