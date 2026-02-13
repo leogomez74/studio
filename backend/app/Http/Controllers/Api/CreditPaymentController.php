@@ -700,7 +700,8 @@ class CreditPaymentController extends Controller
                 'movimiento_total' => $montoAbono,
                 'interes_corriente' => 0,
                 'cedula'         => $credit->lead->cedula ?? null,
-                'reversal_snapshot' => $reversalSnapshot
+                'reversal_snapshot' => $reversalSnapshot,
+                'estado_reverso' => 'Vigente'
             ]);
 
             // 3. Regenerar Proyección
@@ -917,7 +918,8 @@ class CreditPaymentController extends Controller
             'movimiento_total' => $montoAbono,
             'interes_corriente' => 0,
             'cedula'         => $cedula,
-            'reversal_snapshot' => $reversalSnapshot
+            'reversal_snapshot' => $reversalSnapshot,
+            'estado_reverso' => 'Vigente'
         ]);
 
         // Regenerar proyección si queda saldo
@@ -1583,6 +1585,7 @@ class CreditPaymentController extends Controller
                 'source'         => 'Cancelación Anticipada',
                 'cedula'         => $credit->lead->cedula ?? null,
                 'reversal_snapshot' => $reversalSnapshot,
+                'estado_reverso' => 'Vigente',
             ]);
 
             // Marcar todas las cuotas pendientes como pagadas

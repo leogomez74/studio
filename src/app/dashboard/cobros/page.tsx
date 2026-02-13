@@ -260,30 +260,38 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
       <TableCell><Badge variant={getSourceVariant(payment.source)}>{payment.source}</Badge></TableCell>
 
       <TableCell>
-        {isAnulado ? (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="destructive" className="text-[10px] cursor-help">Anulado</Badge>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-sm bg-white border-gray-200">
-                <div className="space-y-1 text-xs" style={{ color: 'rgba(0,0,0,0.85)' }}>
-                  <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Motivo:</strong> {payment.motivo_anulacion || 'Sin especificar'}</p>
-                  {payment.fecha_anulacion && (
-                    <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Fecha:</strong> {new Date(payment.fecha_anulacion).toLocaleString('es-CR', {
-                      dateStyle: 'short',
-                      timeStyle: 'short'
-                    })}</p>
-                  )}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : credit?.status === 'Cerrado' || credit?.status === 'Finalizado' ? (
-          <Badge variant="secondary" className="text-[10px]">{credit.status}</Badge>
-        ) : (
-          <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">Vigente</Badge>
-        )}
+        <div className="flex flex-col gap-1">
+          {/* Badge del estado del pago */}
+          <Badge variant="outline" className="text-[10px] w-fit">
+            {payment.estado || 'Aplicado'}
+          </Badge>
+
+          {/* Badge del estado de reverso */}
+          {isAnulado ? (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="destructive" className="text-[10px] cursor-help w-fit">Anulado</Badge>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-sm bg-white border-gray-200">
+                  <div className="space-y-1 text-xs" style={{ color: 'rgba(0,0,0,0.85)' }}>
+                    <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Motivo:</strong> {payment.motivo_anulacion || 'Sin especificar'}</p>
+                    {payment.fecha_anulacion && (
+                      <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Fecha:</strong> {new Date(payment.fecha_anulacion).toLocaleString('es-CR', {
+                        dateStyle: 'short',
+                        timeStyle: 'short'
+                      })}</p>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : credit?.status === 'Cerrado' || credit?.status === 'Finalizado' ? (
+            <Badge variant="secondary" className="text-[10px] w-fit">{credit.status}</Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200 w-fit">Vigente</Badge>
+          )}
+        </div>
       </TableCell>
 
       <TableCell className="text-right">
