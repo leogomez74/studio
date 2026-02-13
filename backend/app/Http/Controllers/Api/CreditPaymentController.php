@@ -1446,6 +1446,7 @@ class CreditPaymentController extends Controller
             $payment = CreditPayment::create([
                 'credit_id'      => $credit->id,
                 'numero_cuota'   => 0,
+                'fecha_cuota'    => $validated['fecha'],
                 'fecha_pago'     => $validated['fecha'],
                 'monto'          => $montoTotalCancelar,
                 'cuota'          => 0,
