@@ -1484,12 +1484,31 @@ class CreditPaymentController extends Controller
         // Valor de la cuota mensual
         $cuotaMensual = (float) $credit->cuota;
 
-        // Penalización: 3 cuotas si está antes de la cuota 12
+        // Penalización: suma de los 3 intereses corrientes de las próximas cuotas por vencer (si está antes de la cuota 12)
         $penalizacion = 0;
         $cuotasPenalizacion = 0;
+        $interesesPenalizacion = [];
         if ($numeroCuotaActual < 12) {
-            $cuotasPenalizacion = 3;
-            $penalizacion = round($cuotaMensual * $cuotasPenalizacion, 2);
+            // Obtener las próximas 3 cuotas pendientes
+            $proximasCuotas = $credit->planDePagos()
+                ->where('numero_cuota', '>', $numeroCuotaActual)
+                ->where('estado', '!=', 'Pagado')
+                ->orderBy('numero_cuota')
+                ->take(3)
+                ->get();
+
+            // Sumar solo los intereses corrientes de esas cuotas
+            foreach ($proximasCuotas as $cuota) {
+                $interesCorriente = (float) $cuota->interes_corriente;
+                $interesesPenalizacion[] = [
+                    'numero_cuota' => $cuota->numero_cuota,
+                    'interes_corriente' => $interesCorriente
+                ];
+                $penalizacion += $interesCorriente;
+            }
+
+            $cuotasPenalizacion = count($proximasCuotas);
+            $penalizacion = round($penalizacion, 2);
         }
 
         $montoTotalCancelar = round($saldoPendiente + $penalizacion, 2);
@@ -1503,6 +1522,7 @@ class CreditPaymentController extends Controller
             'cuota_mensual' => $cuotaMensual,
             'aplica_penalizacion' => $numeroCuotaActual < 12,
             'cuotas_penalizacion' => $cuotasPenalizacion,
+            'intereses_penalizacion' => $interesesPenalizacion,
             'monto_penalizacion' => $penalizacion,
             'monto_total_cancelar' => $montoTotalCancelar,
         ]);

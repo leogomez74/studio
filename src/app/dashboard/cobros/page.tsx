@@ -1676,11 +1676,26 @@ export default function CobrosPage() {
                                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
                                     <div className="flex items-start gap-2 text-amber-800">
                                       <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                                      <div>
-                                        <strong>Penalización aplicada:</strong> El cliente está en la cuota #{cancelacionData.cuota_actual} (antes de la cuota 12).
-                                        Se aplican <strong>{cancelacionData.cuotas_penalizacion} cuotas adicionales</strong> de penalización.
-                                        <div className="mt-1">
-                                          Penalización: <strong>₡{Number(cancelacionData.monto_penalizacion).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                                      <div className="space-y-2">
+                                        <div>
+                                          <strong>Penalización aplicada:</strong> El cliente está en la cuota #{cancelacionData.cuota_actual} (antes de la cuota 12).
+                                        </div>
+                                        <div>
+                                          Se suman los <strong>{cancelacionData.cuotas_penalizacion} intereses corrientes</strong> de las próximas cuotas por vencer como penalización.
+                                        </div>
+                                        {cancelacionData.intereses_penalizacion && cancelacionData.intereses_penalizacion.length > 0 && (
+                                          <div className="text-xs bg-amber-100/50 p-2 rounded border border-amber-300">
+                                            <div className="font-medium mb-1">Detalle de penalización:</div>
+                                            {cancelacionData.intereses_penalizacion.map((item: any) => (
+                                              <div key={item.numero_cuota} className="flex justify-between">
+                                                <span>Cuota #{item.numero_cuota}:</span>
+                                                <span className="font-mono">₡{Number(item.interes_corriente).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                        <div className="pt-1 border-t border-amber-300">
+                                          Total penalización: <strong>₡{Number(cancelacionData.monto_penalizacion).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
                                         </div>
                                       </div>
                                     </div>
