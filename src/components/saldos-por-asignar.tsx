@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -113,6 +114,10 @@ export function SaldosPorAsignar({
     creditId?: number;
     monto?: number;
   } | null>(null);
+
+  // --- Modal de reintegro ---
+  const [reintegroDialogOpen, setReintegroDialogOpen] = useState(false);
+  const [saldoToReintegrar, setSaldoToReintegrar] = useState<any>(null);
 
   // --- Fetch ---
   const fetchSaldosPendientes = useCallback(async () => {
@@ -274,6 +279,44 @@ export function SaldosPorAsignar({
       setPendingAccion(null);
       setPendingCreditId(null);
       setPendingMonto(null);
+    }
+  };
+
+  const handleReintegrarSaldo = (saldo: any) => {
+    if (user?.role?.name !== "Administrador" && !user?.role?.full_access) {
+      toast({
+        title: "Acceso denegado",
+        description: "Solo administradores pueden reintegrar saldos",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSaldoToReintegrar(saldo);
+    setReintegroDialogOpen(true);
+  };
+
+  const confirmarReintegro = async () => {
+    if (!saldoToReintegrar) return;
+    setProcesandoSaldo(saldoToReintegrar.id);
+    setReintegroDialogOpen(false);
+    try {
+      const res = await api.post(
+        `/api/saldos-pendientes/${saldoToReintegrar.id}/reintegrar`,
+        { motivo: "Reintegrado desde interfaz de usuario" }
+      );
+      toast({ title: "Éxito", description: res.data.message });
+      await fetchSaldosPendientes();
+      onAssigned?.();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description:
+          err.response?.data?.message || "Error al reintegrar saldo",
+        variant: "destructive",
+      });
+    } finally {
+      setProcesandoSaldo(null);
+      setSaldoToReintegrar(null);
     }
   };
 
@@ -597,9 +640,28 @@ export function SaldosPorAsignar({
                                 </div>
                               </div>
                             ))}
+                            {/* Botón de Reintegro */}
+                            <div className="mt-2 pt-2 border-t">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7 px-2 w-full border-red-300 text-red-700 hover:bg-red-50"
+                                disabled={procesandoSaldo === saldo.id}
+                                onClick={() =>
+                                  handleReintegrarSaldo(saldo)
+                                }
+                              >
+                                {procesandoSaldo === saldo.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  "Reintegro de Saldo"
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
                             <Button
                               variant="outline"
                               size="sm"
@@ -628,6 +690,22 @@ export function SaldosPorAsignar({
                                 <Loader2 className="h-3 w-3 animate-spin" />
                               ) : (
                                 "Aplicar a Capital"
+                              )}
+                            </Button>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs w-full border-red-300 text-red-700 hover:bg-red-50"
+                              disabled={procesandoSaldo === saldo.id}
+                              onClick={() =>
+                                handleReintegrarSaldo(saldo)
+                              }
+                            >
+                              {procesandoSaldo === saldo.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                "Reintegro de Saldo"
                               )}
                             </Button>
                           </div>
@@ -1118,6 +1196,81 @@ export function SaldosPorAsignar({
             </Button>
             <Button onClick={confirmarAsignacion}>
               Confirmar Aplicación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Confirmar Reintegro de Saldo */}
+      <Dialog open={reintegroDialogOpen} onOpenChange={setReintegroDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Reintegro de Saldo</DialogTitle>
+            <DialogDescription>
+              Esta acción marcará el saldo como procesado sin aplicarlo a ningún
+              crédito.
+            </DialogDescription>
+          </DialogHeader>
+
+          {saldoToReintegrar && (
+            <div className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cliente:</span>
+                      <span className="font-medium">
+                        {saldoToReintegrar.lead_name}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cédula:</span>
+                      <span className="font-medium">
+                        {saldoToReintegrar.cedula}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Monto:</span>
+                      <span className="font-bold text-lg text-orange-600">
+                        ₡
+                        {Number(saldoToReintegrar.monto).toLocaleString(
+                          "de-DE",
+                          { minimumFractionDigits: 2 }
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Deductora:</span>
+                      <span className="font-medium">
+                        {saldoToReintegrar.deductora}
+                      </span>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              <Alert variant="destructive">
+                <AlertDescription>
+                  <strong>Importante:</strong> El saldo será marcado como
+                  reintegrado y ya no aparecerá en esta lista. No se aplicará a
+                  ningún crédito ni se registrarán movimientos contables.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReintegroDialogOpen(false);
+                setSaldoToReintegrar(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmarReintegro}>
+              Confirmar Reintegro
             </Button>
           </DialogFooter>
         </DialogContent>
