@@ -1653,12 +1653,19 @@ class CreditPaymentController extends Controller
         $nuevaCuota = $cuotaActual;
         $nuevoPlazo = $plazoActual;
 
-        if ($nuevoSaldo > 0) {
+        if ($nuevoSaldo > 0 && $cuotasRestantes > 0) {
             if ($strategy === 'reduce_amount') {
                 // Reducir cuota, mantener plazo
                 if ($tasaMensual > 0) {
                     $potencia = pow(1 + $tasaMensual, $cuotasRestantes);
-                    $nuevaCuota = $nuevoSaldo * ($tasaMensual * $potencia) / ($potencia - 1);
+
+                    // Validar que la potencia sea válida y el denominador no sea cero
+                    if (is_finite($potencia) && $potencia > 1) {
+                        $nuevaCuota = $nuevoSaldo * ($tasaMensual * $potencia) / ($potencia - 1);
+                    } else {
+                        // Fallback a cálculo simple
+                        $nuevaCuota = $nuevoSaldo / $cuotasRestantes;
+                    }
                 } else {
                     $nuevaCuota = $nuevoSaldo / $cuotasRestantes;
                 }
@@ -1720,6 +1727,10 @@ class CreditPaymentController extends Controller
             }
         }
 
+        // Asegurar que todos los valores sean finitos antes de devolver
+        $nuevaCuota = is_finite($nuevaCuota) ? $nuevaCuota : $cuotaActual;
+        $nuevoPlazo = is_finite($nuevoPlazo) && $nuevoPlazo > 0 ? $nuevoPlazo : $plazoActual;
+
         return response()->json([
             'credit_id' => $credit->id,
             'cuota_actual' => $numeroCuotaActual,
@@ -1738,7 +1749,7 @@ class CreditPaymentController extends Controller
             'nuevo_plazo' => $nuevoPlazo,
             'cuotas_restantes' => $cuotasRestantes,
             'ahorro_cuota' => $strategy === 'reduce_amount' ? round($cuotaActual - $nuevaCuota, 2) : 0,
-            'ahorro_plazo' => $strategy === 'reduce_term' ? $plazoActual - $nuevoPlazo : 0,
+            'ahorro_plazo' => $strategy === 'reduce_term' ? max(0, $plazoActual - $nuevoPlazo) : 0,
             'cuotas_futuras' => $cuotasFuturas,
         ]);
     }
