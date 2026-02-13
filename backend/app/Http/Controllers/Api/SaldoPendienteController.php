@@ -44,6 +44,11 @@ class SaldoPendienteController extends Controller
             $query->where('fecha_origen', '<=', $request->fecha_hasta);
         }
 
+        // Filtro exacto por cédula (usado por detalle de crédito)
+        if ($request->has('cedula') && $request->cedula) {
+            $query->where('cedula', $request->cedula);
+        }
+
         // Búsqueda global: cédula, nombre de cliente, referencia de crédito
         if ($request->has('search') && $request->search) {
             $searchTerm = $request->search;
