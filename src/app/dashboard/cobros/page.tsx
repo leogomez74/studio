@@ -547,9 +547,18 @@ export default function CobrosPage() {
 
   // Calcular preview de abono extraordinario cuando cambia el monto o estrategia
   useEffect(() => {
-    if (tipoCobro === 'extraordinario' && selectedCreditId && monto && parseFloat(monto) > 0) {
+    if (tipoCobro !== 'extraordinario') {
+      // Limpiar si cambia a otro tipo de cobro
+      setExtraordinaryPreview(null);
+      return;
+    }
+
+    if (selectedCreditId && monto && parseFloat(monto) > 0) {
+      // Mostrar loading inmediatamente
+      setLoadingExtraordinaryPreview(true);
+
+      // Debounce solo para el monto (200ms), estrategia es inmediata
       const timeoutId = setTimeout(() => {
-        setLoadingExtraordinaryPreview(true);
         api.post('/api/credit-payments/abono-extraordinario/preview', {
           credit_id: selectedCreditId,
           monto: parseFloat(monto),
@@ -563,12 +572,12 @@ export default function CobrosPage() {
             setExtraordinaryPreview(null);
           })
           .finally(() => setLoadingExtraordinaryPreview(false));
-      }, 500); // Debounce de 500ms
+      }, 200); // Debounce reducido a 200ms
 
-      return () => clearTimeout(timeoutId);
-    } else if (tipoCobro !== 'extraordinario') {
-      // Solo limpiar si cambia el tipo de cobro, no por otros cambios
-      setExtraordinaryPreview(null);
+      return () => {
+        clearTimeout(timeoutId);
+        setLoadingExtraordinaryPreview(false);
+      };
     }
   }, [tipoCobro, selectedCreditId, monto, extraordinaryStrategy]);
 
