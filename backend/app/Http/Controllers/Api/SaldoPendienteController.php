@@ -8,11 +8,13 @@ use App\Models\SaldoPendiente;
 use App\Models\Credit;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
+use App\Traits\AccountingTrigger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SaldoPendienteController extends Controller
 {
+    use AccountingTrigger;
     /**
      * Listar saldos pendientes (sobrantes de planilla sin asignar)
      */
@@ -40,6 +42,11 @@ class SaldoPendienteController extends Controller
         }
         if ($request->has('fecha_hasta')) {
             $query->where('fecha_origen', '<=', $request->fecha_hasta);
+        }
+
+        // Filtro exacto por cédula (usado por detalle de crédito)
+        if ($request->has('cedula') && $request->cedula) {
+            $query->where('cedula', $request->cedula);
         }
 
         // Búsqueda global: cédula, nombre de cliente, referencia de crédito
@@ -357,6 +364,9 @@ class SaldoPendienteController extends Controller
                     $saldo->save();
                 }
 
+                // Nota: El trigger contable ya se disparó en processPaymentTransactionPublic
+                // No se necesita trigger adicional aquí
+
                 return response()->json([
                     'message' => 'Saldo aplicado a cuota exitosamente',
                     'saldo' => $saldo->fresh(),
@@ -407,6 +417,27 @@ class SaldoPendienteController extends Controller
                 }
 
                 $creditRefresh = Credit::find($credit->id);
+
+                // ============================================================
+                // ACCOUNTING_API_TRIGGER: Abono a Capital (Saldo Pendiente)
+                // ============================================================
+                // Dispara asiento contable al aplicar saldo pendiente a capital:
+                // DÉBITO: Banco CREDIPEPE (monto_aplicar)
+                // CRÉDITO: Cuentas por Cobrar (monto_aplicar)
+                $this->triggerAccountingPago(
+                    $credit->id,
+                    $payment->id,
+                    $montoCapital,
+                    'Abono a Capital',
+                    [
+                        'capital' => $montoCapital,
+                        'saldo_anterior' => $saldoAnterior,
+                        'nuevo_saldo' => $creditRefresh->saldo,
+                        'cedula' => $saldo->cedula,
+                        'credit_reference' => $credit->reference,
+                        'origen' => 'Saldo Pendiente',
+                    ]
+                );
 
                 return response()->json([
                     'message' => 'Saldo aplicado a capital con regeneración exitosa.',

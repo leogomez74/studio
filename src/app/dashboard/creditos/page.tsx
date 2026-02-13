@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { format } from 'date-fns';
 import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -44,6 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -395,6 +397,10 @@ export default function CreditsPage() {
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [documentsCredit, setDocumentsCredit] = useState<CreditItem | null>(null);
 
+  const [formalizarDialogOpen, setFormalizarDialogOpen] = useState(false);
+  const [selectedCredit, setSelectedCredit] = useState<CreditItem | null>(null);
+  const [formalizacionDate, setFormalizacionDate] = useState<Date>(new Date());
+
   const currentClientId = form.watch("clientId");
   const currentClient = useMemo(() => {
     return currentClientId ? clients.find((client) => String(client.id) === currentClientId) : null;
@@ -606,6 +612,25 @@ export default function CreditsPage() {
     },
     [getCreditsForTab, currentPage, itemsPerPage]
   );
+
+  const handleFormalizar = async () => {
+    if (!selectedCredit) return;
+
+    try {
+      await api.put(`/api/credits/${selectedCredit.id}`, {
+        status: 'Formalizado',
+        formalized_at: format(formalizacionDate, 'yyyy-MM-dd')
+      });
+
+      toastSuccess("Crédito formalizado", "El plan de pagos se ha generado correctamente.");
+      setFormalizarDialogOpen(false);
+      fetchCredits();
+    } catch (error: any) {
+      console.error('Error formalizando crédito:', error);
+      const message = error.response?.data?.message || "No se pudo formalizar el crédito.";
+      toastError("Error", message);
+    }
+  };
 
   const handleCreate = async () => {
     // Obtener la siguiente referencia del backend
@@ -1319,15 +1344,10 @@ export default function CreditsPage() {
                                     size="icon"
                                     title="Formalizar crédito"
                                     className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
-                                    onClick={async () => {
-                                      try {
-                                        await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
-                                        toastSuccess("Crédito formalizado", "El plan de pagos se ha generado correctamente.");
-                                        fetchCredits();
-                                      } catch (error) {
-                                        console.error('Error formalizando crédito:', error);
-                                        toastError("Error", "No se pudo formalizar el crédito.");
-                                      }
+                                    onClick={() => {
+                                      setSelectedCredit(credit);
+                                      setFormalizacionDate(new Date());
+                                      setFormalizarDialogOpen(true);
                                     }}
                                   >
                                     <Check className="h-4 w-4" />
@@ -1825,6 +1845,37 @@ export default function CreditsPage() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Formalizar Dialog */}
+      <Dialog open={formalizarDialogOpen} onOpenChange={setFormalizarDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Formalizar Crédito</DialogTitle>
+            <DialogDescription>
+              Seleccione la fecha de formalización del crédito {selectedCredit?.numero_operacion}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
+              <DatePicker
+                value={formalizacionDate}
+                onChange={(date) => setFormalizacionDate(date || new Date())}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormalizarDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleFormalizar}>
+              Formalizar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

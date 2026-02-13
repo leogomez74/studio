@@ -12,6 +12,7 @@ use App\Models\Analisis;
 use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
 use App\Helpers\NumberToWords;
+use App\Traits\AccountingTrigger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Log;
 
 class CreditController extends Controller
 {
+    use AccountingTrigger;
     /**
      * Listar créditos con filtros (optimizado con paginación)
      */
@@ -148,6 +150,19 @@ class CreditController extends Controller
         $config = LoanConfiguration::where('tipo', $tipoCredito)->where('activo', true)->first();
 
         if ($config) {
+            // Validar si se permiten múltiples créditos por cliente
+            if (!$config->permitir_multiples_creditos) {
+                $creditosActivos = Credit::where('lead_id', $validated['lead_id'])
+                    ->whereIn('status', ['Aprobado', 'Pendiente', 'En Revision'])
+                    ->count();
+
+                if ($creditosActivos > 0) {
+                    return response()->json([
+                        'message' => 'Este cliente ya tiene un crédito activo. No se permiten múltiples créditos simultáneos según la configuración actual.',
+                    ], 422);
+                }
+            }
+
             // Validar monto dentro del rango permitido
             if ($validated['monto_credito'] < $config->monto_minimo || $validated['monto_credito'] > $config->monto_maximo) {
                 return response()->json([
@@ -370,12 +385,13 @@ class CreditController extends Controller
         // 0. Crear línea de inicialización (cuota 0) - Desembolso Inicial
         $existsInitialization = $credit->planDePagos()->where('numero_cuota', 0)->exists();
         if (!$existsInitialization) {
+            $fechaFormalizacion = $credit->formalized_at ?? $credit->opened_at ?? now();
             PlanDePago::create([
                 'credit_id' => $credit->id,
                 'linea' => '1',
                 'numero_cuota' => 0,
-                'proceso' => ($credit->opened_at ?? now())->format('Ym'),
-                'fecha_inicio' => $credit->opened_at ?? now(),
+                'proceso' => $fechaFormalizacion->format('Ym'),
+                'fecha_inicio' => $fechaFormalizacion,
                 'fecha_corte' => null,
                 'fecha_pago' => null,
                 'tasa_actual' => $tasaAnual,
@@ -390,7 +406,7 @@ class CreditController extends Controller
                 'dias' => 0,
                 'estado' => 'Vigente',
                 'dias_mora' => 0,
-                'fecha_movimiento' => $credit->opened_at ?? now(),
+                'fecha_movimiento' => $fechaFormalizacion,
                 'movimiento_total' => $monto,
                 'movimiento_poliza' => 0,
                 'movimiento_interes_corriente' => 0,
@@ -416,7 +432,7 @@ class CreditController extends Controller
         // 2. Configurar y Guardar Fechas en el Crédito
         $fechaInicio = $credit->fecha_primera_cuota
             ? Carbon::parse($credit->fecha_primera_cuota)
-            : ($credit->opened_at ? Carbon::parse($credit->opened_at) : now());
+            : ($credit->formalized_at ?? $credit->opened_at ?? now());
 
         // Calculamos fecha fin estimada
         $fechaFinEstimada = $fechaInicio->copy()->addMonths($plazo);
@@ -527,6 +543,7 @@ class CreditController extends Controller
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
             'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
+            'formalized_at' => 'nullable|date|after:' . now()->subYear()->toDateString(),
         ]);
 
         // PROTECCIÓN: No permitir modificar campos críticos si el crédito ya fue formalizado (tiene formalized_at)
@@ -597,13 +614,46 @@ class CreditController extends Controller
             strtolower($validated['status']) === 'formalizado' &&
             strtolower($previousStatus) !== 'formalizado') {
 
-            $credit->formalized_at = now();
+            // Usar fecha provista o now() como fallback
+            $fechaFormalizacion = isset($validated['formalized_at'])
+                ? Carbon::parse($validated['formalized_at'])->startOfDay()
+                : now();
+
+            $credit->formalized_at = $fechaFormalizacion;
+            // Actualizar también opened_at con la fecha de formalización
+            // Si el usuario especificó una fecha, se asume que esa es la fecha de apertura real
+            if (isset($validated['formalized_at'])) {
+                $credit->opened_at = $fechaFormalizacion;
+            } elseif (!$credit->opened_at) {
+                // Solo establecer opened_at si no existe y no se proveyó formalized_at
+                $credit->opened_at = $fechaFormalizacion;
+            }
             $credit->save();
 
             $existingPlan = $credit->planDePagos()->where('numero_cuota', '>', 0)->exists();
             if (!$existingPlan) {
                 $this->generateAmortizationSchedule($credit);
             }
+
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Formalización de Crédito
+            // ============================================================
+            // Dispara asiento contable al formalizar el crédito:
+            // DÉBITO: Cuentas por Cobrar (monto_credito)
+            // CRÉDITO: Banco CREDIPEPE (monto_credito)
+            $this->triggerAccountingFormalizacion(
+                $credit->id,
+                (float) $credit->monto_credito,
+                $credit->reference,
+                [
+                    'lead_id' => $credit->lead_id,
+                    'lead_cedula' => $credit->lead->cedula ?? null,
+                    'lead_nombre' => $credit->lead->name ?? null,
+                    'tasa_id' => $credit->tasa_id,
+                    'plazo' => $credit->plazo,
+                    'formalized_at' => $credit->formalized_at->toIso8601String(),
+                ]
+            );
         }
 
         // Cargar todas las relaciones necesarias (igual que en show)
@@ -943,6 +993,15 @@ class CreditController extends Controller
             $oldCredit->refundicion_at = now();
             $oldCredit->save();
 
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Refundición - Cierre Crédito Viejo
+            // ============================================================
+            // Dispara asiento contable al cerrar el crédito antiguo:
+            // DÉBITO: Banco CREDIPEPE (saldo_absorbido)
+            // CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
+            // Este pago "sintético" reduce la cuenta por cobrar del crédito viejo
+            // (Este trigger se agregará después de crear el nuevo crédito)
+
             // 5. Resolver tasa para el crédito nuevo
             $tipoCredito = $validated['tipo_credito'] ?? $oldCredit->tipo_credito ?? 'regular';
             $tasaId = $validated['tasa_id'] ?? null;
@@ -998,6 +1057,28 @@ class CreditController extends Controller
             // 9. Calcular cuota y generar plan de amortización
             $this->calculateAndSetCuota($newCredit);
             $this->generateAmortizationSchedule($newCredit);
+
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Refundición - Doble Asiento
+            // ============================================================
+            // 1. Cierre del crédito viejo (pago sintético):
+            //    DÉBITO: Banco CREDIPEPE (saldo_absorbido)
+            //    CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
+            $this->triggerAccountingRefundicionCierre(
+                $oldCredit->id,
+                $saldoAbsorbido,
+                $newCredit->id
+            );
+
+            // 2. Formalización del nuevo crédito:
+            //    DÉBITO: Cuentas por Cobrar (monto_credito nuevo)
+            //    CRÉDITO: Banco CREDIPEPE (monto_credito nuevo)
+            $this->triggerAccountingRefundicionNuevo(
+                $newCredit->id,
+                (float) $validated['monto_credito'],
+                $oldCredit->id,
+                $montoEntregado
+            );
 
             return [
                 'old_credit' => $oldCredit->fresh()->load('planDePagos'),

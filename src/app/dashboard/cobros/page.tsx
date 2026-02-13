@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, Receipt, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -261,7 +261,24 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
 
       <TableCell>
         {isAnulado ? (
-          <Badge variant="destructive" className="text-[10px]">Anulado</Badge>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="text-[10px] cursor-help">Anulado</Badge>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-sm bg-white border-gray-200">
+                <div className="space-y-1 text-xs" style={{ color: 'rgba(0,0,0,0.85)' }}>
+                  <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Motivo:</strong> {payment.motivo_anulacion || 'Sin especificar'}</p>
+                  {payment.fecha_anulacion && (
+                    <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Fecha:</strong> {new Date(payment.fecha_anulacion).toLocaleString('es-CR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short'
+                    })}</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : credit?.status === 'Cerrado' || credit?.status === 'Finalizado' ? (
           <Badge variant="secondary" className="text-[10px]">{credit.status}</Badge>
         ) : (
@@ -285,12 +302,6 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
               </Tooltip>
             </TooltipProvider>
           )}
-          <Link href={`/dashboard/cobros/recibo/${payment.id}`}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Receipt className="h-4 w-4" />
-              <span className="sr-only">Ver Recibo</span>
-            </Button>
-          </Link>
         </div>
       </TableCell>
     </TableRow>

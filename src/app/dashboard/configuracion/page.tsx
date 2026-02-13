@@ -2633,6 +2633,7 @@ export default function ConfiguracionPage() {
     interestRate: '',
     minTerm: '',
     maxTerm: '',
+    permitirMultiplesCreditos: true,
   });
 
   const [microConfig, setMicroConfig] = useState({
@@ -2641,6 +2642,7 @@ export default function ConfiguracionPage() {
     interestRate: '',
     minTerm: '',
     maxTerm: '',
+    permitirMultiplesCreditos: true,
   });
 
   const [loadingLoanConfigs, setLoadingLoanConfigs] = useState(false);
@@ -2688,6 +2690,7 @@ export default function ConfiguracionPage() {
           interestRate: regular.tasa?.tasa?.toString() || '',
           minTerm: regular.plazo_minimo?.toString() || '',
           maxTerm: regular.plazo_maximo?.toString() || '',
+          permitirMultiplesCreditos: regular.permitir_multiples_creditos ?? true,
         });
       }
 
@@ -2698,6 +2701,7 @@ export default function ConfiguracionPage() {
           interestRate: micro.tasa?.tasa?.toString() || '',
           minTerm: micro.plazo_minimo?.toString() || '',
           maxTerm: micro.plazo_maximo?.toString() || '',
+          permitirMultiplesCreditos: micro.permitir_multiples_creditos ?? true,
         });
       }
     } catch (error) {
@@ -2814,6 +2818,7 @@ export default function ConfiguracionPage() {
         tasa_anual: interestRate,
         plazo_minimo: minTerm,
         plazo_maximo: maxTerm,
+        permitir_multiples_creditos: config.permitirMultiplesCreditos,
       });
 
       toast({
@@ -2873,6 +2878,81 @@ export default function ConfiguracionPage() {
     assigned_to: '1', // Default: Administrador (ID 1)
     is_active: false,
   });
+
+  // ERP Accounting state
+  const [erpAccounts, setErpAccounts] = useState<any[]>([]);
+  const [erpLoading, setErpLoading] = useState(false);
+  const [erpSaving, setErpSaving] = useState<number | null>(null);
+  const [erpConfigured, setErpConfigured] = useState(false);
+  const [erpAccountsConfigured, setErpAccountsConfigured] = useState(false);
+  const [erpTestLoading, setErpTestLoading] = useState(false);
+  const [erpNewAccount, setErpNewAccount] = useState({ key: '', account_code: '', account_name: '', description: '' });
+  const [erpAddDialogOpen, setErpAddDialogOpen] = useState(false);
+
+  const fetchErpAccounts = useCallback(async () => {
+    setErpLoading(true);
+    try {
+      const res = await api.get('/api/erp-accounting/accounts');
+      setErpAccounts(res.data.accounts || []);
+      setErpConfigured(res.data.erp_configured || false);
+      setErpAccountsConfigured(res.data.accounts_configured || false);
+    } catch (err) {
+      console.error('Error loading ERP accounts:', err);
+    } finally {
+      setErpLoading(false);
+    }
+  }, []);
+
+  const saveErpAccount = async (id: number, accountCode: string) => {
+    setErpSaving(id);
+    try {
+      await api.put(`/api/erp-accounting/accounts/${id}`, { account_code: accountCode });
+      toast({ title: 'Cuenta actualizada', description: 'Código de cuenta guardado exitosamente.' });
+      fetchErpAccounts();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo guardar.', variant: 'destructive' });
+    } finally {
+      setErpSaving(null);
+    }
+  };
+
+  const addErpAccount = async () => {
+    if (!erpNewAccount.key || !erpNewAccount.account_code || !erpNewAccount.account_name) {
+      toast({ title: 'Error', description: 'Completa los campos requeridos.', variant: 'destructive' });
+      return;
+    }
+    try {
+      await api.post('/api/erp-accounting/accounts', erpNewAccount);
+      toast({ title: 'Cuenta agregada', description: 'Nueva cuenta contable registrada.' });
+      setErpNewAccount({ key: '', account_code: '', account_name: '', description: '' });
+      setErpAddDialogOpen(false);
+      fetchErpAccounts();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo agregar.', variant: 'destructive' });
+    }
+  };
+
+  const deleteErpAccount = async (id: number) => {
+    try {
+      await api.delete(`/api/erp-accounting/accounts/${id}`);
+      toast({ title: 'Cuenta eliminada' });
+      fetchErpAccounts();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo eliminar.', variant: 'destructive' });
+    }
+  };
+
+  const testErpConnection = async () => {
+    setErpTestLoading(true);
+    try {
+      const res = await api.post('/api/erp-accounting/test-connection');
+      toast({ title: 'Conexión exitosa', description: res.data.message, variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Error de conexión', description: err.response?.data?.message || 'No se pudo conectar con el ERP.', variant: 'destructive' });
+    } finally {
+      setErpTestLoading(false);
+    }
+  };
 
   const fetchAutomations = useCallback(async () => {
     setAutomationsLoading(true);
@@ -3006,6 +3086,12 @@ export default function ConfiguracionPage() {
     }
   }, [activeTab, fetchAutomations]);
 
+  useEffect(() => {
+    if (activeTab === 'api') {
+      fetchErpAccounts();
+    }
+  }, [activeTab, fetchErpAccounts]);
+
   return (
     <ProtectedPage module="configuracion">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
@@ -3019,7 +3105,7 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="empresas">Empresas</TabsTrigger>
         <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
         <TabsTrigger value="productos">Créditos</TabsTrigger>
-        <TabsTrigger value="api">API ERP</TabsTrigger>
+        <TabsTrigger value="api">Contabilidad ERP</TabsTrigger>
         <TabsTrigger value="poliza">Póliza</TabsTrigger>
         <TabsTrigger value="tareas">Tareas</TabsTrigger>
       </TabsList>
@@ -3212,6 +3298,20 @@ export default function ConfiguracionPage() {
                     />
                   </div>
                 </div>
+                <div className="flex items-center justify-between space-x-2 pt-4 border-t">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="regular-multiples">Permitir Múltiples Créditos</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Permite que un cliente tenga más de un crédito activo simultáneamente
+                    </p>
+                  </div>
+                  <Switch
+                    id="regular-multiples"
+                    checked={regularConfig.permitirMultiplesCreditos}
+                    onCheckedChange={(checked) => setRegularConfig(prev => ({ ...prev, permitirMultiplesCreditos: checked }))}
+                    disabled={savingRegular}
+                  />
+                </div>
               </CardContent>
               <CardFooter>
                 <Button onClick={() => handleSave('regular')} disabled={savingRegular}>
@@ -3305,6 +3405,20 @@ export default function ConfiguracionPage() {
                       disabled={savingMicro}
                     />
                   </div>
+                </div>
+                <div className="flex items-center justify-between space-x-2 pt-4 border-t">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="micro-multiples">Permitir Múltiples Créditos</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Permite que un cliente tenga más de un crédito activo simultáneamente
+                    </p>
+                  </div>
+                  <Switch
+                    id="micro-multiples"
+                    checked={microConfig.permitirMultiplesCreditos}
+                    onCheckedChange={(checked) => setMicroConfig(prev => ({ ...prev, permitirMultiplesCreditos: checked }))}
+                    disabled={savingMicro}
+                  />
                 </div>
               </CardContent>
               <CardFooter>
@@ -3735,37 +3849,252 @@ export default function ConfiguracionPage() {
       </TabsContent>
 
       <TabsContent value="api">
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuración de API</CardTitle>
-            <CardDescription>
-              Gestiona la conexión con el sistema ERP.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="max-w-md space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="api-url">URL del ERP</Label>
-                <Input
-                  id="api-url"
-                  placeholder="https://erp.example.com/api"
-                />
+        <div className="space-y-6">
+          {/* Estado de Conexión */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Conexión con ERP Contable</CardTitle>
+                  <CardDescription>
+                    Estado de la integración con el sistema de contabilidad externo. Las credenciales se configuran en el archivo .env del servidor.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={testErpConnection}
+                  disabled={erpTestLoading}
+                >
+                  {erpTestLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Probar Conexión
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="api-key">Clave de API (API Key)</Label>
-                <Input
-                  id="api-key"
-                  type="password"
-                  placeholder="Ingresa tu clave de API"
-                />
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${erpConfigured ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  <div className={`w-2 h-2 rounded-full ${erpConfigured ? 'bg-green-500' : 'bg-red-500'}`} />
+                  {erpConfigured ? 'API ERP Configurada' : 'API ERP No Configurada'}
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${erpAccountsConfigured ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>
+                  <div className={`w-2 h-2 rounded-full ${erpAccountsConfigured ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                  {erpAccountsConfigured ? 'Cuentas Contables Configuradas' : 'Cuentas Pendientes de Configurar'}
+                </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline">Probar Conexión</Button>
-                <Button type="submit">Guardar Cambios</Button>
+              {!erpConfigured && (
+                <p className="text-sm text-muted-foreground mt-3">
+                  Agrega las siguientes variables al archivo <code className="bg-muted px-1 py-0.5 rounded text-xs">.env</code> del backend: <code className="bg-muted px-1 py-0.5 rounded text-xs">ERP_API_URL</code>, <code className="bg-muted px-1 py-0.5 rounded text-xs">ERP_API_EMAIL</code>, <code className="bg-muted px-1 py-0.5 rounded text-xs">ERP_API_PASSWORD</code>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Cuentas Contables */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Cuentas Contables</CardTitle>
+                  <CardDescription>
+                    Configura los códigos de cuenta del catálogo del ERP para los asientos contables automáticos.
+                  </CardDescription>
+                </div>
+                <Dialog open={erpAddDialogOpen} onOpenChange={setErpAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Agregar Cuenta
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Agregar Cuenta Contable</DialogTitle>
+                      <DialogDescription>Agrega una nueva cuenta del catálogo del ERP.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Identificador Interno (key)</Label>
+                        <Input
+                          placeholder="ej: ingresos_intereses"
+                          value={erpNewAccount.key}
+                          onChange={(e) => setErpNewAccount(prev => ({ ...prev, key: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Código de Cuenta (ERP)</Label>
+                        <Input
+                          placeholder="ej: 4-100"
+                          value={erpNewAccount.account_code}
+                          onChange={(e) => setErpNewAccount(prev => ({ ...prev, account_code: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Nombre de la Cuenta</Label>
+                        <Input
+                          placeholder="ej: Ingresos por Intereses"
+                          value={erpNewAccount.account_name}
+                          onChange={(e) => setErpNewAccount(prev => ({ ...prev, account_name: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Descripción (opcional)</Label>
+                        <Input
+                          placeholder="Para qué se usa esta cuenta"
+                          value={erpNewAccount.description}
+                          onChange={(e) => setErpNewAccount(prev => ({ ...prev, description: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setErpAddDialogOpen(false)}>Cancelar</Button>
+                      <Button onClick={addErpAccount}>Agregar</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              {erpLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[180px]">Identificador</TableHead>
+                      <TableHead className="w-[120px]">Código ERP</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead className="w-[80px]">Estado</TableHead>
+                      <TableHead className="w-[120px]">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {erpAccounts.map((account) => (
+                      <TableRow key={account.id}>
+                        <TableCell className="font-mono text-sm">{account.key}</TableCell>
+                        <TableCell>
+                          <Input
+                            className="h-8 w-28"
+                            defaultValue={account.account_code}
+                            placeholder="ej: 1-100"
+                            onBlur={(e) => {
+                              if (e.target.value !== account.account_code) {
+                                saveErpAccount(account.id, e.target.value);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const target = e.target as HTMLInputElement;
+                                if (target.value !== account.account_code) {
+                                  saveErpAccount(account.id, target.value);
+                                }
+                              }
+                            }}
+                            disabled={erpSaving === account.id}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{account.account_name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{account.description || '-'}</TableCell>
+                        <TableCell>
+                          {account.account_code ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Activa</span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">Pendiente</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {erpSaving === account.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            !['banco_credipepe', 'cuentas_por_cobrar'].includes(account.key) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => deleteErpAccount(account.id)}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            )
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {erpAccounts.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          No hay cuentas contables configuradas
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Referencia de Asientos */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Asientos Contables Automáticos</CardTitle>
+              <CardDescription>
+                Estos asientos se generan automáticamente cuando ocurren las siguientes operaciones en el sistema.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Operación</TableHead>
+                    <TableHead>Débito</TableHead>
+                    <TableHead>Crédito</TableHead>
+                    <TableHead>Descripción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="font-medium">Formalización de Crédito</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">Al aprobar y formalizar un crédito</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Pago de Cuota</TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">Ventanilla, Planilla, Saldo Pendiente, Extraordinario</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Cancelación Anticipada</TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">Pago total anticipado del crédito</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Refundición (Cierre)</TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">Cierre del crédito antiguo</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Refundición (Nuevo)</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">Apertura del nuevo crédito refundido</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Anulación de Planilla</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">Reversa de todos los pagos de la planilla</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
       </TabsContent>
 
       <TabsContent value="tareas">
