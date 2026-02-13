@@ -48,6 +48,7 @@ import {
   FileSpreadsheet,
   PlusCircle,
   RefreshCw,
+  Receipt,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -2380,6 +2381,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         <TableHead className="whitespace-nowrap text-xs">Tipo Doc.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">No. Doc.</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Concepto</TableHead>
+                        <TableHead className="whitespace-nowrap text-xs text-center">Recibo</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2426,11 +2428,25 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs">{payment.tipo_documento || "-"}</TableCell>
                             <TableCell className="text-xs">{payment.numero_documento || "-"}</TableCell>
                             <TableCell className="text-xs">{payment.concepto || "-"}</TableCell>
+                            <TableCell className="text-xs text-center">
+                              {payment.concepto && payment.concepto.startsWith('Pago') && (() => {
+                                const matchingPayment = credit.payments?.find(
+                                  (p: any) => p.numero_cuota === payment.numero_cuota
+                                );
+                                return matchingPayment ? (
+                                  <Link href={`/dashboard/cobros/recibo/${matchingPayment.id}`}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                                      <Receipt className="h-4 w-4" />
+                                    </Button>
+                                  </Link>
+                                ) : null;
+                              })()}
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={32} className="text-center py-12">
+                          <TableCell colSpan={33} className="text-center py-12">
                             <div className="flex flex-col items-center gap-4">
                               <div className="text-muted-foreground">
                                 {credit.status !== 'Formalizado' ? (
