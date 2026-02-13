@@ -2946,7 +2946,7 @@ export default function ConfiguracionPage() {
     setErpTestLoading(true);
     try {
       const res = await api.post('/api/erp-accounting/test-connection');
-      toast({ title: 'Conexión exitosa', description: res.data.message });
+      toast({ title: 'Conexión exitosa', description: res.data.message, variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error de conexión', description: err.response?.data?.message || 'No se pudo conectar con el ERP.', variant: 'destructive' });
     } finally {
