@@ -1844,28 +1844,16 @@ export default function CobrosPage() {
                                           {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Cuota ${i + 1}`}
                                         </Button>
                                       ))}
-                                      {/* Botón parcial: cuando queda restante que no alcanza cuota completa */}
-                                      {dist.restante > 1 && dist.restante < dist.cuota && (
+                                      {/* Botón parcial: un solo botón con la lógica correcta */}
+                                      {((dist.restante > 1 && dist.restante < dist.cuota) || (dist.max_cuotas === 0 && saldo.monto > 1)) && (
                                         <Button
                                           variant="outline"
                                           size="sm"
                                           className="text-xs h-7 px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
                                           disabled={procesandoSaldo === saldo.id}
-                                          onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, dist.restante)}
+                                          onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto)}
                                         >
-                                          {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Parcial ₡${Number(dist.restante).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-                                        </Button>
-                                      )}
-                                      {/* Cuando no alcanza ni una cuota: mostrar botón parcial con el monto total del sobrante */}
-                                      {dist.max_cuotas === 0 && saldo.monto > 1 && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="text-xs h-7 px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                                          disabled={procesandoSaldo === saldo.id}
-                                          onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, saldo.monto)}
-                                        >
-                                          {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Parcial ₡${Number(saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                                          {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Parcial ₡${Number(dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                                         </Button>
                                       )}
                                       <Button
