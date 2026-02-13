@@ -422,6 +422,8 @@ export default function CobrosPage() {
   const [anularDialogOpen, setAnularDialogOpen] = useState(false);
   const [planillaToAnular, setPlanillaToAnular] = useState<any>(null);
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
+  const [reintegroDialogOpen, setReintegroDialogOpen] = useState(false);
+  const [saldoToReintegrar, setSaldoToReintegrar] = useState<any>(null);
 
   // Usuario actual (para verificar permisos)
   const { user } = useAuth();
@@ -1005,7 +1007,7 @@ export default function CobrosPage() {
     }
   };
 
-  const handleReintegrarSaldo = async (saldoId: number) => {
+  const handleReintegrarSaldo = (saldo: any) => {
     // Verificar permiso de administrador
     if (user?.role?.name !== 'Administrador' && !user?.role?.full_access) {
       toast({
@@ -1016,16 +1018,18 @@ export default function CobrosPage() {
       return;
     }
 
-    // Confirmar acción
-    const confirmar = window.confirm(
-      '¿Está seguro que desea reintegrar este saldo?\n\nEsto marcará el saldo como procesado sin aplicarlo a ningún crédito. Esta acción no se puede deshacer.'
-    );
+    // Abrir modal de confirmación
+    setSaldoToReintegrar(saldo);
+    setReintegroDialogOpen(true);
+  };
 
-    if (!confirmar) return;
+  const confirmarReintegro = async () => {
+    if (!saldoToReintegrar) return;
 
-    setProcesandoSaldo(saldoId);
+    setProcesandoSaldo(saldoToReintegrar.id);
+    setReintegroDialogOpen(false);
     try {
-      const res = await api.post(`/api/saldos-pendientes/${saldoId}/reintegrar`, {
+      const res = await api.post(`/api/saldos-pendientes/${saldoToReintegrar.id}/reintegrar`, {
         motivo: 'Reintegrado desde interfaz de usuario'
       });
       toast({
@@ -1044,6 +1048,7 @@ export default function CobrosPage() {
       }
     } finally {
       setProcesandoSaldo(null);
+      setSaldoToReintegrar(null);
     }
   };
 
@@ -2010,7 +2015,7 @@ export default function CobrosPage() {
                                     size="sm"
                                     className="text-xs h-7 px-2 w-full border-red-300 text-red-700 hover:bg-red-50"
                                     disabled={procesandoSaldo === saldo.id}
-                                    onClick={() => handleReintegrarSaldo(saldo.id)}
+                                    onClick={() => handleReintegrarSaldo(saldo)}
                                   >
                                     {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reintegro de Saldo'}
                                   </Button>
@@ -2043,7 +2048,7 @@ export default function CobrosPage() {
                                   size="sm"
                                   className="text-xs w-full border-red-300 text-red-700 hover:bg-red-50"
                                   disabled={procesandoSaldo === saldo.id}
-                                  onClick={() => handleReintegrarSaldo(saldo.id)}
+                                  onClick={() => handleReintegrarSaldo(saldo)}
                                 >
                                   {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reintegro de Saldo'}
                                 </Button>
@@ -2677,6 +2682,70 @@ export default function CobrosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal: Confirmar Reintegro de Saldo */}
+      <Dialog open={reintegroDialogOpen} onOpenChange={setReintegroDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Reintegro de Saldo</DialogTitle>
+            <DialogDescription>
+              Esta acción marcará el saldo como procesado sin aplicarlo a ningún crédito.
+            </DialogDescription>
+          </DialogHeader>
+
+          {saldoToReintegrar && (
+            <div className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cliente:</span>
+                      <span className="font-medium">{saldoToReintegrar.lead_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cédula:</span>
+                      <span className="font-medium">{saldoToReintegrar.cedula}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Monto:</span>
+                      <span className="font-bold text-lg text-orange-600">
+                        ₡{Number(saldoToReintegrar.monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Deductora:</span>
+                      <span className="font-medium">{saldoToReintegrar.deductora}</span>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              <Alert variant="destructive">
+                <AlertDescription>
+                  <strong>Importante:</strong> El saldo será marcado como reintegrado y ya no aparecerá en esta lista.
+                  No se aplicará a ningún crédito ni se registrarán movimientos contables.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setReintegroDialogOpen(false);
+              setSaldoToReintegrar(null);
+            }}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmarReintegro}
+            >
+              Confirmar Reintegro
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* AlertDialog para Revertir Pago */}
       <AlertDialog open={reverseDialogOpen} onOpenChange={setReverseDialogOpen}>
         <AlertDialogContent>
