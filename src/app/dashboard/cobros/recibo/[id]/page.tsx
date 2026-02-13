@@ -276,231 +276,167 @@ export default function ReciboPage() {
         style={{
           width: "280mm",
           minHeight: "180mm",
-          padding: "10mm 15mm",
-          fontFamily: "'Courier New', Courier, monospace",
-          fontSize: "9pt",
-          lineHeight: "1.4",
+          padding: "12mm 18mm",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          fontSize: "9.5pt",
+          lineHeight: "1.5",
+          color: "#1a1a1a",
         }}
       >
-        {/* Encabezado */}
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5mm" }}>
+        {/* Header con línea decorativa */}
+        <div style={{ borderBottom: "3px solid #1e3a5f", paddingBottom: "4mm", marginBottom: "6mm", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
-            <h1 style={{ fontSize: "16pt", fontWeight: "bold", margin: 0 }}>
-              COMPROBANTES DE APLICACION
+            <h1 style={{ fontSize: "18pt", fontWeight: "700", margin: 0, color: "#1e3a5f", letterSpacing: "0.5px" }}>
+              Comprobante de Aplicación
             </h1>
+            <p style={{ margin: "1mm 0 0 0", fontSize: "8.5pt", color: "#666" }}>Oficina Central</p>
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: "12pt", fontWeight: "bold", margin: 0 }}>*{payment.id}*</p>
-            <p style={{ fontWeight: "bold", margin: 0 }}>{payment.id}</p>
-            <p style={{ margin: 0 }}>Oficina Central</p>
+            <p style={{ fontSize: "22pt", fontWeight: "700", margin: 0, color: "#1e3a5f" }}>N° {payment.id}</p>
           </div>
         </div>
 
-        {/* Datos del cliente */}
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4mm" }}>
-          <div style={{ display: "flex", gap: "5mm" }}>
-            <span style={{ fontWeight: "bold" }}>CLIENTE:</span>
-            <span style={{ fontWeight: "bold" }}>{debtorCedula}</span>
-            <span>{debtorName.toUpperCase()}</span>
+        {/* Datos del cliente y operación */}
+        <div style={{ display: "flex", gap: "8mm", marginBottom: "6mm" }}>
+          <div style={{ flex: 2, backgroundColor: "#f8f9fb", borderRadius: "2mm", padding: "4mm 5mm", border: "1px solid #e2e6ea" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2mm" }}>
+              <div>
+                <span style={{ fontSize: "7.5pt", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>Cliente</span>
+                <p style={{ margin: "0.5mm 0 0 0", fontWeight: "600", fontSize: "11pt" }}>{debtorName.toUpperCase()}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ fontSize: "7.5pt", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>Cédula</span>
+                <p style={{ margin: "0.5mm 0 0 0", fontWeight: "600", fontSize: "11pt" }}>{debtorCedula}</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div>
+                <span style={{ fontSize: "7.5pt", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>Concepto</span>
+                <p style={{ margin: "0.5mm 0 0 0", fontWeight: "500" }}>{sourceToConcepto(payment.source)}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ fontSize: "7.5pt", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>Operación</span>
+                <p style={{ margin: "0.5mm 0 0 0", fontWeight: "500" }}>{operacion}</p>
+              </div>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: "5mm" }}>
-            <span style={{ fontWeight: "bold" }}>FECHA:</span>
-            <span>{formatDateTime(fechaPago)}</span>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2mm" }}>
-          <div style={{ display: "flex", gap: "5mm" }}>
-            <span style={{ fontWeight: "bold" }}>CONCEPTO:</span>
-            <span>{sourceToConcepto(payment.source)}</span>
-          </div>
-          <div style={{ display: "flex", gap: "5mm" }}>
-            <span style={{ fontWeight: "bold" }}>MONTO:</span>
-            <span>{formatCurrency(montoTotal)}</span>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: "5mm" }}>
-          <div style={{ display: "flex", gap: "5mm" }}>
-            <span />
-            <span />
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "5mm" }}>
-            <span style={{ fontWeight: "bold" }}>DOC.ALT.:</span>
-            <span>{operacion}</span>
+          <div style={{ flex: 1, backgroundColor: "#1e3a5f", borderRadius: "2mm", padding: "4mm 5mm", color: "#fff", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+            <span style={{ fontSize: "7.5pt", textTransform: "uppercase", letterSpacing: "0.5px", opacity: 0.8 }}>Monto Total</span>
+            <p style={{ margin: "1mm 0 0 0", fontWeight: "700", fontSize: "16pt" }}>₡{formatCurrency(montoTotal)}</p>
+            <span style={{ fontSize: "7.5pt", opacity: 0.7, marginTop: "1mm" }}>{formatDateTime(fechaPago)}</span>
           </div>
         </div>
 
-        {/* DETALLE */}
-        <p style={{ fontWeight: "bold", marginBottom: "3mm", textDecoration: "underline" }}>
-          DETALLE:
-        </p>
-
-        <div style={{ display: "flex", gap: "10mm", marginBottom: "6mm" }}>
-          {/* Columna izquierda - Saldos */}
-          <div style={{ flex: 1, border: "1px solid #ccc", padding: "3mm" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9pt" }}>
+        {/* Detalle financiero */}
+        <div style={{ display: "flex", gap: "8mm", marginBottom: "6mm" }}>
+          {/* Columna izquierda - Desglose */}
+          <div style={{ flex: 1, border: "1px solid #dde1e6", borderRadius: "2mm", overflow: "hidden" }}>
+            <div style={{ backgroundColor: "#f0f3f6", padding: "2.5mm 4mm", fontWeight: "600", fontSize: "9pt", color: "#1e3a5f", borderBottom: "1px solid #dde1e6" }}>
+              Desglose del Pago
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
-                <tr>
-                  <td style={{ paddingBottom: "1mm" }}>Saldo Anterior</td>
-                  <td style={{ textAlign: "right", paddingBottom: "1mm" }}>
-                    ...: ₡{formatCurrency(saldoAnterior)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ paddingBottom: "1mm" }}>Saldo Actual</td>
-                  <td style={{ textAlign: "right", paddingBottom: "1mm" }}>
-                    ...: ₡{formatCurrency(saldoActual)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ paddingBottom: "1mm" }}>Interes Corriente</td>
-                  <td style={{ textAlign: "right", paddingBottom: "1mm" }}>
-                    ...: ₡{formatCurrency(interesCorriente)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ paddingBottom: "1mm" }}>Interes Atrasado</td>
-                  <td style={{ textAlign: "right", paddingBottom: "1mm" }}>
-                    ...: ₡{formatCurrency(interesAtrasado)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ paddingBottom: "1mm" }}>Amortización</td>
-                  <td style={{ textAlign: "right", paddingBottom: "1mm" }}>
-                    ...: ₡{formatCurrency(amortizacion)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ paddingBottom: "1mm" }}>Cargos Totales</td>
-                  <td style={{ textAlign: "right", paddingBottom: "1mm" }}>
-                    ...: ₡{formatCurrency(0)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ paddingBottom: "1mm" }}>Pólizas</td>
-                  <td style={{ textAlign: "right", paddingBottom: "1mm" }}>
-                    ...: ₡{formatCurrency(polizas)}
-                  </td>
-                </tr>
+                {[
+                  { label: "Saldo Anterior", value: saldoAnterior },
+                  { label: "Saldo Actual", value: saldoActual },
+                  { label: "Interés Corriente", value: interesCorriente },
+                  { label: "Interés Moratorio", value: interesAtrasado },
+                  { label: "Amortización", value: amortizacion },
+                  { label: "Cargos Totales", value: 0 },
+                  { label: "Pólizas", value: polizas },
+                ].map((row, i) => (
+                  <tr key={i} style={{ borderBottom: i < 6 ? "1px solid #eef0f3" : "none" }}>
+                    <td style={{ padding: "2mm 4mm", color: "#555" }}>{row.label}</td>
+                    <td style={{ padding: "2mm 4mm", textAlign: "right", fontWeight: "500", fontVariantNumeric: "tabular-nums" }}>
+                      ₡{formatCurrency(row.value)}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
           {/* Columna derecha - Referencias */}
-          <div style={{ flex: 1, border: "1px solid #ccc", padding: "3mm" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9pt" }}>
+          <div style={{ flex: 1, border: "1px solid #dde1e6", borderRadius: "2mm", overflow: "hidden" }}>
+            <div style={{ backgroundColor: "#f0f3f6", padding: "2.5mm 4mm", fontWeight: "600", fontSize: "9pt", color: "#1e3a5f", borderBottom: "1px solid #dde1e6" }}>
+              Referencias de la Operación
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingBottom: "1mm" }}>Operacion/Linea</td>
-                  <td style={{ paddingBottom: "1mm" }}>
-                    ...: Op.:{payment.credit?.id} L.:
-                    {operacion.split("-").pop() || ""} Ret.:NO
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingBottom: "1mm" }}>Descripción</td>
-                  <td style={{ paddingBottom: "1mm" }}>
-                    ...: {descripcion.toUpperCase() || "CREDITO"}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingBottom: "1mm" }}>REFERENCIA 1</td>
-                  <td style={{ paddingBottom: "1mm" }}>{payment.credit?.id || ""}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingBottom: "1mm" }}>REFERENCIA 2</td>
-                  <td style={{ paddingBottom: "1mm" }}>
-                    {operacion.split("-").slice(0, -1).join("-") || ""}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", paddingBottom: "1mm" }}>REFERENCIA 3</td>
-                  <td style={{ paddingBottom: "1mm" }}>{debtorCedula}</td>
-                </tr>
+                {[
+                  { label: "Operación / Línea", value: `Op.:${payment.credit?.id} L.:${operacion.split("-").pop() || ""}` },
+                  { label: "Descripción", value: descripcion.toUpperCase() || "CRÉDITO" },
+                  { label: "Referencia 1", value: String(payment.credit?.id || "") },
+                  { label: "Referencia 2", value: operacion.split("-").slice(0, -1).join("-") || "" },
+                  { label: "Referencia 3", value: debtorCedula },
+                ].map((row, i) => (
+                  <tr key={i} style={{ borderBottom: i < 4 ? "1px solid #eef0f3" : "none" }}>
+                    <td style={{ padding: "2mm 4mm", color: "#555", whiteSpace: "nowrap" }}>{row.label}</td>
+                    <td style={{ padding: "2mm 4mm", fontWeight: "500" }}>{row.value}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-            <div
-              style={{
-                marginTop: "3mm",
-                padding: "2mm",
-                backgroundColor: "#f5f5f5",
-                fontSize: "8pt",
-              }}
-            >
-              <strong>Notas:</strong>{" "}
+            <div style={{ margin: "0 3mm 3mm 3mm", padding: "2.5mm 3mm", backgroundColor: saldoActual > 0 ? "#fff8e6" : "#e8f5e9", borderRadius: "1.5mm", fontSize: "8pt", color: saldoActual > 0 ? "#8a6d00" : "#2e7d32" }}>
+              <strong>Nota:</strong>{" "}
               {saldoActual > 0
-                ? "Su Plan de Crédito Presenta Cuotas Pendientes al Corte"
+                ? "Su plan de crédito presenta cuotas pendientes al corte"
                 : "Crédito al día"}
             </div>
           </div>
         </div>
 
-        {/* DETALLE DE LOS VALORES APLICADOS */}
-        <p
-          style={{
-            fontWeight: "bold",
-            marginBottom: "2mm",
-            fontSize: "10pt",
-          }}
-        >
-          DETALLE DE LOS VALORES APLICADOS
-        </p>
-
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "8pt",
-            marginBottom: "3mm",
-          }}
-        >
-          <thead>
-            <tr style={{ borderTop: "1px solid #000", borderBottom: "1px solid #000" }}>
-              <th style={{ padding: "2mm 1mm", textAlign: "left" }}>LN/</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "left" }}>CAJA / APERTURA</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "left" }}>FORMA DE PAGO</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "left" }}>DIVISA</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "center" }}>T.C.</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "right" }}>MONTO DOCUMENTO</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "right" }}>MONTO APLICADO</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "left" }}>REFERENCIAS</th>
-              <th style={{ padding: "2mm 1mm", textAlign: "center" }}>S.F.</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ borderBottom: "1px solid #ccc" }}>
-              <td style={{ padding: "1mm" }}>1</td>
-              <td style={{ padding: "1mm" }}>CA_01</td>
-              <td style={{ padding: "1mm" }}>
-                {payment.source === "Planilla" ? "PLANILLA" : "DEPOSITOS"}
-              </td>
-              <td style={{ padding: "1mm" }}>COL</td>
-              <td style={{ padding: "1mm", textAlign: "center" }}>1.00</td>
-              <td style={{ padding: "1mm", textAlign: "right" }}>
-                {formatCurrency(montoTotal)}
-              </td>
-              <td style={{ padding: "1mm", textAlign: "right" }}>
-                {formatCurrency(montoTotal)}
-              </td>
-              <td style={{ padding: "1mm", fontSize: "7pt" }}>
-                DP.: {debtorCedula} Cuenta.:00103399010 Fecha.:{formatDate(fechaPago)}
-              </td>
-              <td style={{ padding: "1mm", textAlign: "center" }}>0</td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr style={{ borderTop: "2px solid #000" }}>
-              <td colSpan={6} style={{ textAlign: "right", padding: "2mm 1mm", fontWeight: "bold" }}>
-                Total:
-              </td>
-              <td style={{ textAlign: "right", padding: "2mm 1mm", fontWeight: "bold" }}>
-                {formatCurrency(montoTotal)}
-              </td>
-              <td colSpan={2} />
-            </tr>
-          </tfoot>
-        </table>
+        {/* Tabla de valores aplicados */}
+        <div style={{ border: "1px solid #dde1e6", borderRadius: "2mm", overflow: "hidden" }}>
+          <div style={{ backgroundColor: "#f0f3f6", padding: "2.5mm 4mm", fontWeight: "600", fontSize: "9pt", color: "#1e3a5f", borderBottom: "1px solid #dde1e6" }}>
+            Detalle de Valores Aplicados
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8.5pt" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f8f9fb" }}>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "left", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>LN</th>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "left", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>Caja</th>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "left", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>Forma de Pago</th>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "left", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>Divisa</th>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "center", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>T.C.</th>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "right", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>Monto Documento</th>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "right", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>Monto Aplicado</th>
+                <th style={{ padding: "2.5mm 3mm", textAlign: "left", fontWeight: "600", color: "#555", borderBottom: "1px solid #dde1e6" }}>Referencias</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: "2.5mm 3mm" }}>1</td>
+                <td style={{ padding: "2.5mm 3mm" }}>CA_01</td>
+                <td style={{ padding: "2.5mm 3mm" }}>
+                  {payment.source === "Planilla" ? "Planilla" : "Depósito"}
+                </td>
+                <td style={{ padding: "2.5mm 3mm" }}>CRC</td>
+                <td style={{ padding: "2.5mm 3mm", textAlign: "center" }}>1.00</td>
+                <td style={{ padding: "2.5mm 3mm", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  ₡{formatCurrency(montoTotal)}
+                </td>
+                <td style={{ padding: "2.5mm 3mm", textAlign: "right", fontWeight: "600", fontVariantNumeric: "tabular-nums" }}>
+                  ₡{formatCurrency(montoTotal)}
+                </td>
+                <td style={{ padding: "2.5mm 3mm", fontSize: "7.5pt", color: "#666" }}>
+                  DP: {debtorCedula} &middot; Cuenta: 00103399010 &middot; Fecha: {formatDate(fechaPago)}
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "2px solid #1e3a5f" }}>
+                <td colSpan={6} style={{ textAlign: "right", padding: "3mm 3mm", fontWeight: "700", color: "#1e3a5f" }}>
+                  Total Aplicado:
+                </td>
+                <td style={{ textAlign: "right", padding: "3mm 3mm", fontWeight: "700", fontSize: "10pt", color: "#1e3a5f", fontVariantNumeric: "tabular-nums" }}>
+                  ₡{formatCurrency(montoTotal)}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     </div>
   );
