@@ -920,6 +920,10 @@ export default function CobrosPage() {
         description: err.response?.data?.message || 'Error al obtener preview',
         variant: 'destructive',
       });
+      // Si el backend indica que debe recargar, actualizar la lista
+      if (err.response?.data?.reload) {
+        await fetchSaldosPendientes();
+      }
     }
   };
 
@@ -952,6 +956,11 @@ export default function CobrosPage() {
         description: err.response?.data?.message || 'Error al obtener preview',
         variant: 'destructive',
       });
+      // Si el backend indica que debe recargar, actualizar la lista
+      if (err.response?.data?.reload) {
+        await fetchSaldosPendientes();
+      }
+      setPendingCapitalData(null);
     }
   };
 
@@ -982,6 +991,11 @@ export default function CobrosPage() {
         description: err.response?.data?.message || 'Error al asignar saldo',
         variant: 'destructive',
       });
+      // Si el backend indica que debe recargar, actualizar la lista
+      if (err.response?.data?.reload) {
+        setConfirmDialogOpen(false);
+        await fetchSaldosPendientes();
+      }
     } finally {
       setProcesandoSaldo(null);
       setPendingSaldoId(null);

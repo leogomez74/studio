@@ -173,7 +173,13 @@ class SaldoPendienteController extends Controller
             return response()->json(['message' => 'Solo administradores pueden aplicar saldos'], 403);
         }
 
-        $saldo = SaldoPendiente::where('estado', 'pendiente')->findOrFail($id);
+        $saldo = SaldoPendiente::where('estado', 'pendiente')->find($id);
+        if (!$saldo) {
+            return response()->json([
+                'message' => 'Este saldo ya no está disponible. Puede haber sido aplicado o eliminado.',
+                'reload' => true
+            ], 404);
+        }
         $targetCreditId = $validated['credit_id'] ?? $saldo->credit_id;
         $credit = Credit::findOrFail($targetCreditId);
         $accion = $validated['accion'];
@@ -357,7 +363,13 @@ class SaldoPendienteController extends Controller
             'capital_strategy' => 'nullable|required_if:accion,capital|in:reduce_amount,reduce_term',
         ]);
 
-        $saldo = SaldoPendiente::where('estado', 'pendiente')->findOrFail($id);
+        $saldo = SaldoPendiente::where('estado', 'pendiente')->find($id);
+        if (!$saldo) {
+            return response()->json([
+                'message' => 'Este saldo ya no está disponible. Puede haber sido aplicado o eliminado.',
+                'reload' => true
+            ], 404);
+        }
         $accion = $validated['accion'];
 
         // Permitir aplicar a un crédito diferente (de la misma cédula)
