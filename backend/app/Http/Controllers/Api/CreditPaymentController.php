@@ -35,6 +35,18 @@ class CreditPaymentController extends Controller
     }
 
     /**
+     * Mostrar un pago individual con sus relaciones
+     */
+    public function show(string $id)
+    {
+        $payment = CreditPayment::with([
+            'credit.lead',
+        ])->findOrFail($id);
+
+        return response()->json($payment);
+    }
+
+    /**
      * Preliminar de planilla - Analiza sin aplicar cambios
      */
     public function previewPlanilla(Request $request)
@@ -1895,7 +1907,6 @@ class CreditPaymentController extends Controller
         $payment->save();
     }
 
-    public function show(string $id) { return response()->json([], 200); }
     public function update(Request $request, string $id) { return response()->json([], 200); }
     public function destroy(string $id) { return response()->json([], 200); }
 }

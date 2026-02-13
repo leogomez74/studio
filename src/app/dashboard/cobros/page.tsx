@@ -272,10 +272,12 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
               <span className="sr-only">Revertir</span>
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Receipt className="h-4 w-4" />
-            <span className="sr-only">Ver Recibo</span>
-          </Button>
+          <Link href={`/dashboard/cobros/recibo/${payment.id}`}>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Receipt className="h-4 w-4" />
+              <span className="sr-only">Ver Recibo</span>
+            </Button>
+          </Link>
         </div>
       </TableCell>
     </TableRow>
