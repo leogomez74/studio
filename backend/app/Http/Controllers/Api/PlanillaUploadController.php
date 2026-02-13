@@ -8,11 +8,13 @@ use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Credit;
 use App\Models\SaldoPendiente;
+use App\Traits\AccountingTrigger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PlanillaUploadController extends Controller
 {
+    use AccountingTrigger;
     /**
      * Listar historial de planillas con paginación y filtros
      */
@@ -142,6 +144,29 @@ class PlanillaUploadController extends Controller
                 // 6. Marcar pago como reversado
                 $pago->estado = 'Reversado';
                 $pago->save();
+
+                // ============================================================
+                // ACCOUNTING_API_TRIGGER: Devolución/Anulación de Pago
+                // ============================================================
+                // Dispara asiento contable al revertir un pago:
+                // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
+                // CRÉDITO: Banco CREDIPEPE (monto del pago revertido)
+                $this->triggerAccountingDevolucion(
+                    $credit->id,
+                    $pago->id,
+                    (float) $pago->monto,
+                    'Anulación de planilla: ' . $validated['motivo'],
+                    [
+                        'planilla_id' => $planilla->id,
+                        'deductora_id' => $planilla->deductora_id,
+                        'fecha_planilla' => $planilla->fecha_planilla,
+                        'amortizacion_revertida' => (float) $pago->amortizacion,
+                        'interes_revertido' => (float) $pago->interes_corriente,
+                        'mora_revertida' => (float) $pago->interes_moratorio,
+                        'cedula' => $pago->cedula,
+                        'credit_reference' => $credit->reference,
+                    ]
+                );
             }
 
             // 7. Marcar planilla como anulada

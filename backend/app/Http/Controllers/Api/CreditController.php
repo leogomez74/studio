@@ -12,6 +12,7 @@ use App\Models\Analisis;
 use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
 use App\Helpers\NumberToWords;
+use App\Traits\AccountingTrigger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Log;
 
 class CreditController extends Controller
 {
+    use AccountingTrigger;
     /**
      * Listar créditos con filtros (optimizado con paginación)
      */
@@ -617,6 +619,26 @@ class CreditController extends Controller
             if (!$existingPlan) {
                 $this->generateAmortizationSchedule($credit);
             }
+
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Formalización de Crédito
+            // ============================================================
+            // Dispara asiento contable al formalizar el crédito:
+            // DÉBITO: Cuentas por Cobrar (monto_credito)
+            // CRÉDITO: Banco CREDIPEPE (monto_credito)
+            $this->triggerAccountingFormalizacion(
+                $credit->id,
+                (float) $credit->monto_credito,
+                $credit->reference,
+                [
+                    'lead_id' => $credit->lead_id,
+                    'lead_cedula' => $credit->lead->cedula ?? null,
+                    'lead_nombre' => $credit->lead->name ?? null,
+                    'tasa_id' => $credit->tasa_id,
+                    'plazo' => $credit->plazo,
+                    'formalized_at' => $credit->formalized_at->toIso8601String(),
+                ]
+            );
         }
 
         // Cargar todas las relaciones necesarias (igual que en show)
@@ -956,6 +978,15 @@ class CreditController extends Controller
             $oldCredit->refundicion_at = now();
             $oldCredit->save();
 
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Refundición - Cierre Crédito Viejo
+            // ============================================================
+            // Dispara asiento contable al cerrar el crédito antiguo:
+            // DÉBITO: Banco CREDIPEPE (saldo_absorbido)
+            // CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
+            // Este pago "sintético" reduce la cuenta por cobrar del crédito viejo
+            // (Este trigger se agregará después de crear el nuevo crédito)
+
             // 5. Resolver tasa para el crédito nuevo
             $tipoCredito = $validated['tipo_credito'] ?? $oldCredit->tipo_credito ?? 'regular';
             $tasaId = $validated['tasa_id'] ?? null;
@@ -1011,6 +1042,28 @@ class CreditController extends Controller
             // 9. Calcular cuota y generar plan de amortización
             $this->calculateAndSetCuota($newCredit);
             $this->generateAmortizationSchedule($newCredit);
+
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Refundición - Doble Asiento
+            // ============================================================
+            // 1. Cierre del crédito viejo (pago sintético):
+            //    DÉBITO: Banco CREDIPEPE (saldo_absorbido)
+            //    CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
+            $this->triggerAccountingRefundicionCierre(
+                $oldCredit->id,
+                $saldoAbsorbido,
+                $newCredit->id
+            );
+
+            // 2. Formalización del nuevo crédito:
+            //    DÉBITO: Cuentas por Cobrar (monto_credito nuevo)
+            //    CRÉDITO: Banco CREDIPEPE (monto_credito nuevo)
+            $this->triggerAccountingRefundicionNuevo(
+                $newCredit->id,
+                (float) $validated['monto_credito'],
+                $oldCredit->id,
+                $montoEntregado
+            );
 
             return [
                 'old_credit' => $oldCredit->fresh()->load('planDePagos'),

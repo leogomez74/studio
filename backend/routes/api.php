@@ -117,6 +117,15 @@ Route::prefix('loan-configurations')->group(function () {
     Route::put('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'update']);
 });
 
+// Configuración ERP Contabilidad
+Route::prefix('erp-accounting')->group(function () {
+    Route::get('/accounts', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'index']);
+    Route::post('/accounts', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'store']);
+    Route::put('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'update']);
+    Route::delete('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'destroy']);
+    Route::post('/test-connection', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'testConnection']);
+});
+
 // Documentos de Personas (Leads/Clientes) - Unificado
 Route::get('/person-documents', [PersonDocumentController::class, 'index']);
 Route::post('/person-documents', [PersonDocumentController::class, 'store']);

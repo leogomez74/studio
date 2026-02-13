@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\SaldoPendiente;
 use App\Models\Credit;
 use App\Models\PlanDePago;
+use App\Traits\AccountingTrigger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class SaldoPendienteController extends Controller
 {
+    use AccountingTrigger;
     /**
      * Listar saldos pendientes (sobrantes de planilla sin asignar)
      */
@@ -226,6 +228,9 @@ class SaldoPendienteController extends Controller
                 $saldo->notas = $validated['notas'] ?? 'Aplicado a cuota #' . $payment->numero_cuota;
                 $saldo->save();
 
+                // Nota: El trigger contable ya se disparó en processPaymentTransactionPublic
+                // No se necesita trigger adicional aquí
+
                 return response()->json([
                     'message' => 'Saldo aplicado a cuota exitosamente',
                     'saldo' => $saldo,
@@ -266,6 +271,27 @@ class SaldoPendienteController extends Controller
                     number_format($credit->saldo, 2)
                 );
                 $saldo->save();
+
+                // ============================================================
+                // ACCOUNTING_API_TRIGGER: Abono a Capital (Saldo Pendiente)
+                // ============================================================
+                // Dispara asiento contable al aplicar saldo pendiente a capital:
+                // DÉBITO: Banco CREDIPEPE (monto_aplicar)
+                // CRÉDITO: Cuentas por Cobrar (monto_aplicar)
+                $this->triggerAccountingPago(
+                    $credit->id,
+                    $payment->id,
+                    $montoAplicar,
+                    'Abono a Capital',
+                    [
+                        'capital' => $montoAplicar,
+                        'saldo_anterior' => $saldoAnterior,
+                        'nuevo_saldo' => $credit->saldo,
+                        'cedula' => $saldo->cedula,
+                        'credit_reference' => $credit->reference,
+                        'origen' => 'Saldo Pendiente',
+                    ]
+                );
 
                 return response()->json([
                     'message' => 'Saldo aplicado a capital exitosamente. Los intereses corrientes se reducirán en la siguiente cuota.',

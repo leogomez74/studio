@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
+use App\Traits\AccountingTrigger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +23,7 @@ use Carbon\Carbon;
 
 class CreditPaymentController extends Controller
 {
+    use AccountingTrigger;
     /**
      * Listar todos los pagos
      */
@@ -957,6 +959,29 @@ class CreditPaymentController extends Controller
             'cedula'            => $cedulaRef
         ]);
 
+        // ============================================================
+        // ACCOUNTING_API_TRIGGER: Pago de Crédito
+        // ============================================================
+        // Dispara asiento contable al registrar un pago:
+        // DÉBITO: Banco CREDIPEPE (monto del pago)
+        // CRÉDITO: Cuentas por Cobrar (monto del pago)
+        $this->triggerAccountingPago(
+            $credit->id,
+            $paymentRecord->id,
+            $montoEntrante,
+            $source,
+            [
+                'mora' => $credit->planDePagos()->sum('movimiento_interes_moratorio'),
+                'interes_vencido' => $credit->planDePagos()->sum('movimiento_int_corriente_vencido'),
+                'interes_corriente' => $credit->planDePagos()->sum('movimiento_interes_corriente'),
+                'poliza' => $credit->planDePagos()->sum('movimiento_poliza'),
+                'capital' => $capitalAmortizadoHoy,
+                'cedula' => $cedulaRef,
+                'credit_reference' => $credit->reference,
+                'lead_nombre' => $credit->lead->name ?? null,
+            ]
+        );
+
         return $paymentRecord;
     }
 
@@ -1319,6 +1344,28 @@ class CreditPaymentController extends Controller
             $credit->saldo = 0;
             $credit->status = 'Cerrado';
             $credit->save();
+
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Cancelación Anticipada (Pago Total)
+            // ============================================================
+            // Dispara asiento contable al cancelar anticipadamente:
+            // DÉBITO: Banco CREDIPEPE (monto_total_cancelar)
+            // CRÉDITO: Cuentas por Cobrar (monto_total_cancelar)
+            $this->triggerAccountingPago(
+                $credit->id,
+                $payment->id,
+                $montoTotalCancelar,
+                'Cancelación Anticipada',
+                [
+                    'capital' => $saldoCapital,
+                    'intereses_vencidos' => $interesesVencidos,
+                    'penalizacion' => $penalizacion,
+                    'cuota_actual' => $numeroCuotaActual,
+                    'aplico_penalizacion' => $numeroCuotaActual < 12,
+                    'cedula' => $credit->lead->cedula ?? null,
+                    'credit_reference' => $credit->reference,
+                ]
+            );
 
             return response()->json([
                 'message' => 'Crédito cancelado anticipadamente',

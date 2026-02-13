@@ -39,4 +39,10 @@ return [
         ],
     ],
 
+    'erp' => [
+        'url' => env('ERP_API_URL', ''),
+        'email' => env('ERP_API_EMAIL', ''),
+        'password' => env('ERP_API_PASSWORD', ''),
+    ],
+
 ];
