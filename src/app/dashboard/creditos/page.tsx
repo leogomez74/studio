@@ -663,6 +663,7 @@ export default function CreditsPage() {
         divisa: values.divisa,
         plazo: values.plazo,
         poliza: values.poliza,
+        deductora_id: selectedClient?.deductora_id || null,
       };
 
       if (dialogState === "create") {
@@ -1282,12 +1283,18 @@ export default function CreditsPage() {
                                     <Eye className="h-4 w-4" />
                                   </Link>
                                 </Button>
-                                {['Formalizado', 'En Mora'].includes(credit.status || '') ? (
+                                {['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') ? (
                                   <Button
                                     variant="outline"
                                     size="icon"
                                     disabled
-                                    title={credit.status === 'En Mora' ? "No se puede editar un crédito en mora" : "No se puede editar un crédito formalizado"}
+                                    title={
+                                      credit.status === 'En Mora'
+                                        ? "No se puede editar un crédito en mora"
+                                        : credit.status === 'Cerrado'
+                                        ? "No se puede editar un crédito cerrado"
+                                        : "No se puede editar un crédito formalizado"
+                                    }
                                     className="border-gray-300 text-gray-400 cursor-not-allowed"
                                   >
                                     <Pencil className="h-4 w-4" />
@@ -1306,7 +1313,7 @@ export default function CreditsPage() {
                                   </Button>
                                 )}
 
-                                {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
+                                {!['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') && (
                                   <Button
                                     variant="outline"
                                     size="icon"
@@ -1386,7 +1393,7 @@ export default function CreditsPage() {
 
                             <TableCell>{calculateCuotasAtrasadas(credit)}</TableCell>
                             <TableCell>
-                              {deductoras.find(d => d.id === credit.lead?.deductora_id)?.nombre || "-"}
+                              {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
                             </TableCell>
                           </TableRow>
                         );

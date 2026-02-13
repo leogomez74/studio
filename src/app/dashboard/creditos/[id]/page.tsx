@@ -1959,9 +1959,9 @@ function CreditDetailClient({ id }: { id: string }) {
                             <Label>Entidad Deductora</Label>
                             <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
                               {(() => {
-                                // Use credit's deductora_id (each credit has its own deductora)
-                                const idDeductora = credit.deductora_id;
-                                if (!idDeductora) return "-";
+                                // Use credit's deductora_id, fallback to lead's deductora_id
+                                const idDeductora = credit.deductora_id || credit.lead?.deductora_id;
+                                if (!idDeductora) return "Sin asignar";
                                 const encontrada = deductoras.find(d => String(d.id) === String(idDeductora));
                                 return encontrada ? encontrada.nombre : idDeductora;
                               })()}
