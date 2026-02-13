@@ -30,7 +30,7 @@ class CreditController extends Controller
         $query = Credit::with([
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id,deductora_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,estado,dias_mora',
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,fecha_corte,estado,dias_mora',
             'assignedTo:id,name'
         ]);
 
