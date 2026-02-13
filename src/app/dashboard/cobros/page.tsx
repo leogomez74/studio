@@ -617,7 +617,8 @@ export default function CobrosPage() {
       }, 500); // Debounce de 500ms
 
       return () => clearTimeout(timeoutId);
-    } else {
+    } else if (tipoCobro !== 'extraordinario') {
+      // Solo limpiar si cambia el tipo de cobro, no por otros cambios
       setExtraordinaryPreview(null);
     }
   }, [tipoCobro, selectedCreditId, monto, extraordinaryStrategy]);
