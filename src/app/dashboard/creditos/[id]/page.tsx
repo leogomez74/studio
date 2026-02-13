@@ -1844,7 +1844,7 @@ function CreditDetailClient({ id }: { id: string }) {
                       <div className="flex items-start justify-between">
                         <div>
                           <CardTitle>
-                            <Link href={`/dashboard/leads/${credit.lead_id}`} className="hover:underline">
+                            <Link href={`/dashboard/clientes/${credit.lead_id}`} className="hover:underline">
                               {credit.lead?.name || "Cliente Desconocido"}
                             </Link>
                           </CardTitle>
