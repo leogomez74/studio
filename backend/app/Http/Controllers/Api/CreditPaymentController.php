@@ -858,6 +858,88 @@ class CreditPaymentController extends Controller
     }
 
     /**
+     * Método público para aplicar abono a capital con estrategia de regeneración
+     * Usado por SaldoPendienteController cuando se aplica un saldo a favor como capital
+     */
+    public function procesarAbonoCapitalConEstrategia(Credit $credit, $montoAbono, $fechaPago, $strategy, $source = 'Extraordinario', $cedula = null)
+    {
+        $saldoActual = (float) $credit->saldo;
+
+        if ($montoAbono >= $saldoActual) {
+            $montoAbono = $saldoActual;
+            $nuevoCapitalBase = 0;
+        } else {
+            $nuevoCapitalBase = round($saldoActual - $montoAbono, 2);
+        }
+
+        $credit->saldo = $nuevoCapitalBase;
+        $credit->save();
+
+        // Identificar punto de partida (Primera cuota no pagada)
+        $siguienteCuota = $credit->planDePagos()
+            ->where('estado', '!=', 'Pagado')
+            ->where('cuota', '>', 0)
+            ->orderBy('numero_cuota', 'asc')
+            ->first();
+
+        $numeroCuotaInicio = $siguienteCuota ? $siguienteCuota->numero_cuota : 1;
+
+        // Snapshot para reverso
+        $planSnapshot = $credit->planDePagos()
+            ->where('numero_cuota', '>=', $numeroCuotaInicio)
+            ->get()->map(fn($c) => $c->toArray())->toArray();
+
+        $reversalSnapshot = [
+            'type' => 'extraordinario',
+            'strategy' => $strategy,
+            'original_saldo' => $saldoActual,
+            'original_plazo' => (int) $credit->plazo,
+            'original_cuota' => (float) $credit->cuota,
+            'original_status' => $credit->status,
+            'start_cuota_num' => $numeroCuotaInicio,
+            'plan_rows' => $planSnapshot,
+        ];
+
+        // Registrar pago
+        $paymentRecord = CreditPayment::create([
+            'credit_id'      => $credit->id,
+            'numero_cuota'   => 0,
+            'fecha_cuota'    => $fechaPago,
+            'fecha_pago'     => $fechaPago,
+            'monto'          => $montoAbono,
+            'saldo_anterior' => $saldoActual,
+            'nuevo_saldo'    => $nuevoCapitalBase,
+            'estado'         => 'Abono Extraordinario',
+            'amortizacion'   => $montoAbono,
+            'source'         => $source,
+            'movimiento_total' => $montoAbono,
+            'interes_corriente' => 0,
+            'cedula'         => $cedula,
+            'reversal_snapshot' => $reversalSnapshot
+        ]);
+
+        // Regenerar proyección si queda saldo
+        if ($nuevoCapitalBase > 0 && $siguienteCuota) {
+            $this->regenerarProyeccion(
+                $credit,
+                $strategy,
+                $nuevoCapitalBase,
+                $numeroCuotaInicio,
+                $siguienteCuota->fecha_corte
+            );
+        } elseif ($nuevoCapitalBase <= 0) {
+            // Crédito finalizado
+            PlanDePago::where('credit_id', $credit->id)
+                ->where('numero_cuota', '>=', $numeroCuotaInicio)
+                ->delete();
+            $credit->status = 'Finalizado';
+            $credit->save();
+        }
+
+        return $paymentRecord;
+    }
+
+    /**
      * Helper para crear el registro en la BD
      * $poliza: Monto de póliza por cuota (se mantiene desde la formalización)
      */

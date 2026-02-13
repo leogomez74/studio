@@ -216,7 +216,9 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
   const amount = parseFloat(String(payment.monto || 0));
   const cuotaSnapshot = parseFloat(String(payment.cuota || amount));
   const difference = cuotaSnapshot - amount;
-  const hasDifference = Math.abs(difference) > 1.0;
+  // No mostrar diferencia para Cancelación Anticipada o Abonos Extraordinarios
+  const skipDifference = payment.source === 'Cancelación Anticipada' || payment.source === 'Extraordinario' || payment.source?.includes('Abono a Capital');
+  const hasDifference = !skipDifference && Math.abs(difference) > 1.0;
 
   const dateDisplay = payment.fecha_pago
     ? new Date(payment.fecha_pago).toLocaleDateString()
@@ -260,6 +262,8 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
       <TableCell>
         {isAnulado ? (
           <Badge variant="destructive" className="text-[10px]">Anulado</Badge>
+        ) : credit?.status === 'Cerrado' || credit?.status === 'Finalizado' ? (
+          <Badge variant="secondary" className="text-[10px]">{credit.status}</Badge>
         ) : (
           <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">Vigente</Badge>
         )}
@@ -310,6 +314,11 @@ export default function CobrosPage() {
   // --- NUEVO: Estado para estrategia de Abono Extraordinario ---
   // 'reduce_amount' = Bajar Cuota | 'reduce_term' = Bajar Plazo
   const [extraordinaryStrategy, setExtraordinaryStrategy] = useState<'reduce_amount' | 'reduce_term'>('reduce_amount');
+
+  // --- Estado para estrategia de Aplicar Capital (desde saldos a favor) ---
+  const [capitalStrategy, setCapitalStrategy] = useState<'reduce_amount' | 'reduce_term'>('reduce_amount');
+  const [strategyModalOpen, setStrategyModalOpen] = useState(false);
+  const [pendingCapitalData, setPendingCapitalData] = useState<{saldoId: number, creditId?: number, monto?: number} | null>(null);
 
   // --- Estado para Cancelación Anticipada ---
   const [cancelacionData, setCancelacionData] = useState<any>(null);
@@ -833,6 +842,7 @@ export default function CobrosPage() {
         const amount = parseFloat(String(payment.monto || 0));
         const cuotaSnapshot = parseFloat(String(payment.cuota || amount));
         const difference = cuotaSnapshot - amount;
+        const skipDifference = payment.source === 'Cancelación Anticipada' || payment.source === 'Extraordinario' || payment.source?.includes('Abono a Capital');
         const dateDisplay = payment.fecha_pago
           ? new Date(payment.fecha_pago).toLocaleDateString()
           : (payment.created_at ? new Date(payment.created_at).toLocaleDateString() : '-');
@@ -842,7 +852,7 @@ export default function CobrosPage() {
           leadName,
           lead?.cedula || payment.cedula || '-',
           formatAmountForPDF(amount),
-          formatAmountForPDF(difference),
+          skipDifference ? '-' : formatAmountForPDF(difference),
           dateDisplay,
           payment.source || '-',
         ];
@@ -862,6 +872,14 @@ export default function CobrosPage() {
         description: 'Solo administradores pueden aplicar saldos',
         variant: 'destructive',
       });
+      return;
+    }
+
+    // Si es 'capital', primero mostrar modal de estrategia
+    if (accion === 'capital') {
+      setPendingCapitalData({ saldoId, creditId, monto });
+      setCapitalStrategy('reduce_amount'); // Reset a default
+      setStrategyModalOpen(true);
       return;
     }
 
@@ -886,6 +904,38 @@ export default function CobrosPage() {
     }
   };
 
+  const confirmarEstrategiaCapital = async () => {
+    if (!pendingCapitalData) return;
+
+    const { saldoId, creditId, monto } = pendingCapitalData;
+    setStrategyModalOpen(false);
+
+    // Ahora obtener preview con la estrategia seleccionada
+    try {
+      const body: any = {
+        accion: 'capital',
+        capital_strategy: capitalStrategy
+      };
+      if (creditId) body.credit_id = creditId;
+      if (monto) body.monto = monto;
+
+      const res = await api.post(`/api/saldos-pendientes/${saldoId}/preview`, body);
+      setPreviewSaldoData(res.data);
+      setPendingSaldoId(saldoId);
+      setPendingAccion('capital');
+      setPendingCreditId(creditId || null);
+      setPendingMonto(monto || null);
+      setConfirmDialogOpen(true);
+      setPendingCapitalData(null);
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Error al obtener preview',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const confirmarAsignacion = async () => {
     if (!pendingSaldoId || !pendingAccion) return;
 
@@ -894,6 +944,10 @@ export default function CobrosPage() {
       const body: any = { accion: pendingAccion };
       if (pendingCreditId) body.credit_id = pendingCreditId;
       if (pendingMonto) body.monto = pendingMonto;
+      // Agregar estrategia si es capital
+      if (pendingAccion === 'capital') {
+        body.capital_strategy = capitalStrategy;
+      }
       const res = await api.post(`/api/saldos-pendientes/${pendingSaldoId}/asignar`, body);
       toast({
         title: 'Éxito',
@@ -1212,8 +1266,8 @@ export default function CobrosPage() {
                                             : ''}
                                         </td>
                                         <td className="px-2 py-2 text-right">₡{item.cuota_esperada.toLocaleString('es-CR', {minimumFractionDigits: 2})}</td>
-                                        <td className={`px-2 py-2 text-right font-semibold ${item.diferencia < 0 ? 'text-red-600' : item.diferencia > 1 ? 'text-blue-600' : 'text-gray-600'}`}>
-                                          ₡{item.diferencia.toLocaleString('es-CR', {minimumFractionDigits: 2})}
+                                        <td className={`px-2 py-2 text-right font-semibold ${item.diferencia < -0.01 ? 'text-red-600' : item.diferencia > 0.01 ? 'text-blue-600' : 'text-gray-600'}`}>
+                                          ₡{(Math.abs(item.diferencia) < 0.01 ? 0 : item.diferencia).toLocaleString('es-CR', {minimumFractionDigits: 2})}
                                         </td>
                                         <td className="px-2 py-2 text-center">
                                           <span className={`inline-block px-2 py-1 rounded text-xs ${
@@ -1245,8 +1299,8 @@ export default function CobrosPage() {
                               </div>
                               <div>
                                 <div className="text-xs text-muted-foreground">Diferencia Total</div>
-                                <div className={`text-lg font-bold ${previewData.totales.diferencia_total < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  ₡{previewData.totales.diferencia_total.toLocaleString('es-CR', {minimumFractionDigits: 2})}
+                                <div className={`text-lg font-bold ${previewData.totales.diferencia_total < -0.01 ? 'text-red-600' : previewData.totales.diferencia_total > 0.01 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                                  ₡{(Math.abs(previewData.totales.diferencia_total) < 0.01 ? 0 : previewData.totales.diferencia_total).toLocaleString('es-CR', {minimumFractionDigits: 2})}
                                 </div>
                               </div>
                             </div>
@@ -2152,6 +2206,70 @@ export default function CobrosPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Modal: Seleccionar Estrategia para Aplicar Capital */}
+      <Dialog open={strategyModalOpen} onOpenChange={setStrategyModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Seleccionar Estrategia de Aplicación a Capital</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-2">
+              El saldo se aplicará directamente al capital. Seleccione cómo desea que afecte el plan de pagos:
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="bg-muted/50 p-4 rounded-md border border-dashed border-primary/50 space-y-3">
+              <div className="flex items-center gap-2 text-primary">
+                <Calculator className="h-4 w-4" />
+                <span className="text-sm font-medium">Estrategia de Aplicación</span>
+              </div>
+              <div className="flex flex-col gap-3 pl-1">
+                <label className="flex items-start gap-3 cursor-pointer p-3 border rounded-md hover:bg-background transition-colors">
+                  <input
+                    type="radio"
+                    name="capital-strategy"
+                    value="reduce_amount"
+                    checked={capitalStrategy === 'reduce_amount'}
+                    onChange={() => setCapitalStrategy('reduce_amount')}
+                    className="mt-1 text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <div className="font-medium">Disminuir monto de la cuota</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Mantiene el plazo original (mismo número de cuotas). La cuota mensual será menor y los intereses corrientes se recalcularán.
+                    </p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer p-3 border rounded-md hover:bg-background transition-colors">
+                  <input
+                    type="radio"
+                    name="capital-strategy"
+                    value="reduce_term"
+                    checked={capitalStrategy === 'reduce_term'}
+                    onChange={() => setCapitalStrategy('reduce_term')}
+                    className="mt-1 text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <div className="font-medium">Disminuir plazo</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Mantiene la cuota mensual actual. Se reduce el número total de cuotas (termina de pagar antes).
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setStrategyModalOpen(false); setPendingCapitalData(null); }}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarEstrategiaCapital}>
+              Continuar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal: Confirmación de Aplicación de Saldo */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <DialogContent>
@@ -2249,6 +2367,65 @@ export default function CobrosPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Detalles de estrategia de capital */}
+              {previewSaldoData.estrategia && previewSaldoData.saldo_nuevo_credit > 0 && !previewSaldoData.finalizado && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-blue-800 font-medium">
+                    <Calculator className="h-4 w-4" />
+                    <span>Impacto en el Plan de Pagos</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground text-xs">Cuota Mensual</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={previewSaldoData.estrategia === 'reduce_amount' ? 'line-through text-xs' : 'font-mono'}>
+                          ₡{Number(previewSaldoData.cuota_actual).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                        </span>
+                        {previewSaldoData.estrategia === 'reduce_amount' && (
+                          <>
+                            <span>→</span>
+                            <span className="font-bold text-blue-700">
+                              ₡{Number(previewSaldoData.nueva_cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Plazo Total</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={previewSaldoData.estrategia === 'reduce_term' ? 'line-through text-xs' : 'font-mono'}>
+                          {previewSaldoData.plazo_actual} meses
+                        </span>
+                        {previewSaldoData.estrategia === 'reduce_term' && (
+                          <>
+                            <span>→</span>
+                            <span className="font-bold text-blue-700">
+                              {previewSaldoData.nuevo_plazo} meses
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-blue-700 mt-2">
+                    {previewSaldoData.estrategia === 'reduce_amount' ? (
+                      <span>✓ La cuota mensual será menor, manteniendo el mismo plazo</span>
+                    ) : (
+                      <span>✓ Terminará de pagar {previewSaldoData.plazo_actual - previewSaldoData.nuevo_plazo} meses antes, manteniendo la misma cuota</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {previewSaldoData.finalizado && (
+                <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                  <p className="text-sm text-green-800 font-medium">
+                    ✓ Este abono finalizará el crédito completamente
+                  </p>
+                </div>
+              )}
 
               {previewSaldoData.restante_saldo > 0.50 && (
                 <div className="bg-amber-50 border border-amber-200 rounded-md p-3">

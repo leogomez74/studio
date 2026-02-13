@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CreditPaymentController;
 use App\Models\SaldoPendiente;
 use App\Models\Credit;
 use App\Models\CreditPayment;
+use App\Models\PlanDePago;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -130,6 +131,7 @@ class SaldoPendienteController extends Controller
             'accion' => 'required|in:cuota,capital',
             'credit_id' => 'nullable|exists:credits,id',
             'monto' => 'nullable|numeric|min:0.01',
+            'capital_strategy' => 'nullable|in:reduce_amount,reduce_term',
         ]);
 
         // Solo administradores pueden aplicar saldos
@@ -212,15 +214,84 @@ class SaldoPendienteController extends Controller
             $preview['excedente'] = $dinero;
 
         } else {
-            // Aplicar a capital
+            // Aplicar a capital con estrategia
+            $strategy = $validated['capital_strategy'] ?? 'reduce_amount';
             $capitalAplicar = min($montoAplicar, (float) $credit->saldo);
+            $nuevoCapital = max(0, (float) $credit->saldo - $capitalAplicar);
+
+            // Buscar primera cuota no pagada
+            $siguienteCuota = $credit->planDePagos()
+                ->where('estado', '!=', 'Pagado')
+                ->where('cuota', '>', 0)
+                ->orderBy('numero_cuota', 'asc')
+                ->first();
+
+            $numeroCuotaInicio = $siguienteCuota ? $siguienteCuota->numero_cuota : 1;
+            $tasaAnual = (float) $credit->tasa_anual;
+            $tasaMensual = ($tasaAnual / 100) / 12;
 
             $preview['destino'] = 'Abono a Capital';
             $preview['distribucion'] = [
                 'amortizacion' => $capitalAplicar,
             ];
-            $preview['saldo_nuevo_credit'] = max(0, (float) $credit->saldo - $capitalAplicar);
+            $preview['saldo_nuevo_credit'] = $nuevoCapital;
             $preview['restante_saldo'] = (float) $saldo->monto - $capitalAplicar;
+            $preview['estrategia'] = $strategy;
+            $preview['saldo_actual'] = (float) $credit->saldo;
+            $preview['cuota_actual'] = (float) $credit->cuota;
+            $preview['plazo_actual'] = (int) $credit->plazo;
+
+            if ($nuevoCapital > 0 && $siguienteCuota) {
+                if ($strategy === 'reduce_amount') {
+                    // Calcular nueva cuota (mantiene plazo)
+                    $cuotasRestantes = $credit->plazo - $numeroCuotaInicio + 1;
+                    if ($cuotasRestantes < 1) $cuotasRestantes = 1;
+
+                    if ($tasaMensual > 0) {
+                        $potencia = pow(1 + $tasaMensual, $cuotasRestantes);
+                        $nuevaCuota = $nuevoCapital * ($tasaMensual * $potencia) / ($potencia - 1);
+                    } else {
+                        $nuevaCuota = $nuevoCapital / $cuotasRestantes;
+                    }
+                    $nuevaCuota = round($nuevaCuota, 2);
+
+                    $preview['nueva_cuota'] = $nuevaCuota;
+                    $preview['nuevo_plazo'] = (int) $credit->plazo;
+                    $preview['cuotas_restantes'] = $cuotasRestantes;
+
+                } elseif ($strategy === 'reduce_term') {
+                    // Calcular nuevo plazo (mantiene cuota)
+                    $cuotaFija = (float) $credit->cuota;
+                    $saldo = $nuevoCapital;
+                    $contadorCuotas = 0;
+                    $maxLoops = 360;
+
+                    while ($saldo > 0.01 && $contadorCuotas < $maxLoops) {
+                        $interes = round($saldo * $tasaMensual, 2);
+                        $amortizacion = $cuotaFija - $interes;
+
+                        if ($amortizacion <= 0 || $saldo <= $amortizacion) {
+                            $contadorCuotas++;
+                            break;
+                        }
+
+                        $saldo = round($saldo - $amortizacion, 2);
+                        $contadorCuotas++;
+                    }
+
+                    $nuevoPlazo = $numeroCuotaInicio + $contadorCuotas - 1;
+
+                    $preview['nueva_cuota'] = $cuotaFija;
+                    $preview['nuevo_plazo'] = $nuevoPlazo;
+                    $preview['cuotas_restantes'] = $contadorCuotas;
+                }
+            } else {
+                // Crédito se finalizaría
+                $preview['nueva_cuota'] = 0;
+                $preview['nuevo_plazo'] = 0;
+                $preview['cuotas_restantes'] = 0;
+                $preview['finalizado'] = true;
+            }
         }
 
         return response()->json($preview);
@@ -242,6 +313,7 @@ class SaldoPendienteController extends Controller
             'credit_id' => 'nullable|exists:credits,id',
             'monto' => 'nullable|numeric|min:0.01',
             'notas' => 'nullable|string|max:500',
+            'capital_strategy' => 'nullable|required_if:accion,capital|in:reduce_amount,reduce_term',
         ]);
 
         $saldo = SaldoPendiente::where('estado', 'pendiente')->findOrFail($id);
@@ -294,28 +366,21 @@ class SaldoPendienteController extends Controller
                 ]);
 
             } else {
-                // Aplicar a capital: reduce saldo directamente
+                // Aplicar a capital con regeneración de plan
+                $strategy = $validated['capital_strategy'] ?? 'reduce_amount';
                 $saldoAnterior = (float) $credit->saldo;
                 $montoCapital = min($montoAplicar, $saldoAnterior);
-                $credit->saldo = max(0, $saldoAnterior - $montoCapital);
-                $credit->save();
 
-                // Registrar como un CreditPayment de tipo "Abono a Capital"
-                $payment = CreditPayment::create([
-                    'credit_id' => $credit->id,
-                    'numero_cuota' => 0,
-                    'fecha_pago' => now(),
-                    'monto' => $montoCapital,
-                    'cuota' => 0,
-                    'saldo_anterior' => $saldoAnterior,
-                    'nuevo_saldo' => $credit->saldo,
-                    'estado' => 'Aplicado',
-                    'amortizacion' => $montoCapital,
-                    'source' => 'Abono a Capital',
-                    'cedula' => $saldo->cedula,
-                    'movimiento_total' => 0,
-                    'movimiento_amortizacion' => $montoCapital,
-                ]);
+                // Usar la lógica de abono extraordinario del CreditPaymentController
+                $controller = new CreditPaymentController();
+                $payment = $controller->procesarAbonoCapitalConEstrategia(
+                    $credit,
+                    $montoCapital,
+                    now(),
+                    $strategy,
+                    'Abono a Capital (Saldo Pendiente)',
+                    $saldo->cedula
+                );
 
                 // Calcular restante del saldo
                 $restante = (float) $saldo->monto - $montoCapital;
@@ -323,27 +388,35 @@ class SaldoPendienteController extends Controller
                 if ($restante > 0.50) {
                     $saldo->monto = $restante;
                     $saldo->notas = ($saldo->notas ? $saldo->notas . ' | ' : '') .
-                        sprintf('Capital ₡%s aplicado a %s', number_format($montoCapital, 2), $credit->reference);
+                        sprintf('Capital ₡%s aplicado a %s (Estrategia: %s)',
+                            number_format($montoCapital, 2),
+                            $credit->reference,
+                            $strategy === 'reduce_amount' ? 'Reducir cuota' : 'Reducir plazo'
+                        );
                     $saldo->save();
                 } else {
                     $saldo->estado = 'asignado_capital';
                     $saldo->asignado_at = now();
                     $saldo->notas = $validated['notas'] ?? sprintf(
-                        'Abono a capital: ₡%s → Saldo anterior: ₡%s → Nuevo saldo: ₡%s (%s)',
+                        'Abono a capital: ₡%s → %s (%s)',
                         number_format($montoCapital, 2),
-                        number_format($saldoAnterior, 2),
-                        number_format($credit->saldo, 2),
+                        $strategy === 'reduce_amount' ? 'Cuota reducida' : 'Plazo reducido',
                         $credit->reference
                     );
                     $saldo->save();
                 }
 
+                $creditRefresh = Credit::find($credit->id);
+
                 return response()->json([
-                    'message' => 'Saldo aplicado a capital exitosamente.',
+                    'message' => 'Saldo aplicado a capital con regeneración exitosa.',
                     'saldo' => $saldo->fresh(),
                     'payment' => $payment,
                     'saldo_anterior' => $saldoAnterior,
-                    'nuevo_saldo_credito' => (float) $credit->saldo,
+                    'nuevo_saldo_credito' => (float) $creditRefresh->saldo,
+                    'nueva_cuota' => (float) $creditRefresh->cuota,
+                    'nuevo_plazo' => (int) $creditRefresh->plazo,
+                    'estrategia' => $strategy,
                     'capital_reducido' => $montoCapital,
                     'restante' => $restante > 0.50 ? $restante : 0,
                 ]);
