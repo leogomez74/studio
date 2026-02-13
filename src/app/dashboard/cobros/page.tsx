@@ -2364,6 +2364,72 @@ export default function CobrosPage() {
                 </div>
               )}
 
+              {/* Impacto en la cuota cuando se aplica a cuota */}
+              {previewSaldoData.accion === 'cuota' && previewSaldoData.distribucion && (
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-800 font-medium">
+                    <Calculator className="h-4 w-4" />
+                    <span>Impacto en la Cuota</span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cuota a pagar:</span>
+                      <span className="font-medium">{previewSaldoData.destino}</span>
+                    </div>
+                    {(() => {
+                      const totalAplicado = (previewSaldoData.distribucion.interes_moratorio || 0) +
+                                          (previewSaldoData.distribucion.interes_corriente || 0) +
+                                          (previewSaldoData.distribucion.poliza || 0) +
+                                          (previewSaldoData.distribucion.amortizacion || 0);
+                      const excedente = previewSaldoData.excedente || 0;
+                      const quedaPendiente = excedente > 0.50;
+
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Monto aplicado:</span>
+                            <span className="font-bold text-amber-700">
+                              ₡{totalAplicado.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          {quedaPendiente && (
+                            <div className="flex justify-between text-orange-700">
+                              <span className="text-muted-foreground">No alcanzó para:</span>
+                              <span className="font-medium">
+                                ₡{excedente.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          <div className="pt-2 border-t border-amber-300">
+                            <div className="flex items-center gap-2">
+                              {quedaPendiente ? (
+                                <>
+                                  <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                                    Pago Parcial
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    La cuota quedará pendiente de completar
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                                    Pago Completo
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    La cuota quedará pagada totalmente
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
               <div className="border-t pt-4">
                 <p className="text-sm text-muted-foreground">Saldo del crédito</p>
                 <div className="flex items-center gap-2">
