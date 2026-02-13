@@ -1456,7 +1456,7 @@ export default function CobrosPage() {
                   </Dialog>
 
                   <Dialog open={abonoModalOpen} onOpenChange={setAbonoModalOpen}>
-                    <DialogContent>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto">
                       <DialogHeader><DialogTitle>Registrar Abono Manual</DialogTitle></DialogHeader>
                       <form onSubmit={handleRegistrarAbono} className="space-y-4">
                         
@@ -1674,7 +1674,7 @@ export default function CobrosPage() {
                                 )}
 
                                 {extraordinaryPreview && !loadingExtraordinaryPreview && (
-                                  <div className="space-y-3 pt-2 border-t max-h-[500px] overflow-y-auto pr-2">
+                                  <div className="space-y-3 pt-2 border-t max-h-[300px] overflow-y-auto pr-2">
                                     {/* Penalización */}
                                     {extraordinaryPreview.aplica_penalizacion && (
                                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
@@ -1895,6 +1895,22 @@ export default function CobrosPage() {
                             />
                           </div>
                         </div>
+                        )}
+
+                        {/* Mensaje de confirmación para tipo Normal */}
+                        {tipoCobro === 'normal' && selectedCreditId && monto && parseFloat(monto) > 0 && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm">
+                            <div className="flex items-center gap-2 text-blue-900">
+                              <Check className="h-4 w-4 shrink-0" />
+                              <div>
+                                <div className="font-medium">Listo para aplicar</div>
+                                <div className="text-xs text-blue-700 mt-0.5">
+                                  Monto: <strong>₡{Number(monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong> •
+                                  Crédito: <strong>{selectedCredit?.reference || selectedCredit?.numero_operacion}</strong>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         )}
 
                         <DialogFooter>
