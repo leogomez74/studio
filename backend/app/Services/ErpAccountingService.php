@@ -81,7 +81,7 @@ class ErpAccountingService
 
         $data = $response->json();
 
-        if (!($data['success'] ?? false) || empty($data['data']['token'])) {
+        if (!($data['is_success'] ?? $data['success'] ?? false) || empty($data['data']['token'])) {
             throw new Exception('ERP Auth: Respuesta inesperada - ' . ($data['message'] ?? 'Sin mensaje'));
         }
 
