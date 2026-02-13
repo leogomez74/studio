@@ -259,7 +259,24 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
 
       <TableCell>
         {isAnulado ? (
-          <Badge variant="destructive" className="text-[10px]">Anulado</Badge>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="text-[10px] cursor-help">Anulado</Badge>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-sm bg-white border-gray-200">
+                <div className="space-y-1 text-xs" style={{ color: 'rgba(0,0,0,0.85)' }}>
+                  <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Motivo:</strong> {payment.motivo_anulacion || 'Sin especificar'}</p>
+                  {payment.fecha_anulacion && (
+                    <p><strong style={{ color: 'rgba(0,0,0,0.95)' }}>Fecha:</strong> {new Date(payment.fecha_anulacion).toLocaleString('es-CR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short'
+                    })}</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
           <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">Vigente</Badge>
         )}

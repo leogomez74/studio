@@ -25,6 +25,7 @@
  */
 
 import React, { useState, useEffect, use, FormEvent, useCallback } from 'react';
+import { format } from 'date-fns';
 // --- Agent Option ---
 interface AgentOption {
   id: number;
@@ -94,6 +95,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Table,
   TableBody,
@@ -800,6 +802,10 @@ function CreditDetailClient({ id }: { id: string }) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<CreditItem>>({});
   const [saving, setSaving] = useState(false);
+
+  // Formalizar modal
+  const [formalizarDialogOpen, setFormalizarDialogOpen] = useState(false);
+  const [formalizacionDate, setFormalizacionDate] = useState<Date>(new Date());
 
   // Cargos Adicionales State
   const [cargosAdicionales, setCargosAdicionales] = useState<CargosAdicionales>({
@@ -1560,24 +1566,34 @@ function CreditDetailClient({ id }: { id: string }) {
     doc.save(`pagare_${creditData.numero_operacion || creditData.reference}.pdf`);
   };
 
-  const handleFormalizar = async () => {
+  const handleFormalizar = () => {
+    setFormalizacionDate(new Date());
+    setFormalizarDialogOpen(true);
+  };
+
+  const handleConfirmFormalizar = async () => {
     if (!credit) return;
 
     try {
-      await api.put(`/api/credits/${credit.id}`, { status: 'Formalizado' });
+      await api.put(`/api/credits/${credit.id}`, {
+        status: 'Formalizado',
+        formalized_at: format(formalizacionDate, 'yyyy-MM-dd')
+      });
       toast({
         title: 'Crédito formalizado',
         description: 'El plan de pagos se ha generado correctamente.',
       });
+      setFormalizarDialogOpen(false);
       // Reload credit data
       const response = await api.get(`/api/credits/${credit.id}`);
       setCredit(response.data);
       setFormData(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error formalizando crédito:', error);
+      const message = error.response?.data?.message || 'No se pudo formalizar el crédito.';
       toast({
         title: 'Error',
-        description: 'No se pudo formalizar el crédito.',
+        description: message,
         variant: 'destructive',
       });
     }
@@ -2525,6 +2541,37 @@ function CreditDetailClient({ id }: { id: string }) {
           onSuccess={fetchCredit}
         />
       )}
+
+      {/* Modal de Formalización */}
+      <Dialog open={formalizarDialogOpen} onOpenChange={setFormalizarDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Formalizar Crédito</DialogTitle>
+            <DialogDescription>
+              Seleccione la fecha de formalización del crédito {credit?.numero_operacion}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
+              <DatePicker
+                value={formalizacionDate}
+                onChange={(date) => setFormalizacionDate(date || new Date())}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormalizarDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmFormalizar}>
+              Formalizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

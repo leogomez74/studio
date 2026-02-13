@@ -1043,20 +1043,10 @@ class CreditPaymentController extends Controller
         // --- CORRECCIÓN: Actualizar Saldo de forma INCREMENTAL ---
         // Restamos lo que se amortizó HOY al saldo que tenía el crédito ANTES de la transacción
         $credit->saldo = max(0.0, $credit->saldo - $capitalAmortizadoHoy);
-
-        // Verificar si el crédito estaba "En Mora" y ya no tiene cuotas activamente en mora
-        if ($credit->status === 'En Mora') {
-            $tieneMora = $credit->planDePagos()
-                ->where('numero_cuota', '>', 0)
-                ->where('estado', 'Mora') // Solo cuotas que están ACTUALMENTE en estado Mora
-                ->exists();
-
-            if (!$tieneMora) {
-                $credit->status = 'Formalizado';
-            }
-        }
-
         $credit->save();
+
+        // Verificar y actualizar estado si ya no hay mora
+        $this->checkAndUpdateCreditStatus($credit);
 
         // Recibo: monto = lo realmente consumido por este crédito (no el monto total de entrada)
         $montoConsumido = $montoEntrante - max(0, $dineroDisponible);
@@ -1955,6 +1945,25 @@ class CreditPaymentController extends Controller
         $payment->anulado_por = Auth::id();
         $payment->fecha_anulacion = now();
         $payment->save();
+    }
+
+    /**
+     * Verificar y actualizar el estado del crédito si ya no tiene cuotas en mora.
+     * Helper para llamar después de cualquier operación que pueda resolver mora.
+     */
+    private function checkAndUpdateCreditStatus(Credit $credit): void
+    {
+        if ($credit->status === 'En Mora') {
+            $tieneMora = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->where('estado', 'Mora')
+                ->exists();
+
+            if (!$tieneMora) {
+                $credit->status = 'Formalizado';
+                $credit->save();
+            }
+        }
     }
 
     public function update(Request $request, string $id) { return response()->json([], 200); }

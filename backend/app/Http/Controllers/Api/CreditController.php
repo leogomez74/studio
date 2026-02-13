@@ -370,12 +370,13 @@ class CreditController extends Controller
         // 0. Crear línea de inicialización (cuota 0) - Desembolso Inicial
         $existsInitialization = $credit->planDePagos()->where('numero_cuota', 0)->exists();
         if (!$existsInitialization) {
+            $fechaFormalizacion = $credit->formalized_at ?? $credit->opened_at ?? now();
             PlanDePago::create([
                 'credit_id' => $credit->id,
                 'linea' => '1',
                 'numero_cuota' => 0,
-                'proceso' => ($credit->opened_at ?? now())->format('Ym'),
-                'fecha_inicio' => $credit->opened_at ?? now(),
+                'proceso' => $fechaFormalizacion->format('Ym'),
+                'fecha_inicio' => $fechaFormalizacion,
                 'fecha_corte' => null,
                 'fecha_pago' => null,
                 'tasa_actual' => $tasaAnual,
@@ -390,7 +391,7 @@ class CreditController extends Controller
                 'dias' => 0,
                 'estado' => 'Vigente',
                 'dias_mora' => 0,
-                'fecha_movimiento' => $credit->opened_at ?? now(),
+                'fecha_movimiento' => $fechaFormalizacion,
                 'movimiento_total' => $monto,
                 'movimiento_poliza' => 0,
                 'movimiento_interes_corriente' => 0,
@@ -416,7 +417,7 @@ class CreditController extends Controller
         // 2. Configurar y Guardar Fechas en el Crédito
         $fechaInicio = $credit->fecha_primera_cuota
             ? Carbon::parse($credit->fecha_primera_cuota)
-            : ($credit->opened_at ? Carbon::parse($credit->opened_at) : now());
+            : ($credit->formalized_at ?? $credit->opened_at ?? now());
 
         // Calculamos fecha fin estimada
         $fechaFinEstimada = $fechaInicio->copy()->addMonths($plazo);
@@ -527,6 +528,7 @@ class CreditController extends Controller
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
             'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
+            'formalized_at' => 'nullable|date|after:' . now()->subYear()->toDateString(),
         ]);
 
         // PROTECCIÓN: No permitir modificar campos críticos si el crédito ya fue formalizado (tiene formalized_at)
@@ -597,7 +599,20 @@ class CreditController extends Controller
             strtolower($validated['status']) === 'formalizado' &&
             strtolower($previousStatus) !== 'formalizado') {
 
-            $credit->formalized_at = now();
+            // Usar fecha provista o now() como fallback
+            $fechaFormalizacion = isset($validated['formalized_at'])
+                ? Carbon::parse($validated['formalized_at'])->startOfDay()
+                : now();
+
+            $credit->formalized_at = $fechaFormalizacion;
+            // Actualizar también opened_at con la fecha de formalización
+            // Si el usuario especificó una fecha, se asume que esa es la fecha de apertura real
+            if (isset($validated['formalized_at'])) {
+                $credit->opened_at = $fechaFormalizacion;
+            } elseif (!$credit->opened_at) {
+                // Solo establecer opened_at si no existe y no se proveyó formalized_at
+                $credit->opened_at = $fechaFormalizacion;
+            }
             $credit->save();
 
             $existingPlan = $credit->planDePagos()->where('numero_cuota', '>', 0)->exists();
