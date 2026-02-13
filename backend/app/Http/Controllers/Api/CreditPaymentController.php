@@ -1665,14 +1665,21 @@ class CreditPaymentController extends Controller
                 $nuevaCuota = round($nuevaCuota, 2);
             } else {
                 // Reducir plazo, mantener cuota
-                if ($tasaMensual > 0) {
-                    $denominador = $cuotaActual * $tasaMensual;
-                    if ($denominador > 0) {
-                        $ratio = $nuevoSaldo / $denominador;
-                        $nuevoPlazo = $numeroCuotaInicio - 1 + ceil(log(1 / (1 - ($ratio * $tasaMensual))) / log(1 + $tasaMensual));
+                if ($tasaMensual > 0 && $cuotaActual > 0) {
+                    // Usar fórmula de amortización francesa para calcular el número de cuotas
+                    $valor_dentro_log = ($cuotaActual * $tasaMensual) / ($cuotaActual - ($nuevoSaldo * $tasaMensual));
+
+                    // Validar que el valor dentro del log sea positivo
+                    if ($valor_dentro_log > 0) {
+                        $cuotasNecesarias = log($valor_dentro_log) / log(1 + $tasaMensual);
+                        $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($cuotasNecesarias);
                     } else {
+                        // Si el cálculo falla, usar cálculo simple
                         $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($nuevoSaldo / $cuotaActual);
                     }
+
+                    // Asegurar que el nuevo plazo sea razonable
+                    $nuevoPlazo = max($numeroCuotaInicio, min($nuevoPlazo, $plazoActual));
                 } else {
                     $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($nuevoSaldo / $cuotaActual);
                 }
