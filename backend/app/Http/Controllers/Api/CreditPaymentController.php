@@ -1043,6 +1043,19 @@ class CreditPaymentController extends Controller
         // --- CORRECCIÓN: Actualizar Saldo de forma INCREMENTAL ---
         // Restamos lo que se amortizó HOY al saldo que tenía el crédito ANTES de la transacción
         $credit->saldo = max(0.0, $credit->saldo - $capitalAmortizadoHoy);
+
+        // Verificar si el crédito estaba "En Mora" y ya no tiene cuotas activamente en mora
+        if ($credit->status === 'En Mora') {
+            $tieneMora = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->where('estado', 'Mora') // Solo cuotas que están ACTUALMENTE en estado Mora
+                ->exists();
+
+            if (!$tieneMora) {
+                $credit->status = 'Formalizado';
+            }
+        }
+
         $credit->save();
 
         // Recibo: monto = lo realmente consumido por este crédito (no el monto total de entrada)
