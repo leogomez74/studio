@@ -1919,16 +1919,20 @@ export default function CobrosPage() {
                                           {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Cuota ${i + 1}`}
                                         </Button>
                                       ))}
-                                      {/* Botón parcial: un solo botón con la lógica correcta */}
+                                      {/* Botón parcial/completo: muestra basado en cálculo del backend */}
                                       {((dist.restante > 1 && dist.restante < dist.cuota) || (dist.max_cuotas === 0 && saldo.monto > 1)) && (
                                         <Button
                                           variant="outline"
                                           size="sm"
-                                          className="text-xs h-7 px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                                          className={`text-xs h-7 px-2 ${dist.es_parcial ? 'border-blue-300 text-blue-700 hover:bg-blue-50' : 'border-green-300 text-green-700 hover:bg-green-50'}`}
                                           disabled={procesandoSaldo === saldo.id}
                                           onClick={() => handleAsignarSaldo(saldo.id, 'cuota', dist.credit_id, dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto)}
                                         >
-                                          {procesandoSaldo === saldo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : `Parcial ₡${Number(dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                                          {procesandoSaldo === saldo.id ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                          ) : (
+                                            `${dist.es_parcial ? 'Parcial' : 'Completo'} ₡${Number(dist.restante > 1 && dist.restante < dist.cuota ? dist.restante : saldo.monto).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                                          )}
                                         </Button>
                                       )}
                                       <Button
@@ -2385,12 +2389,15 @@ export default function CobrosPage() {
                       <span className="font-medium">{previewSaldoData.destino}</span>
                     </div>
                     {(() => {
-                      const totalAplicado = (previewSaldoData.distribucion.interes_moratorio || 0) +
+                      const totalAplicado = previewSaldoData.total_aplicado ||
+                                          ((previewSaldoData.distribucion.interes_moratorio || 0) +
                                           (previewSaldoData.distribucion.interes_corriente || 0) +
                                           (previewSaldoData.distribucion.poliza || 0) +
-                                          (previewSaldoData.distribucion.amortizacion || 0);
-                      const excedente = previewSaldoData.excedente || 0;
-                      const quedaPendiente = excedente > 0.50;
+                                          (previewSaldoData.distribucion.amortizacion || 0));
+
+                      const totalPendiente = previewSaldoData.total_pendiente_cuota || 0;
+                      const cuotaCompleta = previewSaldoData.cuota_completa ?? (totalAplicado >= totalPendiente - 0.01);
+                      const faltante = Math.max(0, totalPendiente - totalAplicado);
 
                       return (
                         <>
@@ -2400,17 +2407,17 @@ export default function CobrosPage() {
                               ₡{totalAplicado.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                             </span>
                           </div>
-                          {quedaPendiente && (
+                          {!cuotaCompleta && faltante > 0.01 && (
                             <div className="flex justify-between text-orange-700">
-                              <span className="text-muted-foreground">No alcanzó para:</span>
+                              <span className="text-muted-foreground">Falta por pagar:</span>
                               <span className="font-medium">
-                                ₡{excedente.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                ₡{faltante.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
                               </span>
                             </div>
                           )}
                           <div className="pt-2 border-t border-amber-300">
                             <div className="flex items-center gap-2">
-                              {quedaPendiente ? (
+                              {!cuotaCompleta ? (
                                 <>
                                   <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
                                     Pago Parcial

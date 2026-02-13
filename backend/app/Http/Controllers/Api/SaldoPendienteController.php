@@ -89,6 +89,31 @@ class SaldoPendienteController extends Controller
                 $montoSobrante = (float) $saldo->monto;
                 $maxCuotas = $cuotaAmount > 0 ? (int) floor($montoSobrante / $cuotaAmount) : 0;
                 $restante = $cuotaAmount > 0 ? round($montoSobrante - ($maxCuotas * $cuotaAmount), 2) : $montoSobrante;
+
+                // Calcular si el restante sería un pago parcial o completo
+                $esParcial = false;
+                if ($restante > 1) {
+                    // Obtener la primera cuota pendiente
+                    $cuota = $credit->planDePagos()
+                        ->where('numero_cuota', '>', 0)
+                        ->where('estado', 'Pendiente')
+                        ->orderBy('numero_cuota')
+                        ->first();
+
+                    if ($cuota) {
+                        // Calcular pendientes de cada componente
+                        $pendienteMora = max(0, ((float) $cuota->interes_moratorio) - ((float) $cuota->movimiento_interes_moratorio ?? 0));
+                        $pendienteInteres = max(0, ((float) $cuota->interes_corriente) - ((float) $cuota->movimiento_interes_corriente ?? 0));
+                        $pendientePoliza = max(0, ((float) $cuota->poliza) - ((float) $cuota->movimiento_poliza ?? 0));
+                        $pendienteAmortizacion = max(0, ((float) $cuota->amortizacion) - ((float) $cuota->movimiento_amortizacion ?? 0));
+
+                        $totalPendienteCuota = $pendienteMora + $pendienteInteres + $pendientePoliza + $pendienteAmortizacion;
+
+                        // Si el restante es menor que el total pendiente, es parcial
+                        $esParcial = ($restante < $totalPendienteCuota - 0.01);
+                    }
+                }
+
                 return [
                     'credit_id' => $credit->id,
                     'reference' => $credit->reference ?? $credit->numero_operacion,
@@ -96,6 +121,7 @@ class SaldoPendienteController extends Controller
                     'max_cuotas' => $maxCuotas,
                     'restante' => $restante,
                     'saldo_credito' => (float) $credit->saldo,
+                    'es_parcial' => $esParcial,
                 ];
             })->values()->all();
 
@@ -214,11 +240,19 @@ class SaldoPendienteController extends Controller
                 $dinero -= $aplicado['amortizacion'];
             }
 
+            // Calcular si la cuota quedó completa o parcial
+            $totalPendienteCuota = $pendienteMora + $pendienteInteres + $pendientePoliza + $pendienteAmortizacion;
+            $totalAplicado = $aplicado['interes_moratorio'] + $aplicado['interes_corriente'] + $aplicado['poliza'] + $aplicado['amortizacion'];
+            $cuotaCompleta = ($totalAplicado >= $totalPendienteCuota - 0.01); // Tolerancia de 1 centavo
+
             $preview['destino'] = 'Cuota #' . $cuota->numero_cuota;
             $preview['distribucion'] = $aplicado;
             $preview['saldo_nuevo_credit'] = (float) $credit->saldo - $aplicado['amortizacion'];
             $preview['restante_saldo'] = (float) $saldo->monto - $montoAplicar;
             $preview['excedente'] = $dinero;
+            $preview['cuota_completa'] = $cuotaCompleta;
+            $preview['total_pendiente_cuota'] = $totalPendienteCuota;
+            $preview['total_aplicado'] = $totalAplicado;
 
         } else {
             // Aplicar a capital con estrategia
