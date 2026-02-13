@@ -225,35 +225,35 @@ export default function PagarePage() {
 
       // Página 1: Pagaré
       const canvas1 = await captureElement(pagareRef.current);
-      const imgData1 = canvas1.toDataURL('image/png');
+      const imgData1 = canvas1.toDataURL('image/jpeg', 0.85);
       const ratio1 = Math.min(pdfWidth / canvas1.width, pdfHeight / canvas1.height);
       const finalWidth1 = canvas1.width * ratio1;
       const finalHeight1 = canvas1.height * ratio1;
       const x1 = (pdfWidth - finalWidth1) / 2;
-      pdf.addImage(imgData1, 'PNG', x1, 0, finalWidth1, finalHeight1);
+      pdf.addImage(imgData1, 'JPEG', x1, 0, finalWidth1, finalHeight1);
 
       // Página 2: (reservada - en blanco por ahora)
       if (paginaDosRef.current) {
         pdf.addPage();
         const canvas2 = await captureElement(paginaDosRef.current);
-        const imgData2 = canvas2.toDataURL('image/png');
+        const imgData2 = canvas2.toDataURL('image/jpeg', 0.85);
         const ratio2 = Math.min(pdfWidth / canvas2.width, pdfHeight / canvas2.height);
         const finalWidth2 = canvas2.width * ratio2;
         const finalHeight2 = canvas2.height * ratio2;
         const x2 = (pdfWidth - finalWidth2) / 2;
-        pdf.addImage(imgData2, 'PNG', x2, 0, finalWidth2, finalHeight2);
+        pdf.addImage(imgData2, 'JPEG', x2, 0, finalWidth2, finalHeight2);
       }
 
       // Página 3: Autorización de Deducción
       if (showAutorizacion && autorizacionRef.current) {
         pdf.addPage();
         const canvas3 = await captureElement(autorizacionRef.current);
-        const imgData3 = canvas3.toDataURL('image/png');
+        const imgData3 = canvas3.toDataURL('image/jpeg', 0.85);
         const ratio3 = Math.min(pdfWidth / canvas3.width, pdfHeight / canvas3.height);
         const finalWidth3 = canvas3.width * ratio3;
         const finalHeight3 = canvas3.height * ratio3;
         const x3 = (pdfWidth - finalWidth3) / 2;
-        pdf.addImage(imgData3, 'PNG', x3, 0, finalWidth3, finalHeight3);
+        pdf.addImage(imgData3, 'JPEG', x3, 0, finalWidth3, finalHeight3);
       }
 
       // Abrir PDF en nueva ventana para imprimir

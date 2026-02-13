@@ -165,7 +165,7 @@ export default function ReciboPage() {
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
       const canvas = await html2canvas(reciboRef.current, {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -174,13 +174,13 @@ export default function ReciboPage() {
         height: reciboRef.current.offsetHeight,
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      const imgData = canvas.toDataURL("image/jpeg", 0.85);
       const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
       const finalWidth = canvas.width * ratio;
       const finalHeight = canvas.height * ratio;
       const x = (pdfWidth - finalWidth) / 2;
       const y = (pdfHeight - finalHeight) / 2;
-      pdf.addImage(imgData, "PNG", x, y, finalWidth, finalHeight);
+      pdf.addImage(imgData, "JPEG", x, y, finalWidth, finalHeight);
 
       const pdfBlob = pdf.output("blob");
       const pdfUrl = URL.createObjectURL(pdfBlob);
@@ -217,7 +217,7 @@ export default function ReciboPage() {
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
       const canvas = await html2canvas(reciboRef.current, {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -226,13 +226,13 @@ export default function ReciboPage() {
         height: reciboRef.current.offsetHeight,
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      const imgData = canvas.toDataURL("image/jpeg", 0.85);
       const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
       const finalWidth = canvas.width * ratio;
       const finalHeight = canvas.height * ratio;
       const x = (pdfWidth - finalWidth) / 2;
       const y = (pdfHeight - finalHeight) / 2;
-      pdf.addImage(imgData, "PNG", x, y, finalWidth, finalHeight);
+      pdf.addImage(imgData, "JPEG", x, y, finalWidth, finalHeight);
 
       pdf.save(`comprobante_${payment.id}.pdf`);
     } catch (error) {
