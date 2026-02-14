@@ -36,6 +36,11 @@ interface CreditKPIs {
   nonPerformingLoans: KPIData;
   approvalRate: KPIData;
   timeToDisbursement: KPIData;
+  timeToFormalization: KPIData;
+  fullCycleTime: KPIData;
+  earlyCancellationRate: KPIData;
+  extraordinaryPayments: KPIData;
+  penaltyRevenue: KPIData;
   totalCredits?: number;
   totalPortfolio?: number;
 }
@@ -46,6 +51,9 @@ interface CollectionKPIs {
   delinquencyRate: KPIData;
   recoveryRate: KPIData;
   paymentTimeliness: KPIData;
+  reversalRate: KPIData;
+  pendingBalances: KPIData;
+  paymentSourceDistribution: { source: string; count: number; total: number }[];
   deductoraEfficiency: { name: string; rate: number }[];
 }
 
@@ -186,6 +194,11 @@ export const exportToExcel = async (data: AllKPIData, period: string): Promise<v
       ['Créditos Morosos (NPL)', data.credits.nonPerformingLoans.value, `${data.credits.nonPerformingLoans.change || 0}%`],
       ['Tasa de Aprobación', formatKPIValue(data.credits.approvalRate), `${data.credits.approvalRate.change || 0}%`],
       ['Tiempo de Desembolso', formatKPIValue(data.credits.timeToDisbursement), `${data.credits.timeToDisbursement.change || 0}%`],
+      ['Tiempo a Formalización', formatKPIValue(data.credits.timeToFormalization), `${data.credits.timeToFormalization?.change || 0}%`],
+      ['Ciclo Completo', formatKPIValue(data.credits.fullCycleTime), `${data.credits.fullCycleTime?.change || 0}%`],
+      ['Cancelación Anticipada', formatKPIValue(data.credits.earlyCancellationRate), `${data.credits.earlyCancellationRate?.change || 0}%`],
+      ['Abonos Extraordinarios', formatKPIValue(data.credits.extraordinaryPayments), `${data.credits.extraordinaryPayments?.change || 0}%`],
+      ['Ingresos por Penalización', formatKPIValue(data.credits.penaltyRevenue), `${data.credits.penaltyRevenue?.change || 0}%`],
       ['Total Créditos', data.credits.totalCredits || 0, ''],
       ['Total Cartera', formatCurrency(data.credits.totalPortfolio || 0), ''],
     ];
@@ -204,6 +217,12 @@ export const exportToExcel = async (data: AllKPIData, period: string): Promise<v
       ['Tasa de Morosidad', formatKPIValue(data.collections.delinquencyRate), `${data.collections.delinquencyRate.change || 0}%`],
       ['Tasa de Recuperación', formatKPIValue(data.collections.recoveryRate), `${data.collections.recoveryRate.change || 0}%`],
       ['Puntualidad de Pagos', formatKPIValue(data.collections.paymentTimeliness), `${data.collections.paymentTimeliness.change || 0}%`],
+      ['Tasa de Reversiones', formatKPIValue(data.collections.reversalRate), `${data.collections.reversalRate?.change || 0}%`],
+      ['Saldos Pendientes', formatKPIValue(data.collections.pendingBalances), `${data.collections.pendingBalances?.change || 0}%`],
+      ['', '', ''],
+      ['DISTRIBUCIÓN POR FUENTE DE PAGO', '', ''],
+      ['Fuente', 'Cantidad', 'Monto Total'],
+      ...(data.collections.paymentSourceDistribution?.map(s => [s.source, s.count, formatCurrency(s.total)]) || []),
       ['', '', ''],
       ['EFICIENCIA POR DEDUCTORA', '', ''],
       ['Deductora', 'Tasa de Cobro', ''],
@@ -365,6 +384,11 @@ export const exportToPDF = (data: AllKPIData, period: string): void => {
       ['Cartera en Riesgo', formatKPIValue(data.credits.portfolioAtRisk), `${data.credits.portfolioAtRisk.change || 0}%`],
       ['Créditos Morosos', String(data.credits.nonPerformingLoans.value), `${data.credits.nonPerformingLoans.change || 0}%`],
       ['Tasa de Aprobación', formatKPIValue(data.credits.approvalRate), `${data.credits.approvalRate.change || 0}%`],
+      ['Tiempo a Formalización', formatKPIValue(data.credits.timeToFormalization), `${data.credits.timeToFormalization?.change || 0}%`],
+      ['Ciclo Completo', formatKPIValue(data.credits.fullCycleTime), `${data.credits.fullCycleTime?.change || 0}%`],
+      ['Cancelación Anticipada', formatKPIValue(data.credits.earlyCancellationRate), `${data.credits.earlyCancellationRate?.change || 0}%`],
+      ['Abonos Extraordinarios', formatKPIValue(data.credits.extraordinaryPayments), `${data.credits.extraordinaryPayments?.change || 0}%`],
+      ['Ingresos por Penalización', formatKPIValue(data.credits.penaltyRevenue), `${data.credits.penaltyRevenue?.change || 0}%`],
     ];
 
     autoTable(doc, {
@@ -395,6 +419,8 @@ export const exportToPDF = (data: AllKPIData, period: string): void => {
       ['DSO', formatKPIValue(data.collections.dso), `${data.collections.dso.change || 0}%`],
       ['Tasa de Morosidad', formatKPIValue(data.collections.delinquencyRate), `${data.collections.delinquencyRate.change || 0}%`],
       ['Tasa de Recuperación', formatKPIValue(data.collections.recoveryRate), `${data.collections.recoveryRate.change || 0}%`],
+      ['Tasa de Reversiones', formatKPIValue(data.collections.reversalRate), `${data.collections.reversalRate?.change || 0}%`],
+      ['Saldos Pendientes', formatKPIValue(data.collections.pendingBalances), `${data.collections.pendingBalances?.change || 0}%`],
     ];
 
     autoTable(doc, {

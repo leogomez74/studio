@@ -1466,7 +1466,7 @@ export default function CreditsPage() {
                                       Ver Plan de Pagos
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
-                                      <FileText className="h-4 w-4 mr-2" />
+                                    <FileText className="h-4 w-4 mr-2" />
                                       Gestionar documentos
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>

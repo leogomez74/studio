@@ -12,6 +12,7 @@ class EnterpriseSeeder extends Seeder
 {
     public function run(): void
     {
+        \DB::statement('SET FOREIGN_KEY_CHECKS=0');
         $now = now();
 
         $data = [
@@ -250,5 +251,6 @@ class EnterpriseSeeder extends Seeder
                 ]);
             }
         }
+        \DB::statement('SET FOREIGN_KEY_CHECKS=1');
     }
 }

@@ -16,13 +16,12 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            LoanConfigurationSeeder::class,  // Creates Tasas first (required by Credit model)
             CrmSeeder::class,
             EnterpriseSeeder::class,
             DeductoraSeeder::class,
             ProductSeeder::class,
-            CreditSeeder::class,
             KpiSeeder::class,
-            LoanConfigurationSeeder::class,
         ]);
     }
 }

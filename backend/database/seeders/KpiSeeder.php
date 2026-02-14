@@ -11,6 +11,9 @@ use App\Models\PlanDePago;
 use App\Models\CreditPayment;
 use App\Models\Deductora;
 use App\Models\LeadStatus;
+use App\Models\Analisis;
+use App\Models\Tasa;
+use App\Models\SaldoPendiente;
 use App\Models\Rewards\RewardUser;
 use App\Models\Rewards\RewardTransaction;
 use App\Models\Rewards\RewardBadge;
@@ -35,6 +38,8 @@ class KpiSeeder extends Seeder
     private array $leadStatuses = [];
     private array $sources = ['Web', 'Facebook', 'Instagram', 'Referido', 'WhatsApp', 'Llamada'];
     private array $provinces = ['San José', 'Alajuela', 'Cartago', 'Heredia', 'Guanacaste', 'Puntarenas', 'Limón'];
+    private ?Tasa $tasaRegular = null;
+    private ?Tasa $tasaMicro = null;
 
     public function run(): void
     {
@@ -51,12 +56,15 @@ class KpiSeeder extends Seeder
         $this->seedUsers();
         $this->seedDeductoras();
         $this->seedLeadStatuses();
+        $this->loadTasas();
         $this->command->info('<fg=green>  ✓ Base data ready</>');
 
         // Seed main data distributed over the past 12 months
         $this->seedLeadsAndClients();
         $this->seedOpportunities();
         $this->seedCreditsWithPayments();
+        $this->seedSpecialPayments();
+        $this->seedSaldosPendientes();
         $this->seedGamificationData();
 
         $elapsedTime = round(microtime(true) - $startTime, 2);
@@ -88,6 +96,7 @@ class KpiSeeder extends Seeder
                 [
                     'name' => $userData['name'],
                     'password' => Hash::make('password123'),
+                    'role_id' => $userData['email'] === 'admin@pep.cr' ? 1 : null,
                 ]
             );
             $this->users[] = $user;
@@ -127,6 +136,32 @@ class KpiSeeder extends Seeder
                 ['slug' => Str::slug($status), 'order_column' => $index + 1]
             );
             $this->leadStatuses[$status] = $leadStatus;
+        }
+    }
+
+    private function loadTasas(): void
+    {
+        $this->tasaRegular = Tasa::where('nombre', 'Tasa Regular')->first();
+        $this->tasaMicro = Tasa::where('nombre', 'Tasa Micro Crédito')->first();
+
+        if (!$this->tasaRegular) {
+            $this->tasaRegular = Tasa::create([
+                'nombre' => 'Tasa Regular',
+                'tasa' => 36,
+                'inicio' => Carbon::now()->subYear(),
+                'fin' => null,
+                'activo' => true,
+            ]);
+        }
+
+        if (!$this->tasaMicro) {
+            $this->tasaMicro = Tasa::create([
+                'nombre' => 'Tasa Micro Crédito',
+                'tasa' => 54,
+                'inicio' => Carbon::now()->subYear(),
+                'fin' => null,
+                'activo' => true,
+            ]);
         }
     }
 
@@ -269,14 +304,22 @@ class KpiSeeder extends Seeder
             $status = 'Pendiente';
 
             if ($daysSinceCreation > 60) {
-                $status = rand(1, 100) <= 55 ? 'Analizada' : 'Perdida';
+                $statusRand = rand(1, 100);
+                if ($statusRand <= 45) $status = 'Ganada';
+                elseif ($statusRand <= 55) $status = 'Analizada';
+                else $status = 'Perdida';
             } elseif ($daysSinceCreation > 30) {
                 $statusRand = rand(1, 100);
-                if ($statusRand <= 40) $status = 'Analizada';
+                if ($statusRand <= 30) $status = 'Ganada';
+                elseif ($statusRand <= 45) $status = 'Analizada';
                 elseif ($statusRand <= 60) $status = 'Perdida';
                 else $status = 'En seguimiento';
             } elseif ($daysSinceCreation > 14) {
-                $status = rand(1, 100) <= 50 ? 'En seguimiento' : 'Pendiente';
+                $statusRand = rand(1, 100);
+                if ($statusRand <= 10) $status = 'Ganada';
+                elseif ($statusRand <= 25) $status = 'Analizada';
+                elseif ($statusRand <= 55) $status = 'En seguimiento';
+                else $status = 'Pendiente';
             }
 
             $amount = rand(5, 100) * 100000;
@@ -320,7 +363,7 @@ class KpiSeeder extends Seeder
         // Get won opportunities that don't have credits yet
         $existingOpportunityIds = Credit::whereNotNull('opportunity_id')->pluck('opportunity_id')->toArray();
 
-        $wonOpportunities = Opportunity::where('status', 'Analizada')
+        $wonOpportunities = Opportunity::whereIn('status', ['Ganada', 'Analizada'])
             ->whereNotIn('id', $existingOpportunityIds)
             ->whereNotNull('lead_cedula')
             ->get();
@@ -332,6 +375,7 @@ class KpiSeeder extends Seeder
 
         $progressBar = $this->createProgressBar($wonOpportunities->count(), 'Credits');
         $creditCount = 0;
+        $analisisCount = 0;
         $paymentCount = 0;
         $planCount = 0;
         $processed = 0;
@@ -339,18 +383,19 @@ class KpiSeeder extends Seeder
         // Collect all data first, then batch insert
         $plansToInsert = [];
         $paymentsToInsert = [];
-        $plansToUpdate = [];
+        $creditSaldoUpdates = [];
 
         DB::transaction(function () use (
             $wonOpportunities,
             $progressBar,
             &$creditCount,
+            &$analisisCount,
             &$paymentCount,
             &$planCount,
             &$processed,
             &$plansToInsert,
             &$paymentsToInsert,
-            &$plansToUpdate
+            &$creditSaldoUpdates
         ) {
             foreach ($wonOpportunities as $opportunity) {
                 $processed++;
@@ -370,29 +415,82 @@ class KpiSeeder extends Seeder
 
                 if (!$client) continue;
 
+                // Create Analisis record (Oportunidad → Análisis → Crédito flow)
+                $analisisCreatedAt = $opportunity->created_at->copy()->addDays(rand(1, 5));
+                Analisis::firstOrCreate(
+                    ['opportunity_id' => $opportunity->id],
+                    [
+                        'reference' => $opportunity->id,
+                        'title' => 'Análisis de ' . ($opportunity->opportunity_type ?? 'Crédito'),
+                        'estado_pep' => 'Aprobado',
+                        'estado_cliente' => 'Aprobado',
+                        'category' => str_contains($opportunity->opportunity_type ?? '', 'Micro') ? 'Micro-crédito' : 'Regular',
+                        'monto_solicitado' => $opportunity->amount ?? rand(5, 50) * 100000,
+                        'monto_sugerido' => $opportunity->amount ?? rand(5, 50) * 100000,
+                        'lead_id' => $client->id,
+                        'assigned_to' => $this->users[array_rand($this->users)]->name,
+                        'opened_at' => $analisisCreatedAt->toDateString(),
+                        'description' => 'Análisis generado automáticamente',
+                        'plazo' => str_contains($opportunity->opportunity_type ?? '', 'Micro')
+                            ? [6, 12, 18, 24][array_rand([6, 12, 18, 24])]
+                            : [12, 24, 36, 48, 60][array_rand([12, 24, 36, 48, 60])],
+                        'created_at' => $analisisCreatedAt,
+                        'updated_at' => $analisisCreatedAt,
+                    ]
+                );
+                $analisisCount++;
+
                 $deductora = $this->deductoras[array_rand($this->deductoras)];
                 $monto = $opportunity->amount ?? rand(5, 50) * 100000;
-                $plazo = [12, 24, 36, 48, 60][array_rand([12, 24, 36, 48, 60])];
-                $tasaAnual = rand(28, 36) + (rand(0, 99) / 100);
-                $cuota = round($monto / $plazo * 1.15, 2);
+                $isMicro = str_contains($opportunity->opportunity_type ?? '', 'Micro');
+                $tasa = $isMicro ? $this->tasaMicro : $this->tasaRegular;
+                $tasaAnual = $tasa->tasa;
+                $plazo = $isMicro
+                    ? [6, 12, 18, 24][array_rand([6, 12, 18, 24])]
+                    : [12, 24, 36, 48, 60][array_rand([12, 24, 36, 48, 60])];
+
+                // French amortization cuota calculation
+                $tasaMensual = $tasaAnual / 100 / 12;
+                $cuota = $tasaMensual > 0
+                    ? round($monto * ($tasaMensual * pow(1 + $tasaMensual, $plazo)) / (pow(1 + $tasaMensual, $plazo) - 1), 2)
+                    : round($monto / $plazo, 2);
 
                 $createdAt = $opportunity->updated_at ?? $opportunity->created_at;
                 $daysSinceCreation = $createdAt->diffInDays(Carbon::now());
-                $cuotasAtrasadas = 0;
 
-                if (rand(1, 100) <= 15 && $daysSinceCreation > 60) {
-                    $cuotasAtrasadas = rand(1, 4);
+                // Determine credit status with realistic distribution
+                $statusRand = rand(1, 100);
+                $cuotasAtrasadas = 0;
+                if ($statusRand <= 55) {
+                    $creditStatus = 'Formalizado';
+                } elseif ($statusRand <= 80) {
+                    $creditStatus = 'Activo';
+                } elseif ($statusRand <= 92) {
+                    $creditStatus = 'En Mora';
+                    $cuotasAtrasadas = rand(1, 6);
+                } else {
+                    $creditStatus = 'Cerrado';
+                    $cuotasAtrasadas = 0;
+                }
+
+                // formalized_at: 5-20 days after credit creation for non-Cerrado
+                $formalizedAt = null;
+                if (in_array($creditStatus, ['Formalizado', 'Activo', 'En Mora'])) {
+                    $formalizedAt = $createdAt->copy()->addDays(rand(5, 20));
+                    if ($formalizedAt > Carbon::now()) $formalizedAt = Carbon::now()->subDays(rand(1, 5));
+                } elseif ($creditStatus === 'Cerrado') {
+                    $formalizedAt = $createdAt->copy()->addDays(rand(3, 10));
                 }
 
                 $poliza = rand(0, 1);
 
-                // Create credit (needs ID for related records)
+                // Create credit with tasa_id (required by model boot)
                 $credit = Credit::create([
                     'reference' => 'CRED-' . strtoupper(Str::random(8)),
-                    'title' => 'Crédito ' . $opportunity->opportunity_type,
-                    'status' => 'Activo',
-                    'category' => 'Regular',
-                    'progress' => min(100, intval($daysSinceCreation / 3)),
+                    'title' => 'Crédito ' . ($opportunity->opportunity_type ?? 'Regular'),
+                    'status' => $creditStatus,
+                    'category' => $isMicro ? 'Micro-crédito' : 'Regular',
+                    'progress' => $creditStatus === 'Cerrado' ? 100 : min(95, intval($daysSinceCreation / 3)),
                     'lead_id' => $client->id,
                     'opportunity_id' => $opportunity->id,
                     'assigned_to' => $this->users[array_rand($this->users)]->name,
@@ -401,10 +499,12 @@ class KpiSeeder extends Seeder
                     'monto_credito' => $monto,
                     'cuota' => $cuota,
                     'plazo' => $plazo,
+                    'tasa_id' => $tasa->id,
                     'tasa_anual' => $tasaAnual,
                     'cuotas_atrasadas' => $cuotasAtrasadas,
                     'deductora_id' => $deductora->id,
                     'poliza' => $poliza,
+                    'formalized_at' => $formalizedAt,
                     'created_at' => $createdAt,
                     'updated_at' => $createdAt,
                 ]);
@@ -419,32 +519,40 @@ class KpiSeeder extends Seeder
                     $plazo,
                     $tasaAnual,
                     $poliza,
-                    $createdAt
+                    $createdAt,
+                    $client->cedula
                 );
 
                 $plansToInsert = array_merge($plansToInsert, $result['plans']);
                 $paymentsToInsert = array_merge($paymentsToInsert, $result['payments']);
-                $plansToUpdate = array_merge($plansToUpdate, $result['plansToUpdate']);
                 $planCount += count($result['plans']);
                 $paymentCount += count($result['payments']);
 
+                // Track saldo update: monto minus total amortization paid
+                $totalAmortPaid = collect($result['payments'])->sum('amortizacion');
+                $newSaldo = max(0, round($monto - $totalAmortPaid, 2));
+                if ($creditStatus === 'Cerrado') $newSaldo = 0;
+                $creditSaldoUpdates[$credit->id] = $newSaldo;
+
                 // Batch insert every 50 credits to prevent memory issues
                 if ($creditCount % 50 === 0) {
-                    $this->flushBatchInserts($plansToInsert, $paymentsToInsert, $plansToUpdate);
+                    $this->flushBatchInserts($plansToInsert, $paymentsToInsert);
+                    $this->updateCreditSaldos($creditSaldoUpdates);
                     $plansToInsert = [];
                     $paymentsToInsert = [];
-                    $plansToUpdate = [];
+                    $creditSaldoUpdates = [];
                 }
             }
 
             // Final flush for remaining records
-            $this->flushBatchInserts($plansToInsert, $paymentsToInsert, $plansToUpdate);
+            $this->flushBatchInserts($plansToInsert, $paymentsToInsert);
+            $this->updateCreditSaldos($creditSaldoUpdates);
         });
 
         $progressBar->finish();
         $this->command->info('');
         $this->command->info('   <fg=yellow>Transaction committed</>');
-        $this->command->info("   <fg=green>✓ Created {$creditCount} credits, {$planCount} payment plans and {$paymentCount} payments</>");
+        $this->command->info("   <fg=green>✓ Created {$analisisCount} análisis, {$creditCount} credits, {$planCount} payment plans and {$paymentCount} payments</>");
     }
 
     private function generatePlanDePagosAndPaymentsData(
@@ -454,23 +562,26 @@ class KpiSeeder extends Seeder
         int $plazo,
         float $tasaAnual,
         int $poliza,
-        Carbon $startDate
+        Carbon $startDate,
+        string $cedula = ''
     ): array {
         $plans = [];
         $payments = [];
-        $plansToUpdate = [];
         $saldoAnterior = $monto;
         $now = Carbon::now();
+        $tasaMensual = $tasaAnual / 100 / 12;
 
         for ($i = 1; $i <= $plazo; $i++) {
             $fechaCorte = $startDate->copy()->addMonths($i);
 
             if ($fechaCorte > $now) break;
 
-            $amortizacion = round($monto / $plazo, 2);
-            $saldoNuevo = max(0, $saldoAnterior - $amortizacion);
-            $polizaAmount = $poliza ? rand(1000, 5000) : 0;
-            $interesCorriente = round($cuota - $amortizacion, 2);
+            // French amortization: interest first, then principal
+            $interesCorriente = round($saldoAnterior * $tasaMensual, 2);
+            $polizaAmount = $poliza ? round(rand(1000, 5000), 2) : 0;
+            $amortizacion = round($cuota - $interesCorriente, 2);
+            if ($amortizacion < 0) $amortizacion = 0;
+            $saldoNuevo = max(0, round($saldoAnterior - $amortizacion, 2));
 
             $planData = [
                 'credit_id' => $creditId,
@@ -531,7 +642,9 @@ class KpiSeeder extends Seeder
                     'estado' => 'Pagado',
                     'fecha_movimiento' => $fechaPago,
                     'movimiento_total' => $cuota,
-                    'source' => ['Ventanilla', 'Planilla', 'Transferencia'][array_rand(['Ventanilla', 'Planilla', 'Transferencia'])],
+                    'source' => ['Ventanilla', 'Planilla', 'Planilla', 'Adelanto'][array_rand(['Ventanilla', 'Planilla', 'Planilla', 'Adelanto'])],
+                    'estado_reverso' => 'Vigente',
+                    'cedula' => $cedula,
                     'created_at' => $fechaPago,
                     'updated_at' => $fechaPago,
                 ];
@@ -544,11 +657,10 @@ class KpiSeeder extends Seeder
         return [
             'plans' => $plans,
             'payments' => $payments,
-            'plansToUpdate' => $plansToUpdate,
         ];
     }
 
-    private function flushBatchInserts(array $plans, array $payments, array $plansToUpdate): void
+    private function flushBatchInserts(array $plans, array $payments): void
     {
         if (!empty($plans)) {
             foreach (array_chunk($plans, 100) as $chunk) {
@@ -561,6 +673,193 @@ class KpiSeeder extends Seeder
                 CreditPayment::insert($chunk);
             }
         }
+    }
+
+    private function updateCreditSaldos(array $saldoUpdates): void
+    {
+        foreach ($saldoUpdates as $creditId => $saldo) {
+            Credit::where('id', $creditId)->update(['saldo' => $saldo]);
+        }
+    }
+
+    private function seedSpecialPayments(): void
+    {
+        $this->command->info('');
+        $this->command->info('🔄 <fg=cyan>Seeding special payments (extraordinary, cancellations, reversals)...</>');
+
+        $now = Carbon::now();
+        $credits = Credit::whereIn('status', ['Formalizado', 'Activo', 'En Mora'])
+            ->with('lead')
+            ->get();
+
+        if ($credits->isEmpty()) {
+            $this->command->info('   <fg=yellow>No active credits to process</>');
+            return;
+        }
+
+        $progressBar = $this->createProgressBar($credits->count(), 'Special');
+        $extraCount = 0;
+        $cancelCount = 0;
+        $reversalCount = 0;
+        $processed = 0;
+
+        DB::transaction(function () use ($credits, $now, $progressBar, &$extraCount, &$cancelCount, &$reversalCount, &$processed) {
+            foreach ($credits as $credit) {
+                $processed++;
+                $progressBar->setProgress($processed);
+                $cedula = $credit->lead->cedula ?? '';
+
+                // ~12% chance of extraordinary payment
+                if (rand(1, 100) <= 12 && $credit->saldo > 0) {
+                    $extraMonto = round(rand(50000, 500000), 2);
+                    if ($extraMonto > $credit->saldo) $extraMonto = round($credit->saldo * 0.3, 2);
+                    $fechaPago = $now->copy()->subDays(rand(1, 90));
+
+                    CreditPayment::insert([
+                        'credit_id' => $credit->id,
+                        'numero_cuota' => 0,
+                        'proceso' => 'Abono Capital',
+                        'fecha_pago' => $fechaPago,
+                        'monto' => $extraMonto,
+                        'cuota' => 0,
+                        'cargos' => 0,
+                        'poliza' => 0,
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'amortizacion' => $extraMonto,
+                        'saldo_anterior' => $credit->saldo,
+                        'nuevo_saldo' => max(0, $credit->saldo - $extraMonto),
+                        'estado' => 'Pagado',
+                        'fecha_movimiento' => $fechaPago,
+                        'movimiento_total' => $extraMonto,
+                        'source' => 'Extraordinario',
+                        'estado_reverso' => 'Vigente',
+                        'cedula' => $cedula,
+                        'created_at' => $fechaPago,
+                        'updated_at' => $fechaPago,
+                    ]);
+                    $extraCount++;
+                }
+
+                // ~4% chance of early cancellation
+                if (rand(1, 100) <= 4 && $credit->saldo > 0) {
+                    $fechaPago = $now->copy()->subDays(rand(1, 60));
+                    $penalizacion = round($credit->saldo * 0.03, 2); // 3% penalty
+                    $montoTotal = round($credit->saldo + $penalizacion, 2);
+
+                    CreditPayment::insert([
+                        'credit_id' => $credit->id,
+                        'numero_cuota' => 0,
+                        'proceso' => 'Cancelación Anticipada',
+                        'fecha_pago' => $fechaPago,
+                        'monto' => $montoTotal,
+                        'cuota' => 0,
+                        'cargos' => 0,
+                        'poliza' => 0,
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'amortizacion' => $credit->saldo,
+                        'saldo_anterior' => $credit->saldo,
+                        'nuevo_saldo' => 0,
+                        'estado' => 'Pagado',
+                        'fecha_movimiento' => $fechaPago,
+                        'movimiento_total' => $montoTotal,
+                        'source' => 'Cancelación Anticipada',
+                        'estado_reverso' => 'Vigente',
+                        'cedula' => $cedula,
+                        'reversal_snapshot' => json_encode([
+                            'penalizacion' => $penalizacion,
+                            'saldo_al_cancelar' => $credit->saldo,
+                            'cuotas_afectadas' => [],
+                        ]),
+                        'created_at' => $fechaPago,
+                        'updated_at' => $fechaPago,
+                    ]);
+                    $cancelCount++;
+                }
+            }
+
+            // Mark ~8% of existing regular payments as reversed
+            $regularPayments = CreditPayment::whereIn('source', ['Ventanilla', 'Planilla', 'Adelanto'])
+                ->where('estado_reverso', 'Vigente')
+                ->inRandomOrder()
+                ->limit(max(5, intval(CreditPayment::count() * 0.08)))
+                ->get();
+
+            foreach ($regularPayments as $payment) {
+                $fechaAnulacion = Carbon::parse($payment->fecha_pago)->addDays(rand(1, 10));
+                if ($fechaAnulacion > $now) $fechaAnulacion = $now->copy()->subDay();
+
+                $payment->update([
+                    'estado_reverso' => 'Anulado',
+                    'motivo_anulacion' => ['Error de digitación', 'Pago duplicado', 'Monto incorrecto', 'Solicitud del cliente'][array_rand(['Error de digitación', 'Pago duplicado', 'Monto incorrecto', 'Solicitud del cliente'])],
+                    'anulado_por' => $this->users[0]->id,
+                    'fecha_anulacion' => $fechaAnulacion,
+                ]);
+                $reversalCount++;
+            }
+        });
+
+        $progressBar->finish();
+        $this->command->info('');
+        $this->command->info("   <fg=green>✓ Created {$extraCount} extraordinary, {$cancelCount} early cancellations, {$reversalCount} reversals</>");
+    }
+
+    private function seedSaldosPendientes(): void
+    {
+        $this->command->info('');
+        $this->command->info('💵 <fg=cyan>Seeding saldos pendientes...</>');
+
+        $now = Carbon::now();
+
+        // Get credits that have planilla payments (likely to have overpayments)
+        $creditsWithPlanilla = Credit::whereIn('status', ['Formalizado', 'Activo', 'En Mora'])
+            ->whereHas('payments', function ($q) {
+                $q->where('source', 'Planilla')->where('estado_reverso', 'Vigente');
+            })
+            ->with('lead')
+            ->inRandomOrder()
+            ->limit(20)
+            ->get();
+
+        $saldosData = [];
+
+        foreach ($creditsWithPlanilla as $credit) {
+            $cedula = $credit->lead->cedula ?? '';
+            // Get a recent planilla payment from this credit
+            $payment = CreditPayment::where('credit_id', $credit->id)
+                ->where('source', 'Planilla')
+                ->where('estado_reverso', 'Vigente')
+                ->orderByDesc('fecha_pago')
+                ->first();
+
+            if (!$payment) continue;
+
+            $estadoRand = rand(1, 100);
+            $estado = $estadoRand <= 60 ? 'pendiente'
+                : ($estadoRand <= 80 ? 'asignado_cuota' : 'asignado_capital');
+
+            $saldosData[] = [
+                'credit_id' => $credit->id,
+                'credit_payment_id' => $payment->id,
+                'monto' => round(rand(5000, 100000), 2),
+                'origen' => 'Planilla',
+                'fecha_origen' => $payment->fecha_pago,
+                'estado' => $estado,
+                'asignado_at' => $estado !== 'pendiente' ? $now->copy()->subDays(rand(1, 15)) : null,
+                'notas' => $estado === 'pendiente' ? 'Sobrepago pendiente de asignación' : null,
+                'cedula' => $cedula,
+                'created_at' => Carbon::parse($payment->fecha_pago)->addDay(),
+                'updated_at' => $now,
+            ];
+        }
+
+        if (!empty($saldosData)) {
+            SaldoPendiente::insert($saldosData);
+        }
+
+        $pendientes = collect($saldosData)->where('estado', 'pendiente')->count();
+        $this->command->info("   <fg=green>✓ Created " . count($saldosData) . " saldos pendientes ({$pendientes} pending)</>");
     }
 
     private function seedGamificationData(): void

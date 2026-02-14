@@ -31,6 +31,7 @@ class CrmSeeder extends Seeder
                 [
                     'name' => $userData['name'],
                     'password' => Hash::make('admin123'),
+                    'role_id' => $userData['email'] === 'admin@pep.cr' ? 1 : null,
                 ]
             );
         }
@@ -277,7 +278,7 @@ class CrmSeeder extends Seeder
                 'estado_pep' => 'Aceptado',
                 'estado_cliente' => 'Aprobado',
                 'category' => $data['opportunity_type'],
-                'monto_credito' => $data['amount'],
+                'monto_sugerido' => $data['amount'],
                 'lead_id' => $lead->id,
                 'opportunity_id' => $opportunity->id,
                 'assigned_to' => $data['assignedTo'],

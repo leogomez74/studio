@@ -48,6 +48,12 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  RotateCcw,
+  Banknote,
+  ShieldAlert,
+  FileCheck,
+  Route,
+  Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
@@ -72,6 +78,7 @@ interface KPIData {
   change?: number;
   target?: number;
   unit?: string;
+  count?: number;
 }
 
 interface LeadKPIs {
@@ -99,6 +106,11 @@ interface CreditKPIs {
   nonPerformingLoans: KPIData;
   approvalRate: KPIData;
   timeToDisbursement: KPIData;
+  timeToFormalization: KPIData;
+  fullCycleTime: KPIData;
+  earlyCancellationRate: KPIData;
+  extraordinaryPayments: KPIData;
+  penaltyRevenue: KPIData;
   totalCredits?: number;
   totalPortfolio?: number;
 }
@@ -109,6 +121,9 @@ interface CollectionKPIs {
   delinquencyRate: KPIData;
   recoveryRate: KPIData;
   paymentTimeliness: KPIData;
+  reversalRate: KPIData;
+  pendingBalances: KPIData;
+  paymentSourceDistribution: { source: string; count: number; total: number }[];
   deductoraEfficiency: { name: string; rate: number }[];
 }
 
@@ -997,6 +1012,54 @@ export default function KPIsPage() {
               colorClass="text-blue-500"
               isLoading={isLoading}
             />
+            <StatCard
+              title="Tiempo a Formalización"
+              value={creditKPIs?.timeToFormalization?.value ?? 0}
+              unit={creditKPIs?.timeToFormalization?.unit}
+              change={creditKPIs?.timeToFormalization?.change}
+              icon={FileCheck}
+              description="Promedio creación → formalización"
+              colorClass="text-indigo-500"
+              isLoading={isLoading}
+            />
+            <StatCard
+              title="Ciclo Completo"
+              value={creditKPIs?.fullCycleTime?.value ?? 0}
+              unit={creditKPIs?.fullCycleTime?.unit}
+              change={creditKPIs?.fullCycleTime?.change}
+              icon={Route}
+              description="Oportunidad → formalización"
+              colorClass="text-purple-500"
+              isLoading={isLoading}
+            />
+            <StatCard
+              title="Cancelación Anticipada"
+              value={creditKPIs?.earlyCancellationRate?.value ?? 0}
+              unit={creditKPIs?.earlyCancellationRate?.unit}
+              change={creditKPIs?.earlyCancellationRate?.change}
+              icon={AlertTriangle}
+              description={`${creditKPIs?.earlyCancellationRate?.count ?? 0} créditos cancelados`}
+              colorClass="text-orange-500"
+              isLoading={isLoading}
+            />
+            <StatCard
+              title="Abonos Extraordinarios"
+              value={formatCurrency(Number(creditKPIs?.extraordinaryPayments?.value) || 0)}
+              change={creditKPIs?.extraordinaryPayments?.change}
+              icon={Banknote}
+              description={`${creditKPIs?.extraordinaryPayments?.count ?? 0} pagos extraordinarios`}
+              colorClass="text-teal-500"
+              isLoading={isLoading}
+            />
+            <StatCard
+              title="Ingresos por Penalización"
+              value={formatCurrency(Number(creditKPIs?.penaltyRevenue?.value) || 0)}
+              change={creditKPIs?.penaltyRevenue?.change}
+              icon={ShieldAlert}
+              description="Penalizaciones por cancelación anticipada"
+              colorClass="text-red-500"
+              isLoading={isLoading}
+            />
           </div>
         </TabsContent>
 
@@ -1054,27 +1117,60 @@ export default function KPIsPage() {
               colorClass="text-green-500"
               isLoading={isLoading}
             />
+            <StatCard
+              title="Tasa de Reversiones"
+              value={collectionKPIs?.reversalRate?.value ?? 0}
+              unit={collectionKPIs?.reversalRate?.unit}
+              change={collectionKPIs?.reversalRate?.change}
+              icon={RotateCcw}
+              description={`${collectionKPIs?.reversalRate?.count ?? 0} pagos anulados`}
+              colorClass="text-orange-500"
+              isLoading={isLoading}
+            />
+            <StatCard
+              title="Saldos Pendientes"
+              value={formatCurrency(Number(collectionKPIs?.pendingBalances?.value) || 0)}
+              change={collectionKPIs?.pendingBalances?.change}
+              icon={Hourglass}
+              description={`${collectionKPIs?.pendingBalances?.count ?? 0} sobrepagos por asignar`}
+              colorClass="text-amber-500"
+              isLoading={isLoading}
+            />
           </div>
-          <KPITable
-            title="Eficiencia por Deductora"
-            description="Tasa de cobro por entidad de deducción"
-            icon={Building2}
-            headers={["Deductora", "Tasa de Cobro", "Estado"]}
-            rows={(collectionKPIs?.deductoraEfficiency ?? []).map(d => [
-              d.name,
-              `${d.rate}%`,
-              <Badge
-                key={d.name}
-                variant={d.rate >= 95 ? "default" : d.rate >= 90 ? "secondary" : "destructive"}
-                className={cn(
-                  d.rate >= 95 && "bg-green-500"
-                )}
-              >
-                {d.rate >= 95 ? "Excelente" : d.rate >= 90 ? "Bueno" : "Mejorar"}
-              </Badge>
-            ])}
-            isLoading={isLoading}
-          />
+          <div className="grid gap-6 md:grid-cols-2">
+            <KPITable
+              title="Distribución por Fuente de Pago"
+              description="Desglose de pagos por canal"
+              icon={BarChart3}
+              headers={["Fuente", "Cantidad", "Monto Total"]}
+              rows={(collectionKPIs?.paymentSourceDistribution ?? []).map(s => [
+                s.source,
+                s.count,
+                formatCurrency(s.total),
+              ])}
+              isLoading={isLoading}
+            />
+            <KPITable
+              title="Eficiencia por Deductora"
+              description="Tasa de cobro por entidad de deducción"
+              icon={Building2}
+              headers={["Deductora", "Tasa de Cobro", "Estado"]}
+              rows={(collectionKPIs?.deductoraEfficiency ?? []).map(d => [
+                d.name,
+                `${d.rate}%`,
+                <Badge
+                  key={d.name}
+                  variant={d.rate >= 95 ? "default" : d.rate >= 90 ? "secondary" : "destructive"}
+                  className={cn(
+                    d.rate >= 95 && "bg-green-500"
+                  )}
+                >
+                  {d.rate >= 95 ? "Excelente" : d.rate >= 90 ? "Bueno" : "Mejorar"}
+                </Badge>
+              ])}
+              isLoading={isLoading}
+            />
+          </div>
         </TabsContent>
 
         {/* Agent Performance KPIs */}
