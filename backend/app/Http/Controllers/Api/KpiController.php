@@ -13,6 +13,7 @@ use App\Models\SaldoPendiente;
 use App\Models\PlanDePago;
 use App\Models\Deductora;
 use App\Models\User;
+use App\Models\Task;
 use App\Models\Rewards\RewardUser;
 use App\Models\Rewards\RewardTransaction;
 use App\Models\Rewards\RewardUserBadge;
@@ -504,6 +505,51 @@ class KpiController extends Controller
                 $stageConversion = [];
             }
 
+            // Credit type comparison (Micro vs Regular vs Empresarial)
+            $creditTypeComparison = [];
+            try {
+                $types = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                    ->whereNotNull('opportunity_type')
+                    ->select('opportunity_type')
+                    ->distinct()
+                    ->pluck('opportunity_type')
+                    ->toArray();
+
+                foreach ($types as $type) {
+                    $typeTotal = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                        ->where('opportunity_type', $type)
+                        ->count();
+                    $typeWon = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
+                        ->where('opportunity_type', $type)
+                        ->where('status', 'Ganada')
+                        ->count();
+                    $typeLost = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
+                        ->where('opportunity_type', $type)
+                        ->where('status', 'Perdida')
+                        ->count();
+                    $typePipeline = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                        ->where('opportunity_type', $type)
+                        ->whereIn('status', $openStatuses)
+                        ->sum('amount') ?? 0;
+                    $typeClosed = $typeWon + $typeLost;
+                    $typeWinRate = $typeClosed > 0 ? round(($typeWon / $typeClosed) * 100, 1) : 0;
+
+                    $creditTypeComparison[] = [
+                        'type' => $type,
+                        'total' => $typeTotal,
+                        'won' => $typeWon,
+                        'lost' => $typeLost,
+                        'winRate' => $typeWinRate,
+                        'pipeline' => round((float) $typePipeline, 2),
+                    ];
+                }
+
+                // Sort by total descending
+                usort($creditTypeComparison, fn($a, $b) => $b['total'] - $a['total']);
+            } catch (\Exception $e) {
+                $creditTypeComparison = [];
+            }
+
             return [
                 'winRate' => [
                     'value' => $winRate,
@@ -526,6 +572,7 @@ class KpiController extends Controller
                     'change' => $this->calculateChange((float)$opportunityVelocity, (float)$prevOpportunityVelocity),
                 ],
                 'stageConversion' => $stageConversion,
+                'creditTypeComparison' => $creditTypeComparison,
             ];
         } catch (\Exception $e) {
             return [
@@ -534,6 +581,7 @@ class KpiController extends Controller
                 'avgSalesCycle' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                 'velocity' => ['value' => 0, 'change' => 0],
                 'stageConversion' => [],
+                'creditTypeComparison' => [],
             ];
         }
     }
@@ -1200,6 +1248,17 @@ class KpiController extends Controller
                         ->count();
                     $activityRate = round(($leadsInPeriod + $creditsInPeriod) / $daysInPeriod, 1);
 
+                    // Task metrics
+                    $tasksAssigned = Task::where('assigned_to', $agent->id)
+                        ->whereNotIn('status', ['deleted'])
+                        ->count();
+                    $tasksCompleted = Task::where('assigned_to', $agent->id)
+                        ->where('status', 'completada')
+                        ->count();
+                    $taskCompletionRate = $tasksAssigned > 0
+                        ? round(($tasksCompleted / $tasksAssigned) * 100, 0)
+                        : 0;
+
                     return [
                         'name' => $agent->name,
                         'leadsHandled' => $leadsHandled,
@@ -1207,6 +1266,9 @@ class KpiController extends Controller
                         'creditsOriginated' => $creditsOriginated,
                         'avgDealSize' => round($avgDealSize, 0),
                         'activityRate' => $activityRate,
+                        'tasksAssigned' => $tasksAssigned,
+                        'tasksCompleted' => $tasksCompleted,
+                        'taskCompletionRate' => $taskCompletionRate,
                     ];
                 })
                 ->filter(function ($agent) {
