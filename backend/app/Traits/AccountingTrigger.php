@@ -164,6 +164,208 @@ trait AccountingTrigger
     }
 
     /**
+     * ACCOUNTING_API_TRIGGER: Pago por Planilla (Deducción Automática)
+     *
+     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     */
+    protected function triggerAccountingPagoPlanilla(int $creditId, int $paymentId, float $amount, array $breakdown = [])
+    {
+        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codCxC = $this->getAccountCode('cuentas_por_cobrar');
+        $amount = round($amount, 2);
+
+        Log::info('ACCOUNTING_API_TRIGGER: Pago por Planilla', [
+            'trigger_type' => 'PAGO_PLANILLA',
+            'credit_id' => $creditId,
+            'payment_id' => $paymentId,
+            'amount' => $amount,
+            'breakdown' => $breakdown,
+        ]);
+
+        if (!$codBanco || !$codCxC) {
+            Log::warning('ERP: Cuentas contables no configuradas. Asiento de planilla NO enviado.', [
+                'credit_id' => $creditId,
+                'payment_id' => $paymentId,
+            ]);
+            return;
+        }
+
+        $service = $this->getErpService();
+        if (!$service->isConfigured()) {
+            return;
+        }
+
+        $creditRef = $breakdown['credit_reference'] ?? "CRED-{$creditId}";
+        $cedula = $breakdown['cedula'] ?? '';
+        $clienteNombre = $breakdown['lead_nombre'] ?? '';
+        $deductora = $breakdown['deductora_nombre'] ?? '';
+
+        $result = $service->createJournalEntry(
+            date: now()->format('Y-m-d'),
+            description: "Deducción planilla {$deductora} - {$clienteNombre} ({$cedula}) - {$creditRef}",
+            items: [
+                [
+                    'account_code' => $codBanco,
+                    'debit' => $amount,
+                    'credit' => 0,
+                    'description' => "Cobro planilla {$deductora} - {$creditRef}",
+                ],
+                [
+                    'account_code' => $codCxC,
+                    'debit' => 0,
+                    'credit' => $amount,
+                    'description' => "Reducción CxC planilla - {$creditRef}",
+                ],
+            ],
+            reference: "PLAN-{$paymentId}-{$creditRef}"
+        );
+
+        if (!($result['success'] ?? false) && !($result['skipped'] ?? false)) {
+            Log::critical('ACCOUNTING: Fallo al enviar asiento de planilla', [
+                'credit_id' => $creditId,
+                'payment_id' => $paymentId,
+                'error' => $result['error'] ?? 'Desconocido',
+            ]);
+        }
+    }
+
+    /**
+     * ACCOUNTING_API_TRIGGER: Pago de Ventanilla (Pago Manual)
+     *
+     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     */
+    protected function triggerAccountingPagoVentanilla(int $creditId, int $paymentId, float $amount, array $breakdown = [])
+    {
+        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codCxC = $this->getAccountCode('cuentas_por_cobrar');
+        $amount = round($amount, 2);
+
+        Log::info('ACCOUNTING_API_TRIGGER: Pago de Ventanilla', [
+            'trigger_type' => 'PAGO_VENTANILLA',
+            'credit_id' => $creditId,
+            'payment_id' => $paymentId,
+            'amount' => $amount,
+            'breakdown' => $breakdown,
+        ]);
+
+        if (!$codBanco || !$codCxC) {
+            Log::warning('ERP: Cuentas contables no configuradas. Asiento de ventanilla NO enviado.', [
+                'credit_id' => $creditId,
+                'payment_id' => $paymentId,
+            ]);
+            return;
+        }
+
+        $service = $this->getErpService();
+        if (!$service->isConfigured()) {
+            return;
+        }
+
+        $creditRef = $breakdown['credit_reference'] ?? "CRED-{$creditId}";
+        $cedula = $breakdown['cedula'] ?? '';
+        $clienteNombre = $breakdown['lead_nombre'] ?? '';
+
+        $result = $service->createJournalEntry(
+            date: now()->format('Y-m-d'),
+            description: "Pago ventanilla - {$clienteNombre} ({$cedula}) - {$creditRef}",
+            items: [
+                [
+                    'account_code' => $codBanco,
+                    'debit' => $amount,
+                    'credit' => 0,
+                    'description' => "Cobro ventanilla - {$creditRef}",
+                ],
+                [
+                    'account_code' => $codCxC,
+                    'debit' => 0,
+                    'credit' => $amount,
+                    'description' => "Reducción CxC - {$creditRef}",
+                ],
+            ],
+            reference: "VENT-{$paymentId}-{$creditRef}"
+        );
+
+        if (!($result['success'] ?? false) && !($result['skipped'] ?? false)) {
+            Log::critical('ACCOUNTING: Fallo al enviar asiento de ventanilla', [
+                'credit_id' => $creditId,
+                'payment_id' => $paymentId,
+                'error' => $result['error'] ?? 'Desconocido',
+            ]);
+        }
+    }
+
+    /**
+     * ACCOUNTING_API_TRIGGER: Abono Extraordinario
+     *
+     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     */
+    protected function triggerAccountingAbonoExtraordinario(int $creditId, int $paymentId, float $amount, array $breakdown = [])
+    {
+        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codCxC = $this->getAccountCode('cuentas_por_cobrar');
+        $amount = round($amount, 2);
+
+        Log::info('ACCOUNTING_API_TRIGGER: Abono Extraordinario', [
+            'trigger_type' => 'ABONO_EXTRAORDINARIO',
+            'credit_id' => $creditId,
+            'payment_id' => $paymentId,
+            'amount' => $amount,
+            'breakdown' => $breakdown,
+        ]);
+
+        if (!$codBanco || !$codCxC) {
+            Log::warning('ERP: Cuentas contables no configuradas. Asiento de abono extraordinario NO enviado.', [
+                'credit_id' => $creditId,
+                'payment_id' => $paymentId,
+            ]);
+            return;
+        }
+
+        $service = $this->getErpService();
+        if (!$service->isConfigured()) {
+            return;
+        }
+
+        $creditRef = $breakdown['credit_reference'] ?? "CRED-{$creditId}";
+        $cedula = $breakdown['cedula'] ?? '';
+        $clienteNombre = $breakdown['lead_nombre'] ?? '';
+        $penalizacion = $breakdown['penalizacion'] ?? 0;
+
+        $descripcion = "Abono extraordinario - {$clienteNombre} ({$cedula}) - {$creditRef}";
+        if ($penalizacion > 0) {
+            $descripcion .= " (Penalización: ₡" . number_format($penalizacion, 2) . ")";
+        }
+
+        $result = $service->createJournalEntry(
+            date: now()->format('Y-m-d'),
+            description: $descripcion,
+            items: [
+                [
+                    'account_code' => $codBanco,
+                    'debit' => $amount,
+                    'credit' => 0,
+                    'description' => "Abono extraordinario - {$creditRef}",
+                ],
+                [
+                    'account_code' => $codCxC,
+                    'debit' => 0,
+                    'credit' => $amount,
+                    'description' => "Reducción CxC extraordinaria - {$creditRef}",
+                ],
+            ],
+            reference: "EXTRA-{$paymentId}-{$creditRef}"
+        );
+
+        if (!($result['success'] ?? false) && !($result['skipped'] ?? false)) {
+            Log::critical('ACCOUNTING: Fallo al enviar asiento de abono extraordinario', [
+                'credit_id' => $creditId,
+                'payment_id' => $paymentId,
+                'error' => $result['error'] ?? 'Desconocido',
+            ]);
+        }
+    }
+
+    /**
      * ACCOUNTING_API_TRIGGER: Devolución/Anulación de Pago (reversa)
      *
      * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEPE

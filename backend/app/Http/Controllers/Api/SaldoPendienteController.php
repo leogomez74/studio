@@ -534,6 +534,25 @@ class SaldoPendienteController extends Controller
             $saldo->notas = $validated['motivo'] ?? 'Saldo reintegrado - No aplicado a crédito';
             $saldo->save();
 
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Reintegro de Saldo Pendiente
+            // ============================================================
+            // Dispara asiento contable al reintegrar un saldo:
+            // DÉBITO: Cuentas por Cobrar (monto del saldo)
+            // CRÉDITO: Banco CREDIPEPE (monto del saldo)
+            $this->triggerAccountingDevolucion(
+                $credit->id,
+                null,
+                $monto,
+                'Reintegro de saldo pendiente: ' . ($validated['motivo'] ?? 'Sin motivo'),
+                [
+                    'saldo_pendiente_id' => $saldo->id,
+                    'credit_reference' => $credit->reference,
+                    'cedula' => $saldo->cedula,
+                    'origen' => $saldo->origen ?? 'Planilla',
+                ]
+            );
+
             return response()->json([
                 'message' => sprintf('Saldo de ₡%s reintegrado exitosamente', number_format($monto, 2)),
                 'saldo' => $saldo->fresh(),

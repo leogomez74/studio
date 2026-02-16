@@ -4054,41 +4054,116 @@ export default function ConfiguracionPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {/* Formalización */}
                   <TableRow>
                     <TableCell className="font-medium">Formalización de Crédito</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Al aprobar y formalizar un crédito</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Al aprobar y formalizar un crédito. <code className="text-xs bg-muted px-1 rounded">Ref: CREDIT-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Pagos - Planilla */}
                   <TableRow>
-                    <TableCell className="font-medium">Pago de Cuota</TableCell>
+                    <TableCell className="font-medium">Pago de Planilla</TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Ventanilla, Planilla, Saldo Pendiente, Extraordinario</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Pago por descuento de planilla (incluye nombre de deductora). <code className="text-xs bg-muted px-1 rounded">Ref: PLAN-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Pagos - Ventanilla */}
+                  <TableRow>
+                    <TableCell className="font-medium">Pago de Ventanilla</TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Pago manual en ventanilla. <code className="text-xs bg-muted px-1 rounded">Ref: VENT-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Abono Extraordinario */}
+                  <TableRow>
+                    <TableCell className="font-medium">Abono Extraordinario</TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Abono extraordinario con penalización (adelanto de cuotas). <code className="text-xs bg-muted px-1 rounded">Ref: EXTRA-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Cancelación Anticipada */}
                   <TableRow>
                     <TableCell className="font-medium">Cancelación Anticipada</TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Pago total anticipado del crédito</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Pago total anticipado del crédito. <code className="text-xs bg-muted px-1 rounded">Ref: CANCEL-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Refundición */}
                   <TableRow>
                     <TableCell className="font-medium">Refundición (Cierre)</TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Cierre del crédito antiguo</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Cierre del crédito antiguo en refundición. <code className="text-xs bg-muted px-1 rounded">Ref: REFUND-CLOSE-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Refundición (Nuevo)</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Apertura del nuevo crédito refundido</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Apertura del nuevo crédito refundido. <code className="text-xs bg-muted px-1 rounded">Ref: REFUND-NEW-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Devolución / Reintegro */}
+                  <TableRow>
+                    <TableCell className="font-medium">Reintegro de Saldo Pendiente</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Devolución de saldo pendiente al cliente. <code className="text-xs bg-muted px-1 rounded">Ref: DEVOL-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Anulaciones y Reversos */}
                   <TableRow>
                     <TableCell className="font-medium">Anulación de Planilla</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Reversa de todos los pagos de la planilla</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Reversa de todos los pagos de una planilla completa. <code className="text-xs bg-muted px-1 rounded">Ref: ANUL-PLAN-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Reverso de Pago Manual</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Anulación de pago individual (ventanilla/planilla). <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-PAY-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Reverso de Abono Extraordinario</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Anulación de abono extraordinario. <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-EXTRA-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Reverso de Cancelación Anticipada</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Anulación de cancelación anticipada. <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-CANCEL-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
