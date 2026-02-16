@@ -233,6 +233,26 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ]);
     });
 
+    // Clear cache
+    Route::post('/admin/clear-cache', function() {
+        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        $cacheOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+        $configOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        \Illuminate\Support\Facades\Artisan::call('route:clear');
+        $routeOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        return response()->json([
+            'message' => 'Caché limpiado exitosamente',
+            'cache' => trim($cacheOutput),
+            'config' => trim($configOutput),
+            'route' => trim($routeOutput),
+            'timestamp' => now()->toIso8601String()
+        ]);
+    });
+
     // Analisis CRUD (Protegido)
     // Bulk actions for analisis (MUST be before apiResource to avoid route conflicts)
     Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
