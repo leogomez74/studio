@@ -489,24 +489,27 @@ class KpiController extends Controller
                         ->count();
 
                     $typeFollowUp = $creditQuery()
-                        ->whereIn('status', [Credit::STATUS_FORMALIZADO, Credit::STATUS_ACTIVO, Credit::STATUS_EN_MORA])
+                        ->whereIn('status', [Credit::STATUS_FORMALIZADO, Credit::STATUS_ACTIVO])
+                        ->count();
+
+                    $typeDelinquent = $creditQuery()
+                        ->where('status', Credit::STATUS_EN_MORA)
                         ->count();
 
                     $typeWon = $creditQuery()
                         ->where('status', Credit::STATUS_CERRADO)
                         ->count();
 
-                    $typePipeline = $oppsCollection
-                        ->filter(fn($o) => in_array($o->status, $openStatuses))
-                        ->sum('amount') ?? 0;
+                    $typeTotalValue = $creditQuery()->sum('monto_credito') ?? 0;
 
                     $creditTypeComparison[] = [
                         'type' => $type,
                         'total' => $typeTotal,
                         'pending' => $typePending,
                         'followUp' => $typeFollowUp,
+                        'delinquent' => $typeDelinquent,
                         'won' => $typeWon,
-                        'pipeline' => round((float) $typePipeline, 2),
+                        'pipeline' => round((float) $typeTotalValue, 2),
                     ];
                 }
 

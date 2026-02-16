@@ -97,7 +97,7 @@ interface OpportunityKPIs {
   pipelineValue: KPIData;
   avgSalesCycle: KPIData;
   velocity: KPIData;
-  creditTypeComparison: { type: string; total: number; pending: number; followUp: number; won: number; pipeline: number }[];
+  creditTypeComparison: { type: string; total: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
 }
 
 interface CreditKPIs {
@@ -759,12 +759,13 @@ export default function KPIsPage() {
               title="Comparativa por Tipo de Crédito"
               description="Estado de créditos por tipo de producto"
               icon={PieChart}
-              headers={["Tipo", "Total", "Pendientes", "Seguimiento", "Ganadas", "Valor Potencial"]}
+              headers={["Tipo", "Total", "Pendientes", "Seguimiento", "En Mora", "Ganadas", "Valor Potencial"]}
               rows={(opportunityKPIs?.creditTypeComparison ?? []).map(ct => [
                 ct.type,
                 ct.total,
                 <Badge key={`${ct.type}-p`} variant="outline" className="bg-amber-50 text-amber-700">{ct.pending}</Badge>,
                 <Badge key={`${ct.type}-f`} variant="secondary" className="bg-blue-50 text-blue-700">{ct.followUp}</Badge>,
+                <Badge key={`${ct.type}-d`} variant="destructive" className="text-xs">{ct.delinquent}</Badge>,
                 <Badge key={`${ct.type}-w`} variant="default" className="bg-green-500">{ct.won}</Badge>,
                 formatCurrency(ct.pipeline),
               ])}

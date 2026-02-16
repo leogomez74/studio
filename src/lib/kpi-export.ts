@@ -27,7 +27,7 @@ interface OpportunityKPIs {
   pipelineValue: KPIData;
   avgSalesCycle: KPIData;
   velocity: KPIData;
-  creditTypeComparison: { type: string; total: number; pending: number; followUp: number; won: number; pipeline: number }[];
+  creditTypeComparison: { type: string; total: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
 }
 
 interface CreditKPIs {
@@ -503,19 +503,20 @@ function buildOpportunitiesSheet(workbook: ExcelJS.Workbook, opp: OpportunityKPI
   // Credit Type Comparison
   if (opp.creditTypeComparison?.length) {
     row = addSpacer(ws, row);
-    row = addSectionBanner(ws, 'COMPARATIVA POR TIPO DE CRÉDITO', THEME.colors.primaryLight, row, 6);
+    row = addSectionBanner(ws, 'COMPARATIVA POR TIPO DE CRÉDITO', THEME.colors.primaryLight, row, 7);
     ws.getCell(row - 1, 2).font = { name: 'Calibri', size: 12, bold: true, color: { argb: THEME.colors.bodyText } };
-    row = addTableHeaders(ws, ['Tipo', 'Total', 'Pendientes', 'Seguimiento', 'Ganadas', 'Valor Potencial'], row);
+    row = addTableHeaders(ws, ['Tipo', 'Total', 'Pendientes', 'Seguimiento', 'En Mora', 'Ganadas', 'Valor Potencial'], row);
 
     opp.creditTypeComparison.forEach((ct, i) => {
       const bg = i % 2 === 1 ? THEME.colors.lightGray : THEME.colors.white;
       const S = 2;
-      const vals: (string | number)[] = [ct.type, ct.total, ct.pending, ct.followUp, ct.won, formatCurrency(ct.pipeline)];
+      const vals: (string | number)[] = [ct.type, ct.total, ct.pending, ct.followUp, ct.delinquent, ct.won, formatCurrency(ct.pipeline)];
       vals.forEach((val, j) => {
         const cell = ws.getCell(row, S + j);
         cell.value = val;
-        cell.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText }, bold: j === 0 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        const isDelinquent = j === 4 && (val as number) > 0;
+        cell.font = { name: 'Calibri', size: 10, color: { argb: isDelinquent ? 'FFDC2626' : THEME.colors.bodyText }, bold: j === 0 || isDelinquent };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDelinquent ? 'FFFEE2E2' : bg } };
         cell.alignment = { horizontal: j === 0 ? 'left' : 'center', vertical: 'middle' };
         cell.border = thinBorder;
       });
@@ -1344,12 +1345,13 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
 
       autoTable(doc, {
         startY: yPos,
-        head: [['Tipo', 'Total', 'Pendientes', 'Seguimiento', 'Ganadas', 'Valor Potencial']],
+        head: [['Tipo', 'Total', 'Pend.', 'Seguim.', 'En Mora', 'Ganadas', 'Valor Potencial']],
         body: data.opportunities.creditTypeComparison.map(ct => [
           ct.type,
           String(ct.total),
           String(ct.pending),
           String(ct.followUp),
+          String(ct.delinquent),
           String(ct.won),
           pdfCurrency(ct.pipeline),
         ]),
@@ -1358,15 +1360,27 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           1: { halign: 'right' },
           2: { halign: 'right' },
           3: { halign: 'right' },
-          4: { halign: 'right', fontStyle: 'bold' },
-          5: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right', fontStyle: 'bold' },
+          6: { halign: 'right' },
         },
         didParseCell: (hookData) => {
-          if (hookData.section === 'body' && hookData.column.index === 4) {
-            const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
-            if (ct) {
-              hookData.cell.styles.textColor = ct.won > 0 ? PDF_COLORS.success : PDF_COLORS.warning;
-              hookData.cell.styles.fontStyle = 'bold';
+          if (hookData.section === 'body') {
+            // Color En Mora column
+            if (hookData.column.index === 4) {
+              const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
+              if (ct && ct.delinquent > 0) {
+                hookData.cell.styles.textColor = PDF_COLORS.danger;
+                hookData.cell.styles.fontStyle = 'bold';
+              }
+            }
+            // Color Ganadas column
+            if (hookData.column.index === 5) {
+              const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
+              if (ct) {
+                hookData.cell.styles.textColor = ct.won > 0 ? PDF_COLORS.success : PDF_COLORS.warning;
+                hookData.cell.styles.fontStyle = 'bold';
+              }
             }
           }
         },
