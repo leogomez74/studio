@@ -51,7 +51,6 @@ class KpiController extends Controller
                     'pipelineValue' => ['value' => 0, 'change' => 0, 'unit' => '₡'],
                     'avgSalesCycle' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                     'velocity' => ['value' => 0, 'change' => 0],
-                    'stageConversion' => [],
                 ],
                 'credits' => [
                     'disbursementVolume' => ['value' => 0, 'change' => 0, 'unit' => '₡'],
@@ -60,24 +59,20 @@ class KpiController extends Controller
                     'nonPerformingLoans' => ['value' => 0, 'change' => 0],
                     'approvalRate' => ['value' => 0, 'change' => 0, 'target' => 75, 'unit' => '%'],
                     'timeToDisbursement' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
-                    'timeToFormalization' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
-                    'fullCycleTime' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
+                        'fullCycleTime' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                     'earlyCancellationRate' => ['value' => 0, 'change' => 0, 'unit' => '%', 'count' => 0],
                     'extraordinaryPayments' => ['value' => 0, 'change' => 0, 'unit' => '₡', 'count' => 0],
-                    'penaltyRevenue' => ['value' => 0, 'change' => 0, 'unit' => '₡'],
                     'totalCredits' => 0,
                     'totalPortfolio' => 0,
                 ],
                 'collections' => [
                     'collectionRate' => ['value' => 0, 'change' => 0, 'target' => 98, 'unit' => '%'],
-                    'dso' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                     'delinquencyRate' => ['value' => 0, 'change' => 0, 'target' => 5, 'unit' => '%'],
                     'recoveryRate' => ['value' => 0, 'change' => 0, 'unit' => '%'],
                     'paymentTimeliness' => ['value' => 0, 'change' => 0, 'target' => 95, 'unit' => '%'],
                     'reversalRate' => ['value' => 0, 'change' => 0, 'unit' => '%', 'count' => 0],
                     'pendingBalances' => ['value' => 0, 'change' => 0, 'unit' => '₡', 'count' => 0],
                     'paymentSourceDistribution' => [],
-                    'deductoraEfficiency' => [],
                 ],
                 'agents' => ['topAgents' => []],
                 'gamification' => [
@@ -277,27 +272,6 @@ class KpiController extends Controller
                 ->where('created_at', '<', $dateRange['prev_end']->copy()->subDays(7))
                 ->count();
 
-            // Leads per agent in period
-            $leadsPerAgent = collect([]);
-            try {
-                $leadsPerAgent = Lead::select('assigned_to_id', DB::raw('COUNT(*) as count'))
-                    ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                    ->whereNotNull('assigned_to_id')
-                    ->groupBy('assigned_to_id')
-                    ->orderByDesc('count')
-                    ->limit(10)
-                    ->get()
-                    ->map(function ($item) {
-                        $agent = User::find($item->assigned_to_id);
-                        return [
-                            'agentName' => $agent->name ?? 'Sin asignar',
-                            'count' => $item->count,
-                        ];
-                    });
-            } catch (\Exception $e) {
-                // Fallback to empty
-            }
-
             // Lead source performance - query actual data if source field exists
             $leadSourcePerformance = collect([]);
             try {
@@ -372,7 +346,6 @@ class KpiController extends Controller
                     'change' => $this->calculateChange((float)$leadAging, (float)$prevLeadAging),
                     'unit' => 'leads',
                 ],
-                'leadsPerAgent' => $leadsPerAgent,
                 'leadSourcePerformance' => $leadSourcePerformance,
                 'totalLeads' => $totalLeads,
                 'totalClients' => $totalClients,
@@ -388,7 +361,6 @@ class KpiController extends Controller
             'conversionRate' => ['value' => 0, 'change' => 0, 'target' => 30, 'unit' => '%'],
             'responseTime' => ['value' => 0, 'change' => 0, 'unit' => 'hrs'],
             'leadAging' => ['value' => 0, 'change' => 0, 'unit' => 'leads'],
-            'leadsPerAgent' => [],
             'leadSourcePerformance' => [],
             'totalLeads' => 0,
             'totalClients' => 0,
@@ -459,53 +431,10 @@ class KpiController extends Controller
             $opportunityVelocity = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])->count();
             $prevOpportunityVelocity = Opportunity::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->count();
 
-            // Stage conversion - calculate from actual data based on real statuses
-            $stageConversion = [];
-            try {
-                // Get count per status in period
-                $statusCounts = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                    ->select('status', DB::raw('COUNT(*) as count'))
-                    ->groupBy('status')
-                    ->pluck('count', 'status')
-                    ->toArray();
-
-                $totalInPeriod = array_sum($statusCounts);
-
-                if ($totalInPeriod > 0) {
-                    // Stage flow: Abierta -> En seguimiento -> Ganada/Perdida
-                    $abiertaCount = $statusCounts['Abierta'] ?? 0;
-                    $enSeguimientoCount = $statusCounts['En seguimiento'] ?? 0;
-                    $ganadaCount = $statusCounts['Ganada'] ?? 0;
-                    $perdidaCount = $statusCounts['Perdida'] ?? 0;
-
-                    // Abierta -> En seguimiento (opportunities that moved past initial stage)
-                    $movedPastAbierta = $enSeguimientoCount + $ganadaCount + $perdidaCount;
-                    $abiertaConversion = ($abiertaCount + $movedPastAbierta) > 0
-                        ? round(($movedPastAbierta / ($abiertaCount + $movedPastAbierta)) * 100, 0)
-                        : 0;
-
-                    // En seguimiento -> Ganada/Perdida
-                    $closedFromSeguimiento = $ganadaCount + $perdidaCount;
-                    $seguimientoConversion = ($enSeguimientoCount + $closedFromSeguimiento) > 0
-                        ? round(($closedFromSeguimiento / ($enSeguimientoCount + $closedFromSeguimiento)) * 100, 0)
-                        : 0;
-
-                    // Ganada rate from closed
-                    $ganadaConversion = ($ganadaCount + $perdidaCount) > 0
-                        ? round(($ganadaCount / ($ganadaCount + $perdidaCount)) * 100, 0)
-                        : 0;
-
-                    $stageConversion = [
-                        ['stage' => 'Abierta → En seguimiento', 'conversion' => min($abiertaConversion, 100)],
-                        ['stage' => 'En seguimiento → Cierre', 'conversion' => min($seguimientoConversion, 100)],
-                        ['stage' => 'Cierre → Ganada', 'conversion' => min($ganadaConversion, 100)],
-                    ];
-                }
-            } catch (\Exception $e) {
-                $stageConversion = [];
-            }
-
             // Credit type comparison (Micro vs Regular vs Empresarial)
+            // Pendientes: crédito no formalizado (Aprobado, Por firmar)
+            // Seguimiento: crédito formalizado y activo (Formalizado, Activo, En Mora)
+            // Ganadas: crédito completamente pagado (Cerrado)
             $creditTypeComparison = [];
             try {
                 $types = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
@@ -516,30 +445,35 @@ class KpiController extends Controller
                     ->toArray();
 
                 foreach ($types as $type) {
-                    $typeTotal = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                        ->where('opportunity_type', $type)
+                    $typeOpportunities = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                        ->where('opportunity_type', $type);
+
+                    $typeTotal = (clone $typeOpportunities)->count();
+
+                    $opportunityIds = (clone $typeOpportunities)->pluck('id');
+
+                    $typePending = Credit::whereIn('opportunity_id', $opportunityIds)
+                        ->whereIn('status', [Credit::STATUS_APROBADO, Credit::STATUS_POR_FIRMAR])
                         ->count();
-                    $typeWon = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
-                        ->where('opportunity_type', $type)
-                        ->where('status', 'Ganada')
+
+                    $typeFollowUp = Credit::whereIn('opportunity_id', $opportunityIds)
+                        ->whereIn('status', [Credit::STATUS_FORMALIZADO, Credit::STATUS_ACTIVO, Credit::STATUS_EN_MORA])
                         ->count();
-                    $typeLost = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
-                        ->where('opportunity_type', $type)
-                        ->where('status', 'Perdida')
+
+                    $typeWon = Credit::whereIn('opportunity_id', $opportunityIds)
+                        ->where('status', Credit::STATUS_CERRADO)
                         ->count();
-                    $typePipeline = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                        ->where('opportunity_type', $type)
+
+                    $typePipeline = (clone $typeOpportunities)
                         ->whereIn('status', $openStatuses)
                         ->sum('amount') ?? 0;
-                    $typeClosed = $typeWon + $typeLost;
-                    $typeWinRate = $typeClosed > 0 ? round(($typeWon / $typeClosed) * 100, 1) : 0;
 
                     $creditTypeComparison[] = [
                         'type' => $type,
                         'total' => $typeTotal,
+                        'pending' => $typePending,
+                        'followUp' => $typeFollowUp,
                         'won' => $typeWon,
-                        'lost' => $typeLost,
-                        'winRate' => $typeWinRate,
                         'pipeline' => round((float) $typePipeline, 2),
                     ];
                 }
@@ -571,7 +505,6 @@ class KpiController extends Controller
                     'value' => $opportunityVelocity,
                     'change' => $this->calculateChange((float)$opportunityVelocity, (float)$prevOpportunityVelocity),
                 ],
-                'stageConversion' => $stageConversion,
                 'creditTypeComparison' => $creditTypeComparison,
             ];
         } catch (\Exception $e) {
@@ -580,7 +513,6 @@ class KpiController extends Controller
                 'pipelineValue' => ['value' => 0, 'change' => 0, 'unit' => '₡'],
                 'avgSalesCycle' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                 'velocity' => ['value' => 0, 'change' => 0],
-                'stageConversion' => [],
                 'creditTypeComparison' => [],
             ];
         }
@@ -704,25 +636,6 @@ class KpiController extends Controller
                 // Fallback - may not have opportunity_id relationship
             }
 
-            // Time from credit creation to formalization
-            $timeToFormalization = 0;
-            $prevTimeToFormalization = 0;
-            try {
-                $avgFormDays = Credit::whereBetween('formalized_at', [$dateRange['start'], $dateRange['end']])
-                    ->whereNotNull('formalized_at')
-                    ->selectRaw('AVG(DATEDIFF(formalized_at, created_at)) as avg_days')
-                    ->value('avg_days');
-                $timeToFormalization = $avgFormDays ? round($avgFormDays, 1) : 0;
-
-                $prevAvgFormDays = Credit::whereBetween('formalized_at', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->whereNotNull('formalized_at')
-                    ->selectRaw('AVG(DATEDIFF(formalized_at, created_at)) as avg_days')
-                    ->value('avg_days');
-                $prevTimeToFormalization = $prevAvgFormDays ? round($prevAvgFormDays, 1) : 0;
-            } catch (\Exception $e) {
-                // Fallback
-            }
-
             // Full cycle: opportunity creation to credit formalization
             $fullCycleTime = 0;
             $prevFullCycleTime = 0;
@@ -803,33 +716,6 @@ class KpiController extends Controller
                 // Fallback
             }
 
-            // Penalty revenue - from early cancellation snapshots
-            $penaltyRevenue = 0;
-            $prevPenaltyRevenue = 0;
-            try {
-                $penaltyPayments = CreditPayment::whereBetween('fecha_pago', [$dateRange['start'], $dateRange['end']])
-                    ->where('source', 'Cancelación Anticipada')
-                    ->where('estado_reverso', 'Vigente')
-                    ->whereNotNull('reversal_snapshot')
-                    ->get(['reversal_snapshot']);
-                foreach ($penaltyPayments as $payment) {
-                    $snapshot = is_array($payment->reversal_snapshot) ? $payment->reversal_snapshot : json_decode($payment->reversal_snapshot, true);
-                    $penaltyRevenue += (float)($snapshot['penalizacion'] ?? 0);
-                }
-
-                $prevPenaltyPayments = CreditPayment::whereBetween('fecha_pago', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->where('source', 'Cancelación Anticipada')
-                    ->where('estado_reverso', 'Vigente')
-                    ->whereNotNull('reversal_snapshot')
-                    ->get(['reversal_snapshot']);
-                foreach ($prevPenaltyPayments as $payment) {
-                    $snapshot = is_array($payment->reversal_snapshot) ? $payment->reversal_snapshot : json_decode($payment->reversal_snapshot, true);
-                    $prevPenaltyRevenue += (float)($snapshot['penalizacion'] ?? 0);
-                }
-            } catch (\Exception $e) {
-                // Fallback
-            }
-
             return [
                 'disbursementVolume' => [
                     'value' => $disbursementVolume,
@@ -862,11 +748,6 @@ class KpiController extends Controller
                     'change' => $prevTimeToDisbursement > 0 ? $this->calculateChange((float)$timeToDisbursement, (float)$prevTimeToDisbursement) : 0,
                     'unit' => 'días',
                 ],
-                'timeToFormalization' => [
-                    'value' => $timeToFormalization,
-                    'change' => $prevTimeToFormalization > 0 ? $this->calculateChange((float)$timeToFormalization, (float)$prevTimeToFormalization) : 0,
-                    'unit' => 'días',
-                ],
                 'fullCycleTime' => [
                     'value' => $fullCycleTime,
                     'change' => $prevFullCycleTime > 0 ? $this->calculateChange((float)$fullCycleTime, (float)$prevFullCycleTime) : 0,
@@ -884,11 +765,6 @@ class KpiController extends Controller
                     'unit' => '₡',
                     'count' => $extraordinaryPaymentsCount,
                 ],
-                'penaltyRevenue' => [
-                    'value' => round($penaltyRevenue, 0),
-                    'change' => $this->calculateChange((float)$penaltyRevenue, (float)$prevPenaltyRevenue),
-                    'unit' => '₡',
-                ],
                 'totalCredits' => $totalCredits,
                 'totalPortfolio' => $totalPortfolioInPeriod,
             ];
@@ -900,11 +776,9 @@ class KpiController extends Controller
                 'nonPerformingLoans' => ['value' => 0, 'change' => 0],
                 'approvalRate' => ['value' => 0, 'change' => 0, 'target' => 75, 'unit' => '%'],
                 'timeToDisbursement' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
-                'timeToFormalization' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                 'fullCycleTime' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                 'earlyCancellationRate' => ['value' => 0, 'change' => 0, 'unit' => '%', 'count' => 0],
                 'extraordinaryPayments' => ['value' => 0, 'change' => 0, 'unit' => '₡', 'count' => 0],
-                'penaltyRevenue' => ['value' => 0, 'change' => 0, 'unit' => '₡'],
                 'totalCredits' => 0,
                 'totalPortfolio' => 0,
             ];
@@ -935,26 +809,6 @@ class KpiController extends Controller
             $prevCollectionRate = $prevExpectedPayments > 0
                 ? round(($prevActualPayments / $prevExpectedPayments) * 100, 1)
                 : 0;
-
-            // DSO (Days Sales Outstanding) - calculate from actual payment data
-            $dso = 0;
-            $prevDso = 0;
-            try {
-                // Calculate average days between due date and payment date
-                $avgDso = CreditPayment::whereBetween('fecha_pago', [$dateRange['start'], $dateRange['end']])
-                    ->join('plan_de_pagos', 'credit_payments.plan_de_pago_id', '=', 'plan_de_pagos.id')
-                    ->selectRaw('AVG(DATEDIFF(credit_payments.fecha_pago, plan_de_pagos.fecha_corte)) as avg_days')
-                    ->value('avg_days');
-                $dso = $avgDso ? round($avgDso, 0) : 0;
-
-                $prevAvgDso = CreditPayment::whereBetween('fecha_pago', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->join('plan_de_pagos', 'credit_payments.plan_de_pago_id', '=', 'plan_de_pagos.id')
-                    ->selectRaw('AVG(DATEDIFF(credit_payments.fecha_pago, plan_de_pagos.fecha_corte)) as avg_days')
-                    ->value('avg_days');
-                $prevDso = $prevAvgDso ? round($prevAvgDso, 0) : 0;
-            } catch (\Exception $e) {
-                // Fallback - may not have the relationship
-            }
 
             // Delinquency rate - ALL active portfolio with overdue payments
             $totalAccountsInPeriod = Credit::where('created_at', '<=', $dateRange['end'])
@@ -1125,56 +979,12 @@ class KpiController extends Controller
                 // Fallback
             }
 
-            // Deductora efficiency - calculate from actual payment data
-            $deductoraEfficiency = collect([]);
-            try {
-                $deductoraEfficiency = Deductora::select('deductoras.id', 'deductoras.nombre')
-                    ->join('credits', 'credits.deductora_id', '=', 'deductoras.id')
-                    ->whereBetween('credits.created_at', [$dateRange['start'], $dateRange['end']])
-                    ->groupBy('deductoras.id', 'deductoras.nombre')
-                    ->limit(10)
-                    ->get()
-                    ->map(function ($deductora) use ($dateRange) {
-                        // Get credits for this deductora in period
-                        $creditIds = Credit::where('deductora_id', $deductora->id)
-                            ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                            ->pluck('id');
-
-                        // Expected payments
-                        $expected = PlanDePago::whereIn('credit_id', $creditIds)
-                            ->whereBetween('fecha_corte', [$dateRange['start'], $dateRange['end']])
-                            ->sum('cuota') ?? 0;
-
-                        // Actual payments
-                        $received = CreditPayment::whereIn('credit_id', $creditIds)
-                            ->whereBetween('fecha_pago', [$dateRange['start'], $dateRange['end']])
-                            ->sum('monto') ?? 0;
-
-                        $rate = $expected > 0 ? round(($received / $expected) * 100, 0) : 0;
-
-                        return [
-                            'name' => $deductora->nombre ?? 'Sin nombre',
-                            'rate' => min($rate, 100),
-                        ];
-                    })
-                    ->filter(fn($d) => $d['rate'] > 0)
-                    ->sortByDesc('rate')
-                    ->values();
-            } catch (\Exception $e) {
-                // Fallback to empty
-            }
-
             return [
                 'collectionRate' => [
                     'value' => $collectionRate,
                     'change' => $this->calculateChange((float)$collectionRate, (float)$prevCollectionRate),
                     'target' => 98,
                     'unit' => '%',
-                ],
-                'dso' => [
-                    'value' => $dso,
-                    'change' => $prevDso > 0 ? $this->calculateChange((float)$dso, (float)$prevDso) : 0,
-                    'unit' => 'días',
                 ],
                 'delinquencyRate' => [
                     'value' => $delinquencyRate,
@@ -1206,19 +1016,16 @@ class KpiController extends Controller
                     'count' => $pendingBalancesCount,
                 ],
                 'paymentSourceDistribution' => $paymentSourceDistribution,
-                'deductoraEfficiency' => $deductoraEfficiency,
             ];
         } catch (\Exception $e) {
             return [
                 'collectionRate' => ['value' => 0, 'change' => 0, 'target' => 98, 'unit' => '%'],
-                'dso' => ['value' => 0, 'change' => 0, 'unit' => 'días'],
                 'delinquencyRate' => ['value' => 0, 'change' => 0, 'target' => 5, 'unit' => '%'],
                 'recoveryRate' => ['value' => 0, 'change' => 0, 'unit' => '%'],
                 'paymentTimeliness' => ['value' => 0, 'change' => 0, 'target' => 95, 'unit' => '%'],
                 'reversalRate' => ['value' => 0, 'change' => 0, 'unit' => '%', 'count' => 0],
                 'pendingBalances' => ['value' => 0, 'change' => 0, 'unit' => '₡', 'count' => 0],
                 'paymentSourceDistribution' => [],
-                'deductoraEfficiency' => [],
             ];
         }
     }
@@ -1230,51 +1037,68 @@ class KpiController extends Controller
                 ->limit(10)
                 ->get()
                 ->map(function ($agent) use ($dateRange) {
-                    $leadsHandled = Lead::where('assigned_to_id', $agent->id)->count();
-                    $creditsOriginated = Credit::where('assigned_to', $agent->id)->count();
-                    $avgDealSize = Credit::where('assigned_to', $agent->id)->avg('monto_credito') ?? 0;
+                    // All non-deleted tasks for agent
+                    $baseQuery = Task::where('assigned_to', $agent->id)
+                        ->whereNotIn('status', ['deleted']);
 
-                    $conversionRate = $leadsHandled > 0
-                        ? round(($creditsOriginated / $leadsHandled) * 100, 0)
+                    $tasksTotal = (clone $baseQuery)->count();
+                    $tasksCompleted = (clone $baseQuery)->where('status', 'completada')->count();
+                    $tasksPending = (clone $baseQuery)->whereNotIn('status', ['completada', 'archivada'])->count();
+                    $tasksArchived = (clone $baseQuery)->where('status', 'archivada')->count();
+
+                    $completionRate = $tasksTotal > 0
+                        ? round(($tasksCompleted / $tasksTotal) * 100, 0)
                         : 0;
 
-                    // Activity rate: actions per working day
-                    $daysInPeriod = max($dateRange['start']->diffInWeekdays($dateRange['end']), 1);
-                    $leadsInPeriod = Lead::where('assigned_to_id', $agent->id)
-                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                        ->count();
-                    $creditsInPeriod = Credit::where('assigned_to', $agent->id)
-                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                        ->count();
-                    $activityRate = round(($leadsInPeriod + $creditsInPeriod) / $daysInPeriod, 1);
-
-                    // Task metrics
-                    $tasksAssigned = Task::where('assigned_to', $agent->id)
-                        ->whereNotIn('status', ['deleted'])
-                        ->count();
-                    $tasksCompleted = Task::where('assigned_to', $agent->id)
+                    // Average completion time (days from created_at to updated_at for completed tasks)
+                    $avgCompletionDays = Task::where('assigned_to', $agent->id)
                         ->where('status', 'completada')
+                        ->selectRaw('AVG(DATEDIFF(updated_at, created_at)) as avg_days')
+                        ->value('avg_days');
+                    $avgCompletionTime = $avgCompletionDays ? round($avgCompletionDays, 1) : 0;
+
+                    // Overdue tasks: pending tasks past due_date
+                    $tasksOverdue = Task::where('assigned_to', $agent->id)
+                        ->whereNotIn('status', ['completada', 'archivada', 'deleted'])
+                        ->whereNotNull('due_date')
+                        ->where('due_date', '<', now())
                         ->count();
-                    $taskCompletionRate = $tasksAssigned > 0
-                        ? round(($tasksCompleted / $tasksAssigned) * 100, 0)
+
+                    // On-time rate: completed tasks finished on or before due_date
+                    $completedWithDueDate = Task::where('assigned_to', $agent->id)
+                        ->where('status', 'completada')
+                        ->whereNotNull('due_date')
+                        ->count();
+                    $completedOnTime = Task::where('assigned_to', $agent->id)
+                        ->where('status', 'completada')
+                        ->whereNotNull('due_date')
+                        ->whereRaw('updated_at <= due_date')
+                        ->count();
+                    $onTimeRate = $completedWithDueDate > 0
+                        ? round(($completedOnTime / $completedWithDueDate) * 100, 0)
                         : 0;
+
+                    // Tasks in period
+                    $tasksInPeriod = Task::where('assigned_to', $agent->id)
+                        ->whereNotIn('status', ['deleted'])
+                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                        ->count();
 
                     return [
                         'name' => $agent->name,
-                        'leadsHandled' => $leadsHandled,
-                        'conversionRate' => min($conversionRate, 100),
-                        'creditsOriginated' => $creditsOriginated,
-                        'avgDealSize' => round($avgDealSize, 0),
-                        'activityRate' => $activityRate,
-                        'tasksAssigned' => $tasksAssigned,
+                        'tasksTotal' => $tasksTotal,
                         'tasksCompleted' => $tasksCompleted,
-                        'taskCompletionRate' => $taskCompletionRate,
+                        'tasksPending' => $tasksPending,
+                        'tasksArchived' => $tasksArchived,
+                        'tasksOverdue' => $tasksOverdue,
+                        'completionRate' => min($completionRate, 100),
+                        'avgCompletionTime' => $avgCompletionTime,
+                        'onTimeRate' => min($onTimeRate, 100),
+                        'tasksInPeriod' => $tasksInPeriod,
                     ];
                 })
-                ->filter(function ($agent) {
-                    return $agent['leadsHandled'] > 0;
-                })
-                ->sortByDesc('leadsHandled')
+                ->filter(fn($agent) => $agent['tasksTotal'] > 0)
+                ->sortByDesc('completionRate')
                 ->values();
 
             return [
