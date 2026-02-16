@@ -3,6 +3,8 @@
 namespace App\Traits;
 
 use App\Models\ErpAccountingAccount;
+use App\Models\AccountingEntryConfig;
+use App\Models\Deductora;
 use App\Services\ErpAccountingService;
 use Illuminate\Support\Facades\Log;
 
@@ -29,6 +31,207 @@ trait AccountingTrigger
     private function getAccountCode(string $key): ?string
     {
         return ErpAccountingAccount::getCode($key);
+    }
+
+    /**
+     * NUEVO: Disparar asiento contable usando configuración dinámica
+     *
+     * @param string $entryType Tipo de asiento (PAGO_PLANILLA, PAGO_VENTANILLA, etc.)
+     * @param float $amount Monto del asiento
+     * @param string $reference Referencia del asiento
+     * @param array $context Contexto adicional (deductora_id, lead_nombre, etc.)
+     * @return array Resultado del envío
+     */
+    protected function triggerConfigurableEntry(string $entryType, float $amount, string $reference, array $context = []): array
+    {
+        $amount = round($amount, 2);
+
+        // Log de auditoría
+        Log::info('ACCOUNTING_API_TRIGGER: Asiento Configurable', [
+            'trigger_type' => $entryType,
+            'amount' => $amount,
+            'reference' => $reference,
+            'context' => $context,
+        ]);
+
+        // Buscar configuración activa para este tipo de asiento
+        $config = AccountingEntryConfig::active()
+            ->byType($entryType)
+            ->with('lines')
+            ->first();
+
+        if (!$config || $config->lines->isEmpty()) {
+            Log::warning('ERP: No hay configuración activa para este tipo de asiento', [
+                'entry_type' => $entryType,
+            ]);
+            return ['success' => false, 'error' => 'No hay configuración para este tipo de asiento'];
+        }
+
+        // Verificar que el servicio esté configurado
+        $service = $this->getErpService();
+        if (!$service->isConfigured()) {
+            return ['success' => false, 'error' => 'Servicio ERP no configurado', 'skipped' => true];
+        }
+
+        // Obtener desglose de montos desde el contexto
+        $breakdown = $context['amount_breakdown'] ?? [
+            'total' => $amount,
+            'interes_corriente' => 0,
+            'interes_moratorio' => 0,
+            'poliza' => 0,
+            'capital' => $amount,
+            'cargos_adicionales_total' => 0,
+            'cargos_adicionales' => [],
+        ];
+
+        // Preparar variables para reemplazo en descripciones
+        $variables = [
+            '{reference}' => $reference,
+            '{amount}' => number_format($amount, 2),
+            '{clienteNombre}' => $context['lead_nombre'] ?? 'N/A',
+            '{cedula}' => $context['cedula'] ?? '',
+            '{credit_id}' => $context['credit_id'] ?? '',
+            '{deductora_nombre}' => $context['deductora_nombre'] ?? '',
+        ];
+
+        // Construir items del asiento desde la configuración
+        $items = [];
+        foreach ($config->lines as $line) {
+            $accountCode = null;
+            $deductoraContextNombre = null;
+
+            // Resolver código de cuenta según el tipo
+            if ($line->account_type === 'fixed') {
+                // Cuenta fija desde erp_accounting_accounts
+                $accountCode = $this->getAccountCode($line->account_key);
+            } elseif ($line->account_type === 'deductora') {
+                // Cuenta dinámica por deductora
+                $deductoraId = $context['deductora_id'] ?? null;
+                if ($deductoraId) {
+                    $deductora = Deductora::find($deductoraId);
+                    if ($deductora && $deductora->erp_account_key) {
+                        $accountCode = $this->getAccountCode($deductora->erp_account_key);
+                        $deductoraContextNombre = $deductora->nombre;
+                    }
+                }
+            }
+
+            if (!$accountCode) {
+                Log::warning('ERP: No se pudo resolver código de cuenta', [
+                    'line_id' => $line->id,
+                    'account_type' => $line->account_type,
+                    'account_key' => $line->account_key,
+                ]);
+                continue;
+            }
+
+            // Resolver monto según el componente
+            $lineAmount = $this->resolveLineAmount($line, $breakdown, $amount);
+
+            // Si el monto es 0, skip esta línea (componente no aplicado en este pago)
+            if ($lineAmount == 0) {
+                Log::info('ERP: Línea omitida por monto cero', [
+                    'line_id' => $line->id,
+                    'amount_component' => $line->amount_component,
+                    'cargo_adicional_key' => $line->cargo_adicional_key,
+                ]);
+                continue;
+            }
+
+            // Reemplazar variables en la descripción de la línea
+            $lineDescription = $line->description ?? $config->name;
+            if ($deductoraContextNombre) {
+                // Si esta línea es de tipo deductora, agregar el nombre de la deductora
+                $variables['{deductora_nombre}'] = $deductoraContextNombre;
+            }
+            $lineDescription = str_replace(array_keys($variables), array_values($variables), $lineDescription);
+
+            // Construir línea del asiento
+            $items[] = [
+                'account_code' => $accountCode,
+                'debit' => $line->movement_type === 'debit' ? $lineAmount : 0,
+                'credit' => $line->movement_type === 'credit' ? $lineAmount : 0,
+                'description' => $lineDescription,
+            ];
+        }
+
+        if (empty($items)) {
+            Log::error('ERP: No se pudieron construir líneas del asiento', [
+                'entry_type' => $entryType,
+            ]);
+            return ['success' => false, 'error' => 'No se pudieron construir líneas del asiento'];
+        }
+
+        // Enviar al ERP
+        $clienteNombre = $context['lead_nombre'] ?? 'N/A';
+        $cedula = $context['cedula'] ?? '';
+
+        // Reemplazar variables en la descripción principal del asiento
+        $mainDescription = $config->description ?? $config->name;
+        $mainDescriptionResolved = str_replace(array_keys($variables), array_values($variables), $mainDescription);
+
+        // Si no tiene variables, usar formato legacy
+        if ($mainDescription === $mainDescriptionResolved && !str_contains($mainDescription, '{')) {
+            $mainDescriptionResolved = "{$config->name} {$reference} - {$clienteNombre} ({$cedula})";
+        }
+
+        $result = $service->createJournalEntry(
+            date: now()->format('Y-m-d'),
+            description: $mainDescriptionResolved,
+            items: $items,
+            reference: strtoupper($entryType) . "-{$reference}"
+        );
+
+        if (!($result['success'] ?? false) && !($result['skipped'] ?? false)) {
+            Log::critical('ACCOUNTING: Fallo al enviar asiento configurable', [
+                'entry_type' => $entryType,
+                'error' => $result['error'] ?? 'Desconocido',
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Resolver el monto de una línea según su componente
+     *
+     * @param \App\Models\AccountingEntryLine $line
+     * @param array $breakdown Desglose de montos
+     * @param float $totalAmount Monto total
+     * @return float
+     */
+    private function resolveLineAmount($line, array $breakdown, float $totalAmount): float
+    {
+        $component = $line->amount_component ?? 'total';
+
+        return match($component) {
+            'total' => $breakdown['total'] ?? $totalAmount,
+            'interes_corriente' => $breakdown['interes_corriente'] ?? 0,
+            'interes_moratorio' => $breakdown['interes_moratorio'] ?? 0,
+            'poliza' => $breakdown['poliza'] ?? 0,
+            'capital' => $breakdown['capital'] ?? 0,
+            'cargo_adicional' => $this->resolveCargosAdicionales($breakdown, $line->cargo_adicional_key),
+            default => $breakdown['total'] ?? $totalAmount,
+        };
+    }
+
+    /**
+     * Resolver monto de un cargo adicional específico
+     *
+     * @param array $breakdown Desglose de montos
+     * @param string|null $cargoKey Key del cargo adicional
+     * @return float
+     */
+    private function resolveCargosAdicionales(array $breakdown, ?string $cargoKey): float
+    {
+        if (!$cargoKey) {
+            // Si no especifica cuál, usar el total de todos los cargos
+            return $breakdown['cargos_adicionales_total'] ?? 0;
+        }
+
+        // Buscar el cargo específico en el desglose
+        $cargos = $breakdown['cargos_adicionales'] ?? [];
+        return $cargos[$cargoKey] ?? 0;
     }
 
     /**

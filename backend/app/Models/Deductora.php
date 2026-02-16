@@ -12,7 +12,8 @@ class Deductora extends Model
     protected $fillable = [
         'nombre',
         'fecha_reporte_pago',
-        'comision'
+        'comision',
+        'erp_account_key',
     ];
 
     protected $casts = [
