@@ -502,9 +502,12 @@ class KpiController extends Controller
 
                     $typeTotalValue = $creditQuery()->sum('monto_credito') ?? 0;
 
+                    $typeNoCredit = $typeTotal - ($typePending + $typeFollowUp + $typeDelinquent + $typeWon);
+
                     $creditTypeComparison[] = [
                         'type' => $type,
                         'total' => $typeTotal,
+                        'noCredit' => max($typeNoCredit, 0),
                         'pending' => $typePending,
                         'followUp' => $typeFollowUp,
                         'delinquent' => $typeDelinquent,

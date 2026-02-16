@@ -97,7 +97,7 @@ interface OpportunityKPIs {
   pipelineValue: KPIData;
   avgSalesCycle: KPIData;
   velocity: KPIData;
-  creditTypeComparison: { type: string; total: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
+  creditTypeComparison: { type: string; total: number; noCredit: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
 }
 
 interface CreditKPIs {
@@ -756,13 +756,14 @@ export default function KPIsPage() {
               <StatCard title="Velocidad de la cartera" value={opportunityKPIs?.velocity?.value ?? 0} change={opportunityKPIs?.velocity?.change} icon={Zap} description="Oportunidades movidas por período" colorClass="text-purple-500" isLoading={isLoading} />
             </div>
             <KPITable
-              title="Comparativa por Tipo de Crédito"
-              description="Estado de créditos por tipo de producto"
+              title="Oportunidades por Tipo de Crédito"
+              description="Estado de oportunidades y sus créditos asociados"
               icon={PieChart}
-              headers={["Tipo", "Total", "Pendientes", "Seguimiento", "En Mora", "Ganadas", "Valor Potencial"]}
+              headers={["Tipo", "Total", "Sin Crédito", "Pendientes", "Seguimiento", "En Mora", "Ganadas", "Valor Potencial"]}
               rows={(opportunityKPIs?.creditTypeComparison ?? []).map(ct => [
                 ct.type,
                 ct.total,
+                <Badge key={`${ct.type}-nc`} variant="outline" className="bg-gray-50 text-gray-500">{ct.noCredit}</Badge>,
                 <Badge key={`${ct.type}-p`} variant="outline" className="bg-amber-50 text-amber-700">{ct.pending}</Badge>,
                 <Badge key={`${ct.type}-f`} variant="secondary" className="bg-blue-50 text-blue-700">{ct.followUp}</Badge>,
                 <Badge key={`${ct.type}-d`} variant="destructive" className="text-xs">{ct.delinquent}</Badge>,

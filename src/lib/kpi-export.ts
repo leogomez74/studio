@@ -27,7 +27,7 @@ interface OpportunityKPIs {
   pipelineValue: KPIData;
   avgSalesCycle: KPIData;
   velocity: KPIData;
-  creditTypeComparison: { type: string; total: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
+  creditTypeComparison: { type: string; total: number; noCredit: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
 }
 
 interface CreditKPIs {
@@ -503,19 +503,20 @@ function buildOpportunitiesSheet(workbook: ExcelJS.Workbook, opp: OpportunityKPI
   // Credit Type Comparison
   if (opp.creditTypeComparison?.length) {
     row = addSpacer(ws, row);
-    row = addSectionBanner(ws, 'COMPARATIVA POR TIPO DE CRÉDITO', THEME.colors.primaryLight, row, 7);
+    row = addSectionBanner(ws, 'OPORTUNIDADES POR TIPO DE CRÉDITO', THEME.colors.primaryLight, row, 8);
     ws.getCell(row - 1, 2).font = { name: 'Calibri', size: 12, bold: true, color: { argb: THEME.colors.bodyText } };
-    row = addTableHeaders(ws, ['Tipo', 'Total', 'Pendientes', 'Seguimiento', 'En Mora', 'Ganadas', 'Valor Potencial'], row);
+    row = addTableHeaders(ws, ['Tipo', 'Total', 'Sin Crédito', 'Pendientes', 'Seguimiento', 'En Mora', 'Ganadas', 'Valor Potencial'], row);
 
     opp.creditTypeComparison.forEach((ct, i) => {
       const bg = i % 2 === 1 ? THEME.colors.lightGray : THEME.colors.white;
       const S = 2;
-      const vals: (string | number)[] = [ct.type, ct.total, ct.pending, ct.followUp, ct.delinquent, ct.won, formatCurrency(ct.pipeline)];
+      const vals: (string | number)[] = [ct.type, ct.total, ct.noCredit, ct.pending, ct.followUp, ct.delinquent, ct.won, formatCurrency(ct.pipeline)];
       vals.forEach((val, j) => {
         const cell = ws.getCell(row, S + j);
         cell.value = val;
-        const isDelinquent = j === 4 && (val as number) > 0;
-        cell.font = { name: 'Calibri', size: 10, color: { argb: isDelinquent ? 'FFDC2626' : THEME.colors.bodyText }, bold: j === 0 || isDelinquent };
+        const isDelinquent = j === 5 && (val as number) > 0;
+        const isNoCredit = j === 2 && (val as number) > 0;
+        cell.font = { name: 'Calibri', size: 10, color: { argb: isDelinquent ? 'FFDC2626' : isNoCredit ? 'FF6B7280' : THEME.colors.bodyText }, bold: j === 0 || isDelinquent };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDelinquent ? 'FFFEE2E2' : bg } };
         cell.alignment = { horizontal: j === 0 ? 'left' : 'center', vertical: 'middle' };
         cell.border = thinBorder;
@@ -1340,15 +1341,16 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
       yPos = pdfEnsureSpace(doc, yPos, 30);
       doc.setFontSize(10);
       doc.setTextColor(30, 41, 59);
-      doc.text('Comparación por Tipo de Crédito', 14, yPos);
+      doc.text('Oportunidades por Tipo de Crédito', 14, yPos);
       yPos += 4;
 
       autoTable(doc, {
         startY: yPos,
-        head: [['Tipo', 'Total', 'Pend.', 'Seguim.', 'En Mora', 'Ganadas', 'Valor Potencial']],
+        head: [['Tipo', 'Total', 'Sin Créd.', 'Pend.', 'Seguim.', 'Mora', 'Ganadas', 'Val. Potencial']],
         body: data.opportunities.creditTypeComparison.map(ct => [
           ct.type,
           String(ct.total),
+          String(ct.noCredit),
           String(ct.pending),
           String(ct.followUp),
           String(ct.delinquent),
@@ -1361,13 +1363,21 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           2: { halign: 'right' },
           3: { halign: 'right' },
           4: { halign: 'right' },
-          5: { halign: 'right', fontStyle: 'bold' },
-          6: { halign: 'right' },
+          5: { halign: 'right' },
+          6: { halign: 'right', fontStyle: 'bold' },
+          7: { halign: 'right' },
         },
         didParseCell: (hookData) => {
           if (hookData.section === 'body') {
+            // Color Sin Crédito column (gray)
+            if (hookData.column.index === 2) {
+              const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
+              if (ct && ct.noCredit > 0) {
+                hookData.cell.styles.textColor = [107, 114, 128];
+              }
+            }
             // Color En Mora column
-            if (hookData.column.index === 4) {
+            if (hookData.column.index === 5) {
               const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
               if (ct && ct.delinquent > 0) {
                 hookData.cell.styles.textColor = PDF_COLORS.danger;
@@ -1375,7 +1385,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
               }
             }
             // Color Ganadas column
-            if (hookData.column.index === 5) {
+            if (hookData.column.index === 6) {
               const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
               if (ct) {
                 hookData.cell.styles.textColor = ct.won > 0 ? PDF_COLORS.success : PDF_COLORS.warning;
