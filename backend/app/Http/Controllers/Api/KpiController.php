@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\Client;
+use App\Models\Person;
 use App\Models\Opportunity;
 use App\Models\Analisis;
 use App\Models\Credit;
@@ -437,35 +438,66 @@ class KpiController extends Controller
             // Ganadas: crédito completamente pagado (Cerrado)
             $creditTypeComparison = [];
             try {
-                $types = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                // Normalizar tipos: combinar variantes del mismo producto
+                $normalizeType = function (string $type): string {
+                    $lower = mb_strtolower(trim($type));
+                    if (str_contains($lower, 'micro')) return 'Micro Crédito';
+                    if (in_array($lower, ['estándar', 'estandar', 'credito', 'crédito', 'regular'])) return 'Crédito';
+                    return $type;
+                };
+
+                // Agrupar oportunidades por tipo normalizado
+                $allOpps = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
                     ->whereNotNull('opportunity_type')
-                    ->select('opportunity_type')
-                    ->distinct()
-                    ->pluck('opportunity_type')
-                    ->toArray();
+                    ->get();
 
-                foreach ($types as $type) {
-                    $typeOpportunities = Opportunity::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                        ->where('opportunity_type', $type);
+                $grouped = [];
+                foreach ($allOpps as $opp) {
+                    $norm = $normalizeType($opp->opportunity_type);
+                    $grouped[$norm][] = $opp;
+                }
 
-                    $typeTotal = (clone $typeOpportunities)->count();
+                foreach ($grouped as $type => $opps) {
+                    $oppsCollection = collect($opps);
+                    $typeTotal = $oppsCollection->count();
+                    $opportunityIds = $oppsCollection->pluck('id');
 
-                    $opportunityIds = (clone $typeOpportunities)->pluck('id');
+                    // Buscar créditos por opportunity_id directo
+                    // Y también por lead_id (para créditos sin opportunity_id asignado)
+                    $leadCedulas = $oppsCollection->pluck('lead_cedula')->filter()->unique();
+                    $leadIds = $leadCedulas->isNotEmpty()
+                        ? Person::whereIn('cedula', $leadCedulas)->pluck('id')
+                        : collect();
 
-                    $typePending = Credit::whereIn('opportunity_id', $opportunityIds)
+                    $creditQuery = function () use ($opportunityIds, $leadIds) {
+                        return Credit::where(function ($q) use ($opportunityIds, $leadIds) {
+                            $q->whereIn('opportunity_id', $opportunityIds);
+                            if ($leadIds->isNotEmpty()) {
+                                $q->orWhere(function ($q2) use ($leadIds) {
+                                    $q2->whereIn('lead_id', $leadIds)
+                                        ->where(function ($q3) {
+                                            $q3->whereNull('opportunity_id')
+                                                ->orWhere('opportunity_id', '');
+                                        });
+                                });
+                            }
+                        });
+                    };
+
+                    $typePending = $creditQuery()
                         ->whereIn('status', [Credit::STATUS_APROBADO, Credit::STATUS_POR_FIRMAR])
                         ->count();
 
-                    $typeFollowUp = Credit::whereIn('opportunity_id', $opportunityIds)
+                    $typeFollowUp = $creditQuery()
                         ->whereIn('status', [Credit::STATUS_FORMALIZADO, Credit::STATUS_ACTIVO, Credit::STATUS_EN_MORA])
                         ->count();
 
-                    $typeWon = Credit::whereIn('opportunity_id', $opportunityIds)
+                    $typeWon = $creditQuery()
                         ->where('status', Credit::STATUS_CERRADO)
                         ->count();
 
-                    $typePipeline = (clone $typeOpportunities)
-                        ->whereIn('status', $openStatuses)
+                    $typePipeline = $oppsCollection
+                        ->filter(fn($o) => in_array($o->status, $openStatuses))
                         ->sum('amount') ?? 0;
 
                     $creditTypeComparison[] = [
@@ -478,7 +510,6 @@ class KpiController extends Controller
                     ];
                 }
 
-                // Sort by total descending
                 usort($creditTypeComparison, fn($a, $b) => $b['total'] - $a['total']);
             } catch (\Exception $e) {
                 $creditTypeComparison = [];
