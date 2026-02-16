@@ -692,8 +692,9 @@ class CreditPaymentController extends Controller
                 $penalizacion = round($penalizacion, 2);
             }
 
-            // Monto total a aplicar = monto del abono + penalización
-            $montoTotalAplicar = $montoAbono + $penalizacion;
+            // La penalización se RESTA del monto que se abona, no se suma
+            // El cliente paga $montoAbono, pero solo ($montoAbono - $penalizacion) se aplica al saldo
+            $montoAplicarAlSaldo = max(0, $montoAbono - $penalizacion);
 
             // Snapshot para reverso: capturar estado ANTES de modificar
             $planSnapshot = $credit->planDePagos()
@@ -712,16 +713,17 @@ class CreditPaymentController extends Controller
                 'monto_abono' => $montoAbono,
                 'penalizacion' => $penalizacion,
                 'intereses_penalizacion' => $interesesPenalizacion,
+                'monto_aplicado_al_saldo' => $montoAplicarAlSaldo,
             ];
 
             // 2. Aplicar directo al Saldo (Capital Vivo)
             $saldoActual = (float) $credit->saldo;
 
-            if ($montoTotalAplicar >= $saldoActual) {
-                $montoTotalAplicar = $saldoActual;
+            if ($montoAplicarAlSaldo >= $saldoActual) {
+                $montoAplicarAlSaldo = $saldoActual;
                 $nuevoCapitalBase = 0;
             } else {
-                $nuevoCapitalBase = round($saldoActual - $montoTotalAplicar, 2);
+                $nuevoCapitalBase = round($saldoActual - $montoAplicarAlSaldo, 2);
             }
 
             $credit->saldo = $nuevoCapitalBase;
@@ -729,21 +731,21 @@ class CreditPaymentController extends Controller
 
             // Recibo de abono a capital (incluye penalización si aplica)
             $estadoTexto = $penalizacion > 0
-                ? 'Abono Extraordinario (Penalización: ₡' . number_format($penalizacion, 2) . ')'
+                ? 'Abono Extraordinario (Penalización: ₡' . number_format($penalizacion, 2) . ' - Aplicado: ₡' . number_format($montoAplicarAlSaldo, 2) . ')'
                 : 'Abono Extraordinario';
 
             $paymentRecord = CreditPayment::create([
                 'credit_id'      => $credit->id,
                 'numero_cuota'   => 0,
                 'fecha_pago'     => $fechaPago,
-                'monto'          => $montoTotalAplicar,
+                'monto'          => $montoAbono, // Monto que pagó el cliente
                 'saldo_anterior' => $saldoActual,
                 'nuevo_saldo'    => $nuevoCapitalBase,
                 'estado'         => $estadoTexto,
-                'amortizacion'   => $montoTotalAplicar,
+                'amortizacion'   => $montoAplicarAlSaldo, // Lo que realmente se aplicó al saldo
                 'source'         => 'Extraordinario',
-                'movimiento_total' => $montoTotalAplicar,
-                'interes_corriente' => 0,
+                'movimiento_total' => $montoAbono,
+                'interes_corriente' => $penalizacion, // Registrar la penalización como "interés"
                 'cedula'         => $credit->lead->cedula ?? null,
                 'reversal_snapshot' => $reversalSnapshot,
                 'estado_reverso' => 'Vigente'
@@ -1629,10 +1631,11 @@ class CreditPaymentController extends Controller
             $penalizacion = round($penalizacion, 2);
         }
 
-        $montoTotalAplicar = $montoAbono + $penalizacion;
+        // La penalización se RESTA del monto que se abona, no se suma
+        $montoAplicarAlSaldo = max(0, $montoAbono - $penalizacion);
 
         // Calcular nuevo saldo después de aplicar el abono
-        $nuevoSaldo = max(0, $saldoActual - $montoTotalAplicar);
+        $nuevoSaldo = max(0, $saldoActual - $montoAplicarAlSaldo);
 
         // Buscar la primera cuota pendiente para calcular cuántas faltan
         $siguienteCuota = $credit->planDePagos()
@@ -1654,26 +1657,40 @@ class CreditPaymentController extends Controller
         $nuevaCuota = $cuotaActual;
         $nuevoPlazo = $plazoActual;
 
-        if ($nuevoSaldo > 0) {
+        if ($nuevoSaldo > 0 && $cuotasRestantes > 0) {
             if ($strategy === 'reduce_amount') {
                 // Reducir cuota, mantener plazo
                 if ($tasaMensual > 0) {
                     $potencia = pow(1 + $tasaMensual, $cuotasRestantes);
-                    $nuevaCuota = $nuevoSaldo * ($tasaMensual * $potencia) / ($potencia - 1);
+
+                    // Validar que la potencia sea válida y el denominador no sea cero
+                    if (is_finite($potencia) && $potencia > 1) {
+                        $nuevaCuota = $nuevoSaldo * ($tasaMensual * $potencia) / ($potencia - 1);
+                    } else {
+                        // Fallback a cálculo simple
+                        $nuevaCuota = $nuevoSaldo / $cuotasRestantes;
+                    }
                 } else {
                     $nuevaCuota = $nuevoSaldo / $cuotasRestantes;
                 }
                 $nuevaCuota = round($nuevaCuota, 2);
             } else {
                 // Reducir plazo, mantener cuota
-                if ($tasaMensual > 0) {
-                    $denominador = $cuotaActual * $tasaMensual;
-                    if ($denominador > 0) {
-                        $ratio = $nuevoSaldo / $denominador;
-                        $nuevoPlazo = $numeroCuotaInicio - 1 + ceil(log(1 / (1 - ($ratio * $tasaMensual))) / log(1 + $tasaMensual));
+                if ($tasaMensual > 0 && $cuotaActual > 0) {
+                    // Usar fórmula de amortización francesa para calcular el número de cuotas
+                    $valor_dentro_log = ($cuotaActual * $tasaMensual) / ($cuotaActual - ($nuevoSaldo * $tasaMensual));
+
+                    // Validar que el valor dentro del log sea positivo
+                    if ($valor_dentro_log > 0) {
+                        $cuotasNecesarias = log($valor_dentro_log) / log(1 + $tasaMensual);
+                        $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($cuotasNecesarias);
                     } else {
+                        // Si el cálculo falla, usar cálculo simple
                         $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($nuevoSaldo / $cuotaActual);
                     }
+
+                    // Asegurar que el nuevo plazo sea razonable
+                    $nuevoPlazo = max($numeroCuotaInicio, min($nuevoPlazo, $plazoActual));
                 } else {
                     $nuevoPlazo = $numeroCuotaInicio - 1 + ceil($nuevoSaldo / $cuotaActual);
                 }
@@ -1714,6 +1731,10 @@ class CreditPaymentController extends Controller
             }
         }
 
+        // Asegurar que todos los valores sean finitos antes de devolver
+        $nuevaCuota = is_finite($nuevaCuota) ? $nuevaCuota : $cuotaActual;
+        $nuevoPlazo = is_finite($nuevoPlazo) && $nuevoPlazo > 0 ? $nuevoPlazo : $plazoActual;
+
         return response()->json([
             'credit_id' => $credit->id,
             'cuota_actual' => $numeroCuotaActual,
@@ -1723,7 +1744,7 @@ class CreditPaymentController extends Controller
             'cuotas_penalizacion' => $cuotasPenalizacion,
             'intereses_penalizacion' => $interesesPenalizacion,
             'monto_penalizacion' => $penalizacion,
-            'monto_total_aplicar' => $montoTotalAplicar,
+            'monto_aplicar_al_saldo' => $montoAplicarAlSaldo,
             'saldo_actual' => $saldoActual,
             'nuevo_saldo' => $nuevoSaldo,
             'cuota_actual_valor' => $cuotaActual,
@@ -1732,7 +1753,7 @@ class CreditPaymentController extends Controller
             'nuevo_plazo' => $nuevoPlazo,
             'cuotas_restantes' => $cuotasRestantes,
             'ahorro_cuota' => $strategy === 'reduce_amount' ? round($cuotaActual - $nuevaCuota, 2) : 0,
-            'ahorro_plazo' => $strategy === 'reduce_term' ? $plazoActual - $nuevoPlazo : 0,
+            'ahorro_plazo' => $strategy === 'reduce_term' ? max(0, $plazoActual - $nuevoPlazo) : 0,
             'cuotas_futuras' => $cuotasFuturas,
         ]);
     }

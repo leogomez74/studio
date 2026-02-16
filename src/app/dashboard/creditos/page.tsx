@@ -1,11 +1,11 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from 'date-fns';
-import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useForm } from "react-hook-form";
@@ -65,6 +65,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
@@ -401,6 +402,9 @@ export default function CreditsPage() {
   const [selectedCredit, setSelectedCredit] = useState<CreditItem | null>(null);
   const [formalizacionDate, setFormalizacionDate] = useState<Date>(new Date());
 
+  // Estado para tracking de grupos expandidos
+  const [expandedClientIds, setExpandedClientIds] = useState<Set<number>>(new Set());
+
   const currentClientId = form.watch("clientId");
   const currentClient = useMemo(() => {
     return currentClientId ? clients.find((client) => String(client.id) === currentClientId) : null;
@@ -591,26 +595,70 @@ export default function CreditsPage() {
     [credits, filters]
   );
 
-  // Get paginated credits for the current tab
+  // Agrupar créditos por cliente (lead_id)
+  const groupCreditsByClient = useCallback((credits: CreditItem[]): Map<number, CreditItem[]> => {
+    const grouped = new Map<number, CreditItem[]>();
+
+    credits.forEach(credit => {
+      const leadId = credit.lead_id;
+      if (!grouped.has(leadId)) {
+        grouped.set(leadId, []);
+      }
+      grouped.get(leadId)!.push(credit);
+    });
+
+    // Ordenar créditos dentro de cada grupo por fecha (más reciente primero)
+    grouped.forEach((creditsArray, leadId) => {
+      creditsArray.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.opened_at || 0).getTime();
+        const dateB = new Date(b.created_at || b.opened_at || 0).getTime();
+        return dateB - dateA; // Descendente: más reciente primero
+      });
+    });
+
+    return grouped;
+  }, []);
+
+  // Toggle de expansión de grupos de clientes
+  const toggleClientExpansion = useCallback((leadId: number) => {
+    setExpandedClientIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(leadId)) {
+        newSet.delete(leadId);
+      } else {
+        newSet.add(leadId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Get paginated credits for the current tab (agrupados por cliente)
   const getPaginatedCredits = useCallback(
     (value: string) => {
       const filtered = getCreditsForTab(value);
-      const totalItems = filtered.length;
-      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      const grouped = groupCreditsByClient(filtered);
+
+      // Convertir Map a Array para paginar por grupos
+      const groupsArray = Array.from(grouped.entries());
+      const totalGroups = groupsArray.length;
+      const totalItems = filtered.length; // Total de créditos individuales
+      const totalPages = Math.ceil(totalGroups / itemsPerPage);
+
       const startIndex = (currentPage - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
-      const paginatedItems = filtered.slice(startIndex, endIndex);
+      const paginatedGroups = groupsArray.slice(startIndex, endIndex);
 
       return {
-        items: paginatedItems,
-        totalItems,
+        groups: new Map(paginatedGroups),  // Map de grupos para página actual
+        totalItems,                         // Total de créditos (para info)
+        totalGroups,                        // Total de clientes
         totalPages,
         currentPage,
         startIndex: startIndex + 1,
-        endIndex: Math.min(endIndex, totalItems),
+        endIndex: Math.min(endIndex, totalGroups),
       };
     },
-    [getCreditsForTab, currentPage, itemsPerPage]
+    [getCreditsForTab, currentPage, itemsPerPage, groupCreditsByClient]
   );
 
   const handleFormalizar = async () => {
@@ -1234,7 +1282,12 @@ export default function CreditsPage() {
                   <Table className="min-w-[1800px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-right sticky left-0 bg-background z-10 w-[180px]">Acciones</TableHead>
+                        {/* NUEVA COLUMNA: Botón de expansión */}
+                        <TableHead className="w-[40px] sticky left-0 bg-background z-10 border-r">
+                          {/* Vacío, solo para alinear */}
+                        </TableHead>
+                        {/* Acciones - ACTUALIZAR sticky position */}
+                        <TableHead className="text-right sticky left-[40px] bg-background z-10 w-[180px]">Acciones</TableHead>
                         <TableHead className="w-[130px]">Estado</TableHead>
                         <TableHead className="min-w-[200px]">Nombre</TableHead>
                         <TableHead className="w-[120px]">Cédula</TableHead>
@@ -1255,7 +1308,13 @@ export default function CreditsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginationData.items.map((credit) => {
+                      {Array.from(paginationData.groups.entries()).map(([leadId, credits]) => {
+                        const primaryCredit = credits[0]; // Crédito más reciente (ya ordenado)
+                        const additionalCredits = credits.slice(1); // Resto de créditos
+                        const hasMultipleCredits = additionalCredits.length > 0;
+                        const isExpanded = expandedClientIds.has(leadId);
+
+                        const credit = primaryCredit; // Renombrar para mantener compatibilidad con código existente
                         // --- LÓGICA CALCULADA EN FRONTEND ---
                         // Helper: Nombre completo
                         const getFullName = () => {
@@ -1294,8 +1353,42 @@ export default function CreditsPage() {
                         const proceso = credit.proceso || credit.status || "-";
 
                         return (
-                          <TableRow key={credit.id}>
-                            <TableCell className="text-right sticky left-0 bg-background z-10 w-[180px]">
+                          <Fragment key={`group-${leadId}`}>
+                            {/* ========== FILA MADRE ========== */}
+                            <TableRow className="hover:bg-muted/50">
+                              {/* COLUMNA 1: Botón de Expansión */}
+                              <TableCell className="w-[40px] sticky left-0 bg-background z-10 border-r">
+                                {hasMultipleCredits && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => toggleClientExpansion(leadId)}
+                                          className="h-8 w-8"
+                                          aria-label={isExpanded ? "Colapsar créditos" : "Expandir créditos"}
+                                        >
+                                          {isExpanded ? (
+                                            <ChevronDown className="h-4 w-4" />
+                                          ) : (
+                                            <ChevronRight className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" sideOffset={30} className="z-[9999] relative">
+                                        {isExpanded
+                                          ? "Ocultar créditos adicionales"
+                                          : `Mostrar ${additionalCredits.length} crédito${additionalCredits.length > 1 ? 's' : ''} adicional${additionalCredits.length > 1 ? 'es' : ''}`
+                                        }
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </TableCell>
+
+                              {/* COLUMNA 2: Acciones - ACTUALIZAR sticky position */}
+                              <TableCell className="text-right sticky left-[40px] bg-background z-10 w-[180px]">
                               <div className="flex items-center gap-1">
                                 <Button
                                   variant="outline"
@@ -1373,7 +1466,7 @@ export default function CreditsPage() {
                                       Ver Plan de Pagos
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
-                                      <FileText className="h-4 w-4 mr-2" />
+                                    <FileText className="h-4 w-4 mr-2" />
                                       Gestionar documentos
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -1416,6 +1509,173 @@ export default function CreditsPage() {
                               {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
                             </TableCell>
                           </TableRow>
+
+                          {/* ========== FILAS HIJAS (Créditos adicionales) ========== */}
+                          {hasMultipleCredits && isExpanded && additionalCredits.map((credit) => {
+                            // Calcular datos para este crédito secundario (copiar lógica de arriba)
+                            const getFullNameSecondary = () => {
+                              const person = credit.client || credit.lead;
+                              if (!person) return '-';
+                              const parts = [person.name, person.apellido1, person.apellido2].filter(Boolean);
+                              return parts.length > 0 ? parts.join(' ') : '-';
+                            };
+                            const nombreCompletoSecondary = getFullNameSecondary();
+
+                            const pagosOrdenadosSecondary = credit.plan_de_pagos?.length
+                              ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
+                              : [];
+
+                            const fechaInicioSecondary = pagosOrdenadosSecondary.length > 0
+                              ? pagosOrdenadosSecondary[0].fecha_corte
+                              : null;
+
+                            const fechaFinSecondary = credit.fecha_culminacion_credito;
+
+                            const estadosEditablesTablaSecondary = ['Aprobado', 'Por firmar'];
+                            const esEditableTablaSecondary = credit.status && estadosEditablesTablaSecondary.includes(credit.status);
+                            const tasaSecondary = esEditableTablaSecondary
+                              ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null))
+                              : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null));
+
+                            const lineaSecondary = credit.linea || credit.category || "-";
+                            const procesoSecondary = credit.proceso || credit.status || "-";
+
+                            return (
+                              <TableRow
+                                key={`credit-${credit.id}`}
+                                className="bg-muted/30 hover:bg-muted/50"
+                              >
+                                {/* COLUMNA 1: Vacía (alineación) */}
+                                <TableCell className="w-[40px] sticky left-0 bg-muted/30 z-10 border-r" />
+
+                                {/* COLUMNA 2: Acciones con indentación visual */}
+                                <TableCell className="text-right sticky left-[40px] bg-muted/30 z-10 w-[180px]">
+                                  <div className="flex items-center justify-end gap-1">
+                                    {/* Línea de indentación visual */}
+                                    <div className="w-4 h-px bg-border mr-1" />
+
+                                    {/* Botones de acción (igual que fila madre) */}
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      asChild
+                                      title="Ver detalle"
+                                      className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
+                                    >
+                                      <Link href={`/dashboard/creditos/${credit.id}`}>
+                                        <Eye className="h-4 w-4" />
+                                      </Link>
+                                    </Button>
+                                    {['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') ? (
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        disabled
+                                        title={
+                                          credit.status === 'En Mora'
+                                            ? "No se puede editar un crédito en mora"
+                                            : credit.status === 'Cerrado'
+                                            ? "No se puede editar un crédito cerrado"
+                                            : "No se puede editar un crédito formalizado"
+                                        }
+                                        className="border-gray-300 text-gray-400 cursor-not-allowed"
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        asChild
+                                        title="Editar crédito"
+                                        className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                                      >
+                                        <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
+                                          <Pencil className="h-4 w-4" />
+                                        </Link>
+                                      </Button>
+                                    )}
+
+                                    {!['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') && (
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        title="Formalizar crédito"
+                                        className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                        onClick={() => {
+                                          setSelectedCredit(credit);
+                                          setFormalizacionDate(new Date());
+                                          setFormalizarDialogOpen(true);
+                                        }}
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </Button>
+                                    )}
+
+                                    <Button
+                                      size="icon"
+                                      className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
+                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                    </Button>
+
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                        <DropdownMenuItem onClick={() => router.push(`/dashboard/creditos/${credit.id}?tab=plan-pagos`)}>
+                                          <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                          Ver Plan de Pagos
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
+                                          <FileText className="h-4 w-4 mr-2" />
+                                          Gestionar documentos
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </TableCell>
+
+                                {/* COLUMNAS 3-19: Datos del crédito secundario */}
+                                <TableCell className="w-[130px] bg-muted/30">
+                                  {(() => {
+                                    const badgeStyle = getStatusBadgeStyle(credit.status);
+                                    return (
+                                      <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
+                                        {credit.status}
+                                      </Badge>
+                                    );
+                                  })()}
+                                </TableCell>
+                                <TableCell className="text-sm capitalize min-w-[200px] bg-muted/30">{nombreCompletoSecondary.toLowerCase()}</TableCell>
+                                <TableCell className="w-[120px] bg-muted/30">{credit.lead?.cedula || '-'}</TableCell>
+                                <TableCell className="font-medium bg-muted/30">
+                                  <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                                    {credit.numero_operacion || credit.reference || "-"}
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="bg-muted/30">{credit.divisa || "CRC"}</TableCell>
+                                <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
+                                <TableCell className="bg-muted/30">{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
+                                <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
+                                <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
+                                <TableCell className="bg-muted/30">{lineaSecondary}</TableCell>
+                                <TableCell className="bg-muted/30">{fechaInicioSecondary ? formatDate(fechaInicioSecondary) : "No aplicable"}</TableCell>
+                                <TableCell className="bg-muted/30">{credit.garantia || "No aplicable"}</TableCell>
+                                <TableCell className="bg-muted/30">{formatDate(fechaFinSecondary)}</TableCell>
+                                <TableCell className="bg-muted/30">{procesoSecondary}</TableCell>
+                                <TableCell className="bg-muted/30">{tasaSecondary ? `${tasaSecondary}%` : "-"}</TableCell>
+                                <TableCell className="bg-muted/30">{calculateCuotasAtrasadas(credit)}</TableCell>
+                                <TableCell className="bg-muted/30">
+                                  {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </Fragment>
                         );
                       })}
                     </TableBody>
@@ -1426,7 +1686,9 @@ export default function CreditsPage() {
                 {paginationData.totalPages > 0 && (
                   <div className="flex items-center justify-between px-6 py-4 border-t">
                     <div className="text-sm text-muted-foreground">
-                      Mostrando {paginationData.startIndex} a {paginationData.endIndex} de {paginationData.totalItems} registros
+                      Mostrando {paginationData.startIndex} a {paginationData.endIndex} de{" "}
+                      <strong>{paginationData.totalGroups}</strong> clientes
+                      {" "}({paginationData.totalItems} créditos totales)
                     </div>
                     <div className="flex items-center gap-2">
                       <Button

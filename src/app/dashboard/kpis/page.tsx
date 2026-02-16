@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +50,12 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  RotateCcw,
+  Banknote,
+  ShieldAlert,
+  FileCheck,
+  Route,
+  Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
@@ -72,13 +80,13 @@ interface KPIData {
   change?: number;
   target?: number;
   unit?: string;
+  count?: number;
 }
 
 interface LeadKPIs {
   conversionRate: KPIData;
   responseTime: KPIData;
   leadAging: KPIData;
-  leadsPerAgent: { agentName: string; count: number }[];
   leadSourcePerformance: { source: string; conversion: number; count: number }[];
   totalLeads?: number;
   totalClients?: number;
@@ -89,7 +97,7 @@ interface OpportunityKPIs {
   pipelineValue: KPIData;
   avgSalesCycle: KPIData;
   velocity: KPIData;
-  stageConversion: { stage: string; conversion: number }[];
+  creditTypeComparison: { type: string; total: number; noCredit: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
 }
 
 interface CreditKPIs {
@@ -99,27 +107,35 @@ interface CreditKPIs {
   nonPerformingLoans: KPIData;
   approvalRate: KPIData;
   timeToDisbursement: KPIData;
+  fullCycleTime: KPIData;
+  earlyCancellationRate: KPIData;
+  extraordinaryPayments: KPIData;
   totalCredits?: number;
   totalPortfolio?: number;
 }
 
 interface CollectionKPIs {
   collectionRate: KPIData;
-  dso: KPIData;
   delinquencyRate: KPIData;
   recoveryRate: KPIData;
   paymentTimeliness: KPIData;
-  deductoraEfficiency: { name: string; rate: number }[];
+  reversalRate: KPIData;
+  pendingBalances: KPIData;
+  paymentSourceDistribution: { source: string; count: number; total: number }[];
 }
 
 interface AgentKPIs {
   topAgents: {
     name: string;
-    leadsHandled: number;
-    conversionRate: number;
-    creditsOriginated: number;
-    avgDealSize: number;
-    activityRate: number;
+    tasksTotal: number;
+    tasksCompleted: number;
+    tasksPending: number;
+    tasksArchived: number;
+    tasksOverdue: number;
+    completionRate: number;
+    avgCompletionTime: number;
+    onTimeRate: number;
+    tasksInPeriod: number;
   }[];
 }
 
@@ -208,16 +224,16 @@ function StatCard({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+      <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
           {title}
         </CardTitle>
-        <Icon className={cn("h-4 w-4", colorClass || "text-muted-foreground")} />
+        <Icon className={cn("h-4 w-4 shrink-0", colorClass || "text-muted-foreground")} />
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">
+      <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+        <div className="text-base sm:text-2xl font-bold">
           {value}
-          {unit && <span className="text-sm font-normal text-muted-foreground ml-1">{unit}</span>}
+          {unit && <span className="text-xs sm:text-sm font-normal text-muted-foreground ml-1">{unit}</span>}
         </div>
         {change !== undefined && (
           <div className={cn(
@@ -231,7 +247,8 @@ function StatCard({
             ) : isNegative ? (
               <ArrowDownRight className="h-3 w-3 mr-1" />
             ) : null}
-            {Math.abs(change)}% vs período anterior
+            <span className="hidden sm:inline">{Math.abs(change)}% vs período anterior</span>
+            <span className="sm:hidden">{Math.abs(change)}%</span>
           </div>
         )}
         {target !== undefined && (
@@ -244,7 +261,7 @@ function StatCard({
           </div>
         )}
         {description && (
-          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+          <p className="text-xs text-muted-foreground mt-1 hidden sm:block">{description}</p>
         )}
       </CardContent>
     </Card>
@@ -325,74 +342,6 @@ function KPITable({
               )}
             </tbody>
           </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StageConversionFunnel({
-  stages,
-  isLoading,
-}: {
-  stages: { stage: string; conversion: number }[];
-  isLoading?: boolean;
-}) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-48" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <PieChart className="h-5 w-5" />
-          Conversión por Etapa
-        </CardTitle>
-        <CardDescription>Tasa de conversión entre etapas del pipeline</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {stages.map((stage, index) => (
-            <div key={stage.stage} className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{stage.stage}</span>
-                <span className={cn(
-                  "font-bold",
-                  stage.conversion >= 70 ? "text-green-500" :
-                  stage.conversion >= 40 ? "text-amber-500" : "text-red-500"
-                )}>
-                  {stage.conversion}%
-                </span>
-              </div>
-              <Progress
-                value={stage.conversion}
-                className={cn(
-                  "h-2",
-                  stage.conversion >= 70 ? "[&>div]:bg-green-500" :
-                  stage.conversion >= 40 ? "[&>div]:bg-amber-500" : "[&>div]:bg-red-500"
-                )}
-              />
-              {index < stages.length - 1 && (
-                <div className="flex justify-center">
-                  <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       </CardContent>
     </Card>
@@ -499,7 +448,7 @@ function TrendChart({
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <div className="h-64">
+        <div className="h-48 sm:h-64">
           <ResponsiveContainer width="100%" height="100%">
             {type === "area" ? (
               <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -584,6 +533,7 @@ function TrendChart({
 
 // ============ MAIN PAGE ============
 export default function KPIsPage() {
+  const isMobile = useMediaQuery("(max-width: 480px)");
   const [activeTab, setActiveTab] = useState("leads");
   const [period, setPeriod] = useState("month");
   const [isLoading, setIsLoading] = useState(true);
@@ -682,11 +632,11 @@ export default function KPIsPage() {
       agents: agentKPIs,
       gamification: gamificationKPIs,
       business: businessHealthKPIs,
-    }, getPeriodLabel(period));
+    }, getPeriodLabel(period), trendData);
   };
 
-  const handleExportPDF = () => {
-    exportToPDF({
+  const handleExportPDF = async () => {
+    await exportToPDF({
       leads: leadKPIs,
       opportunities: opportunityKPIs,
       credits: creditKPIs,
@@ -694,7 +644,7 @@ export default function KPIsPage() {
       agents: agentKPIs,
       gamification: gamificationKPIs,
       business: businessHealthKPIs,
-    }, getPeriodLabel(period));
+    }, getPeriodLabel(period), trendData);
   };
 
   // Error state
@@ -733,18 +683,18 @@ export default function KPIsPage() {
 
   return (
     <ProtectedPage module="kpis">
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard de KPIs</h1>
-          <p className="text-muted-foreground">
-            Indicadores clave de rendimiento del negocio
+          <h1 className="text-xl sm:text-2xl font-bold">Dashboard de KPIs</h1>
+          <p className="text-sm text-muted-foreground">
+            Indicadores clave de rendimiento
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-32 sm:w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -784,560 +734,283 @@ export default function KPIsPage() {
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-grid">
-          <TabsTrigger value="leads" className="gap-1">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Leads</span>
-          </TabsTrigger>
-          <TabsTrigger value="opportunities" className="gap-1">
-            <Target className="h-4 w-4" />
-            <span className="hidden sm:inline">Oportunidades</span>
-          </TabsTrigger>
-          <TabsTrigger value="credits" className="gap-1">
-            <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">Créditos</span>
-          </TabsTrigger>
-          <TabsTrigger value="collections" className="gap-1">
-            <Wallet className="h-4 w-4" />
-            <span className="hidden sm:inline">Cobros</span>
-          </TabsTrigger>
-          <TabsTrigger value="agents" className="gap-1">
-            <UserCheck className="h-4 w-4" />
-            <span className="hidden sm:inline">Agentes</span>
-          </TabsTrigger>
-          <TabsTrigger value="gamification" className="gap-1">
-            <Gamepad2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Gamificación</span>
-          </TabsTrigger>
-          <TabsTrigger value="business" className="gap-1">
-            <Building2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Negocio</span>
-          </TabsTrigger>
-          <TabsTrigger value="trends" className="gap-1">
-            <LineChartIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Tendencias</span>
-          </TabsTrigger>
-        </TabsList>
+      {/* Section content (shared between Accordion and Tabs) */}
+      {(() => {
+        const leadsContent = (
+          <>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+              <StatCard title="Tasa de Conversión" value={leadKPIs?.conversionRate?.value ?? 0} unit={leadKPIs?.conversionRate?.unit} change={leadKPIs?.conversionRate?.change} target={leadKPIs?.conversionRate?.target} icon={TrendingUp} colorClass="text-green-500" isLoading={isLoading} />
+              <StatCard title="Tiempo de Respuesta" value={leadKPIs?.responseTime?.value ?? 0} unit={leadKPIs?.responseTime?.unit} change={leadKPIs?.responseTime?.change} icon={Clock} description="Tiempo promedio hasta primer contacto" colorClass="text-blue-500" isLoading={isLoading} />
+              <StatCard title="Leads Envejecidos (+7 días)" value={leadKPIs?.leadAging?.value ?? 0} unit={leadKPIs?.leadAging?.unit} change={leadKPIs?.leadAging?.change} icon={AlertTriangle} description="Leads pendientes por más de 7 días" colorClass="text-amber-500" isLoading={isLoading} />
+            </div>
+            <KPITable title="Rendimiento por Fuente" description="Conversión por canal de adquisición" icon={BarChart3} headers={["Fuente", "Leads", "Conversión"]} rows={(leadKPIs?.leadSourcePerformance ?? []).map(source => [source.source, source.count, <Badge key={source.source} variant={source.conversion >= 35 ? "default" : source.conversion >= 25 ? "secondary" : "outline"} className={cn(source.conversion >= 35 && "bg-green-500", source.conversion >= 25 && source.conversion < 35 && "bg-amber-500")}>{source.conversion}%</Badge>])} isLoading={isLoading} />
+          </>
+        );
 
-        {/* Lead Management KPIs */}
-        <TabsContent value="leads" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <StatCard
-              title="Tasa de Conversión"
-              value={leadKPIs?.conversionRate?.value ?? 0}
-              unit={leadKPIs?.conversionRate?.unit}
-              change={leadKPIs?.conversionRate?.change}
-              target={leadKPIs?.conversionRate?.target}
-              icon={TrendingUp}
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Tiempo de Respuesta"
-              value={leadKPIs?.responseTime?.value ?? 0}
-              unit={leadKPIs?.responseTime?.unit}
-              change={leadKPIs?.responseTime?.change}
-              icon={Clock}
-              description="Tiempo promedio hasta primer contacto"
-              colorClass="text-blue-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Leads Envejecidos (+7 días)"
-              value={leadKPIs?.leadAging?.value ?? 0}
-              unit={leadKPIs?.leadAging?.unit}
-              change={leadKPIs?.leadAging?.change}
-              icon={AlertTriangle}
-              description="Leads pendientes por más de 7 días"
-              colorClass="text-amber-500"
-              isLoading={isLoading}
-            />
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
+        const opportunitiesContent = (
+          <>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <StatCard title="Porcentaje de créditos ganados" value={opportunityKPIs?.winRate?.value ?? 0} unit={opportunityKPIs?.winRate?.unit} change={opportunityKPIs?.winRate?.change} target={opportunityKPIs?.winRate?.target} icon={CheckCircle} colorClass="text-green-500" isLoading={isLoading} />
+              <StatCard title="Valor de la cartera" value={formatCurrency(Number(opportunityKPIs?.pipelineValue?.value) || 0)} change={opportunityKPIs?.pipelineValue?.change} icon={DollarSign} description="Valor total de oportunidades abiertas" colorClass="text-emerald-500" isLoading={isLoading} />
+              <StatCard title="Ciclo de Venta Promedio" value={opportunityKPIs?.avgSalesCycle?.value ?? 0} unit={opportunityKPIs?.avgSalesCycle?.unit} change={opportunityKPIs?.avgSalesCycle?.change} icon={Timer} colorClass="text-blue-500" isLoading={isLoading} />
+              <StatCard title="Velocidad de la cartera" value={opportunityKPIs?.velocity?.value ?? 0} change={opportunityKPIs?.velocity?.change} icon={Zap} description="Oportunidades movidas por período" colorClass="text-purple-500" isLoading={isLoading} />
+            </div>
             <KPITable
-              title="Leads por Agente"
-              description="Distribución de leads asignados"
-              icon={Users}
-              headers={["Agente", "Leads", "% del Total"]}
-              rows={(leadKPIs?.leadsPerAgent ?? []).map(agent => {
-                const total = (leadKPIs?.leadsPerAgent ?? []).reduce((sum, a) => sum + a.count, 0) || 1;
-                return [
-                  agent.agentName,
-                  agent.count,
-                  <Badge key={agent.agentName} variant="secondary">{Math.round((agent.count / total) * 100)}%</Badge>
-                ];
-              })}
-              isLoading={isLoading}
-            />
-            <KPITable
-              title="Rendimiento por Fuente"
-              description="Conversión por canal de adquisición"
-              icon={BarChart3}
-              headers={["Fuente", "Leads", "Conversión"]}
-              rows={(leadKPIs?.leadSourcePerformance ?? []).map(source => [
-                source.source,
-                source.count,
-                <Badge
-                  key={source.source}
-                  variant={source.conversion >= 35 ? "default" : source.conversion >= 25 ? "secondary" : "outline"}
-                  className={cn(
-                    source.conversion >= 35 && "bg-green-500",
-                    source.conversion >= 25 && source.conversion < 35 && "bg-amber-500"
-                  )}
-                >
-                  {source.conversion}%
-                </Badge>
+              title="Oportunidades por Tipo de Crédito"
+              description="Estado de oportunidades y sus créditos asociados"
+              icon={PieChart}
+              headers={["Tipo", "Total", "Sin Crédito", "Pendientes", "Seguimiento", "En Mora", "Ganadas", "Valor Potencial"]}
+              rows={(opportunityKPIs?.creditTypeComparison ?? []).map(ct => [
+                ct.type,
+                ct.total,
+                <Badge key={`${ct.type}-nc`} variant="outline" className="bg-gray-50 text-gray-500">{ct.noCredit}</Badge>,
+                <Badge key={`${ct.type}-p`} variant="outline" className="bg-amber-50 text-amber-700">{ct.pending}</Badge>,
+                <Badge key={`${ct.type}-f`} variant="secondary" className="bg-blue-50 text-blue-700">{ct.followUp}</Badge>,
+                <Badge key={`${ct.type}-d`} variant="destructive" className="text-xs">{ct.delinquent}</Badge>,
+                <Badge key={`${ct.type}-w`} variant="default" className="bg-green-500">{ct.won}</Badge>,
+                formatCurrency(ct.pipeline),
               ])}
               isLoading={isLoading}
             />
+          </>
+        );
+
+        const creditsContent = (
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+            <StatCard title="Volumen de Desembolso" value={formatCurrency(Number(creditKPIs?.disbursementVolume?.value) || 0)} change={creditKPIs?.disbursementVolume?.change} icon={DollarSign} colorClass="text-green-500" isLoading={isLoading} />
+            <StatCard title="Tamaño Promedio de Crédito" value={formatCurrency(Number(creditKPIs?.avgLoanSize?.value) || 0)} change={creditKPIs?.avgLoanSize?.change} icon={CreditCard} colorClass="text-blue-500" isLoading={isLoading} />
+            <StatCard title="Cartera en Riesgo (PAR)" value={creditKPIs?.portfolioAtRisk?.value ?? 0} unit={creditKPIs?.portfolioAtRisk?.unit} change={creditKPIs?.portfolioAtRisk?.change} target={creditKPIs?.portfolioAtRisk?.target} icon={AlertTriangle} colorClass="text-amber-500" isLoading={isLoading} />
+            <StatCard title="Créditos Morosos (+90 días)" value={creditKPIs?.nonPerformingLoans?.value ?? 0} change={creditKPIs?.nonPerformingLoans?.change} icon={TrendingDown} description="NPL - Non Performing Loans" colorClass="text-red-500" isLoading={isLoading} />
+            <StatCard title="Tasa de Aprobación" value={creditKPIs?.approvalRate?.value ?? 0} unit={creditKPIs?.approvalRate?.unit} change={creditKPIs?.approvalRate?.change} target={creditKPIs?.approvalRate?.target} icon={CheckCircle} colorClass="text-green-500" isLoading={isLoading} />
+            <StatCard title="Tiempo de Desembolso" value={creditKPIs?.timeToDisbursement?.value ?? 0} unit={creditKPIs?.timeToDisbursement?.unit} change={creditKPIs?.timeToDisbursement?.change} icon={Clock} description="Promedio desde solicitud" colorClass="text-blue-500" isLoading={isLoading} />
+            <StatCard title="Ciclo Completo" value={creditKPIs?.fullCycleTime?.value ?? 0} unit={creditKPIs?.fullCycleTime?.unit} change={creditKPIs?.fullCycleTime?.change} icon={Route} description="Oportunidad → formalización" colorClass="text-purple-500" isLoading={isLoading} />
+            <StatCard title="Cancelación Anticipada" value={creditKPIs?.earlyCancellationRate?.value ?? 0} unit={creditKPIs?.earlyCancellationRate?.unit} change={creditKPIs?.earlyCancellationRate?.change} icon={AlertTriangle} description={`${creditKPIs?.earlyCancellationRate?.count ?? 0} créditos cancelados`} colorClass="text-orange-500" isLoading={isLoading} />
+            <StatCard title="Abonos Extraordinarios" value={formatCurrency(Number(creditKPIs?.extraordinaryPayments?.value) || 0)} change={creditKPIs?.extraordinaryPayments?.change} icon={Banknote} description={`${creditKPIs?.extraordinaryPayments?.count ?? 0} pagos extraordinarios`} colorClass="text-teal-500" isLoading={isLoading} />
           </div>
-        </TabsContent>
+        );
 
-        {/* Opportunities KPIs */}
-        <TabsContent value="opportunities" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="Porcentaje de créditos ganados"
-              value={opportunityKPIs?.winRate?.value ?? 0}
-              unit={opportunityKPIs?.winRate?.unit}
-              change={opportunityKPIs?.winRate?.change}
-              target={opportunityKPIs?.winRate?.target}
-              icon={CheckCircle}
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Valor de la cartera"
-              value={formatCurrency(Number(opportunityKPIs?.pipelineValue?.value) || 0)}
-              change={opportunityKPIs?.pipelineValue?.change}
-              icon={DollarSign}
-              description="Valor total de oportunidades abiertas"
-              colorClass="text-emerald-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Ciclo de Venta Promedio"
-              value={opportunityKPIs?.avgSalesCycle?.value ?? 0}
-              unit={opportunityKPIs?.avgSalesCycle?.unit}
-              change={opportunityKPIs?.avgSalesCycle?.change}
-              icon={Timer}
-              colorClass="text-blue-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Velocidad de la cartera"
-              value={opportunityKPIs?.velocity?.value ?? 0}
-              change={opportunityKPIs?.velocity?.change}
-              icon={Zap}
-              description="Oportunidades movidas por período"
-              colorClass="text-purple-500"
-              isLoading={isLoading}
-            />
-          </div>
-          <StageConversionFunnel stages={opportunityKPIs?.stageConversion ?? []} isLoading={isLoading} />
-        </TabsContent>
-
-        {/* Credit/Loan KPIs */}
-        <TabsContent value="credits" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <StatCard
-              title="Volumen de Desembolso"
-              value={formatCurrency(Number(creditKPIs?.disbursementVolume?.value) || 0)}
-              change={creditKPIs?.disbursementVolume?.change}
-              icon={DollarSign}
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Tamaño Promedio de Crédito"
-              value={formatCurrency(Number(creditKPIs?.avgLoanSize?.value) || 0)}
-              change={creditKPIs?.avgLoanSize?.change}
-              icon={CreditCard}
-              colorClass="text-blue-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Cartera en Riesgo (PAR)"
-              value={creditKPIs?.portfolioAtRisk?.value ?? 0}
-              unit={creditKPIs?.portfolioAtRisk?.unit}
-              change={creditKPIs?.portfolioAtRisk?.change}
-              target={creditKPIs?.portfolioAtRisk?.target}
-              icon={AlertTriangle}
-              colorClass="text-amber-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Créditos Morosos (+90 días)"
-              value={creditKPIs?.nonPerformingLoans?.value ?? 0}
-              change={creditKPIs?.nonPerformingLoans?.change}
-              icon={TrendingDown}
-              description="NPL - Non Performing Loans"
-              colorClass="text-red-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Tasa de Aprobación"
-              value={creditKPIs?.approvalRate?.value ?? 0}
-              unit={creditKPIs?.approvalRate?.unit}
-              change={creditKPIs?.approvalRate?.change}
-              target={creditKPIs?.approvalRate?.target}
-              icon={CheckCircle}
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Tiempo de Desembolso"
-              value={creditKPIs?.timeToDisbursement?.value ?? 0}
-              unit={creditKPIs?.timeToDisbursement?.unit}
-              change={creditKPIs?.timeToDisbursement?.change}
-              icon={Clock}
-              description="Promedio desde solicitud"
-              colorClass="text-blue-500"
-              isLoading={isLoading}
-            />
-          </div>
-        </TabsContent>
-
-        {/* Collections KPIs */}
-        <TabsContent value="collections" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <StatCard
-              title="Tasa de Cobro"
-              value={collectionKPIs?.collectionRate?.value ?? 0}
-              unit={collectionKPIs?.collectionRate?.unit}
-              change={collectionKPIs?.collectionRate?.change}
-              target={collectionKPIs?.collectionRate?.target}
-              icon={Percent}
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="PMP (Periodo Medio de Pago)"
-              value={collectionKPIs?.dso?.value ?? 0}
-              unit={collectionKPIs?.dso?.unit}
-              change={collectionKPIs?.dso?.change}
-              icon={Timer}
-              description="Días promedio para cobrar"
-              colorClass="text-blue-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Tasa de Morosidad"
-              value={collectionKPIs?.delinquencyRate?.value ?? 0}
-              unit={collectionKPIs?.delinquencyRate?.unit}
-              change={collectionKPIs?.delinquencyRate?.change}
-              target={collectionKPIs?.delinquencyRate?.target}
-              icon={AlertTriangle}
-              colorClass="text-red-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Tasa de Recuperación"
-              value={collectionKPIs?.recoveryRate?.value ?? 0}
-              unit={collectionKPIs?.recoveryRate?.unit}
-              change={collectionKPIs?.recoveryRate?.change}
-              icon={TrendingUp}
-              description="% recuperado de cuentas morosas"
-              colorClass="text-emerald-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Puntualidad de Pagos"
-              value={collectionKPIs?.paymentTimeliness?.value ?? 0}
-              unit={collectionKPIs?.paymentTimeliness?.unit}
-              change={collectionKPIs?.paymentTimeliness?.change}
-              target={collectionKPIs?.paymentTimeliness?.target}
-              icon={CheckCircle}
-              description="% de pagos a tiempo"
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-          </div>
-          <KPITable
-            title="Eficiencia por Deductora"
-            description="Tasa de cobro por entidad de deducción"
-            icon={Building2}
-            headers={["Deductora", "Tasa de Cobro", "Estado"]}
-            rows={(collectionKPIs?.deductoraEfficiency ?? []).map(d => [
-              d.name,
-              `${d.rate}%`,
-              <Badge
-                key={d.name}
-                variant={d.rate >= 95 ? "default" : d.rate >= 90 ? "secondary" : "destructive"}
-                className={cn(
-                  d.rate >= 95 && "bg-green-500"
-                )}
-              >
-                {d.rate >= 95 ? "Excelente" : d.rate >= 90 ? "Bueno" : "Mejorar"}
-              </Badge>
-            ])}
-            isLoading={isLoading}
-          />
-        </TabsContent>
-
-        {/* Agent Performance KPIs */}
-        <TabsContent value="agents" className="space-y-6">
-          <KPITable
-            title="Rendimiento de Agentes"
-            description="Métricas de desempeño individual"
-            icon={UserCheck}
-            headers={["Agente", "Leads", "Conversión", "Créditos", "Monto Prom.", "Actividad"]}
-            rows={(agentKPIs?.topAgents ?? []).map(agent => [
-              <div key={agent.name} className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-                  {agent.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                </div>
-                <span className="font-medium">{agent.name}</span>
-              </div>,
-              agent.leadsHandled,
-              <Badge
-                key={`${agent.name}-conv`}
-                variant={agent.conversionRate >= 30 ? "default" : "secondary"}
-                className={cn(agent.conversionRate >= 30 && "bg-green-500")}
-              >
-                {agent.conversionRate}%
-              </Badge>,
-              agent.creditsOriginated,
-              formatCurrency(agent.avgDealSize),
-              <div key={`${agent.name}-activity`} className="flex items-center gap-1">
-                <Activity className="h-3 w-3 text-muted-foreground" />
-                <span>{agent.activityRate || 0}/día</span>
-              </div>
-            ])}
-            isLoading={isLoading}
-          />
-        </TabsContent>
-
-        {/* Gamification KPIs */}
-        <TabsContent value="gamification" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <StatCard
-              title="Tasa de Engagement"
-              value={gamificationKPIs?.engagementRate?.value ?? 0}
-              unit={gamificationKPIs?.engagementRate?.unit}
-              change={gamificationKPIs?.engagementRate?.change}
-              target={gamificationKPIs?.engagementRate?.target}
-              icon={Activity}
-              colorClass="text-purple-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Velocidad de Puntos"
-              value={gamificationKPIs?.pointsVelocity?.value ?? 0}
-              unit={gamificationKPIs?.pointsVelocity?.unit}
-              change={gamificationKPIs?.pointsVelocity?.change}
-              icon={Star}
-              description="Puntos generados por día"
-              colorClass="text-amber-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Badges Completados"
-              value={gamificationKPIs?.badgeCompletion?.value ?? 0}
-              unit={gamificationKPIs?.badgeCompletion?.unit}
-              change={gamificationKPIs?.badgeCompletion?.change}
-              icon={Medal}
-              description="% de badges disponibles ganados"
-              colorClass="text-blue-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Participación en Challenges"
-              value={gamificationKPIs?.challengeParticipation?.value ?? 0}
-              change={gamificationKPIs?.challengeParticipation?.change}
-              icon={Target}
-              description="Usuarios activos en challenges"
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Tasa de Canje"
-              value={gamificationKPIs?.redemptionRate?.value ?? 0}
-              unit={gamificationKPIs?.redemptionRate?.unit}
-              change={gamificationKPIs?.redemptionRate?.change}
-              icon={Award}
-              description="Puntos canjeados vs ganados"
-              colorClass="text-pink-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Retención de Rachas"
-              value={gamificationKPIs?.streakRetention?.value ?? 0}
-              unit={gamificationKPIs?.streakRetention?.unit}
-              change={gamificationKPIs?.streakRetention?.change}
-              icon={Flame}
-              description="Usuarios manteniendo rachas"
-              colorClass="text-orange-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Movimiento en Leaderboard"
-              value={gamificationKPIs?.leaderboardMovement?.value ?? 0}
-              unit={gamificationKPIs?.leaderboardMovement?.unit}
-              change={gamificationKPIs?.leaderboardMovement?.change}
-              icon={TrendingUp}
-              description="Cambios de posición promedio"
-              colorClass="text-cyan-500"
-              isLoading={isLoading}
-            />
-          </div>
-          <LevelDistributionChart levels={gamificationKPIs?.levelDistribution ?? []} isLoading={isLoading} />
-        </TabsContent>
-
-        {/* Business Health KPIs */}
-        <TabsContent value="business" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-            <StatCard
-              title="Valor de Vida del Cliente"
-              value={formatCurrency(Number(businessHealthKPIs?.clv?.value) || 0)}
-              change={businessHealthKPIs?.clv?.change}
-              icon={DollarSign}
-              description="Valor total por cliente"
-              colorClass="text-green-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Costo de Adquisición de Clientes"
-              value={formatCurrency(Number(businessHealthKPIs?.cac?.value) || 0)}
-              change={businessHealthKPIs?.cac?.change}
-              icon={TrendingDown}
-              description="Costo por cliente adquirido"
-              colorClass="text-blue-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Crecimiento de Cartera"
-              value={businessHealthKPIs?.portfolioGrowth?.value ?? 0}
-              unit={businessHealthKPIs?.portfolioGrowth?.unit}
-              change={businessHealthKPIs?.portfolioGrowth?.change}
-              target={businessHealthKPIs?.portfolioGrowth?.target}
-              icon={TrendingUp}
-              description="Crecimiento mes a mes"
-              colorClass="text-emerald-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Indice de Promotores Neto"
-              value={businessHealthKPIs?.nps?.value ?? 0}
-              unit={businessHealthKPIs?.nps?.unit}
-              change={businessHealthKPIs?.nps?.change}
-              icon={Star}
-              description="Satisfacción del cliente"
-              colorClass="text-yellow-500"
-              isLoading={isLoading}
-            />
-            <StatCard
-              title="Ingreso por Empleado"
-              value={formatCurrency(Number(businessHealthKPIs?.revenuePerEmployee?.value) || 0)}
-              change={businessHealthKPIs?.revenuePerEmployee?.change}
-              icon={Users}
-              description="Eficiencia de personal"
-              colorClass="text-purple-500"
-              isLoading={isLoading}
-            />
-          </div>
-          {businessHealthKPIs && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Briefcase className="h-5 w-5" />
-                  Relación VVC:CAC
-                </CardTitle>
-                <CardDescription>
-                  Relación entre el valor del cliente y el costo de adquisición
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-6">
-                  <div className="text-4xl font-bold text-green-500">
-                    {((Number(businessHealthKPIs.clv?.value) || 1) / (Number(businessHealthKPIs.cac?.value) || 1)).toFixed(1)}:1
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">
-                      Por cada ₡1 invertido en adquisición, se genera ₡
-                      {((Number(businessHealthKPIs.clv?.value) || 1) / (Number(businessHealthKPIs.cac?.value) || 1)).toFixed(0)}
-                      {" "}en valor de cliente.
-                    </p>
-                    <Badge variant="default" className="mt-2 bg-green-500">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Saludable (Meta: &gt;3:1)
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Trends */}
-        <TabsContent value="trends" className="space-y-6">
-          {trendsError && (
-            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
-              {trendsError}
+        const collectionsContent = (
+          <>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+              <StatCard title="Tasa de Cobro" value={collectionKPIs?.collectionRate?.value ?? 0} unit={collectionKPIs?.collectionRate?.unit} change={collectionKPIs?.collectionRate?.change} target={collectionKPIs?.collectionRate?.target} icon={Percent} colorClass="text-green-500" isLoading={isLoading} />
+              <StatCard title="Tasa de Morosidad" value={collectionKPIs?.delinquencyRate?.value ?? 0} unit={collectionKPIs?.delinquencyRate?.unit} change={collectionKPIs?.delinquencyRate?.change} target={collectionKPIs?.delinquencyRate?.target} icon={AlertTriangle} colorClass="text-red-500" isLoading={isLoading} />
+              <StatCard title="Tasa de Recuperación" value={collectionKPIs?.recoveryRate?.value ?? 0} unit={collectionKPIs?.recoveryRate?.unit} change={collectionKPIs?.recoveryRate?.change} icon={TrendingUp} description="% recuperado de cuentas morosas" colorClass="text-emerald-500" isLoading={isLoading} />
+              <StatCard title="Puntualidad de Pagos" value={collectionKPIs?.paymentTimeliness?.value ?? 0} unit={collectionKPIs?.paymentTimeliness?.unit} change={collectionKPIs?.paymentTimeliness?.change} target={collectionKPIs?.paymentTimeliness?.target} icon={CheckCircle} description="% de pagos a tiempo" colorClass="text-green-500" isLoading={isLoading} />
+              <StatCard title="Tasa de Reversiones" value={collectionKPIs?.reversalRate?.value ?? 0} unit={collectionKPIs?.reversalRate?.unit} change={collectionKPIs?.reversalRate?.change} icon={RotateCcw} description={`${collectionKPIs?.reversalRate?.count ?? 0} pagos anulados`} colorClass="text-orange-500" isLoading={isLoading} />
+              <StatCard title="Saldos Pendientes" value={formatCurrency(Number(collectionKPIs?.pendingBalances?.value) || 0)} change={collectionKPIs?.pendingBalances?.change} icon={Hourglass} description={`${collectionKPIs?.pendingBalances?.count ?? 0} sobrepagos por asignar`} colorClass="text-amber-500" isLoading={isLoading} />
             </div>
-          )}
-          <div className="grid gap-6 md:grid-cols-2">
-            <TrendChart
-              title="Tasa de Conversión"
-              description="Evolución de la tasa de conversión de leads a clientes"
-              data={trendData?.conversionRate ?? []}
-              dataKey="conversionRate"
-              color="#22c55e"
-              unit="%"
-              isLoading={trendsLoading}
-            />
-            <TrendChart
-              title="Volumen de Desembolso"
-              description="Monto total desembolsado por mes"
-              data={trendData?.disbursementVolume ?? []}
-              dataKey="disbursementVolume"
-              color="#3b82f6"
-              type="area"
-              formatValue={(v) => `₡${(v / 1000000).toFixed(1)}M`}
-              isLoading={trendsLoading}
-            />
-            <TrendChart
-              title="Tasa de Cobro"
-              description="Porcentaje de pagos recibidos vs esperados"
-              data={trendData?.collectionRate ?? []}
-              dataKey="collectionRate"
-              color="#8b5cf6"
-              unit="%"
-              isLoading={trendsLoading}
-            />
-            <TrendChart
-              title="Crecimiento de Cartera"
-              description="Valor total del portafolio activo"
-              data={trendData?.portfolioGrowth ?? []}
-              dataKey="portfolioGrowth"
-              color="#10b981"
-              type="area"
-              formatValue={(v) => `₡${(v / 1000000).toFixed(0)}M`}
-              isLoading={trendsLoading}
-            />
-            <TrendChart
-              title="Tasa de Morosidad"
-              description="Porcentaje de cuentas en mora"
-              data={trendData?.delinquencyRate ?? []}
-              dataKey="delinquencyRate"
-              color="#ef4444"
-              unit="%"
-              isLoading={trendsLoading}
-            />
-            <TrendChart
-              title="Nuevos Leads"
-              description="Cantidad de leads captados por mes"
-              data={trendData?.leadsCount ?? []}
-              dataKey="leadsCount"
-              color="#f59e0b"
-              type="area"
-              isLoading={trendsLoading}
-            />
-          </div>
-        </TabsContent>
-      </Tabs>
+            <KPITable title="Distribución por Fuente de Pago" description="Desglose de pagos por canal" icon={BarChart3} headers={["Fuente", "Cantidad", "Monto Total"]} rows={(collectionKPIs?.paymentSourceDistribution ?? []).map(s => [s.source, s.count, formatCurrency(s.total)])} isLoading={isLoading} />
+          </>
+        );
+
+        const agentsContent = (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5" />
+                Rendimiento de Agentes
+              </CardTitle>
+              <CardDescription>Métricas de tareas por agente</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full" />)}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(agentKPIs?.topAgents ?? []).map((agent, i) => {
+                    const compRate = agent.completionRate ?? 0;
+                    const compColor = compRate >= 80 ? "text-green-500" : compRate >= 50 ? "text-yellow-500" : "text-red-500";
+                    const compBg = compRate >= 80 ? "bg-green-500" : compRate >= 50 ? "bg-yellow-500" : "bg-red-500";
+                    const onTime = agent.onTimeRate ?? 0;
+                    const onTimeColor = onTime >= 80 ? "text-green-500" : onTime >= 50 ? "text-yellow-500" : "text-red-500";
+                    return (
+                      <div key={agent.name} className={cn("rounded-lg border p-3 space-y-3", i === 0 && "border-amber-300 bg-amber-50/50 dark:bg-amber-950/20")}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                              {agent.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm">{agent.name}</p>
+                              <p className="text-xs text-muted-foreground">{agent.tasksTotal} tareas totales</p>
+                            </div>
+                          </div>
+                          {i < 3 && (
+                            <span className="text-lg">{["🥇", "🥈", "🥉"][i]}</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Completadas</span>
+                            <Badge variant="default" className="text-xs bg-green-500">{agent.tasksCompleted}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Pendientes</span>
+                            <Badge variant="secondary" className="text-xs">{agent.tasksPending}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Vencidas</span>
+                            <Badge variant={agent.tasksOverdue > 0 ? "destructive" : "secondary"} className="text-xs">{agent.tasksOverdue}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Archivadas</span>
+                            <span className="font-medium">{agent.tasksArchived}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Tiempo Prom.</span>
+                            <span className="font-medium">{agent.avgCompletionTime} días</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Puntualidad</span>
+                            <span className={cn("font-semibold", onTimeColor)}>{onTime}%</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Completitud</span>
+                            <span className={cn("font-semibold", compColor)}>
+                              {agent.tasksCompleted}/{agent.tasksTotal}
+                              <span className="ml-1 text-xs">({compRate}%)</span>
+                            </span>
+                          </div>
+                          <Progress value={compRate} className="h-2" indicatorClassName={compBg} />
+                        </div>
+                        {agent.tasksInPeriod > 0 && (
+                          <p className="text-xs text-muted-foreground">{agent.tasksInPeriod} tareas nuevas en el período</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {(agentKPIs?.topAgents ?? []).length === 0 && (
+                    <p className="text-center text-muted-foreground py-8">No hay datos de agentes disponibles</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+        const gamificationContent = (
+          <>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+              <StatCard title="Tasa de Engagement" value={gamificationKPIs?.engagementRate?.value ?? 0} unit={gamificationKPIs?.engagementRate?.unit} change={gamificationKPIs?.engagementRate?.change} target={gamificationKPIs?.engagementRate?.target} icon={Activity} colorClass="text-purple-500" isLoading={isLoading} />
+              <StatCard title="Velocidad de Puntos" value={gamificationKPIs?.pointsVelocity?.value ?? 0} unit={gamificationKPIs?.pointsVelocity?.unit} change={gamificationKPIs?.pointsVelocity?.change} icon={Star} description="Puntos generados por día" colorClass="text-amber-500" isLoading={isLoading} />
+              <StatCard title="Badges Completados" value={gamificationKPIs?.badgeCompletion?.value ?? 0} unit={gamificationKPIs?.badgeCompletion?.unit} change={gamificationKPIs?.badgeCompletion?.change} icon={Medal} description="% de badges disponibles ganados" colorClass="text-blue-500" isLoading={isLoading} />
+              <StatCard title="Participación en Challenges" value={gamificationKPIs?.challengeParticipation?.value ?? 0} change={gamificationKPIs?.challengeParticipation?.change} icon={Target} description="Usuarios activos en challenges" colorClass="text-green-500" isLoading={isLoading} />
+              <StatCard title="Tasa de Canje" value={gamificationKPIs?.redemptionRate?.value ?? 0} unit={gamificationKPIs?.redemptionRate?.unit} change={gamificationKPIs?.redemptionRate?.change} icon={Award} description="Puntos canjeados vs ganados" colorClass="text-pink-500" isLoading={isLoading} />
+              <StatCard title="Retención de Rachas" value={gamificationKPIs?.streakRetention?.value ?? 0} unit={gamificationKPIs?.streakRetention?.unit} change={gamificationKPIs?.streakRetention?.change} icon={Flame} description="Usuarios manteniendo rachas" colorClass="text-orange-500" isLoading={isLoading} />
+              <StatCard title="Movimiento en Leaderboard" value={gamificationKPIs?.leaderboardMovement?.value ?? 0} unit={gamificationKPIs?.leaderboardMovement?.unit} change={gamificationKPIs?.leaderboardMovement?.change} icon={TrendingUp} description="Cambios de posición promedio" colorClass="text-cyan-500" isLoading={isLoading} />
+            </div>
+            <LevelDistributionChart levels={gamificationKPIs?.levelDistribution ?? []} isLoading={isLoading} />
+          </>
+        );
+
+        const businessContent = (
+          <>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+              <StatCard title="Valor de Vida del Cliente" value={formatCurrency(Number(businessHealthKPIs?.clv?.value) || 0)} change={businessHealthKPIs?.clv?.change} icon={DollarSign} description="Valor total por cliente" colorClass="text-green-500" isLoading={isLoading} />
+              <StatCard title="Costo de Adquisición" value={formatCurrency(Number(businessHealthKPIs?.cac?.value) || 0)} change={businessHealthKPIs?.cac?.change} icon={TrendingDown} description="Costo por cliente adquirido" colorClass="text-blue-500" isLoading={isLoading} />
+              <StatCard title="Crecimiento de Cartera" value={businessHealthKPIs?.portfolioGrowth?.value ?? 0} unit={businessHealthKPIs?.portfolioGrowth?.unit} change={businessHealthKPIs?.portfolioGrowth?.change} target={businessHealthKPIs?.portfolioGrowth?.target} icon={TrendingUp} description="Crecimiento mes a mes" colorClass="text-emerald-500" isLoading={isLoading} />
+              <StatCard title="NPS" value={businessHealthKPIs?.nps?.value ?? 0} unit={businessHealthKPIs?.nps?.unit} change={businessHealthKPIs?.nps?.change} icon={Star} description="Satisfacción del cliente" colorClass="text-yellow-500" isLoading={isLoading} />
+              <StatCard title="Ingreso por Empleado" value={formatCurrency(Number(businessHealthKPIs?.revenuePerEmployee?.value) || 0)} change={businessHealthKPIs?.revenuePerEmployee?.change} icon={Users} description="Eficiencia de personal" colorClass="text-purple-500" isLoading={isLoading} />
+            </div>
+            {businessHealthKPIs && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5" />
+                    Relación VVC:CAC
+                  </CardTitle>
+                  <CardDescription>Relación entre el valor del cliente y el costo de adquisición</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 sm:gap-6">
+                    <div className="text-2xl sm:text-4xl font-bold text-green-500">
+                      {((Number(businessHealthKPIs.clv?.value) || 1) / (Number(businessHealthKPIs.cac?.value) || 1)).toFixed(1)}:1
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        Por cada ₡1 invertido en adquisición, se genera ₡{((Number(businessHealthKPIs.clv?.value) || 1) / (Number(businessHealthKPIs.cac?.value) || 1)).toFixed(0)} en valor de cliente.
+                      </p>
+                      <Badge variant="default" className="mt-2 bg-green-500">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Saludable (Meta: &gt;3:1)
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        );
+
+        const trendsContent = (
+          <>
+            {trendsError && (
+              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+                {trendsError}
+              </div>
+            )}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              <TrendChart title="Tasa de Conversión" description="Evolución de la tasa de conversión de leads a clientes" data={trendData?.conversionRate ?? []} dataKey="conversionRate" color="#22c55e" unit="%" isLoading={trendsLoading} />
+              <TrendChart title="Volumen de Desembolso" description="Monto total desembolsado por mes" data={trendData?.disbursementVolume ?? []} dataKey="disbursementVolume" color="#3b82f6" type="area" formatValue={(v) => `₡${(v / 1000000).toFixed(1)}M`} isLoading={trendsLoading} />
+              <TrendChart title="Tasa de Cobro" description="Porcentaje de pagos recibidos vs esperados" data={trendData?.collectionRate ?? []} dataKey="collectionRate" color="#8b5cf6" unit="%" isLoading={trendsLoading} />
+              <TrendChart title="Crecimiento de Cartera" description="Valor total del portafolio activo" data={trendData?.portfolioGrowth ?? []} dataKey="portfolioGrowth" color="#10b981" type="area" formatValue={(v) => `₡${(v / 1000000).toFixed(0)}M`} isLoading={trendsLoading} />
+              <TrendChart title="Tasa de Morosidad" description="Porcentaje de cuentas en mora" data={trendData?.delinquencyRate ?? []} dataKey="delinquencyRate" color="#ef4444" unit="%" isLoading={trendsLoading} />
+              <TrendChart title="Nuevos Leads" description="Cantidad de leads captados por mes" data={trendData?.leadsCount ?? []} dataKey="leadsCount" color="#f59e0b" type="area" isLoading={trendsLoading} />
+            </div>
+          </>
+        );
+
+        const sections = [
+          { id: "leads", label: "Leads", icon: Users, content: leadsContent },
+          { id: "opportunities", label: "Oportunidades", icon: Target, content: opportunitiesContent },
+          { id: "credits", label: "Créditos", icon: CreditCard, content: creditsContent },
+          { id: "collections", label: "Cobros", icon: Wallet, content: collectionsContent },
+          { id: "agents", label: "Agentes", icon: UserCheck, content: agentsContent },
+          { id: "gamification", label: "Gamificación", icon: Gamepad2, content: gamificationContent },
+          { id: "business", label: "Negocio", icon: Building2, content: businessContent },
+          { id: "trends", label: "Tendencias", icon: LineChartIcon, content: trendsContent },
+        ];
+
+        return isMobile ? (
+          <Accordion type="single" collapsible className="space-y-2">
+            {sections.map(({ id, label, icon: SectionIcon, content }) => (
+              <AccordionItem key={id} value={id} className="border rounded-lg px-3">
+                <AccordionTrigger className="hover:no-underline py-3">
+                  <div className="flex items-center gap-2">
+                    <SectionIcon className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold text-sm">{label}</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-4 pt-1">
+                    {content}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        ) : (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-grid">
+              {sections.map(({ id, label, icon: SectionIcon }) => (
+                <TabsTrigger key={id} value={id} className="gap-1">
+                  <SectionIcon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {sections.map(({ id, content }) => (
+              <TabsContent key={id} value={id} className="space-y-6">
+                {content}
+              </TabsContent>
+            ))}
+          </Tabs>
+        );
+      })()}
       </div>
     </ProtectedPage>
   );

@@ -547,9 +547,18 @@ export default function CobrosPage() {
 
   // Calcular preview de abono extraordinario cuando cambia el monto o estrategia
   useEffect(() => {
-    if (tipoCobro === 'extraordinario' && selectedCreditId && monto && parseFloat(monto) > 0) {
+    if (tipoCobro !== 'extraordinario') {
+      // Limpiar si cambia a otro tipo de cobro
+      setExtraordinaryPreview(null);
+      return;
+    }
+
+    if (selectedCreditId && monto && parseFloat(monto) > 0) {
+      // Mostrar loading inmediatamente
+      setLoadingExtraordinaryPreview(true);
+
+      // Debounce solo para el monto (200ms), estrategia es inmediata
       const timeoutId = setTimeout(() => {
-        setLoadingExtraordinaryPreview(true);
         api.post('/api/credit-payments/abono-extraordinario/preview', {
           credit_id: selectedCreditId,
           monto: parseFloat(monto),
@@ -563,11 +572,12 @@ export default function CobrosPage() {
             setExtraordinaryPreview(null);
           })
           .finally(() => setLoadingExtraordinaryPreview(false));
-      }, 500); // Debounce de 500ms
+      }, 200); // Debounce reducido a 200ms
 
-      return () => clearTimeout(timeoutId);
-    } else {
-      setExtraordinaryPreview(null);
+      return () => {
+        clearTimeout(timeoutId);
+        setLoadingExtraordinaryPreview(false);
+      };
     }
   }, [tipoCobro, selectedCreditId, monto, extraordinaryStrategy]);
 
@@ -1237,7 +1247,7 @@ export default function CobrosPage() {
                   </Dialog>
 
                   <Dialog open={abonoModalOpen} onOpenChange={setAbonoModalOpen}>
-                    <DialogContent>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto">
                       <DialogHeader><DialogTitle>Registrar Abono Manual</DialogTitle></DialogHeader>
                       <form onSubmit={handleRegistrarAbono} className="space-y-4">
                         
@@ -1455,7 +1465,7 @@ export default function CobrosPage() {
                                 )}
 
                                 {extraordinaryPreview && !loadingExtraordinaryPreview && (
-                                  <div className="space-y-3 pt-2 border-t">
+                                  <div className="space-y-3 pt-2 border-t max-h-[300px] overflow-y-auto pr-2">
                                     {/* Penalización */}
                                     {extraordinaryPreview.aplica_penalizacion && (
                                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
@@ -1499,12 +1509,12 @@ export default function CobrosPage() {
                                     {/* Resumen del impacto */}
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                       <div className="p-2 bg-background border rounded">
-                                        <div className="text-muted-foreground text-xs">Monto abono</div>
+                                        <div className="text-muted-foreground text-xs">Monto pagado</div>
                                         <div className="font-bold">₡{Number(extraordinaryPreview.monto_abono).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
                                       </div>
                                       <div className="p-2 bg-background border rounded">
-                                        <div className="text-muted-foreground text-xs">Total a aplicar</div>
-                                        <div className="font-bold text-orange-600">₡{Number(extraordinaryPreview.monto_total_aplicar).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-muted-foreground text-xs">Aplicado al saldo</div>
+                                        <div className="font-bold text-green-600">₡{Number(extraordinaryPreview.monto_aplicar_al_saldo).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
                                       </div>
                                     </div>
 
@@ -1676,6 +1686,22 @@ export default function CobrosPage() {
                             />
                           </div>
                         </div>
+                        )}
+
+                        {/* Mensaje de confirmación para tipo Normal */}
+                        {tipoCobro === 'normal' && selectedCreditId && monto && parseFloat(monto) > 0 && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm">
+                            <div className="flex items-center gap-2 text-blue-900">
+                              <Check className="h-4 w-4 shrink-0" />
+                              <div>
+                                <div className="font-medium">Listo para aplicar</div>
+                                <div className="text-xs text-blue-700 mt-0.5">
+                                  Monto: <strong>₡{Number(monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong> •
+                                  Crédito: <strong>{selectedCredit?.reference || selectedCredit?.numero_operacion}</strong>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         )}
 
                         <DialogFooter>
