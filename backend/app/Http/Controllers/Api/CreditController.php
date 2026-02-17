@@ -8,6 +8,7 @@ use App\Models\CreditDocument;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Lead;
+use App\Models\Task;
 use App\Models\Analisis;
 use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
@@ -770,6 +771,28 @@ class CreditController extends Controller
                 // Cambiar a Cliente
                 $lead->person_type_id = 2; // Asumiendo que 2 es el ID para Clientes
                 $lead->save();
+            }
+        }
+
+        // Al formalizar, crear tarea para adjuntar pagaré firmado
+        if ($credit->status === Credit::STATUS_FORMALIZADO && $credit->assigned_to) {
+            $existingTask = Task::where('project_code', $credit->reference)
+                ->where('title', 'Adjuntar pagaré firmado')
+                ->whereNotIn('status', ['deleted'])
+                ->first();
+
+            if (!$existingTask) {
+                Task::create([
+                    'project_code' => $credit->reference,
+                    'project_name' => $credit->title,
+                    'title' => 'Adjuntar pagaré firmado',
+                    'details' => 'El crédito ha sido formalizado. Se requiere adjuntar el pagaré firmado por el cliente.',
+                    'status' => 'pendiente',
+                    'priority' => 'alta',
+                    'assigned_to' => $credit->assigned_to,
+                    'start_date' => now(),
+                    'due_date' => now()->addDays(3),
+                ]);
             }
         }
 
