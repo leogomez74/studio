@@ -34,6 +34,123 @@ trait AccountingTrigger
     }
 
     /**
+     * Verificar si debe usar sistema configurable para este tipo de asiento
+     */
+    private function shouldUseConfigurable(string $entryType): bool
+    {
+        // Feature flag global
+        if (config('accounting.use_configurable_system', false)) {
+            return true;
+        }
+
+        // Feature flag por tipo
+        return config("accounting.use_configurable_by_type.{$entryType}", false);
+    }
+
+    /**
+     * Método unificado para disparar asientos (configurable o legacy)
+     *
+     * Este es el método que deben llamar los controladores.
+     * Decide automáticamente si usar el sistema configurable o el legacy.
+     */
+    protected function triggerAccountingEntry(
+        string $entryType,
+        float $amount,
+        string $reference,
+        array $context = []
+    ): array {
+        // Si debe usar configurable, intentarlo primero
+        if ($this->shouldUseConfigurable($entryType)) {
+            $result = $this->triggerConfigurableEntry($entryType, $amount, $reference, $context);
+
+            // Si funcionó, retornar
+            if ($result['success'] ?? false) {
+                return $result;
+            }
+
+            // Si falló porque no hay configuración, usar fallback
+            if (str_contains($result['error'] ?? '', 'No hay configuración')) {
+                Log::warning("ERP: No hay configuración para {$entryType}, usando método legacy como fallback");
+                return $this->fallbackToLegacy($entryType, $amount, $reference, $context);
+            }
+
+            // Otro error, retornar
+            return $result;
+        }
+
+        // Si no debe usar configurable, usar legacy directamente
+        return $this->fallbackToLegacy($entryType, $amount, $reference, $context);
+    }
+
+    /**
+     * Fallback a métodos legacy cuando no hay configuración
+     */
+    private function fallbackToLegacy(
+        string $entryType,
+        float $amount,
+        string $reference,
+        array $context
+    ): array {
+        Log::info("ERP: Usando método legacy para {$entryType}");
+
+        return match($entryType) {
+            'FORMALIZACION' => $this->triggerAccountingFormalizacion(
+                creditId: $context['credit_id'] ?? 0,
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            'PAGO_PLANILLA' => $this->triggerAccountingPagoPlanilla(
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            'PAGO_VENTANILLA' => $this->triggerAccountingPagoVentanilla(
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            'ABONO_EXTRAORDINARIO' => $this->triggerAccountingAbonoExtraordinario(
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            'CANCELACION_ANTICIPADA', 'PAGO' => $this->triggerAccountingPago(
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            'REFUNDICION_CIERRE' => $this->triggerAccountingRefundicionCierre(
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            'REFUNDICION_NUEVO' => $this->triggerAccountingRefundicionNuevo(
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            'DEVOLUCION' => $this->triggerAccountingDevolucion(
+                amount: $amount,
+                reference: $reference,
+                additionalData: $context
+            ),
+
+            default => [
+                'success' => false,
+                'error' => "Tipo de asiento '{$entryType}' no soportado en sistema legacy"
+            ]
+        };
+    }
+
+    /**
      * NUEVO: Disparar asiento contable usando configuración dinámica
      *
      * @param string $entryType Tipo de asiento (PAGO_PLANILLA, PAGO_VENTANILLA, etc.)

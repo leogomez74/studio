@@ -641,17 +641,24 @@ class CreditController extends Controller
             // Dispara asiento contable al formalizar el crédito:
             // DÉBITO: Cuentas por Cobrar (monto_credito)
             // CRÉDITO: Banco CREDIPEPE (monto_credito)
-            $this->triggerAccountingFormalizacion(
-                $credit->id,
+            $this->triggerAccountingEntry(
+                'FORMALIZACION',
                 (float) $credit->monto_credito,
                 $credit->reference,
                 [
-                    'lead_id' => $credit->lead_id,
-                    'lead_cedula' => $credit->lead->cedula ?? null,
-                    'lead_nombre' => $credit->lead->name ?? null,
-                    'tasa_id' => $credit->tasa_id,
-                    'plazo' => $credit->plazo,
-                    'formalized_at' => $credit->formalized_at->toIso8601String(),
+                    'reference' => $credit->reference,
+                    'credit_id' => $credit->reference,
+                    'cedula' => $credit->lead->cedula ?? null,
+                    'clienteNombre' => $credit->lead->name ?? null,
+                    'amount_breakdown' => [
+                        'total' => (float) $credit->monto_credito,
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'poliza' => 0,
+                        'capital' => (float) $credit->monto_credito,
+                        'cargos_adicionales_total' => 0,
+                        'cargos_adicionales' => [],
+                    ],
                 ]
             );
         }
@@ -1064,20 +1071,52 @@ class CreditController extends Controller
             // 1. Cierre del crédito viejo (pago sintético):
             //    DÉBITO: Banco CREDIPEPE (saldo_absorbido)
             //    CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
-            $this->triggerAccountingRefundicionCierre(
-                $oldCredit->id,
+            $this->triggerAccountingEntry(
+                'REFUNDICION_CIERRE',
                 $saldoAbsorbido,
-                $newCredit->id
+                "REFUND-CIERRE-{$oldCredit->reference}",
+                [
+                    'reference' => "REFUND-CIERRE-{$oldCredit->reference}",
+                    'credit_id' => $oldCredit->reference,
+                    'cedula' => $oldCredit->lead->cedula ?? null,
+                    'clienteNombre' => $oldCredit->lead->name ?? null,
+                    'new_credit_id' => $newCredit->reference,
+                    'amount_breakdown' => [
+                        'total' => $saldoAbsorbido,
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'poliza' => 0,
+                        'capital' => $saldoAbsorbido,
+                        'cargos_adicionales_total' => 0,
+                        'cargos_adicionales' => [],
+                    ],
+                ]
             );
 
             // 2. Formalización del nuevo crédito:
             //    DÉBITO: Cuentas por Cobrar (monto_credito nuevo)
             //    CRÉDITO: Banco CREDIPEPE (monto_credito nuevo)
-            $this->triggerAccountingRefundicionNuevo(
-                $newCredit->id,
+            $this->triggerAccountingEntry(
+                'REFUNDICION_NUEVO',
                 (float) $validated['monto_credito'],
-                $oldCredit->id,
-                $montoEntregado
+                $newCredit->reference,
+                [
+                    'reference' => $newCredit->reference,
+                    'credit_id' => $newCredit->reference,
+                    'cedula' => $newCredit->lead->cedula ?? null,
+                    'clienteNombre' => $newCredit->lead->name ?? null,
+                    'old_credit_id' => $oldCredit->reference,
+                    'monto_entregado' => $montoEntregado,
+                    'amount_breakdown' => [
+                        'total' => (float) $validated['monto_credito'],
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'poliza' => 0,
+                        'capital' => (float) $validated['monto_credito'],
+                        'cargos_adicionales_total' => 0,
+                        'cargos_adicionales' => [],
+                    ],
+                ]
             );
 
             return [

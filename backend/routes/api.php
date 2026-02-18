@@ -134,6 +134,7 @@ Route::prefix('accounting-entry-configs')->group(function () {
     Route::put('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'update']);
     Route::delete('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'destroy']);
     Route::post('/{id}/toggle', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'toggle']);
+    Route::post('/{id}/preview', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'preview']);
 });
 
 // Documentos de Personas (Leads/Clientes) - Unificado

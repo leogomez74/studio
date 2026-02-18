@@ -180,4 +180,127 @@ class AccountingEntryConfigController extends Controller
             'config' => $config,
         ]);
     }
+
+    /**
+     * Preview de cómo se vería un asiento con esta configuración
+     */
+    public function preview(Request $request, $id)
+    {
+        $config = AccountingEntryConfig::with('lines')->findOrFail($id);
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0',
+            'context' => 'sometimes|array',
+            'context.deductora_id' => 'sometimes|integer',
+            'context.amount_breakdown' => 'sometimes|array',
+        ]);
+
+        $amount = $validated['amount'];
+        $context = $validated['context'] ?? [];
+
+        // Obtener desglose de montos
+        $breakdown = $context['amount_breakdown'] ?? [
+            'total' => $amount,
+            'interes_corriente' => 0,
+            'interes_moratorio' => 0,
+            'poliza' => 0,
+            'capital' => $amount,
+            'cargos_adicionales_total' => 0,
+            'cargos_adicionales' => [],
+        ];
+
+        // Variables para descripciones
+        $variables = [
+            '{reference}' => 'PREVIEW-001',
+            '{amount}' => number_format($amount, 2),
+            '{clienteNombre}' => 'Juan Pérez (Preview)',
+            '{cedula}' => '1-0234-0567',
+            '{credit_id}' => '25-00001-OP',
+            '{deductora_nombre}' => 'COOPENACIONAL (Preview)',
+        ];
+
+        // Construir items del preview
+        $items = [];
+        $totalDebit = 0;
+        $totalCredit = 0;
+
+        foreach ($config->lines as $line) {
+            // Resolver monto según componente
+            $lineAmount = match($line->amount_component ?? 'total') {
+                'total' => $breakdown['total'] ?? $amount,
+                'interes_corriente' => $breakdown['interes_corriente'] ?? 0,
+                'interes_moratorio' => $breakdown['interes_moratorio'] ?? 0,
+                'poliza' => $breakdown['poliza'] ?? 0,
+                'capital' => $breakdown['capital'] ?? 0,
+                'cargo_adicional' => ($breakdown['cargos_adicionales'][$line->cargo_adicional_key] ?? $breakdown['cargos_adicionales_total'] ?? 0),
+                default => $breakdown['total'] ?? $amount,
+            };
+
+            // Skip si monto es cero
+            if ($lineAmount == 0) {
+                continue;
+            }
+
+            // Resolver cuenta
+            $accountCode = 'PREVIEW';
+            $accountName = 'Cuenta Preview';
+
+            if ($line->account_type === 'fixed' && $line->account_key) {
+                $account = \App\Models\ErpAccountingAccount::where('key', $line->account_key)->first();
+                if ($account) {
+                    $accountCode = $account->account_code ?: $line->account_key;
+                    $accountName = $account->account_name;
+                }
+            } elseif ($line->account_type === 'deductora') {
+                $accountCode = 'DEDUCTORA-DINAMICA';
+                $accountName = 'Cuenta de Deductora (dinámica)';
+            }
+
+            // Reemplazar variables en descripción
+            $lineDescription = str_replace(
+                array_keys($variables),
+                array_values($variables),
+                $line->description ?? $config->name
+            );
+
+            $debit = $line->movement_type === 'debit' ? $lineAmount : 0;
+            $credit = $line->movement_type === 'credit' ? $lineAmount : 0;
+
+            $totalDebit += $debit;
+            $totalCredit += $credit;
+
+            $items[] = [
+                'account_code' => $accountCode,
+                'account_name' => $accountName,
+                'debit' => $debit,
+                'credit' => $credit,
+                'description' => $lineDescription,
+                'amount_component' => $line->amount_component ?? 'total',
+            ];
+        }
+
+        // Descripción principal
+        $mainDescription = str_replace(
+            array_keys($variables),
+            array_values($variables),
+            $config->description ?? $config->name
+        );
+
+        return response()->json([
+            'journal_entry' => [
+                'date' => now()->format('Y-m-d'),
+                'description' => $mainDescription,
+                'items' => $items,
+                'reference' => "PREVIEW-{$config->entry_type}",
+            ],
+            'summary' => [
+                'total_debit' => round($totalDebit, 2),
+                'total_credit' => round($totalCredit, 2),
+                'difference' => round(abs($totalDebit - $totalCredit), 2),
+                'balanced' => abs($totalDebit - $totalCredit) < 0.01,
+                'lines_count' => count($items),
+            ],
+            'breakdown_used' => $breakdown,
+        ]);
+    }
 }
