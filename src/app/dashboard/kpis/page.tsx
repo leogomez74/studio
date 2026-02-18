@@ -87,7 +87,6 @@ interface LeadKPIs {
   conversionRate: KPIData;
   responseTime: KPIData;
   leadAging: KPIData;
-  leadsPerAgent: { agentName: string; count: number }[];
   leadSourcePerformance: { source: string; conversion: number; count: number }[];
   totalLeads?: number;
   totalClients?: number;
@@ -98,8 +97,7 @@ interface OpportunityKPIs {
   pipelineValue: KPIData;
   avgSalesCycle: KPIData;
   velocity: KPIData;
-  stageConversion: { stage: string; conversion: number }[];
-  creditTypeComparison: { type: string; total: number; won: number; lost: number; winRate: number; pipeline: number }[];
+  creditTypeComparison: { type: string; total: number; noCredit: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
 }
 
 interface CreditKPIs {
@@ -109,38 +107,35 @@ interface CreditKPIs {
   nonPerformingLoans: KPIData;
   approvalRate: KPIData;
   timeToDisbursement: KPIData;
-  timeToFormalization: KPIData;
   fullCycleTime: KPIData;
   earlyCancellationRate: KPIData;
   extraordinaryPayments: KPIData;
-  penaltyRevenue: KPIData;
   totalCredits?: number;
   totalPortfolio?: number;
 }
 
 interface CollectionKPIs {
   collectionRate: KPIData;
-  dso: KPIData;
   delinquencyRate: KPIData;
   recoveryRate: KPIData;
   paymentTimeliness: KPIData;
   reversalRate: KPIData;
   pendingBalances: KPIData;
   paymentSourceDistribution: { source: string; count: number; total: number }[];
-  deductoraEfficiency: { name: string; rate: number }[];
 }
 
 interface AgentKPIs {
   topAgents: {
     name: string;
-    leadsHandled: number;
-    conversionRate: number;
-    creditsOriginated: number;
-    avgDealSize: number;
-    activityRate: number;
-    tasksAssigned: number;
+    tasksTotal: number;
     tasksCompleted: number;
-    taskCompletionRate: number;
+    tasksPending: number;
+    tasksArchived: number;
+    tasksOverdue: number;
+    completionRate: number;
+    avgCompletionTime: number;
+    onTimeRate: number;
+    tasksInPeriod: number;
   }[];
 }
 
@@ -347,74 +342,6 @@ function KPITable({
               )}
             </tbody>
           </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StageConversionFunnel({
-  stages,
-  isLoading,
-}: {
-  stages: { stage: string; conversion: number }[];
-  isLoading?: boolean;
-}) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-48" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <PieChart className="h-5 w-5" />
-          Conversión por Etapa
-        </CardTitle>
-        <CardDescription>Tasa de conversión entre etapas del pipeline</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {stages.map((stage, index) => (
-            <div key={stage.stage} className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{stage.stage}</span>
-                <span className={cn(
-                  "font-bold",
-                  stage.conversion >= 70 ? "text-green-500" :
-                  stage.conversion >= 40 ? "text-amber-500" : "text-red-500"
-                )}>
-                  {stage.conversion}%
-                </span>
-              </div>
-              <Progress
-                value={stage.conversion}
-                className={cn(
-                  "h-2",
-                  stage.conversion >= 70 ? "[&>div]:bg-green-500" :
-                  stage.conversion >= 40 ? "[&>div]:bg-amber-500" : "[&>div]:bg-red-500"
-                )}
-              />
-              {index < stages.length - 1 && (
-                <div className="flex justify-center">
-                  <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       </CardContent>
     </Card>
@@ -816,10 +743,7 @@ export default function KPIsPage() {
               <StatCard title="Tiempo de Respuesta" value={leadKPIs?.responseTime?.value ?? 0} unit={leadKPIs?.responseTime?.unit} change={leadKPIs?.responseTime?.change} icon={Clock} description="Tiempo promedio hasta primer contacto" colorClass="text-blue-500" isLoading={isLoading} />
               <StatCard title="Leads Envejecidos (+7 días)" value={leadKPIs?.leadAging?.value ?? 0} unit={leadKPIs?.leadAging?.unit} change={leadKPIs?.leadAging?.change} icon={AlertTriangle} description="Leads pendientes por más de 7 días" colorClass="text-amber-500" isLoading={isLoading} />
             </div>
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-              <KPITable title="Leads por Agente" description="Distribución de leads asignados" icon={Users} headers={["Agente", "Leads", "% del Total"]} rows={(leadKPIs?.leadsPerAgent ?? []).map(agent => { const total = (leadKPIs?.leadsPerAgent ?? []).reduce((sum, a) => sum + a.count, 0) || 1; return [agent.agentName, agent.count, <Badge key={agent.agentName} variant="secondary">{Math.round((agent.count / total) * 100)}%</Badge>]; })} isLoading={isLoading} />
-              <KPITable title="Rendimiento por Fuente" description="Conversión por canal de adquisición" icon={BarChart3} headers={["Fuente", "Leads", "Conversión"]} rows={(leadKPIs?.leadSourcePerformance ?? []).map(source => [source.source, source.count, <Badge key={source.source} variant={source.conversion >= 35 ? "default" : source.conversion >= 25 ? "secondary" : "outline"} className={cn(source.conversion >= 35 && "bg-green-500", source.conversion >= 25 && source.conversion < 35 && "bg-amber-500")}>{source.conversion}%</Badge>])} isLoading={isLoading} />
-            </div>
+            <KPITable title="Rendimiento por Fuente" description="Conversión por canal de adquisición" icon={BarChart3} headers={["Fuente", "Leads", "Conversión"]} rows={(leadKPIs?.leadSourcePerformance ?? []).map(source => [source.source, source.count, <Badge key={source.source} variant={source.conversion >= 35 ? "default" : source.conversion >= 25 ? "secondary" : "outline"} className={cn(source.conversion >= 35 && "bg-green-500", source.conversion >= 25 && source.conversion < 35 && "bg-amber-500")}>{source.conversion}%</Badge>])} isLoading={isLoading} />
           </>
         );
 
@@ -831,18 +755,19 @@ export default function KPIsPage() {
               <StatCard title="Ciclo de Venta Promedio" value={opportunityKPIs?.avgSalesCycle?.value ?? 0} unit={opportunityKPIs?.avgSalesCycle?.unit} change={opportunityKPIs?.avgSalesCycle?.change} icon={Timer} colorClass="text-blue-500" isLoading={isLoading} />
               <StatCard title="Velocidad de la cartera" value={opportunityKPIs?.velocity?.value ?? 0} change={opportunityKPIs?.velocity?.change} icon={Zap} description="Oportunidades movidas por período" colorClass="text-purple-500" isLoading={isLoading} />
             </div>
-            <StageConversionFunnel stages={opportunityKPIs?.stageConversion ?? []} isLoading={isLoading} />
             <KPITable
-              title="Comparativa por Tipo de Crédito"
-              description="Rendimiento de oportunidades por tipo de producto"
+              title="Oportunidades por Tipo de Crédito"
+              description="Estado de oportunidades y sus créditos asociados"
               icon={PieChart}
-              headers={["Tipo", "Total", "Ganadas", "Perdidas", "Win Rate", "Pipeline"]}
+              headers={["Tipo", "Total", "Sin Crédito", "Pendientes", "Seguimiento", "En Mora", "Ganadas", "Valor Potencial"]}
               rows={(opportunityKPIs?.creditTypeComparison ?? []).map(ct => [
                 ct.type,
                 ct.total,
-                ct.won,
-                ct.lost,
-                <Badge key={ct.type} variant={ct.winRate >= 50 ? "default" : "secondary"} className={cn(ct.winRate >= 50 && "bg-green-500")}>{ct.winRate}%</Badge>,
+                <Badge key={`${ct.type}-nc`} variant="outline" className="bg-gray-50 text-gray-500">{ct.noCredit}</Badge>,
+                <Badge key={`${ct.type}-p`} variant="outline" className="bg-amber-50 text-amber-700">{ct.pending}</Badge>,
+                <Badge key={`${ct.type}-f`} variant="secondary" className="bg-blue-50 text-blue-700">{ct.followUp}</Badge>,
+                <Badge key={`${ct.type}-d`} variant="destructive" className="text-xs">{ct.delinquent}</Badge>,
+                <Badge key={`${ct.type}-w`} variant="default" className="bg-green-500">{ct.won}</Badge>,
                 formatCurrency(ct.pipeline),
               ])}
               isLoading={isLoading}
@@ -858,11 +783,9 @@ export default function KPIsPage() {
             <StatCard title="Créditos Morosos (+90 días)" value={creditKPIs?.nonPerformingLoans?.value ?? 0} change={creditKPIs?.nonPerformingLoans?.change} icon={TrendingDown} description="NPL - Non Performing Loans" colorClass="text-red-500" isLoading={isLoading} />
             <StatCard title="Tasa de Aprobación" value={creditKPIs?.approvalRate?.value ?? 0} unit={creditKPIs?.approvalRate?.unit} change={creditKPIs?.approvalRate?.change} target={creditKPIs?.approvalRate?.target} icon={CheckCircle} colorClass="text-green-500" isLoading={isLoading} />
             <StatCard title="Tiempo de Desembolso" value={creditKPIs?.timeToDisbursement?.value ?? 0} unit={creditKPIs?.timeToDisbursement?.unit} change={creditKPIs?.timeToDisbursement?.change} icon={Clock} description="Promedio desde solicitud" colorClass="text-blue-500" isLoading={isLoading} />
-            <StatCard title="Tiempo a Formalización" value={creditKPIs?.timeToFormalization?.value ?? 0} unit={creditKPIs?.timeToFormalization?.unit} change={creditKPIs?.timeToFormalization?.change} icon={FileCheck} description="Promedio creación → formalización" colorClass="text-indigo-500" isLoading={isLoading} />
             <StatCard title="Ciclo Completo" value={creditKPIs?.fullCycleTime?.value ?? 0} unit={creditKPIs?.fullCycleTime?.unit} change={creditKPIs?.fullCycleTime?.change} icon={Route} description="Oportunidad → formalización" colorClass="text-purple-500" isLoading={isLoading} />
             <StatCard title="Cancelación Anticipada" value={creditKPIs?.earlyCancellationRate?.value ?? 0} unit={creditKPIs?.earlyCancellationRate?.unit} change={creditKPIs?.earlyCancellationRate?.change} icon={AlertTriangle} description={`${creditKPIs?.earlyCancellationRate?.count ?? 0} créditos cancelados`} colorClass="text-orange-500" isLoading={isLoading} />
             <StatCard title="Abonos Extraordinarios" value={formatCurrency(Number(creditKPIs?.extraordinaryPayments?.value) || 0)} change={creditKPIs?.extraordinaryPayments?.change} icon={Banknote} description={`${creditKPIs?.extraordinaryPayments?.count ?? 0} pagos extraordinarios`} colorClass="text-teal-500" isLoading={isLoading} />
-            <StatCard title="Ingresos por Penalización" value={formatCurrency(Number(creditKPIs?.penaltyRevenue?.value) || 0)} change={creditKPIs?.penaltyRevenue?.change} icon={ShieldAlert} description="Penalizaciones por cancelación anticipada" colorClass="text-red-500" isLoading={isLoading} />
           </div>
         );
 
@@ -870,17 +793,13 @@ export default function KPIsPage() {
           <>
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
               <StatCard title="Tasa de Cobro" value={collectionKPIs?.collectionRate?.value ?? 0} unit={collectionKPIs?.collectionRate?.unit} change={collectionKPIs?.collectionRate?.change} target={collectionKPIs?.collectionRate?.target} icon={Percent} colorClass="text-green-500" isLoading={isLoading} />
-              <StatCard title="PMP (Periodo Medio de Pago)" value={collectionKPIs?.dso?.value ?? 0} unit={collectionKPIs?.dso?.unit} change={collectionKPIs?.dso?.change} icon={Timer} description="Días promedio para cobrar" colorClass="text-blue-500" isLoading={isLoading} />
               <StatCard title="Tasa de Morosidad" value={collectionKPIs?.delinquencyRate?.value ?? 0} unit={collectionKPIs?.delinquencyRate?.unit} change={collectionKPIs?.delinquencyRate?.change} target={collectionKPIs?.delinquencyRate?.target} icon={AlertTriangle} colorClass="text-red-500" isLoading={isLoading} />
               <StatCard title="Tasa de Recuperación" value={collectionKPIs?.recoveryRate?.value ?? 0} unit={collectionKPIs?.recoveryRate?.unit} change={collectionKPIs?.recoveryRate?.change} icon={TrendingUp} description="% recuperado de cuentas morosas" colorClass="text-emerald-500" isLoading={isLoading} />
               <StatCard title="Puntualidad de Pagos" value={collectionKPIs?.paymentTimeliness?.value ?? 0} unit={collectionKPIs?.paymentTimeliness?.unit} change={collectionKPIs?.paymentTimeliness?.change} target={collectionKPIs?.paymentTimeliness?.target} icon={CheckCircle} description="% de pagos a tiempo" colorClass="text-green-500" isLoading={isLoading} />
               <StatCard title="Tasa de Reversiones" value={collectionKPIs?.reversalRate?.value ?? 0} unit={collectionKPIs?.reversalRate?.unit} change={collectionKPIs?.reversalRate?.change} icon={RotateCcw} description={`${collectionKPIs?.reversalRate?.count ?? 0} pagos anulados`} colorClass="text-orange-500" isLoading={isLoading} />
               <StatCard title="Saldos Pendientes" value={formatCurrency(Number(collectionKPIs?.pendingBalances?.value) || 0)} change={collectionKPIs?.pendingBalances?.change} icon={Hourglass} description={`${collectionKPIs?.pendingBalances?.count ?? 0} sobrepagos por asignar`} colorClass="text-amber-500" isLoading={isLoading} />
             </div>
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-              <KPITable title="Distribución por Fuente de Pago" description="Desglose de pagos por canal" icon={BarChart3} headers={["Fuente", "Cantidad", "Monto Total"]} rows={(collectionKPIs?.paymentSourceDistribution ?? []).map(s => [s.source, s.count, formatCurrency(s.total)])} isLoading={isLoading} />
-              <KPITable title="Eficiencia por Deductora" description="Tasa de cobro por entidad de deducción" icon={Building2} headers={["Deductora", "Tasa de Cobro", "Estado"]} rows={(collectionKPIs?.deductoraEfficiency ?? []).map(d => [d.name, `${d.rate}%`, <Badge key={d.name} variant={d.rate >= 95 ? "default" : d.rate >= 90 ? "secondary" : "destructive"} className={cn(d.rate >= 95 && "bg-green-500")}>{d.rate >= 95 ? "Excelente" : d.rate >= 90 ? "Bueno" : "Mejorar"}</Badge>])} isLoading={isLoading} />
-            </div>
+            <KPITable title="Distribución por Fuente de Pago" description="Desglose de pagos por canal" icon={BarChart3} headers={["Fuente", "Cantidad", "Monto Total"]} rows={(collectionKPIs?.paymentSourceDistribution ?? []).map(s => [s.source, s.count, formatCurrency(s.total)])} isLoading={isLoading} />
           </>
         );
 
@@ -891,7 +810,7 @@ export default function KPIsPage() {
                 <UserCheck className="h-5 w-5" />
                 Rendimiento de Agentes
               </CardTitle>
-              <CardDescription>Métricas de desempeño individual</CardDescription>
+              <CardDescription>Métricas de tareas por agente</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -901,9 +820,11 @@ export default function KPIsPage() {
               ) : (
                 <div className="space-y-3">
                   {(agentKPIs?.topAgents ?? []).map((agent, i) => {
-                    const taskRate = agent.taskCompletionRate ?? 0;
-                    const taskColor = taskRate >= 80 ? "text-green-500" : taskRate >= 50 ? "text-yellow-500" : "text-red-500";
-                    const taskBg = taskRate >= 80 ? "bg-green-500" : taskRate >= 50 ? "bg-yellow-500" : "bg-red-500";
+                    const compRate = agent.completionRate ?? 0;
+                    const compColor = compRate >= 80 ? "text-green-500" : compRate >= 50 ? "text-yellow-500" : "text-red-500";
+                    const compBg = compRate >= 80 ? "bg-green-500" : compRate >= 50 ? "bg-yellow-500" : "bg-red-500";
+                    const onTime = agent.onTimeRate ?? 0;
+                    const onTimeColor = onTime >= 80 ? "text-green-500" : onTime >= 50 ? "text-yellow-500" : "text-red-500";
                     return (
                       <div key={agent.name} className={cn("rounded-lg border p-3 space-y-3", i === 0 && "border-amber-300 bg-amber-50/50 dark:bg-amber-950/20")}>
                         <div className="flex items-center justify-between">
@@ -913,7 +834,7 @@ export default function KPIsPage() {
                             </div>
                             <div>
                               <p className="font-semibold text-sm">{agent.name}</p>
-                              <p className="text-xs text-muted-foreground">{agent.activityRate || 0} acciones/día</p>
+                              <p className="text-xs text-muted-foreground">{agent.tasksTotal} tareas totales</p>
                             </div>
                           </div>
                           {i < 3 && (
@@ -922,32 +843,43 @@ export default function KPIsPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Leads</span>
-                            <span className="font-medium">{agent.leadsHandled}</span>
+                            <span className="text-muted-foreground">Completadas</span>
+                            <Badge variant="default" className="text-xs bg-green-500">{agent.tasksCompleted}</Badge>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Conversión</span>
-                            <Badge variant={agent.conversionRate >= 30 ? "default" : "secondary"} className={cn("text-xs", agent.conversionRate >= 30 && "bg-green-500")}>{agent.conversionRate}%</Badge>
+                            <span className="text-muted-foreground">Pendientes</span>
+                            <Badge variant="secondary" className="text-xs">{agent.tasksPending}</Badge>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Créditos</span>
-                            <span className="font-medium">{agent.creditsOriginated}</span>
+                            <span className="text-muted-foreground">Vencidas</span>
+                            <Badge variant={agent.tasksOverdue > 0 ? "destructive" : "secondary"} className="text-xs">{agent.tasksOverdue}</Badge>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Monto Prom.</span>
-                            <span className="font-medium">{formatCurrency(agent.avgDealSize)}</span>
+                            <span className="text-muted-foreground">Archivadas</span>
+                            <span className="font-medium">{agent.tasksArchived}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Tiempo Prom.</span>
+                            <span className="font-medium">{agent.avgCompletionTime} días</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Puntualidad</span>
+                            <span className={cn("font-semibold", onTimeColor)}>{onTime}%</span>
                           </div>
                         </div>
                         <div className="space-y-1">
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Tareas</span>
-                            <span className={cn("font-semibold", taskColor)}>
-                              {agent.tasksCompleted || 0}/{agent.tasksAssigned || 0}
-                              <span className="ml-1 text-xs">({taskRate}%)</span>
+                            <span className="text-muted-foreground">Completitud</span>
+                            <span className={cn("font-semibold", compColor)}>
+                              {agent.tasksCompleted}/{agent.tasksTotal}
+                              <span className="ml-1 text-xs">({compRate}%)</span>
                             </span>
                           </div>
-                          <Progress value={taskRate} className="h-2" indicatorClassName={taskBg} />
+                          <Progress value={compRate} className="h-2" indicatorClassName={compBg} />
                         </div>
+                        {agent.tasksInPeriod > 0 && (
+                          <p className="text-xs text-muted-foreground">{agent.tasksInPeriod} tareas nuevas en el período</p>
+                        )}
                       </div>
                     );
                   })}

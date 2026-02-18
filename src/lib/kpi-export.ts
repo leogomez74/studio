@@ -17,7 +17,6 @@ interface LeadKPIs {
   conversionRate: KPIData;
   responseTime: KPIData;
   leadAging: KPIData;
-  leadsPerAgent: { agentName: string; count: number }[];
   leadSourcePerformance: { source: string; conversion: number; count: number }[];
   totalLeads?: number;
   totalClients?: number;
@@ -28,8 +27,7 @@ interface OpportunityKPIs {
   pipelineValue: KPIData;
   avgSalesCycle: KPIData;
   velocity: KPIData;
-  stageConversion: { stage: string; conversion: number }[];
-  creditTypeComparison: { type: string; total: number; won: number; lost: number; winRate: number; pipeline: number }[];
+  creditTypeComparison: { type: string; total: number; noCredit: number; pending: number; followUp: number; delinquent: number; won: number; pipeline: number }[];
 }
 
 interface CreditKPIs {
@@ -39,38 +37,35 @@ interface CreditKPIs {
   nonPerformingLoans: KPIData;
   approvalRate: KPIData;
   timeToDisbursement: KPIData;
-  timeToFormalization: KPIData;
   fullCycleTime: KPIData;
   earlyCancellationRate: KPIData;
   extraordinaryPayments: KPIData;
-  penaltyRevenue: KPIData;
   totalCredits?: number;
   totalPortfolio?: number;
 }
 
 interface CollectionKPIs {
   collectionRate: KPIData;
-  dso: KPIData;
   delinquencyRate: KPIData;
   recoveryRate: KPIData;
   paymentTimeliness: KPIData;
   reversalRate: KPIData;
   pendingBalances: KPIData;
   paymentSourceDistribution: { source: string; count: number; total: number }[];
-  deductoraEfficiency: { name: string; rate: number }[];
 }
 
 interface AgentKPIs {
   topAgents: {
     name: string;
-    leadsHandled: number;
-    conversionRate: number;
-    creditsOriginated: number;
-    avgDealSize: number;
-    activityRate: number;
-    tasksAssigned: number;
+    tasksTotal: number;
     tasksCompleted: number;
-    taskCompletionRate: number;
+    tasksPending: number;
+    tasksArchived: number;
+    tasksOverdue: number;
+    completionRate: number;
+    avgCompletionTime: number;
+    onTimeRate: number;
+    tasksInPeriod: number;
   }[];
 }
 
@@ -450,19 +445,6 @@ function buildLeadsSheet(workbook: ExcelJS.Workbook, leads: LeadKPIs, subtitle: 
     row++;
   });
 
-  // Leads per Agent
-  if (leads.leadsPerAgent?.length) {
-    row = addSpacer(ws, row);
-    row = addSectionBanner(ws, 'LEADS POR AGENTE', THEME.colors.emeraldLight, row, 3);
-    ws.getCell(row - 1, S).font = { name: 'Calibri', size: 12, bold: true, color: { argb: THEME.colors.bodyText } };
-    row = addTableHeaders(ws, ['Agente', 'Cantidad', '% del Total'], row);
-    const total = leads.leadsPerAgent.reduce((sum, a) => sum + a.count, 0) || 1;
-    leads.leadsPerAgent.forEach((agent, i) => {
-      const pct = ((agent.count / total) * 100).toFixed(1);
-      row = addDataRow(ws, [agent.agentName, agent.count, `${pct}%`], row, i % 2 === 1);
-    });
-  }
-
   // Lead Source Performance
   if (leads.leadSourcePerformance?.length) {
     row = addSpacer(ws, row);
@@ -518,65 +500,27 @@ function buildOpportunitiesSheet(workbook: ExcelJS.Workbook, opp: OpportunityKPI
     row = addKPIRow(ws, label, val, kpi.change, row, i % 2 === 1);
   });
 
-  // Stage Conversion Funnel
-  if (opp.stageConversion?.length) {
-    row = addSpacer(ws, row);
-    const S = 2;
-    // Set up bar columns
-    for (let i = 5; i <= 14; i++) ws.getColumn(i).width = 2.5;
-
-    row = addSectionBanner(ws, 'FUNNEL DE CONVERSIÓN', THEME.colors.primaryLight, row, 3);
-    ws.getCell(row - 1, S).font = { name: 'Calibri', size: 12, bold: true, color: { argb: THEME.colors.bodyText } };
-    row = addTableHeaders(ws, ['Etapa', 'Conversión', 'Visual'], row);
-
-    opp.stageConversion.forEach((stage, i) => {
-      const bg = i % 2 === 1 ? THEME.colors.lightGray : THEME.colors.white;
-      const lc = ws.getCell(row, S); lc.value = stage.stage;
-      lc.font = { name: 'Calibri', size: 10, bold: true, color: { argb: THEME.colors.bodyText } };
-      lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      lc.alignment = { horizontal: 'left', vertical: 'middle' }; lc.border = thinBorder;
-
-      const vc = ws.getCell(row, S + 1); vc.value = `${stage.conversion}%`;
-      const badge = getStatusBadge(stage.conversion, { good: 50, warning: 25 });
-      vc.font = { name: 'Calibri', size: 10, bold: true, color: { argb: badge.fg } };
-      vc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: badge.bg } };
-      vc.alignment = { horizontal: 'center', vertical: 'middle' }; vc.border = thinBorder;
-
-      const emptyVisual = ws.getCell(row, S + 2); emptyVisual.value = '';
-      emptyVisual.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } }; emptyVisual.border = thinBorder;
-
-      addBarCells(ws, row, 5, stage.conversion, THEME.colors.primary);
-      row++;
-    });
-  }
-
   // Credit Type Comparison
   if (opp.creditTypeComparison?.length) {
     row = addSpacer(ws, row);
-    row = addSectionBanner(ws, 'COMPARATIVA POR TIPO DE CRÉDITO', THEME.colors.primaryLight, row, 6);
+    row = addSectionBanner(ws, 'OPORTUNIDADES POR TIPO DE CRÉDITO', THEME.colors.primaryLight, row, 8);
     ws.getCell(row - 1, 2).font = { name: 'Calibri', size: 12, bold: true, color: { argb: THEME.colors.bodyText } };
-    row = addTableHeaders(ws, ['Tipo', 'Total', 'Ganadas', 'Perdidas', 'Win Rate', 'Pipeline'], row);
+    row = addTableHeaders(ws, ['Tipo', 'Total', 'Sin Crédito', 'Pendientes', 'Seguimiento', 'En Mora', 'Ganadas', 'Valor Potencial'], row);
 
     opp.creditTypeComparison.forEach((ct, i) => {
       const bg = i % 2 === 1 ? THEME.colors.lightGray : THEME.colors.white;
       const S = 2;
-      const vals: (string | number)[] = [ct.type, ct.total, ct.won, ct.lost, '', formatCurrency(ct.pipeline)];
+      const vals: (string | number)[] = [ct.type, ct.total, ct.noCredit, ct.pending, ct.followUp, ct.delinquent, ct.won, formatCurrency(ct.pipeline)];
       vals.forEach((val, j) => {
         const cell = ws.getCell(row, S + j);
         cell.value = val;
-        cell.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText }, bold: j === 0 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        const isDelinquent = j === 5 && (val as number) > 0;
+        const isNoCredit = j === 2 && (val as number) > 0;
+        cell.font = { name: 'Calibri', size: 10, color: { argb: isDelinquent ? 'FFDC2626' : isNoCredit ? 'FF6B7280' : THEME.colors.bodyText }, bold: j === 0 || isDelinquent };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDelinquent ? 'FFFEE2E2' : bg } };
         cell.alignment = { horizontal: j === 0 ? 'left' : 'center', vertical: 'middle' };
         cell.border = thinBorder;
       });
-
-      // Win Rate with color
-      const wrCell = ws.getCell(row, S + 4);
-      wrCell.value = `${ct.winRate}%`;
-      const badge = getStatusBadge(ct.winRate, { good: 50, warning: 30 });
-      wrCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: badge.fg } };
-      wrCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: badge.bg } };
-      wrCell.alignment = { horizontal: 'center', vertical: 'middle' }; wrCell.border = thinBorder;
       row++;
     });
   }
@@ -666,7 +610,6 @@ function buildCreditsSheet(workbook: ExcelJS.Workbook, credits: CreditKPIs, subt
 
   const timeMetrics: [string, KPIData][] = [
     ['Tiempo de Desembolso', credits.timeToDisbursement],
-    ['Tiempo a Formalización', credits.timeToFormalization],
     ['Ciclo Completo', credits.fullCycleTime],
   ];
   timeMetrics.forEach(([label, kpi], i) => {
@@ -681,10 +624,9 @@ function buildCreditsSheet(workbook: ExcelJS.Workbook, credits: CreditKPIs, subt
   const behaviorMetrics: [string, KPIData][] = [
     ['Cancelación Anticipada', credits.earlyCancellationRate],
     ['Abonos Extraordinarios', credits.extraordinaryPayments],
-    ['Ingresos por Penalización', credits.penaltyRevenue],
   ];
   behaviorMetrics.forEach(([label, kpi], i) => {
-    const val = label.includes('Abonos') || label.includes('Penalización')
+    const val = label.includes('Abonos')
       ? formatCurrency(Number(kpi.value) || 0)
       : formatKPIValue(kpi);
     row = addKPIRow(ws, label, val, kpi?.change, row, i % 2 === 1);
@@ -704,7 +646,6 @@ function buildCollectionsSheet(workbook: ExcelJS.Workbook, collections: Collecti
 
   const metrics: [string, KPIData, boolean][] = [
     ['Tasa de Cobro', collections.collectionRate, false],
-    ['PMP (Periodo Medio de Pago)', collections.dso, true],
     ['Tasa de Morosidad', collections.delinquencyRate, true],
     ['Tasa de Recuperación', collections.recoveryRate, false],
     ['Puntualidad de Pagos', collections.paymentTimeliness, false],
@@ -755,35 +696,6 @@ function buildCollectionsSheet(workbook: ExcelJS.Workbook, collections: Collecti
     });
   }
 
-  // Deductora Efficiency
-  if (collections.deductoraEfficiency?.length) {
-    row = addSpacer(ws, row);
-    row = addSectionBanner(ws, 'EFICIENCIA POR DEDUCTORA', THEME.colors.purpleLight, row, 3);
-    ws.getCell(row - 1, 2).font = { name: 'Calibri', size: 12, bold: true, color: { argb: THEME.colors.bodyText } };
-    row = addTableHeaders(ws, ['Deductora', 'Tasa de Cobro', 'Estado'], row);
-
-    collections.deductoraEfficiency.forEach((d, i) => {
-      const bg = i % 2 === 1 ? THEME.colors.lightGray : THEME.colors.white;
-      const S = 2;
-
-      const lc = ws.getCell(row, S); lc.value = d.name;
-      lc.font = { name: 'Calibri', size: 10, bold: true, color: { argb: THEME.colors.bodyText } };
-      lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      lc.alignment = { horizontal: 'left', vertical: 'middle' }; lc.border = thinBorder;
-
-      const rc = ws.getCell(row, S + 1); rc.value = `${d.rate}%`;
-      rc.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText } };
-      rc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-      rc.alignment = { horizontal: 'center', vertical: 'middle' }; rc.border = thinBorder;
-
-      const badge = getStatusBadge(d.rate, { good: 95, warning: 90 });
-      const sc = ws.getCell(row, S + 2); sc.value = badge.text;
-      sc.font = { name: 'Calibri', size: 9, bold: true, color: { argb: badge.fg } };
-      sc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: badge.bg } };
-      sc.alignment = { horizontal: 'center', vertical: 'middle' }; sc.border = thinBorder;
-      row++;
-    });
-  }
 }
 
 function buildAgentsSheet(workbook: ExcelJS.Workbook, agents: AgentKPIs, subtitle: string): void {
@@ -793,16 +705,17 @@ function buildAgentsSheet(workbook: ExcelJS.Workbook, agents: AgentKPIs, subtitl
   ws.getColumn(3).width = 24;
   ws.getColumn(4).width = 12;
   ws.getColumn(5).width = 14;
-  ws.getColumn(6).width = 12;
-  ws.getColumn(7).width = 18;
-  ws.getColumn(8).width = 14;
+  ws.getColumn(6).width = 14;
+  ws.getColumn(7).width = 14;
+  ws.getColumn(8).width = 12;
   ws.getColumn(9).width = 14;
-  ws.getColumn(10).width = 14;
+  ws.getColumn(10).width = 16;
   ws.getColumn(11).width = 14;
+  ws.getColumn(12).width = 14;
 
-  let row = addSheetTitle(ws, 'Rendimiento de Agentes', subtitle, 10);
-  row = addSectionBanner(ws, 'TOP AGENTES', THEME.colors.warning, row, 10);
-  row = addTableHeaders(ws, ['#', 'Agente', 'Leads', 'Conversión', 'Créditos', 'Monto Prom.', 'Actividad/día', 'Tareas Asig.', 'Completadas', 'Cumplim.'], row);
+  let row = addSheetTitle(ws, 'Rendimiento de Agentes', subtitle, 11);
+  row = addSectionBanner(ws, 'TAREAS POR AGENTE', THEME.colors.warning, row, 11);
+  row = addTableHeaders(ws, ['#', 'Agente', 'Total', 'Completadas', 'Pendientes', 'Vencidas', 'Archiv.', 'Completitud', 'Tiempo Prom.', 'Puntualidad', 'En Período'], row);
 
   const S = 2;
   agents.topAgents.forEach((agent, i) => {
@@ -810,70 +723,38 @@ function buildAgentsSheet(workbook: ExcelJS.Workbook, agents: AgentKPIs, subtitl
     const medals = ['\uD83E\uDD47', '\uD83E\uDD48', '\uD83E\uDD49']; // 🥇🥈🥉
     const rank = i < 3 ? `${medals[i]} ${i + 1}` : String(i + 1);
 
-    // Rank
-    const rc = ws.getCell(row, S); rc.value = rank;
-    rc.font = { name: 'Calibri', size: 10, bold: i < 3, color: { argb: THEME.colors.bodyText } };
-    rc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i === 0 ? THEME.colors.successLight : bg } };
-    rc.alignment = { horizontal: 'center', vertical: 'middle' }; rc.border = thinBorder;
+    const cols: { value: string | number; bold?: boolean; badge?: { good: number; warning: number }; highlight?: boolean }[] = [
+      { value: rank, bold: i < 3 },
+      { value: agent.name, bold: true },
+      { value: agent.tasksTotal },
+      { value: agent.tasksCompleted },
+      { value: agent.tasksPending },
+      { value: agent.tasksOverdue, highlight: agent.tasksOverdue > 0 },
+      { value: agent.tasksArchived },
+      { value: `${agent.completionRate}%`, badge: { good: 80, warning: 50 } },
+      { value: `${agent.avgCompletionTime} días` },
+      { value: `${agent.onTimeRate}%`, badge: { good: 80, warning: 50 } },
+      { value: agent.tasksInPeriod },
+    ];
 
-    // Name
-    const nc = ws.getCell(row, S + 1); nc.value = agent.name;
-    nc.font = { name: 'Calibri', size: 10, bold: true, color: { argb: THEME.colors.bodyText } };
-    nc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i === 0 ? THEME.colors.successLight : bg } };
-    nc.alignment = { horizontal: 'left', vertical: 'middle' }; nc.border = thinBorder;
+    cols.forEach((col, ci) => {
+      const cell = ws.getCell(row, S + ci);
+      cell.value = col.value;
+      cell.alignment = { horizontal: ci === 1 ? 'left' : 'center', vertical: 'middle' };
+      cell.border = thinBorder;
 
-    // Leads
-    const lc = ws.getCell(row, S + 2); lc.value = agent.leadsHandled;
-    lc.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText } };
-    lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    lc.alignment = { horizontal: 'center', vertical: 'middle' }; lc.border = thinBorder;
-
-    // Conversion with color
-    const convCell = ws.getCell(row, S + 3);
-    convCell.value = `${agent.conversionRate}%`;
-    const badge = getStatusBadge(agent.conversionRate, { good: 30, warning: 15 });
-    convCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: badge.fg } };
-    convCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: badge.bg } };
-    convCell.alignment = { horizontal: 'center', vertical: 'middle' }; convCell.border = thinBorder;
-
-    // Credits
-    const crc = ws.getCell(row, S + 4); crc.value = agent.creditsOriginated;
-    crc.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText } };
-    crc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    crc.alignment = { horizontal: 'center', vertical: 'middle' }; crc.border = thinBorder;
-
-    // Avg Deal
-    const dc = ws.getCell(row, S + 5); dc.value = formatCurrency(agent.avgDealSize);
-    dc.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText } };
-    dc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    dc.alignment = { horizontal: 'center', vertical: 'middle' }; dc.border = thinBorder;
-
-    // Activity
-    const ac = ws.getCell(row, S + 6); ac.value = `${agent.activityRate || 0}/día`;
-    ac.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText } };
-    ac.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    ac.alignment = { horizontal: 'center', vertical: 'middle' }; ac.border = thinBorder;
-
-    // Tasks Assigned
-    const taCell = ws.getCell(row, S + 7); taCell.value = agent.tasksAssigned || 0;
-    taCell.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText } };
-    taCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    taCell.alignment = { horizontal: 'center', vertical: 'middle' }; taCell.border = thinBorder;
-
-    // Tasks Completed
-    const tcCell = ws.getCell(row, S + 8); tcCell.value = agent.tasksCompleted || 0;
-    tcCell.font = { name: 'Calibri', size: 10, color: { argb: THEME.colors.bodyText } };
-    tcCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    tcCell.alignment = { horizontal: 'center', vertical: 'middle' }; tcCell.border = thinBorder;
-
-    // Task Completion Rate
-    const trCell = ws.getCell(row, S + 9);
-    const taskRate = agent.taskCompletionRate || 0;
-    trCell.value = `${taskRate}%`;
-    const taskBadge = getStatusBadge(taskRate, { good: 80, warning: 50 });
-    trCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: taskBadge.fg } };
-    trCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: taskBadge.bg } };
-    trCell.alignment = { horizontal: 'center', vertical: 'middle' }; trCell.border = thinBorder;
+      if (col.badge) {
+        const b = getStatusBadge(typeof col.value === 'string' ? parseFloat(col.value) : col.value as number, col.badge);
+        cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: b.fg } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: b.bg } };
+      } else if (col.highlight) {
+        cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFDC2626' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+      } else {
+        cell.font = { name: 'Calibri', size: 10, bold: col.bold || false, color: { argb: THEME.colors.bodyText } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i === 0 && ci <= 1 ? THEME.colors.successLight : bg } };
+      }
+    });
 
     row++;
   });
@@ -1400,35 +1281,6 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
     });
     yPos = (doc as any).lastAutoTable.finalY + 8;
 
-    // Agent sub-table
-    if (data.leads.leadsPerAgent?.length > 0) {
-      yPos = pdfEnsureSpace(doc, yPos, 30);
-      doc.setFontSize(10);
-      doc.setTextColor(30, 41, 59);
-      doc.text('Leads por Agente', 14, yPos);
-      yPos += 4;
-
-      const maxLeads = Math.max(...data.leads.leadsPerAgent.map(a => a.count), 1);
-      const agentRows = data.leads.leadsPerAgent.map(a => [a.agentName, String(a.count), '']);
-
-      autoTable(doc, {
-        startY: yPos,
-        head: [['Agente', 'Leads', 'Distribución']],
-        body: agentRows,
-        ...pdfTableStyles,
-        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' }, 2: { cellWidth: 55 } },
-        didDrawCell: (hookData) => {
-          if (hookData.section === 'body' && hookData.column.index === 2) {
-            const agent = data.leads!.leadsPerAgent[hookData.row.index];
-            if (agent) {
-              pdfProgressBar(doc, hookData.cell.x + 2, hookData.cell.y + hookData.cell.height / 2 - 2, hookData.cell.width - 4, (agent.count / maxLeads) * 100, PDF_COLORS.success);
-            }
-          }
-        },
-      });
-      yPos = (doc as any).lastAutoTable.finalY + 8;
-    }
-
     // Source sub-table
     if (data.leads.leadSourcePerformance?.length > 0) {
       yPos = pdfEnsureSpace(doc, yPos, 30);
@@ -1484,51 +1336,25 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
     });
     yPos = (doc as any).lastAutoTable.finalY + 8;
 
-    // Stage funnel
-    if (data.opportunities.stageConversion?.length > 0) {
-      yPos = pdfEnsureSpace(doc, yPos, 30);
-      doc.setFontSize(10);
-      doc.setTextColor(30, 41, 59);
-      doc.text('Embudo de Conversión', 14, yPos);
-      yPos += 4;
-
-      const maxConversion = Math.max(...data.opportunities.stageConversion.map(s => s.conversion), 1);
-
-      autoTable(doc, {
-        startY: yPos,
-        head: [['Etapa', 'Conversión', '']],
-        body: data.opportunities.stageConversion.map(s => [s.stage, `${s.conversion}%`, '']),
-        ...pdfTableStyles,
-        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' }, 2: { cellWidth: 50 } },
-        didDrawCell: (hookData) => {
-          if (hookData.section === 'body' && hookData.column.index === 2) {
-            const stage = data.opportunities!.stageConversion[hookData.row.index];
-            if (stage) {
-              pdfProgressBar(doc, hookData.cell.x + 2, hookData.cell.y + hookData.cell.height / 2 - 2, hookData.cell.width - 4, (stage.conversion / maxConversion) * 100, PDF_COLORS.primary);
-            }
-          }
-        },
-      });
-      yPos = (doc as any).lastAutoTable.finalY + 8;
-    }
-
     // Credit type comparison
     if (data.opportunities.creditTypeComparison?.length > 0) {
       yPos = pdfEnsureSpace(doc, yPos, 30);
       doc.setFontSize(10);
       doc.setTextColor(30, 41, 59);
-      doc.text('Comparación por Tipo de Crédito', 14, yPos);
+      doc.text('Oportunidades por Tipo de Crédito', 14, yPos);
       yPos += 4;
 
       autoTable(doc, {
         startY: yPos,
-        head: [['Tipo', 'Total', 'Ganadas', 'Perdidas', 'Win Rate', 'Pipeline']],
+        head: [['Tipo', 'Total', 'Sin Créd.', 'Pend.', 'Seguim.', 'Mora', 'Ganadas', 'Val. Potencial']],
         body: data.opportunities.creditTypeComparison.map(ct => [
           ct.type,
           String(ct.total),
+          String(ct.noCredit),
+          String(ct.pending),
+          String(ct.followUp),
+          String(ct.delinquent),
           String(ct.won),
-          String(ct.lost),
-          `${ct.winRate}%`,
           pdfCurrency(ct.pipeline),
         ]),
         ...pdfTableStyles,
@@ -1536,15 +1362,35 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           1: { halign: 'right' },
           2: { halign: 'right' },
           3: { halign: 'right' },
-          4: { halign: 'right', fontStyle: 'bold' },
+          4: { halign: 'right' },
           5: { halign: 'right' },
+          6: { halign: 'right', fontStyle: 'bold' },
+          7: { halign: 'right' },
         },
         didParseCell: (hookData) => {
-          if (hookData.section === 'body' && hookData.column.index === 4) {
-            const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
-            if (ct) {
-              hookData.cell.styles.textColor = ct.winRate >= 50 ? PDF_COLORS.success : ct.winRate >= 30 ? PDF_COLORS.warning : PDF_COLORS.danger;
-              hookData.cell.styles.fontStyle = 'bold';
+          if (hookData.section === 'body') {
+            // Color Sin Crédito column (gray)
+            if (hookData.column.index === 2) {
+              const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
+              if (ct && ct.noCredit > 0) {
+                hookData.cell.styles.textColor = [107, 114, 128];
+              }
+            }
+            // Color En Mora column
+            if (hookData.column.index === 5) {
+              const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
+              if (ct && ct.delinquent > 0) {
+                hookData.cell.styles.textColor = PDF_COLORS.danger;
+                hookData.cell.styles.fontStyle = 'bold';
+              }
+            }
+            // Color Ganadas column
+            if (hookData.column.index === 6) {
+              const ct = data.opportunities!.creditTypeComparison![hookData.row.index];
+              if (ct) {
+                hookData.cell.styles.textColor = ct.won > 0 ? PDF_COLORS.success : PDF_COLORS.warning;
+                hookData.cell.styles.fontStyle = 'bold';
+              }
             }
           }
         },
@@ -1634,7 +1480,6 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
     yPos += 4;
 
     const creditTimes: [string, string, number | undefined][] = [
-      ['Tiempo a Formalización', pdfFormatKPIValue(data.credits.timeToFormalization), data.credits.timeToFormalization?.change],
       ['Ciclo Completo', pdfFormatKPIValue(data.credits.fullCycleTime), data.credits.fullCycleTime?.change],
     ];
 
@@ -1664,7 +1509,6 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
     const creditBehavior: [string, string, number | undefined][] = [
       ['Cancelación Anticipada', pdfFormatKPIValue(data.credits.earlyCancellationRate), data.credits.earlyCancellationRate?.change],
       ['Abonos Extraordinarios', pdfFormatKPIValue(data.credits.extraordinaryPayments), data.credits.extraordinaryPayments?.change],
-      ['Ingresos por Penalización', pdfFormatKPIValue(data.credits.penaltyRevenue), data.credits.penaltyRevenue?.change],
     ];
 
     autoTable(doc, {
@@ -1690,7 +1534,6 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
 
     const collectMetrics: [string, string, number | undefined][] = [
       ['Tasa de Cobro', pdfFormatKPIValue(data.collections.collectionRate), data.collections.collectionRate?.change],
-      ['DSO', pdfFormatKPIValue(data.collections.dso), data.collections.dso?.change],
       ['Tasa de Morosidad', pdfFormatKPIValue(data.collections.delinquencyRate), data.collections.delinquencyRate?.change],
       ['Tasa de Recuperación', pdfFormatKPIValue(data.collections.recoveryRate), data.collections.recoveryRate?.change],
       ['Tasa de Reversiones', pdfFormatKPIValue(data.collections.reversalRate), data.collections.reversalRate?.change],
@@ -1741,84 +1584,59 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
       yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
-    // Deductora efficiency
-    if (data.collections.deductoraEfficiency?.length > 0) {
-      yPos = pdfEnsureSpace(doc, yPos, 30);
-      doc.setFontSize(10);
-      doc.setTextColor(30, 41, 59);
-      doc.text('Eficiencia por Deductora', 14, yPos);
-      yPos += 4;
-
-      autoTable(doc, {
-        startY: yPos,
-        head: [['Deductora', 'Tasa Cobro', 'Estado']],
-        body: data.collections.deductoraEfficiency.map(d => {
-          const badge = pdfStatusBadge(d.rate, { good: 90, ok: 75 });
-          return [d.name, `${d.rate}%`, badge.text];
-        }),
-        ...pdfTableStyles,
-        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' }, 2: { halign: 'center' } },
-        didParseCell: (hookData) => {
-          if (hookData.section === 'body' && hookData.column.index === 2) {
-            const d = data.collections!.deductoraEfficiency![hookData.row.index];
-            if (d) {
-              const badge = pdfStatusBadge(d.rate, { good: 90, ok: 75 });
-              hookData.cell.styles.textColor = badge.color;
-              hookData.cell.styles.fillColor = badge.bg;
-              hookData.cell.styles.fontStyle = 'bold';
-            }
-          }
-        },
-      });
-      yPos = (doc as any).lastAutoTable.finalY + 10;
-    }
   }
 
   // ── AGENTES ──
   if (data.agents?.topAgents && data.agents.topAgents.length > 0) {
-    yPos = pdfSectionBar(doc, 'Agentes', PDF_COLORS.warning, yPos);
+    yPos = pdfSectionBar(doc, 'Agentes - Tareas', PDF_COLORS.warning, yPos);
 
     const agentRows = data.agents.topAgents.slice(0, 10).map((a, i) => [
       String(i + 1),
       a.name,
-      String(a.leadsHandled),
-      `${a.conversionRate}%`,
-      String(a.creditsOriginated),
-      pdfCurrency(a.avgDealSize),
-      `${a.tasksCompleted || 0}/${a.tasksAssigned || 0}`,
-      `${a.taskCompletionRate || 0}%`,
+      String(a.tasksTotal),
+      String(a.tasksCompleted),
+      String(a.tasksPending),
+      String(a.tasksOverdue),
+      `${a.completionRate}%`,
+      `${a.avgCompletionTime} d`,
+      `${a.onTimeRate}%`,
     ]);
 
     autoTable(doc, {
       startY: yPos,
-      head: [['#', 'Agente', 'Leads', 'Conv.', 'Créd.', 'Monto Prom.', 'Tareas', 'Cumplim.']],
+      head: [['#', 'Agente', 'Total', 'Compl.', 'Pend.', 'Venc.', 'Completitud', 'T. Prom.', 'Puntualidad']],
       body: agentRows,
       ...pdfTableStyles,
       columnStyles: {
         0: { halign: 'center', cellWidth: 8 },
         2: { halign: 'right' },
-        3: { halign: 'right', fontStyle: 'bold' },
+        3: { halign: 'right' },
         4: { halign: 'right' },
         5: { halign: 'right' },
-        6: { halign: 'center' },
-        7: { halign: 'center', fontStyle: 'bold' },
+        6: { halign: 'center', fontStyle: 'bold' },
+        7: { halign: 'center' },
+        8: { halign: 'center', fontStyle: 'bold' },
       },
       didParseCell: (hookData) => {
         if (hookData.section === 'body') {
-          // Highlight top performer row
           if (hookData.row.index === 0) {
             hookData.cell.styles.fillColor = PDF_COLORS.warningLight;
             hookData.cell.styles.fontStyle = 'bold';
           }
-          // Color conversion column
-          if (hookData.column.index === 3) {
-            const rate = data.agents!.topAgents[hookData.row.index]?.conversionRate || 0;
-            hookData.cell.styles.textColor = rate >= 30 ? PDF_COLORS.success : rate >= 15 ? PDF_COLORS.warning : PDF_COLORS.danger;
+          // Color overdue column (red if > 0)
+          if (hookData.column.index === 5) {
+            const overdue = data.agents!.topAgents[hookData.row.index]?.tasksOverdue || 0;
+            if (overdue > 0) hookData.cell.styles.textColor = PDF_COLORS.danger;
           }
-          // Color task completion column
-          if (hookData.column.index === 7) {
-            const taskRate = data.agents!.topAgents[hookData.row.index]?.taskCompletionRate || 0;
-            hookData.cell.styles.textColor = taskRate >= 80 ? PDF_COLORS.success : taskRate >= 50 ? PDF_COLORS.warning : PDF_COLORS.danger;
+          // Color completion rate column
+          if (hookData.column.index === 6) {
+            const rate = data.agents!.topAgents[hookData.row.index]?.completionRate || 0;
+            hookData.cell.styles.textColor = rate >= 80 ? PDF_COLORS.success : rate >= 50 ? PDF_COLORS.warning : PDF_COLORS.danger;
+          }
+          // Color on-time rate column
+          if (hookData.column.index === 8) {
+            const rate = data.agents!.topAgents[hookData.row.index]?.onTimeRate || 0;
+            hookData.cell.styles.textColor = rate >= 80 ? PDF_COLORS.success : rate >= 50 ? PDF_COLORS.warning : PDF_COLORS.danger;
           }
         }
       },
@@ -1832,9 +1650,9 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
 
     const gamMetrics: [string, string, number | undefined][] = [
       ['Tasa de Engagement', pdfFormatKPIValue(data.gamification.engagementRate), data.gamification.engagementRate?.change],
-      ['Puntos Promedio', pdfFormatKPIValue(data.gamification.avgPoints), data.gamification.avgPoints?.change],
-      ['Desafíos Completados', pdfFormatKPIValue(data.gamification.challengeCompletion), data.gamification.challengeCompletion?.change],
-      ['Racha Promedio', pdfFormatKPIValue(data.gamification.avgStreak), data.gamification.avgStreak?.change],
+      ['Velocidad de Puntos', pdfFormatKPIValue(data.gamification.pointsVelocity), data.gamification.pointsVelocity?.change],
+      ['Badges Completados', pdfFormatKPIValue(data.gamification.badgeCompletion), data.gamification.badgeCompletion?.change],
+      ['Retención de Rachas', pdfFormatKPIValue(data.gamification.streakRetention), data.gamification.streakRetention?.change],
     ];
 
     autoTable(doc, {
@@ -2002,7 +1820,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
       autoTable(doc, {
         startY: yPos,
         head: [['Mes', 'Valor', '']],
-        body: numericPoints.map(p => [p.label, cfg.format(p.numValue), '']),
+        body: numericPoints.map(p => [p.month, cfg.format(p.numValue), '']),
         ...pdfTableStyles,
         columnStyles: { 1: { halign: 'right', fontStyle: 'bold' }, 2: { cellWidth: 60 } },
         didDrawCell: (hookData) => {

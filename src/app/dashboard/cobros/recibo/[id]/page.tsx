@@ -26,6 +26,7 @@ interface PaymentData {
   linea?: string;
   proceso?: string;
   created_at?: string;
+  planilla_upload_id?: number | null;
   credit?: {
     id: number;
     reference?: string;
@@ -40,6 +41,15 @@ interface PaymentData {
     client?: {
       name?: string;
       cedula?: string;
+    };
+  };
+  planilla_upload?: {
+    id: number;
+    nombre_archivo?: string;
+    fecha_planilla?: string;
+    deductora?: {
+      id: number;
+      nombre?: string;
     };
   };
   details?: Array<{
@@ -86,7 +96,15 @@ const formatDateTime = (dateStr?: string | null): string => {
 };
 
 // Map source to a display-friendly concept name
-const sourceToConcepto = (source?: string): string => {
+const sourceToConcepto = (payment: PaymentData): string => {
+  if (payment.source === "Planilla" && payment.planilla_upload) {
+    const deductora = payment.planilla_upload.deductora?.nombre || "";
+    const fechaRaw = payment.planilla_upload.fecha_planilla;
+    const fecha = fechaRaw
+      ? new Date(fechaRaw).toLocaleDateString("es-CR", { day: "numeric", month: "numeric", year: "numeric" })
+      : "";
+    return `Planilla ${deductora}${fecha ? ` — ${fecha}` : ""}`;
+  }
   const map: Record<string, string> = {
     Ventanilla: "Abono Ordinario",
     Planilla: "Abono por Planilla",
@@ -96,7 +114,7 @@ const sourceToConcepto = (source?: string): string => {
     "Cancelación Anticipada": "Cancelación Anticipada",
     Refundición: "Refundición",
   };
-  return map[source || ""] || source || "Abono";
+  return map[payment.source || ""] || payment.source || "Abono";
 };
 
 export default function ReciboPage() {
@@ -312,7 +330,7 @@ export default function ReciboPage() {
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <div>
                 <span style={{ fontSize: "7.5pt", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>Concepto</span>
-                <p style={{ margin: "0.5mm 0 0 0", fontWeight: "500" }}>{sourceToConcepto(payment.source)}</p>
+                <p style={{ margin: "0.5mm 0 0 0", fontWeight: "500" }}>{sourceToConcepto(payment)}</p>
               </div>
               <div style={{ textAlign: "right" }}>
                 <span style={{ fontSize: "7.5pt", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>Operación</span>
@@ -366,11 +384,9 @@ export default function ReciboPage() {
                 {[
                   { label: "Operación / Línea", value: `Op.:${payment.credit?.id} L.:${operacion.split("-").pop() || ""}` },
                   { label: "Descripción", value: descripcion.toUpperCase() || "CRÉDITO" },
-                  { label: "Referencia 1", value: String(payment.credit?.id || "") },
-                  { label: "Referencia 2", value: operacion.split("-").slice(0, -1).join("-") || "" },
-                  { label: "Referencia 3", value: debtorCedula },
+                  { label: "Nro de Documento", value: String(payment.credit?.id || "") },
                 ].map((row, i) => (
-                  <tr key={i} style={{ borderBottom: i < 4 ? "1px solid #eef0f3" : "none" }}>
+                  <tr key={i} style={{ borderBottom: i < 2 ? "1px solid #eef0f3" : "none" }}>
                     <td style={{ padding: "2mm 4mm", color: "#555", whiteSpace: "nowrap" }}>{row.label}</td>
                     <td style={{ padding: "2mm 4mm", fontWeight: "500" }}>{row.value}</td>
                   </tr>

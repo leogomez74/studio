@@ -43,6 +43,7 @@ class CreditPaymentController extends Controller
     {
         $payment = CreditPayment::with([
             'credit.lead',
+            'planillaUpload.deductora',
         ])->findOrFail($id);
 
         return response()->json($payment);
