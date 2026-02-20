@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\ErpAccountingAccount;
 use App\Models\AccountingEntryConfig;
+use App\Models\AccountingEntryLog;
 use App\Models\Deductora;
 use App\Services\ErpAccountingService;
 use Illuminate\Support\Facades\Log;
@@ -59,6 +60,16 @@ trait AccountingTrigger
         string $reference,
         array $context = []
     ): array {
+        // #3: Verificar duplicados antes de procesar
+        $isDuplicate = AccountingEntryLog::isDuplicate($entryType, $reference)->exists();
+        if ($isDuplicate) {
+            Log::warning('ERP: Asiento duplicado detectado, no se enviará', [
+                'entry_type' => $entryType,
+                'reference' => $reference,
+            ]);
+            return ['success' => false, 'error' => 'Asiento duplicado detectado', 'duplicate' => true];
+        }
+
         // Si debe usar configurable, intentarlo primero
         if ($this->shouldUseConfigurable($entryType)) {
             $result = $this->triggerConfigurableEntry($entryType, $amount, $reference, $context);
@@ -93,53 +104,73 @@ trait AccountingTrigger
     ): array {
         Log::info("ERP: Usando método legacy para {$entryType}");
 
-        return match($entryType) {
+        $log = AccountingEntryLog::createPending($entryType, $amount, $reference, $context, 'legacy');
+
+        // Normalizar context: agregar aliases que los métodos legacy esperan
+        // Controllers usan clienteNombre/cedula, legacy espera lead_nombre/lead_cedula/credit_reference
+        $context['lead_nombre'] = $context['lead_nombre'] ?? $context['clienteNombre'] ?? '';
+        $context['lead_cedula'] = $context['lead_cedula'] ?? $context['cedula'] ?? '';
+        $context['credit_reference'] = $context['credit_reference'] ?? $context['credit_id'] ?? $reference;
+
+        // IDs numéricos (usados solo en logs y refs internas de los métodos legacy)
+        $creditId = (int) ($context['credit_numeric_id'] ?? 0);
+        $paymentId = (int) ($context['payment_id'] ?? 0);
+
+        $result = match($entryType) {
             'FORMALIZACION' => $this->triggerAccountingFormalizacion(
-                creditId: $context['credit_id'] ?? 0,
+                creditId: $creditId,
                 amount: $amount,
                 reference: $reference,
                 additionalData: $context
             ),
 
             'PAGO_PLANILLA' => $this->triggerAccountingPagoPlanilla(
+                creditId: $creditId,
+                paymentId: $paymentId,
                 amount: $amount,
-                reference: $reference,
-                additionalData: $context
+                breakdown: $context
             ),
 
             'PAGO_VENTANILLA' => $this->triggerAccountingPagoVentanilla(
+                creditId: $creditId,
+                paymentId: $paymentId,
                 amount: $amount,
-                reference: $reference,
-                additionalData: $context
+                breakdown: $context
             ),
 
             'ABONO_EXTRAORDINARIO' => $this->triggerAccountingAbonoExtraordinario(
+                creditId: $creditId,
+                paymentId: $paymentId,
                 amount: $amount,
-                reference: $reference,
-                additionalData: $context
+                breakdown: $context
             ),
 
             'CANCELACION_ANTICIPADA', 'PAGO' => $this->triggerAccountingPago(
+                creditId: $creditId,
+                paymentId: $paymentId,
                 amount: $amount,
-                reference: $reference,
-                additionalData: $context
+                source: $context['source'] ?? 'Legacy',
+                breakdown: $context
             ),
 
             'REFUNDICION_CIERRE' => $this->triggerAccountingRefundicionCierre(
-                amount: $amount,
-                reference: $reference,
-                additionalData: $context
+                oldCreditId: $creditId,
+                balanceAbsorbed: $amount,
+                newCreditId: (int) ($context['new_credit_numeric_id'] ?? 0)
             ),
 
             'REFUNDICION_NUEVO' => $this->triggerAccountingRefundicionNuevo(
+                newCreditId: $creditId,
                 amount: $amount,
-                reference: $reference,
-                additionalData: $context
+                oldCreditId: (int) ($context['old_credit_numeric_id'] ?? 0),
+                cashDelivered: (float) ($context['monto_entregado'] ?? 0)
             ),
 
             'DEVOLUCION' => $this->triggerAccountingDevolucion(
+                creditId: $creditId,
+                paymentId: $paymentId > 0 ? $paymentId : null,
                 amount: $amount,
-                reference: $reference,
+                reason: $context['reason'] ?? 'Devolución',
                 additionalData: $context
             ),
 
@@ -148,6 +179,30 @@ trait AccountingTrigger
                 'error' => "Tipo de asiento '{$entryType}' no soportado en sistema legacy"
             ]
         };
+
+        // Registrar resultado en el log
+        $payload = $result['_payload'] ?? [];
+        unset($result['_payload']);
+
+        if ($result['success'] ?? false) {
+            $log?->markSuccess($result, $payload);
+
+            // #4: Marcar cuentas como validadas tras éxito (legacy)
+            $validatedCodes = collect($payload['items'] ?? [])
+                ->pluck('account_code')
+                ->filter()
+                ->unique()
+                ->toArray();
+            if (!empty($validatedCodes)) {
+                ErpAccountingAccount::markCodesValidated($validatedCodes);
+            }
+        } elseif ($result['skipped'] ?? false) {
+            $log?->markSkipped($result['error'] ?? 'Skipped', $payload);
+        } else {
+            $log?->markError($result, $payload);
+        }
+
+        return $result;
     }
 
     /**
@@ -162,6 +217,9 @@ trait AccountingTrigger
     protected function triggerConfigurableEntry(string $entryType, float $amount, string $reference, array $context = []): array
     {
         $amount = round($amount, 2);
+
+        // Crear registro de log pendiente
+        $log = AccountingEntryLog::createPending($entryType, $amount, $reference, $context, 'configurable');
 
         // Log de auditoría
         Log::info('ACCOUNTING_API_TRIGGER: Asiento Configurable', [
@@ -181,12 +239,14 @@ trait AccountingTrigger
             Log::warning('ERP: No hay configuración activa para este tipo de asiento', [
                 'entry_type' => $entryType,
             ]);
+            $log?->markSkipped('No hay configuración para este tipo de asiento');
             return ['success' => false, 'error' => 'No hay configuración para este tipo de asiento'];
         }
 
         // Verificar que el servicio esté configurado
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
+            $log?->markSkipped('Servicio ERP no configurado');
             return ['success' => false, 'error' => 'Servicio ERP no configurado', 'skipped' => true];
         }
 
@@ -276,7 +336,23 @@ trait AccountingTrigger
             Log::error('ERP: No se pudieron construir líneas del asiento', [
                 'entry_type' => $entryType,
             ]);
+            $log?->markError(['error' => 'No se pudieron construir líneas del asiento'], []);
             return ['success' => false, 'error' => 'No se pudieron construir líneas del asiento'];
+        }
+
+        // #4: Advertir si alguna cuenta nunca ha sido validada en el ERP
+        $usedAccountCodes = array_unique(array_column($items, 'account_code'));
+        $neverValidated = ErpAccountingAccount::whereIn('account_code', $usedAccountCodes)
+            ->where('active', true)
+            ->whereNull('validated_at')
+            ->pluck('account_code')
+            ->toArray();
+
+        if (!empty($neverValidated)) {
+            Log::warning('ERP: Algunas cuentas nunca han sido validadas en el ERP', [
+                'entry_type' => $entryType,
+                'unvalidated_accounts' => $neverValidated,
+            ]);
         }
 
         // Enviar al ERP
@@ -298,6 +374,24 @@ trait AccountingTrigger
             items: $items,
             reference: strtoupper($entryType) . "-{$reference}"
         );
+
+        // Registrar resultado en el log
+        $payload = $result['_payload'] ?? [];
+        unset($result['_payload']);
+
+        if ($result['success'] ?? false) {
+            $log?->markSuccess($result, $payload);
+
+            // #4: Marcar cuentas como validadas tras éxito
+            $validatedCodes = array_unique(array_column($items, 'account_code'));
+            if (!empty($validatedCodes)) {
+                ErpAccountingAccount::markCodesValidated($validatedCodes);
+            }
+        } elseif ($result['skipped'] ?? false) {
+            $log?->markSkipped($result['error'] ?? 'Skipped', $payload);
+        } else {
+            $log?->markError($result, $payload);
+        }
 
         if (!($result['success'] ?? false) && !($result['skipped'] ?? false)) {
             Log::critical('ACCOUNTING: Fallo al enviar asiento configurable', [
@@ -356,7 +450,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEPE
      */
-    protected function triggerAccountingFormalizacion(int $creditId, float $amount, string $reference, array $additionalData = [])
+    protected function triggerAccountingFormalizacion(int $creditId, float $amount, string $reference, array $additionalData = []): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -378,12 +472,12 @@ trait AccountingTrigger
                 'banco_code' => $codBanco,
                 'cxc_code' => $codCxC,
             ]);
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $clienteNombre = $additionalData['lead_nombre'] ?? 'N/A';
@@ -415,6 +509,8 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 
     /**
@@ -422,7 +518,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
      */
-    protected function triggerAccountingPago(int $creditId, int $paymentId, float $amount, string $source, array $breakdown = [])
+    protected function triggerAccountingPago(int $creditId, int $paymentId, float $amount, string $source, array $breakdown = []): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -442,12 +538,12 @@ trait AccountingTrigger
                 'credit_id' => $creditId,
                 'payment_id' => $paymentId,
             ]);
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $creditRef = $breakdown['credit_reference'] ?? "CRED-{$creditId}";
@@ -481,6 +577,8 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 
     /**
@@ -488,7 +586,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
      */
-    protected function triggerAccountingPagoPlanilla(int $creditId, int $paymentId, float $amount, array $breakdown = [])
+    protected function triggerAccountingPagoPlanilla(int $creditId, int $paymentId, float $amount, array $breakdown = []): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -507,12 +605,12 @@ trait AccountingTrigger
                 'credit_id' => $creditId,
                 'payment_id' => $paymentId,
             ]);
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $creditRef = $breakdown['credit_reference'] ?? "CRED-{$creditId}";
@@ -547,6 +645,8 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 
     /**
@@ -554,7 +654,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
      */
-    protected function triggerAccountingPagoVentanilla(int $creditId, int $paymentId, float $amount, array $breakdown = [])
+    protected function triggerAccountingPagoVentanilla(int $creditId, int $paymentId, float $amount, array $breakdown = []): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -573,12 +673,12 @@ trait AccountingTrigger
                 'credit_id' => $creditId,
                 'payment_id' => $paymentId,
             ]);
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $creditRef = $breakdown['credit_reference'] ?? "CRED-{$creditId}";
@@ -612,6 +712,8 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 
     /**
@@ -619,7 +721,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
      */
-    protected function triggerAccountingAbonoExtraordinario(int $creditId, int $paymentId, float $amount, array $breakdown = [])
+    protected function triggerAccountingAbonoExtraordinario(int $creditId, int $paymentId, float $amount, array $breakdown = []): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -638,12 +740,12 @@ trait AccountingTrigger
                 'credit_id' => $creditId,
                 'payment_id' => $paymentId,
             ]);
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $creditRef = $breakdown['credit_reference'] ?? "CRED-{$creditId}";
@@ -683,6 +785,8 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 
     /**
@@ -690,7 +794,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEPE
      */
-    protected function triggerAccountingDevolucion(int $creditId, ?int $paymentId, float $amount, string $reason, array $additionalData = [])
+    protected function triggerAccountingDevolucion(int $creditId, ?int $paymentId, float $amount, string $reason, array $additionalData = []): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -709,12 +813,12 @@ trait AccountingTrigger
             Log::warning('ERP: Cuentas contables no configuradas. Asiento de devolución NO enviado.', [
                 'credit_id' => $creditId,
             ]);
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $creditRef = $additionalData['credit_reference'] ?? "CRED-{$creditId}";
@@ -746,6 +850,8 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 
     /**
@@ -753,7 +859,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
      */
-    protected function triggerAccountingRefundicionCierre(int $oldCreditId, float $balanceAbsorbed, int $newCreditId)
+    protected function triggerAccountingRefundicionCierre(int $oldCreditId, float $balanceAbsorbed, int $newCreditId): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -767,12 +873,12 @@ trait AccountingTrigger
         ]);
 
         if (!$codBanco || !$codCxC) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $result = $service->createJournalEntry(
@@ -801,6 +907,8 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 
     /**
@@ -808,7 +916,7 @@ trait AccountingTrigger
      *
      * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEPE
      */
-    protected function triggerAccountingRefundicionNuevo(int $newCreditId, float $amount, int $oldCreditId, float $cashDelivered)
+    protected function triggerAccountingRefundicionNuevo(int $newCreditId, float $amount, int $oldCreditId, float $cashDelivered): array
     {
         $codBanco = $this->getAccountCode('banco_credipepe');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
@@ -823,12 +931,12 @@ trait AccountingTrigger
         ]);
 
         if (!$codBanco || !$codCxC) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables no configuradas'];
         }
 
         $service = $this->getErpService();
         if (!$service->isConfigured()) {
-            return;
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
         }
 
         $result = $service->createJournalEntry(
@@ -857,5 +965,7 @@ trait AccountingTrigger
                 'error' => $result['error'] ?? 'Desconocido',
             ]);
         }
+
+        return $result;
     }
 }
