@@ -18,6 +18,7 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Models\SaldoPendiente;
+use App\Models\Task;
 use App\Models\PlanillaUpload;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -1851,6 +1852,28 @@ class CreditPaymentController extends Controller
             $credit->saldo = 0;
             $credit->status = 'Cerrado';
             $credit->save();
+
+            // Crear tarea para adjuntar pagaré firmado
+            if ($credit->assigned_to) {
+                $existingTask = Task::where('project_code', $credit->reference)
+                    ->where('title', 'Adjuntar pagaré firmado')
+                    ->whereNotIn('status', ['deleted'])
+                    ->first();
+
+                if (!$existingTask) {
+                    Task::create([
+                        'project_code' => $credit->reference,
+                        'project_name' => (string) $credit->id,
+                        'title' => 'Adjuntar pagaré firmado',
+                        'details' => 'El crédito ha sido pagado completamente. Se requiere adjuntar el pagaré firmado por el cliente.',
+                        'status' => 'pendiente',
+                        'priority' => 'alta',
+                        'assigned_to' => $credit->assigned_to,
+                        'start_date' => now(),
+                        'due_date' => now()->addDays(3),
+                    ]);
+                }
+            }
 
             // ============================================================
             // ACCOUNTING_API_TRIGGER: Cancelación Anticipada (Pago Total)
