@@ -35,7 +35,8 @@ if (!$autoConfirm) {
     echo "  2. Eliminar todos los planes de pago\n";
     echo "  3. Eliminar todos los créditos\n";
     echo "  4. Eliminar todas las oportunidades\n";
-    echo "  5. Convertir clientes → leads (person_type_id: 2 → 1)\n\n";
+    echo "  5. Eliminar todos los analizados\n";
+    echo "  6. Convertir clientes → leads (person_type_id: 2 → 1)\n\n";
 
     // Mostrar conteos actuales
     $counts = [
@@ -43,6 +44,7 @@ if (!$autoConfirm) {
         'plan_de_pagos'   => DB::table('plan_de_pagos')->count(),
         'credits'         => DB::table('credits')->count(),
         'opportunities'   => DB::table('opportunities')->count(),
+        'analisis'        => DB::table('analisis')->count(),
         'clientes'        => DB::table('persons')->where('person_type_id', 2)->count(),
     ];
 
@@ -83,7 +85,11 @@ try {
     $deleted = DB::table('opportunities')->delete();
     echo "[OK] opportunities eliminadas: {$deleted}\n";
 
-    // 5. Convertir clientes → leads (person_type_id 2 → 1)
+    // 5. Analizados
+    $deleted = DB::table('analisis')->delete();
+    echo "[OK] analisis eliminados: {$deleted}\n";
+
+    // 6. Convertir clientes → leads (person_type_id 2 → 1)
     $updated = DB::table('persons')
         ->where('person_type_id', 2)
         ->update(['person_type_id' => 1]);
@@ -109,6 +115,7 @@ echo "  - credit_payments:  " . DB::table('credit_payments')->count() . "\n";
 echo "  - plan_de_pagos:    " . DB::table('plan_de_pagos')->count() . "\n";
 echo "  - credits:          " . DB::table('credits')->count() . "\n";
 echo "  - opportunities:    " . DB::table('opportunities')->count() . "\n";
+echo "  - analisis:         " . DB::table('analisis')->count() . "\n";
 echo "  - leads (type=1):   " . DB::table('persons')->where('person_type_id', 1)->count() . "\n";
 echo "  - clientes (type=2):" . DB::table('persons')->where('person_type_id', 2)->count() . "\n";
 echo "\n";
