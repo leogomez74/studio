@@ -39,7 +39,6 @@ yarn-error.log*
 *.txt
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 .genkit/*
 .env.local
