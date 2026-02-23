@@ -74,15 +74,20 @@ trait AccountingTrigger
         if ($this->shouldUseConfigurable($entryType)) {
             $result = $this->triggerConfigurableEntry($entryType, $amount, $reference, $context);
 
-            // Si funcionó, retornar
+            // Si funcionó, disparar cascada si aplica y retornar
             if ($result['success'] ?? false) {
+                $this->triggerCascadeEntries($entryType, $reference, $context, $result);
                 return $result;
             }
 
             // Si falló porque no hay configuración, usar fallback
             if (str_contains($result['error'] ?? '', 'No hay configuración')) {
                 Log::warning("ERP: No hay configuración para {$entryType}, usando método legacy como fallback");
-                return $this->fallbackToLegacy($entryType, $amount, $reference, $context);
+                $result = $this->fallbackToLegacy($entryType, $amount, $reference, $context);
+                if ($result['success'] ?? false) {
+                    $this->triggerCascadeEntries($entryType, $reference, $context, $result);
+                }
+                return $result;
             }
 
             // Otro error, retornar
@@ -90,7 +95,11 @@ trait AccountingTrigger
         }
 
         // Si no debe usar configurable, usar legacy directamente
-        return $this->fallbackToLegacy($entryType, $amount, $reference, $context);
+        $result = $this->fallbackToLegacy($entryType, $amount, $reference, $context);
+        if ($result['success'] ?? false) {
+            $this->triggerCascadeEntries($entryType, $reference, $context, $result);
+        }
+        return $result;
     }
 
     /**
@@ -257,6 +266,7 @@ trait AccountingTrigger
             'interes_moratorio' => 0,
             'poliza' => 0,
             'capital' => $amount,
+            'sobrante' => 0,
             'cargos_adicionales_total' => 0,
             'cargos_adicionales' => [],
         ];
@@ -404,6 +414,63 @@ trait AccountingTrigger
     }
 
     /**
+     * Disparar asientos en cascada luego de un asiento exitoso.
+     *
+     * Actualmente soporta:
+     * - PAGO_PLANILLA con sobrante > 0 → dispara RETENCION_SOBRANTE automáticamente
+     */
+    private function triggerCascadeEntries(string $parentType, string $reference, array $context, array &$parentResult): void
+    {
+        if ($parentType !== 'PAGO_PLANILLA') {
+            return;
+        }
+
+        $sobrante = (float) ($context['amount_breakdown']['sobrante'] ?? 0);
+
+        if ($sobrante <= 0) {
+            return;
+        }
+
+        Log::info('ERP: Sobrante detectado en PAGO_PLANILLA, disparando RETENCION_SOBRANTE', [
+            'reference' => $reference,
+            'sobrante' => $sobrante,
+        ]);
+
+        $sobranteReference = $reference . '-SOBRANTE';
+
+        // Construir contexto para el asiento de sobrante (monto total = el sobrante)
+        $sobranteContext = $context;
+        $sobranteContext['amount_breakdown'] = [
+            'total' => $sobrante,
+            'interes_corriente' => 0,
+            'interes_moratorio' => 0,
+            'poliza' => 0,
+            'capital' => 0,
+            'sobrante' => $sobrante,
+            'cargos_adicionales_total' => 0,
+            'cargos_adicionales' => [],
+        ];
+
+        $sobranteResult = $this->triggerAccountingEntry(
+            'RETENCION_SOBRANTE',
+            $sobrante,
+            $sobranteReference,
+            $sobranteContext
+        );
+
+        // Adjuntar resultado del sobrante al resultado padre para trazabilidad
+        $parentResult['sobrante_entry'] = $sobranteResult;
+
+        if (!($sobranteResult['success'] ?? false)) {
+            Log::warning('ERP: Fallo al registrar RETENCION_SOBRANTE', [
+                'reference' => $sobranteReference,
+                'sobrante' => $sobrante,
+                'error' => $sobranteResult['error'] ?? 'Desconocido',
+            ]);
+        }
+    }
+
+    /**
      * Resolver el monto de una línea según su componente
      *
      * @param \App\Models\AccountingEntryLine $line
@@ -421,6 +488,7 @@ trait AccountingTrigger
             'interes_moratorio' => $breakdown['interes_moratorio'] ?? 0,
             'poliza' => $breakdown['poliza'] ?? 0,
             'capital' => $breakdown['capital'] ?? 0,
+            'sobrante' => $breakdown['sobrante'] ?? 0,
             'cargo_adicional' => $this->resolveCargosAdicionales($breakdown, $line->cargo_adicional_key),
             default => $breakdown['total'] ?? $totalAmount,
         };

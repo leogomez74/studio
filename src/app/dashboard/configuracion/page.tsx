@@ -5101,6 +5101,7 @@ export default function ConfiguracionPage() {
                                       <SelectItem value="interes_moratorio">Interés Moratorio</SelectItem>
                                       <SelectItem value="poliza">Póliza</SelectItem>
                                       <SelectItem value="capital">Capital/Amortización</SelectItem>
+                                      <SelectItem value="sobrante">Sobrante (retención de más)</SelectItem>
                                       <SelectItem value="cargo_adicional">Cargo Adicional (seleccionar cuál →)</SelectItem>
                                     </SelectContent>
                                   </Select>
