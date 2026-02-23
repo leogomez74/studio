@@ -836,24 +836,18 @@ export default function ClientDetailPage() {
   const districts = selectedCanton?.districts || [];
 
   const handleProvinceChange = (value: string) => {
-    setFormData(prev => ({ 
-        ...prev, 
-        province: value,
-        canton: "",
-        distrito: ""
-    }));
+    setFormData(prev => ({ ...prev, province: value, canton: "", distrito: "" }));
+    if (isEditMode) setTimeout(autoSave, 100);
   };
 
   const handleCantonChange = (value: string) => {
-    setFormData(prev => ({ 
-        ...prev, 
-        canton: value,
-        distrito: ""
-    }));
+    setFormData(prev => ({ ...prev, canton: value, distrito: "" }));
+    if (isEditMode) setTimeout(autoSave, 100);
   };
 
   const handleDistrictChange = (value: string) => {
     setFormData(prev => ({ ...prev, distrito: value }));
+    if (isEditMode) setTimeout(autoSave, 100);
   };
 
   // Work Address Logic
@@ -871,61 +865,55 @@ export default function ClientDetailPage() {
   const workDistricts = selectedWorkCanton?.districts || [];
 
   const handleWorkProvinceChange = (value: string) => {
-    setFormData(prev => ({ 
-        ...prev, 
-        trabajo_provincia: value,
-        trabajo_canton: "",
-        trabajo_distrito: ""
-    }));
+    setFormData(prev => ({ ...prev, trabajo_provincia: value, trabajo_canton: "", trabajo_distrito: "" }));
+    if (isEditMode) setTimeout(autoSave, 100);
   };
 
   const handleWorkCantonChange = (value: string) => {
-    setFormData(prev => ({ 
-        ...prev, 
-        trabajo_canton: value,
-        trabajo_distrito: ""
-    }));
+    setFormData(prev => ({ ...prev, trabajo_canton: value, trabajo_distrito: "" }));
+    if (isEditMode) setTimeout(autoSave, 100);
   };
 
   const handleWorkDistrictChange = (value: string) => {
     setFormData(prev => ({ ...prev, trabajo_distrito: value }));
+    if (isEditMode) setTimeout(autoSave, 100);
   };
 
-  const handleSave = async () => {
+  const autoSave = useCallback(async () => {
+    if (!isEditMode) return;
+    const EDITABLE_FIELDS = [
+      'name', 'apellido1', 'apellido2', 'cedula', 'email', 'phone', 'status',
+      'assigned_to_id', 'notes', 'source', 'whatsapp', 'tel_casa', 'tel_amigo',
+      'province', 'canton', 'distrito', 'direccion1', 'direccion2',
+      'ocupacion', 'estado_civil', 'relacionado_a', 'tipo_relacion', 'fecha_nacimiento',
+      'is_active', 'cedula_vencimiento', 'genero', 'nacionalidad', 'telefono2',
+      'institucion_labora', 'departamento_cargo', 'deductora_id', 'nivel_academico',
+      'profesion', 'sector', 'puesto', 'estado_puesto',
+      'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion',
+      'actividad_economica', 'tel_amigo_2', 'relacionado_a_2', 'tipo_relacion_2',
+    ];
+    const payload: Record<string, unknown> = Object.fromEntries(
+      Object.entries(formData).filter(([key]) => EDITABLE_FIELDS.includes(key))
+    );
+    if (payload.deductora_id) payload.deductora_id = Number(payload.deductora_id);
     try {
       setSaving(true);
-      // Sanitize deductora_id to ensure it's a valid number or null
-      const sanitizedData = {
-        ...formData,
-        deductora_id: formData.deductora_id ? Number(formData.deductora_id) : null,
-      };
-
-      console.log('Datos a enviar:', sanitizedData);
-
-      await api.put(`/api/clients/${id}`, sanitizedData);
-      toast({ title: "Guardado", description: "Cliente actualizado correctamente." });
+      await api.put(`/api/clients/${id}`, payload);
       setClient(prev => ({ ...prev, ...formData } as Client));
-      router.push(`/dashboard/clientes/${id}?mode=view`);
     } catch (error: any) {
-      console.error("Error updating client:", error);
-      console.error("Error response:", error.response?.data);
-
-      // Mostrar errores de validación específicos si existen
-      if (error.response?.data?.errors) {
-        const errorMessages = Object.entries(error.response.data.errors)
-          .map(([field, messages]: [string, any]) => `${field}: ${messages.join(', ')}`)
-          .join('\n');
-        toast({
-          title: "Error de validación",
-          description: errorMessages,
-          variant: "destructive"
-        });
-      } else {
-        toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
-      }
+      console.error("Error auto-saving client:", error);
+      toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
+  }, [id, formData, isEditMode, toast]);
+
+  const handleBlur = () => {
+    if (isEditMode) autoSave();
+  };
+
+  const handleSave = async () => {
+    autoSave();
   };
 
   const handleArchive = async () => {
@@ -1158,11 +1146,13 @@ export default function ClientDetailPage() {
         <div className="flex items-center gap-2">
           {isEditMode && (
             <>
+              {saving ? (
+                <span className="flex items-center text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </span>
+              ) : null}
               <Button variant="ghost" onClick={() => router.push(`/dashboard/clientes/${id}?mode=view`)}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Guardar cambios
-              </Button>
             </>
           )}
           <TooltipProvider>
@@ -1335,6 +1325,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.name || ""}
                   onChange={(e) => handleInputChange("name", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1343,6 +1334,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.apellido1 || ""}
                   onChange={(e) => handleInputChange("apellido1", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1351,6 +1343,7 @@ export default function ClientDetailPage() {
                 <Input 
                   value={formData.apellido2 || ""} 
                   onChange={(e) => handleInputChange("apellido2", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1359,6 +1352,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.cedula || ""}
                   onChange={(e) => handleInputChange("cedula", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1368,6 +1362,7 @@ export default function ClientDetailPage() {
                   type="date"
                   value={formData.cedula_vencimiento || ""} 
                   onChange={(e) => handleInputChange("cedula_vencimiento", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1377,15 +1372,16 @@ export default function ClientDetailPage() {
                   type="date"
                   value={formData.fecha_nacimiento ? String(formData.fecha_nacimiento).split('T')[0] : ""} 
                   onChange={(e) => handleInputChange("fecha_nacimiento", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
               <div className="space-y-2">
                 <Label>Género</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={formData.genero || ""} 
-                    onValueChange={(value) => handleInputChange("genero", value)}
+                  <Select
+                    value={formData.genero || ""}
+                    onValueChange={(value) => { handleInputChange("genero", value); if (isEditMode) setTimeout(autoSave, 100); }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar género" />
@@ -1404,7 +1400,7 @@ export default function ClientDetailPage() {
                 {isEditMode ? (
                   <Select
                     value={formData.estado_civil || ""}
-                    onValueChange={(value) => handleInputChange("estado_civil", value)}
+                    onValueChange={(value) => { handleInputChange("estado_civil", value); if (isEditMode) setTimeout(autoSave, 100); }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar estado civil" />
@@ -1435,6 +1431,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.email || ""}
                   onChange={(e) => handleInputChange("email", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1443,6 +1440,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.phone || ""}
                   onChange={(e) => handleInputChange("phone", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1451,6 +1449,7 @@ export default function ClientDetailPage() {
                 <Input 
                   value={formData.telefono2 || ""} 
                   onChange={(e) => handleInputChange("telefono2", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1459,6 +1458,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.telefono3 || ""}
                   onChange={(e) => handleInputChange("telefono3", e.target.value)}
+                  onBlur={handleBlur}
                   disabled={!isEditMode}
                 />
               </div>
@@ -1467,6 +1467,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.whatsapp || ""}
                   onChange={(e) => handleInputChange("whatsapp", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1475,6 +1476,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.tel_casa || ""}
                   onChange={(e) => handleInputChange("tel_casa", e.target.value)}
+                  onBlur={handleBlur}
                   disabled={!isEditMode}
                 />
               </div>
@@ -1498,6 +1500,7 @@ export default function ClientDetailPage() {
                   <Input
                     value={formData.tel_amigo || ""}
                     onChange={(e) => handleInputChange("tel_amigo", e.target.value)}
+                    onBlur={handleBlur}
                     disabled={!isEditMode}
                     placeholder="Número telefónico"
                   />
@@ -1507,6 +1510,7 @@ export default function ClientDetailPage() {
                   <Input
                     value={formData.relacionado_a || ""}
                     onChange={(e) => handleInputChange("relacionado_a", e.target.value)}
+                    onBlur={handleBlur}
                     disabled={!isEditMode}
                     placeholder="Nombre completo"
                   />
@@ -1516,6 +1520,7 @@ export default function ClientDetailPage() {
                   <Input
                     value={formData.tipo_relacion || ""}
                     onChange={(e) => handleInputChange("tipo_relacion", e.target.value)}
+                    onBlur={handleBlur}
                     disabled={!isEditMode}
                     placeholder="Ej: Amigo, Familiar"
                   />
@@ -1532,6 +1537,7 @@ export default function ClientDetailPage() {
                   <Input
                     value={formData.tel_amigo_2 || ""}
                     onChange={(e) => handleInputChange("tel_amigo_2", e.target.value)}
+                    onBlur={handleBlur}
                     disabled={!isEditMode}
                     placeholder="Número telefónico"
                   />
@@ -1541,6 +1547,7 @@ export default function ClientDetailPage() {
                   <Input
                     value={formData.relacionado_a_2 || ""}
                     onChange={(e) => handleInputChange("relacionado_a_2", e.target.value)}
+                    onBlur={handleBlur}
                     disabled={!isEditMode}
                     placeholder="Nombre completo"
                   />
@@ -1550,6 +1557,7 @@ export default function ClientDetailPage() {
                   <Input
                     value={formData.tipo_relacion_2 || ""}
                     onChange={(e) => handleInputChange("tipo_relacion_2", e.target.value)}
+                    onBlur={handleBlur}
                     disabled={!isEditMode}
                     placeholder="Ej: Amigo, Familiar"
                   />
@@ -1637,6 +1645,7 @@ export default function ClientDetailPage() {
                 <Textarea
                   value={formData.direccion1 || ""} 
                   onChange={(e) => handleInputChange("direccion1", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1645,6 +1654,7 @@ export default function ClientDetailPage() {
                 <Textarea 
                   value={formData.direccion2 || ""} 
                   onChange={(e) => handleInputChange("direccion2", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1662,7 +1672,7 @@ export default function ClientDetailPage() {
                 {isEditMode ? (
                   <Select
                     value={formData.nivel_academico || ""}
-                    onValueChange={(value) => handleInputChange("nivel_academico", value)}
+                    onValueChange={(value) => { handleInputChange("nivel_academico", value); if (isEditMode) setTimeout(autoSave, 100); }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar nivel académico" />
@@ -1743,6 +1753,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.sector || ""} 
                   onChange={(e) => handleInputChange("sector", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1751,6 +1762,7 @@ export default function ClientDetailPage() {
                 <Input
                   value={formData.puesto || ""} 
                   onChange={(e) => handleInputChange("puesto", e.target.value)} 
+                  onBlur={handleBlur}
                   disabled={!isEditMode} 
                 />
               </div>
@@ -1758,7 +1770,7 @@ export default function ClientDetailPage() {
                 <Label>Nombramiento</Label>
                 <Select
                   value={formData.estado_puesto || ""}
-                  onValueChange={(value) => handleInputChange("estado_puesto", value)}
+                  onValueChange={(value) => { handleInputChange("estado_puesto", value); if (isEditMode) setTimeout(autoSave, 100); }}
                   disabled={!isEditMode}
                 >
                   <SelectTrigger>
@@ -1906,6 +1918,7 @@ export default function ClientDetailPage() {
                 <Textarea
                   value={formData.trabajo_direccion || ""}
                   onChange={(e) => handleInputChange("trabajo_direccion", e.target.value)}
+                  onBlur={handleBlur}
                   disabled={!isEditMode}
                 />
               </div>
@@ -1937,9 +1950,9 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 <Label>Responsable</Label>
                 {isEditMode ? (
-                  <Select 
-                    value={String(formData.assigned_to_id || "")} 
-                    onValueChange={(value) => handleInputChange("assigned_to_id", value)}
+                  <Select
+                    value={String(formData.assigned_to_id || "")}
+                    onValueChange={(value) => { handleInputChange("assigned_to_id", value); if (isEditMode) setTimeout(autoSave, 100); }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar responsable" />

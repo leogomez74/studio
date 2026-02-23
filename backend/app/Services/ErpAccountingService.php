@@ -123,7 +123,7 @@ class ErpAccountingService
             Log::warning('ERP: Servicio no configurado. Asiento NO enviado.', [
                 'description' => $description,
             ]);
-            return ['success' => false, 'error' => 'ERP no configurado', 'skipped' => true];
+            return ['success' => false, 'error' => 'ERP no configurado', 'skipped' => true, '_payload' => null];
         }
 
         // 2. Validar partida doble localmente
@@ -133,7 +133,9 @@ class ErpAccountingService
                 'error' => $validation['error'],
                 'items' => $items,
             ]);
-            return ['success' => false, 'error' => $validation['error']];
+            $earlyPayload = ['date' => $date, 'description' => $description, 'items' => $items];
+            if ($reference) $earlyPayload['reference'] = $reference;
+            return ['success' => false, 'error' => $validation['error'], '_payload' => $earlyPayload];
         }
 
         // 3. Preparar payload
@@ -148,7 +150,9 @@ class ErpAccountingService
         }
 
         // 4. Enviar con retry en caso de 401
-        return $this->sendWithRetry($payload);
+        $result = $this->sendWithRetry($payload);
+        $result['_payload'] = $payload;
+        return $result;
     }
 
     /**

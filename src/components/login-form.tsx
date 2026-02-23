@@ -116,7 +116,7 @@ export function LoginForm() {
             <Input
               id="email"
               type="email"
-              placeholder="ejemplo@dsf.cr"
+              placeholder="ejemplo@credipep.cr"
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -177,7 +177,7 @@ export function LoginForm() {
           </Button>
           <Separator />
           <p className="text-center text-xs text-muted-foreground">
-            Al ingresar aceptas los términos de confidencialidad de DSF.
+            Al ingresar aceptas los términos de confidencialidad de Credipep.
           </p>
         </CardFooter>
       </form>

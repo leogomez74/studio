@@ -470,18 +470,25 @@ class SaldoPendienteController extends Controller
                 // Dispara asiento contable al aplicar saldo pendiente a capital:
                 // DÉBITO: Banco CREDIPEPE (monto_aplicar)
                 // CRÉDITO: Cuentas por Cobrar (monto_aplicar)
-                $this->triggerAccountingPago(
-                    $credit->id,
-                    $payment->id,
+                $this->triggerAccountingEntry(
+                    'ABONO_CAPITAL',
                     $montoCapital,
-                    'Abono a Capital',
+                    "CAPITAL-{$payment->id}-{$credit->reference}",
                     [
-                        'capital' => $montoCapital,
-                        'saldo_anterior' => $saldoAnterior,
-                        'nuevo_saldo' => $creditRefresh->saldo,
+                        'reference' => "CAPITAL-{$payment->id}-{$credit->reference}",
+                        'credit_id' => $credit->reference,
                         'cedula' => $saldo->cedula,
-                        'credit_reference' => $credit->reference,
+                        'clienteNombre' => $credit->lead->name ?? null,
                         'origen' => 'Saldo Pendiente',
+                        'amount_breakdown' => [
+                            'total' => $montoCapital,
+                            'interes_corriente' => 0,
+                            'interes_moratorio' => 0,
+                            'poliza' => 0,
+                            'capital' => $montoCapital,
+                            'cargos_adicionales_total' => 0,
+                            'cargos_adicionales' => [],
+                        ],
                     ]
                 );
 
@@ -533,6 +540,35 @@ class SaldoPendienteController extends Controller
             $saldo->asignado_at = now();
             $saldo->notas = $validated['motivo'] ?? 'Saldo reintegrado - No aplicado a crédito';
             $saldo->save();
+
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Reintegro de Saldo Pendiente
+            // ============================================================
+            // Dispara asiento contable al reintegrar un saldo:
+            // DÉBITO: Cuentas por Cobrar (monto del saldo)
+            // CRÉDITO: Banco CREDIPEPE (monto del saldo)
+            $this->triggerAccountingEntry(
+                'REINTEGRO_SALDO',
+                $monto,
+                "REINTEGRO-{$saldo->id}-{$credit->reference}",
+                [
+                    'reference' => "REINTEGRO-{$saldo->id}-{$credit->reference}",
+                    'credit_id' => $credit->reference,
+                    'cedula' => $saldo->cedula,
+                    'clienteNombre' => $credit->lead->name ?? null,
+                    'motivo' => $validated['motivo'] ?? 'Sin motivo',
+                    'origen' => $saldo->origen ?? 'Planilla',
+                    'amount_breakdown' => [
+                        'total' => $monto,
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'poliza' => 0,
+                        'capital' => $monto,
+                        'cargos_adicionales_total' => 0,
+                        'cargos_adicionales' => [],
+                    ],
+                ]
+            );
 
             return response()->json([
                 'message' => sprintf('Saldo de ₡%s reintegrado exitosamente', number_format($monto, 2)),

@@ -96,4 +96,40 @@ class ErpAccountingConfigController extends Controller
 
         return response()->json($result, $result['success'] ? 200 : 400);
     }
+
+    /**
+     * Estado de validación de todas las cuentas contables.
+     * GET /api/erp-accounting/accounts/validation-status
+     */
+    public function validationStatus()
+    {
+        $accounts = ErpAccountingAccount::orderBy('id')->get()->map(function ($account) {
+            $status = 'inactive';
+            if ($account->active) {
+                $status = $account->validated_at ? 'validated' : 'never_used';
+            }
+
+            return [
+                'id' => $account->id,
+                'key' => $account->key,
+                'account_code' => $account->account_code,
+                'account_name' => $account->account_name,
+                'active' => $account->active,
+                'validated_at' => $account->validated_at?->toIso8601String(),
+                'validation_status' => $status,
+            ];
+        });
+
+        $summary = [
+            'total' => $accounts->count(),
+            'validated' => $accounts->where('validation_status', 'validated')->count(),
+            'never_used' => $accounts->where('validation_status', 'never_used')->count(),
+            'inactive' => $accounts->where('validation_status', 'inactive')->count(),
+        ];
+
+        return response()->json([
+            'accounts' => $accounts,
+            'summary' => $summary,
+        ]);
+    }
 }

@@ -151,20 +151,27 @@ class PlanillaUploadController extends Controller
                 // Dispara asiento contable al revertir un pago:
                 // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
                 // CRÉDITO: Banco CREDIPEPE (monto del pago revertido)
-                $this->triggerAccountingDevolucion(
-                    $credit->id,
-                    $pago->id,
+                $this->triggerAccountingEntry(
+                    'ANULACION_PLANILLA',
                     (float) $pago->monto,
-                    'Anulación de planilla: ' . $validated['motivo'],
+                    "ANULA-PLAN-{$pago->id}-{$credit->reference}",
                     [
-                        'planilla_id' => $planilla->id,
+                        'reference' => "ANULA-PLAN-{$pago->id}-{$credit->reference}",
+                        'credit_id' => $credit->reference,
+                        'cedula' => $pago->cedula,
+                        'clienteNombre' => $credit->lead->name ?? null,
+                        'motivo' => $validated['motivo'],
                         'deductora_id' => $planilla->deductora_id,
                         'fecha_planilla' => $planilla->fecha_planilla,
-                        'amortizacion_revertida' => (float) $pago->amortizacion,
-                        'interes_revertido' => (float) $pago->interes_corriente,
-                        'mora_revertida' => (float) $pago->interes_moratorio,
-                        'cedula' => $pago->cedula,
-                        'credit_reference' => $credit->reference,
+                        'amount_breakdown' => [
+                            'total' => (float) $pago->monto,
+                            'interes_corriente' => (float) $pago->interes_corriente,
+                            'interes_moratorio' => (float) $pago->interes_moratorio,
+                            'poliza' => 0,
+                            'capital' => (float) $pago->amortizacion,
+                            'cargos_adicionales_total' => 0,
+                            'cargos_adicionales' => [],
+                        ],
                     ]
                 );
             }

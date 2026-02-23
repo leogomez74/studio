@@ -105,8 +105,8 @@ Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationContro
 
 // Créditos - MOVIDO A RUTAS PROTEGIDAS (ver línea ~178)
 
-// Deductoras (solo lectura - datos hardcodeados en config/deductoras.php)
-Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show']);
+// Deductoras
+Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show', 'update']);
 
 // Configuración de Préstamos
 Route::prefix('loan-configurations')->group(function () {
@@ -124,6 +124,28 @@ Route::prefix('erp-accounting')->group(function () {
     Route::put('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'update']);
     Route::delete('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'destroy']);
     Route::post('/test-connection', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'testConnection']);
+    Route::get('/accounts/validation-status', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'validationStatus']);
+});
+
+// Configuración de Asientos Contables
+Route::prefix('accounting-entry-configs')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'index']);
+    Route::get('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'show']);
+    Route::post('/', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'store']);
+    Route::put('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'update']);
+    Route::delete('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'destroy']);
+    Route::post('/{id}/toggle', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'toggle']);
+    Route::post('/{id}/preview', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'preview']);
+});
+
+// Registro/Log de Asientos Contables enviados al ERP
+Route::prefix('accounting-entry-logs')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'index']);
+    Route::get('/stats', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'stats']);
+    Route::get('/alerts', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'alerts']);
+    Route::get('/export', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'export']);
+    Route::get('/{id}', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'show']);
+    Route::post('/{id}/retry', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'retry']);
 });
 
 // Documentos de Personas (Leads/Clientes) - Unificado

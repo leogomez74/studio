@@ -23,4 +23,20 @@ class DeductoraController extends Controller
 
         return response()->json($deductora);
     }
+
+    public function update(Request $request, string $id)
+    {
+        $deductora = Deductora::findOrFail($id);
+
+        $validated = $request->validate([
+            'erp_account_key' => 'nullable|string|max:50',
+        ]);
+
+        $deductora->update($validated);
+
+        return response()->json([
+            'message' => 'Deductora actualizada exitosamente',
+            'deductora' => $deductora,
+        ]);
+    }
 }

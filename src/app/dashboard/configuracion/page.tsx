@@ -16,7 +16,8 @@ import { PermissionButton } from '@/components/PermissionButton';
 import { ProtectedPage } from '@/components/ProtectedPage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash, Search, ChevronLeft, ChevronRight, Eye, RefreshCw, Download } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
   Table,
@@ -65,6 +66,610 @@ const extensionOptions = [
   { label: 'Imagen (PNG)', value: 'png' },
   { label: 'HTML', value: 'html' },
 ];
+
+// Tipos de asientos contables disponibles y dónde se ejecutan
+const ACCOUNTING_ENTRY_TYPES = [
+  {
+    value: 'FORMALIZACION',
+    label: 'Formalización de Crédito',
+    description: 'Al aprobar y formalizar un crédito',
+    controller: 'CreditController@update',
+    reference: 'CREDIT-{ID}'
+  },
+  {
+    value: 'PAGO_PLANILLA',
+    label: 'Pago de Planilla',
+    description: 'Pago por descuento de planilla',
+    controller: 'CreditPaymentController@store',
+    reference: 'PLAN-{ID}'
+  },
+  {
+    value: 'PAGO_VENTANILLA',
+    label: 'Pago de Ventanilla',
+    description: 'Pago manual en ventanilla',
+    controller: 'CreditPaymentController@store',
+    reference: 'VENT-{ID}'
+  },
+  {
+    value: 'ABONO_EXTRAORDINARIO',
+    label: 'Abono Extraordinario',
+    description: 'Abono extraordinario (adelanto de cuotas)',
+    controller: 'CreditPaymentController@storeExtraordinary',
+    reference: 'EXTRA-{ID}'
+  },
+  {
+    value: 'CANCELACION_ANTICIPADA',
+    label: 'Cancelación Anticipada',
+    description: 'Pago total anticipado del crédito',
+    controller: 'CreditPaymentController@cancelCredit',
+    reference: 'CANCEL-{ID}'
+  },
+  {
+    value: 'REFUNDICION_CIERRE',
+    label: 'Refundición (Cierre)',
+    description: 'Cierre del crédito antiguo en refundición',
+    controller: 'RefundicionController@store',
+    reference: 'REFUND-CLOSE-{ID}'
+  },
+  {
+    value: 'REFUNDICION_NUEVO',
+    label: 'Refundición (Nuevo)',
+    description: 'Apertura del nuevo crédito refundido',
+    controller: 'RefundicionController@store',
+    reference: 'REFUND-NEW-{ID}'
+  },
+  {
+    value: 'REINTEGRO_SALDO',
+    label: 'Reintegro de Saldo Pendiente',
+    description: 'Devolución de saldo pendiente al cliente',
+    controller: 'CreditController@reintegro',
+    reference: 'DEVOL-{ID}'
+  },
+  {
+    value: 'ANULAR_PLANILLA',
+    label: 'Anulación de Planilla',
+    description: 'Reversa de todos los pagos de una planilla completa',
+    controller: 'PlanillaController@destroy',
+    reference: 'ANUL-PLAN-{ID}'
+  },
+  {
+    value: 'REVERSO_PAGO',
+    label: 'Reverso de Pago Manual',
+    description: 'Anulación de pago individual',
+    controller: 'CreditPaymentController@destroy',
+    reference: 'REVERSE-PAY-{ID}'
+  },
+  {
+    value: 'REVERSO_EXTRAORDINARIO',
+    label: 'Reverso de Abono Extraordinario',
+    description: 'Anulación de abono extraordinario',
+    controller: 'CreditPaymentController@destroyExtraordinary',
+    reference: 'REVERSE-EXTRA-{ID}'
+  },
+  {
+    value: 'REVERSO_CANCELACION',
+    label: 'Reverso de Cancelación Anticipada',
+    description: 'Anulación de cancelación anticipada',
+    controller: 'CreditPaymentController@destroyCancellation',
+    reference: 'REVERSE-CANCEL-{ID}'
+  }
+];
+
+// ---- Componente de Auditoría de Asientos Contables ----
+
+interface AuditLogEntry {
+  id: number;
+  entry_type: string;
+  reference: string;
+  status: 'pending' | 'success' | 'error' | 'skipped';
+  amount: string;
+  total_debit: string | null;
+  total_credit: string | null;
+  erp_journal_entry_id: string | null;
+  erp_message: string | null;
+  error_message: string | null;
+  http_status: number | null;
+  payload_sent: Record<string, unknown> | null;
+  erp_response: Record<string, unknown> | null;
+  context: Record<string, unknown> | null;
+  source_method: string | null;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+}
+
+interface AuditLogStats {
+  totals: { total: number; success: number; error: number; skipped: number; pending: number };
+  by_entry_type: Record<string, Array<{ entry_type: string; status: string; count: number }>>;
+}
+
+const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  success: { label: 'Exitoso', variant: 'default' },
+  error: { label: 'Error', variant: 'destructive' },
+  skipped: { label: 'Omitido', variant: 'secondary' },
+  pending: { label: 'Pendiente', variant: 'outline' },
+};
+
+const ENTRY_TYPE_LABELS: Record<string, string> = {
+  FORMALIZACION: 'Formalización',
+  PAGO_PLANILLA: 'Pago Planilla',
+  PAGO_VENTANILLA: 'Pago Ventanilla',
+  ABONO_EXTRAORDINARIO: 'Abono Extraordinario',
+  CANCELACION_ANTICIPADA: 'Cancelación Anticipada',
+  PAGO: 'Pago',
+  DEVOLUCION: 'Devolución',
+  REFUNDICION_CIERRE: 'Refundición Cierre',
+  REFUNDICION_NUEVO: 'Refundición Nuevo',
+};
+
+interface AccountingAlerts {
+  error_count: number;
+  exhausted_retries: number;
+  pending_retry: number;
+}
+
+const AccountingAuditLog: React.FC<{ onAlertCount?: (count: number) => void }> = ({ onAlertCount }) => {
+  const { toast } = useToast();
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [stats, setStats] = useState<AuditLogStats | null>(null);
+  const [alerts, setAlerts] = useState<AccountingAlerts | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+
+  // Filtros
+  const [filterEntryType, setFilterEntryType] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterSearch, setFilterSearch] = useState('');
+  const [filterFechaDesde, setFilterFechaDesde] = useState('');
+  const [filterFechaHasta, setFilterFechaHasta] = useState('');
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  const fetchLogs = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = { page: String(page), per_page: '15' };
+      if (filterEntryType !== 'all') params.entry_type = filterEntryType;
+      if (filterStatus !== 'all') params.status = filterStatus;
+      if (filterSearch) params.search = filterSearch;
+      if (filterFechaDesde) params.fecha_desde = filterFechaDesde;
+      if (filterFechaHasta) params.fecha_hasta = filterFechaHasta;
+
+      const query = new URLSearchParams(params).toString();
+      const res = await api.get(`/api/accounting-entry-logs?${query}`);
+      setLogs(res.data.data || []);
+      setCurrentPage(res.data.current_page || 1);
+      setLastPage(res.data.last_page || 1);
+      setTotal(res.data.total || 0);
+    } catch {
+      toast({ title: 'Error', description: 'No se pudieron cargar los registros', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [filterEntryType, filterStatus, filterSearch, filterFechaDesde, filterFechaHasta, toast]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const params: Record<string, string> = {};
+      if (filterFechaDesde) params.fecha_desde = filterFechaDesde;
+      if (filterFechaHasta) params.fecha_hasta = filterFechaHasta;
+      const query = new URLSearchParams(params).toString();
+      const res = await api.get(`/api/accounting-entry-logs/stats?${query}`);
+      setStats(res.data);
+    } catch {
+      // silently fail stats
+    }
+  }, [filterFechaDesde, filterFechaHasta]);
+
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const res = await api.get('/api/accounting-entry-logs/alerts');
+      setAlerts(res.data);
+      onAlertCount?.(res.data.error_count || 0);
+    } catch {
+      // silently fail alerts
+    }
+  }, [onAlertCount]);
+
+  useEffect(() => {
+    fetchLogs(1);
+    fetchStats();
+    fetchAlerts();
+  }, [fetchLogs, fetchStats, fetchAlerts]);
+
+  const handleSearch = () => {
+    setCurrentPage(1);
+    fetchLogs(1);
+    fetchStats();
+  };
+
+  const handleClearFilters = () => {
+    setFilterEntryType('all');
+    setFilterStatus('all');
+    setFilterSearch('');
+    setFilterFechaDesde('');
+    setFilterFechaHasta('');
+    setCurrentPage(1);
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      const params: Record<string, string> = {};
+      if (filterEntryType !== 'all') params.entry_type = filterEntryType;
+      if (filterStatus !== 'all') params.status = filterStatus;
+      if (filterSearch) params.reference = filterSearch;
+      if (filterFechaDesde) params.fecha_desde = filterFechaDesde;
+      if (filterFechaHasta) params.fecha_hasta = filterFechaHasta;
+      const query = new URLSearchParams(params).toString();
+      const res = await api.get(`/api/accounting-entry-logs/export?${query}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `asientos_contables_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo exportar el CSV', variant: 'destructive' });
+    }
+  };
+
+  const handleRetry = async (logId: number) => {
+    setRetryingId(logId);
+    try {
+      const res = await api.post(`/api/accounting-entry-logs/${logId}/retry`);
+      const success = res.data?.log?.status === 'success';
+      toast({
+        title: success ? 'Reintento exitoso' : 'Reintento falló',
+        description: res.data?.message || (success ? 'El asiento fue reenviado al ERP.' : 'No se pudo reenviar.'),
+        variant: success ? 'default' : 'destructive',
+      });
+      fetchLogs(currentPage);
+      fetchStats();
+      // Actualizar selectedLog si está abierto el dialog
+      if (selectedLog?.id === logId && res.data?.log) {
+        setSelectedLog(res.data.log);
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Error al reintentar';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatAmount = (amount: string | number | null) => {
+    if (amount === null || amount === undefined) return '-';
+    return Number(amount).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Banner de alertas */}
+      {alerts && (alerts.error_count > 0 || alerts.exhausted_retries > 0) && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">
+                {alerts.error_count > 0 && <span>{alerts.error_count} error{alerts.error_count !== 1 ? 'es' : ''} en las últimas 48h. </span>}
+                {alerts.exhausted_retries > 0 && <span>{alerts.exhausted_retries} asiento{alerts.exhausted_retries !== 1 ? 's' : ''} agotaron reintentos automáticos. </span>}
+                {alerts.pending_retry > 0 && <span>{alerts.pending_retry} pendiente{alerts.pending_retry !== 1 ? 's' : ''} de reintento.</span>}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => { setFilterStatus('error'); handleSearch(); }}>
+              Ver errores
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold">{stats.totals.total}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-green-600">{stats.totals.success}</p>
+              <p className="text-xs text-muted-foreground">Exitosos</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-red-600">{stats.totals.error}</p>
+              <p className="text-xs text-muted-foreground">Errores</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-yellow-600">{stats.totals.skipped}</p>
+              <p className="text-xs text-muted-foreground">Omitidos</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-blue-600">{stats.totals.pending}</p>
+              <p className="text-xs text-muted-foreground">Pendientes</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Filtros */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo</Label>
+              <Select value={filterEntryType} onValueChange={setFilterEntryType}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {Object.entries(ENTRY_TYPE_LABELS).map(([val, label]) => (
+                    <SelectItem key={val} value={val}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Estado</Label>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="success">Exitoso</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                  <SelectItem value="skipped">Omitido</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Desde</Label>
+              <Input type="date" value={filterFechaDesde} onChange={(e) => setFilterFechaDesde(e.target.value)} className="w-[150px]" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Hasta</Label>
+              <Input type="date" value={filterFechaHasta} onChange={(e) => setFilterFechaHasta(e.target.value)} className="w-[150px]" />
+            </div>
+            <div className="space-y-1 flex-1 min-w-[200px]">
+              <Label className="text-xs">Buscar</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Referencia, tipo, ID ERP..."
+                  value={filterSearch}
+                  onChange={(e) => setFilterSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+            </div>
+            <Button onClick={handleSearch} size="sm"><Search className="h-4 w-4 mr-1" /> Filtrar</Button>
+            <Button onClick={handleClearFilters} variant="outline" size="sm"><RefreshCw className="h-4 w-4 mr-1" /> Limpiar</Button>
+            <Button onClick={handleExportCSV} variant="outline" size="sm"><Download className="h-4 w-4 mr-1" /> Exportar CSV</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabla */}
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              No hay registros de asientos contables aún.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[50px]">ID</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Referencia</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
+                  <TableHead>Origen</TableHead>
+                  <TableHead>ID ERP</TableHead>
+                  <TableHead>Reintentos</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="font-mono text-xs">{log.id}</TableCell>
+                    <TableCell className="text-xs">{formatDate(log.created_at)}</TableCell>
+                    <TableCell>
+                      <span className="text-xs font-medium">{ENTRY_TYPE_LABELS[log.entry_type] || log.entry_type}</span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs max-w-[180px] truncate">{log.reference}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_CONFIG[log.status]?.variant || 'outline'}>
+                        {STATUS_CONFIG[log.status]?.label || log.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">{formatAmount(log.amount)}</TableCell>
+                    <TableCell className="text-xs">{log.source_method === 'configurable' ? 'Config' : 'Legacy'}</TableCell>
+                    <TableCell className="font-mono text-xs">{log.erp_journal_entry_id || '-'}</TableCell>
+                    <TableCell className="text-xs text-center">
+                      {log.retry_count > 0 ? `${log.retry_count}/${log.max_retries}` : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { setSelectedLog(log); setDetailOpen(true); }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {log.status === 'error' && log.payload_sent && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRetry(log.id)}
+                            disabled={retryingId === log.id}
+                            title="Reintentar envío al ERP"
+                          >
+                            {retryingId === log.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 text-orange-500" />}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+        {lastPage > 1 && (
+          <CardFooter className="flex items-center justify-between py-3">
+            <p className="text-sm text-muted-foreground">{total} registros - Página {currentPage} de {lastPage}</p>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => fetchLogs(currentPage - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" disabled={currentPage >= lastPage} onClick={() => fetchLogs(currentPage + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardFooter>
+        )}
+      </Card>
+
+      {/* Dialog de Detalle */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle del Asiento #{selectedLog?.id}</DialogTitle>
+            <DialogDescription>
+              {selectedLog && formatDate(selectedLog.created_at)} - {selectedLog && (ENTRY_TYPE_LABELS[selectedLog.entry_type] || selectedLog.entry_type)}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="space-y-4">
+              {/* Info general */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Referencia:</span>
+                  <p className="font-mono">{selectedLog.reference}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Estado:</span>
+                  <p><Badge variant={STATUS_CONFIG[selectedLog.status]?.variant || 'outline'}>{STATUS_CONFIG[selectedLog.status]?.label || selectedLog.status}</Badge></p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Monto:</span>
+                  <p className="font-mono">{formatAmount(selectedLog.amount)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Origen:</span>
+                  <p>{selectedLog.source_method === 'configurable' ? 'Configurable' : 'Legacy'}</p>
+                </div>
+                {selectedLog.erp_journal_entry_id && (
+                  <div>
+                    <span className="text-muted-foreground">ID en ERP:</span>
+                    <p className="font-mono">{selectedLog.erp_journal_entry_id}</p>
+                  </div>
+                )}
+                {selectedLog.total_debit && (
+                  <div>
+                    <span className="text-muted-foreground">Débito / Crédito:</span>
+                    <p className="font-mono">{formatAmount(selectedLog.total_debit)} / {formatAmount(selectedLog.total_credit)}</p>
+                  </div>
+                )}
+                {selectedLog.erp_message && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Mensaje ERP:</span>
+                    <p>{selectedLog.erp_message}</p>
+                  </div>
+                )}
+                {selectedLog.error_message && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Error:</span>
+                    <p className="text-red-600">{selectedLog.error_message}</p>
+                  </div>
+                )}
+                {(selectedLog.retry_count > 0 || selectedLog.status === 'error') && (
+                  <div>
+                    <span className="text-muted-foreground">Reintentos:</span>
+                    <p>{selectedLog.retry_count} / {selectedLog.max_retries}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Botón de reintento en dialog */}
+              {selectedLog.status === 'error' && selectedLog.payload_sent && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRetry(selectedLog.id)}
+                  disabled={retryingId === selectedLog.id}
+                  className="w-full"
+                >
+                  {retryingId === selectedLog.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Reintentar envío al ERP
+                </Button>
+              )}
+
+              {/* Contexto */}
+              {selectedLog.context && Object.keys(selectedLog.context).length > 0 && (
+                <div>
+                  <Label className="text-sm font-medium">Contexto</Label>
+                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto max-h-[200px]">
+                    {JSON.stringify(selectedLog.context, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Payload enviado */}
+              {selectedLog.payload_sent && (
+                <div>
+                  <Label className="text-sm font-medium">Payload Enviado al ERP</Label>
+                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto max-h-[200px]">
+                    {JSON.stringify(selectedLog.payload_sent, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Respuesta ERP */}
+              {selectedLog.erp_response && (
+                <div>
+                  <Label className="text-sm font-medium">Respuesta del ERP</Label>
+                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto max-h-[200px]">
+                    {JSON.stringify(selectedLog.erp_response, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
 
 const EmpresasCRUD: React.FC = () => {
   const { toast } = useToast();
@@ -1838,6 +2443,7 @@ interface Deductora {
   nombre: string;
   fecha_reporte_pago: string | null;
   comision: number | null;
+  erp_account_key?: string | null;
 }
 
 // ====== TASAS CRUD ======
@@ -2849,6 +3455,7 @@ export default function ConfiguracionPage() {
   const [polizaLoading, setPolizaLoading] = useState(false);
   const [polizaSaving, setPolizaSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('prestamos');
+  const [accountingAlertCount, setAccountingAlertCount] = useState(0);
 
   // Task Automations state
   const [automations, setAutomations] = useState<any[]>([]);
@@ -2888,6 +3495,28 @@ export default function ConfiguracionPage() {
   const [erpTestLoading, setErpTestLoading] = useState(false);
   const [erpNewAccount, setErpNewAccount] = useState({ key: '', account_code: '', account_name: '', description: '' });
   const [erpAddDialogOpen, setErpAddDialogOpen] = useState(false);
+
+  // Deductora Mapping state
+  const [deductorasMapping, setDeductorasMapping] = useState<any[]>([]);
+  const [deductoraMappingLoading, setDeductoraMappingLoading] = useState(false);
+  const [savingDeductoraMapping, setSavingDeductoraMapping] = useState<number | null>(null);
+
+  // Accounting Entry Configuration state
+  const [accountingConfigs, setAccountingConfigs] = useState<any[]>([]);
+  const [accountingConfigsLoading, setAccountingConfigsLoading] = useState(false);
+  const [isAccountingConfigDialogOpen, setIsAccountingConfigDialogOpen] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<any | null>(null);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configForm, setConfigForm] = useState({
+    entry_type: '',
+    name: '',
+    description: '',
+    active: true,
+    lines: [
+      { movement_type: 'debit', account_type: 'fixed', account_key: '', description: '', amount_component: 'total', cargo_adicional_key: '' },
+      { movement_type: 'credit', account_type: 'fixed', account_key: '', description: '', amount_component: 'total', cargo_adicional_key: '' }
+    ]
+  });
 
   const fetchErpAccounts = useCallback(async () => {
     setErpLoading(true);
@@ -2951,6 +3580,172 @@ export default function ConfiguracionPage() {
       toast({ title: 'Error de conexión', description: err.response?.data?.message || 'No se pudo conectar con el ERP.', variant: 'destructive' });
     } finally {
       setErpTestLoading(false);
+    }
+  };
+
+  // Deductora Mapping functions
+  const fetchDeductorasMapping = useCallback(async () => {
+    setDeductoraMappingLoading(true);
+    try {
+      const res = await api.get('/api/deductoras');
+      setDeductorasMapping(res.data || []);
+    } catch (err) {
+      console.error('Error loading deductoras for mapping:', err);
+      toast({ title: 'Error', description: 'No se pudieron cargar las deductoras.', variant: 'destructive' });
+    } finally {
+      setDeductoraMappingLoading(false);
+    }
+  }, [toast]);
+
+  const saveDeductoraMapping = async (deductoraId: number, erpAccountKey: string) => {
+    setSavingDeductoraMapping(deductoraId);
+    try {
+      await api.put(`/api/deductoras/${deductoraId}`, { erp_account_key: erpAccountKey });
+      toast({ title: 'Mapeo actualizado', description: 'Cuenta ERP asignada a la deductora.' });
+      fetchDeductorasMapping();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo guardar.', variant: 'destructive' });
+    } finally {
+      setSavingDeductoraMapping(null);
+    }
+  };
+
+  // Accounting Entry Configuration functions
+  const fetchAccountingConfigs = useCallback(async () => {
+    setAccountingConfigsLoading(true);
+    try {
+      const res = await api.get('/api/accounting-entry-configs');
+      setAccountingConfigs(res.data.configs || []);
+    } catch (err) {
+      console.error('Error loading accounting configs:', err);
+      toast({ title: 'Error', description: 'No se pudieron cargar las configuraciones de asientos.', variant: 'destructive' });
+    } finally {
+      setAccountingConfigsLoading(false);
+    }
+  }, [toast]);
+
+  const openCreateConfigDialog = () => {
+    setEditingConfig(null);
+    setConfigForm({
+      entry_type: '',
+      name: '',
+      description: '',
+      active: true,
+      lines: [
+        { movement_type: 'debit', account_type: 'fixed', account_key: '', description: '', amount_component: 'total', cargo_adicional_key: '' },
+        { movement_type: 'credit', account_type: 'fixed', account_key: '', description: '', amount_component: 'total', cargo_adicional_key: '' }
+      ]
+    });
+    setIsAccountingConfigDialogOpen(true);
+  };
+
+  const openEditConfigDialog = (config: any) => {
+    setEditingConfig(config);
+    // Ensure all lines have the new fields with defaults
+    const linesWithDefaults = (config.lines || []).map((line: any) => ({
+      movement_type: line.movement_type || 'debit',
+      account_type: line.account_type || 'fixed',
+      account_key: line.account_key || '',
+      description: line.description || '',
+      amount_component: line.amount_component || 'total',
+      cargo_adicional_key: line.cargo_adicional_key || ''
+    }));
+
+    setConfigForm({
+      entry_type: config.entry_type || '',
+      name: config.name || '',
+      description: config.description || '',
+      active: config.active ?? true,
+      lines: linesWithDefaults.length > 0 ? linesWithDefaults : [
+        { movement_type: 'debit', account_type: 'fixed', account_key: '', description: '', amount_component: 'total', cargo_adicional_key: '' },
+        { movement_type: 'credit', account_type: 'fixed', account_key: '', description: '', amount_component: 'total', cargo_adicional_key: '' }
+      ]
+    });
+    setIsAccountingConfigDialogOpen(true);
+  };
+
+  const closeConfigDialog = () => {
+    setIsAccountingConfigDialogOpen(false);
+    setEditingConfig(null);
+  };
+
+  const addConfigLine = () => {
+    setConfigForm(prev => ({
+      ...prev,
+      lines: [...prev.lines, { movement_type: 'debit', account_type: 'fixed', account_key: '', description: '', amount_component: 'total', cargo_adicional_key: '' }]
+    }));
+  };
+
+  const removeConfigLine = (index: number) => {
+    setConfigForm(prev => ({
+      ...prev,
+      lines: prev.lines.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateConfigLine = (index: number, field: string, value: any) => {
+    setConfigForm(prev => ({
+      ...prev,
+      lines: prev.lines.map((line, i) => i === index ? { ...line, [field]: value } : line)
+    }));
+  };
+
+  const handleConfigSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!configForm.name.trim() || !configForm.entry_type.trim()) {
+      toast({ title: 'Error', description: 'Completa los campos requeridos.', variant: 'destructive' });
+      return;
+    }
+    if (configForm.lines.length < 2) {
+      toast({ title: 'Error', description: 'Se requieren al menos 2 líneas para un asiento contable.', variant: 'destructive' });
+      return;
+    }
+
+    setSavingConfig(true);
+    try {
+      const payload = {
+        entry_type: configForm.entry_type,
+        name: configForm.name,
+        description: configForm.description,
+        active: configForm.active,
+        lines: configForm.lines
+      };
+
+      if (editingConfig) {
+        await api.put(`/api/accounting-entry-configs/${editingConfig.id}`, payload);
+        toast({ title: 'Actualizado', description: 'Configuración de asiento actualizada.' });
+      } else {
+        await api.post('/api/accounting-entry-configs', payload);
+        toast({ title: 'Creado', description: 'Configuración de asiento creada.' });
+      }
+
+      closeConfigDialog();
+      fetchAccountingConfigs();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo guardar.', variant: 'destructive' });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const toggleConfigActive = async (id: number) => {
+    try {
+      await api.post(`/api/accounting-entry-configs/${id}/toggle`);
+      toast({ title: 'Actualizado', description: 'Estado de configuración cambiado.' });
+      fetchAccountingConfigs();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo actualizar.', variant: 'destructive' });
+    }
+  };
+
+  const deleteConfig = async (id: number) => {
+    if (!confirm('¿Eliminar esta configuración de asiento?')) return;
+    try {
+      await api.delete(`/api/accounting-entry-configs/${id}`);
+      toast({ title: 'Eliminado', description: 'Configuración eliminada.' });
+      fetchAccountingConfigs();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo eliminar.', variant: 'destructive' });
     }
   };
 
@@ -3089,8 +3884,10 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     if (activeTab === 'api') {
       fetchErpAccounts();
+      fetchDeductorasMapping();
+      fetchAccountingConfigs();
     }
-  }, [activeTab, fetchErpAccounts]);
+  }, [activeTab, fetchErpAccounts, fetchDeductorasMapping, fetchAccountingConfigs]);
 
   return (
     <ProtectedPage module="configuracion">
@@ -3106,6 +3903,14 @@ export default function ConfiguracionPage() {
         <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
         <TabsTrigger value="productos">Créditos</TabsTrigger>
         <TabsTrigger value="api">Contabilidad ERP</TabsTrigger>
+        <TabsTrigger value="auditoria-asientos" className="relative">
+          Auditoría de Asientos
+          {accountingAlertCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1">
+              {accountingAlertCount}
+            </span>
+          )}
+        </TabsTrigger>
         <TabsTrigger value="poliza">Póliza</TabsTrigger>
         <TabsTrigger value="tareas">Tareas</TabsTrigger>
       </TabsList>
@@ -3252,27 +4057,10 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="regular-interestRate">Tasa Anual</Label>
-                  <Select
-                    value={regularConfig.interestRate}
-                    onValueChange={(value) => {
-                      setRegularConfig(prev => ({ ...prev, interestRate: value }));
-                    }}
-                    disabled={savingRegular}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione una tasa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTasas
-                        .filter(tasa => tasa.activo)
-                        .map((tasa) => (
-                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
-                            {tasa.nombre} - {tasa.tasa}%
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Tasa Anual</Label>
+                  <p className="font-mono text-sm border rounded-md px-3 py-2 bg-muted text-muted-foreground">
+                    {regularConfig.interestRate}%
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -3360,27 +4148,10 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual</Label>
-                  <Select
-                    value={microConfig.interestRate}
-                    onValueChange={(value) => {
-                      setMicroConfig(prev => ({ ...prev, interestRate: value }));
-                    }}
-                    disabled={savingMicro}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione una tasa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTasas
-                        .filter(tasa => tasa.activo)
-                        .map((tasa) => (
-                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
-                            {tasa.nombre} - {tasa.tasa}%
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Tasa de Interés Anual</Label>
+                  <p className="font-mono text-sm border rounded-md px-3 py-2 bg-muted text-muted-foreground">
+                    {microConfig.interestRate}%
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -4035,12 +4806,434 @@ export default function ConfiguracionPage() {
             </CardContent>
           </Card>
 
-          {/* Referencia de Asientos */}
+          {/* Mapeo de Deductoras a Cuentas ERP */}
           <Card>
             <CardHeader>
-              <CardTitle>Asientos Contables Automáticos</CardTitle>
+              <CardTitle>Mapeo de Deductoras</CardTitle>
               <CardDescription>
-                Estos asientos se generan automáticamente cuando ocurren las siguientes operaciones en el sistema.
+                Asigna una cuenta contable del ERP a cada deductora registrada en el sistema.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {deductoraMappingLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Deductora</TableHead>
+                      <TableHead>Cuenta ERP</TableHead>
+                      <TableHead>Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deductorasMapping.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                          No hay deductoras registradas
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      deductorasMapping.map((deductora) => (
+                        <TableRow key={deductora.id}>
+                          <TableCell className="font-medium">{deductora.nombre}</TableCell>
+                          <TableCell>
+                            <Select
+                              value={deductora.erp_account_key || 'none'}
+                              onValueChange={(value) => saveDeductoraMapping(deductora.id, value === 'none' ? '' : value)}
+                              disabled={savingDeductoraMapping === deductora.id}
+                            >
+                              <SelectTrigger className="w-[300px]">
+                                <SelectValue placeholder="Seleccionar cuenta..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sin asignar</SelectItem>
+                                {erpAccounts.map((account) => (
+                                  <SelectItem key={account.id} value={account.key}>
+                                    {account.account_code ? `${account.account_code} - ` : ''}{account.account_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            {savingDeductoraMapping === deductora.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : deductora.erp_account_key ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Mapeada</span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">Pendiente</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Referencia de Tipos de Asientos */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tipos de Asientos Disponibles</CardTitle>
+              <CardDescription>
+                Referencia de los eventos del sistema donde se pueden ejecutar asientos contables automáticos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[200px]">Tipo</TableHead>
+                    <TableHead>Evento</TableHead>
+                    <TableHead>Controlador</TableHead>
+                    <TableHead className="w-[150px]">Referencia</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ACCOUNTING_ENTRY_TYPES.map((type) => (
+                    <TableRow key={type.value}>
+                      <TableCell>
+                        <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{type.value}</code>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{type.label}</span>
+                          <span className="text-sm text-muted-foreground">{type.description}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs text-muted-foreground">{type.controller}</code>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs bg-muted px-1 rounded">{type.reference}</code>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Configuración de Asientos Contables */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Configuración de Asientos Contables</CardTitle>
+                  <CardDescription>
+                    Configura las plantillas de asientos contables. Cada configuración puede tener múltiples débitos y créditos.
+                  </CardDescription>
+                </div>
+                <Dialog open={isAccountingConfigDialogOpen} onOpenChange={setIsAccountingConfigDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" onClick={openCreateConfigDialog}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Nueva Configuración
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>{editingConfig ? 'Editar Configuración' : 'Nueva Configuración'}</DialogTitle>
+                      <DialogDescription>
+                        Define el tipo de asiento y sus líneas contables.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleConfigSubmit} className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Tipo de Asiento (Dónde se ejecuta)</Label>
+                          <Select
+                            value={configForm.entry_type}
+                            onValueChange={(value) => setConfigForm(prev => ({ ...prev, entry_type: value }))}
+                            disabled={savingConfig}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar evento..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ACCOUNTING_ENTRY_TYPES.map((type) => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{type.label}</span>
+                                    <span className="text-xs text-muted-foreground">{type.description}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Nombre</Label>
+                          <Input
+                            placeholder="ej: Pago de Planilla"
+                            value={configForm.name}
+                            onChange={(e) => setConfigForm(prev => ({ ...prev, name: e.target.value }))}
+                            required
+                            disabled={savingConfig}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Descripción</Label>
+                        <Input
+                          placeholder="Ej: Formalización crédito {reference} - {clienteNombre} ({cedula})"
+                          value={configForm.description}
+                          onChange={(e) => setConfigForm(prev => ({ ...prev, description: e.target.value }))}
+                          disabled={savingConfig}
+                        />
+                        <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                          <strong>Variables disponibles:</strong> <code>{'{reference}'}</code> <code>{'{clienteNombre}'}</code> <code>{'{cedula}'}</code> <code>{'{credit_id}'}</code> <code>{'{deductora_nombre}'}</code> <code>{'{amount}'}</code>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label>Líneas del Asiento</Label>
+                          <Button type="button" size="sm" variant="outline" onClick={addConfigLine} disabled={savingConfig}>
+                            <PlusCircle className="h-4 w-4 mr-2" />
+                            Agregar Línea
+                          </Button>
+                        </div>
+                        <div className="space-y-3">
+                          {configForm.lines.map((line, index) => (
+                            <div key={index} className="border rounded-lg p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Línea {index + 1}</span>
+                                {configForm.lines.length > 2 && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-red-600"
+                                    onClick={() => removeConfigLine(index)}
+                                    disabled={savingConfig}
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-2">
+                                  <Label>Movimiento</Label>
+                                  <Select
+                                    value={line.movement_type}
+                                    onValueChange={(value) => updateConfigLine(index, 'movement_type', value)}
+                                    disabled={savingConfig}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="debit">Débito</SelectItem>
+                                      <SelectItem value="credit">Crédito</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Tipo de Cuenta</Label>
+                                  <Select
+                                    value={line.account_type}
+                                    onValueChange={(value) => updateConfigLine(index, 'account_type', value)}
+                                    disabled={savingConfig}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="fixed">Cuenta Fija</SelectItem>
+                                      <SelectItem value="deductora">Deductora</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Cuenta{line.account_type === 'fixed' ? ' (Requerida)' : ' (Dinámica)'}</Label>
+                                  {line.account_type === 'fixed' ? (
+                                    <Select
+                                      value={line.account_key || ''}
+                                      onValueChange={(value) => updateConfigLine(index, 'account_key', value)}
+                                      disabled={savingConfig}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {erpAccounts.map((account) => (
+                                          <SelectItem key={account.id} value={account.key}>
+                                            {account.account_code ? `${account.account_code} - ` : ''}{account.account_name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Input
+                                      value="Se resuelve en tiempo de ejecución"
+                                      disabled
+                                      className="bg-muted"
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                              <div className={`grid ${line.amount_component === 'cargo_adicional' ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                                <div className="space-y-2">
+                                  <Label>Componente del Monto</Label>
+                                  <Select
+                                    value={line.amount_component || 'total'}
+                                    onValueChange={(value) => {
+                                      updateConfigLine(index, 'amount_component', value);
+                                      // Si no es cargo_adicional, limpiar el key
+                                      if (value !== 'cargo_adicional') {
+                                        updateConfigLine(index, 'cargo_adicional_key', '');
+                                      }
+                                    }}
+                                    disabled={savingConfig}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="total">Monto Total</SelectItem>
+                                      <SelectItem value="interes_corriente">Interés Corriente</SelectItem>
+                                      <SelectItem value="interes_moratorio">Interés Moratorio</SelectItem>
+                                      <SelectItem value="poliza">Póliza</SelectItem>
+                                      <SelectItem value="capital">Capital/Amortización</SelectItem>
+                                      <SelectItem value="sobrante">Sobrante (retención de más)</SelectItem>
+                                      <SelectItem value="cargo_adicional">Cargo Adicional (seleccionar cuál →)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                {line.amount_component === 'cargo_adicional' && (
+                                  <div className="space-y-2">
+                                    <Label>¿Cuál Cargo Adicional?</Label>
+                                    <Select
+                                      value={line.cargo_adicional_key || ''}
+                                      onValueChange={(value) => updateConfigLine(index, 'cargo_adicional_key', value)}
+                                      disabled={savingConfig}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar cargo..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="cargo_tramite">Cargo por Trámite</SelectItem>
+                                        <SelectItem value="cargo_documento">Cargo por Documento</SelectItem>
+                                        <SelectItem value="cargo_notificacion">Cargo por Notificación</SelectItem>
+                                        <SelectItem value="cargo_comision">Cargo por Comisión</SelectItem>
+                                        <SelectItem value="cargo_gestion">Cargo por Gestión</SelectItem>
+                                        <SelectItem value="cargo_mora">Cargo por Mora</SelectItem>
+                                        <SelectItem value="cargo_investigacion">Cargo por Investigación</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Descripción (opcional)</Label>
+                                <Input
+                                  placeholder="Ej: Cuenta por cobrar - Crédito {reference} o Pago {deductora_nombre}"
+                                  value={line.description}
+                                  onChange={(e) => updateConfigLine(index, 'description', e.target.value)}
+                                  disabled={savingConfig}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Usa variables: <code className="bg-muted px-1 rounded">{'{reference}'}</code> <code className="bg-muted px-1 rounded">{'{clienteNombre}'}</code> <code className="bg-muted px-1 rounded">{'{deductora_nombre}'}</code>
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={closeConfigDialog} disabled={savingConfig}>
+                          Cancelar
+                        </Button>
+                        <Button type="submit" disabled={savingConfig}>
+                          {savingConfig ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          {editingConfig ? 'Actualizar' : 'Crear'}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {accountingConfigsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Líneas</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {accountingConfigs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          No hay configuraciones de asientos
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      accountingConfigs.map((config) => (
+                        <TableRow key={config.id}>
+                          <TableCell className="font-mono text-sm">{config.entry_type}</TableCell>
+                          <TableCell className="font-medium">{config.name}</TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {config.lines?.length || 0} líneas
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={config.active}
+                              onCheckedChange={() => toggleConfigActive(config.id)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openEditConfigDialog(config)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => deleteConfig(config.id)}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Asientos Contables Automáticos (Sistema Actual) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Asientos Contables Automáticos (Sistema Actual)</CardTitle>
+              <CardDescription>
+                Estos son los asientos hardcodeados que actualmente se generan automáticamente. Estos SIGUEN FUNCIONANDO hasta que crees configuraciones personalizadas que los reemplacen.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -4054,47 +5247,136 @@ export default function ConfiguracionPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {/* Formalización */}
                   <TableRow>
                     <TableCell className="font-medium">Formalización de Crédito</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Al aprobar y formalizar un crédito</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Al aprobar y formalizar un crédito. <code className="text-xs bg-muted px-1 rounded">Ref: CREDIT-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Pagos - Planilla */}
                   <TableRow>
-                    <TableCell className="font-medium">Pago de Cuota</TableCell>
+                    <TableCell className="font-medium">Pago de Planilla</TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Ventanilla, Planilla, Saldo Pendiente, Extraordinario</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Pago por descuento de planilla (incluye nombre de deductora). <code className="text-xs bg-muted px-1 rounded">Ref: PLAN-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Pagos - Ventanilla */}
+                  <TableRow>
+                    <TableCell className="font-medium">Pago de Ventanilla</TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Pago manual en ventanilla. <code className="text-xs bg-muted px-1 rounded">Ref: VENT-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Abono Extraordinario */}
+                  <TableRow>
+                    <TableCell className="font-medium">Abono Extraordinario</TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Abono extraordinario con penalización (adelanto de cuotas). <code className="text-xs bg-muted px-1 rounded">Ref: EXTRA-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Cancelación Anticipada */}
                   <TableRow>
                     <TableCell className="font-medium">Cancelación Anticipada</TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Pago total anticipado del crédito</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Pago total anticipado del crédito. <code className="text-xs bg-muted px-1 rounded">Ref: CANCEL-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Refundición */}
                   <TableRow>
                     <TableCell className="font-medium">Refundición (Cierre)</TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Cierre del crédito antiguo</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Cierre del crédito antiguo en refundición. <code className="text-xs bg-muted px-1 rounded">Ref: REFUND-CLOSE-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Refundición (Nuevo)</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Apertura del nuevo crédito refundido</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Apertura del nuevo crédito refundido. <code className="text-xs bg-muted px-1 rounded">Ref: REFUND-NEW-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
+
+                  {/* Devolución / Reintegro */}
+                  <TableRow>
+                    <TableCell className="font-medium">Reintegro de Saldo Pendiente</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Devolución de saldo pendiente al cliente. <code className="text-xs bg-muted px-1 rounded">Ref: DEVOL-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Anulaciones y Reversos */}
                   <TableRow>
                     <TableCell className="font-medium">Anulación de Planilla</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Reversa de todos los pagos de la planilla</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Reversa de todos los pagos de una planilla completa. <code className="text-xs bg-muted px-1 rounded">Ref: ANUL-PLAN-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Reverso de Pago Manual</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Anulación de pago individual (ventanilla/planilla). <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-PAY-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Reverso de Abono Extraordinario</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Anulación de abono extraordinario. <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-EXTRA-{'{ID}'}</code>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Reverso de Cancelación Anticipada</TableCell>
+                    <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      Anulación de cancelación anticipada. <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-CANCEL-{'{ID}'}</code>
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </div>
+      </TabsContent>
+
+      <TabsContent value="auditoria-asientos">
+        <Card>
+          <CardHeader>
+            <CardTitle>Auditoría de Asientos Contables</CardTitle>
+            <CardDescription>
+              Registro de todos los asientos contables enviados al ERP. Muestra el payload enviado, la respuesta recibida y el estado de cada operación.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AccountingAuditLog onAlertCount={setAccountingAlertCount} />
+          </CardContent>
+        </Card>
       </TabsContent>
 
       <TabsContent value="tareas">

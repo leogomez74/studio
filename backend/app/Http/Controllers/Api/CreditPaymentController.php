@@ -752,6 +752,36 @@ class CreditPaymentController extends Controller
                 'estado_reverso' => 'Vigente'
             ]);
 
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Abono Extraordinario (Específico)
+            // ============================================================
+            // Dispara asiento contable al registrar un abono extraordinario:
+            // DÉBITO: Banco CREDIPEPE (monto del pago)
+            // CRÉDITO: Cuentas por Cobrar (monto del pago - penalización)
+            // CRÉDITO: Ingreso por Penalización (penalización) - si aplica
+            $this->triggerAccountingEntry(
+                'ABONO_EXTRAORDINARIO',
+                $montoAbono,
+                "EXTRA-{$paymentRecord->id}-{$credit->reference}",
+                [
+                    'reference' => "EXTRA-{$paymentRecord->id}-{$credit->reference}",
+                    'credit_id' => $credit->reference,
+                    'cedula' => $credit->lead->cedula ?? null,
+                    'clienteNombre' => $credit->lead->name ?? null,
+                    'amount_breakdown' => [
+                        'total' => $montoAbono,
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'poliza' => 0,
+                        'capital' => $montoAplicarAlSaldo,
+                        'cargos_adicionales_total' => $penalizacion,
+                        'cargos_adicionales' => [
+                            'penalizacion' => $penalizacion,
+                        ],
+                    ],
+                ]
+            );
+
             // 3. Regenerar Proyección
             if ($nuevoCapitalBase > 0) {
                 $this->regenerarProyeccion(
@@ -1208,27 +1238,62 @@ class CreditPaymentController extends Controller
         }
 
         // ============================================================
-        // ACCOUNTING_API_TRIGGER: Pago de Crédito
+        // ACCOUNTING_API_TRIGGER: Pago de Crédito (Específico por tipo)
         // ============================================================
         // Dispara asiento contable al registrar un pago:
         // DÉBITO: Banco CREDIPEPE (monto del pago)
         // CRÉDITO: Cuentas por Cobrar (monto del pago)
-        $this->triggerAccountingPago(
-            $credit->id,
-            $paymentRecord->id,
-            $montoEntrante,
-            $source,
-            [
-                'mora' => $credit->planDePagos()->sum('movimiento_interes_moratorio'),
-                'interes_vencido' => $credit->planDePagos()->sum('movimiento_int_corriente_vencido'),
-                'interes_corriente' => $credit->planDePagos()->sum('movimiento_interes_corriente'),
-                'poliza' => $credit->planDePagos()->sum('movimiento_poliza'),
+
+        // Calcular componentes del monto para contabilidad
+        $interesMoratorio = $credit->planDePagos()->sum('movimiento_interes_moratorio');
+        $interesVencido = $credit->planDePagos()->sum('movimiento_int_corriente_vencido');
+        $interesCorriente = $credit->planDePagos()->sum('movimiento_interes_corriente');
+        $poliza = $credit->planDePagos()->sum('movimiento_poliza');
+
+        $context = [
+            'reference' => "PAY-{$paymentRecord->id}-{$credit->reference}",
+            'cedula' => $cedulaRef,
+            'credit_id' => $credit->reference,
+            'clienteNombre' => $credit->lead->name ?? null,
+            'amount_breakdown' => [
+                'total' => $montoEntrante,
+                'interes_corriente' => $interesCorriente,
+                'interes_moratorio' => $interesMoratorio,
+                'poliza' => $poliza,
                 'capital' => $capitalAmortizadoHoy,
-                'cedula' => $cedulaRef,
-                'credit_reference' => $credit->reference,
-                'lead_nombre' => $credit->lead->name ?? null,
-            ]
-        );
+                'cargos_adicionales_total' => 0,
+                'cargos_adicionales' => [],
+            ],
+        ];
+
+        // Seleccionar trigger específico según el tipo de pago
+        if ($source === 'Planilla') {
+            // Obtener deductora del crédito para incluir en el asiento
+            $context['deductora_id'] = $credit->deductora_id;
+            $context['deductora_nombre'] = $credit->deductora->nombre ?? 'Sin deductora';
+
+            $this->triggerAccountingEntry(
+                'PAGO_PLANILLA',
+                $montoEntrante,
+                $context['reference'],
+                $context
+            );
+        } elseif ($source === 'Ventanilla') {
+            $this->triggerAccountingEntry(
+                'PAGO_VENTANILLA',
+                $montoEntrante,
+                $context['reference'],
+                $context
+            );
+        } else {
+            // Para otros tipos (Adelanto, Saldo Pendiente, etc.) usar el método genérico
+            $this->triggerAccountingEntry(
+                'PAGO_GENERICO',
+                $montoEntrante,
+                $context['reference'],
+                $context
+            );
+        }
 
         return $paymentRecord;
     }
@@ -1880,20 +1945,28 @@ class CreditPaymentController extends Controller
             // ============================================================
             // Dispara asiento contable al cancelar anticipadamente:
             // DÉBITO: Banco CREDIPEPE (monto_total_cancelar)
-            // CRÉDITO: Cuentas por Cobrar (monto_total_cancelar)
-            $this->triggerAccountingPago(
-                $credit->id,
-                $payment->id,
+            // CRÉDITO: Cuentas por Cobrar (capital + intereses)
+            // CRÉDITO: Ingreso Penalización (penalización) - si aplica
+            $this->triggerAccountingEntry(
+                'CANCELACION_ANTICIPADA',
                 $montoTotalCancelar,
-                'Cancelación Anticipada',
+                "CANCEL-{$payment->id}-{$credit->reference}",
                 [
-                    'capital' => $saldoCapital,
-                    'intereses_vencidos' => $interesesVencidos,
-                    'penalizacion' => $penalizacion,
-                    'cuota_actual' => $numeroCuotaActual,
-                    'aplico_penalizacion' => $numeroCuotaActual < 12,
+                    'reference' => "CANCEL-{$payment->id}-{$credit->reference}",
+                    'credit_id' => $credit->reference,
                     'cedula' => $credit->lead->cedula ?? null,
-                    'credit_reference' => $credit->reference,
+                    'clienteNombre' => $credit->lead->name ?? null,
+                    'amount_breakdown' => [
+                        'total' => $montoTotalCancelar,
+                        'interes_corriente' => $interesesVencidos,
+                        'interes_moratorio' => 0,
+                        'poliza' => 0,
+                        'capital' => $saldoCapital,
+                        'cargos_adicionales_total' => $penalizacion,
+                        'cargos_adicionales' => [
+                            'penalizacion' => $penalizacion,
+                        ],
+                    ],
                 ]
             );
 
@@ -2245,6 +2318,34 @@ class CreditPaymentController extends Controller
             // Marcar pago como anulado
             $this->markPaymentAsAnulado($payment, $validated['motivo']);
 
+            // ============================================================
+            // ACCOUNTING_API_TRIGGER: Reverso de Pago
+            // ============================================================
+            // Dispara asiento contable al revertir un pago:
+            // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
+            // CRÉDITO: Banco CREDIPEPE (monto del pago revertido)
+            $this->triggerAccountingEntry(
+                'REVERSO_PAGO',
+                (float) $payment->monto,
+                "REVERSO-{$payment->id}-{$credit->reference}",
+                [
+                    'reference' => "REVERSO-{$payment->id}-{$credit->reference}",
+                    'credit_id' => $credit->reference,
+                    'cedula' => $credit->lead->cedula ?? null,
+                    'clienteNombre' => $credit->lead->name ?? null,
+                    'motivo' => $validated['motivo'],
+                    'amount_breakdown' => [
+                        'total' => (float) $payment->monto,
+                        'interes_corriente' => 0,
+                        'interes_moratorio' => 0,
+                        'poliza' => 0,
+                        'capital' => $capitalRevertido,
+                        'cargos_adicionales_total' => 0,
+                        'cargos_adicionales' => [],
+                    ],
+                ]
+            );
+
             return response()->json([
                 'message' => 'Pago revertido exitosamente.',
                 'saldo_restaurado' => $credit->saldo,
@@ -2291,6 +2392,31 @@ class CreditPaymentController extends Controller
         // 4. Marcar pago como anulado
         $this->markPaymentAsAnulado($payment, $motivo);
 
+        // ============================================================
+        // ACCOUNTING_API_TRIGGER: Reverso de Abono Extraordinario
+        // ============================================================
+        $this->triggerAccountingEntry(
+            'REVERSO_EXTRAORDINARIO',
+            (float) $payment->monto,
+            "REVERSO-EXTRA-{$payment->id}-{$credit->reference}",
+            [
+                'reference' => "REVERSO-EXTRA-{$payment->id}-{$credit->reference}",
+                'credit_id' => $credit->reference,
+                'cedula' => $credit->lead->cedula ?? null,
+                'clienteNombre' => $credit->lead->name ?? null,
+                'motivo' => $motivo,
+                'amount_breakdown' => [
+                    'total' => (float) $payment->monto,
+                    'interes_corriente' => 0,
+                    'interes_moratorio' => 0,
+                    'poliza' => 0,
+                    'capital' => (float) $payment->monto,
+                    'cargos_adicionales_total' => 0,
+                    'cargos_adicionales' => [],
+                ],
+            ]
+        );
+
         return response()->json([
             'message' => 'Abono extraordinario revertido. Plan de pagos restaurado.',
             'saldo_restaurado' => $credit->saldo,
@@ -2331,6 +2457,31 @@ class CreditPaymentController extends Controller
 
         // 3. Marcar pago como anulado
         $this->markPaymentAsAnulado($payment, $motivo);
+
+        // ============================================================
+        // ACCOUNTING_API_TRIGGER: Reverso de Cancelación Anticipada
+        // ============================================================
+        $this->triggerAccountingEntry(
+            'REVERSO_CANCELACION',
+            (float) $payment->monto,
+            "REVERSO-CANCEL-{$payment->id}-{$credit->reference}",
+            [
+                'reference' => "REVERSO-CANCEL-{$payment->id}-{$credit->reference}",
+                'credit_id' => $credit->reference,
+                'cedula' => $credit->lead->cedula ?? null,
+                'clienteNombre' => $credit->lead->name ?? null,
+                'motivo' => $motivo,
+                'amount_breakdown' => [
+                    'total' => (float) $payment->monto,
+                    'interes_corriente' => 0,
+                    'interes_moratorio' => 0,
+                    'poliza' => 0,
+                    'capital' => (float) $payment->monto,
+                    'cargos_adicionales_total' => 0,
+                    'cargos_adicionales' => [],
+                ],
+            ]
+        );
 
         return response()->json([
             'message' => 'Cancelación anticipada revertida. Crédito reabierto.',
