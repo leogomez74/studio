@@ -655,6 +655,28 @@ class CreditController extends Controller
                     'formalized_at' => $credit->formalized_at->toIso8601String(),
                 ]
             );
+
+            // Crear tarea para adjuntar pagaré firmado
+            if ($credit->assigned_to) {
+                $existingTask = Task::where('project_code', $credit->reference)
+                    ->where('title', 'Adjuntar pagaré firmado')
+                    ->whereNotIn('status', ['deleted'])
+                    ->first();
+
+                if (!$existingTask) {
+                    Task::create([
+                        'project_code' => $credit->reference,
+                        'project_name' => $credit->title,
+                        'title' => 'Adjuntar pagaré firmado',
+                        'details' => 'El crédito ha sido formalizado. Se requiere adjuntar el pagaré firmado por el cliente.',
+                        'status' => 'pendiente',
+                        'priority' => 'alta',
+                        'assigned_to' => $credit->assigned_to,
+                        'start_date' => now(),
+                        'due_date' => now()->addDays(3),
+                    ]);
+                }
+            }
         }
 
         // Cargar todas las relaciones necesarias (igual que en show)
@@ -771,28 +793,6 @@ class CreditController extends Controller
                 // Cambiar a Cliente
                 $lead->person_type_id = 2; // Asumiendo que 2 es el ID para Clientes
                 $lead->save();
-            }
-        }
-
-        // Al formalizar, crear tarea para adjuntar pagaré firmado
-        if ($credit->status === Credit::STATUS_FORMALIZADO && $credit->assigned_to) {
-            $existingTask = Task::where('project_code', $credit->reference)
-                ->where('title', 'Adjuntar pagaré firmado')
-                ->whereNotIn('status', ['deleted'])
-                ->first();
-
-            if (!$existingTask) {
-                Task::create([
-                    'project_code' => $credit->reference,
-                    'project_name' => $credit->title,
-                    'title' => 'Adjuntar pagaré firmado',
-                    'details' => 'El crédito ha sido formalizado. Se requiere adjuntar el pagaré firmado por el cliente.',
-                    'status' => 'pendiente',
-                    'priority' => 'alta',
-                    'assigned_to' => $credit->assigned_to,
-                    'start_date' => now(),
-                    'due_date' => now()->addDays(3),
-                ]);
             }
         }
 

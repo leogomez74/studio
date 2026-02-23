@@ -2315,7 +2315,7 @@ function CreditDetailClient({ id }: { id: string }) {
                           <CaseChat conversationId={credit.reference} />
                         </TabsContent>
                         <TabsContent value="tareas" className="flex-1 overflow-y-auto p-4">
-                          <TareasTab opportunityReference={String(credit.id)} opportunityId={credit.id} />
+                          <TareasTab opportunityReference={credit.reference} opportunityId={credit.id} />
                         </TabsContent>
                       </Tabs>
                     </Card>
