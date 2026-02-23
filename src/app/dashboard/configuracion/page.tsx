@@ -4057,27 +4057,10 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="regular-interestRate">Tasa Anual</Label>
-                  <Select
-                    value={regularConfig.interestRate}
-                    onValueChange={(value) => {
-                      setRegularConfig(prev => ({ ...prev, interestRate: value }));
-                    }}
-                    disabled={savingRegular}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione una tasa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTasas
-                        .filter(tasa => tasa.activo)
-                        .map((tasa) => (
-                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
-                            {tasa.nombre} - {tasa.tasa}%
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Tasa Anual</Label>
+                  <p className="font-mono text-sm border rounded-md px-3 py-2 bg-muted text-muted-foreground">
+                    {regularConfig.interestRate}%
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -4165,27 +4148,10 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="micro-interestRate">Tasa de Interés Anual</Label>
-                  <Select
-                    value={microConfig.interestRate}
-                    onValueChange={(value) => {
-                      setMicroConfig(prev => ({ ...prev, interestRate: value }));
-                    }}
-                    disabled={savingMicro}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione una tasa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTasas
-                        .filter(tasa => tasa.activo)
-                        .map((tasa) => (
-                          <SelectItem key={tasa.id} value={tasa.tasa.toString()}>
-                            {tasa.nombre} - {tasa.tasa}%
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Tasa de Interés Anual</Label>
+                  <p className="font-mono text-sm border rounded-md px-3 py-2 bg-muted text-muted-foreground">
+                    {microConfig.interestRate}%
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
