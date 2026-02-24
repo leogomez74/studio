@@ -417,7 +417,7 @@ trait AccountingTrigger
      * Disparar asientos en cascada luego de un asiento exitoso.
      *
      * Actualmente soporta:
-     * - PAGO_PLANILLA con sobrante > 0 → dispara RETENCION_SOBRANTE automáticamente
+     * - PAGO_PLANILLA con sobrante > 0 → dispara SALDO_SOBRANTE automáticamente
      */
     private function triggerCascadeEntries(string $parentType, string $reference, array $context, array &$parentResult): void
     {
@@ -431,7 +431,7 @@ trait AccountingTrigger
             return;
         }
 
-        Log::info('ERP: Sobrante detectado en PAGO_PLANILLA, disparando RETENCION_SOBRANTE', [
+        Log::info('ERP: Sobrante detectado en PAGO_PLANILLA, disparando SALDO_SOBRANTE', [
             'reference' => $reference,
             'sobrante' => $sobrante,
         ]);
@@ -452,7 +452,7 @@ trait AccountingTrigger
         ];
 
         $sobranteResult = $this->triggerAccountingEntry(
-            'RETENCION_SOBRANTE',
+            'SALDO_SOBRANTE',
             $sobrante,
             $sobranteReference,
             $sobranteContext
@@ -462,7 +462,7 @@ trait AccountingTrigger
         $parentResult['sobrante_entry'] = $sobranteResult;
 
         if (!($sobranteResult['success'] ?? false)) {
-            Log::warning('ERP: Fallo al registrar RETENCION_SOBRANTE', [
+            Log::warning('ERP: Fallo al registrar SALDO_SOBRANTE', [
                 'reference' => $sobranteReference,
                 'sobrante' => $sobrante,
                 'error' => $sobranteResult['error'] ?? 'Desconocido',
@@ -516,11 +516,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Formalización de Crédito
      *
-     * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEPE
+     * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEP
      */
     protected function triggerAccountingFormalizacion(int $creditId, float $amount, string $reference, array $additionalData = []): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $amount = round($amount, 2);
 
@@ -584,11 +584,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Pago de Crédito (todos los orígenes)
      *
-     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     * Asiento: DÉBITO Banco CREDIPEP / CRÉDITO Cuentas por Cobrar
      */
     protected function triggerAccountingPago(int $creditId, int $paymentId, float $amount, string $source, array $breakdown = []): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $amount = round($amount, 2);
 
@@ -652,11 +652,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Pago por Planilla (Deducción Automática)
      *
-     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     * Asiento: DÉBITO Banco CREDIPEP / CRÉDITO Cuentas por Cobrar
      */
     protected function triggerAccountingPagoPlanilla(int $creditId, int $paymentId, float $amount, array $breakdown = []): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $amount = round($amount, 2);
 
@@ -720,11 +720,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Pago de Ventanilla (Pago Manual)
      *
-     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     * Asiento: DÉBITO Banco CREDIPEP / CRÉDITO Cuentas por Cobrar
      */
     protected function triggerAccountingPagoVentanilla(int $creditId, int $paymentId, float $amount, array $breakdown = []): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $amount = round($amount, 2);
 
@@ -787,11 +787,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Abono Extraordinario
      *
-     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     * Asiento: DÉBITO Banco CREDIPEP / CRÉDITO Cuentas por Cobrar
      */
     protected function triggerAccountingAbonoExtraordinario(int $creditId, int $paymentId, float $amount, array $breakdown = []): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $amount = round($amount, 2);
 
@@ -860,11 +860,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Devolución/Anulación de Pago (reversa)
      *
-     * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEPE
+     * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEP
      */
     protected function triggerAccountingDevolucion(int $creditId, ?int $paymentId, float $amount, string $reason, array $additionalData = []): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $amount = round($amount, 2);
 
@@ -925,11 +925,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Refundición - Cierre de Crédito Viejo
      *
-     * Asiento: DÉBITO Banco CREDIPEPE / CRÉDITO Cuentas por Cobrar
+     * Asiento: DÉBITO Banco CREDIPEP / CRÉDITO Cuentas por Cobrar
      */
     protected function triggerAccountingRefundicionCierre(int $oldCreditId, float $balanceAbsorbed, int $newCreditId): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $balanceAbsorbed = round($balanceAbsorbed, 2);
 
@@ -982,11 +982,11 @@ trait AccountingTrigger
     /**
      * ACCOUNTING_API_TRIGGER: Refundición - Formalización de Nuevo Crédito
      *
-     * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEPE
+     * Asiento: DÉBITO Cuentas por Cobrar / CRÉDITO Banco CREDIPEP
      */
     protected function triggerAccountingRefundicionNuevo(int $newCreditId, float $amount, int $oldCreditId, float $cashDelivered): array
     {
-        $codBanco = $this->getAccountCode('banco_credipepe');
+        $codBanco = $this->getAccountCode('banco_credipep');
         $codCxC = $this->getAccountCode('cuentas_por_cobrar');
         $amount = round($amount, 2);
 

@@ -152,6 +152,13 @@ const ACCOUNTING_ENTRY_TYPES = [
     description: 'Anulación de cancelación anticipada',
     controller: 'CreditPaymentController@destroyCancellation',
     reference: 'REVERSE-CANCEL-{ID}'
+  },
+  {
+    value: 'SALDO_SOBRANTE',
+    label: 'Saldo Sobrante de Planilla',
+    description: 'Se dispara automáticamente cuando queda sobrante tras pagar todos los créditos de una planilla',
+    controller: 'CreditPaymentController@upload (automático)',
+    reference: 'SOB-{ID}'
   }
 ];
 
@@ -200,6 +207,10 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   DEVOLUCION: 'Devolución',
   REFUNDICION_CIERRE: 'Refundición Cierre',
   REFUNDICION_NUEVO: 'Refundición Nuevo',
+  SALDO_SOBRANTE: 'Saldo Sobrante',
+  REINTEGRO_SALDO: 'Reintegro de Saldo',
+  ABONO_CAPITAL: 'Abono a Capital',
+  ANULACION_PLANILLA: 'Anulación Planilla',
 };
 
 interface AccountingAlerts {
@@ -4779,7 +4790,7 @@ export default function ConfiguracionPage() {
                           {erpSaving === account.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            !['banco_credipepe', 'cuentas_por_cobrar'].includes(account.key) && (
+                            !['banco_credipep', 'cuentas_por_cobrar'].includes(account.key) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -5251,7 +5262,7 @@ export default function ConfiguracionPage() {
                   <TableRow>
                     <TableCell className="font-medium">Formalización de Crédito</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Al aprobar y formalizar un crédito. <code className="text-xs bg-muted px-1 rounded">Ref: CREDIT-{'{ID}'}</code>
                     </TableCell>
@@ -5260,7 +5271,7 @@ export default function ConfiguracionPage() {
                   {/* Pagos - Planilla */}
                   <TableRow>
                     <TableCell className="font-medium">Pago de Planilla</TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Pago por descuento de planilla (incluye nombre de deductora). <code className="text-xs bg-muted px-1 rounded">Ref: PLAN-{'{ID}'}</code>
@@ -5270,7 +5281,7 @@ export default function ConfiguracionPage() {
                   {/* Pagos - Ventanilla */}
                   <TableRow>
                     <TableCell className="font-medium">Pago de Ventanilla</TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Pago manual en ventanilla. <code className="text-xs bg-muted px-1 rounded">Ref: VENT-{'{ID}'}</code>
@@ -5280,7 +5291,7 @@ export default function ConfiguracionPage() {
                   {/* Abono Extraordinario */}
                   <TableRow>
                     <TableCell className="font-medium">Abono Extraordinario</TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Abono extraordinario con penalización (adelanto de cuotas). <code className="text-xs bg-muted px-1 rounded">Ref: EXTRA-{'{ID}'}</code>
@@ -5290,7 +5301,7 @@ export default function ConfiguracionPage() {
                   {/* Cancelación Anticipada */}
                   <TableRow>
                     <TableCell className="font-medium">Cancelación Anticipada</TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Pago total anticipado del crédito. <code className="text-xs bg-muted px-1 rounded">Ref: CANCEL-{'{ID}'}</code>
@@ -5300,7 +5311,7 @@ export default function ConfiguracionPage() {
                   {/* Refundición */}
                   <TableRow>
                     <TableCell className="font-medium">Refundición (Cierre)</TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Cierre del crédito antiguo en refundición. <code className="text-xs bg-muted px-1 rounded">Ref: REFUND-CLOSE-{'{ID}'}</code>
@@ -5309,7 +5320,7 @@ export default function ConfiguracionPage() {
                   <TableRow>
                     <TableCell className="font-medium">Refundición (Nuevo)</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Apertura del nuevo crédito refundido. <code className="text-xs bg-muted px-1 rounded">Ref: REFUND-NEW-{'{ID}'}</code>
                     </TableCell>
@@ -5319,7 +5330,7 @@ export default function ConfiguracionPage() {
                   <TableRow>
                     <TableCell className="font-medium">Reintegro de Saldo Pendiente</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Devolución de saldo pendiente al cliente. <code className="text-xs bg-muted px-1 rounded">Ref: DEVOL-{'{ID}'}</code>
                     </TableCell>
@@ -5329,7 +5340,7 @@ export default function ConfiguracionPage() {
                   <TableRow>
                     <TableCell className="font-medium">Anulación de Planilla</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Reversa de todos los pagos de una planilla completa. <code className="text-xs bg-muted px-1 rounded">Ref: ANUL-PLAN-{'{ID}'}</code>
                     </TableCell>
@@ -5337,7 +5348,7 @@ export default function ConfiguracionPage() {
                   <TableRow>
                     <TableCell className="font-medium">Reverso de Pago Manual</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Anulación de pago individual (ventanilla/planilla). <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-PAY-{'{ID}'}</code>
                     </TableCell>
@@ -5345,7 +5356,7 @@ export default function ConfiguracionPage() {
                   <TableRow>
                     <TableCell className="font-medium">Reverso de Abono Extraordinario</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Anulación de abono extraordinario. <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-EXTRA-{'{ID}'}</code>
                     </TableCell>
@@ -5353,7 +5364,7 @@ export default function ConfiguracionPage() {
                   <TableRow>
                     <TableCell className="font-medium">Reverso de Cancelación Anticipada</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
-                    <TableCell><span className="text-sm font-mono">Banco CREDIPEPE</span></TableCell>
+                    <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       Anulación de cancelación anticipada. <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-CANCEL-{'{ID}'}</code>
                     </TableCell>

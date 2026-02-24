@@ -755,7 +755,7 @@ class CreditPaymentController extends Controller
             // ACCOUNTING_API_TRIGGER: Abono Extraordinario (Específico)
             // ============================================================
             // Dispara asiento contable al registrar un abono extraordinario:
-            // DÉBITO: Banco CREDIPEPE (monto del pago)
+            // DÉBITO: Banco CREDIPEP (monto del pago)
             // CRÉDITO: Cuentas por Cobrar (monto del pago - penalización)
             // CRÉDITO: Ingreso por Penalización (penalización) - si aplica
             $this->triggerAccountingEntry(
@@ -1240,7 +1240,7 @@ class CreditPaymentController extends Controller
         // ACCOUNTING_API_TRIGGER: Pago de Crédito (Específico por tipo)
         // ============================================================
         // Dispara asiento contable al registrar un pago:
-        // DÉBITO: Banco CREDIPEPE (monto del pago)
+        // DÉBITO: Banco CREDIPEP (monto del pago)
         // CRÉDITO: Cuentas por Cobrar (monto del pago)
 
         // Calcular componentes del monto para contabilidad
@@ -1517,6 +1517,36 @@ class CreditPaymentController extends Controller
                     ]);
                     $resultItem['sobrante'] = $dineroDisponible;
                     $resultItem['saldo_pendiente_id'] = $saldo->id;
+
+                    // ============================================================
+                    // ACCOUNTING_API_TRIGGER: Retención de Sobrante de Planilla
+                    // ============================================================
+                    // Se dispara cuando queda sobrante después de pagar todos los créditos.
+                    // El asiento se configura en el sistema (SALDO_SOBRANTE) y se ejecuta
+                    // automáticamente si existe una configuración activa para ese tipo.
+                    $this->triggerAccountingEntry(
+                        'SALDO_SOBRANTE',
+                        $dineroDisponible,
+                        "SOB-{$saldo->id}-{$credits->first()->reference}",
+                        [
+                            'credit_id'        => $credits->first()->reference,
+                            'cedula'           => $rawCedula,
+                            'clienteNombre'    => $credits->first()->lead->name ?? null,
+                            'deductora_id'     => $deductoraId,
+                            'deductora_nombre' => $planillaUpload->deductora->nombre ?? 'Sin deductora',
+                            'saldo_pendiente_id' => $saldo->id,
+                            'amount_breakdown' => [
+                                'total'                  => $dineroDisponible,
+                                'sobrante'               => $dineroDisponible,
+                                'interes_corriente'      => 0,
+                                'interes_moratorio'      => 0,
+                                'poliza'                 => 0,
+                                'capital'                => 0,
+                                'cargos_adicionales_total' => 0,
+                                'cargos_adicionales'     => [],
+                            ],
+                        ]
+                    );
                 }
 
                 if (count($payments) === 0) {
@@ -1921,7 +1951,7 @@ class CreditPaymentController extends Controller
             // ACCOUNTING_API_TRIGGER: Cancelación Anticipada (Pago Total)
             // ============================================================
             // Dispara asiento contable al cancelar anticipadamente:
-            // DÉBITO: Banco CREDIPEPE (monto_total_cancelar)
+            // DÉBITO: Banco CREDIPEP (monto_total_cancelar)
             // CRÉDITO: Cuentas por Cobrar (capital + intereses)
             // CRÉDITO: Ingreso Penalización (penalización) - si aplica
             $this->triggerAccountingEntry(
@@ -2300,7 +2330,7 @@ class CreditPaymentController extends Controller
             // ============================================================
             // Dispara asiento contable al revertir un pago:
             // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
-            // CRÉDITO: Banco CREDIPEPE (monto del pago revertido)
+            // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
             $this->triggerAccountingEntry(
                 'REVERSO_PAGO',
                 (float) $payment->monto,
