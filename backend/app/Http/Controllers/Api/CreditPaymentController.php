@@ -1517,6 +1517,36 @@ class CreditPaymentController extends Controller
                     ]);
                     $resultItem['sobrante'] = $dineroDisponible;
                     $resultItem['saldo_pendiente_id'] = $saldo->id;
+
+                    // ============================================================
+                    // ACCOUNTING_API_TRIGGER: Retención de Sobrante de Planilla
+                    // ============================================================
+                    // Se dispara cuando queda sobrante después de pagar todos los créditos.
+                    // El asiento se configura en el sistema (SALDO_SOBRANTE) y se ejecuta
+                    // automáticamente si existe una configuración activa para ese tipo.
+                    $this->triggerAccountingEntry(
+                        'SALDO_SOBRANTE',
+                        $dineroDisponible,
+                        "SOB-{$saldo->id}-{$credits->first()->reference}",
+                        [
+                            'credit_id'        => $credits->first()->reference,
+                            'cedula'           => $rawCedula,
+                            'clienteNombre'    => $credits->first()->lead->name ?? null,
+                            'deductora_id'     => $deductoraId,
+                            'deductora_nombre' => $planillaUpload->deductora->nombre ?? 'Sin deductora',
+                            'saldo_pendiente_id' => $saldo->id,
+                            'amount_breakdown' => [
+                                'total'                  => $dineroDisponible,
+                                'sobrante'               => $dineroDisponible,
+                                'interes_corriente'      => 0,
+                                'interes_moratorio'      => 0,
+                                'poliza'                 => 0,
+                                'capital'                => 0,
+                                'cargos_adicionales_total' => 0,
+                                'cargos_adicionales'     => [],
+                            ],
+                        ]
+                    );
                 }
 
                 if (count($payments) === 0) {

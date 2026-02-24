@@ -417,7 +417,7 @@ trait AccountingTrigger
      * Disparar asientos en cascada luego de un asiento exitoso.
      *
      * Actualmente soporta:
-     * - PAGO_PLANILLA con sobrante > 0 → dispara RETENCION_SOBRANTE automáticamente
+     * - PAGO_PLANILLA con sobrante > 0 → dispara SALDO_SOBRANTE automáticamente
      */
     private function triggerCascadeEntries(string $parentType, string $reference, array $context, array &$parentResult): void
     {
@@ -431,7 +431,7 @@ trait AccountingTrigger
             return;
         }
 
-        Log::info('ERP: Sobrante detectado en PAGO_PLANILLA, disparando RETENCION_SOBRANTE', [
+        Log::info('ERP: Sobrante detectado en PAGO_PLANILLA, disparando SALDO_SOBRANTE', [
             'reference' => $reference,
             'sobrante' => $sobrante,
         ]);
@@ -452,7 +452,7 @@ trait AccountingTrigger
         ];
 
         $sobranteResult = $this->triggerAccountingEntry(
-            'RETENCION_SOBRANTE',
+            'SALDO_SOBRANTE',
             $sobrante,
             $sobranteReference,
             $sobranteContext
@@ -462,7 +462,7 @@ trait AccountingTrigger
         $parentResult['sobrante_entry'] = $sobranteResult;
 
         if (!($sobranteResult['success'] ?? false)) {
-            Log::warning('ERP: Fallo al registrar RETENCION_SOBRANTE', [
+            Log::warning('ERP: Fallo al registrar SALDO_SOBRANTE', [
                 'reference' => $sobranteReference,
                 'sobrante' => $sobrante,
                 'error' => $sobranteResult['error'] ?? 'Desconocido',
