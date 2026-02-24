@@ -37,7 +37,7 @@ if (!$autoConfirm) {
     echo "  4. Eliminar todas las oportunidades\n";
     echo "  5. Eliminar todos los analizados\n";
     echo "  6. Eliminar todos los saldos pendientes (sobrantes)\n";
-    echo "  7. Convertir clientes → leads (person_type_id: 2 → 1)\n\n";
+    echo "  7. Eliminar todas las personas (leads y clientes)\n\n";
 
     // Mostrar conteos actuales
     $counts = [
@@ -47,7 +47,7 @@ if (!$autoConfirm) {
         'opportunities'   => DB::table('opportunities')->count(),
         'analisis'        => DB::table('analisis')->count(),
         'saldos_pendientes' => DB::table('saldos_pendientes')->count(),
-        'clientes'        => DB::table('persons')->where('person_type_id', 2)->count(),
+        'persons'         => DB::table('persons')->count(),
     ];
 
     echo "Estado actual:\n";
