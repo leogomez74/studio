@@ -1243,11 +1243,12 @@ class CreditPaymentController extends Controller
         // DÉBITO: Banco CREDIPEP (monto del pago)
         // CRÉDITO: Cuentas por Cobrar (monto del pago)
 
-        // Calcular componentes del monto para contabilidad
-        $interesMoratorio = $credit->planDePagos()->sum('movimiento_interes_moratorio');
-        $interesVencido = $credit->planDePagos()->sum('movimiento_int_corriente_vencido');
-        $interesCorriente = $credit->planDePagos()->sum('movimiento_interes_corriente');
-        $poliza = $credit->planDePagos()->sum('movimiento_poliza');
+        // Calcular componentes del monto para contabilidad — solo lo pagado EN ESTA TRANSACCIÓN
+        // (no acumulado histórico del crédito)
+        $interesMoratorio = array_sum(array_column($paymentDetails, 'pago_mora'));
+        $interesVencido   = array_sum(array_column($paymentDetails, 'pago_int_vencido'));
+        $interesCorriente = array_sum(array_column($paymentDetails, 'pago_int_corriente'));
+        $poliza           = array_sum(array_column($paymentDetails, 'pago_poliza'));
 
         // sobrante contable: si se pasó explícitamente (-1 = no override), usar dineroDisponible
         $sobranteEnAsiento = $sobranteContable >= 0 ? $sobranteContable : max(0.0, $dineroDisponible);
