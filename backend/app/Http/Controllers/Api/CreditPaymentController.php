@@ -1513,49 +1513,68 @@ class CreditPaymentController extends Controller
                 // Sobrante final (después de pagar todos los créditos en cascada)
                 if ($dineroDisponible > 0.50 && count($payments) > 0) {
                     $lastPayment = end($payments);
-                    $lastPayment->update(['movimiento_total' => $dineroDisponible]);
+                    $lastCredit  = Credit::find($lastPayment->credit_id);
 
-                    $saldo = SaldoPendiente::create([
-                        'credit_id' => $lastPayment->credit_id,
-                        'credit_payment_id' => $lastPayment->id,
-                        'monto' => $dineroDisponible,
-                        'origen' => 'Planilla',
-                        'fecha_origen' => $fechaPago,
-                        'estado' => 'pendiente',
-                        'cedula' => $rawCedula,
-                    ]);
-                    $resultItem['sobrante'] = $dineroDisponible;
-                    $resultItem['saldo_pendiente_id'] = $saldo->id;
+                    // Buscar próxima cuota pendiente del último crédito procesado
+                    $proximaCuota = $lastCredit ? $lastCredit->planDePagos()
+                        ->where('numero_cuota', '>', 0)
+                        ->where('estado', 'Pendiente')
+                        ->orderBy('numero_cuota')
+                        ->first() : null;
 
-                    // ============================================================
-                    // ACCOUNTING_API_TRIGGER: Retención de Sobrante de Planilla
-                    // ============================================================
-                    // Se dispara cuando queda sobrante después de pagar todos los créditos.
-                    // El asiento se configura en el sistema (SALDO_SOBRANTE) y se ejecuta
-                    // automáticamente si existe una configuración activa para ese tipo.
-                    $this->triggerAccountingEntry(
-                        'SALDO_SOBRANTE',
-                        $dineroDisponible,
-                        "SOB-{$saldo->id}-{$credits->first()->reference}",
-                        [
-                            'credit_id'        => $credits->first()->reference,
-                            'cedula'           => $rawCedula,
-                            'clienteNombre'    => $credits->first()->lead->name ?? null,
-                            'deductora_id'     => $deductoraId,
-                            'deductora_nombre' => $planillaUpload->deductora->nombre ?? 'Sin deductora',
-                            'saldo_pendiente_id' => $saldo->id,
-                            'amount_breakdown' => [
-                                'total'                  => $dineroDisponible,
-                                'sobrante'               => $dineroDisponible,
-                                'interes_corriente'      => 0,
-                                'interes_moratorio'      => 0,
-                                'poliza'                 => 0,
-                                'capital'                => 0,
-                                'cargos_adicionales_total' => 0,
-                                'cargos_adicionales'     => [],
-                            ],
-                        ]
-                    );
+                    if ($proximaCuota) {
+                        // El sobrante existe porque el pago cubrió el interes_corriente+mora
+                        // de la última cuota procesada, dejando un remanente que corresponde
+                        // directamente a la siguiente cuota → aplicar como parcial automático.
+                        // (El cascade ya garantiza que $dineroDisponible < valor de la próxima cuota)
+                        DB::transaction(function () use ($lastCredit, $dineroDisponible, $fechaPago, $rawCedula, $planillaId) {
+                            $c = Credit::lockForUpdate()->findOrFail($lastCredit->id);
+                            $this->processPaymentTransaction($c, $dineroDisponible, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId);
+                        });
+                        $resultItem['parcial_aplicado'] = $dineroDisponible;
+                    } else {
+                        // Sin próxima cuota pendiente (crédito al día o cerrado) → SaldoPendiente
+                        $lastPayment->update(['movimiento_total' => $dineroDisponible]);
+
+                        $saldo = SaldoPendiente::create([
+                            'credit_id'         => $lastPayment->credit_id,
+                            'credit_payment_id' => $lastPayment->id,
+                            'monto'             => $dineroDisponible,
+                            'origen'            => 'Planilla',
+                            'fecha_origen'      => $fechaPago,
+                            'estado'            => 'pendiente',
+                            'cedula'            => $rawCedula,
+                        ]);
+                        $resultItem['sobrante']          = $dineroDisponible;
+                        $resultItem['saldo_pendiente_id'] = $saldo->id;
+
+                        // ============================================================
+                        // ACCOUNTING_API_TRIGGER: Retención de Sobrante de Planilla
+                        // ============================================================
+                        $this->triggerAccountingEntry(
+                            'SALDO_SOBRANTE',
+                            $dineroDisponible,
+                            "SOB-{$saldo->id}-{$credits->first()->reference}",
+                            [
+                                'credit_id'        => $credits->first()->reference,
+                                'cedula'           => $rawCedula,
+                                'clienteNombre'    => $credits->first()->lead->name ?? null,
+                                'deductora_id'     => $deductoraId,
+                                'deductora_nombre' => $planillaUpload->deductora->nombre ?? 'Sin deductora',
+                                'saldo_pendiente_id' => $saldo->id,
+                                'amount_breakdown' => [
+                                    'total'                  => $dineroDisponible,
+                                    'sobrante'               => $dineroDisponible,
+                                    'interes_corriente'      => 0,
+                                    'interes_moratorio'      => 0,
+                                    'poliza'                 => 0,
+                                    'capital'                => 0,
+                                    'cargos_adicionales_total' => 0,
+                                    'cargos_adicionales'     => [],
+                                ],
+                            ]
+                        );
+                    }
                 }
 
                 if (count($payments) === 0) {
