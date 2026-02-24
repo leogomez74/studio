@@ -1051,7 +1051,7 @@ class CreditPaymentController extends Controller
      * Lógica "Cascada" (Waterfall) para pagos regulares
      * IMPUTACIÓN: Mora -> Interés -> Cargos -> Capital
      */
-    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null)
+    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null, float $sobranteContable = -1)
     {
         $dineroDisponible = $montoEntrante;
 
@@ -1249,6 +1249,9 @@ class CreditPaymentController extends Controller
         $interesCorriente = $credit->planDePagos()->sum('movimiento_interes_corriente');
         $poliza = $credit->planDePagos()->sum('movimiento_poliza');
 
+        // sobrante contable: si se pasó explícitamente (-1 = no override), usar dineroDisponible
+        $sobranteEnAsiento = $sobranteContable >= 0 ? $sobranteContable : max(0.0, $dineroDisponible);
+
         $context = [
             'reference' => "PAY-{$paymentRecord->id}-{$credit->reference}",
             'cedula' => $cedulaRef,
@@ -1260,6 +1263,7 @@ class CreditPaymentController extends Controller
                 'interes_moratorio' => $interesMoratorio,
                 'poliza' => $poliza,
                 'capital' => $capitalAmortizadoHoy,
+                'sobrante' => $sobranteEnAsiento,
                 'cargos_adicionales_total' => 0,
                 'cargos_adicionales' => [],
             ],
@@ -1477,9 +1481,13 @@ class CreditPaymentController extends Controller
                     $cascadeCreditId = $cascadeCredit->id;
                     $montoParaCredito = $dineroDisponible;
 
-                    $payment = DB::transaction(function () use ($cascadeCreditId, $montoParaCredito, $fechaPago, $rawCedula, $planillaId) {
+                    // Para clientes con múltiples créditos, el sobrante de créditos intermedios
+                    // pasa al siguiente crédito (no va a retenciones), así que se fuerza sobrante=0
+                    // en el asiento contable de esos créditos intermedios.
+                    $esCascadeMultiple = $credits->count() > 1;
+                    $payment = DB::transaction(function () use ($cascadeCreditId, $montoParaCredito, $fechaPago, $rawCedula, $planillaId, $esCascadeMultiple) {
                         $c = Credit::lockForUpdate()->findOrFail($cascadeCreditId);
-                        return $this->processPaymentTransaction($c, $montoParaCredito, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId);
+                        return $this->processPaymentTransaction($c, $montoParaCredito, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId, $esCascadeMultiple ? 0.0 : -1);
                     });
 
                     if ($payment) {
