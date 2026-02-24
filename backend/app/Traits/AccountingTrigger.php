@@ -416,58 +416,13 @@ trait AccountingTrigger
     /**
      * Disparar asientos en cascada luego de un asiento exitoso.
      *
-     * Actualmente soporta:
-     * - PAGO_PLANILLA con sobrante > 0 → dispara SALDO_SOBRANTE automáticamente
+     * Nota: SALDO_SOBRANTE ya NO se dispara aquí. Se dispara directamente
+     * desde CreditPaymentController@upload() después de confirmar el sobrante
+     * real y crear el SaldoPendiente. Esto evita doble disparo.
      */
     private function triggerCascadeEntries(string $parentType, string $reference, array $context, array &$parentResult): void
     {
-        if ($parentType !== 'PAGO_PLANILLA') {
-            return;
-        }
-
-        $sobrante = (float) ($context['amount_breakdown']['sobrante'] ?? 0);
-
-        if ($sobrante <= 0) {
-            return;
-        }
-
-        Log::info('ERP: Sobrante detectado en PAGO_PLANILLA, disparando SALDO_SOBRANTE', [
-            'reference' => $reference,
-            'sobrante' => $sobrante,
-        ]);
-
-        $sobranteReference = $reference . '-SOBRANTE';
-
-        // Construir contexto para el asiento de sobrante (monto total = el sobrante)
-        $sobranteContext = $context;
-        $sobranteContext['amount_breakdown'] = [
-            'total' => $sobrante,
-            'interes_corriente' => 0,
-            'interes_moratorio' => 0,
-            'poliza' => 0,
-            'capital' => 0,
-            'sobrante' => $sobrante,
-            'cargos_adicionales_total' => 0,
-            'cargos_adicionales' => [],
-        ];
-
-        $sobranteResult = $this->triggerAccountingEntry(
-            'SALDO_SOBRANTE',
-            $sobrante,
-            $sobranteReference,
-            $sobranteContext
-        );
-
-        // Adjuntar resultado del sobrante al resultado padre para trazabilidad
-        $parentResult['sobrante_entry'] = $sobranteResult;
-
-        if (!($sobranteResult['success'] ?? false)) {
-            Log::warning('ERP: Fallo al registrar SALDO_SOBRANTE', [
-                'reference' => $sobranteReference,
-                'sobrante' => $sobrante,
-                'error' => $sobranteResult['error'] ?? 'Desconocido',
-            ]);
-        }
+        // Reservado para futuras cascadas. SALDO_SOBRANTE se maneja en upload().
     }
 
     /**
