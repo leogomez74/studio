@@ -35,9 +35,10 @@ if (!$autoConfirm) {
     echo "  2. Eliminar todos los planes de pago\n";
     echo "  3. Eliminar todos los créditos\n";
     echo "  4. Eliminar todas las oportunidades\n";
-    echo "  5. Eliminar todos los analizados\n";
-    echo "  6. Eliminar todos los saldos pendientes (sobrantes)\n";
-    echo "  7. Eliminar todas las personas (leads y clientes)\n\n";
+    echo "  5. Eliminar todas las propuestas de crédito\n";
+    echo "  6. Eliminar todos los analizados\n";
+    echo "  7. Eliminar todos los saldos pendientes (sobrantes)\n";
+    echo "  8. Eliminar todas las personas (leads y clientes)\n\n";
 
     // Mostrar conteos actuales
     $counts = [
@@ -45,6 +46,7 @@ if (!$autoConfirm) {
         'plan_de_pagos'   => DB::table('plan_de_pagos')->count(),
         'credits'         => DB::table('credits')->count(),
         'opportunities'   => DB::table('opportunities')->count(),
+        'propuestas'      => DB::table('propuestas')->count(),
         'analisis'        => DB::table('analisis')->count(),
         'saldos_pendientes' => DB::table('saldos_pendientes')->count(),
         'persons'         => DB::table('persons')->count(),
@@ -87,7 +89,11 @@ try {
     $deleted = DB::table('opportunities')->delete();
     echo "[OK] opportunities eliminadas: {$deleted}\n";
 
-    // 5. Analizados
+    // 5. Propuestas de crédito
+    $deleted = DB::table('propuestas')->delete();
+    echo "[OK] propuestas eliminadas: {$deleted}\n";
+
+    // 6. Analizados
     $deleted = DB::table('analisis')->delete();
     echo "[OK] analisis eliminados: {$deleted}\n";
 
@@ -119,6 +125,7 @@ echo "  - credit_payments:  " . DB::table('credit_payments')->count() . "\n";
 echo "  - plan_de_pagos:    " . DB::table('plan_de_pagos')->count() . "\n";
 echo "  - credits:          " . DB::table('credits')->count() . "\n";
 echo "  - opportunities:    " . DB::table('opportunities')->count() . "\n";
+echo "  - propuestas:       " . DB::table('propuestas')->count() . "\n";
 echo "  - analisis:         " . DB::table('analisis')->count() . "\n";
 echo "  - saldos_pendientes:" . DB::table('saldos_pendientes')->count() . "\n";
 echo "  - persons:          " . DB::table('persons')->count() . "\n";
