@@ -152,6 +152,13 @@ const ACCOUNTING_ENTRY_TYPES = [
     description: 'Anulación de cancelación anticipada',
     controller: 'CreditPaymentController@destroyCancellation',
     reference: 'REVERSE-CANCEL-{ID}'
+  },
+  {
+    value: 'SALDO_SOBRANTE',
+    label: 'Saldo Sobrante de Planilla',
+    description: 'Se dispara automáticamente cuando queda sobrante tras pagar todos los créditos de una planilla',
+    controller: 'CreditPaymentController@upload (automático)',
+    reference: 'SOB-{ID}'
   }
 ];
 
@@ -200,6 +207,10 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   DEVOLUCION: 'Devolución',
   REFUNDICION_CIERRE: 'Refundición Cierre',
   REFUNDICION_NUEVO: 'Refundición Nuevo',
+  SALDO_SOBRANTE: 'Saldo Sobrante',
+  REINTEGRO_SALDO: 'Reintegro de Saldo',
+  ABONO_CAPITAL: 'Abono a Capital',
+  ANULACION_PLANILLA: 'Anulación Planilla',
 };
 
 interface AccountingAlerts {
