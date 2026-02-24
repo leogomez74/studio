@@ -95,11 +95,9 @@ try {
     $deleted = DB::table('saldos_pendientes')->delete();
     echo "[OK] saldos_pendientes eliminados: {$deleted}\n";
 
-    // 7. Convertir clientes → leads (person_type_id 2 → 1)
-    $updated = DB::table('persons')
-        ->where('person_type_id', 2)
-        ->update(['person_type_id' => 1]);
-    echo "[OK] Clientes convertidos a leads: {$updated}\n";
+    // 7. Personas (leads y clientes)
+    $deleted = DB::table('persons')->delete();
+    echo "[OK] persons eliminados: {$deleted}\n";
 
 } catch (\Exception $e) {
     echo "\n[ERROR] " . $e->getMessage() . "\n";
@@ -123,6 +121,5 @@ echo "  - credits:          " . DB::table('credits')->count() . "\n";
 echo "  - opportunities:    " . DB::table('opportunities')->count() . "\n";
 echo "  - analisis:         " . DB::table('analisis')->count() . "\n";
 echo "  - saldos_pendientes:" . DB::table('saldos_pendientes')->count() . "\n";
-echo "  - leads (type=1):   " . DB::table('persons')->where('person_type_id', 1)->count() . "\n";
-echo "  - clientes (type=2):" . DB::table('persons')->where('person_type_id', 2)->count() . "\n";
+echo "  - persons:          " . DB::table('persons')->count() . "\n";
 echo "\n";
