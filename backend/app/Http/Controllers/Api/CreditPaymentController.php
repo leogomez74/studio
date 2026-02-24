@@ -755,7 +755,7 @@ class CreditPaymentController extends Controller
             // ACCOUNTING_API_TRIGGER: Abono Extraordinario (Específico)
             // ============================================================
             // Dispara asiento contable al registrar un abono extraordinario:
-            // DÉBITO: Banco CREDIPEPE (monto del pago)
+            // DÉBITO: Banco CREDIPEP (monto del pago)
             // CRÉDITO: Cuentas por Cobrar (monto del pago - penalización)
             // CRÉDITO: Ingreso por Penalización (penalización) - si aplica
             $this->triggerAccountingEntry(
@@ -1240,7 +1240,7 @@ class CreditPaymentController extends Controller
         // ACCOUNTING_API_TRIGGER: Pago de Crédito (Específico por tipo)
         // ============================================================
         // Dispara asiento contable al registrar un pago:
-        // DÉBITO: Banco CREDIPEPE (monto del pago)
+        // DÉBITO: Banco CREDIPEP (monto del pago)
         // CRÉDITO: Cuentas por Cobrar (monto del pago)
 
         // Calcular componentes del monto para contabilidad
@@ -1951,7 +1951,7 @@ class CreditPaymentController extends Controller
             // ACCOUNTING_API_TRIGGER: Cancelación Anticipada (Pago Total)
             // ============================================================
             // Dispara asiento contable al cancelar anticipadamente:
-            // DÉBITO: Banco CREDIPEPE (monto_total_cancelar)
+            // DÉBITO: Banco CREDIPEP (monto_total_cancelar)
             // CRÉDITO: Cuentas por Cobrar (capital + intereses)
             // CRÉDITO: Ingreso Penalización (penalización) - si aplica
             $this->triggerAccountingEntry(
@@ -2330,7 +2330,7 @@ class CreditPaymentController extends Controller
             // ============================================================
             // Dispara asiento contable al revertir un pago:
             // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
-            // CRÉDITO: Banco CREDIPEPE (monto del pago revertido)
+            // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
             $this->triggerAccountingEntry(
                 'REVERSO_PAGO',
                 (float) $payment->monto,

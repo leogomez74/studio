@@ -468,7 +468,7 @@ class SaldoPendienteController extends Controller
                 // ACCOUNTING_API_TRIGGER: Abono a Capital (Saldo Pendiente)
                 // ============================================================
                 // Dispara asiento contable al aplicar saldo pendiente a capital:
-                // DÉBITO: Banco CREDIPEPE (monto_aplicar)
+                // DÉBITO: Banco CREDIPEP (monto_aplicar)
                 // CRÉDITO: Cuentas por Cobrar (monto_aplicar)
                 $this->triggerAccountingEntry(
                     'ABONO_CAPITAL',
@@ -546,7 +546,7 @@ class SaldoPendienteController extends Controller
             // ============================================================
             // Dispara asiento contable al reintegrar un saldo:
             // DÉBITO: Cuentas por Cobrar (monto del saldo)
-            // CRÉDITO: Banco CREDIPEPE (monto del saldo)
+            // CRÉDITO: Banco CREDIPEP (monto del saldo)
             $this->triggerAccountingEntry(
                 'REINTEGRO_SALDO',
                 $monto,

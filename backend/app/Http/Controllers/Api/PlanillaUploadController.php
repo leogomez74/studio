@@ -150,7 +150,7 @@ class PlanillaUploadController extends Controller
                 // ============================================================
                 // Dispara asiento contable al revertir un pago:
                 // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
-                // CRÉDITO: Banco CREDIPEPE (monto del pago revertido)
+                // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
                 $this->triggerAccountingEntry(
                     'ANULACION_PLANILLA',
                     (float) $pago->monto,
