@@ -48,7 +48,7 @@ class AccountingEntryConfigController extends Controller
             'lines.*.account_type' => 'required|in:fixed,deductora',
             'lines.*.account_key' => 'required_if:lines.*.account_type,fixed|nullable|string|max:50',
             'lines.*.description' => 'nullable|string|max:255',
-            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,cargo_adicional',
+            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,cargo_adicional',
             'lines.*.cargo_adicional_key' => 'nullable|string|max:50',
         ]);
 
@@ -107,7 +107,7 @@ class AccountingEntryConfigController extends Controller
             'lines.*.account_type' => 'required_with:lines|in:fixed,deductora',
             'lines.*.account_key' => 'required_if:lines.*.account_type,fixed|nullable|string|max:50',
             'lines.*.description' => 'nullable|string|max:255',
-            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,cargo_adicional',
+            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,cargo_adicional',
             'lines.*.cargo_adicional_key' => 'nullable|string|max:50',
         ]);
 
