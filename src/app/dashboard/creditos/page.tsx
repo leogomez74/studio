@@ -1271,36 +1271,36 @@ export default function CreditsPage() {
         )}
       </div>
 
-      {/* Filtro por Deductora */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Label className="text-sm font-medium">Deductora</Label>
-        <Button
-          variant={filters.deductora === "sin" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setFilters({ ...filters, deductora: filters.deductora === "sin" ? "" : "sin" })}
-        >
-          Sin deductora
-        </Button>
-        {deductoras.map((d) => (
-          <Button
-            key={d.id}
-            variant={filters.deductora === String(d.id) ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilters({ ...filters, deductora: filters.deductora === String(d.id) ? "" : String(d.id) })}
-          >
-            {d.nombre}
-          </Button>
-        ))}
-      </div>
-
       <Tabs value={tabValue} onValueChange={setTabValue}>
-        <TabsList className="flex flex-wrap gap-2">
-          {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="capitalize">
-              {tab.label}
-            </TabsTrigger>
+        <div className="flex flex-wrap items-center gap-2">
+          <TabsList className="flex flex-wrap gap-2">
+            {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className="capitalize">
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Separator orientation="vertical" className="h-6 mx-1" />
+          <Button
+            variant={filters.deductora === "sin" ? "default" : "outline"}
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => { setFilters({ ...filters, deductora: filters.deductora === "sin" ? "" : "sin" }); setCurrentPage(1); }}
+          >
+            Sin deductora
+          </Button>
+          {deductoras.map((d) => (
+            <Button
+              key={d.id}
+              variant={filters.deductora === String(d.id) ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => { setFilters({ ...filters, deductora: filters.deductora === String(d.id) ? "" : String(d.id) }); setCurrentPage(1); }}
+            >
+              {d.nombre}
+            </Button>
           ))}
-        </TabsList>
+        </div>
 
         {CREDIT_STATUS_TAB_CONFIG.map((tab) => {
           const paginationData = getPaginatedCredits(tab.value);
