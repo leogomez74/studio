@@ -37,7 +37,7 @@ class ErpAccountingService
     public function areAccountsConfigured(): bool
     {
         $codes = ErpAccountingAccount::getActiveCodesMap();
-        $banco = $codes['banco_credipepe'] ?? '';
+        $banco = $codes['banco_credipep'] ?? '';
         $cxc = $codes['cuentas_por_cobrar'] ?? '';
 
         return !empty($banco) && !empty($cxc);

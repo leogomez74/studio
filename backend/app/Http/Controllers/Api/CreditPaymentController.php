@@ -756,7 +756,7 @@ class CreditPaymentController extends Controller
             // ACCOUNTING_API_TRIGGER: Abono Extraordinario (Específico)
             // ============================================================
             // Dispara asiento contable al registrar un abono extraordinario:
-            // DÉBITO: Banco CREDIPEPE (monto del pago)
+            // DÉBITO: Banco CREDIPEP (monto del pago)
             // CRÉDITO: Cuentas por Cobrar (monto del pago - penalización)
             // CRÉDITO: Ingreso por Penalización (penalización) - si aplica
             $this->triggerAccountingEntry(
@@ -1052,7 +1052,7 @@ class CreditPaymentController extends Controller
      * Lógica "Cascada" (Waterfall) para pagos regulares
      * IMPUTACIÓN: Mora -> Interés -> Cargos -> Capital
      */
-    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null)
+    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null, float $sobranteContable = -1)
     {
         $dineroDisponible = $montoEntrante;
 
@@ -1241,14 +1241,18 @@ class CreditPaymentController extends Controller
         // ACCOUNTING_API_TRIGGER: Pago de Crédito (Específico por tipo)
         // ============================================================
         // Dispara asiento contable al registrar un pago:
-        // DÉBITO: Banco CREDIPEPE (monto del pago)
+        // DÉBITO: Banco CREDIPEP (monto del pago)
         // CRÉDITO: Cuentas por Cobrar (monto del pago)
 
-        // Calcular componentes del monto para contabilidad
-        $interesMoratorio = $credit->planDePagos()->sum('movimiento_interes_moratorio');
-        $interesVencido = $credit->planDePagos()->sum('movimiento_int_corriente_vencido');
-        $interesCorriente = $credit->planDePagos()->sum('movimiento_interes_corriente');
-        $poliza = $credit->planDePagos()->sum('movimiento_poliza');
+        // Calcular componentes del monto para contabilidad — solo lo pagado EN ESTA TRANSACCIÓN
+        // (no acumulado histórico del crédito)
+        $interesMoratorio = array_sum(array_column($paymentDetails, 'pago_mora'));
+        $interesVencido   = array_sum(array_column($paymentDetails, 'pago_int_vencido'));
+        $interesCorriente = array_sum(array_column($paymentDetails, 'pago_int_corriente'));
+        $poliza           = array_sum(array_column($paymentDetails, 'pago_poliza'));
+
+        // sobrante contable: si se pasó explícitamente (-1 = no override), usar dineroDisponible
+        $sobranteEnAsiento = $sobranteContable >= 0 ? $sobranteContable : max(0.0, $dineroDisponible);
 
         $context = [
             'reference' => "PAY-{$paymentRecord->id}-{$credit->reference}",
@@ -1261,6 +1265,7 @@ class CreditPaymentController extends Controller
                 'interes_moratorio' => $interesMoratorio,
                 'poliza' => $poliza,
                 'capital' => $capitalAmortizadoHoy,
+                'sobrante' => $sobranteEnAsiento,
                 'cargos_adicionales_total' => 0,
                 'cargos_adicionales' => [],
             ],
@@ -1478,9 +1483,13 @@ class CreditPaymentController extends Controller
                     $cascadeCreditId = $cascadeCredit->id;
                     $montoParaCredito = $dineroDisponible;
 
-                    $payment = DB::transaction(function () use ($cascadeCreditId, $montoParaCredito, $fechaPago, $rawCedula, $planillaId) {
+                    // Para clientes con múltiples créditos, el sobrante de créditos intermedios
+                    // pasa al siguiente crédito (no va a retenciones), así que se fuerza sobrante=0
+                    // en el asiento contable de esos créditos intermedios.
+                    $esCascadeMultiple = $credits->count() > 1;
+                    $payment = DB::transaction(function () use ($cascadeCreditId, $montoParaCredito, $fechaPago, $rawCedula, $planillaId, $esCascadeMultiple) {
                         $c = Credit::lockForUpdate()->findOrFail($cascadeCreditId);
-                        return $this->processPaymentTransaction($c, $montoParaCredito, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId);
+                        return $this->processPaymentTransaction($c, $montoParaCredito, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId, $esCascadeMultiple ? 0.0 : -1);
                     });
 
                     if ($payment) {
@@ -1505,19 +1514,68 @@ class CreditPaymentController extends Controller
                 // Sobrante final (después de pagar todos los créditos en cascada)
                 if ($dineroDisponible > 0.50 && count($payments) > 0) {
                     $lastPayment = end($payments);
-                    $lastPayment->update(['movimiento_total' => $dineroDisponible]);
+                    $lastCredit  = Credit::find($lastPayment->credit_id);
 
-                    $saldo = SaldoPendiente::create([
-                        'credit_id' => $lastPayment->credit_id,
-                        'credit_payment_id' => $lastPayment->id,
-                        'monto' => $dineroDisponible,
-                        'origen' => 'Planilla',
-                        'fecha_origen' => $fechaPago,
-                        'estado' => 'pendiente',
-                        'cedula' => $rawCedula,
-                    ]);
-                    $resultItem['sobrante'] = $dineroDisponible;
-                    $resultItem['saldo_pendiente_id'] = $saldo->id;
+                    // Buscar próxima cuota pendiente del último crédito procesado
+                    $proximaCuota = $lastCredit ? $lastCredit->planDePagos()
+                        ->where('numero_cuota', '>', 0)
+                        ->where('estado', 'Pendiente')
+                        ->orderBy('numero_cuota')
+                        ->first() : null;
+
+                    if ($proximaCuota) {
+                        // El sobrante existe porque el pago cubrió el interes_corriente+mora
+                        // de la última cuota procesada, dejando un remanente que corresponde
+                        // directamente a la siguiente cuota → aplicar como parcial automático.
+                        // (El cascade ya garantiza que $dineroDisponible < valor de la próxima cuota)
+                        DB::transaction(function () use ($lastCredit, $dineroDisponible, $fechaPago, $rawCedula, $planillaId) {
+                            $c = Credit::lockForUpdate()->findOrFail($lastCredit->id);
+                            $this->processPaymentTransaction($c, $dineroDisponible, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId);
+                        });
+                        $resultItem['parcial_aplicado'] = $dineroDisponible;
+                    } else {
+                        // Sin próxima cuota pendiente (crédito al día o cerrado) → SaldoPendiente
+                        $lastPayment->update(['movimiento_total' => $dineroDisponible]);
+
+                        $saldo = SaldoPendiente::create([
+                            'credit_id'         => $lastPayment->credit_id,
+                            'credit_payment_id' => $lastPayment->id,
+                            'monto'             => $dineroDisponible,
+                            'origen'            => 'Planilla',
+                            'fecha_origen'      => $fechaPago,
+                            'estado'            => 'pendiente',
+                            'cedula'            => $rawCedula,
+                        ]);
+                        $resultItem['sobrante']          = $dineroDisponible;
+                        $resultItem['saldo_pendiente_id'] = $saldo->id;
+
+                        // ============================================================
+                        // ACCOUNTING_API_TRIGGER: Retención de Sobrante de Planilla
+                        // ============================================================
+                        $this->triggerAccountingEntry(
+                            'SALDO_SOBRANTE',
+                            $dineroDisponible,
+                            "SOB-{$saldo->id}-{$credits->first()->reference}",
+                            [
+                                'credit_id'        => $credits->first()->reference,
+                                'cedula'           => $rawCedula,
+                                'clienteNombre'    => $credits->first()->lead->name ?? null,
+                                'deductora_id'     => $deductoraId,
+                                'deductora_nombre' => $planillaUpload->deductora->nombre ?? 'Sin deductora',
+                                'saldo_pendiente_id' => $saldo->id,
+                                'amount_breakdown' => [
+                                    'total'                  => $dineroDisponible,
+                                    'sobrante'               => $dineroDisponible,
+                                    'interes_corriente'      => 0,
+                                    'interes_moratorio'      => 0,
+                                    'poliza'                 => 0,
+                                    'capital'                => 0,
+                                    'cargos_adicionales_total' => 0,
+                                    'cargos_adicionales'     => [],
+                                ],
+                            ]
+                        );
+                    }
                 }
 
                 if (count($payments) === 0) {
@@ -1944,7 +2002,7 @@ class CreditPaymentController extends Controller
             // ACCOUNTING_API_TRIGGER: Cancelación Anticipada (Pago Total)
             // ============================================================
             // Dispara asiento contable al cancelar anticipadamente:
-            // DÉBITO: Banco CREDIPEPE (monto_total_cancelar)
+            // DÉBITO: Banco CREDIPEP (monto_total_cancelar)
             // CRÉDITO: Cuentas por Cobrar (capital + intereses)
             // CRÉDITO: Ingreso Penalización (penalización) - si aplica
             $this->triggerAccountingEntry(
@@ -2323,7 +2381,7 @@ class CreditPaymentController extends Controller
             // ============================================================
             // Dispara asiento contable al revertir un pago:
             // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
-            // CRÉDITO: Banco CREDIPEPE (monto del pago revertido)
+            // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
             $this->triggerAccountingEntry(
                 'REVERSO_PAGO',
                 (float) $payment->monto,

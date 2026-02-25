@@ -641,7 +641,7 @@ class CreditController extends Controller
             // ============================================================
             // Dispara asiento contable al formalizar el crédito:
             // DÉBITO: Cuentas por Cobrar (monto_credito)
-            // CRÉDITO: Banco CREDIPEPE (monto_credito)
+            // CRÉDITO: Banco CREDIPEP (monto_credito)
             $this->triggerAccountingEntry(
                 'FORMALIZACION',
                 (float) $credit->monto_credito,
@@ -1005,7 +1005,7 @@ class CreditController extends Controller
             // ACCOUNTING_API_TRIGGER: Refundición - Cierre Crédito Viejo
             // ============================================================
             // Dispara asiento contable al cerrar el crédito antiguo:
-            // DÉBITO: Banco CREDIPEPE (saldo_absorbido)
+            // DÉBITO: Banco CREDIPEP (saldo_absorbido)
             // CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
             // Este pago "sintético" reduce la cuenta por cobrar del crédito viejo
             // (Este trigger se agregará después de crear el nuevo crédito)
@@ -1070,7 +1070,7 @@ class CreditController extends Controller
             // ACCOUNTING_API_TRIGGER: Refundición - Doble Asiento
             // ============================================================
             // 1. Cierre del crédito viejo (pago sintético):
-            //    DÉBITO: Banco CREDIPEPE (saldo_absorbido)
+            //    DÉBITO: Banco CREDIPEP (saldo_absorbido)
             //    CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
             $this->triggerAccountingEntry(
                 'REFUNDICION_CIERRE',
@@ -1096,7 +1096,7 @@ class CreditController extends Controller
 
             // 2. Formalización del nuevo crédito:
             //    DÉBITO: Cuentas por Cobrar (monto_credito nuevo)
-            //    CRÉDITO: Banco CREDIPEPE (monto_credito nuevo)
+            //    CRÉDITO: Banco CREDIPEP (monto_credito nuevo)
             $this->triggerAccountingEntry(
                 'REFUNDICION_NUEVO',
                 (float) $validated['monto_credito'],

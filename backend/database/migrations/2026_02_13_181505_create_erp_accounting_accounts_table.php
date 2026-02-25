@@ -14,9 +14,9 @@ return new class extends Migration
     {
         Schema::create('erp_accounting_accounts', function (Blueprint $table) {
             $table->id();
-            $table->string('key', 50)->unique();          // Identificador interno: 'banco_credipepe', 'cuentas_por_cobrar'
+            $table->string('key', 50)->unique();          // Identificador interno: 'banco_credipep', 'cuentas_por_cobrar'
             $table->string('account_code', 20);            // Código en el ERP: '1-100', '1-200'
-            $table->string('account_name', 100);           // Nombre descriptivo: 'Banco CREDIPEPE'
+            $table->string('account_name', 100);           // Nombre descriptivo: 'Banco CREDIPEP'
             $table->string('description', 255)->nullable(); // Descripción de uso
             $table->boolean('active')->default(true);
             $table->timestamps();
@@ -25,9 +25,9 @@ return new class extends Migration
         // Insertar cuentas predeterminadas (sin código, el usuario debe configurarlos)
         DB::table('erp_accounting_accounts')->insert([
             [
-                'key' => 'banco_credipepe',
+                'key' => 'banco_credipep',
                 'account_code' => '',
-                'account_name' => 'Banco CREDIPEPE',
+                'account_name' => 'Banco CREDIPEP',
                 'description' => 'Cuenta bancaria principal donde entra y sale el dinero de los créditos',
                 'active' => true,
                 'created_at' => now(),
@@ -37,7 +37,7 @@ return new class extends Migration
                 'key' => 'cuentas_por_cobrar',
                 'account_code' => '',
                 'account_name' => 'Cuentas por Cobrar',
-                'description' => 'Cuenta que registra el dinero que los clientes deben a CREDIPEPE',
+                'description' => 'Cuenta que registra el dinero que los clientes deben a CREDIPEP',
                 'active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),

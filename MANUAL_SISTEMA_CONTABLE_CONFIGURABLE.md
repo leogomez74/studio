@@ -1,6 +1,6 @@
-# 📖 Manual de Configuración del Sistema Contable Configurable
+# Manual de Configuración del Sistema Contable Configurable
 
-## 🎯 ¿Qué son las Banderas de Funcionalidad?
+## ¿Qué son las Banderas de Funcionalidad?
 
 Las **banderas de funcionalidad** (feature flags) son interruptores que te permiten activar o desactivar funcionalidades del sistema **sin necesidad de cambiar código ni hacer deploy**. Solo modificas una variable de entorno en el archivo `.env`.
 
@@ -8,7 +8,7 @@ Las **banderas de funcionalidad** (feature flags) son interruptores que te permi
 
 El sistema contable tiene dos "versiones":
 - **Legacy (viejo)**: Código hardcodeado que funciona actualmente
-- **Configurable (nuevo)**: Sistema flexible que acabamos de implementar
+- **Configurable (nuevo)**: Sistema flexible que se configura desde la UI
 
 Las banderas te permiten **migrar gradualmente** sin riesgo:
 1. Probar el nuevo sistema en un tipo de asiento primero
@@ -17,17 +17,17 @@ Las banderas te permiten **migrar gradualmente** sin riesgo:
 
 ---
 
-## 🔧 Tipos de Control Disponibles
+## Tipos de Control Disponibles
 
-### 1. **Control Global** (todo o nada)
+### 1. Control Global (todo o nada)
 ```bash
 ACCOUNTING_USE_CONFIGURABLE=true
 ```
 - Activa el sistema configurable para **TODOS** los tipos de asiento
-- **Recomendado SOLO** cuando ya probaste todo individualmente
+- Recomendado SOLO cuando ya probaste todo individualmente
 - Si está en `false`, todo usa el sistema legacy
 
-### 2. **Control Individual** (migración gradual) ⭐ RECOMENDADO
+### 2. Control Individual (migración gradual) — RECOMENDADO
 ```bash
 ACCOUNTING_CONFIGURABLE_VENTANILLA=true
 ACCOUNTING_CONFIGURABLE_PLANILLA=false
@@ -36,13 +36,11 @@ ACCOUNTING_CONFIGURABLE_FORMALIZACION=false
 ```
 - Activa el sistema configurable solo para los tipos específicos que configures
 - El resto sigue usando legacy
-- **Ideal para migración segura paso a paso**
+- Ideal para migración segura paso a paso
 
 ---
 
-## 📝 Variables Disponibles en .env
-
-Aquí están **todas** las variables que puedes configurar:
+## Variables Disponibles en .env
 
 ```bash
 # ============================================================
@@ -77,24 +75,29 @@ ACCOUNTING_CONFIGURABLE_REFUND_NUEVO=false
 
 # Devoluciones y reversos
 ACCOUNTING_CONFIGURABLE_DEVOLUCION=false
+
+# Saldo sobrante de planilla (se dispara automáticamente cuando
+# queda dinero sobrante tras pagar todos los créditos de una planilla)
+ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE=false
 ```
 
 ---
 
-## 🚀 Estrategia de Migración Recomendada
+## Estrategia de Migración Recomendada
 
-### **Fase 1: Preparación** (Semana 1)
+### Fase 1: Preparación
 
-#### Paso 1.1: Configurar Cuentas de Deductoras
-1. Ir a `/dashboard/configuracion`
-2. En la sección **"Mapeo de Deductoras a Cuentas Contables"**:
-   - Para cada deductora, asignar su código de cuenta contable
-   - Ejemplo: BNCR → `2-300`, Scotiabank → `2-305`
-3. Guardar cambios
+#### Paso 1.1: Configurar Cuentas Contables
+1. Ir a `/dashboard/configuracion` → pestaña **Contabilidad ERP**
+2. Asignar el código de cuenta ERP a cada cuenta:
+   - `banco_credipep` → código ERP del banco principal
+   - `cuentas_por_cobrar` → código ERP de CxC
+3. Para cuentas de sobrantes (si aplica), agregar desde "+ Agregar cuenta":
+   - Crear cuentas necesarias (ej: `retenciones_por_aplicar`, `desembolsos_saldos_favor`)
 
 #### Paso 1.2: Crear Configuración de Asiento de Prueba
-1. En la sección **"Configuración de Asientos Contables"**
-2. Crear una configuración para `PAGO_VENTANILLA`:
+1. En la sección **Asientos Configurables**
+2. Crear configuración para `PAGO_VENTANILLA`:
    ```
    Nombre: Pago de Ventanilla
    Tipo: PAGO_VENTANILLA
@@ -102,434 +105,270 @@ ACCOUNTING_CONFIGURABLE_DEVOLUCION=false
 
    Línea 1:
    - Tipo de Cuenta: Fija
-   - Cuenta: banco_credipepe
+   - Cuenta: banco_credipep
    - Movimiento: Débito
    - Componente: Monto Total
-   - Descripción: Cobro ventanilla - {credit_id}
 
    Línea 2:
    - Tipo de Cuenta: Fija
    - Cuenta: cuentas_por_cobrar
    - Movimiento: Crédito
    - Componente: Monto Total
-   - Descripción: Reducción CxC - {credit_id}
    ```
 
 #### Paso 1.3: Probar con Preview
-1. Hacer clic en el botón de **Vista Previa** de la configuración
-2. Ingresar un monto de prueba: `50000`
-3. Verificar que:
-   - Suma de débitos = Suma de créditos ✓
-   - Cuentas correctas
-   - Descripciones se ven bien
+1. Hacer clic en **Vista Previa**
+2. Ingresar un monto de prueba
+3. Verificar que suma de débitos = suma de créditos
 
 ---
 
-### **Fase 2: Prueba en Desarrollo/Staging** (Semana 2)
+### Fase 2: Prueba en Desarrollo
 
-#### Paso 2.1: Activar Solo Ventanilla
-En tu archivo `.env` de desarrollo:
+#### Activar Solo Ventanilla
 ```bash
 ACCOUNTING_USE_CONFIGURABLE=false
 ACCOUNTING_CONFIGURABLE_VENTANILLA=true
 ```
-
-Luego ejecutar:
 ```bash
 php artisan config:cache
 ```
 
-#### Paso 2.2: Realizar Prueba Real
-1. Procesar un pago de ventanilla real
-2. Verificar en logs (`storage/logs/laravel.log`):
-   ```
-   ACCOUNTING_API_TRIGGER: Usando sistema configurable
-   ```
-3. Verificar en el ERP externo que el asiento se creó correctamente
-4. Comparar con asiento legacy (debe ser idéntico)
-
-#### Paso 2.3: Si Hay Problemas
-Desactivar inmediatamente:
+#### Si Hay Problemas
 ```bash
 ACCOUNTING_CONFIGURABLE_VENTANILLA=false
-```
-```bash
 php artisan config:cache
 ```
-El sistema volverá a usar legacy automáticamente.
 
 ---
 
-### **Fase 3: Producción Gradual** (Semanas 3-6)
+### Fase 3: Producción Gradual
 
-#### Semana 3: Solo Ventanilla
+**Semana 1** — Solo Ventanilla:
 ```bash
 ACCOUNTING_CONFIGURABLE_VENTANILLA=true
 ```
-- Monitorear 1 semana completa
-- Verificar todos los pagos de ventanilla
-- Si todo está OK → siguiente fase
 
-#### Semana 4: Agregar Planilla
+**Semana 2** — Agregar Planilla:
 ```bash
 ACCOUNTING_CONFIGURABLE_VENTANILLA=true
 ACCOUNTING_CONFIGURABLE_PLANILLA=true
 ```
-- Importante: Ya debes tener configuradas las cuentas de deductoras
-- Monitorear pagos de planilla
-- Verificar que cada deductora use su cuenta correcta
 
-#### Semana 5: Agregar Formalización y Extraordinarios
+**Semana 3** — Agregar más tipos:
 ```bash
-ACCOUNTING_CONFIGURABLE_VENTANILLA=true
-ACCOUNTING_CONFIGURABLE_PLANILLA=true
 ACCOUNTING_CONFIGURABLE_FORMALIZACION=true
 ACCOUNTING_CONFIGURABLE_EXTRAORDINARIO=true
 ```
 
-#### Semana 6: Completar Migración
+**Semana 4** — Completar migración:
 ```bash
-ACCOUNTING_CONFIGURABLE_VENTANILLA=true
-ACCOUNTING_CONFIGURABLE_PLANILLA=true
-ACCOUNTING_CONFIGURABLE_FORMALIZACION=true
-ACCOUNTING_CONFIGURABLE_EXTRAORDINARIO=true
-ACCOUNTING_CONFIGURABLE_CANCELACION=true
-ACCOUNTING_CONFIGURABLE_REFUND_CIERRE=true
-ACCOUNTING_CONFIGURABLE_REFUND_NUEVO=true
-ACCOUNTING_CONFIGURABLE_DEVOLUCION=true
-```
-
----
-
-## 🔍 Monitoreo y Verificación
-
-### 1. Revisar Logs
-```bash
-tail -f storage/logs/laravel.log | grep ACCOUNTING
-```
-
-Debes ver:
-```
-✓ "Usando sistema configurable para PAGO_VENTANILLA"
-✓ "Asiento enviado exitosamente al ERP"
-```
-
-Si ves:
-```
-⚠️ "Usando método legacy (sin plantilla)"
-⚠️ "No hay configuración activa"
-```
-Significa que no encontró configuración y usó legacy (esperado si no has creado la config).
-
-### 2. Verificar en Base de Datos
-```sql
--- Ver configuraciones activas
-SELECT entry_type, name, active
-FROM accounting_entry_configs
-WHERE active = 1;
-
--- Ver deductoras con cuenta configurada
-SELECT nombre, account_code
-FROM deductoras
-WHERE account_code IS NOT NULL;
-```
-
-### 3. Comparar Asientos
-1. Procesar mismo tipo de operación antes y después
-2. Comparar los asientos en el ERP
-3. Deben ser **idénticos** en:
-   - Cuentas usadas
-   - Montos débito/crédito
-   - Descripciones (excepto variables que mejoran)
-
----
-
-## 🆘 Plan de Rollback (Si algo sale mal)
-
-### Rollback Inmediato (< 1 minuto)
-```bash
-# Desactivar TODO inmediatamente
-ACCOUNTING_USE_CONFIGURABLE=false
-```
-```bash
-php artisan config:cache
-```
-✓ Sistema vuelve a legacy instantáneamente
-
-### Rollback Parcial
-```bash
-# Desactivar solo el tipo problemático
-ACCOUNTING_CONFIGURABLE_PLANILLA=false
-# Los demás siguen funcionando
-```
-```bash
-php artisan config:cache
-```
-
----
-
-## 💡 Ejemplos de Configuración por Escenario
-
-### Escenario 1: Quiero probar solo en desarrollo
-```bash
-# .env.development
-ACCOUNTING_USE_CONFIGURABLE=false
-ACCOUNTING_CONFIGURABLE_VENTANILLA=true
-```
-
-### Escenario 2: Producción con un solo tipo activado
-```bash
-# .env.production
-ACCOUNTING_USE_CONFIGURABLE=false
-ACCOUNTING_CONFIGURABLE_VENTANILLA=true
-```
-
-### Escenario 3: Producción con todo activado (meta final)
-```bash
-# .env.production
 ACCOUNTING_USE_CONFIGURABLE=true
-# Ya no necesitas las individuales si usas global=true
 ```
 
 ---
 
-## ⚙️ Comandos Útiles
-
-```bash
-# Ver configuración actual en caché
-php artisan config:show accounting
-
-# Limpiar caché de configuración
-php artisan config:clear
-
-# Aplicar nueva configuración
-php artisan config:cache
-
-# Ver logs en tiempo real
-tail -f storage/logs/laravel.log
-
-# Ver solo logs de contabilidad
-tail -f storage/logs/laravel.log | grep ACCOUNTING
-```
-
----
-
-## ✅ Checklist Pre-Producción
-
-Antes de activar en producción, verifica:
-
-- [ ] Todas las deductoras tienen `account_code` configurado
-- [ ] Creaste al menos una configuración de asiento de cada tipo
-- [ ] Probaste preview de cada configuración
-- [ ] Probaste en staging/desarrollo primero
-- [ ] Comparaste asientos legacy vs configurable (deben ser iguales)
-- [ ] Equipo sabe cómo hacer rollback rápido
-- [ ] Tienes monitoreo de logs activo
-- [ ] Backup de base de datos reciente
-
----
-
-## 📞 Soporte y Troubleshooting
-
-### "No se está usando el sistema configurable"
-**Causa**: No hay configuración activa para ese tipo
-**Solución**: Crear configuración en `/dashboard/configuracion` y activarla
-
-### "Asiento desbalanceado"
-**Causa**: Suma débitos ≠ Suma créditos
-**Solución**: Usar preview para verificar configuración antes de activar
-
-### "Cuenta de deductora no encontrada"
-**Causa**: Deductora sin `account_code` configurado
-**Solución**: Ir a mapeo de deductoras y asignar código de cuenta
-
-### "Config cache no actualiza"
-**Causa**: Caché de configuración no se limpió
-**Solución**:
-```bash
-php artisan config:clear
-php artisan config:cache
-```
-
-### "Variables no disponibles en descripción"
-**Causa**: Usando variable no soportada
-**Solución**: Variables disponibles:
-- `{reference}` - Referencia del pago/crédito
-- `{credit_id}` - ID del crédito
-- `{cedula}` - Cédula del cliente
-- `{clienteNombre}` - Nombre del cliente
-- `{deductora_nombre}` - Nombre de deductora (solo en planilla)
-
----
-
-## 📊 Tipos de Asientos y Sus Configuraciones Típicas
+## Tipos de Asientos y Sus Configuraciones Típicas
 
 ### FORMALIZACION
-**Cuándo se dispara**: Al aprobar un crédito
-**Estructura típica**:
-- Línea 1: Cuentas por Cobrar (Débito) - Total
-- Línea 2: Banco CREDIPEPE (Crédito) - Total
+**Cuándo se dispara**: Al aprobar y formalizar un crédito
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | cuentas_por_cobrar | Débito | Total |
+| 2 | banco_credipep | Crédito | Total |
+
+---
 
 ### PAGO_VENTANILLA
 **Cuándo se dispara**: Pago directo en oficina
-**Estructura típica**:
-- Línea 1: Banco CREDIPEPE (Débito) - Total
-- Línea 2: Cuentas por Cobrar (Crédito) - Total
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | banco_credipep | Débito | Total |
+| 2 | cuentas_por_cobrar | Crédito | Total |
+
+---
 
 ### PAGO_PLANILLA
 **Cuándo se dispara**: Deducción de nómina procesada
-**Estructura típica**:
-- Línea 1: Cuenta Deductora (Débito) - Total [Cuenta dinámica]
-- Línea 2: Cuentas por Cobrar (Crédito) - Total
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | Cuenta Deductora | Débito | Total |
+| 2 | cuentas_por_cobrar (capital) | Crédito | Capital |
+| 3 | ingresos_intereses | Crédito | Interés Corriente |
+| 4 | ingresos_mora | Crédito | Interés Moratorio |
+| 5 | ingresos_seguros | Crédito | Póliza |
+| 6 | retenciones_por_aplicar | Crédito | **Sobrante** |
 
-**Importante**: Requiere `account_code` configurado en cada deductora
+> Nota: La línea de sobrante solo aplica si hubo sobrante. Si el monto del componente es 0, la línea se omite automáticamente.
+
+---
+
+### SALDO_SOBRANTE
+**Cuándo se dispara**: Automáticamente después de PAGO_PLANILLA cuando queda dinero sobrante tras pagar todos los créditos del cliente
+
+**Variable .env**: `ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE=true`
+
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | retenciones_por_aplicar | Débito | Sobrante |
+| 2 | desembolsos_saldos_favor | Crédito | Sobrante |
+
+> Este es el **2do asiento automático** del flujo de sobrantes. Se dispara solo si hay un sobrante mayor a ₡0.50 y si existe una configuración activa de tipo `SALDO_SOBRANTE`.
+
+---
 
 ### ABONO_EXTRAORDINARIO
-**Cuándo se dispara**: Pago fuera de cuota con posible penalización
-**Estructura típica**:
-- Línea 1: Banco CREDIPEPE (Débito) - Total
-- Línea 2: Cuentas por Cobrar (Crédito) - Capital
-- Línea 3: Ingreso Penalización (Crédito) - Cargo Adicional: penalizacion [Solo si penalizacion > 0]
+**Cuándo se dispara**: Pago fuera de cuota
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | banco_credipep | Débito | Total |
+| 2 | cuentas_por_cobrar | Crédito | Total |
+
+---
 
 ### CANCELACION_ANTICIPADA
-**Cuándo se dispara**: Cliente paga todo el crédito antes de plazo
-**Estructura típica**:
-- Línea 1: Banco CREDIPEPE (Débito) - Total
-- Línea 2: Cuentas por Cobrar (Crédito) - Capital + Interés Corriente
-- Línea 3: Ingreso Penalización (Crédito) - Cargo Adicional: penalizacion [Solo si penalizacion > 0]
+**Cuándo se dispara**: Cliente paga todo el crédito antes del plazo
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | banco_credipep | Débito | Total |
+| 2 | cuentas_por_cobrar | Crédito | Total |
+
+---
 
 ### REFUNDICION_CIERRE
 **Cuándo se dispara**: Al cerrar crédito viejo en refundición
-**Estructura típica**:
-- Línea 1: Banco CREDIPEPE (Débito) - Total
-- Línea 2: Cuentas por Cobrar (Crédito) - Total
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | banco_credipep | Débito | Total |
+| 2 | cuentas_por_cobrar | Crédito | Total |
+
+---
 
 ### REFUNDICION_NUEVO
 **Cuándo se dispara**: Al abrir crédito nuevo en refundición
-**Estructura típica**:
-- Línea 1: Cuentas por Cobrar (Débito) - Total
-- Línea 2: Banco CREDIPEPE (Crédito) - Total
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | cuentas_por_cobrar | Débito | Total |
+| 2 | banco_credipep | Crédito | Total |
 
-### REVERSO_PAGO / REVERSO_EXTRAORDINARIO / REVERSO_CANCELACION
-**Cuándo se dispara**: Al anular un pago existente
-**Estructura típica**:
-- Línea 1: Cuentas por Cobrar (Débito) - Total
-- Línea 2: Banco CREDIPEPE (Crédito) - Total
+---
+
+### DEVOLUCION / ANULACION_PLANILLA
+**Cuándo se dispara**: Al revertir un pago o anular planilla
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | cuentas_por_cobrar | Débito | Total |
+| 2 | banco_credipep | Crédito | Total |
+
+---
 
 ### ABONO_CAPITAL
-**Cuándo se dispara**: Al aplicar saldo pendiente a capital
-**Estructura típica**:
-- Línea 1: Banco CREDIPEPE (Débito) - Total
-- Línea 2: Cuentas por Cobrar (Crédito) - Total
+**Cuándo se dispara**: Al aplicar saldo pendiente a capital del crédito
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | banco_credipep | Débito | Total |
+| 2 | cuentas_por_cobrar | Crédito | Total |
+
+---
 
 ### REINTEGRO_SALDO
-**Cuándo se dispara**: Al devolver saldo no aplicado
-**Estructura típica**:
-- Línea 1: Cuentas por Cobrar (Débito) - Total
-- Línea 2: Banco CREDIPEPE (Crédito) - Total
-
-### ANULACION_PLANILLA
-**Cuándo se dispara**: Al anular planilla completa
-**Estructura típica**:
-- Línea 1: Cuentas por Cobrar (Débito) - Total
-- Línea 2: Cuenta Deductora (Crédito) - Total [Cuenta dinámica]
+**Cuándo se dispara**: Al devolver saldo pendiente no aplicado
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | cuentas_por_cobrar | Débito | Total |
+| 2 | banco_credipep | Crédito | Total |
 
 ---
 
-## 🎓 Glosario de Términos
+## Componentes de Monto Disponibles
 
-**Feature Flag / Bandera de Funcionalidad**: Interruptor de configuración que activa/desactiva funcionalidades
+Al configurar una línea de asiento, el campo **"Componente del Monto"** indica qué parte del pago aplica a esa línea:
 
-**Legacy**: Sistema antiguo hardcodeado que funciona actualmente
+| Valor | Descripción |
+|-------|-------------|
+| `total` | Monto total del pago |
+| `capital` | Solo la amortización de capital |
+| `interes_corriente` | Solo intereses corrientes |
+| `interes_moratorio` | Solo intereses por mora |
+| `poliza` | Solo el componente de póliza/seguro |
+| `sobrante` | El monto sobrante (exceso no aplicado a ningún crédito) |
+| `cargo_adicional` | Un cargo adicional específico (requiere seleccionar cuál) |
 
-**Configurable**: Nuevo sistema flexible que se configura desde UI
-
-**Rollback**: Volver atrás a la versión anterior del sistema
-
-**Preview**: Vista previa de cómo se vería un asiento antes de activarlo
-
-**Entry Type**: Tipo de asiento contable (FORMALIZACION, PAGO_VENTANILLA, etc.)
-
-**Amount Breakdown**: Desglose del monto total en componentes (interés, capital, etc.)
-
-**Account Type**: Tipo de cuenta (Fija, Deductora, Variable)
-
-**Movement Type**: Tipo de movimiento contable (Débito, Crédito)
-
-**Amount Component**: Componente del monto (Total, Interés Corriente, Capital, etc.)
-
-**Cargo Adicional**: Cargo extra específico (penalización, trámite, etc.)
+> Si el componente es 0 en un pago específico, esa línea se omite automáticamente del asiento.
 
 ---
 
-## 📅 Cronograma Sugerido de Implementación
+## Monitoreo y Verificación
 
-### Semana 1: Preparación
-- [ ] Lunes: Configurar cuentas de deductoras
-- [ ] Martes: Crear configuración PAGO_VENTANILLA
-- [ ] Miércoles: Probar preview y ajustar
-- [ ] Jueves: Crear configuración PAGO_PLANILLA
-- [ ] Viernes: Crear resto de configuraciones
+```bash
+# Ver logs de contabilidad en tiempo real
+tail -f storage/logs/laravel.log | grep ACCOUNTING
 
-### Semana 2: Desarrollo/Staging
-- [ ] Lunes: Activar VENTANILLA en dev (.env)
-- [ ] Martes-Miércoles: Pruebas exhaustivas
-- [ ] Jueves: Comparar asientos con legacy
-- [ ] Viernes: Ajustes finales
+# Ver configuración actual
+php artisan config:show accounting
 
-### Semana 3: Producción Piloto
-- [ ] Lunes: Activar VENTANILLA en producción
-- [ ] Martes-Viernes: Monitoreo intensivo
+# Limpiar y recargar configuración
+php artisan config:clear && php artisan config:cache
+```
 
-### Semana 4: Expansión
-- [ ] Lunes: Activar PLANILLA
-- [ ] Martes-Viernes: Monitoreo
+### Señales en los logs:
 
-### Semana 5: Más Tipos
-- [ ] Lunes: Activar FORMALIZACION + EXTRAORDINARIO
-- [ ] Martes-Viernes: Monitoreo
-
-### Semana 6: Completar
-- [ ] Lunes: Activar tipos restantes
-- [ ] Martes-Jueves: Monitoreo
-- [ ] Viernes: Revisión final y documentación
+| Mensaje | Significado |
+|---------|-------------|
+| `Usando sistema configurable` | OK — Encontró configuración y la usó |
+| `No hay configuración activa` | Usando legacy como fallback |
+| `Sobrante detectado en PAGO_PLANILLA, disparando SALDO_SOBRANTE` | Se detectó sobrante y se intentará el 2do asiento |
+| `Fallo al registrar SALDO_SOBRANTE` | El 2do asiento falló (revisar config) |
 
 ---
 
-## 🔐 Consideraciones de Seguridad
+## Plan de Rollback
 
-1. **Backup antes de cambios**: Siempre hacer backup de BD antes de activar en producción
-2. **Pruebas en staging**: Nunca activar directo en producción sin pruebas
-3. **Rollback preparado**: Tener plan y comandos listos para revertir
-4. **Monitoreo activo**: Primera semana con monitoreo constante
-5. **Documentar cambios**: Llevar bitácora de qué se activó y cuándo
+### Rollback inmediato (< 1 minuto)
+```bash
+ACCOUNTING_USE_CONFIGURABLE=false
+php artisan config:cache
+```
 
----
-
-## 📈 Métricas de Éxito
-
-Para saber que la migración fue exitosa:
-
-✅ **0 errores críticos** en logs después de 1 semana
-✅ **100% de asientos balanceados** (débitos = créditos)
-✅ **Contadores en ERP** coinciden con sistema antiguo
-✅ **Tiempo de respuesta** similar o mejor que legacy
-✅ **Equipo contable** valida que asientos son correctos
+### Rollback parcial (solo un tipo)
+```bash
+ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE=false
+php artisan config:cache
+```
 
 ---
 
-## 🎯 Contactos y Soporte
+## Checklist Pre-Producción
 
-**Desarrollador responsable**: [Tu Nombre/Email]
-**Equipo contable**: [Contacto del área contable]
-**Soporte técnico**: [Contacto de soporte]
-
-**Horarios de soporte durante migración**:
-- Lunes a Viernes: 8am - 6pm
-- Emergencias: [Número de emergencia]
+- [ ] Cuentas contables configuradas con códigos ERP
+- [ ] Configuración creada para cada tipo de asiento a activar
+- [ ] Preview verificado (débitos = créditos)
+- [ ] Probado en desarrollo/staging primero
+- [ ] Backup de base de datos reciente
+- [ ] Equipo sabe cómo hacer rollback
 
 ---
 
-**Última actualización**: 2026-02-16
-**Versión del manual**: 1.0
-**Sistema**: Studio - Módulo Contable Configurable
+## Glosario
+
+| Término | Descripción |
+|---------|-------------|
+| **Feature Flag** | Interruptor de configuración en .env |
+| **Legacy** | Sistema antiguo hardcodeado |
+| **Configurable** | Sistema flexible configurable desde UI |
+| **Entry Type** | Tipo de asiento (PAGO_PLANILLA, SALDO_SOBRANTE, etc.) |
+| **Amount Component** | Componente del monto (total, capital, sobrante, etc.) |
+| **Sobrante** | Excedente de dinero que queda tras pagar todos los créditos de un cliente en planilla |
+| **Retenciones por aplicar** | Cuenta transitoria donde se registra el sobrante retenido |
+| **Desembolsos Saldos a Favor** | Cuenta que registra el saldo a favor del cliente |
+
+---
+
+**Última actualización**: 2026-02-24
+**Versión del manual**: 2.0
+**Cambios v2.0**:
+- Renombrado CREDIPEPE → CREDIPEP en todo el sistema
+- Agregado tipo de asiento `SALDO_SOBRANTE` con variable `ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE`
+- Agregado componente de monto `sobrante` en el configurador de líneas
+- Corregido punto de disparo del asiento de sobrante (ahora se dispara directamente desde el upload de planilla)
+- Actualizada tabla de tipos de asiento con estructura completa de PAGO_PLANILLA

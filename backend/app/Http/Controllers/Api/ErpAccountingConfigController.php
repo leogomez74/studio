@@ -74,7 +74,7 @@ class ErpAccountingConfigController extends Controller
         $account = ErpAccountingAccount::findOrFail($id);
 
         // No permitir eliminar las cuentas base del sistema
-        $protectedKeys = ['banco_credipepe', 'cuentas_por_cobrar'];
+        $protectedKeys = ['banco_credipep', 'cuentas_por_cobrar'];
         if (in_array($account->key, $protectedKeys)) {
             return response()->json([
                 'message' => 'No se puede eliminar una cuenta base del sistema. Solo puedes modificar su código.',
