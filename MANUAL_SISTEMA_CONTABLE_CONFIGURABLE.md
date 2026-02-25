@@ -79,6 +79,9 @@ ACCOUNTING_CONFIGURABLE_DEVOLUCION=false
 # Saldo sobrante de planilla (se dispara automáticamente cuando
 # queda dinero sobrante tras pagar todos los créditos de una planilla)
 ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE=false
+
+# Reintegro de saldo pendiente (botón "Reintegro de Saldo" en módulo de saldos)
+ACCOUNTING_CONFIGURABLE_REINTEGRO_SALDO=false
 ```
 
 ---
@@ -364,8 +367,13 @@ php artisan config:cache
 
 ---
 
-**Última actualización**: 2026-02-24
-**Versión del manual**: 2.0
+**Última actualización**: 2026-02-25
+**Versión del manual**: 2.1
+**Cambios v2.1**:
+- Agregado tipo de asiento `REINTEGRO_SALDO` con variable `ACCOUNTING_CONFIGURABLE_REINTEGRO_SALDO`
+- Corregido cálculo de componentes contables (interes_corriente, mora, poliza) para que reflejen solo el pago de la transacción actual y no el acumulado histórico del crédito
+- Eliminado doble disparo de `SALDO_SOBRANTE` (la cascada automática fue removida; ahora solo se dispara desde `upload()`)
+
 **Cambios v2.0**:
 - Renombrado CREDIPEPE → CREDIPEP en todo el sistema
 - Agregado tipo de asiento `SALDO_SOBRANTE` con variable `ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE`
