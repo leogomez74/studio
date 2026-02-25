@@ -813,7 +813,7 @@ export default function ClientDetailPage() {
 
   const getMissingDocuments = useCallback(() => {
     const documents = (client as any)?.documents || [];
-    if (documents.length === 0) return ['Cédula', 'Recibo de Servicio'];
+    if (documents.length === 0) return ['Cédula', 'Cédula (Reverso)', 'Recibo de Servicio'];
 
     // Si ningún documento tiene categoría asignada (archivos viejos), no mostrar alerta
     const hasAnyCategory = documents.some((doc: any) => doc.category && doc.category !== 'otro');
@@ -821,9 +821,11 @@ export default function ClientDetailPage() {
 
     const missing = [];
     const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
+    const hasCedulaReverso = documents.some((doc: any) => doc.category === 'cedula_reverso');
     const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
 
     if (!hasCedula) missing.push('Cédula');
+    if (!hasCedulaReverso) missing.push('Cédula (Reverso)');
     if (!hasRecibo) missing.push('Recibo de Servicio');
 
     return missing;
