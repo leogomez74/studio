@@ -53,6 +53,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -366,6 +367,9 @@ export default function CreditsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Selección de créditos sin deductora
+  const [selectedCreditIds, setSelectedCreditIds] = useState<Set<number>>(new Set());
+
   // Combobox state
   const [openCombobox, setOpenCombobox] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -664,6 +668,7 @@ export default function CreditsPage() {
         currentPage,
         startIndex: startIndex + 1,
         endIndex: Math.min(endIndex, totalGroups),
+        allFilteredCredits: filtered,
       };
     },
     [getCreditsForTab, currentPage, itemsPerPage, groupCreditsByClient]
@@ -1285,7 +1290,7 @@ export default function CreditsPage() {
             variant={filters.deductora === "sin" ? "default" : "outline"}
             size="sm"
             className="h-8 text-xs"
-            onClick={() => { setFilters({ ...filters, deductora: filters.deductora === "sin" ? "" : "sin" }); setCurrentPage(1); }}
+            onClick={() => { setFilters({ ...filters, deductora: filters.deductora === "sin" ? "" : "sin" }); setCurrentPage(1); setSelectedCreditIds(new Set()); }}
           >
             Sin deductora
           </Button>
@@ -1295,7 +1300,7 @@ export default function CreditsPage() {
               variant={filters.deductora === String(d.id) ? "default" : "outline"}
               size="sm"
               className="h-8 text-xs"
-              onClick={() => { setFilters({ ...filters, deductora: filters.deductora === String(d.id) ? "" : String(d.id) }); setCurrentPage(1); }}
+              onClick={() => { setFilters({ ...filters, deductora: filters.deductora === String(d.id) ? "" : String(d.id) }); setCurrentPage(1); setSelectedCreditIds(new Set()); }}
             >
               {d.nombre}
             </Button>
@@ -1312,6 +1317,26 @@ export default function CreditsPage() {
                   <Table className="min-w-[1800px]">
                     <TableHeader>
                       <TableRow>
+                        {/* Checkbox de selección (solo "Sin deductora") */}
+                        {filters.deductora === "sin" && (
+                          <TableHead className="w-[40px] text-center">
+                            <Checkbox
+                              checked={
+                                paginationData.allFilteredCredits.length > 0 &&
+                                paginationData.allFilteredCredits.every((c: CreditItem) => selectedCreditIds.has(c.id))
+                              }
+                              onCheckedChange={(checked) => {
+                                setSelectedCreditIds(prev => {
+                                  const next = new Set(prev);
+                                  paginationData.allFilteredCredits.forEach((c: CreditItem) => {
+                                    if (checked) next.add(c.id); else next.delete(c.id);
+                                  });
+                                  return next;
+                                });
+                              }}
+                            />
+                          </TableHead>
+                        )}
                         {/* NUEVA COLUMNA: Botón de expansión */}
                         <TableHead className="w-[40px] sticky left-0 bg-background z-10 border-r">
                           {/* Vacío, solo para alinear */}
@@ -1386,6 +1411,21 @@ export default function CreditsPage() {
                           <Fragment key={`group-${leadId}`}>
                             {/* ========== FILA MADRE ========== */}
                             <TableRow className="hover:bg-muted/50">
+                              {/* Checkbox (solo "Sin deductora") */}
+                              {filters.deductora === "sin" && (
+                                <TableCell className="w-[40px] text-center">
+                                  <Checkbox
+                                    checked={selectedCreditIds.has(credit.id)}
+                                    onCheckedChange={(checked) => {
+                                      setSelectedCreditIds(prev => {
+                                        const next = new Set(prev);
+                                        if (checked) next.add(credit.id); else next.delete(credit.id);
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
+                              )}
                               {/* COLUMNA 1: Botón de Expansión */}
                               <TableCell className="w-[40px] sticky left-0 bg-background z-10 border-r">
                                 {hasMultipleCredits && (
@@ -1575,6 +1615,21 @@ export default function CreditsPage() {
                                 key={`credit-${credit.id}`}
                                 className="bg-muted/30 hover:bg-muted/50"
                               >
+                                {/* Checkbox hija (solo "Sin deductora") */}
+                                {filters.deductora === "sin" && (
+                                  <TableCell className="w-[40px] text-center">
+                                    <Checkbox
+                                      checked={selectedCreditIds.has(credit.id)}
+                                      onCheckedChange={(checked) => {
+                                        setSelectedCreditIds(prev => {
+                                          const next = new Set(prev);
+                                          if (checked) next.add(credit.id); else next.delete(credit.id);
+                                          return next;
+                                        });
+                                      }}
+                                    />
+                                  </TableCell>
+                                )}
                                 {/* COLUMNA 1: Vacía (alineación) */}
                                 <TableCell className="w-[40px] sticky left-0 bg-muted/30 z-10 border-r" />
 
