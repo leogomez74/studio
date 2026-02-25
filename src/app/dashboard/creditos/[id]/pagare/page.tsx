@@ -20,6 +20,7 @@ interface CreditData {
   tasa_anual?: number;
   divisa?: string;
   cuota?: number;
+  deductora_id?: number;
   plan_de_pagos?: Array<{
     numero_cuota: number;
     cuota: number;
@@ -163,12 +164,12 @@ export default function PagarePage() {
     || credit.cuota
     || calcularCuotaMensual(monto, plazo, tasaNumber);
 
-  // Obtener deductora del cliente
-  const deductoraId = debtor?.deductora_id;
+  // Obtener deductora del crédito (prioridad) o del cliente
+  const deductoraId = credit.deductora_id || debtor?.deductora_id;
   const deductora = deductoras.find(d => d.id === deductoraId);
   const deductoraNombre = deductora?.nombre || '';
 
-  // Mostrar autorización si hay deductora asignada
+  // Mostrar autorización si hay deductora asignada al crédito o al cliente
   const showAutorizacion = !!deductoraId;
 
   // Variables de fecha

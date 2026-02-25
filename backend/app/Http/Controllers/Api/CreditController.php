@@ -8,6 +8,7 @@ use App\Models\CreditDocument;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Lead;
+use App\Models\Task;
 use App\Models\Analisis;
 use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;

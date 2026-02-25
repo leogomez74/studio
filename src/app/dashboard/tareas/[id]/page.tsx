@@ -390,8 +390,20 @@ export default function TaskDetailPage() {
                     />
                   </div>
 
-                  {/* Link to opportunity (if exists) */}
-                  {task.project_code && opportunityId && (
+                  {/* Link to credit or opportunity (if exists) */}
+                  {task.project_code && task.project_code.endsWith('-CRED') && task.project_name ? (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Crédito vinculado</Label>
+                      <div className="mt-1">
+                        <Link
+                          href={`/dashboard/creditos/${task.project_name}`}
+                          className="text-sm text-blue-600 hover:underline"
+                        >
+                          {task.project_code}
+                        </Link>
+                      </div>
+                    </div>
+                  ) : task.project_code && opportunityId ? (
                     <div>
                       <Label className="text-xs text-muted-foreground">Oportunidad vinculada</Label>
                       <div className="mt-1">
@@ -403,7 +415,7 @@ export default function TaskDetailPage() {
                         </Link>
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </CardContent>
               </Card>
             </TabsContent>

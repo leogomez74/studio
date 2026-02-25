@@ -36,6 +36,10 @@ import {
   ArrowLeft,
   Paperclip,
   FileText,
+  FileSignature,
+  Upload,
+  Trash2,
+  Eye,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
@@ -321,6 +325,119 @@ interface CreditItem {
   cierre_motivo?: string | null;
   refundicion_parent?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
   refundicion_child?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
+}
+
+// --- Pagaré Firmado Component ---
+
+interface PagareFirmadoCardProps {
+  creditId: number;
+  documents: CreditDocument[];
+}
+
+function PagareFirmadoCard({ creditId, documents: initialDocuments }: PagareFirmadoCardProps) {
+  const { toast } = useToast();
+  const [pagareDoc, setPagareDoc] = useState<CreditDocument | null>(
+    initialDocuments.find(d => d.name === 'Pagaré Firmado') || null
+  );
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', 'Pagaré Firmado');
+    formData.append('notes', 'Pagaré firmado por el cliente');
+
+    try {
+      setUploading(true);
+      const response = await api.post(`/api/credits/${creditId}/documents`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPagareDoc(response.data);
+      toast({ title: 'Pagaré subido correctamente' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo subir el pagaré.', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!pagareDoc) return;
+    try {
+      await api.delete(`/api/credits/${creditId}/documents/${pagareDoc.id}`);
+      setPagareDoc(null);
+      toast({ title: 'Pagaré eliminado' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo eliminar el pagaré.', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileSignature className="h-5 w-5" />
+          Pagaré Firmado
+        </CardTitle>
+        <CardDescription>
+          Documento del pagaré firmado por el cliente
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {pagareDoc ? (
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="flex items-center gap-3">
+              <FileText className="h-8 w-8 text-muted-foreground" />
+              <div>
+                <p className="font-medium">{pagareDoc.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Subido el {new Intl.DateTimeFormat('es-CR', { year: 'numeric', month: 'short', day: '2-digit' }).format(new Date(pagareDoc.created_at))}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" onClick={() => window.open(pagareDoc.url || '', '_blank')}>
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleDelete} className="text-destructive hover:text-destructive">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
+            <FileSignature className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground mb-3">
+              No se ha adjuntado el pagaré firmado
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUpload(file);
+              }}
+            />
+            <Button
+              size="sm"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              {uploading ? 'Subiendo...' : 'Subir Pagaré'}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 // --- Types for Tareas ---
@@ -2291,6 +2408,14 @@ function CreditDetailClient({ id }: { id: string }) {
                       />
                     </CardContent>
                   </Card>
+
+                  {/* Pagaré Firmado Card - solo para créditos cerrados o formalizados */}
+                  {(credit.status === 'Cerrado' || credit.status === 'Formalizado') && (
+                    <PagareFirmadoCard
+                      creditId={credit.id}
+                      documents={credit.documents || []}
+                    />
+                  )}
                 </div>
 
                 {/* Right Panel inside Credito Tab */}
@@ -2315,7 +2440,7 @@ function CreditDetailClient({ id }: { id: string }) {
                           <CaseChat conversationId={credit.reference} />
                         </TabsContent>
                         <TabsContent value="tareas" className="flex-1 overflow-y-auto p-4">
-                          <TareasTab opportunityReference={String(credit.id)} opportunityId={credit.id} />
+                          <TareasTab opportunityReference={credit.reference} opportunityId={credit.id} />
                         </TabsContent>
                       </Tabs>
                     </Card>

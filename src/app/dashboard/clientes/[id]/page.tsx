@@ -3,7 +3,7 @@
 import React, { useEffect, useState, FormEvent, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, PlusCircle, ChevronsUpDown, Check, FileSpreadsheet, DollarSign, TrendingUp, Activity, PieChart } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, PlusCircle, ChevronsUpDown, Check, FileSpreadsheet, DollarSign, TrendingUp, Activity, PieChart, Target, Eye } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -29,7 +29,7 @@ import { DocumentManager } from "@/components/document-manager";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import api from "@/lib/axios";
-import { Client, Credit, CreditPayment, chatMessages, Lead } from "@/lib/data";
+import { Client, Credit, CreditPayment, chatMessages, Lead, Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { PROVINCES, Province, Canton, Location } from "@/lib/cr-locations";
 
 // --- Types for Tareas ---
@@ -606,6 +606,11 @@ export default function ClientDetailPage() {
   const [loadingCredits, setLoadingCredits] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
 
+  // Opportunities state
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [oppSubTab, setOppSubTab] = useState<"activas" | "inactivas">("activas");
+
   // Balance General state
   const [selectedBalanceCreditId, setSelectedBalanceCreditId] = useState<number | null>(null);
   const [balanceData, setBalanceData] = useState<{
@@ -722,6 +727,27 @@ export default function ClientDetailPage() {
     }
   }, [id, toast, refreshKey]);
 
+  // Fetch opportunities when client data is available (needs cedula)
+  useEffect(() => {
+    if (!client?.cedula) return;
+    const fetchOpportunities = async () => {
+      setLoadingOpportunities(true);
+      try {
+        const response = await api.get('/api/opportunities', {
+          params: { lead_cedula: client.cedula, per_page: 100 }
+        });
+        const data = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        setOpportunities(data);
+      } catch (error) {
+        console.error("Error fetching opportunities:", error);
+        setOpportunities([]);
+      } finally {
+        setLoadingOpportunities(false);
+      }
+    };
+    fetchOpportunities();
+  }, [client?.cedula, refreshKey]);
+
   const fetchBalance = async (creditId: number) => {
     setLoadingBalance(true);
     setBalanceData(null);
@@ -787,7 +813,7 @@ export default function ClientDetailPage() {
 
   const getMissingDocuments = useCallback(() => {
     const documents = (client as any)?.documents || [];
-    if (documents.length === 0) return ['Cédula', 'Recibo de Servicio'];
+    if (documents.length === 0) return ['Cédula', 'Cédula (Reverso)', 'Recibo de Servicio'];
 
     // Si ningún documento tiene categoría asignada (archivos viejos), no mostrar alerta
     const hasAnyCategory = documents.some((doc: any) => doc.category && doc.category !== 'otro');
@@ -795,9 +821,11 @@ export default function ClientDetailPage() {
 
     const missing = [];
     const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
+    const hasCedulaReverso = documents.some((doc: any) => doc.category === 'cedula_reverso');
     const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
 
     if (!hasCedula) missing.push('Cédula');
+    if (!hasCedulaReverso) missing.push('Cédula (Reverso)');
     if (!hasRecibo) missing.push('Recibo de Servicio');
 
     return missing;
@@ -1182,13 +1210,20 @@ export default function ClientDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className={isPanelVisible ? 'space-y-6 lg:col-span-3' : 'space-y-6 lg:col-span-5'}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5 mb-4">
+            <TabsList className="grid w-full grid-cols-6 mb-4">
               <TabsTrigger value="datos" className="relative">
                 Datos
                 {getMissingFieldsCount() > 0 && (
                   <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
                     {getMissingFieldsCount()}
                   </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="oportunidades" className="flex items-center gap-1">
+                <Target className="h-3.5 w-3.5" />
+                Oportunidades
+                {opportunities.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{opportunities.length}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="creditos" className="flex items-center gap-1">
@@ -1977,6 +2012,206 @@ export default function ClientDetailPage() {
 
         </CardContent>
       </Card>
+            </TabsContent>
+
+            {/* Oportunidades Tab */}
+            <TabsContent value="oportunidades">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="h-5 w-5" />
+                        Oportunidades
+                      </CardTitle>
+                      <CardDescription>Todas las oportunidades asociadas a este cliente</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setIsOpportunityDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Nueva Oportunidad
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingOpportunities ? (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : opportunities.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Target className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                      <p>No hay oportunidades registradas para este cliente.</p>
+                      <Button variant="outline" size="sm" className="mt-4" onClick={() => setIsOpportunityDialogOpen(true)}>
+                        Crear primera oportunidad
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Summary Cards */}
+                      <div className="grid gap-4 md:grid-cols-4">
+                        <Card className="bg-blue-50 border-blue-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-blue-600 font-medium">Total Oportunidades</div>
+                            <div className="text-2xl font-bold text-blue-700">{opportunities.length}</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-green-50 border-green-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-green-600 font-medium">Monto Total</div>
+                            <div className="text-2xl font-bold text-green-700">
+                              {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(
+                                opportunities.reduce((sum, o) => sum + (o.amount || 0), 0)
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-amber-50 border-amber-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-amber-600 font-medium">En Seguimiento</div>
+                            <div className="text-2xl font-bold text-amber-700">
+                              {opportunities.filter(o => o.status === 'En seguimiento').length}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-purple-50 border-purple-100">
+                          <CardContent className="p-4">
+                            <div className="text-xs text-purple-600 font-medium">Analizadas</div>
+                            <div className="text-2xl font-bold text-purple-700">
+                              {opportunities.filter(o => o.status === 'Analizada').length}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Sub-tabs Activas/Inactivas */}
+                      <div className="flex gap-2 border-b pb-2">
+                        <Button
+                          variant={oppSubTab === "activas" ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setOppSubTab("activas")}
+                        >
+                          Activas
+                          <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                            {opportunities.filter(o => ['Pendiente', 'En seguimiento', 'Analizada'].includes(o.status)).length}
+                          </Badge>
+                        </Button>
+                        <Button
+                          variant={oppSubTab === "inactivas" ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setOppSubTab("inactivas")}
+                        >
+                          Inactivas
+                          <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                            {opportunities.filter(o => ['Ganada', 'Perdida', 'Cerrada'].includes(o.status)).length}
+                          </Badge>
+                        </Button>
+                      </div>
+
+                      {/* Opportunities Table */}
+                      {(() => {
+                        const filtered = oppSubTab === "activas"
+                          ? opportunities.filter(o => ['Pendiente', 'En seguimiento', 'Analizada'].includes(o.status))
+                          : opportunities.filter(o => ['Ganada', 'Perdida', 'Cerrada'].includes(o.status));
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <p>No hay oportunidades {oppSubTab === "activas" ? "activas" : "inactivas"}.</p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Referencia</TableHead>
+                                  <TableHead>Tipo</TableHead>
+                                  <TableHead>Monto</TableHead>
+                                  <TableHead>Estado</TableHead>
+                                  <TableHead>Documentos</TableHead>
+                                  <TableHead>Cierre</TableHead>
+                                  <TableHead>Creado</TableHead>
+                                  <TableHead></TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {filtered.map((opp) => {
+                                  const missingDocs = opp.missing_documents || [];
+                                  const statusColor =
+                                    opp.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                    opp.status === 'En seguimiento' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                    opp.status === 'Analizada' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                                    opp.status === 'Ganada' ? 'bg-green-100 text-green-800 border-green-200' :
+                                    opp.status === 'Perdida' ? 'bg-red-100 text-red-800 border-red-200' :
+                                    'bg-gray-100 text-gray-800 border-gray-200';
+
+                                  return (
+                                    <TableRow key={opp.id} className="hover:bg-muted/50">
+                                      <TableCell className="font-medium">
+                                        <Link href={`/dashboard/oportunidades/${opp.id}`} className="text-primary hover:underline">
+                                          {String(opp.id).padStart(6, '0')}
+                                        </Link>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant="outline">{opp.opportunity_type || opp.creditType || '-'}</Badge>
+                                      </TableCell>
+                                      <TableCell className="font-mono">
+                                        {new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(opp.amount || 0)}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant="outline" className={statusColor}>
+                                          {opp.status}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>
+                                        {missingDocs.length > 0 ? (
+                                          <Badge variant="destructive" className="text-xs">
+                                            Faltan {missingDocs.length}
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-xs border-green-200 text-green-700 bg-green-50">
+                                            Completo
+                                          </Badge>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground text-sm">
+                                        {opp.expected_close_date
+                                          ? new Date(opp.expected_close_date).toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })
+                                          : '-'}
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground text-sm">
+                                        {opp.created_at
+                                          ? new Date(opp.created_at).toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })
+                                          : '-'}
+                                      </TableCell>
+                                      <TableCell>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Link href={`/dashboard/oportunidades/${opp.id}`}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                  <Eye className="h-4 w-4" />
+                                                </Button>
+                                              </Link>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Ver detalle</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* Credits Tab */}
