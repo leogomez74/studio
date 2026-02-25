@@ -306,6 +306,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion']);
 
     // Pagos de Crédito - Rutas específicas ANTES del apiResource
+    Route::post('credit-payments/carga-intereses', [CreditPaymentController::class, 'cargarInteresesSinDeductora']);
     Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada']);
     Route::post('credit-payments/cancelacion-anticipada', [CreditPaymentController::class, 'cancelacionAnticipada']);
     Route::post('credit-payments/preview-planilla', [CreditPaymentController::class, 'previewPlanilla']);
