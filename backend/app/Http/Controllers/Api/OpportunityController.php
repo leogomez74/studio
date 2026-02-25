@@ -51,6 +51,9 @@ class OpportunityController extends Controller
         if ($request->has('status') && $request->input('status') !== 'todos') {
             $query->where('status', $request->input('status'));
         }
+        if ($request->filled('exclude_status')) {
+            $query->where('status', '!=', $request->input('exclude_status'));
+        }
         if ($request->filled('search')) {
             $search = $request->input('search');
             $cleanSearch = ltrim($search, '#');
