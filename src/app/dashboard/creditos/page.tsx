@@ -358,7 +358,8 @@ export default function CreditsPage() {
     monto: "",
     numeroOperacion: "",
     leadName: "",
-    documentoId: ""
+    documentoId: "",
+    deductora: "", // "" = todas, "sin" = sin deductora, número = id específico
   });
 
   // Pagination state
@@ -588,6 +589,13 @@ export default function CreditsPage() {
       }
       if (filters.documentoId) {
         filtered = filtered.filter(c => c.documento_id?.toLowerCase().includes(filters.documentoId.toLowerCase()));
+      }
+      if (filters.deductora) {
+        if (filters.deductora === "sin") {
+          filtered = filtered.filter(c => !c.deductora_id);
+        } else {
+          filtered = filtered.filter(c => c.deductora_id === Number(filters.deductora));
+        }
       }
 
       return filtered;
@@ -1252,15 +1260,37 @@ export default function CreditsPage() {
             </SelectContent>
           </Select>
         </div>
-        {(filters.monto || filters.numeroOperacion || filters.leadName || filters.documentoId) && (
+        {(filters.monto || filters.numeroOperacion || filters.leadName || filters.documentoId || filters.deductora) && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "" })}
+            onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "", deductora: "" })}
           >
             Limpiar Filtros
           </Button>
         )}
+      </div>
+
+      {/* Filtro por Deductora */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Label className="text-sm font-medium">Deductora</Label>
+        <Button
+          variant={filters.deductora === "sin" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setFilters({ ...filters, deductora: filters.deductora === "sin" ? "" : "sin" })}
+        >
+          Sin deductora
+        </Button>
+        {deductoras.map((d) => (
+          <Button
+            key={d.id}
+            variant={filters.deductora === String(d.id) ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilters({ ...filters, deductora: filters.deductora === String(d.id) ? "" : String(d.id) })}
+          >
+            {d.nombre}
+          </Button>
+        ))}
       </div>
 
       <Tabs value={tabValue} onValueChange={setTabValue}>
