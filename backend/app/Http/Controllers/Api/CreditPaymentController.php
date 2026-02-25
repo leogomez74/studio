@@ -36,7 +36,7 @@ class CreditPaymentController extends Controller
     public function index()
     {
         $payments = CreditPayment::with('credit.lead')
-            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->get();
         return response()->json($payments);
     }
