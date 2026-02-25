@@ -51,6 +51,7 @@ const getFileTypeInfo = (mimeType?: string | null, fileName?: string) => {
 export function DocumentManager({ personId, initialDocuments = [], readonly = false, onDocumentChange }: DocumentManagerProps) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [uploadingCedula, setUploadingCedula] = useState(false);
+  const [uploadingCedulaReverso, setUploadingCedulaReverso] = useState(false);
   const [uploadingRecibo, setUploadingRecibo] = useState(false);
   const { toast } = useToast();
 
@@ -112,7 +113,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxOpen, goToPrevious, goToNext]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, category: 'cedula' | 'recibo_servicio') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, category: 'cedula' | 'cedula_reverso' | 'recibo_servicio') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -123,6 +124,20 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
         toast({
           title: 'Error',
           description: 'Ya existe una cédula registrada. Elimínela primero para subir una nueva.',
+          variant: 'destructive'
+        });
+        e.target.value = '';
+        return;
+      }
+    }
+
+    // Check if trying to upload cedula reverso when one already exists
+    if (category === 'cedula_reverso') {
+      const existingCedulaReverso = documents.find(doc => (doc as any).category === 'cedula_reverso');
+      if (existingCedulaReverso) {
+        toast({
+          title: 'Error',
+          description: 'Ya existe la parte trasera de la cédula. Elimínela primero para subir una nueva.',
           variant: 'destructive'
         });
         e.target.value = '';
@@ -152,6 +167,8 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     try {
       if (category === 'cedula') {
         setUploadingCedula(true);
+      } else if (category === 'cedula_reverso') {
+        setUploadingCedulaReverso(true);
       } else {
         setUploadingRecibo(true);
       }
@@ -178,6 +195,8 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     } finally {
       if (category === 'cedula') {
         setUploadingCedula(false);
+      } else if (category === 'cedula_reverso') {
+        setUploadingCedulaReverso(false);
       } else {
         setUploadingRecibo(false);
       }
@@ -227,6 +246,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
 
   // Check if documents exist
   const hasCedula = documents.some(doc => (doc as any).category === 'cedula');
+  const hasCedulaReverso = documents.some(doc => (doc as any).category === 'cedula_reverso');
   const hasRecibo = documents.some(doc => (doc as any).category === 'recibo_servicio');
 
   return (
@@ -247,6 +267,24 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                   disabled={uploadingCedula}
                 />
                 {uploadingCedula && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              </div>
+            </div>
+          )}
+
+          {/* Selector para Cédula (Reverso) - Solo mostrar si no hay reverso subido */}
+          {!hasCedulaReverso && (
+            <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="cedula-reverso-upload">Cédula (Reverso)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  className='cursor-pointer flex-1'
+                  id="cedula-reverso-upload"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
+                  onChange={(e) => handleFileUpload(e, 'cedula_reverso')}
+                  disabled={uploadingCedulaReverso}
+                />
+                {uploadingCedulaReverso && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
               </div>
             </div>
           )}
@@ -343,12 +381,13 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                           </Badge>
                           {(doc as any).category && (doc as any).category !== 'otro' && (
                             <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
-                              {{
+                              {({
                                 cedula: '📄 Cédula',
+                                cedula_reverso: '📄 Cédula (Reverso)',
                                 recibo_servicio: '💡 Recibo',
                                 comprobante_ingresos: '💰 Ingresos',
                                 constancia_trabajo: '💼 Trabajo'
-                              }[(doc as any).category] || (doc as any).category}
+                              } as Record<string, string>)[(doc as any).category] || (doc as any).category}
                             </Badge>
                           )}
                           <span className="text-xs text-muted-foreground">{formatDate(doc.created_at)}</span>

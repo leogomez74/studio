@@ -18,7 +18,8 @@ import {
   ChevronsUpDown,
   X,
   AlertCircle,
-  Trash
+  Trash,
+  Archive
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -73,6 +74,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -310,6 +312,15 @@ export default function DealsPage() {
   const [isConfirmBulkDeleteOpen, setIsConfirmBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
+  // Bulk Archive State
+  const [isConfirmBulkArchiveOpen, setIsConfirmBulkArchiveOpen] = useState(false);
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false);
+
+  // Archived Opportunities
+  const [mainTab, setMainTab] = useState<"activas" | "archivadas">("activas");
+  const [archivedOpportunities, setArchivedOpportunities] = useState<Opportunity[]>([]);
+  const [isLoadingArchived, setIsLoadingArchived] = useState(false);
+
   // Auto-ajustar meses según tipo de producto
   useEffect(() => {
     const isMicroCredito = analisisForm.category?.toLowerCase().includes('micro');
@@ -406,6 +417,8 @@ export default function DealsPage() {
       if (filters.search.trim()) params.search = filters.search.trim();
       params.page = currentPage;
       params.per_page = perPage;
+      // Exclude archived (Cerrada) from main list
+      params.exclude_status = 'Cerrada';
 
       const response = await api.get('/api/opportunities', { params });
 
@@ -443,6 +456,27 @@ export default function DealsPage() {
       setIsLoading(false);
     }
   }, [toast, filters.createdFrom, filters.createdTo, filters.status, filters.tipoCredito, filters.search, currentPage, perPage]);
+
+  const fetchArchivedOpportunities = useCallback(async () => {
+    try {
+      setIsLoadingArchived(true);
+      const response = await api.get('/api/opportunities', {
+        params: { status: 'Cerrada', per_page: 100 }
+      });
+      const isPaginated = response.data.data && response.data.current_page;
+      const data = isPaginated ? response.data.data : response.data;
+      setArchivedOpportunities(Array.isArray(data) ? data.map((item: any) => ({
+        ...item,
+        vertical: normalizeOpportunityVertical(item.vertical),
+        opportunity_type: item.opportunity_type || OPPORTUNITY_TYPES[0],
+        amount: resolveEstimatedOpportunityAmount(item.amount),
+      })) : []);
+    } catch (error) {
+      console.error("Error fetching archived opportunities:", error);
+    } finally {
+      setIsLoadingArchived(false);
+    }
+  }, []);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -495,11 +529,12 @@ export default function DealsPage() {
 
   useEffect(() => {
     fetchOpportunities();
+    fetchArchivedOpportunities();
     fetchLeads();
     fetchUsers();
     fetchProducts();
     fetchInstituciones();
-  }, [fetchOpportunities, fetchLeads, fetchUsers, fetchProducts, fetchInstituciones]);
+  }, [fetchOpportunities, fetchArchivedOpportunities, fetchLeads, fetchUsers, fetchProducts, fetchInstituciones]);
 
   // --- Form Logic ---
 
@@ -634,6 +669,17 @@ export default function DealsPage() {
 
     if (ids.length === 0) return;
 
+    // Only allow deleting opportunities with status "Pendiente"
+    const selectedOpps = opportunities.filter(opp => selectedIds.has(opp.id));
+    const nonPendiente = selectedOpps.filter(opp => opp.status !== 'Pendiente');
+    if (nonPendiente.length > 0) {
+      toastWarning(
+        "No permitido",
+        "Solo se pueden eliminar oportunidades con estado \"Pendiente\". Usa \"Archivar\" para las demás."
+      );
+      return;
+    }
+
     // Validate max items
     if (ids.length > 50) {
       toastWarning(
@@ -688,7 +734,55 @@ export default function DealsPage() {
     } finally {
       setIsBulkDeleting(false);
     }
-  }, [selectedIds, clearSelection, fetchOpportunities]);
+  }, [selectedIds, opportunities, clearSelection, fetchOpportunities]);
+
+  // --- Bulk Archive Logic ---
+  const handleBulkArchive = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    setIsBulkArchiving(true);
+    let successful = 0;
+    let failed = 0;
+
+    try {
+      for (const id of ids) {
+        try {
+          await api.patch('/api/opportunities/update-status', {
+            id: String(id),
+            status: 'Cerrada'
+          });
+          successful++;
+        } catch {
+          failed++;
+        }
+      }
+
+      if (failed > 0) {
+        toastWarning(
+          "Operación parcial",
+          `${successful} archivadas correctamente, ${failed} fallidas`
+        );
+      } else {
+        toastSuccess(
+          "Archivadas",
+          `${successful} oportunidades archivadas correctamente`
+        );
+      }
+
+      fetchOpportunities();
+      fetchArchivedOpportunities();
+      clearSelection();
+      setIsConfirmBulkArchiveOpen(false);
+    } catch (error: any) {
+      toastError(
+        "Error",
+        error.response?.data?.message || "Error al archivar oportunidades"
+      );
+    } finally {
+      setIsBulkArchiving(false);
+    }
+  }, [selectedIds, clearSelection, fetchOpportunities, fetchArchivedOpportunities]);
 
   // Bulk Export Selected
   const handleBulkExport = useCallback(() => {
@@ -1251,28 +1345,54 @@ export default function DealsPage() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "activas" | "archivadas")}>
+          <TabsList className="grid w-full grid-cols-2 max-w-xs">
+            <TabsTrigger value="activas" className="gap-1.5">
+              Activas
+              {totalItems > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-xs">{totalItems}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="archivadas" className="gap-1.5">
+              <Archive className="h-3.5 w-3.5" />
+              Archivadas
+              {archivedOpportunities.length > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-xs">{archivedOpportunities.length}</Badge>}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="activas" className="space-y-6 mt-4">
 
         {/* Bulk Actions Toolbar */}
-        {selectedCount > 0 && (
+        {selectedCount > 0 && (() => {
+          const selectedOpps = opportunities.filter(opp => selectedIds.has(opp.id));
+          const allPendiente = selectedOpps.every(opp => opp.status === 'Pendiente');
+          const hasNonPendiente = selectedOpps.some(opp => opp.status !== 'Pendiente');
+
+          return (
           <BulkActionsToolbar
             selectedCount={selectedCount}
             onClear={clearSelection}
             actions={[
-              {
+              ...(allPendiente ? [{
                 label: 'Eliminar',
                 icon: Trash,
                 onClick: () => setIsConfirmBulkDeleteOpen(true),
-                variant: 'destructive'
+                variant: 'destructive' as const
+              }] : []),
+              {
+                label: 'Archivar',
+                icon: Archive,
+                onClick: () => setIsConfirmBulkArchiveOpen(true),
+                variant: 'outline' as const
               },
               {
                 label: 'Exportar',
                 icon: Download,
                 onClick: handleBulkExport,
-                variant: 'secondary'
+                variant: 'secondary' as const
               }
             ]}
           />
-        )}
+          );
+        })()}
 
         <Table>
           <TableHeader>
@@ -1517,6 +1637,73 @@ export default function DealsPage() {
             )}
           </div>
         )}
+
+          </TabsContent>
+
+          <TabsContent value="archivadas" className="mt-4">
+            {isLoadingArchived ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : archivedOpportunities.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Archive className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                <p>No hay oportunidades archivadas.</p>
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Número</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Monto</TableHead>
+                      <TableHead>Archivado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {archivedOpportunities.map((opp) => (
+                      <TableRow key={opp.id}>
+                        <TableCell className="font-medium">
+                          {formatOpportunityReference(opp.id)}
+                        </TableCell>
+                        <TableCell>
+                          {opp.lead?.name || opp.lead_cedula || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{opp.opportunity_type || '-'}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono">
+                          {formatAmount(resolveEstimatedOpportunityAmount(opp.amount))}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {formatDate(opp.updated_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => router.push(`/dashboard/oportunidades/${opp.id}`)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Ver detalle</TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
 
       {/* Create/Edit Dialog */}
@@ -1815,6 +2002,27 @@ export default function DealsPage() {
               disabled={isBulkDeleting}
             >
               {isBulkDeleting ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Archive Confirmation Dialog */}
+      <AlertDialog open={isConfirmBulkArchiveOpen} onOpenChange={setIsConfirmBulkArchiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Archivar {selectedCount} oportunidades?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Las oportunidades seleccionadas se marcarán como archivadas. Podrás encontrarlas en la pestaña &quot;Archivadas&quot;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkArchive}
+              disabled={isBulkArchiving}
+            >
+              {isBulkArchiving ? "Archivando..." : "Archivar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

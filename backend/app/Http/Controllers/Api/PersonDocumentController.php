@@ -64,7 +64,7 @@ class PersonDocumentController extends Controller
         $validated = $request->validate([
             'person_id' => 'required|exists:persons,id',
             'file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,pdf|max:10240', // Imágenes y PDF, 10MB max
-            'category' => 'nullable|in:cedula,recibo_servicio,comprobante_ingresos,constancia_trabajo,otro',
+            'category' => 'nullable|in:cedula,cedula_reverso,recibo_servicio,comprobante_ingresos,constancia_trabajo,otro',
         ]);
 
         // Validar que la persona tenga cédula
@@ -165,6 +165,9 @@ class PersonDocumentController extends Controller
             switch ($category) {
                 case 'cedula':
                     $categoryPrefix = 'CEDULA_';
+                    break;
+                case 'cedula_reverso':
+                    $categoryPrefix = 'CEDULA_REVERSO_';
                     break;
                 case 'recibo_servicio':
                     $categoryPrefix = 'RECIBO_';
@@ -308,8 +311,8 @@ class PersonDocumentController extends Controller
         // PASO 2: Copiar SOLO Cédula y Recibo del lead (documentos genéricos)
         // Los demás archivos (constancias, recibos de pago específicos) se suben directamente a la oportunidad
         foreach ($personDocuments as $doc) {
-            // FILTRO: Solo copiar cedula y recibo_servicio
-            if (!in_array($doc->category, ['cedula', 'recibo_servicio'])) {
+            // FILTRO: Solo copiar cedula, cedula_reverso y recibo_servicio
+            if (!in_array($doc->category, ['cedula', 'cedula_reverso', 'recibo_servicio'])) {
                 continue;
             }
 
@@ -326,6 +329,9 @@ class PersonDocumentController extends Controller
             switch ($category) {
                 case 'cedula':
                     $categoryPrefix = 'CEDULA_';
+                    break;
+                case 'cedula_reverso':
+                    $categoryPrefix = 'CEDULA_REVERSO_';
                     break;
                 case 'recibo_servicio':
                     $categoryPrefix = 'RECIBO_';
