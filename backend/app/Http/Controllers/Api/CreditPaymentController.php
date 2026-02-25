@@ -26,6 +26,10 @@ use Carbon\Carbon;
 class CreditPaymentController extends Controller
 {
     use AccountingTrigger;
+
+    /** Flag temporal por payment: si la última cuota procesada tenía mora */
+    private static array $moraFlags = [];
+
     /**
      * Listar todos los pagos
      */
@@ -1233,13 +1237,14 @@ class CreditPaymentController extends Controller
         ]);
 
         // Flag: ¿la última cuota procesada tenía mora? (para decidir sobrante en cascada)
+        // Se guarda en array estático del controlador (NO en el modelo) para no persistir en BD.
         $ultimaCuotaTeniaMora = false;
         if (!empty($paymentDetails)) {
             $lastDetail = end($paymentDetails);
             $ultimaCuotaTeniaMora = in_array($lastDetail['estado_anterior'], ['Mora', 'Parcial'])
                 && ($lastDetail['pago_mora'] > 0 || $lastDetail['pago_int_vencido'] > 0);
         }
-        $paymentRecord->ultima_cuota_tenia_mora = $ultimaCuotaTeniaMora;
+        self::$moraFlags[$paymentRecord->id] = $ultimaCuotaTeniaMora;
 
         // Guardar detalles por cuota para posible reverso
         foreach ($paymentDetails as $detail) {
@@ -1534,7 +1539,7 @@ class CreditPaymentController extends Controller
 
                     // Solo auto-aplicar sobrante si la ÚLTIMA cuota procesada tenía mora.
                     // Si era un pago normal con excedente → SaldoPendiente.
-                    $ultimaCuotaTeniaMora = $lastPayment->ultima_cuota_tenia_mora ?? false;
+                    $ultimaCuotaTeniaMora = self::$moraFlags[$lastPayment->id] ?? false;
 
                     if ($proximaCuota && $ultimaCuotaTeniaMora) {
                         // Sobrante de pago de mora → aplicar como parcial a siguiente cuota
@@ -1595,8 +1600,20 @@ class CreditPaymentController extends Controller
                 $results[] = $resultItem;
             }
 
+            // Actualizar totales de la planilla ANTES del cálculo de mora
+            // (para que si mora falla, la planilla al menos tenga sus totales)
+            $planillaUpload->update([
+                'cantidad_pagos' => count($results),
+                'monto_total' => CreditPayment::where('planilla_upload_id', $planillaUpload->id)->sum('monto'),
+            ]);
+
             // PASO 2: Calcular mora para créditos de ESTA deductora que NO pagaron
-            $moraResults = $this->calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora);
+            $moraResults = [];
+            try {
+                $moraResults = $this->calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora);
+            } catch (\Exception $e) {
+                \Log::error('Error calculando mora ausentes: ' . $e->getMessage());
+            }
 
             // Recopilar saldos pendientes creados en esta carga
             $saldosPendientes = collect($results)
@@ -1610,12 +1627,6 @@ class CreditPaymentController extends Controller
                 ])
                 ->values()
                 ->all();
-
-            // Actualizar totales de la planilla
-            $planillaUpload->update([
-                'cantidad_pagos' => count($results),
-                'monto_total' => CreditPayment::where('planilla_upload_id', $planillaUpload->id)->sum('monto'),
-            ]);
 
             return response()->json([
                 'message' => 'Proceso completado',
