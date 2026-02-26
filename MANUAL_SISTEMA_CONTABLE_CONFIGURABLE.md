@@ -73,8 +73,11 @@ ACCOUNTING_CONFIGURABLE_REFUND_CIERRE=false
 # Refundición - Apertura del crédito nuevo
 ACCOUNTING_CONFIGURABLE_REFUND_NUEVO=false
 
-# Devoluciones y reversos
+# Devoluciones y reversos de pago (distinto a anulación de planilla)
 ACCOUNTING_CONFIGURABLE_DEVOLUCION=false
+
+# Anulación de planilla completa
+ACCOUNTING_CONFIGURABLE_ANULACION_PLANILLA=false
 
 # Saldo sobrante de planilla (se dispara automáticamente cuando
 # queda dinero sobrante tras pagar todos los créditos de una planilla)
@@ -82,6 +85,10 @@ ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE=false
 
 # Reintegro de saldo pendiente (botón "Reintegro de Saldo" en módulo de saldos)
 ACCOUNTING_CONFIGURABLE_REINTEGRO_SALDO=false
+
+# Anulación de sobrante (se dispara automáticamente al anular una planilla que tenía sobrante)
+# Es el espejo inverso de SALDO_SOBRANTE
+ACCOUNTING_CONFIGURABLE_ANULACION_SOBRANTE=false
 ```
 
 ---
@@ -262,6 +269,23 @@ ACCOUNTING_USE_CONFIGURABLE=true
 |-------|--------|------------|------------|
 | 1 | cuentas_por_cobrar | Débito | Total |
 | 2 | banco_credipep | Crédito | Total |
+| 3 | retenciones_por_aplicar | Débito | **Sobrante** *(solo si había sobrante)* |
+
+> Si el pago anulado tenía sobrante, se incluye automáticamente la línea 3 para revertir la retención. Además se dispara el segundo asiento `ANULACION_SOBRANTE`.
+
+---
+
+### ANULACION_SOBRANTE
+**Cuándo se dispara**: Automáticamente al anular una planilla que tenía sobrante retenido. Es el espejo inverso de `SALDO_SOBRANTE`.
+
+**Variable .env**: `ACCOUNTING_CONFIGURABLE_ANULACION_SOBRANTE=true`
+
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | desembolsos_saldos_favor | Débito | Sobrante |
+| 2 | retenciones_por_aplicar | Crédito | Sobrante |
+
+> Solo se dispara si `movimiento_total > 0.50` en el pago que se está anulando.
 
 ---
 
@@ -369,6 +393,11 @@ php artisan config:cache
 
 **Última actualización**: 2026-02-25
 **Versión del manual**: 2.1
+**Cambios v2.2**:
+- Agregado tipo de asiento `ANULACION_SOBRANTE` con variable `ACCOUNTING_CONFIGURABLE_ANULACION_SOBRANTE`
+- `ANULACION_PLANILLA` ahora incluye componente `sobrante` en el breakdown
+- Al anular una planilla con sobrante, se dispara automáticamente el segundo asiento `ANULACION_SOBRANTE` (espejo inverso de `SALDO_SOBRANTE`)
+
 **Cambios v2.1**:
 - Agregado tipo de asiento `REINTEGRO_SALDO` con variable `ACCOUNTING_CONFIGURABLE_REINTEGRO_SALDO`
 - Corregido cálculo de componentes contables (interes_corriente, mora, poliza) para que reflejen solo el pago de la transacción actual y no el acumulado histórico del crédito

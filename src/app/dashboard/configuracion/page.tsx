@@ -159,6 +159,13 @@ const ACCOUNTING_ENTRY_TYPES = [
     description: 'Se dispara automáticamente cuando queda sobrante tras pagar todos los créditos de una planilla',
     controller: 'CreditPaymentController@upload (automático)',
     reference: 'SOB-{ID}'
+  },
+  {
+    value: 'ANULACION_SOBRANTE',
+    label: 'Anulación de Sobrante de Planilla',
+    description: 'Se dispara automáticamente al anular una planilla que tenía sobrante retenido. Es el espejo inverso de SALDO_SOBRANTE.',
+    controller: 'PlanillaUploadController@anular (automático)',
+    reference: 'ANULA-SOB-{ID}'
   }
 ];
 
@@ -211,6 +218,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   REINTEGRO_SALDO: 'Reintegro de Saldo',
   ABONO_CAPITAL: 'Abono a Capital',
   ANULACION_PLANILLA: 'Anulación Planilla',
+  ANULACION_SOBRANTE: 'Anulación Sobrante',
 };
 
 interface AccountingAlerts {
