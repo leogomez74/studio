@@ -124,6 +124,7 @@ class PlanillaUploadController extends Controller
                         $cuota->movimiento_interes_moratorio = max(0, ((float) $cuota->movimiento_interes_moratorio) - ((float) $pago->interes_moratorio));
                         $cuota->movimiento_interes_corriente = max(0, ((float) $cuota->movimiento_interes_corriente) - ((float) $pago->interes_corriente));
                         $cuota->movimiento_amortizacion = max(0, ((float) $cuota->movimiento_amortizacion) - ((float) $pago->amortizacion));
+                        $cuota->movimiento_principal = max(0, ((float) $cuota->movimiento_principal) - ((float) $pago->amortizacion));
                         $cuota->movimiento_poliza = max(0, ((float) $cuota->movimiento_poliza) - ((float) $pago->poliza));
                         $cuota->movimiento_total = max(0, ((float) $cuota->movimiento_total) - ((float) $pago->monto));
 
