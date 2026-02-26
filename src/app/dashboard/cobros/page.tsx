@@ -216,10 +216,13 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
 
   const amount = parseFloat(String(payment.monto || 0));
   const cuotaSnapshot = parseFloat(String(payment.cuota || amount));
+  const movTotal = parseFloat(String(payment.movimiento_total || 0));
   const difference = cuotaSnapshot - amount;
+  // Si movimiento_total > 0 y pagó menos que la cuota, hubo sobrante (mora pagada con excedente)
+  const hasSobrante = movTotal > 0.50 && amount < cuotaSnapshot - 0.50;
   // No mostrar diferencia para Cancelación Anticipada o Abonos Extraordinarios
   const skipDifference = payment.source === 'Cancelación Anticipada' || payment.source === 'Extraordinario' || payment.source?.includes('Abono a Capital');
-  const hasDifference = !skipDifference && Math.abs(difference) > 1.0;
+  const hasDifference = !skipDifference && (hasSobrante || Math.abs(difference) > 1.0);
 
   const dateDisplay = payment.fecha_pago
     ? new Date(payment.fecha_pago).toLocaleDateString()
@@ -250,10 +253,17 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
 
       <TableCell className="text-right font-mono text-xs">
         {hasDifference ? (
-          <div className={difference > 0 ? "text-destructive flex justify-end items-center gap-1" : "text-green-600 flex justify-end items-center gap-1"}>
-            {difference > 0 ? <AlertTriangle className="h-3 w-3" /> : <Check className="h-3 w-3" />}
-            {difference > 0 ? '(Faltan)' : '(A favor)'} ₡{Math.abs(difference).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-          </div>
+          hasSobrante ? (
+            <div className="text-blue-600 flex justify-end items-center gap-1">
+              <Check className="h-3 w-3" />
+              (Sobran) ₡{movTotal.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+            </div>
+          ) : (
+            <div className={difference > 0 ? "text-destructive flex justify-end items-center gap-1" : "text-green-600 flex justify-end items-center gap-1"}>
+              {difference > 0 ? <AlertTriangle className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+              {difference > 0 ? '(Faltan)' : '(A favor)'} ₡{Math.abs(difference).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+            </div>
+          )
         ) : <span className="text-muted-foreground">-</span>}
       </TableCell>
 

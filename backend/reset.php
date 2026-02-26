@@ -38,7 +38,8 @@ if (!$autoConfirm) {
     echo "  5. Eliminar todas las propuestas de crédito\n";
     echo "  6. Eliminar todos los analizados\n";
     echo "  7. Eliminar todos los saldos pendientes (sobrantes)\n";
-    echo "  8. Eliminar todas las personas (leads y clientes)\n\n";
+    echo "  8. Eliminar historial de planillas\n";
+    echo "  9. Eliminar todas las personas (leads y clientes)\n\n";
 
     // Mostrar conteos actuales
     $counts = [
@@ -49,6 +50,7 @@ if (!$autoConfirm) {
         'propuestas'      => DB::table('propuestas')->count(),
         'analisis'        => DB::table('analisis')->count(),
         'saldos_pendientes' => DB::table('saldos_pendientes')->count(),
+        'planilla_uploads' => DB::table('planilla_uploads')->count(),
         'persons'         => DB::table('persons')->count(),
     ];
 
@@ -97,11 +99,15 @@ try {
     $deleted = DB::table('analisis')->delete();
     echo "[OK] analisis eliminados: {$deleted}\n";
 
-    // 6. Saldos pendientes (sobrantes de planilla)
+    // 7. Saldos pendientes (sobrantes de planilla)
     $deleted = DB::table('saldos_pendientes')->delete();
     echo "[OK] saldos_pendientes eliminados: {$deleted}\n";
 
-    // 7. Personas (leads y clientes)
+    // 8. Historial de planillas
+    $deleted = DB::table('planilla_uploads')->delete();
+    echo "[OK] planilla_uploads eliminados: {$deleted}\n";
+
+    // 9. Personas (leads y clientes)
     $deleted = DB::table('persons')->delete();
     echo "[OK] persons eliminados: {$deleted}\n";
 
@@ -128,5 +134,6 @@ echo "  - opportunities:    " . DB::table('opportunities')->count() . "\n";
 echo "  - propuestas:       " . DB::table('propuestas')->count() . "\n";
 echo "  - analisis:         " . DB::table('analisis')->count() . "\n";
 echo "  - saldos_pendientes:" . DB::table('saldos_pendientes')->count() . "\n";
+echo "  - planilla_uploads: " . DB::table('planilla_uploads')->count() . "\n";
 echo "  - persons:          " . DB::table('persons')->count() . "\n";
 echo "\n";

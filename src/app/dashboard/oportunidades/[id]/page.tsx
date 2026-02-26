@@ -776,9 +776,14 @@ export default function OpportunityDetailPage() {
     return fileName.toLowerCase().endsWith('.pdf');
   };
 
-  // Obtener archivo de cédula
+  // Obtener archivo de cédula (frente)
   const getCedulaFile = () => {
-    return heredados.find(f => f.name.toLowerCase().startsWith('cedula'));
+    return heredados.find(f => f.name.toLowerCase().startsWith('cedula') && !f.name.toLowerCase().startsWith('cedula_reverso'));
+  };
+
+  // Obtener archivo de cédula (reverso)
+  const getCedulaReversoFile = () => {
+    return heredados.find(f => f.name.toLowerCase().startsWith('cedula_reverso'));
   };
 
   // Obtener archivo de recibo
@@ -791,6 +796,9 @@ export default function OpportunityDetailPage() {
     const missing = [];
     if (!getCedulaFile()) {
       missing.push('Archivo de Cédula');
+    }
+    if (!getCedulaReversoFile()) {
+      missing.push('Cédula (Reverso)');
     }
     if (!getReciboFile()) {
       missing.push('Archivo de Recibo');
@@ -1471,8 +1479,8 @@ export default function OpportunityDetailPage() {
                       </div>
                     )}
 
-                    {/* Documentos Requeridos: Cédula y Recibo */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Documentos Requeridos: Cédula, Reverso y Recibo */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Cédula */}
                       <Card>
                         <CardHeader className="pb-3">
@@ -1550,6 +1558,77 @@ export default function OpportunityDetailPage() {
                                     className="cursor-pointer"
                                   />
                                   {uploadingCedula && <Loader2 className="h-4 w-4 animate-spin" />}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+
+                      {/* Cédula (Reverso) */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-blue-400" />
+                            Cédula (Reverso)
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const reversoFile = getCedulaReversoFile();
+                            if (reversoFile) {
+                              return (
+                                <div className="space-y-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => openLightbox(reversoFile)}
+                                    className="relative w-full h-48 bg-muted rounded-lg overflow-hidden border cursor-pointer group"
+                                  >
+                                    {isImageFile(reversoFile.name) ? (
+                                      <img
+                                        src={reversoFile.url}
+                                        alt="Cédula Reverso"
+                                        className="w-full h-full object-contain group-hover:opacity-90 transition-opacity"
+                                      />
+                                    ) : isPdfFile(reversoFile.name) ? (
+                                      <iframe
+                                        src={reversoFile.url}
+                                        className="w-full h-full pointer-events-none"
+                                        title="Cédula Reverso PDF"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <FileText className="h-16 w-16 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                      <Maximize2 className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                    </div>
+                                  </button>
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-sm">
+                                      <p className="font-medium truncate">{reversoFile.name}</p>
+                                      <p className="text-xs text-muted-foreground">{formatFileSize(reversoFile.size)}</p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button variant="outline" size="sm" onClick={() => handleDownloadFile(reversoFile)}>
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => handleDeleteFile(reversoFile.name)}>
+                                        <Trash className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="space-y-3">
+                                <div className="w-full h-48 bg-muted/50 rounded-lg border-2 border-dashed flex items-center justify-center">
+                                  <div className="text-center text-muted-foreground">
+                                    <CreditCard className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">Sin reverso</p>
+                                  </div>
                                 </div>
                               </div>
                             );

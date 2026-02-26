@@ -369,6 +369,8 @@ export default function CreditsPage() {
 
   // Selección de créditos sin deductora
   const [selectedCreditIds, setSelectedCreditIds] = useState<Set<number>>(new Set());
+  const [loadingMora, setLoadingMora] = useState(false);
+  const [showMoraDialog, setShowMoraDialog] = useState(false);
 
   // Combobox state
   const [openCombobox, setOpenCombobox] = useState(false);
@@ -845,6 +847,33 @@ export default function CreditsPage() {
     }
   };
 
+  const handleCalcularMora = async () => {
+    if (selectedCreditIds.size === 0) return;
+    setShowMoraDialog(true);
+  };
+
+  const confirmarCalcularMora = async () => {
+    setShowMoraDialog(false);
+    const ids = Array.from(selectedCreditIds);
+
+    setLoadingMora(true);
+    try {
+      const res = await api.post("/api/credit-payments/carga-intereses", { credit_ids: ids });
+      const data = res.data;
+      toastSuccess(
+        "Mora calculada",
+        `${data.resumen.procesados} procesados, ${data.resumen.muy_nuevos} muy nuevos, ${data.resumen.sin_cuotas_pendientes} sin cuotas pendientes.`
+      );
+      setSelectedCreditIds(new Set());
+      fetchCredits();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.response?.data?.errors?.join(", ") || "Error al calcular mora";
+      toastError("Error", msg);
+    } finally {
+      setLoadingMora(false);
+    }
+  };
+
   const handleExportPDF = async (credit: CreditItem) => {
     const doc = new jsPDF({ orientation: 'landscape' });
     const currentDate = new Date().toLocaleDateString('es-CR');
@@ -1305,6 +1334,20 @@ export default function CreditsPage() {
               {d.nombre}
             </Button>
           ))}
+          {filters.deductora === "sin" && (
+            <>
+              <Separator orientation="vertical" className="h-6 mx-1" />
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={selectedCreditIds.size === 0 || loadingMora}
+                onClick={handleCalcularMora}
+              >
+                {loadingMora ? "Calculando..." : `Calcular Mora${selectedCreditIds.size > 0 ? ` (${selectedCreditIds.size})` : ""}`}
+              </Button>
+            </>
+          )}
         </div>
 
         {CREDIT_STATUS_TAB_CONFIG.map((tab) => {
@@ -2234,6 +2277,30 @@ export default function CreditsPage() {
         canDownloadDocuments={canDownloadDocuments}
         deductoras={deductoras}
       />
+
+      {/* Diálogo de confirmación para Calcular Mora */}
+      <Dialog open={showMoraDialog} onOpenChange={setShowMoraDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              Calcular Mora
+            </DialogTitle>
+            <DialogDescription>
+              Se aplicará el cálculo de intereses corrientes vencidos y mora a{" "}
+              <strong>{selectedCreditIds.size} crédito{selectedCreditIds.size !== 1 ? "s" : ""}</strong> sin deductora.
+              Esta acción marcará las cuotas pendientes más antiguas como &quot;Mora&quot; y agregará cuotas desplazadas al final del plan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowMoraDialog(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmarCalcularMora}>
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </ProtectedPage>
   );

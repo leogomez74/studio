@@ -27,6 +27,7 @@ import { usePermissions } from "@/contexts/PermissionsContext";
 import api from "@/lib/axios";
 import { Lead } from "@/lib/data";
 import { COSTA_RICA_PROVINCES, getProvinceOptions, getCantonOptions, getDistrictOptions } from '@/lib/costa-rica-regions';
+import { hasActiveOpportunity, getActiveOpportunityMessage } from "@/lib/opportunity-helpers";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -1066,13 +1067,15 @@ export default function LeadDetailPage() {
                                                             size="icon"
                                                             className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
                                                             onClick={() => setIsOpportunityDialogOpen(true)}
-                                                            disabled={!checkIsComplete()}
+                                                            disabled={!checkIsComplete() || hasActiveOpportunity(opportunities)}
                                                         >
                                                             <Sparkles className="h-4 w-4" />
                                                         </Button>
                                                     </TooltipTrigger>
                                                     <TooltipContent>
-                                                        {checkIsComplete()
+                                                        {hasActiveOpportunity(opportunities)
+                                                            ? getActiveOpportunityMessage(opportunities)
+                                                            : checkIsComplete()
                                                             ? "Crear Oportunidad"
                                                             : "Complete el registro antes de crear oportunidad"
                                                         }
@@ -1894,10 +1897,21 @@ export default function LeadDetailPage() {
                                 </Button>
                             )}
                             {activeTab === "archivos" && (
-                                <Button onClick={() => setIsOpportunityDialogOpen(true)}>
-                                    Crear Oportunidad
-                                    <ArrowRight className="ml-2 h-4 w-4" />
-                                </Button>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span className="inline-flex">
+                                                <Button onClick={() => setIsOpportunityDialogOpen(true)} disabled={hasActiveOpportunity(opportunities)}>
+                                                    Crear Oportunidad
+                                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        {hasActiveOpportunity(opportunities) && (
+                                            <TooltipContent>{getActiveOpportunityMessage(opportunities)}</TooltipContent>
+                                        )}
+                                    </Tooltip>
+                                </TooltipProvider>
                             )}
                         </div>
                     </Tabs>

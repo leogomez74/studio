@@ -58,6 +58,7 @@ import { BulkActionsToolbar } from "@/components/bulk-actions-toolbar";
 import api from '@/lib/axios';
 import { type Client, type Lead, type Opportunity } from '@/lib/data';
 import { CreateOpportunityDialog } from "@/components/opportunities/create-opportunity-dialog";
+import { hasActiveOpportunity, getActiveOpportunityMessage } from "@/lib/opportunity-helpers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PermissionButton } from "@/components/PermissionButton";
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -2027,13 +2028,15 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
                           action="create"
                           size="icon"
                           onClick={() => onAction('create_opportunity', lead)}
-                          disabled={checkMissingFields(lead).length > 0}
+                          disabled={checkMissingFields(lead).length > 0 || hasActiveOpportunity(lead.opportunities)}
                         >
                           <Sparkles className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>
                       <TooltipContent>
-                        {checkMissingFields(lead).length > 0
+                        {hasActiveOpportunity(lead.opportunities)
+                          ? getActiveOpportunityMessage(lead.opportunities)
+                          : checkMissingFields(lead).length > 0
                           ? "Complete el registro antes de crear oportunidad"
                           : "Crear oportunidad"
                         }
@@ -2420,11 +2423,11 @@ function UnifiedSearchTable({
                   {item._type === 'lead' && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', item)}>
+                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', item)} disabled={hasActiveOpportunity((item as any).opportunities)}>
                           <Sparkles className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>
-                      <TooltipContent>Crear oportunidad</TooltipContent>
+                      <TooltipContent>{getActiveOpportunityMessage((item as any).opportunities) || "Crear oportunidad"}</TooltipContent>
                     </Tooltip>
                   )}
                   {item._type === 'inactivo' && (

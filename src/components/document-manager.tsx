@@ -189,9 +189,10 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
       if (onDocumentChange) {
         onDocumentChange();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading document:', error);
-      toast({ title: 'Error', description: 'No se pudo subir el documento.', variant: 'destructive' });
+      const msg = error?.response?.data?.error || error?.response?.data?.message || 'No se pudo subir el documento.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
       if (category === 'cedula') {
         setUploadingCedula(false);

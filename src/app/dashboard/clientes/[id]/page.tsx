@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import api from "@/lib/axios";
 import { Client, Credit, CreditPayment, chatMessages, Lead, Opportunity, OPPORTUNITY_STATUSES } from "@/lib/data";
 import { PROVINCES, Province, Canton, Location } from "@/lib/cr-locations";
+import { hasActiveOpportunity, getActiveOpportunityMessage } from "@/lib/opportunity-helpers";
 
 // --- Types for Tareas ---
 
@@ -1287,15 +1288,16 @@ export default function ClientDetailPage() {
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button 
-                                            size="icon" 
+                                        <Button
+                                            size="icon"
                                             className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
                                             onClick={() => setIsOpportunityDialogOpen(true)}
+                                            disabled={hasActiveOpportunity(opportunities)}
                                         >
                                             <Sparkles className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Crear Oportunidad</TooltipContent>
+                                    <TooltipContent>{getActiveOpportunityMessage(opportunities) || "Crear Oportunidad"}</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
 
@@ -2026,10 +2028,21 @@ export default function ClientDetailPage() {
                       </CardTitle>
                       <CardDescription>Todas las oportunidades asociadas a este cliente</CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => setIsOpportunityDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Nueva Oportunidad
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button variant="outline" size="sm" onClick={() => setIsOpportunityDialogOpen(true)} disabled={hasActiveOpportunity(opportunities)}>
+                              <Plus className="h-4 w-4 mr-1" />
+                              Nueva Oportunidad
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {hasActiveOpportunity(opportunities) && (
+                          <TooltipContent>{getActiveOpportunityMessage(opportunities)}</TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -2684,9 +2697,9 @@ export default function ClientDetailPage() {
 
                 <TabsContent value="oportunidades" className="flex-1 p-4 m-0 overflow-y-auto">
                   <div className="text-center text-muted-foreground py-8">
-                    No hay oportunidades activas.
+                    {hasActiveOpportunity(opportunities) ? "Ya existe una oportunidad activa." : "No hay oportunidades activas."}
                     <div className="mt-4">
-                        <Button variant="outline" size="sm" onClick={() => setIsOpportunityDialogOpen(true)}>
+                        <Button variant="outline" size="sm" onClick={() => setIsOpportunityDialogOpen(true)} disabled={hasActiveOpportunity(opportunities)}>
                             Crear oportunidad
                         </Button>
                     </div>
