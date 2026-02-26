@@ -316,7 +316,7 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="left">
-                  <p>Revertir abono</p>
+                  <p>Anular abono</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -2023,7 +2023,7 @@ export default function CobrosPage() {
           <DialogHeader>
             <DialogTitle>Anular Planilla</DialogTitle>
             <DialogDescription>
-              Esta acción revertirá TODOS los movimientos de esta planilla. Es irreversible.
+              Esta acción anulará TODOS los movimientos de esta planilla. Los abonos anulados seguirán visibles en el historial.
             </DialogDescription>
           </DialogHeader>
 
@@ -2070,15 +2070,15 @@ export default function CobrosPage() {
       </Dialog>
 
 
-      {/* AlertDialog para Revertir Pago */}
+      {/* AlertDialog para Anular Abono */}
       <AlertDialog open={reverseDialogOpen} onOpenChange={setReverseDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revertir Abono</AlertDialogTitle>
+            <AlertDialogTitle>Anular Abono</AlertDialogTitle>
             <AlertDialogDescription>
               {reversePayment && (
                 <>
-                  Se revertirá el pago de <strong>₡{parseFloat(String(reversePayment.monto || 0)).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                  Se anulará el pago de <strong>₡{parseFloat(String(reversePayment.monto || 0)).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
                   {reversePayment.fecha_pago && <> del <strong>{new Date(reversePayment.fecha_pago).toLocaleDateString()}</strong></>}
                   {reversePayment.credit?.numero_operacion && <> (Operación: <strong>{reversePayment.credit.numero_operacion}</strong>)</>}.
                   <br /><br />
@@ -2111,9 +2111,9 @@ export default function CobrosPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {reversingPayment ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Revirtiendo...</>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Anulando...</>
               ) : (
-                'Confirmar Reversión'
+                'Confirmar Anulación'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

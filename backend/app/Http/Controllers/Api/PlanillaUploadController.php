@@ -141,8 +141,12 @@ class PlanillaUploadController extends Controller
                 // 5. Eliminar saldos pendientes creados por esta planilla
                 SaldoPendiente::where('credit_payment_id', $pago->id)->delete();
 
-                // 6. Marcar pago como reversado
+                // 6. Marcar pago como anulado (visible en historial de abonos)
                 $pago->estado = 'Reversado';
+                $pago->estado_reverso = 'Anulado';
+                $pago->motivo_anulacion = $validated['motivo'];
+                $pago->anulado_por = $user->id;
+                $pago->fecha_anulacion = now();
                 $pago->save();
 
                 // ============================================================
