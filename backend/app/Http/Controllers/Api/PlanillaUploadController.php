@@ -138,6 +138,9 @@ class PlanillaUploadController extends Controller
                     }
                 }
 
+                // 5. Capturar sobrante ANTES de eliminar SaldoPendiente
+                $sobranteAnulado = (float) SaldoPendiente::where('credit_payment_id', $pago->id)->sum('monto');
+
                 // 5. Eliminar saldos pendientes creados por esta planilla
                 SaldoPendiente::where('credit_payment_id', $pago->id)->delete();
 
@@ -155,7 +158,7 @@ class PlanillaUploadController extends Controller
                 // Dispara asiento contable al revertir un pago:
                 // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
                 // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
-                $sobranteAnulado = (float) $pago->movimiento_total;
+                // $sobranteAnulado ya fue calculado arriba desde SaldoPendiente
 
                 $this->triggerAccountingEntry(
                     'ANULACION_PLANILLA',
