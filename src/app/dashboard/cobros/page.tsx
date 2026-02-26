@@ -214,21 +214,21 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
     : (payment.cedula ? String(payment.cedula) : 'Desconocido');
   const operationNumber = credit?.numero_operacion || credit?.reference || '-';
 
+  const isAnulado = payment.estado_reverso === 'Anulado';
+
   const amount = parseFloat(String(payment.monto || 0));
   const cuotaSnapshot = parseFloat(String(payment.cuota || amount));
   const movTotal = parseFloat(String(payment.movimiento_total || 0));
   const difference = cuotaSnapshot - amount;
-  // Si movimiento_total > 0 y pagó menos que la cuota, hubo sobrante (mora pagada con excedente)
-  const hasSobrante = movTotal > 0.50 && amount < cuotaSnapshot - 0.50;
-  // No mostrar diferencia para Cancelación Anticipada o Abonos Extraordinarios
-  const skipDifference = payment.source === 'Cancelación Anticipada' || payment.source === 'Extraordinario' || payment.source?.includes('Abono a Capital');
+  // Si movimiento_total > 0, hubo sobrante después de aplicar el pago (mora o cuota completa con excedente)
+  const hasSobrante = movTotal > 0.50;
+  // No mostrar diferencia para pagos anulados, Cancelación Anticipada o Abonos Extraordinarios
+  const skipDifference = isAnulado || payment.source === 'Cancelación Anticipada' || payment.source === 'Extraordinario' || payment.source?.includes('Abono a Capital');
   const hasDifference = !skipDifference && (hasSobrante || Math.abs(difference) > 1.0);
 
   const dateDisplay = payment.fecha_pago
     ? new Date(payment.fecha_pago).toLocaleDateString()
     : (payment.created_at ? new Date(payment.created_at).toLocaleDateString() : '-');
-
-  const isAnulado = payment.estado_reverso === 'Anulado';
 
   return (
     <TableRow className={isAnulado ? 'opacity-50' : ''}>
