@@ -155,6 +155,8 @@ class PlanillaUploadController extends Controller
                 // Dispara asiento contable al revertir un pago:
                 // DÉBITO: Cuentas por Cobrar (monto del pago revertido)
                 // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
+                $sobranteAnulado = (float) $pago->movimiento_total;
+
                 $this->triggerAccountingEntry(
                     'ANULACION_PLANILLA',
                     (float) $pago->monto,
@@ -173,11 +175,43 @@ class PlanillaUploadController extends Controller
                             'interes_moratorio' => (float) $pago->interes_moratorio,
                             'poliza' => 0,
                             'capital' => (float) $pago->amortizacion,
+                            'sobrante' => $sobranteAnulado,
                             'cargos_adicionales_total' => 0,
                             'cargos_adicionales' => [],
                         ],
                     ]
                 );
+
+                // ============================================================
+                // ACCOUNTING_API_TRIGGER: Anulación de Sobrante de Planilla
+                // ============================================================
+                // Si el pago tenía un sobrante retenido, se dispara un segundo asiento
+                // para revertir el SALDO_SOBRANTE original (espejo de SALDO_SOBRANTE).
+                if ($sobranteAnulado > 0.50) {
+                    $this->triggerAccountingEntry(
+                        'ANULACION_SOBRANTE',
+                        $sobranteAnulado,
+                        "ANULA-SOB-{$pago->id}-{$credit->reference}",
+                        [
+                            'reference' => "ANULA-SOB-{$pago->id}-{$credit->reference}",
+                            'credit_id' => $credit->reference,
+                            'cedula' => $pago->cedula,
+                            'clienteNombre' => $credit->lead->name ?? null,
+                            'motivo' => $validated['motivo'],
+                            'deductora_id' => $planilla->deductora_id,
+                            'amount_breakdown' => [
+                                'total' => $sobranteAnulado,
+                                'sobrante' => $sobranteAnulado,
+                                'interes_corriente' => 0,
+                                'interes_moratorio' => 0,
+                                'poliza' => 0,
+                                'capital' => 0,
+                                'cargos_adicionales_total' => 0,
+                                'cargos_adicionales' => [],
+                            ],
+                        ]
+                    );
+                }
             }
 
             // 7. Marcar planilla como anulada
