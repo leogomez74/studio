@@ -126,7 +126,7 @@ const ACCOUNTING_ENTRY_TYPES = [
     reference: 'DEVOL-{ID}'
   },
   {
-    value: 'ANULAR_PLANILLA',
+    value: 'ANULACION_PLANILLA',
     label: 'Anulación de Planilla',
     description: 'Reversa de todos los pagos de una planilla completa',
     controller: 'PlanillaController@destroy',
