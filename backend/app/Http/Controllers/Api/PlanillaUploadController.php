@@ -23,7 +23,7 @@ class PlanillaUploadController extends Controller
         $perPage = $request->get('per_page', 15); // Por defecto 15 por página
 
         $query = PlanillaUpload::with(['deductora', 'user', 'anuladaPor'])
-            ->orderBy('uploaded_at', 'desc');
+            ->orderBy('id', 'desc');
 
         // Filtro por deductora
         if ($request->has('deductora_id') && $request->deductora_id) {
