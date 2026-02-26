@@ -219,6 +219,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   ABONO_CAPITAL: 'Abono a Capital',
   ANULACION_PLANILLA: 'Anulación Planilla',
   ANULACION_SOBRANTE: 'Anulación Sobrante',
+  REVERSO_PAGO: 'Reverso de Pago',
 };
 
 interface AccountingAlerts {

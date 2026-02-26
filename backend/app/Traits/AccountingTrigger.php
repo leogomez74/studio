@@ -183,6 +183,21 @@ trait AccountingTrigger
                 additionalData: $context
             ),
 
+            'REVERSO_PAGO', 'ANULACION_PLANILLA' => $this->triggerAccountingDevolucion(
+                creditId: $creditId,
+                paymentId: $paymentId > 0 ? $paymentId : null,
+                amount: $amount,
+                reason: $context['motivo'] ?? $context['reason'] ?? 'Reverso de pago',
+                additionalData: $context
+            ),
+
+            // Tipos solo disponibles en sistema configurable — sin implementación legacy
+            'ANULACION_SOBRANTE', 'SALDO_SOBRANTE', 'REINTEGRO_SALDO' => [
+                'success' => false,
+                'skipped' => true,
+                'error' => "Tipo '{$entryType}' requiere configuración en la UI. Active ACCOUNTING_CONFIGURABLE_* y cree el asiento en Configuración.",
+            ],
+
             default => [
                 'success' => false,
                 'error' => "Tipo de asiento '{$entryType}' no soportado en sistema legacy"
