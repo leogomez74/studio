@@ -1415,7 +1415,7 @@ export default function CobrosPage() {
                                 </Select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Fecha</label>
+                                <label className="block text-sm font-medium mb-1">Fecha de Pago</label>
                                 <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required />
                             </div>
                         </div>

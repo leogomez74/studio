@@ -1,4 +1,5 @@
 {
+    "github.copilot.chat.commitMessageGeneration.instructions": "Escribe siempre los mensajes de commit en español.",
     "githubPullRequests.ignoredPullRequestBranches": [
         "main"
     ],
