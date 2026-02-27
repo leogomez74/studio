@@ -1922,11 +1922,12 @@ export default function CobrosPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              {/* Botón de descarga (siempre visible si hay archivo) */}
+                              {/* Botón descarga planilla original */}
                               {planilla.ruta_archivo && (
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="gap-1"
                                   onClick={async () => {
                                     try {
                                       const response = await api.get(`/api/planilla-uploads/${planilla.id}/download`, {
@@ -1941,16 +1942,43 @@ export default function CobrosPage() {
                                       link.remove();
                                       window.URL.revokeObjectURL(url);
                                     } catch (err) {
-                                      toast({
-                                        title: 'Error',
-                                        description: 'No se pudo descargar el archivo',
-                                        variant: 'destructive',
-                                      });
+                                      toast({ title: 'Error', description: 'No se pudo descargar el archivo', variant: 'destructive' });
                                     }
                                   }}
-                                  title="Descargar planilla"
+                                  title="Descargar planilla original"
                                 >
                                   <FileDown className="h-4 w-4" />
+                                  <span className="text-xs">Planilla</span>
+                                </Button>
+                              )}
+
+                              {/* Botón resumen de distribución (solo procesadas) */}
+                              {planilla.estado === 'procesada' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await api.get(`/api/planilla-uploads/${planilla.id}/export-resumen`, {
+                                        responseType: 'blob'
+                                      });
+                                      const url = window.URL.createObjectURL(new Blob([response.data]));
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.setAttribute('download', `resumen_planilla_${planilla.id}.xlsx`);
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      link.remove();
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (err) {
+                                      toast({ title: 'Error', description: 'No se pudo generar el resumen', variant: 'destructive' });
+                                    }
+                                  }}
+                                  title="Descargar resumen de distribución"
+                                >
+                                  <FileDown className="h-4 w-4" />
+                                  <span className="text-xs">Resumen</span>
                                 </Button>
                               )}
 

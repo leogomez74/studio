@@ -36,6 +36,7 @@ class CreditPaymentController extends Controller
     public function index()
     {
         $payments = CreditPayment::with('credit.lead')
+            ->whereNull('planilla_upload_id')
             ->orderBy('id', 'desc')
             ->get();
         return response()->json($payments);
