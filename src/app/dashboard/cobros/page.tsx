@@ -214,21 +214,21 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
     : (payment.cedula ? String(payment.cedula) : 'Desconocido');
   const operationNumber = credit?.numero_operacion || credit?.reference || '-';
 
+  const isAnulado = payment.estado_reverso === 'Anulado';
+
   const amount = parseFloat(String(payment.monto || 0));
   const cuotaSnapshot = parseFloat(String(payment.cuota || amount));
   const movTotal = parseFloat(String(payment.movimiento_total || 0));
   const difference = cuotaSnapshot - amount;
-  // Si movimiento_total > 0 y pagó menos que la cuota, hubo sobrante (mora pagada con excedente)
-  const hasSobrante = movTotal > 0.50 && amount < cuotaSnapshot - 0.50;
-  // No mostrar diferencia para Cancelación Anticipada o Abonos Extraordinarios
-  const skipDifference = payment.source === 'Cancelación Anticipada' || payment.source === 'Extraordinario' || payment.source?.includes('Abono a Capital');
+  // Si movimiento_total > 0, hubo sobrante después de aplicar el pago (mora o cuota completa con excedente)
+  const hasSobrante = movTotal > 0.50;
+  // No mostrar diferencia para pagos anulados, Cancelación Anticipada o Abonos Extraordinarios
+  const skipDifference = isAnulado || payment.source === 'Cancelación Anticipada' || payment.source === 'Extraordinario' || payment.source?.includes('Abono a Capital');
   const hasDifference = !skipDifference && (hasSobrante || Math.abs(difference) > 1.0);
 
   const dateDisplay = payment.fecha_pago
     ? new Date(payment.fecha_pago).toLocaleDateString()
     : (payment.created_at ? new Date(payment.created_at).toLocaleDateString() : '-');
-
-  const isAnulado = payment.estado_reverso === 'Anulado';
 
   return (
     <TableRow className={isAnulado ? 'opacity-50' : ''}>
@@ -1922,11 +1922,12 @@ export default function CobrosPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              {/* Botón de descarga (siempre visible si hay archivo) */}
+                              {/* Botón descarga planilla original */}
                               {planilla.ruta_archivo && (
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="gap-1"
                                   onClick={async () => {
                                     try {
                                       const response = await api.get(`/api/planilla-uploads/${planilla.id}/download`, {
@@ -1941,16 +1942,43 @@ export default function CobrosPage() {
                                       link.remove();
                                       window.URL.revokeObjectURL(url);
                                     } catch (err) {
-                                      toast({
-                                        title: 'Error',
-                                        description: 'No se pudo descargar el archivo',
-                                        variant: 'destructive',
-                                      });
+                                      toast({ title: 'Error', description: 'No se pudo descargar el archivo', variant: 'destructive' });
                                     }
                                   }}
-                                  title="Descargar planilla"
+                                  title="Descargar planilla original"
                                 >
                                   <FileDown className="h-4 w-4" />
+                                  <span className="text-xs">Planilla</span>
+                                </Button>
+                              )}
+
+                              {/* Botón resumen de distribución (solo procesadas) */}
+                              {planilla.estado === 'procesada' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await api.get(`/api/planilla-uploads/${planilla.id}/export-resumen`, {
+                                        responseType: 'blob'
+                                      });
+                                      const url = window.URL.createObjectURL(new Blob([response.data]));
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.setAttribute('download', `resumen_planilla_${planilla.id}.xlsx`);
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      link.remove();
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (err) {
+                                      toast({ title: 'Error', description: 'No se pudo generar el resumen', variant: 'destructive' });
+                                    }
+                                  }}
+                                  title="Descargar resumen de distribución"
+                                >
+                                  <FileDown className="h-4 w-4" />
+                                  <span className="text-xs">Resumen</span>
                                 </Button>
                               )}
 

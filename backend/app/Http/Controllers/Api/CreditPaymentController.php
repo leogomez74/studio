@@ -36,6 +36,7 @@ class CreditPaymentController extends Controller
     public function index()
     {
         $payments = CreditPayment::with('credit.lead')
+            ->whereNull('planilla_upload_id')
             ->orderBy('id', 'desc')
             ->get();
         return response()->json($payments);
@@ -68,11 +69,15 @@ class CreditPaymentController extends Controller
         $deductoraId = $validated['deductora_id'];
         $fechaProceso = $validated['fecha_proceso'] ?? now()->format('Y-m-d');
 
-        // VALIDACIÓN: Solo 1 planilla por deductora por mes
+        // VALIDACIÓN: Solo 1 planilla por deductora por mes (excluir anuladas)
         $fechaProcesoCarbon = Carbon::parse($fechaProceso);
         $mesInicio = $fechaProcesoCarbon->copy()->startOfMonth();
         $mesFin = $fechaProcesoCarbon->copy()->endOfMonth();
         $yaExiste = CreditPayment::where('source', 'Planilla')
+            ->where(function ($q) {
+                $q->whereNull('estado_reverso')
+                  ->orWhere('estado_reverso', '!=', 'Anulado');
+            })
             ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
             ->whereHas('credit', function ($q) use ($deductoraId) {
                 $q->where('deductora_id', $deductoraId);
@@ -1203,7 +1208,8 @@ class CreditPaymentController extends Controller
             $cuota->save();
 
             // En modo planilla (singleCuota), solo procesar UNA cuota y parar
-            if ($singleCuotaMode && $cuota->estado === 'Pagado') {
+            // (sin importar si quedó Pagado o Parcial — el sobrante va a SaldoPendiente)
+            if ($singleCuotaMode) {
                 break;
             }
         }
@@ -1346,10 +1352,14 @@ class CreditPaymentController extends Controller
         $fechaTest = $request->input('fecha_test');
         $fechaPago = $fechaTest ? Carbon::parse($fechaTest) : now();
 
-        // VALIDACIÓN: Solo 1 planilla por deductora por mes
+        // VALIDACIÓN: Solo 1 planilla por deductora por mes (excluir anuladas)
         $mesInicio = $fechaPago->copy()->startOfMonth();
         $mesFin = $fechaPago->copy()->endOfMonth();
         $yaExiste = CreditPayment::where('source', 'Planilla')
+            ->where(function ($q) {
+                $q->whereNull('estado_reverso')
+                  ->orWhere('estado_reverso', '!=', 'Anulado');
+            })
             ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
             ->whereHas('credit', function ($q) use ($deductoraId) {
                 $q->where('deductora_id', $deductoraId);
