@@ -1311,9 +1311,9 @@ class CreditPaymentController extends Controller
                 $context
             );
         } else {
-            // Para otros tipos (Adelanto, Saldo Pendiente, etc.) usar el método genérico
+            // Para otros tipos (Adelanto, Saldo Pendiente, etc.) usar ventanilla
             $this->triggerAccountingEntry(
-                'PAGO_GENERICO',
+                'PAGO_VENTANILLA',
                 $montoEntrante,
                 $context['reference'],
                 $context
