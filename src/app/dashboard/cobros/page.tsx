@@ -697,6 +697,20 @@ export default function CobrosPage() {
     return map;
   }, [paymentsState]);
 
+  // Última planilla procesada por deductora (para controlar qué se puede anular)
+  const ultimaPlanillaPorDeductora = useMemo(() => {
+    const map: Record<number, number> = {};
+    planillas.forEach((p: any) => {
+      if (p.estado === 'procesada') {
+        const did = p.deductora_id ?? p.deductora?.id;
+        if (did && (!map[did] || p.id > map[did])) {
+          map[did] = p.id;
+        }
+      }
+    });
+    return map;
+  }, [planillas]);
+
   const openReverseDialog = useCallback((payment: PaymentWithRelations) => {
     setReversePaymentState(payment);
     setReverseMotivo('');
@@ -1902,8 +1916,10 @@ export default function CobrosPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      planillas.map((planilla) => (
-                        <TableRow key={planilla.id}>
+                      planillas.map((planilla) => {
+                        const did = planilla.deductora_id ?? planilla.deductora?.id;
+                        const esUltima = did ? ultimaPlanillaPorDeductora[did] === planilla.id : false;
+                        return (<TableRow key={planilla.id}>
                           <TableCell>{planilla.id}</TableCell>
                           <TableCell>
                             {new Date(planilla.fecha_planilla).toLocaleDateString('es-CR')}
@@ -1982,8 +1998,8 @@ export default function CobrosPage() {
                                 </Button>
                               )}
 
-                              {/* Botón anular (solo Admin y procesada) */}
-                              {planilla.estado === 'procesada' && user?.role?.name === 'Administrador' && (
+                              {/* Botón anular (solo Admin, procesada y última de la deductora) */}
+                              {planilla.estado === 'procesada' && user?.role?.name === 'Administrador' && esUltima && (
                                 <Button
                                   variant="destructive"
                                   size="sm"
@@ -2007,7 +2023,8 @@ export default function CobrosPage() {
                             )}
                           </TableCell>
                         </TableRow>
-                      ))
+                      );
+                    })
                     )}
                   </TableBody>
                 </Table>

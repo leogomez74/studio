@@ -100,6 +100,17 @@ class PlanillaUploadController extends Controller
             return response()->json(['message' => 'La planilla ya está anulada'], 400);
         }
 
+        // Solo se puede anular la última planilla procesada de esta deductora
+        $ultimaId = PlanillaUpload::where('deductora_id', $planilla->deductora_id)
+            ->where('estado', 'procesada')
+            ->max('id');
+
+        if ($planilla->id !== $ultimaId) {
+            return response()->json([
+                'message' => 'Solo se puede anular la última planilla procesada de esta deductora. Primero debe anular las planillas más recientes.',
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
             // 1. Obtener todos los pagos de esta planilla
