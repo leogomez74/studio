@@ -73,8 +73,11 @@ ACCOUNTING_CONFIGURABLE_REFUND_CIERRE=false
 # Refundición - Apertura del crédito nuevo
 ACCOUNTING_CONFIGURABLE_REFUND_NUEVO=false
 
-# Devoluciones y reversos de pago (distinto a anulación de planilla)
+# Devoluciones (distinto a anulación de planilla)
 ACCOUNTING_CONFIGURABLE_DEVOLUCION=false
+
+# Anulación de abono individual
+ACCOUNTING_CONFIGURABLE_ANULACION_ABONO=false
 
 # Anulación de planilla completa
 ACCOUNTING_CONFIGURABLE_ANULACION_PLANILLA=false
