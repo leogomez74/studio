@@ -134,8 +134,8 @@ const ACCOUNTING_ENTRY_TYPES = [
   },
   {
     value: 'REVERSO_PAGO',
-    label: 'Reverso de Pago Manual',
-    description: 'Anulación de pago individual',
+    label: 'Anulación de Abono',
+    description: 'Anulación de abono individual',
     controller: 'CreditPaymentController@destroy',
     reference: 'REVERSE-PAY-{ID}'
   },
@@ -219,7 +219,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   ABONO_CAPITAL: 'Abono a Capital',
   ANULACION_PLANILLA: 'Anulación Planilla',
   ANULACION_SOBRANTE: 'Anulación Sobrante',
-  REVERSO_PAGO: 'Reverso de Pago',
+  REVERSO_PAGO: 'Anulación de Abono',
 };
 
 interface AccountingAlerts {
@@ -5355,11 +5355,11 @@ export default function ConfiguracionPage() {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Reverso de Pago Manual</TableCell>
+                    <TableCell className="font-medium">Anulación de Abono</TableCell>
                     <TableCell><span className="text-sm font-mono">Cuentas por Cobrar</span></TableCell>
                     <TableCell><span className="text-sm font-mono">Banco CREDIPEP</span></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      Anulación de pago individual (ventanilla/planilla). <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-PAY-{'{ID}'}</code>
+                      Anulación de abono individual (ventanilla/planilla). <code className="text-xs bg-muted px-1 rounded">Ref: REVERSE-PAY-{'{ID}'}</code>
                     </TableCell>
                   </TableRow>
                   <TableRow>
