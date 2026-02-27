@@ -166,9 +166,13 @@ class PlanillaUploadController extends Controller
                 // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
                 // $sobranteAnulado ya fue calculado arriba desde SaldoPendiente
 
+                // El total debe incluir el sobrante para que el asiento cuadre
+                // (es el espejo exacto del PAGO_PLANILLA original)
+                $montoTotalOriginal = (float) $pago->monto + $sobranteAnulado;
+
                 $this->triggerAccountingEntry(
                     'ANULACION_PLANILLA',
-                    (float) $pago->monto,
+                    $montoTotalOriginal,
                     "ANULA-PLAN-{$pago->id}-{$credit->reference}",
                     [
                         'reference' => "ANULA-PLAN-{$pago->id}-{$credit->reference}",
@@ -179,7 +183,7 @@ class PlanillaUploadController extends Controller
                         'deductora_id' => $planilla->deductora_id,
                         'fecha_planilla' => $planilla->fecha_planilla,
                         'amount_breakdown' => [
-                            'total' => (float) $pago->monto,
+                            'total' => $montoTotalOriginal,
                             'interes_corriente' => (float) $pago->interes_corriente,
                             'interes_moratorio' => (float) $pago->interes_moratorio,
                             'poliza' => 0,
