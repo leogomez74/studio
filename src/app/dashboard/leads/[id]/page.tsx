@@ -622,7 +622,7 @@ export default function LeadDetailPage() {
     // Validar si el registro está completo
     const REQUIRED_FIELDS = [
         'cedula', 'name', 'apellido1', 'email', 'phone', 'whatsapp', 'fecha_nacimiento', 'estado_civil',
-        'profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'sector',
+        'profesion', 'nivel_academico', 'puesto', 'estado_puesto', 'institucion_labora', 'sector',
         'province', 'canton', 'distrito', 'direccion1',
         'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
     ];
@@ -671,7 +671,7 @@ export default function LeadDetailPage() {
     const personalFields = ['name', 'apellido1', 'cedula', 'fecha_nacimiento', 'estado_civil'];
     const contactFields = ['email', 'phone', 'whatsapp'];
     const addressFields = ['province', 'canton', 'distrito', 'direccion1'];
-    const employmentFields = ['profesion', 'nivel_academico', 'puesto', 'institucion_labora', 'sector', 'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'];
+    const employmentFields = ['profesion', 'nivel_academico', 'puesto', 'estado_puesto', 'institucion_labora', 'sector', 'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'];
 
     const getMissingDocuments = useCallback(() => {
         const documents = (lead as any)?.documents || [];
@@ -1596,7 +1596,7 @@ export default function LeadDetailPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Nombramiento</Label>
+                                        <Label>Nombramiento {isFieldMissing('estado_puesto') && <span className="text-red-500">*</span>}</Label>
                                         <Select
                                             value={(formData as any).estado_puesto || ""}
                                             onValueChange={(value) => handleInputChange("estado_puesto" as keyof Lead, value)}
