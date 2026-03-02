@@ -5138,13 +5138,11 @@ export default function ConfiguracionPage() {
                                         <SelectValue placeholder="Seleccionar cargo..." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="cargo_tramite">Cargo por Trámite</SelectItem>
-                                        <SelectItem value="cargo_documento">Cargo por Documento</SelectItem>
-                                        <SelectItem value="cargo_notificacion">Cargo por Notificación</SelectItem>
-                                        <SelectItem value="cargo_comision">Cargo por Comisión</SelectItem>
-                                        <SelectItem value="cargo_gestion">Cargo por Gestión</SelectItem>
-                                        <SelectItem value="cargo_mora">Cargo por Mora</SelectItem>
-                                        <SelectItem value="cargo_investigacion">Cargo por Investigación</SelectItem>
+                                        <SelectItem value="comision">Comisión (3%)</SelectItem>
+                                        <SelectItem value="transporte">Transporte</SelectItem>
+                                        <SelectItem value="respaldo_deudor">Respaldo Deudor (solo Regular)</SelectItem>
+                                        <SelectItem value="descuento_factura">Descuento Factura</SelectItem>
+                                        <SelectItem value="cancelacion_manchas">Cancelación de Manchas</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>

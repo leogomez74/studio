@@ -642,6 +642,8 @@ class CreditController extends Controller
             // Dispara asiento contable al formalizar el crédito:
             // DÉBITO: Cuentas por Cobrar (monto_credito)
             // CRÉDITO: Banco CREDIPEP (monto_credito)
+            $cargosFormalizacion = $credit->cargos_adicionales ?? [];
+            $totalCargosFormalizacion = array_sum($cargosFormalizacion);
             $this->triggerAccountingEntry(
                 'FORMALIZACION',
                 (float) $credit->monto_credito,
@@ -657,8 +659,9 @@ class CreditController extends Controller
                         'interes_moratorio' => 0,
                         'poliza' => 0,
                         'capital' => (float) $credit->monto_credito,
-                        'cargos_adicionales_total' => 0,
-                        'cargos_adicionales' => [],
+                        'sobrante' => 0,
+                        'cargos_adicionales_total' => $totalCargosFormalizacion,
+                        'cargos_adicionales' => $cargosFormalizacion,
                     ],
                 ]
             );
