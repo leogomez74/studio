@@ -40,7 +40,7 @@ if (!$autoConfirm) {
     echo "  7. Eliminar todos los saldos pendientes (sobrantes)\n";
     echo "  8. Eliminar historial de planillas\n";
     echo "  9. Eliminar todas las personas (leads y clientes)\n";
-    echo " 10. Eliminar registros contables (accounting_logs)\n\n";
+    echo " 10. Eliminar registros contables (accounting_entry_logs)\n\n";
 
     // Mostrar conteos actuales
     $counts = [
@@ -53,7 +53,7 @@ if (!$autoConfirm) {
         'saldos_pendientes' => DB::table('saldos_pendientes')->count(),
         'planilla_uploads' => DB::table('planilla_uploads')->count(),
         'persons'          => DB::table('persons')->count(),
-        'accounting_logs'  => DB::table('accounting_logs')->count(),
+        'accounting_entry_logs'  => DB::table('accounting_entry_logs')->count(),
     ];
 
     echo "Estado actual:\n";
@@ -114,8 +114,8 @@ try {
     echo "[OK] persons eliminados: {$deleted}\n";
 
     // 10. Registros contables
-    $deleted = DB::table('accounting_logs')->delete();
-    echo "[OK] accounting_logs eliminados: {$deleted}\n";
+    $deleted = DB::table('accounting_entry_logs')->delete();
+    echo "[OK] accounting_entry_logs eliminados: {$deleted}\n";
 
 } catch (\Exception $e) {
     echo "\n[ERROR] " . $e->getMessage() . "\n";
@@ -142,5 +142,5 @@ echo "  - analisis:         " . DB::table('analisis')->count() . "\n";
 echo "  - saldos_pendientes:" . DB::table('saldos_pendientes')->count() . "\n";
 echo "  - planilla_uploads: " . DB::table('planilla_uploads')->count() . "\n";
 echo "  - persons:          " . DB::table('persons')->count() . "\n";
-echo "  - accounting_logs:  " . DB::table('accounting_logs')->count() . "\n";
+echo "  - accounting_entry_logs:  " . DB::table('accounting_entry_logs')->count() . "\n";
 echo "\n";
