@@ -587,12 +587,15 @@ class CreditPaymentController extends Controller
             // 🔒 LOCK: Obtener crédito con bloqueo pesimista para prevenir race conditions
             $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
 
+            // singleCuotaMode=true: procesa 1 cuota y el sobrante queda en SaldoPendiente
             return $this->processPaymentTransaction(
                 $credit,
                 $validated['monto'],
                 $validated['fecha'],
                 $validated['origen'] ?? 'Ventanilla',
-                $credit->lead->cedula ?? null
+                $credit->lead->cedula ?? null,
+                null,
+                true
             );
         });
 
@@ -627,15 +630,21 @@ class CreditPaymentController extends Controller
                 // 🔒 LOCK: Obtener crédito con bloqueo pesimista
                 $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
 
-                // Si es adelanto y hay cuotas seleccionadas, pasar IDs
+                $tipo = $validated['tipo'] ?? '';
+                $source = $tipo === 'adelanto' ? 'Adelanto de Cuotas' : 'Adelanto Simple';
                 $cuotasSeleccionadas = $validated['cuotas'] ?? null;
+
+                // Adelanto Simple y Ventanilla: singleCuotaMode=true
+                // para que el sobrante quede en SaldoPendiente (igual que planilla)
+                $singleCuota = ($tipo === '' || $tipo === null); // Adelanto Simple
                 return $this->processPaymentTransaction(
                     $credit,
                     $validated['monto'],
                     $validated['fecha'],
-                    ($validated['tipo'] ?? '') === 'adelanto' ? 'Adelanto de Cuotas' : 'Adelanto Simple',
+                    $source,
                     $credit->lead->cedula ?? null,
-                    $cuotasSeleccionadas
+                    $cuotasSeleccionadas,
+                    $singleCuota
                 );
             });
 
@@ -1251,6 +1260,19 @@ class CreditPaymentController extends Controller
                 && ($lastDetail['pago_mora'] > 0 || $lastDetail['pago_int_vencido'] > 0);
         }
         self::$moraFlags[$paymentRecord->id] = $ultimaCuotaTeniaMora;
+
+        // Si hubo sobrante en un pago MANUAL (no planilla), crear SaldoPendiente
+        if ($dineroDisponible > 0.50 && $planillaUploadId === null) {
+            SaldoPendiente::create([
+                'credit_id'         => $credit->id,
+                'credit_payment_id' => $paymentRecord->id,
+                'monto'             => $dineroDisponible,
+                'origen'            => $source,
+                'fecha_origen'      => $fecha,
+                'estado'            => 'pendiente',
+                'cedula'            => $cedulaRef ?? $credit->lead->cedula ?? null,
+            ]);
+        }
 
         // Guardar detalles por cuota para posible reverso
         foreach ($paymentDetails as $detail) {
