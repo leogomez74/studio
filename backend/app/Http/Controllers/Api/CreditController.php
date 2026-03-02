@@ -544,7 +544,7 @@ class CreditController extends Controller
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
             'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
-            'formalized_at' => 'nullable|date|after:' . now()->subYear()->toDateString(),
+            'formalized_at' => 'nullable|date|before_or_equal:today',
         ]);
 
         // PROTECCIÓN: No permitir modificar campos críticos si el crédito ya fue formalizado (tiene formalized_at)
