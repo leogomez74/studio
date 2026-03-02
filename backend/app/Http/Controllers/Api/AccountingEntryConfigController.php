@@ -232,6 +232,8 @@ class AccountingEntryConfigController extends Controller
                 'interes_moratorio' => $breakdown['interes_moratorio'] ?? 0,
                 'poliza' => $breakdown['poliza'] ?? 0,
                 'capital' => $breakdown['capital'] ?? 0,
+                'sobrante' => $breakdown['sobrante'] ?? 0,
+                'cargos_adicionales_total' => $breakdown['cargos_adicionales_total'] ?? 0,
                 'cargo_adicional' => ($breakdown['cargos_adicionales'][$line->cargo_adicional_key] ?? $breakdown['cargos_adicionales_total'] ?? 0),
                 default => $breakdown['total'] ?? $amount,
             };
