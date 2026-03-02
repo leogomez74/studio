@@ -1431,6 +1431,7 @@ export default function OpportunityDetailPage() {
                           value={opportunity.expected_close_date ? opportunity.expected_close_date.split('T')[0] : ''}
                           onChange={(e) => handleExpectedDateChange(e.target.value)}
                           disabled={updatingExpectedDate || !canEdit || permsLoading}
+                          min={getTodayDateString()}
                           className="h-9 text-sm"
                         />
                       </div>

@@ -14,6 +14,8 @@ import {
   X,
   Pencil,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -207,6 +209,10 @@ export default function TasksPage() {
     start_date: getTodayDateString(),
     due_date: getTodayDateString(),
   });
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   // Filters & Sort
   const [filters, setFilters] = useState<TaskTableFilters>({
@@ -484,6 +490,18 @@ export default function TasksPage() {
     return filtered;
   }, [tasks, filters, sortConfig, getSortableValue]);
 
+  // Reset to page 1 whenever filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, sortConfig]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleTasks.length / itemsPerPage));
+
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return visibleTasks.slice(start, start + itemsPerPage);
+  }, [visibleTasks, currentPage, itemsPerPage]);
+
   const hasActiveFilters = useMemo(() => {
     return (
       filters.search.trim().length > 0 ||
@@ -593,6 +611,9 @@ export default function TasksPage() {
             <CardDescription>Organiza y da seguimiento a las tareas del equipo.</CardDescription>
             <p className="text-sm text-muted-foreground mt-1">
               {visibleTasks.length > 0 ? `${visibleTasks.length} ${visibleTasks.length === 1 ? "tarea" : "tareas"}` : "No hay tareas"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {tasks.length} en total
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
@@ -766,7 +787,7 @@ export default function TasksPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  visibleTasks.map(task => {
+                  paginatedTasks.map(task => {
                     const isOverdue = isTaskOverdue(task);
                     const opportunityId = extractOpportunityId(task.project_code);
 
@@ -835,6 +856,77 @@ export default function TasksPage() {
                 )}
               </TableBody>
             </Table>
+
+            {/* Pagination */}
+            {visibleTasks.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>
+                    {Math.min((currentPage - 1) * itemsPerPage + 1, visibleTasks.length)}–{Math.min(currentPage * itemsPerPage, visibleTasks.length)} de {visibleTasks.length} tareas
+                  </span>
+                  <span className="hidden sm:inline">·</span>
+                  <span className="hidden sm:flex items-center gap-1">
+                    Por página:
+                    <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
+                      <SelectTrigger className="h-7 w-16 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="h-8 w-8 p-0 hidden sm:flex"
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                    <ChevronLeft className="h-3 w-3 -ml-2" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="h-8 px-3 gap-1"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline">Anterior</span>
+                  </Button>
+                  <span className="text-sm px-3 tabular-nums">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="h-8 px-3 gap-1"
+                  >
+                    <span className="hidden sm:inline">Siguiente</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="h-8 w-8 p-0 hidden sm:flex"
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                    <ChevronRight className="h-3 w-3 -ml-2" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -850,7 +942,7 @@ export default function TasksPage() {
 
         {/* Mobile Cards View (shown below md breakpoint) */}
         <div className="md:hidden space-y-4">
-          {visibleTasks.map(task => {
+          {paginatedTasks.map(task => {
             const isOverdue = isTaskOverdue(task);
             return (
               <Card key={task.id}>
