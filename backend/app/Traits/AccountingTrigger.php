@@ -460,6 +460,7 @@ trait AccountingTrigger
             'capital' => $breakdown['capital'] ?? 0,
             'sobrante' => $breakdown['sobrante'] ?? 0,
             'cargos_adicionales_total' => $breakdown['cargos_adicionales_total'] ?? 0,
+            'monto_neto' => ($breakdown['total'] ?? $totalAmount) - ($breakdown['cargos_adicionales_total'] ?? 0),
             'cargo_adicional' => $this->resolveCargosAdicionales($breakdown, $line->cargo_adicional_key),
             default => $breakdown['total'] ?? $totalAmount,
         };

@@ -48,7 +48,7 @@ class AccountingEntryConfigController extends Controller
             'lines.*.account_type' => 'required|in:fixed,deductora',
             'lines.*.account_key' => 'required_if:lines.*.account_type,fixed|nullable|string|max:50',
             'lines.*.description' => 'nullable|string|max:255',
-            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,cargos_adicionales_total,cargo_adicional',
+            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,cargos_adicionales_total,monto_neto,cargo_adicional',
             'lines.*.cargo_adicional_key' => 'nullable|string|max:50',
         ]);
 
@@ -107,7 +107,7 @@ class AccountingEntryConfigController extends Controller
             'lines.*.account_type' => 'required_with:lines|in:fixed,deductora',
             'lines.*.account_key' => 'required_if:lines.*.account_type,fixed|nullable|string|max:50',
             'lines.*.description' => 'nullable|string|max:255',
-            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,cargos_adicionales_total,cargo_adicional',
+            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,cargos_adicionales_total,monto_neto,cargo_adicional',
             'lines.*.cargo_adicional_key' => 'nullable|string|max:50',
         ]);
 
@@ -234,6 +234,7 @@ class AccountingEntryConfigController extends Controller
                 'capital' => $breakdown['capital'] ?? 0,
                 'sobrante' => $breakdown['sobrante'] ?? 0,
                 'cargos_adicionales_total' => $breakdown['cargos_adicionales_total'] ?? 0,
+                'monto_neto' => ($breakdown['total'] ?? $amount) - ($breakdown['cargos_adicionales_total'] ?? 0),
                 'cargo_adicional' => ($breakdown['cargos_adicionales'][$line->cargo_adicional_key] ?? $breakdown['cargos_adicionales_total'] ?? 0),
                 default => $breakdown['total'] ?? $amount,
             };

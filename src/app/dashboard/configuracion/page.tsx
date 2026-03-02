@@ -5124,6 +5124,9 @@ export default function ConfiguracionPage() {
                                       <SelectItem value="sobrante">Sobrante (retención de más)</SelectItem>
                                       <SelectItem value="cargos_adicionales_total">Cargos Adicionales (sumatoria total)</SelectItem>
                                       <SelectItem value="cargo_adicional">Cargo Adicional específico (seleccionar cuál →)</SelectItem>
+                                      {configForm.entry_type === 'FORMALIZACION' && (
+                                        <SelectItem value="monto_neto">Monto Neto (Total − Cargos Adicionales)</SelectItem>
+                                      )}
                                     </SelectContent>
                                   </Select>
                                 </div>
