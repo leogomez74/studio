@@ -634,9 +634,9 @@ class CreditPaymentController extends Controller
                 $source = $tipo === 'adelanto' ? 'Adelanto de Cuotas' : 'Adelanto Simple';
                 $cuotasSeleccionadas = $validated['cuotas'] ?? null;
 
-                // Adelanto Simple y Ventanilla: singleCuotaMode=true
+                // Normal/Adelanto Simple y Ventanilla: singleCuotaMode=true
                 // para que el sobrante quede en SaldoPendiente (igual que planilla)
-                $singleCuota = ($tipo === '' || $tipo === null); // Adelanto Simple
+                $singleCuota = in_array($tipo, ['', null, 'normal'], true); // Normal / Adelanto Simple
                 return $this->processPaymentTransaction(
                     $credit,
                     $validated['monto'],
