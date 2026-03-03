@@ -616,12 +616,13 @@ class CreditPaymentController extends Controller
     public function adelanto(Request $request)
     {
         $validated = $request->validate([
-            'credit_id' => 'required|exists:credits,id',
-            'tipo'      => 'nullable|string',
-            'monto'     => 'required|numeric|min:0.01',
-            'fecha'     => 'required|date',
+            'credit_id'  => 'required|exists:credits,id',
+            'tipo'       => 'nullable|string',
+            'monto'      => 'required|numeric|min:0.01',
+            'fecha'      => 'required|date',
+            'referencia' => 'nullable|string|max:100',
             'extraordinary_strategy' => 'nullable|required_if:tipo,extraordinario|in:reduce_amount,reduce_term',
-            'cuotas'    => 'nullable|array', // IDs de cuotas seleccionadas para adelanto
+            'cuotas'     => 'nullable|array', // IDs de cuotas seleccionadas para adelanto
         ]);
 
         // CASO 1: PAGO NORMAL / ADELANTO SIMPLE (Sin Recálculo)
@@ -644,7 +645,10 @@ class CreditPaymentController extends Controller
                     $source,
                     $credit->lead->cedula ?? null,
                     $cuotasSeleccionadas,
-                    $singleCuota
+                    $singleCuota,
+                    null,
+                    -1,
+                    $validated['referencia'] ?? null
                 );
             });
 
@@ -1069,7 +1073,7 @@ class CreditPaymentController extends Controller
      * Lógica "Cascada" (Waterfall) para pagos regulares
      * IMPUTACIÓN: Mora -> Interés -> Cargos -> Capital
      */
-    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null, float $sobranteContable = -1)
+    private function processPaymentTransaction(Credit $credit, $montoEntrante, $fecha, $source, $cedulaRef = null, $cuotasSeleccionadas = null, bool $singleCuotaMode = false, $planillaUploadId = null, float $sobranteContable = -1, ?string $referencia = null)
     {
         $dineroDisponible = $montoEntrante;
 
@@ -1246,6 +1250,7 @@ class CreditPaymentController extends Controller
             'interes_corriente' => $credit->planDePagos()->sum('movimiento_interes_corriente'),
             'amortizacion'      => $credit->planDePagos()->sum('movimiento_amortizacion'),
             'source'            => $source,
+            'referencia'        => $referencia,
             'movimiento_total'  => $dineroDisponible > 0 ? $dineroDisponible : 0,
             'cedula'            => $cedulaRef
         ]);
