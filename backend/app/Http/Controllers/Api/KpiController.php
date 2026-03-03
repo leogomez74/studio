@@ -371,8 +371,8 @@ class KpiController extends Controller
 
     private function getOpportunityKpis(array $dateRange): array
     {
-        // Actual statuses from the system: "Abierta", "En seguimiento", "Ganada", "Perdida"
-        $wonStatuses = ['Ganada'];
+        // Actual statuses from the system: "Abierta", "En seguimiento", "Analizada", "Perdida"
+        $wonStatuses = ['Analizada'];
         $lostStatuses = ['Perdida'];
         $openStatuses = ['Abierta', 'En seguimiento'];
         $closedStatuses = array_merge($wonStatuses, $lostStatuses);
