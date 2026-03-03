@@ -53,5 +53,6 @@ firestore-debug.log
 GEMINI.md
 
 CLAUDE.md
-.claude
+.claude/*
+!.claude/MEMORY.md
 nul

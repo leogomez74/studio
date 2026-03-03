@@ -64,6 +64,11 @@ class SaldoPendienteController extends Controller
             });
         }
 
+        // Excluir registros huérfanos (crédito o lead eliminado)
+        $query->whereHas('credit', function ($q) {
+            $q->whereHas('lead');
+        });
+
         // Paginación
         $perPage = $request->get('per_page', 10);
         $page = $request->get('page', 1);
