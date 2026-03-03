@@ -280,30 +280,31 @@ class KpiController extends Controller
 
                 if ($sourceColumn) {
                     // Query persons table directly to include both leads and clients
+                    // Total global de personas con fuente asignada
+                    $totalPersonsWithSource = DB::table('persons')
+                        ->whereNotNull($sourceColumn)
+                        ->where($sourceColumn, '!=', '')
+                        ->count();
+
                     $leadSourcePerformance = DB::table('persons')
                         ->select($sourceColumn, DB::raw('COUNT(*) as total_count'))
                         ->whereNotNull($sourceColumn)
                         ->where($sourceColumn, '!=', '')
                         ->groupBy($sourceColumn)
                         ->get()
-                        ->map(function ($item) use ($sourceColumn) {
+                        ->map(function ($item) use ($sourceColumn, $totalPersonsWithSource) {
                             $source = $item->$sourceColumn;
                             $totalFromSource = $item->total_count;
 
-                            // Conversion = clients (person_type_id=2) from this source
-                            $clientsFromSource = DB::table('persons')
-                                ->where($sourceColumn, $source)
-                                ->where('person_type_id', 2)
-                                ->count();
-
-                            $conversion = $totalFromSource > 0
-                                ? round(($clientsFromSource / $totalFromSource) * 100, 0)
+                            // Porcentaje de participación global de esta fuente
+                            $percentage = $totalPersonsWithSource > 0
+                                ? round(($totalFromSource / $totalPersonsWithSource) * 100, 0)
                                 : 0;
 
                             return [
                                 'source' => $source ?: 'Desconocido',
                                 'count' => $totalFromSource,
-                                'conversion' => $conversion,
+                                'conversion' => $percentage,
                             ];
                         });
                 }
