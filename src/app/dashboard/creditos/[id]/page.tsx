@@ -5,7 +5,7 @@
  * ====================================
  *
  * Tipos de cargos:
- * - Comisión (3% del monto, vendedores externos)
+ * - Comisión (3% micro crédito, 2.01% crédito regular)
  * - Transporte (₡10,000 fijos)
  * - Respaldo deudor (₡4,950 fijos, solo créditos regulares)
  * - Descuento factura (monto variable)
@@ -211,17 +211,28 @@ interface ClientOption {
 }
 
 // Configuración de cargos adicionales con reglas de negocio
-// - Comisión: 3% del monto (vendedores externos)
+// - Comisión: 3% micro crédito, 2.01% crédito regular
 // - Respaldo deudor: ₡4,950 fijos (solo créditos regulares)
 // - Transporte: ₡10,000 fijos
 // - Los cargos se restan del monto del crédito
+const COMISION_PORCENTAJES = {
+  micro: 0.03,
+  regular: 0.0201,
+};
+
+function getComisionPorcentaje(category: string | null | undefined): number {
+  return (category || '').toLowerCase().includes('micro')
+    ? COMISION_PORCENTAJES.micro
+    : COMISION_PORCENTAJES.regular;
+}
+
 const CARGOS_CONFIG = {
   comision: {
-    label: 'Comisión (3%)',
-    porcentaje: 0.03,
+    label: 'Comisión',
+    porcentaje: null as number | null, // dinámico según categoría
     fijo: null as number | null,
     soloRegular: false,
-    descripcion: '3% del monto para vendedores externos'
+    descripcion: 'Porcentaje del monto según tipo de crédito'
   },
   transporte: {
     label: 'Transporte',
@@ -1282,10 +1293,17 @@ function CreditDetailClient({ id }: { id: string }) {
   useEffect(() => {
     if (!isEditMode || !formData.category) return;
 
-    const esRegular = formData.category === 'Regular';
+    const cat = formData.category || '';
+    const esRegular = cat === 'Crédito' || cat === 'Regular' || cat === 'Personal (Diferentes usos)' || cat === 'Refundición (Pagar deudas actuales)';
 
     setCargosAdicionales(prev => {
       const nuevosCargos = { ...prev };
+
+      // Recalcular comisión con porcentaje dinámico
+      const monto = formData.monto_credito || credit?.monto_credito || 0;
+      if (monto > 0) {
+        nuevosCargos.comision = monto * getComisionPorcentaje(cat);
+      }
 
       if (esRegular) {
         // Si es Regular y respaldo_deudor está en 0, aplicar valor por defecto
@@ -1335,7 +1353,8 @@ function CreditDetailClient({ id }: { id: string }) {
   // Aplicar valores por defecto según CARGOS_CONFIG
   const aplicarCargosDefecto = () => {
     const monto = formData.monto_credito || credit?.monto_credito || 0;
-    const esRegular = (formData.category || credit?.category) === 'Regular';
+    const catDef = formData.category || credit?.category || '';
+    const esRegular = catDef === 'Crédito' || catDef === 'Regular' || catDef === 'Personal (Diferentes usos)' || catDef === 'Refundición (Pagar deudas actuales)';
 
     const nuevosCargos: CargosAdicionales = {
       comision: 0,
@@ -1349,6 +1368,13 @@ function CreditDetailClient({ id }: { id: string }) {
       // Si es solo para Regular y no es Regular, dejar en 0
       if (config.soloRegular && !esRegular) {
         nuevosCargos[key] = 0;
+        return;
+      }
+
+      // Comisión usa porcentaje dinámico según categoría
+      if (key === 'comision') {
+        const pct = getComisionPorcentaje(formData.category || credit?.category);
+        nuevosCargos[key] = monto * pct;
         return;
       }
 
@@ -2107,15 +2133,29 @@ function CreditDetailClient({ id }: { id: string }) {
                           </div>
                           <div className="space-y-2">
                             <Label>Entidad Deductora</Label>
-                            <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                              {(() => {
-                                // Use credit's deductora_id, fallback to lead's deductora_id
-                                const idDeductora = credit.deductora_id || credit.lead?.deductora_id;
-                                if (!idDeductora) return "Sin asignar";
-                                const encontrada = deductoras.find(d => String(d.id) === String(idDeductora));
-                                return encontrada ? encontrada.nombre : idDeductora;
-                              })()}
-                            </p>
+                            {isEditMode ? (
+                              <Select
+                                value={String(formData.deductora_id || credit.deductora_id || credit.lead?.deductora_id || 'sin_deductora')}
+                                onValueChange={(v) => handleInputChange('deductora_id', v === 'sin_deductora' ? null : Number(v))}
+                              >
+                                <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="sin_deductora">Sin asignar</SelectItem>
+                                  {deductoras.map((d) => (
+                                    <SelectItem key={d.id} value={String(d.id)}>{d.nombre}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                                {(() => {
+                                  const idDeductora = credit.deductora_id || credit.lead?.deductora_id;
+                                  if (!idDeductora) return "Sin asignar";
+                                  const encontrada = deductoras.find(d => String(d.id) === String(idDeductora));
+                                  return encontrada ? encontrada.nombre : idDeductora;
+                                })()}
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -2142,12 +2182,17 @@ function CreditDetailClient({ id }: { id: string }) {
                           </div>
                           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
                             {(Object.entries(CARGOS_CONFIG) as [TipoCargoAdicional, typeof CARGOS_CONFIG[TipoCargoAdicional]][]).map(([key, config]) => {
-                              const esRegular = (formData.category || credit?.category) === 'Regular';
+                              const catDisplay = formData.category || credit?.category || '';
+                              const esRegular = catDisplay === 'Crédito' || catDisplay === 'Regular' || catDisplay === 'Personal (Diferentes usos)' || catDisplay === 'Refundición (Pagar deudas actuales)';
                               const deshabilitado = config.soloRegular && !esRegular;
                               const monto = formData.monto_credito || credit?.monto_credito || 0;
 
                               // Calcular placeholder según configuración
                               const getPlaceholder = () => {
+                                if (key === 'comision') {
+                                  const pct = getComisionPorcentaje(formData.category || credit?.category);
+                                  return `Sugerido: ${formatCurrency(monto * pct)}`;
+                                }
                                 if (config.porcentaje) {
                                   return `Sugerido: ${formatCurrency(monto * config.porcentaje)}`;
                                 }
@@ -2160,7 +2205,9 @@ function CreditDetailClient({ id }: { id: string }) {
                               return (
                                 <div key={key} className="space-y-1">
                                   <Label className={`text-xs ${deshabilitado ? 'text-muted-foreground/50' : ''}`} title={config.descripcion}>
-                                    {config.label}
+                                    {key === 'comision'
+                                      ? `Comisión (${(getComisionPorcentaje(formData.category || credit?.category) * 100).toFixed(2)}%)`
+                                      : config.label}
                                     {config.soloRegular && !esRegular && (
                                       <span className="ml-1 text-[10px] text-orange-500">(solo Regular)</span>
                                     )}

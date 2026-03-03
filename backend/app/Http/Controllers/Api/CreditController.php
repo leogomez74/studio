@@ -541,6 +541,7 @@ class CreditController extends Controller
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
             'cargos_adicionales.respaldo_deudor' => 'nullable|numeric|min:0',
             'cargos_adicionales.descuento_factura' => 'nullable|numeric|min:0',
+            'deductora_id' => 'nullable|integer|exists:deductoras,id',
             'formalized_at' => 'nullable|date|before_or_equal:today',
         ]);
 

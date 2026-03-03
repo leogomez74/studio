@@ -1397,6 +1397,7 @@ export default function CreditsPage() {
                         <TableHead>Cuota</TableHead>
                         <TableHead>Línea</TableHead>
                         <TableHead>1ª Deducción</TableHead>
+                        <TableHead>Formalización</TableHead>
                         <TableHead>Garantía</TableHead>
                         <TableHead>Vencimiento</TableHead>
                         <TableHead>Proceso</TableHead>
@@ -1612,6 +1613,7 @@ export default function CreditsPage() {
                             {/* Columnas Calculadas / Fallbacks */}
                             <TableCell>{linea}</TableCell>
                             <TableCell>{fechaInicio ? formatDate(fechaInicio) : "No aplicable"}</TableCell>
+                            <TableCell>{credit.formalized_at ? formatDate(credit.formalized_at) : "-"}</TableCell>
                             <TableCell>{credit.garantia || "No aplicable"}</TableCell>
                             <TableCell>{formatDate(fechaFin)}</TableCell>
                             <TableCell>{proceso}</TableCell>
@@ -1792,6 +1794,7 @@ export default function CreditsPage() {
                                 <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
                                 <TableCell className="bg-muted/30">{lineaSecondary}</TableCell>
                                 <TableCell className="bg-muted/30">{fechaInicioSecondary ? formatDate(fechaInicioSecondary) : "No aplicable"}</TableCell>
+                                <TableCell className="bg-muted/30">{credit.formalized_at ? formatDate(credit.formalized_at) : "-"}</TableCell>
                                 <TableCell className="bg-muted/30">{credit.garantia || "No aplicable"}</TableCell>
                                 <TableCell className="bg-muted/30">{formatDate(fechaFinSecondary)}</TableCell>
                                 <TableCell className="bg-muted/30">{procesoSecondary}</TableCell>

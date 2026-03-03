@@ -91,7 +91,7 @@ export function CreditFormModal({
   });
 
   // Estado para configuraciones de préstamo (para calcular cuota estimada)
-  const [loanConfigs, setLoanConfigs] = useState<{ tipo: string; tasa: { tasa: number } | null }[]>([]);
+  const [loanConfigs, setLoanConfigs] = useState<{ tipo: string; monto_poliza?: number; tasa: { tasa: number } | null }[]>([]);
 
   // Cargar deductoras y loan configs al abrir el modal
   useEffect(() => {
@@ -158,21 +158,23 @@ export function CreditFormModal({
 
   // Configuración de cargos adicionales por defecto
   const CARGOS_CONFIG = {
-    comision: { porcentaje: 0.03, fijo: null },
-    transporte: { porcentaje: null, fijo: 10000 },
-    respaldo_deudor: { porcentaje: null, fijo: 4950, soloRegular: true },
-    descuento_factura: { porcentaje: null, fijo: 0 },
-    cancelacion_manchas: { porcentaje: null, fijo: 0 },
+    comision: { porcentajeMicro: 0.03, porcentajeRegular: 0.0201 },
+    transporte: { fijo: 10000 },
+    respaldo_deudor: { fijo: 4950 },
+    descuento_factura: { fijo: 0 },
+    cancelacion_manchas: { fijo: 0 },
   };
 
   const calcularCargosDefault = (monto: number, category: string) => {
-    const esRegular = category === 'Regular' || category === 'Personal (Diferentes usos)' || category === 'Refundición (Pagar deudas actuales)';
+    const esMicro = category.toLowerCase().includes('micro');
+    const esRegular = category === 'Crédito' || category === 'Regular' || category === 'Personal (Diferentes usos)' || category === 'Refundición (Pagar deudas actuales)';
+    const porcentajeComision = esMicro ? CARGOS_CONFIG.comision.porcentajeMicro : CARGOS_CONFIG.comision.porcentajeRegular;
     return {
-      comision: Math.round(monto * (CARGOS_CONFIG.comision.porcentaje || 0) * 100) / 100,
-      transporte: CARGOS_CONFIG.transporte.fijo || 0,
-      respaldo_deudor: esRegular ? (CARGOS_CONFIG.respaldo_deudor.fijo || 0) : 0,
-      descuento_factura: CARGOS_CONFIG.descuento_factura.fijo || 0,
-      cancelacion_manchas: CARGOS_CONFIG.cancelacion_manchas.fijo || 0,
+      comision: Math.round(monto * porcentajeComision * 100) / 100,
+      transporte: CARGOS_CONFIG.transporte.fijo,
+      respaldo_deudor: esRegular ? CARGOS_CONFIG.respaldo_deudor.fijo : 0,
+      descuento_factura: CARGOS_CONFIG.descuento_factura.fijo,
+      cancelacion_manchas: CARGOS_CONFIG.cancelacion_manchas.fijo,
     };
   };
 
@@ -208,6 +210,15 @@ export function CreditFormModal({
     }
     return monto / plazo;
   }, [creditForm.monto_credito, creditForm.plazo, creditForm.category, loanConfigs]);
+
+  // Monto de póliza desde configuración
+  const montoPoliza = useMemo(() => {
+    if (!creditForm.poliza) return 0;
+    const category = (creditForm.category || '').toLowerCase();
+    const tipo = category.includes('micro') ? 'microcredito' : 'regular';
+    const config = loanConfigs.find(c => c.tipo === tipo);
+    return config?.monto_poliza ?? 0;
+  }, [creditForm.poliza, creditForm.category, loanConfigs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -667,52 +678,82 @@ export function CreditFormModal({
               </div>
             </div>
 
-            {/* Monto Total después de cargos */}
-            <div className="p-4 border-2 rounded-lg bg-blue-50 border-blue-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Monto Original</p>
-                  <p className="text-lg font-semibold">{formatCurrency(creditForm.monto_credito || 0)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Monto Neto a Desembolsar</p>
-                  <p className="text-2xl font-bold text-blue-700">
-                    {formatCurrency(
-                      parseFloat(parseCurrencyToNumber(String(creditForm.monto_credito) || '0')) -
-                      cargosAdicionales.comision -
-                      cargosAdicionales.transporte -
-                      cargosAdicionales.respaldo_deudor -
-                      cargosAdicionales.descuento_factura -
+            {/* Resumen detallado */}
+            <div className="p-4 border-2 rounded-lg bg-blue-50 border-blue-200 space-y-3">
+              {/* Monto Original */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Monto Original del Crédito</span>
+                <span className="text-lg font-bold">{formatCurrency(creditForm.monto_credito || 0)}</span>
+              </div>
+
+              {/* Deducciones */}
+              <div className="border-t border-blue-200 pt-3 space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deducciones</p>
+                {[
+                  { label: `Comisión (${((creditForm.category.toLowerCase().includes('micro') ? CARGOS_CONFIG.comision.porcentajeMicro : CARGOS_CONFIG.comision.porcentajeRegular) * 100).toFixed(2)}%)`, value: cargosAdicionales.comision },
+                  { label: 'Transporte', value: cargosAdicionales.transporte },
+                  { label: 'Respaldo Deudor', value: cargosAdicionales.respaldo_deudor },
+                  { label: 'Descuento de Factura', value: cargosAdicionales.descuento_factura },
+                  { label: 'Cancelación de Manchas', value: cargosAdicionales.cancelacion_manchas },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className={`font-medium ${value > 0 ? 'text-red-600' : ''}`}>
+                      {value > 0 ? '−' : ''}{formatCurrency(value)}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm pt-1 border-t border-blue-200">
+                  <span className="font-medium">Total Deducciones</span>
+                  <span className="font-bold text-red-600">
+                    −{formatCurrency(
+                      cargosAdicionales.comision +
+                      cargosAdicionales.transporte +
+                      cargosAdicionales.respaldo_deudor +
+                      cargosAdicionales.descuento_factura +
                       cargosAdicionales.cancelacion_manchas
                     )}
-                  </p>
+                  </span>
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-blue-200">
-                <p className="text-xs text-muted-foreground mb-2">Desglose de cargos:</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex justify-between">
-                    <span>Comisión:</span>
-                    <span className="font-medium">{formatCurrency(cargosAdicionales.comision)}</span>
+
+              {/* Monto Neto a Desembolsar */}
+              <div className="border-t-2 border-blue-300 pt-3 flex justify-between items-center">
+                <span className="text-sm font-bold">Monto Neto a Desembolsar</span>
+                <span className="text-2xl font-bold text-blue-700">
+                  {formatCurrency(
+                    parseFloat(parseCurrencyToNumber(String(creditForm.monto_credito) || '0')) -
+                    cargosAdicionales.comision -
+                    cargosAdicionales.transporte -
+                    cargosAdicionales.respaldo_deudor -
+                    cargosAdicionales.descuento_factura -
+                    cargosAdicionales.cancelacion_manchas
+                  )}
+                </span>
+              </div>
+
+              {/* Cuota Estimada + Póliza */}
+              {cuotaEstimada && (
+                <div className="border-t border-blue-200 pt-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cuota Mensual</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Cuota base ({creditForm.plazo} meses)</span>
+                    <span className="font-medium">{formatCurrency(cuotaEstimada)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Transporte:</span>
-                    <span className="font-medium">{formatCurrency(cargosAdicionales.transporte)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Respaldo Deudor:</span>
-                    <span className="font-medium">{formatCurrency(cargosAdicionales.respaldo_deudor)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Descuento Factura:</span>
-                    <span className="font-medium">{formatCurrency(cargosAdicionales.descuento_factura)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Cancelación de Manchas:</span>
-                    <span className="font-medium">{formatCurrency(cargosAdicionales.cancelacion_manchas)}</span>
+                  {creditForm.poliza && montoPoliza > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Póliza</span>
+                      <span className="font-medium text-orange-600">+{formatCurrency(montoPoliza)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm pt-1 border-t border-blue-200">
+                    <span className="font-bold">Cuota Total Estimada</span>
+                    <span className="font-bold text-blue-700">
+                      {formatCurrency(cuotaEstimada + (creditForm.poliza ? montoPoliza : 0))}
+                    </span>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </>
           )}
