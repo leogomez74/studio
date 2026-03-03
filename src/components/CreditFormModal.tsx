@@ -477,16 +477,13 @@ export function CreditFormModal({
                 className="bg-gray-50"
               />
             </div>
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2">
               <Label>Cuota Estimada</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={cuotaEstimada ? formatCurrency(cuotaEstimada) : '—'}
-                  disabled
-                  className="bg-gray-50 font-semibold max-w-[220px]"
-                />
-                <span className="text-xs text-muted-foreground">mensual (referencia)</span>
-              </div>
+              <Input
+                value={cuotaEstimada ? formatCurrency(cuotaEstimada) : '—'}
+                disabled
+                className="bg-gray-50 font-semibold"
+              />
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label>Deductora</Label>
