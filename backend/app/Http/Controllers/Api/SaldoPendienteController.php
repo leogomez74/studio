@@ -70,7 +70,9 @@ class SaldoPendienteController extends Controller
 
         $saldos = $query->paginate($perPage, ['*'], 'page', $page);
 
-        $mapped = $saldos->getCollection()->map(function ($saldo) {
+        $mapped = $saldos->getCollection()->filter(function ($saldo) {
+            return $saldo->credit && $saldo->credit->lead;
+        })->map(function ($saldo) {
             $person = $saldo->credit->lead;
             $cedula = $saldo->cedula ?? ($person->cedula ?? '');
             $deductoraId = $saldo->credit->deductora_id;
