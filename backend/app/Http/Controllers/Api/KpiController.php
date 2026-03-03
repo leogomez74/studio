@@ -654,20 +654,22 @@ class KpiController extends Controller
                 // Fallback
             }
 
-            // Time to disbursement - calculate from opportunity to credit creation
+            // Time to disbursement - from opportunity creation to credit opening
+            // Uses opened_at (real date) and GREATEST(0,...) to handle imported data
             $timeToDisbursement = 0;
             $prevTimeToDisbursement = 0;
             try {
-                // Get credits with their linked opportunities and calculate average days
-                $avgDays = Credit::whereBetween('credits.created_at', [$dateRange['start'], $dateRange['end']])
+                $avgDays = Credit::whereNotNull('credits.opened_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.opened_at, credits.created_at)'), [$dateRange['start'], $dateRange['end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.created_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.opened_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $timeToDisbursement = $avgDays ? round($avgDays, 1) : 0;
 
-                $prevAvgDays = Credit::whereBetween('credits.created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
+                $prevAvgDays = Credit::whereNotNull('credits.opened_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.opened_at, credits.created_at)'), [$dateRange['prev_start'], $dateRange['prev_end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.created_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.opened_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $prevTimeToDisbursement = $prevAvgDays ? round($prevAvgDays, 1) : 0;
             } catch (\Exception $e) {
@@ -675,20 +677,21 @@ class KpiController extends Controller
             }
 
             // Full cycle: opportunity creation to credit formalization
+            // Uses formalized_at (real date) and GREATEST(0,...) to handle imported data
             $fullCycleTime = 0;
             $prevFullCycleTime = 0;
             try {
-                $avgCycleDays = Credit::whereBetween('credits.formalized_at', [$dateRange['start'], $dateRange['end']])
-                    ->whereNotNull('credits.formalized_at')
+                $avgCycleDays = Credit::whereNotNull('credits.formalized_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.formalized_at, credits.created_at)'), [$dateRange['start'], $dateRange['end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.formalized_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.formalized_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $fullCycleTime = $avgCycleDays ? round($avgCycleDays, 1) : 0;
 
-                $prevAvgCycleDays = Credit::whereBetween('credits.formalized_at', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->whereNotNull('credits.formalized_at')
+                $prevAvgCycleDays = Credit::whereNotNull('credits.formalized_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.formalized_at, credits.created_at)'), [$dateRange['prev_start'], $dateRange['prev_end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.formalized_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.formalized_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $prevFullCycleTime = $prevAvgCycleDays ? round($prevAvgCycleDays, 1) : 0;
             } catch (\Exception $e) {
