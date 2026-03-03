@@ -478,7 +478,14 @@ class LeadController extends Controller
                     ->whereIn('opportunity_id', $opportunities)
                     ->pluck('id');
 
+                // Guardar referencias de créditos para eliminar tareas después
+                $creditRefs = collect();
+
                 if ($credits->isNotEmpty()) {
+                    $creditRefs = DB::table('credits')
+                        ->whereIn('id', $credits)
+                        ->pluck('reference');
+
                     $creditDocuments = DB::table('credit_documents')
                         ->whereIn('credit_id', $credits)
                         ->get();
@@ -489,6 +496,27 @@ class LeadController extends Controller
                             $deletedCreditDocs++;
                         }
                     }
+
+                    // Eliminar registros dependientes de créditos
+                    $deletedPayments = DB::table('credit_payments')
+                        ->whereIn('credit_id', $credits)
+                        ->delete();
+
+                    $deletedPlanDePagos = DB::table('plan_de_pagos')
+                        ->whereIn('credit_id', $credits)
+                        ->delete();
+
+                    $deletedSaldos = DB::table('saldos_pendientes')
+                        ->whereIn('credit_id', $credits)
+                        ->delete();
+
+                    $deletedAccountingLogs = DB::table('accounting_entry_logs')
+                        ->where(function ($q) use ($credits) {
+                            foreach ($credits as $creditId) {
+                                $q->orWhereJsonContains('context->credit_id', $creditId);
+                            }
+                        })
+                        ->delete();
 
                     // Eliminar créditos (CASCADE eliminará credit_documents de la BD)
                     $deletedCredits = DB::table('credits')
@@ -518,6 +546,18 @@ class LeadController extends Controller
                     ->delete();
             }
 
+            // Eliminar tareas vinculadas (por project_code = person.id, opportunity.id, o credit.reference)
+            $taskCodes = collect([(string) $person->id]);
+            if ($opportunities->isNotEmpty()) {
+                $taskCodes = $taskCodes->merge($opportunities->map(fn ($id) => (string) $id));
+            }
+            if (isset($creditRefs) && $creditRefs->isNotEmpty()) {
+                $taskCodes = $taskCodes->merge($creditRefs);
+            }
+            $deletedTasks = DB::table('tasks')
+                ->whereIn('project_code', $taskCodes->filter()->unique()->toArray())
+                ->delete();
+
             // Finalmente, eliminar la persona (CASCADE eliminará person_documents de la BD)
             $deletedPerson = DB::table('persons')->where('id', $person->id)->delete();
 
@@ -531,6 +571,11 @@ class LeadController extends Controller
                     'opportunities' => $deletedOpportunities ?? 0,
                     'analisis' => $deletedAnalisis ?? 0,
                     'credits' => $deletedCredits ?? 0,
+                    'credit_payments' => $deletedPayments ?? 0,
+                    'plan_de_pagos' => $deletedPlanDePagos ?? 0,
+                    'saldos_pendientes' => $deletedSaldos ?? 0,
+                    'accounting_logs' => $deletedAccountingLogs ?? 0,
+                    'tasks' => $deletedTasks ?? 0,
                     'person_documents_files' => $deletedPersonDocs,
                     'credit_documents_files' => $deletedCreditDocs
                 ]
