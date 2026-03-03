@@ -92,6 +92,9 @@ ACCOUNTING_CONFIGURABLE_REINTEGRO_SALDO=false
 # Anulación de sobrante (se dispara automáticamente al anular una planilla que tenía sobrante)
 # Es el espejo inverso de SALDO_SOBRANTE
 ACCOUNTING_CONFIGURABLE_ANULACION_SOBRANTE=false
+
+# Reverso de abono extraordinario (anulación de abono a capital con penalización)
+ACCOUNTING_CONFIGURABLE_REVERSO_EXTRAORDINARIO=false
 ```
 
 ---
@@ -194,10 +197,33 @@ ACCOUNTING_USE_CONFIGURABLE=true
 
 ### PAGO_VENTANILLA
 **Cuándo se dispara**: Pago directo en oficina
+
+**Variable .env**: `ACCOUNTING_CONFIGURABLE_VENTANILLA=true`
+
+**Estado**: Configuración creada en UI (03/03/2026), flag pendiente de activar
+
 | Línea | Cuenta | Movimiento | Componente |
 |-------|--------|------------|------------|
 | 1 | banco_credipep | Débito | Total |
 | 2 | cuentas_por_cobrar | Crédito | Total |
+
+> Si el pago genera sobrante (monto pagado > cuota), se dispara automáticamente el asiento `SALDO_SOBRANTE`.
+
+---
+
+### REVERSO_PAGO (Anulación de Abono)
+**Cuándo se dispara**: Al revertir/anular un pago de ventanilla
+
+**Variable .env**: `ACCOUNTING_CONFIGURABLE_ANULACION_ABONO=true`
+
+**Estado**: Configuración creada en UI (03/03/2026), flag pendiente de activar
+
+| Línea | Cuenta | Movimiento | Componente |
+|-------|--------|------------|------------|
+| 1 | cuentas_por_cobrar | Débito | Total |
+| 2 | banco_credipep | Crédito | Total |
+
+> Es el espejo inverso de `PAGO_VENTANILLA`. Si el pago original tenía sobrante, se dispara automáticamente el asiento `ANULACION_SOBRANTE`.
 
 ---
 
@@ -217,7 +243,7 @@ ACCOUNTING_USE_CONFIGURABLE=true
 ---
 
 ### SALDO_SOBRANTE
-**Cuándo se dispara**: Automáticamente después de PAGO_PLANILLA cuando queda dinero sobrante tras pagar todos los créditos del cliente
+**Cuándo se dispara**: Automáticamente después de PAGO_PLANILLA o PAGO_VENTANILLA cuando queda dinero sobrante tras pagar todos los créditos del cliente
 
 **Variable .env**: `ACCOUNTING_CONFIGURABLE_SALDO_SOBRANTE=true`
 
@@ -226,25 +252,57 @@ ACCOUNTING_USE_CONFIGURABLE=true
 | 1 | retenciones_por_aplicar | Débito | Sobrante |
 | 2 | desembolsos_saldos_favor | Crédito | Sobrante |
 
-> Este es el **2do asiento automático** del flujo de sobrantes. Se dispara solo si hay un sobrante mayor a ₡0.50 y si existe una configuración activa de tipo `SALDO_SOBRANTE`.
+> Este es el **2do asiento automático** del flujo de sobrantes. Se dispara solo si hay un sobrante mayor a ₡0.50 y si existe una configuración activa de tipo `SALDO_SOBRANTE`. Aplica tanto para pagos de planilla (desde `PlanillaUploadController`) como para pagos de ventanilla/manuales (desde `CreditPaymentController`).
 
 ---
 
 ### ABONO_EXTRAORDINARIO
-**Cuándo se dispara**: Pago fuera de cuota
-| Línea | Cuenta | Movimiento | Componente |
-|-------|--------|------------|------------|
-| 1 | banco_credipep | Débito | Total |
-| 2 | cuentas_por_cobrar | Crédito | Total |
+**Cuándo se dispara**: Abono a capital (pago fuera de cuota regular)
+
+**Variable .env**: `ACCOUNTING_CONFIGURABLE_EXTRAORDINARIO=true`
+
+**Penalización**: Si el crédito tiene menos de 12 cuotas pagadas, se cobra una penalización igual a la suma del interés corriente de las próximas 3 cuotas. La penalización se resta del monto aplicado al saldo: `capital = montoAbono - penalizacion`.
+
+| Línea | Tipo Cuenta | Cuenta | Movimiento | Componente |
+|-------|-------------|--------|------------|------------|
+| 1 | Deductora o Fija (auto) | banco_credipepe (fallback) | Débito | Total |
+| 2 | Fija | cuenta_por_cobrar_pepito_plazo | Crédito | Capital |
+| 3 | Fija | ingresos_por_penalizacion | Crédito | Penalización |
+
+> La línea de penalización se omite automáticamente si no hay penalización (≥12 cuotas pagadas). El tipo de cuenta "Deductora o Fija" usa la cuenta de la deductora si el crédito tiene una, o la cuenta fija de fallback si no.
+
+---
+
+### REVERSO_EXTRAORDINARIO
+**Cuándo se dispara**: Al revertir/anular un abono extraordinario
+
+**Variable .env**: `ACCOUNTING_CONFIGURABLE_REVERSO_EXTRAORDINARIO=true`
+
+| Línea | Tipo Cuenta | Cuenta | Movimiento | Componente |
+|-------|-------------|--------|------------|------------|
+| 1 | Deductora o Fija (auto) | banco_credipepe (fallback) | Crédito | Total |
+| 2 | Fija | cuenta_por_cobrar_pepito_plazo | Débito | Capital |
+| 3 | Fija | ingresos_por_penalizacion | Débito | Penalización |
+
+> Es el espejo inverso de `ABONO_EXTRAORDINARIO`.
 
 ---
 
 ### CANCELACION_ANTICIPADA
 **Cuándo se dispara**: Cliente paga todo el crédito antes del plazo
-| Línea | Cuenta | Movimiento | Componente |
-|-------|--------|------------|------------|
-| 1 | banco_credipep | Débito | Total |
-| 2 | cuentas_por_cobrar | Crédito | Total |
+
+**Variable .env**: `ACCOUNTING_CONFIGURABLE_CANCELACION=true`
+
+**Penalización**: Si el crédito tiene menos de 12 cuotas pagadas, se cobra `cuotaMensual × 3` como penalización.
+
+| Línea | Tipo Cuenta | Cuenta | Movimiento | Componente |
+|-------|-------------|--------|------------|------------|
+| 1 | Deductora o Fija (auto) | banco_credipepe (fallback) | Débito | Total |
+| 2 | Fija | cuenta_por_cobrar_pepito_plazo | Crédito | Capital |
+| 3 | Fija | ingreso_interes_corriente | Crédito | Interés Corriente |
+| 4 | Fija | ingresos_por_penalizacion | Crédito | Penalización |
+
+> `total = capital + interes_corriente + penalizacion`. Las líneas de interés corriente (intereses vencidos de cuotas en mora) y penalización se omiten si son 0.
 
 ---
 
@@ -274,12 +332,12 @@ ACCOUNTING_USE_CONFIGURABLE=true
 | 2 | banco_credipep | Crédito | Total |
 | 3 | retenciones_por_aplicar | Débito | **Sobrante** *(solo si había sobrante)* |
 
-> Si el pago anulado tenía sobrante, se incluye automáticamente la línea 3 para revertir la retención. Además se dispara el segundo asiento `ANULACION_SOBRANTE`.
+> Si el pago anulado tenía sobrante, se incluye automáticamente la línea 3 para revertir la retención. Además se dispara el segundo asiento `ANULACION_SOBRANTE`. Esto aplica tanto para anulación de planilla como para reversión de pagos de ventanilla.
 
 ---
 
 ### ANULACION_SOBRANTE
-**Cuándo se dispara**: Automáticamente al anular una planilla que tenía sobrante retenido. Es el espejo inverso de `SALDO_SOBRANTE`.
+**Cuándo se dispara**: Automáticamente al anular/revertir un pago (planilla o ventanilla) que tenía sobrante retenido. Es el espejo inverso de `SALDO_SOBRANTE`.
 
 **Variable .env**: `ACCOUNTING_CONFIGURABLE_ANULACION_SOBRANTE=true`
 
@@ -288,7 +346,7 @@ ACCOUNTING_USE_CONFIGURABLE=true
 | 1 | desembolsos_saldos_favor | Débito | Sobrante |
 | 2 | retenciones_por_aplicar | Crédito | Sobrante |
 
-> Solo se dispara si `movimiento_total > 0.50` en el pago que se está anulando.
+> Solo se dispara si el sobrante asociado al pago es > 0.50. Aplica tanto para anulación de planilla (desde `PlanillaUploadController`) como para reversión de pagos de ventanilla/manuales (desde `CreditPaymentController::reverseNormalPayment()`).
 
 ---
 
@@ -322,6 +380,7 @@ Al configurar una línea de asiento, el campo **"Componente del Monto"** indica 
 | `interes_moratorio` | Solo intereses por mora |
 | `poliza` | Solo el componente de póliza/seguro |
 | `sobrante` | El monto sobrante (exceso no aplicado a ningún crédito) |
+| `penalizacion` | Penalización por abono anticipado (< 12 cuotas pagadas) |
 | `cargo_adicional` | Un cargo adicional específico (requiere seleccionar cuál) |
 
 > Si el componente es 0 en un pago específico, esa línea se omite automáticamente del asiento.
@@ -391,11 +450,29 @@ php artisan config:cache
 | **Sobrante** | Excedente de dinero que queda tras pagar todos los créditos de un cliente en planilla |
 | **Retenciones por aplicar** | Cuenta transitoria donde se registra el sobrante retenido |
 | **Desembolsos Saldos a Favor** | Cuenta que registra el saldo a favor del cliente |
+| **Deductora o Fija (auto)** | Tipo de cuenta híbrido: usa la cuenta de la deductora si el crédito tiene una, o la cuenta fija de fallback si no |
+| **Penalización** | Cargo por abono anticipado cuando el crédito tiene < 12 cuotas pagadas |
 
 ---
 
-**Última actualización**: 2026-02-25
-**Versión del manual**: 2.1
+**Última actualización**: 2026-03-03
+**Versión del manual**: 2.4
+**Cambios v2.4**:
+- Nuevo tipo de cuenta `deductora_or_fixed` (Deductora o Fija auto): usa cuenta de deductora si existe, o fallback a cuenta fija
+- Nuevo componente de monto `penalizacion`: para penalización por abono anticipado (< 12 cuotas)
+- `ABONO_EXTRAORDINARIO` actualizado: desglose con capital + penalización, soporte deductora_or_fixed
+- `CANCELACION_ANTICIPADA` actualizado: desglose con capital + intereses vencidos + penalización, soporte deductora_or_fixed
+- Nuevo tipo `REVERSO_EXTRAORDINARIO` con variable `ACCOUNTING_CONFIGURABLE_REVERSO_EXTRAORDINARIO`
+- Secciones de ABONO_EXTRAORDINARIO, REVERSO_EXTRAORDINARIO y CANCELACION_ANTICIPADA reescritas con detalle completo
+
+**Cambios v2.3**:
+- Agregada sección `REVERSO_PAGO` (Anulación de Abono) con variable `ACCOUNTING_CONFIGURABLE_ANULACION_ABONO`
+- Configuraciones de `PAGO_VENTANILLA` y `REVERSO_PAGO` creadas desde la UI (flags pendientes de activar)
+- `SALDO_SOBRANTE` ahora se dispara también para pagos de ventanilla/manuales (no solo planilla)
+- `ANULACION_SOBRANTE` ahora se dispara al revertir pagos de ventanilla/manuales con sobrante
+- Al revertir un pago de ventanilla, se eliminan los registros `SaldoPendiente` asociados (antes solo se limpiaban para planilla)
+- Ambos asientos de sobrante usan la misma configuración existente (no requieren nuevas variables .env)
+
 **Cambios v2.2**:
 - Agregado tipo de asiento `ANULACION_SOBRANTE` con variable `ACCOUNTING_CONFIGURABLE_ANULACION_SOBRANTE`
 - `ANULACION_PLANILLA` ahora incluye componente `sobrante` en el breakdown
