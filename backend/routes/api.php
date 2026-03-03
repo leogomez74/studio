@@ -319,12 +319,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('credit-payments', CreditPaymentController::class);
 
     // Saldos Pendientes (sobrantes de planilla)
-    // TEMP: Delete orphaned saldo pendiente
-    Route::delete('saldos-pendientes/{id}/force', function (int $id) {
-        $saldo = \App\Models\SaldoPendiente::findOrFail($id);
-        $saldo->delete();
-        return response()->json(['message' => "Saldo #{$id} eliminado"]);
-    });
     Route::get('saldos-pendientes', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'index']);
     Route::post('saldos-pendientes/{id}/preview', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'previewAsignacion']);
     Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar']);
