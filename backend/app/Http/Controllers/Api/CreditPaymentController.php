@@ -786,6 +786,8 @@ class CreditPaymentController extends Controller
                     'credit_id' => $credit->reference,
                     'cedula' => $credit->lead->cedula ?? null,
                     'clienteNombre' => $credit->lead->name ?? null,
+                    'deductora_id' => $credit->deductora_id,
+                    'deductora_nombre' => $credit->deductora->nombre ?? null,
                     'amount_breakdown' => [
                         'total' => $montoAbono,
                         'interes_corriente' => 0,
@@ -1263,7 +1265,7 @@ class CreditPaymentController extends Controller
 
         // Si hubo sobrante en un pago MANUAL (no planilla), crear SaldoPendiente
         if ($dineroDisponible > 0.50 && $planillaUploadId === null) {
-            SaldoPendiente::create([
+            $saldoPendiente = SaldoPendiente::create([
                 'credit_id'         => $credit->id,
                 'credit_payment_id' => $paymentRecord->id,
                 'monto'             => $dineroDisponible,
@@ -1272,6 +1274,29 @@ class CreditPaymentController extends Controller
                 'estado'            => 'pendiente',
                 'cedula'            => $cedulaRef ?? $credit->lead->cedula ?? null,
             ]);
+
+            // Disparar asiento contable SALDO_SOBRANTE (mismo patrón que planilla)
+            $this->triggerAccountingEntry(
+                'SALDO_SOBRANTE',
+                $dineroDisponible,
+                "SOB-{$saldoPendiente->id}-{$credit->reference}",
+                [
+                    'credit_id'          => $credit->reference,
+                    'cedula'             => $cedulaRef ?? $credit->lead->cedula ?? null,
+                    'clienteNombre'      => $credit->lead->name ?? null,
+                    'saldo_pendiente_id' => $saldoPendiente->id,
+                    'amount_breakdown'   => [
+                        'total'                  => $dineroDisponible,
+                        'sobrante'               => $dineroDisponible,
+                        'interes_corriente'      => 0,
+                        'interes_moratorio'      => 0,
+                        'poliza'                 => 0,
+                        'capital'                => 0,
+                        'cargos_adicionales_total' => 0,
+                        'cargos_adicionales'     => [],
+                    ],
+                ]
+            );
         }
 
         // Guardar detalles por cuota para posible reverso
@@ -2419,10 +2444,9 @@ class CreditPaymentController extends Controller
                 $cuotasRevertidas++;
             }
 
-            // Planilla: limpiar SaldoPendiente asociado
-            if ($payment->source === 'Planilla') {
-                SaldoPendiente::where('credit_payment_id', $payment->id)->delete();
-            }
+            // Limpiar SaldoPendiente asociado (planilla y ventanilla)
+            $sobranteAnulado = (float) SaldoPendiente::where('credit_payment_id', $payment->id)->sum('monto');
+            SaldoPendiente::where('credit_payment_id', $payment->id)->delete();
 
             // Restaurar saldo del crédito
             $credit->saldo = round((float) $credit->saldo + $capitalRevertido, 2);
@@ -2462,6 +2486,32 @@ class CreditPaymentController extends Controller
                     ],
                 ]
             );
+
+            // Disparar ANULACION_SOBRANTE si el pago tenía sobrante retenido
+            if ($sobranteAnulado > 0.50) {
+                $this->triggerAccountingEntry(
+                    'ANULACION_SOBRANTE',
+                    $sobranteAnulado,
+                    "ANULA-SOB-{$payment->id}-{$credit->reference}",
+                    [
+                        'reference'      => "ANULA-SOB-{$payment->id}-{$credit->reference}",
+                        'credit_id'      => $credit->reference,
+                        'cedula'         => $credit->lead->cedula ?? null,
+                        'clienteNombre'  => $credit->lead->name ?? null,
+                        'motivo'         => $validated['motivo'],
+                        'amount_breakdown' => [
+                            'total'                  => $sobranteAnulado,
+                            'sobrante'               => $sobranteAnulado,
+                            'interes_corriente'      => 0,
+                            'interes_moratorio'      => 0,
+                            'poliza'                 => 0,
+                            'capital'                => 0,
+                            'cargos_adicionales_total' => 0,
+                            'cargos_adicionales'     => [],
+                        ],
+                    ]
+                );
+            }
 
             return response()->json([
                 'message' => 'Pago revertido exitosamente.',

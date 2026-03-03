@@ -316,6 +316,20 @@ trait AccountingTrigger
                         $deductoraContextNombre = $deductora->nombre;
                     }
                 }
+            } elseif ($line->account_type === 'deductora_or_fixed') {
+                // Cuenta dinámica por deductora con fallback a cuenta fija
+                $deductoraId = $context['deductora_id'] ?? null;
+                if ($deductoraId) {
+                    $deductora = Deductora::find($deductoraId);
+                    if ($deductora && $deductora->erp_account_key) {
+                        $accountCode = $this->getAccountCode($deductora->erp_account_key);
+                        $deductoraContextNombre = $deductora->nombre;
+                    }
+                }
+                // Fallback a cuenta fija si no hay deductora o no tiene cuenta ERP
+                if (!$accountCode) {
+                    $accountCode = $this->getAccountCode($line->account_key);
+                }
             }
 
             if (!$accountCode) {
