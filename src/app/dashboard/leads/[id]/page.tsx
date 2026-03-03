@@ -592,6 +592,7 @@ export default function LeadDetailPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState<Partial<Lead>>({});
+    const formDataRef = useRef<Partial<Lead>>({});
     const [isPanelVisible, setIsPanelVisible] = useState(false);
     const [isOpportunityDialogOpen, setIsOpportunityDialogOpen] = useState(false);
     const [agents, setAgents] = useState<{id: number, name: string}[]>([]);
@@ -733,6 +734,9 @@ export default function LeadDetailPage() {
         }
     }, [id, toast]);
 
+    // Keep formDataRef always in sync with latest formData
+    useEffect(() => { formDataRef.current = formData; }, [formData]);
+
     useEffect(() => {
 
         const fetchAgents = async () => {
@@ -818,6 +822,7 @@ export default function LeadDetailPage() {
 
     const autoSave = useCallback(async () => {
         if (!isEditMode) return;
+        const currentFormData = formDataRef.current;
         const EDITABLE_FIELDS = [
             'name', 'apellido1', 'apellido2', 'cedula', 'email', 'phone', 'status', 'lead_status_id',
             'assigned_to_id', 'notes', 'source', 'whatsapp', 'tel_casa', 'tel_amigo',
@@ -831,22 +836,35 @@ export default function LeadDetailPage() {
             'tel_amigo_2', 'relacionado_a_2', 'tipo_relacion_2',
         ];
         const payload = Object.fromEntries(
-            Object.entries(formData).filter(([key]) => EDITABLE_FIELDS.includes(key))
+            Object.entries(currentFormData).filter(([key]) => EDITABLE_FIELDS.includes(key))
         );
         try {
             setSaving(true);
             await api.put(`/api/leads/${id}`, payload);
-            setLead(prev => ({ ...prev, ...formData } as Lead));
+            setLead(prev => ({ ...prev, ...currentFormData } as Lead));
         } catch (error) {
             console.error("Error auto-saving lead:", error);
             toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
         } finally {
             setSaving(false);
         }
-    }, [id, formData, isEditMode, toast]);
+    }, [id, isEditMode, toast]);
 
     const handleInputChange = (field: keyof Lead, value: any) => {
-        setFormData({ ...formData, [field]: value });
+        setFormData(prev => {
+            const updated = { ...prev, [field]: value };
+            formDataRef.current = updated;
+            return updated;
+        });
+    };
+
+    const handleSelectChange = (field: keyof Lead, value: any) => {
+        setFormData(prev => {
+            const updated = { ...prev, [field]: value };
+            formDataRef.current = updated;
+            return updated;
+        });
+        if (isEditMode) setTimeout(autoSave, 100);
     };
 
     const handleBlur = () => {
@@ -896,34 +914,57 @@ export default function LeadDetailPage() {
     }, [(formData as any).trabajo_provincia, (formData as any).trabajo_canton, (formData as any).trabajo_distrito]);
 
     const handleProvinceChange = (value: string) => {
-        setFormData({ ...formData, province: value, canton: "", distrito: "" });
-        // Guarda inmediatamente para selects
+        setFormData(prev => {
+            const updated = { ...prev, province: value, canton: "", distrito: "" };
+            formDataRef.current = updated;
+            return updated;
+        });
         if (isEditMode) setTimeout(autoSave, 100);
     };
 
     const handleCantonChange = (value: string) => {
-        setFormData({ ...formData, canton: value, distrito: "" });
+        setFormData(prev => {
+            const updated = { ...prev, canton: value, distrito: "" };
+            formDataRef.current = updated;
+            return updated;
+        });
         if (isEditMode) setTimeout(autoSave, 100);
     };
 
     const handleDistrictChange = (value: string) => {
-        setFormData({ ...formData, distrito: value });
+        setFormData(prev => {
+            const updated = { ...prev, distrito: value };
+            formDataRef.current = updated;
+            return updated;
+        });
         if (isEditMode) setTimeout(autoSave, 100);
     };
 
     // Work Address Logic
     const handleWorkProvinceChange = (value: string) => {
-        setFormData({ ...formData, trabajo_provincia: value, trabajo_canton: "", trabajo_distrito: "" });
+        setFormData(prev => {
+            const updated = { ...prev, trabajo_provincia: value, trabajo_canton: "", trabajo_distrito: "" };
+            formDataRef.current = updated;
+            return updated;
+        });
         if (isEditMode) setTimeout(autoSave, 100);
     };
 
     const handleWorkCantonChange = (value: string) => {
-        setFormData({ ...formData, trabajo_canton: value, trabajo_distrito: "" });
+        setFormData(prev => {
+            const updated = { ...prev, trabajo_canton: value, trabajo_distrito: "" };
+            formDataRef.current = updated;
+            return updated;
+        });
         if (isEditMode) setTimeout(autoSave, 100);
     };
 
     const handleWorkDistrictChange = (value: string) => {
-        setFormData({ ...formData, trabajo_distrito: value });
+        setFormData(prev => {
+            const updated = { ...prev, trabajo_distrito: value };
+            formDataRef.current = updated;
+            return updated;
+        });
         if (isEditMode) setTimeout(autoSave, 100);
     };
 
@@ -1177,7 +1218,7 @@ export default function LeadDetailPage() {
                                         {isEditMode ? (
                                             <Select 
                                                 value={(formData as any).genero || ""} 
-                                                onValueChange={(value) => handleInputChange("genero" as keyof Lead, value)}
+                                                onValueChange={(value) => handleSelectChange("genero" as keyof Lead, value)}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Seleccionar género" />
@@ -1196,7 +1237,7 @@ export default function LeadDetailPage() {
                                         {isEditMode ? (
                                             <Select
                                                 value={(formData as any).estado_civil || ""} 
-                                                onValueChange={(value) => handleInputChange("estado_civil" as keyof Lead, value)}
+                                                onValueChange={(value) => handleSelectChange("estado_civil" as keyof Lead, value)}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Seleccionar estado civil" />
@@ -1503,7 +1544,7 @@ export default function LeadDetailPage() {
                                         {isEditMode ? (
                                             <Select
                                                 value={(formData as any).nivel_academico || ""}
-                                                onValueChange={(value) => handleInputChange("nivel_academico" as keyof Lead, value)}
+                                                onValueChange={(value) => handleSelectChange("nivel_academico" as keyof Lead, value)}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Seleccionar nivel académico" />
@@ -1556,7 +1597,7 @@ export default function LeadDetailPage() {
                                                                     key={prof}
                                                                     className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
                                                                     onClick={() => {
-                                                                        handleInputChange("profesion" as keyof Lead, prof);
+                                                                        handleSelectChange("profesion" as keyof Lead, prof);
                                                                         setProfesionOpen(false);
                                                                         setProfesionSearch("");
                                                                     }}
@@ -1599,8 +1640,8 @@ export default function LeadDetailPage() {
                                         <Label>Nombramiento {isFieldMissing('estado_puesto') && <span className="text-red-500">*</span>}</Label>
                                         <Select
                                             value={(formData as any).estado_puesto || ""}
-                                            onValueChange={(value) => handleInputChange("estado_puesto" as keyof Lead, value)}
-                                            disabled={!isEditMode} onBlur={handleBlur}
+                                            onValueChange={(value) => handleSelectChange("estado_puesto" as keyof Lead, value)}
+                                            disabled={!isEditMode}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Seleccionar nombramiento" />
@@ -1646,7 +1687,7 @@ export default function LeadDetailPage() {
                                                                     key={inst.id}
                                                                     className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
                                                                     onClick={() => {
-                                                                        handleInputChange("institucion_labora" as keyof Lead, inst.nombre);
+                                                                        handleSelectChange("institucion_labora" as keyof Lead, inst.nombre);
                                                                         setInstitucionOpen(false);
                                                                         setInstitucionSearch("");
                                                                     }}
@@ -1676,7 +1717,7 @@ export default function LeadDetailPage() {
                                                 type="button"
                                                 variant={!(formData as any).deductora_id || (formData as any).deductora_id === 0 ? "default" : "outline"}
                                                 size="default"
-                                                onClick={() => { if (isEditMode) { handleInputChange("deductora_id" as keyof Lead, null); setTimeout(autoSave, 100); } }}
+                                                onClick={() => { if (isEditMode) { handleSelectChange("deductora_id" as keyof Lead, null); } }}
                                                 disabled={!isEditMode}
                                                 className={`flex-1 ${!(formData as any).deductora_id || (formData as any).deductora_id === 0 ? "bg-primary text-primary-foreground" : ""}`}
                                             >
@@ -1688,7 +1729,7 @@ export default function LeadDetailPage() {
                                                     type="button"
                                                     variant={(formData as any).deductora_id === deductora.id ? "default" : "outline"}
                                                     size="default"
-                                                    onClick={() => { if (isEditMode) { handleInputChange("deductora_id" as keyof Lead, deductora.id); setTimeout(autoSave, 100); } }}
+                                                    onClick={() => { if (isEditMode) { handleSelectChange("deductora_id" as keyof Lead, deductora.id); } }}
                                                     disabled={!isEditMode}
                                                     className={`flex-1 ${(formData as any).deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
                                                 >
