@@ -17,7 +17,7 @@ class ClientController extends Controller
             ->select([
                 'id', 'name', 'apellido1', 'apellido2', 'cedula',
                 'email', 'phone', 'status', 'is_active', 'assigned_to_id',
-                'deductora_id', 'created_at', 'updated_at'
+                'deductora_id', 'created_at', 'updated_at', 'source'
             ])
             ->with('assignedAgent:id,name');
 

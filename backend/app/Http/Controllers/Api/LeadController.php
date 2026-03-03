@@ -35,7 +35,9 @@ class LeadController extends Controller
                 // Dirección de trabajo
                 'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion',
                 // Salario
-                'salario_exacto'
+                'salario_exacto',
+                // Cuestionario
+                'source'
             ])
             ->with([
                 'assignedAgent:id,name',
