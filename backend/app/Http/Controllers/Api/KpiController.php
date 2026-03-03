@@ -273,35 +273,36 @@ class KpiController extends Controller
                 ->where('created_at', '<', $dateRange['prev_end']->copy()->subDays(7))
                 ->count();
 
-            // Lead source performance - query actual data if source field exists
+            // Lead source performance - historical across all persons (leads + converted clients)
             $leadSourcePerformance = collect([]);
             try {
-                // Check if 'source' or 'lead_source' column exists
-                $sourceColumn = \Schema::hasColumn('persons', 'source') ? 'source' :
-                               (\Schema::hasColumn('persons', 'lead_source') ? 'lead_source' : null);
+                $sourceColumn = \Schema::hasColumn('persons', 'source') ? 'source' : null;
 
                 if ($sourceColumn) {
-                    $leadSourcePerformance = Lead::select($sourceColumn, DB::raw('COUNT(*) as count'))
-                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                    // Query persons table directly to include both leads and clients
+                    $leadSourcePerformance = DB::table('persons')
+                        ->select($sourceColumn, DB::raw('COUNT(*) as total_count'))
                         ->whereNotNull($sourceColumn)
+                        ->where($sourceColumn, '!=', '')
                         ->groupBy($sourceColumn)
                         ->get()
-                        ->map(function ($item) use ($sourceColumn, $dateRange) {
+                        ->map(function ($item) use ($sourceColumn) {
                             $source = $item->$sourceColumn;
-                            $leadsFromSource = $item->count;
+                            $totalFromSource = $item->total_count;
 
-                            // Calculate conversion for this source
-                            $clientsFromSource = Client::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                            // Conversion = clients (person_type_id=2) from this source
+                            $clientsFromSource = DB::table('persons')
                                 ->where($sourceColumn, $source)
+                                ->where('person_type_id', 2)
                                 ->count();
 
-                            $conversion = $leadsFromSource > 0
-                                ? round(($clientsFromSource / $leadsFromSource) * 100, 0)
+                            $conversion = $totalFromSource > 0
+                                ? round(($clientsFromSource / $totalFromSource) * 100, 0)
                                 : 0;
 
                             return [
                                 'source' => $source ?: 'Desconocido',
-                                'count' => $leadsFromSource,
+                                'count' => $totalFromSource,
                                 'conversion' => $conversion,
                             ];
                         });
