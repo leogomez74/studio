@@ -1397,8 +1397,10 @@ export default function CobrosPage() {
                                   if (val === 'adelanto' && selectedCreditId) {
                                     api.get(`/api/credits/${selectedCreditId}`)
                                       .then(res => {
-                                        const cuotas = res.data.plan_de_pagos?.filter((c: any) => c.estado !== 'Pagado');
-                                        setCuotasDisponibles(cuotas || []);
+                                        const cuotas = (res.data.plan_de_pagos?.filter((c: any) => c.estado !== 'Pagado' && c.numero_cuota > 0) || [])
+                                          .sort((a: any, b: any) => a.numero_cuota - b.numero_cuota);
+                                        setCuotasDisponibles(cuotas);
+                                        setCuotasSeleccionadas([]);
                                       });
                                   } else {
                                     setCuotasDisponibles([]);
@@ -1423,27 +1425,39 @@ export default function CobrosPage() {
                         {/* Mostrar checkboxes de cuotas si es adelanto */}
                         {tipoCobro === 'adelanto' && cuotasDisponibles.length > 0 && (
                           <div className="bg-muted/50 p-3 rounded-md border border-dashed border-primary/50 space-y-2">
-                            <div className="text-sm font-medium mb-2">Seleccione cuotas a adelantar:</div>
+                            <div className="text-sm font-medium mb-2">Seleccione cuotas a adelantar (en orden):</div>
                             <div className="flex flex-col gap-1 max-h-40 overflow-y-auto pr-2">
-                              {cuotasDisponibles.map((cuota: any) => (
-                                <label key={cuota.id} className="flex items-center gap-2 cursor-pointer py-1">
-                                  <input
-                                    type="checkbox"
-                                    value={cuota.id}
-                                    checked={cuotasSeleccionadas.includes(cuota.id)}
-                                    onChange={e => {
-                                      const id = cuota.id;
-                                      setCuotasSeleccionadas(sel =>
-                                        e.target.checked
-                                          ? [...sel, id]
-                                          : sel.filter(cid => cid !== id)
-                                      );
-                                    }}
-                                    className="h-4 w-4"
-                                  />
-                                  <span className="text-xs">Cuota #{cuota.numero_cuota} - Vence: {cuota.fecha_corte ? new Date(cuota.fecha_corte).toLocaleDateString() : ''} - ₡{Number(cuota.cuota || 0).toLocaleString()}</span>
-                                </label>
-                              ))}
+                              {(() => {
+                                // Índice de la primera cuota NO seleccionada (la siguiente a habilitar)
+                                const selCount = cuotasDisponibles.filter((c: any) => cuotasSeleccionadas.includes(c.id)).length;
+                                return cuotasDisponibles.map((cuota: any, idx: number) => {
+                                  const isChecked = cuotasSeleccionadas.includes(cuota.id);
+                                  // Habilitado: la siguiente en orden (idx === selCount) o la última seleccionada (idx === selCount - 1)
+                                  const canCheck = idx === selCount; // siguiente a seleccionar
+                                  const canUncheck = isChecked && idx === selCount - 1; // última seleccionada
+                                  const isEnabled = canCheck || canUncheck;
+
+                                  return (
+                                    <label key={cuota.id} className={`flex items-center gap-2 py-1 ${!isEnabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                      <input
+                                        type="checkbox"
+                                        value={cuota.id}
+                                        checked={isChecked}
+                                        disabled={!isEnabled}
+                                        onChange={e => {
+                                          if (e.target.checked) {
+                                            setCuotasSeleccionadas(prev => [...prev, cuota.id]);
+                                          } else {
+                                            setCuotasSeleccionadas(prev => prev.filter((id: number) => id !== cuota.id));
+                                          }
+                                        }}
+                                        className="h-4 w-4"
+                                      />
+                                      <span className="text-xs">Cuota #{cuota.numero_cuota} - Vence: {cuota.fecha_corte ? new Date(cuota.fecha_corte).toLocaleDateString() : ''} - ₡{Number(cuota.cuota || 0).toLocaleString()}</span>
+                                    </label>
+                                  );
+                                });
+                              })()}
                             </div>
                           </div>
                         )}
