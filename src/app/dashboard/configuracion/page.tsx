@@ -5067,12 +5067,13 @@ export default function ConfiguracionPage() {
                                     <SelectContent>
                                       <SelectItem value="fixed">Cuenta Fija</SelectItem>
                                       <SelectItem value="deductora">Deductora</SelectItem>
+                                      <SelectItem value="deductora_or_fixed">Deductora o Fija (auto)</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Cuenta{line.account_type === 'fixed' ? ' (Requerida)' : ' (Dinámica)'}</Label>
-                                  {line.account_type === 'fixed' ? (
+                                  <Label>Cuenta{line.account_type === 'fixed' ? ' (Requerida)' : line.account_type === 'deductora_or_fixed' ? ' (Fallback si no hay deductora)' : ' (Dinámica)'}</Label>
+                                  {(line.account_type === 'fixed' || line.account_type === 'deductora_or_fixed') ? (
                                     <Select
                                       value={line.account_key || ''}
                                       onValueChange={(value) => updateConfigLine(index, 'account_key', value)}
