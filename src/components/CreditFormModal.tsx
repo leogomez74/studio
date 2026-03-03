@@ -189,7 +189,7 @@ export function CreditFormModal({
     prevCargosActivosRef.current = creditForm.conCargosAdicionales;
   }, [creditForm.conCargosAdicionales]);
 
-  // Calcular cuota estimada basada en monto, plazo y tasa
+  // Calcular cuota estimada basada en el monto completo del crédito
   const cuotaEstimada = useMemo(() => {
     const monto = parseFloat(parseCurrencyToNumber(String(creditForm.monto_credito)));
     const plazo = parseInt(creditForm.plazo);
