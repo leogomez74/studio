@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -90,14 +90,22 @@ export function CreditFormModal({
     conCargosAdicionales: false,
   });
 
-  // Cargar deductoras al abrir el modal
+  // Estado para configuraciones de préstamo (para calcular cuota estimada)
+  const [loanConfigs, setLoanConfigs] = useState<{ tipo: string; tasa: { tasa: number } | null }[]>([]);
+
+  // Cargar deductoras y loan configs al abrir el modal
   useEffect(() => {
     if (open && deductoras.length === 0) {
       api.get('/api/deductoras')
         .then(res => setDeductoras(res.data))
         .catch(err => console.error('Error cargando deductoras:', err));
     }
-  }, [open, deductoras.length]);
+    if (open && loanConfigs.length === 0) {
+      api.get('/api/loan-configurations/activas')
+        .then(res => setLoanConfigs(res.data))
+        .catch(err => console.error('Error cargando loan configs:', err));
+    }
+  }, [open, deductoras.length, loanConfigs.length]);
 
   // Sincronizar estado interno solo cuando el modal se ABRE (transición false → true)
   const prevOpenRef = useRef(false);
@@ -180,6 +188,26 @@ export function CreditFormModal({
     }
     prevCargosActivosRef.current = creditForm.conCargosAdicionales;
   }, [creditForm.conCargosAdicionales]);
+
+  // Calcular cuota estimada basada en monto, plazo y tasa
+  const cuotaEstimada = useMemo(() => {
+    const monto = parseFloat(parseCurrencyToNumber(String(creditForm.monto_credito)));
+    const plazo = parseInt(creditForm.plazo);
+    if (!monto || monto <= 0 || !plazo || plazo <= 0) return null;
+
+    // Determinar tipo de crédito desde categoría
+    const category = (creditForm.category || '').toLowerCase();
+    const tipo = category.includes('micro') ? 'microcredito' : 'regular';
+    const config = loanConfigs.find(c => c.tipo === tipo);
+    const tasaAnual = config?.tasa?.tasa ?? 0;
+    const tasaMensual = (tasaAnual / 100) / 12;
+
+    if (tasaMensual > 0) {
+      const potencia = Math.pow(1 + tasaMensual, plazo);
+      return monto * (tasaMensual * potencia) / (potencia - 1);
+    }
+    return monto / plazo;
+  }, [creditForm.monto_credito, creditForm.plazo, creditForm.category, loanConfigs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -447,6 +475,14 @@ export function CreditFormModal({
                 value={creditForm.clientName}
                 disabled
                 className="bg-gray-50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cuota Estimada</Label>
+              <Input
+                value={cuotaEstimada ? formatCurrency(cuotaEstimada) : '—'}
+                disabled
+                className="bg-gray-50 font-semibold"
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
