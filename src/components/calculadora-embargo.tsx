@@ -44,6 +44,29 @@ function formatColones(value: number): string {
   });
 }
 
+/** Format a raw input string with thousand separators (dots) */
+function formatInputWithSeparators(raw: string): string {
+  // Strip everything except digits and comma/dot for decimals
+  const cleaned = raw.replace(/[^0-9.,]/g, '');
+  // Remove dots (thousand seps) to get just digits + possible comma decimal
+  const withoutDots = cleaned.replace(/\./g, '');
+  // Split on comma for decimal part
+  const parts = withoutDots.split(',');
+  const intPart = parts[0].replace(/^0+(?=\d)/, ''); // remove leading zeros
+  // Add thousand separators (dots)
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  if (parts.length > 1) {
+    return formatted + ',' + parts[1].slice(0, 2);
+  }
+  return formatted;
+}
+
+/** Parse a formatted string back to a plain number string */
+function parseFormattedInput(value: string): number {
+  // Remove dots (thousand seps), replace comma with dot for decimal
+  return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
+}
+
 function calcularEmbargo(
   salarioBruto: number,
   pensionAlimenticia: number,
@@ -145,7 +168,7 @@ export default function CalculadoraEmbargo() {
 
     const salario = lead.salario_exacto ? Number(lead.salario_exacto) : 0;
     if (salario > 0) {
-      setSalarioBruto(String(salario));
+      setSalarioBruto(formatInputWithSeparators(String(Math.round(salario))));
       toast({
         title: 'Persona cargada',
         description: `Salario de ${lead.name} (₡${formatColones(salario)}) cargado.`,
@@ -162,10 +185,10 @@ export default function CalculadoraEmbargo() {
   };
 
   const handleCalcular = useCallback(() => {
-    const bruto = parseFloat(salarioBruto.replace(/,/g, '')) || 0;
-    const pension = parseFloat(pensionAlimenticia.replace(/,/g, '')) || 0;
-    const embargo1 = parseFloat(otroEmbargo1.replace(/,/g, '')) || 0;
-    const embargo2 = parseFloat(otroEmbargo2.replace(/,/g, '')) || 0;
+    const bruto = parseFormattedInput(salarioBruto);
+    const pension = parseFormattedInput(pensionAlimenticia);
+    const embargo1 = parseFormattedInput(otroEmbargo1);
+    const embargo2 = parseFormattedInput(otroEmbargo2);
 
     const total = calcularEmbargo(bruto, pension, embargo1, embargo2, DEFAULTS);
     setResultado(total);
@@ -284,9 +307,9 @@ export default function CalculadoraEmbargo() {
                   inputMode="numeric"
                   className="pl-7"
                   value={salarioBruto}
-                  onChange={(e) => setSalarioBruto(e.target.value)}
+                  onChange={(e) => setSalarioBruto(formatInputWithSeparators(e.target.value))}
                   onKeyDown={handleKeyDown}
-                  placeholder="ejemplo 700000"
+                  placeholder="ejemplo 700.000"
                 />
               </div>
             </div>
@@ -309,9 +332,9 @@ export default function CalculadoraEmbargo() {
                   inputMode="numeric"
                   className="pl-7"
                   value={pensionAlimenticia}
-                  onChange={(e) => setPensionAlimenticia(e.target.value)}
+                  onChange={(e) => setPensionAlimenticia(formatInputWithSeparators(e.target.value))}
                   onKeyDown={handleKeyDown}
-                  placeholder="ejemplo 350000"
+                  placeholder="ejemplo 350.000"
                 />
               </div>
             </div>
@@ -334,9 +357,9 @@ export default function CalculadoraEmbargo() {
                   inputMode="numeric"
                   className="pl-7"
                   value={otroEmbargo1}
-                  onChange={(e) => setOtroEmbargo1(e.target.value)}
+                  onChange={(e) => setOtroEmbargo1(formatInputWithSeparators(e.target.value))}
                   onKeyDown={handleKeyDown}
-                  placeholder="ejemplo 10000"
+                  placeholder="ejemplo 10.000"
                 />
               </div>
             </div>
@@ -359,9 +382,9 @@ export default function CalculadoraEmbargo() {
                   inputMode="numeric"
                   className="pl-7"
                   value={otroEmbargo2}
-                  onChange={(e) => setOtroEmbargo2(e.target.value)}
+                  onChange={(e) => setOtroEmbargo2(formatInputWithSeparators(e.target.value))}
                   onKeyDown={handleKeyDown}
-                  placeholder="ejemplo 15000"
+                  placeholder="ejemplo 15.000"
                 />
               </div>
             </div>
