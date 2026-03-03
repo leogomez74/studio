@@ -301,10 +301,20 @@ class KpiController extends Controller
                                 ? round(($totalFromSource / $totalPersonsWithSource) * 100, 0)
                                 : 0;
 
+                            // Tasa de conversión: clientes / total de esta fuente
+                            $clientsFromSource = DB::table('persons')
+                                ->where($sourceColumn, $source)
+                                ->where('person_type_id', 2)
+                                ->count();
+                            $conversionRate = $totalFromSource > 0
+                                ? round(($clientsFromSource / $totalFromSource) * 100, 0)
+                                : 0;
+
                             return [
                                 'source' => $source ?: 'Desconocido',
                                 'count' => $totalFromSource,
                                 'conversion' => $percentage,
+                                'conversionRate' => $conversionRate,
                             ];
                         });
                 }
