@@ -110,6 +110,28 @@ CRÉDITO: Desembolsos Saldos a Favor        total
 1. En config `PAGO_PLANILLA`: agregar línea Crédito → cuenta "Retenciones" → componente "Sobrante"
 2. Crear config nueva `RETENCION_SOBRANTE` con 2 líneas (Débito/Crédito)
 
+#### Lunes 03/03/2026 — Ventanilla configurable + sobrantes + penalización ✅
+- Asientos `PAGO_VENTANILLA` y `REVERSO_PAGO` (anulación de abono) creados desde la UI como configurables
+  - Antes funcionaban solo por legacy; ahora tienen config en BD (flags aún desactivados, pendiente activar)
+- `SALDO_SOBRANTE` ahora se dispara también para pagos de ventanilla/manuales (antes solo planilla)
+- `ANULACION_SOBRANTE` ahora se dispara al revertir pagos de ventanilla con sobrante
+- Limpieza de `SaldoPendiente` expandida a TODOS los tipos de pago (antes solo planilla)
+- **Nuevo `account_type = deductora_or_fixed`**: tipo híbrido de cuenta que usa la deductora si el crédito tiene una, o fallback a cuenta fija (ej. Banco CREDIPEPE)
+  - Implementado en `AccountingTrigger.php` → `resolveLineAmount()`
+  - Opción "Deductora o Fija (auto)" en frontend
+  - Migración: `2026_03_03_155531_add_deductora_or_fixed_to_account_type_enum`
+- **Nuevo `amount_component = penalizacion`**: componente propio para penalización por abono anticipado (<12 cuotas)
+  - Agregado en `resolveLineAmount()` y en selector frontend
+  - La penalización es un **ingreso**, NO un cargo adicional
+- **ABONO_EXTRAORDINARIO** actualizado:
+  - Breakdown: `total = montoAbono`, `capital = montoAplicarAlSaldo`, `penalizacion = penalizacion`
+  - Contexto incluye `deductora_id`/`deductora_nombre` para `deductora_or_fixed`
+- **CANCELACION_ANTICIPADA** actualizado:
+  - Breakdown: `total = saldo + intereses + penalizacion`, `capital`, `interes_corriente`, `penalizacion`
+  - Contexto incluye `deductora_id`/`deductora_nombre`
+- **REVERSO_EXTRAORDINARIO** agregado a `config/accounting.php` con flag `ACCOUNTING_CONFIGURABLE_REVERSO_EXTRAORDINARIO`
+- Manual actualizado a v2.4
+
 #### Semana 23/02 al 01/03/2026 — Planillas y Sobrantes ✅
 
 **Lunes 23/02**
@@ -153,11 +175,13 @@ CRÉDITO: Desembolsos Saldos a Favor        total
 | `REFUNDICION_CIERRE` | Cierre crédito viejo en refundición | existía |
 | `REFUNDICION_NUEVO` | Apertura crédito nuevo en refundición | existía |
 | `DEVOLUCION` | Devolución | existía |
-| `SALDO_SOBRANTE` | Sobrante de retención excedente | agregado mar 24/02 |
+| `REVERSO_PAGO` | Anulación de abono de ventanilla | config creada lun 03/03 |
+| `SALDO_SOBRANTE` | Sobrante de retención excedente (planilla o ventanilla) | agregado mar 24/02, expandido lun 03/03 |
 | `REINTEGRO_SALDO` | Reintegro de saldo a favor | agregado mié 25/02 |
 | `ANULACION_PLANILLA` | Reverso completo de planilla | agregado jue 26/02 |
-| `ANULACION_SOBRANTE` | Reverso del sobrante al anular planilla | agregado jue 26/02 |
+| `ANULACION_SOBRANTE` | Reverso del sobrante al anular planilla o ventanilla | agregado jue 26/02, expandido lun 03/03 |
 | `RETENCION_SOBRANTE` | 2do asiento automático cuando hay sobrante | agregado mar 02/03 |
+| `REVERSO_EXTRAORDINARIO` | Reverso de abono extraordinario | agregado lun 03/03 |
 
 ### amount_component disponibles
 | Valor | Descripción |
@@ -168,6 +192,7 @@ CRÉDITO: Desembolsos Saldos a Favor        total
 | `interes_moratorio` | Solo mora |
 | `poliza` | Solo seguro/póliza |
 | `sobrante` | Excedente retenido (crédito ya pagado) |
+| `penalizacion` | Penalización por abono anticipado (<12 cuotas) |
 | `cargo_adicional` | Cargo específico (requiere `cargo_adicional_key`) |
 
 ### Rutas API contables
