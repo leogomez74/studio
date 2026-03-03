@@ -32,6 +32,8 @@ import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import api from '@/lib/axios';
 import { type Opportunity } from '@/lib/data';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import CalculadoraEmbargo from '@/components/calculadora-embargo';
 
 /**
  * Componente principal de la página de Cálculos.
@@ -342,6 +344,13 @@ export default function CalculosPage() {
 
   return (
     <ProtectedPage module="calculos">
+      <Tabs defaultValue="calculadoras" className="w-full">
+        <TabsList>
+          <TabsTrigger value="calculadoras">Calculadoras</TabsTrigger>
+          <TabsTrigger value="embargo">Calculadora de Embargo</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="calculadoras">
       <div className="grid gap-6 md:grid-cols-2">
       {/* --- Opportunity Search Input --- */}
       <Card className="col-span-2">
@@ -631,6 +640,12 @@ export default function CalculosPage() {
         </CardContent>
       </Card>
     </div>
+        </TabsContent>
+
+        <TabsContent value="embargo">
+          <CalculadoraEmbargo />
+        </TabsContent>
+      </Tabs>
     </ProtectedPage>
   );
 }

@@ -74,6 +74,9 @@ export type Lead = {
   trabajo_distrito?: string;
   trabajo_direccion?: string;
 
+  // Información salarial
+  salario_exacto?: number | string | null;
+
   // Estado y Gestión del Lead
   status?: string; // Estado general (texto)
   lead_status_id?: number; // ID del estado específico

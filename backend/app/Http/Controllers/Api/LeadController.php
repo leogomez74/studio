@@ -33,7 +33,9 @@ class LeadController extends Controller
                 // Dirección personal
                 'province', 'canton', 'distrito', 'direccion1', 'direccion2',
                 // Dirección de trabajo
-                'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'
+                'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion',
+                // Salario
+                'salario_exacto'
             ])
             ->with([
                 'assignedAgent:id,name',
