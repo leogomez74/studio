@@ -189,7 +189,7 @@ export function CreditFormModal({
     prevCargosActivosRef.current = creditForm.conCargosAdicionales;
   }, [creditForm.conCargosAdicionales]);
 
-  // Calcular cuota estimada basada en monto, plazo y tasa
+  // Calcular cuota estimada basada en el monto completo del crédito
   const cuotaEstimada = useMemo(() => {
     const monto = parseFloat(parseCurrencyToNumber(String(creditForm.monto_credito)));
     const plazo = parseInt(creditForm.plazo);
@@ -399,7 +399,7 @@ export function CreditFormModal({
                 />
               ) : (
                 <Select value={creditForm.category} onValueChange={v => {
-                  if (v === 'Micro Crédito') {
+                  if (v !== 'Crédito') {
                     setCreditForm(f => ({ ...f, category: v, poliza: false }));
                   } else {
                     setCreditForm(f => ({ ...f, category: v }));
@@ -531,11 +531,11 @@ export function CreditFormModal({
                       id="poliza"
                       checked={creditForm.poliza}
                       onCheckedChange={(checked) => setCreditForm(f => ({ ...f, poliza: checked }))}
-                      disabled={creditForm.category !== 'Regular'}
+                      disabled={creditForm.category.normalize('NFC').toLowerCase() !== 'crédito'}
                     />
                     <Label htmlFor="poliza" className="text-sm text-muted-foreground">
-                      {creditForm.category !== 'Regular'
-                        ? 'Solo disponible para crédito Regular'
+                      {creditForm.category.normalize('NFC').toLowerCase() !== 'crédito'
+                        ? 'Solo disponible para Crédito'
                         : (creditForm.poliza ? 'Sí posee póliza' : 'No posee póliza')}
                     </Label>
                   </div>

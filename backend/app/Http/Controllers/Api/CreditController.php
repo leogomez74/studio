@@ -324,15 +324,12 @@ class CreditController extends Controller
     }
 
     /**
-     * Calcula la cuota mensual (PMT) sobre el monto neto (monto - cargos) y la guarda en el crédito.
+     * Calcula la cuota mensual (PMT) sobre el monto completo del crédito y la guarda.
      * Se ejecuta al crear o actualizar, antes de formalizar.
      */
     private function calculateAndSetCuota(Credit $credit): void
     {
-        // Calcular monto neto restando cargos_adicionales
-        $montoOriginal = (float) $credit->monto_credito;
-        $cargos = $credit->cargos_adicionales ?? [];
-        $monto = $montoOriginal - array_sum($cargos);
+        $monto = (float) $credit->monto_credito;
         $plazo = (int) $credit->plazo;
         $tasaAnual = (float) $credit->tasa_anual;
 
@@ -695,7 +692,7 @@ class CreditController extends Controller
             ], 422);
         }
 
-        // Validar que monto_credito > 0 (ya viene con cargos descontados)
+        // Validar que monto_credito > 0
         if ((float) $credit->monto_credito <= 0) {
             return response()->json([
                 'message' => 'El monto del crédito debe ser mayor a 0.',

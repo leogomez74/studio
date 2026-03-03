@@ -794,10 +794,7 @@ class CreditPaymentController extends Controller
                         'interes_moratorio' => 0,
                         'poliza' => 0,
                         'capital' => $montoAplicarAlSaldo,
-                        'cargos_adicionales_total' => $penalizacion,
-                        'cargos_adicionales' => [
-                            'penalizacion' => $penalizacion,
-                        ],
+                        'penalizacion' => $penalizacion,
                     ],
                 ]
             );
@@ -2092,16 +2089,15 @@ class CreditPaymentController extends Controller
                     'credit_id' => $credit->reference,
                     'cedula' => $credit->lead->cedula ?? null,
                     'clienteNombre' => $credit->lead->name ?? null,
+                    'deductora_id' => $credit->deductora_id,
+                    'deductora_nombre' => $credit->deductora->nombre ?? null,
                     'amount_breakdown' => [
                         'total' => $montoTotalCancelar,
                         'interes_corriente' => $interesesVencidos,
                         'interes_moratorio' => 0,
                         'poliza' => 0,
                         'capital' => $saldoCapital,
-                        'cargos_adicionales_total' => $penalizacion,
-                        'cargos_adicionales' => [
-                            'penalizacion' => $penalizacion,
-                        ],
+                        'penalizacion' => $penalizacion,
                     ],
                 ]
             );
