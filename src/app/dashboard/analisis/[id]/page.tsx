@@ -1205,12 +1205,12 @@ export default function AnalisisDetailPage() {
                         const nextReference = refResponse.data.reference;
                         setCreditForm({
                           reference: nextReference,
-                          title: analisis.lead?.name || '',
+                          title: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
                           status: 'Por firmar',
                           category: analisis.category || 'Regular',
                           monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
                           leadId: analisis.lead_id ? String(analisis.lead_id) : '',
-                          clientName: analisis.lead?.name || '',
+                          clientName: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
                           description: `Crédito generado desde análisis ${analisis.reference}`,
                           divisa: analisis.divisa || 'CRC',
                           plazo: analisis.plazo ? String(analisis.plazo) : '36',
@@ -1260,7 +1260,7 @@ export default function AnalisisDetailPage() {
                   <p className="text-xs text-muted-foreground mb-0.5">Nombre</p>
                   {lead?.id ? (
                     <Link href={`/dashboard/${lead.person_type_id === 2 ? 'clientes' : 'leads'}/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
-                      {lead.name}
+                      {[lead.name, lead.apellido1, lead.apellido2].filter(Boolean).join(' ')}
                     </Link>
                   ) : (
                     <span className="text-sm font-medium">N/A</span>
@@ -2122,12 +2122,12 @@ export default function AnalisisDetailPage() {
                       const nextReference = refResponse.data.reference;
                       setCreditForm({
                         reference: nextReference,
-                        title: analisis.lead?.name || '',
+                        title: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
                         status: 'Por firmar',
                         category: analisis.category || 'Regular',
                         monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
                         leadId: analisis.lead_id ? String(analisis.lead_id) : '',
-                        clientName: analisis.lead?.name || '',
+                        clientName: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
                         description: `Crédito generado desde análisis ${analisis.reference}`,
                         divisa: analisis.divisa || 'CRC',
                         plazo: analisis.plazo ? String(analisis.plazo) : '36',
