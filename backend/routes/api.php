@@ -238,6 +238,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Roles and Permissions
     Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class);
 
+    // Calculadora de Embargo (MTSS scraping)
+    Route::post('/calcular-embargo', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'calcular']);
+
     // Lead Alerts (Inactivity tracking)
     Route::get('/lead-alerts/count', [LeadAlertController::class, 'count']);
     Route::get('/lead-alerts', [LeadAlertController::class, 'index']);

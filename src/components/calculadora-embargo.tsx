@@ -103,6 +103,8 @@ export default function CalculadoraEmbargo() {
   const [otroEmbargo1, setOtroEmbargo1] = useState('');
   const [otroEmbargo2, setOtroEmbargo2] = useState('');
   const [resultado, setResultado] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Person selector state
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -184,15 +186,43 @@ export default function CalculadoraEmbargo() {
     setResultado(null);
   };
 
-  const handleCalcular = useCallback(() => {
+  const handleCalcular = useCallback(async () => {
     const bruto = parseFormattedInput(salarioBruto);
     const pension = parseFormattedInput(pensionAlimenticia);
     const embargo1 = parseFormattedInput(otroEmbargo1);
     const embargo2 = parseFormattedInput(otroEmbargo2);
 
-    const total = calcularEmbargo(bruto, pension, embargo1, embargo2, DEFAULTS);
-    setResultado(total);
-  }, [salarioBruto, pensionAlimenticia, otroEmbargo1, otroEmbargo2]);
+    if (bruto <= 0) {
+      toast({
+        title: 'Salario requerido',
+        description: 'Ingresá un salario bruto mayor a 0.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMsg(null);
+    setResultado(null);
+
+    try {
+      const response = await api.post('/api/calcular-embargo', {
+        salario_bruto: bruto,
+        pension_alimenticia: pension,
+        otro_embargo_1: embargo1,
+        otro_embargo_2: embargo2,
+      });
+
+      setResultado(response.data.resultado);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.error ||
+        'No se pudo conectar con el servidor. Intentá de nuevo.';
+      setErrorMsg(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [salarioBruto, pensionAlimenticia, otroEmbargo1, otroEmbargo2, toast]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleCalcular();
@@ -390,10 +420,23 @@ export default function CalculadoraEmbargo() {
             </div>
           </div>
 
-          <Button onClick={handleCalcular} className="w-full">
-            <Calculator className="mr-2 h-4 w-4" />
-            Calcular Embargo
+          <Button onClick={handleCalcular} className="w-full" disabled={isLoading}>
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Calculator className="mr-2 h-4 w-4" />
+            )}
+            {isLoading ? 'Consultando MTSS...' : 'Calcular Embargo'}
           </Button>
+
+          {errorMsg && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-center">
+              <p className="text-sm text-destructive font-medium">{errorMsg}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Presioná &quot;Calcular Embargo&quot; para volver a intentarlo.
+              </p>
+            </div>
+          )}
 
           {resultado !== null && (
             <div className={`rounded-lg border p-4 text-center ${resultado === 0 ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-muted'}`}>
@@ -403,7 +446,7 @@ export default function CalculadoraEmbargo() {
                     El ingreso bruto no aplica para embargo
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    El salario neto no supera el mínimo inembargable (₡{formatColones(DEFAULTS.salarioMinimoInembargable)})
+                    El salario neto no supera el mínimo inembargable
                   </p>
                 </>
               ) : (
@@ -413,6 +456,9 @@ export default function CalculadoraEmbargo() {
                   </p>
                   <p className="text-2xl font-bold text-primary">
                     ₡{formatColones(resultado)}
+                  </p>
+                  <p className="text-xs text-green-600 mt-2">
+                    Dato oficial del Ministerio de Trabajo (MTSS)
                   </p>
                 </>
               )}
