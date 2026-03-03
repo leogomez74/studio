@@ -1795,6 +1795,10 @@ export default function CobrosPage() {
                               <div className="border-t border-blue-200 pt-2 space-y-3">
                                 {cuotasPreview.cuotas.map((c: any) => {
                                   const fmt = (v: number) => v > 0 ? `₡${v.toLocaleString('de-DE', { minimumFractionDigits: 2 })}` : null;
+                                  const fmtFecha = (f: string) => {
+                                    const p = String(f).split('T')[0].split('-');
+                                    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : '';
+                                  };
                                   return (
                                     <div key={c.numero_cuota}>
                                       {/* Encabezado de cuota */}
@@ -1803,7 +1807,7 @@ export default function CobrosPage() {
                                           Cuota <strong>#{c.numero_cuota}</strong>
                                           {c.fecha_corte && (
                                             <span className="font-normal text-blue-600 ml-1">
-                                              ({new Date(c.fecha_corte + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })})
+                                              ({fmtFecha(c.fecha_corte)})
                                             </span>
                                           )}
                                         </span>
