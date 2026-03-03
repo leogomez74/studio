@@ -81,6 +81,6 @@ class LoanConfiguration extends Model
      */
     public static function activas()
     {
-        return self::where('activo', true)->get();
+        return self::with('tasa')->where('activo', true)->get();
     }
 }
