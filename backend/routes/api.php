@@ -319,6 +319,29 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('credit-payments', CreditPaymentController::class);
 
     // Saldos Pendientes (sobrantes de planilla)
+    // TEMP: Debug endpoint to inspect raw saldos_pendientes
+    Route::get('saldos-pendientes/debug', function () {
+        $all = \App\Models\SaldoPendiente::all();
+        return response()->json([
+            'total_raw' => $all->count(),
+            'records' => $all->map(function ($s) {
+                $credit = \App\Models\Credit::find($s->credit_id);
+                $lead = $credit ? \App\Models\Person::find($credit->lead_id) : null;
+                return [
+                    'id' => $s->id,
+                    'credit_id' => $s->credit_id,
+                    'credit_exists' => !!$credit,
+                    'credit_lead_id' => $credit->lead_id ?? null,
+                    'lead_exists' => !!$lead,
+                    'monto' => $s->monto,
+                    'estado' => $s->estado,
+                    'origen' => $s->origen,
+                    'cedula' => $s->cedula,
+                    'created_at' => $s->created_at,
+                ];
+            }),
+        ]);
+    });
     Route::get('saldos-pendientes', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'index']);
     Route::post('saldos-pendientes/{id}/preview', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'previewAsignacion']);
     Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar']);
