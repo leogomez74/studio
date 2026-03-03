@@ -980,7 +980,7 @@ function CreditDetailClient({ id }: { id: string }) {
     let md = `# Plan de Pagos - ${credit.numero_operacion || credit.reference}\n\n`;
     md += `## Información del Crédito\n\n`;
     md += `| Campo | Valor |\n|-------|-------|\n`;
-    md += `| Cliente | ${credit.lead?.name || 'N/A'} |\n`;
+    md += `| Cliente | ${[credit.lead?.name, credit.lead?.apellido1, credit.lead?.apellido2].filter(Boolean).join(' ') || 'N/A'} |\n`;
     md += `| Cédula | ${credit.lead?.cedula || 'N/A'} |\n`;
     md += `| Monto Original | ₡${formatNumber(credit.monto_credito)} |\n`;
     const interesesVencidosMd = (credit.plan_de_pagos || [])
@@ -1061,7 +1061,7 @@ function CreditDetailClient({ id }: { id: string }) {
     // Info del crédito
     doc.setFontSize(10);
     const tasaValue = credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00';
-    doc.text(`Cliente: ${credit.lead?.name || 'N/A'}`, 14, 25);
+    doc.text(`Cliente: ${[credit.lead?.name, credit.lead?.apellido1, credit.lead?.apellido2].filter(Boolean).join(' ') || 'N/A'}`, 14, 25);
     doc.text(`Monto: ${formatNumber(credit.monto_credito)}`, 14, 30);
     doc.text(`Saldo por Pagar: ${formatNumber(credit.saldo)}`, 120, 25);
     doc.text(`Estado: ${credit.status}`, 120, 30);
@@ -1384,7 +1384,7 @@ function CreditDetailClient({ id }: { id: string }) {
       escapeCSV(credit.title),
       escapeCSV(credit.status),
       escapeCSV(credit.category),
-      escapeCSV(credit.client?.name || credit.lead?.name || ""),
+      escapeCSV([credit.client?.name, credit.client?.apellido1, credit.client?.apellido2].filter(Boolean).join(' ') || [credit.lead?.name, credit.lead?.apellido1, credit.lead?.apellido2].filter(Boolean).join(' ') || ""),
       escapeCSV(formatCurrency(credit.monto_credito)),
       escapeCSV(formatCurrency(credit.saldo)),
       escapeCSV(formatCurrency(credit.cuota)),
@@ -1995,7 +1995,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         <div>
                           <CardTitle>
                             <Link href={`/dashboard/clientes/${credit.lead_id}`} className="hover:underline">
-                              {credit.lead?.name || "Cliente Desconocido"}
+                              {[credit.lead?.name, credit.lead?.apellido1, credit.lead?.apellido2].filter(Boolean).join(' ') || "Cliente Desconocido"}
                             </Link>
                           </CardTitle>
                           <CardDescription>
@@ -2659,7 +2659,7 @@ function CreditDetailClient({ id }: { id: string }) {
               {credit?.lead?.cedula && (
                 <SaldosPorAsignar
                   cedula={credit.lead.cedula.toString()}
-                  clientName={credit.lead?.name}
+                  clientName={[credit.lead?.name, credit.lead?.apellido1, credit.lead?.apellido2].filter(Boolean).join(' ')}
                   onAssigned={fetchCredit}
                   onCountChange={setSaldosCount}
                 />
@@ -2689,7 +2689,7 @@ function CreditDetailClient({ id }: { id: string }) {
             opportunity_id: credit.opportunity_id ?? undefined,
             deductora_id: credit.deductora?.id,
             poliza: credit.poliza ?? undefined,
-            lead: credit.lead ? { id: credit.lead.id, name: credit.lead.name, cedula: credit.lead.cedula?.toString() } : undefined,
+            lead: credit.lead ? { id: credit.lead.id, name: [credit.lead.name, credit.lead.apellido1, credit.lead.apellido2].filter(Boolean).join(' '), cedula: credit.lead.cedula?.toString() } : undefined,
           }}
           onSuccess={fetchCredit}
         />
