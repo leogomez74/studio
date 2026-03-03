@@ -2133,15 +2133,29 @@ function CreditDetailClient({ id }: { id: string }) {
                           </div>
                           <div className="space-y-2">
                             <Label>Entidad Deductora</Label>
-                            <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                              {(() => {
-                                // Use credit's deductora_id, fallback to lead's deductora_id
-                                const idDeductora = credit.deductora_id || credit.lead?.deductora_id;
-                                if (!idDeductora) return "Sin asignar";
-                                const encontrada = deductoras.find(d => String(d.id) === String(idDeductora));
-                                return encontrada ? encontrada.nombre : idDeductora;
-                              })()}
-                            </p>
+                            {isEditMode ? (
+                              <Select
+                                value={String(formData.deductora_id || credit.deductora_id || credit.lead?.deductora_id || 'sin_deductora')}
+                                onValueChange={(v) => handleInputChange('deductora_id', v === 'sin_deductora' ? null : Number(v))}
+                              >
+                                <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="sin_deductora">Sin asignar</SelectItem>
+                                  {deductoras.map((d) => (
+                                    <SelectItem key={d.id} value={String(d.id)}>{d.nombre}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                                {(() => {
+                                  const idDeductora = credit.deductora_id || credit.lead?.deductora_id;
+                                  if (!idDeductora) return "Sin asignar";
+                                  const encontrada = deductoras.find(d => String(d.id) === String(idDeductora));
+                                  return encontrada ? encontrada.nombre : idDeductora;
+                                })()}
+                              </p>
+                            )}
                           </div>
                         </div>
 
