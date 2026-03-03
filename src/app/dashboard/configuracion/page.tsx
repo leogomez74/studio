@@ -3515,6 +3515,9 @@ export default function ConfiguracionPage() {
   const [erpTestLoading, setErpTestLoading] = useState(false);
   const [erpNewAccount, setErpNewAccount] = useState({ key: '', account_code: '', account_name: '', description: '' });
   const [erpAddDialogOpen, setErpAddDialogOpen] = useState(false);
+  const [erpEditDialogOpen, setErpEditDialogOpen] = useState(false);
+  const [erpEditAccount, setErpEditAccount] = useState<any | null>(null);
+  const [erpEditForm, setErpEditForm] = useState({ key: '', account_code: '', account_name: '', description: '' });
 
   // Deductora Mapping state
   const [deductorasMapping, setDeductorasMapping] = useState<any[]>([]);
@@ -3578,6 +3581,37 @@ export default function ConfiguracionPage() {
       fetchErpAccounts();
     } catch (err: any) {
       toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo agregar.', variant: 'destructive' });
+    }
+  };
+
+  const openEditErpAccount = (account: any) => {
+    setErpEditAccount(account);
+    setErpEditForm({
+      key: account.key,
+      account_code: account.account_code || '',
+      account_name: account.account_name,
+      description: account.description || '',
+    });
+    setErpEditDialogOpen(true);
+  };
+
+  const updateErpAccount = async () => {
+    if (!erpEditAccount) return;
+    if (!erpEditForm.account_code || !erpEditForm.account_name) {
+      toast({ title: 'Error', description: 'Código y nombre son requeridos.', variant: 'destructive' });
+      return;
+    }
+    setErpSaving(erpEditAccount.id);
+    try {
+      await api.put(`/api/erp-accounting/accounts/${erpEditAccount.id}`, erpEditForm);
+      toast({ title: 'Cuenta actualizada', description: 'Los datos de la cuenta fueron guardados.' });
+      setErpEditDialogOpen(false);
+      setErpEditAccount(null);
+      fetchErpAccounts();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo actualizar.', variant: 'destructive' });
+    } finally {
+      setErpSaving(null);
     }
   };
 
@@ -4742,6 +4776,54 @@ export default function ConfiguracionPage() {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+
+                {/* Dialog de Edición de Cuenta ERP */}
+                <Dialog open={erpEditDialogOpen} onOpenChange={(open) => { setErpEditDialogOpen(open); if (!open) setErpEditAccount(null); }}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Editar Cuenta Contable</DialogTitle>
+                      <DialogDescription>Modifica los datos de la cuenta del catálogo del ERP.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Identificador Interno (key)</Label>
+                        <Input
+                          placeholder="ej: ingresos_intereses"
+                          value={erpEditForm.key}
+                          onChange={(e) => setErpEditForm(prev => ({ ...prev, key: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Código de Cuenta (ERP)</Label>
+                        <Input
+                          placeholder="ej: 4-100"
+                          value={erpEditForm.account_code}
+                          onChange={(e) => setErpEditForm(prev => ({ ...prev, account_code: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Nombre de la Cuenta</Label>
+                        <Input
+                          placeholder="ej: Ingresos por Intereses"
+                          value={erpEditForm.account_name}
+                          onChange={(e) => setErpEditForm(prev => ({ ...prev, account_name: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Descripción (opcional)</Label>
+                        <Input
+                          placeholder="Para qué se usa esta cuenta"
+                          value={erpEditForm.description}
+                          onChange={(e) => setErpEditForm(prev => ({ ...prev, description: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => { setErpEditDialogOpen(false); setErpEditAccount(null); }}>Cancelar</Button>
+                      <Button onClick={updateErpAccount}>Guardar cambios</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -4799,16 +4881,26 @@ export default function ConfiguracionPage() {
                           {erpSaving === account.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            !['banco_credipep', 'cuentas_por_cobrar'].includes(account.key) && (
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="text-red-600 hover:text-red-700"
-                                onClick={() => deleteErpAccount(account.id)}
+                                className="text-blue-600 hover:text-blue-700"
+                                onClick={() => openEditErpAccount(account)}
                               >
-                                <Trash className="h-4 w-4" />
+                                <Pencil className="h-4 w-4" />
                               </Button>
-                            )
+                              {!['banco_credipep', 'cuentas_por_cobrar'].includes(account.key) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => deleteErpAccount(account.id)}
+                                >
+                                  <Trash className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
