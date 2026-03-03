@@ -1394,7 +1394,8 @@ export default function DealsPage() {
           );
         })()}
 
-        <Table>
+        <div className="relative w-full overflow-auto">
+        <Table className="min-w-[900px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">
@@ -1552,6 +1553,7 @@ export default function DealsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination Controls */}
         {totalItems > 0 && (
