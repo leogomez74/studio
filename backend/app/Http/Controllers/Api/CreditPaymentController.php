@@ -794,10 +794,7 @@ class CreditPaymentController extends Controller
                         'interes_moratorio' => 0,
                         'poliza' => 0,
                         'capital' => $montoAplicarAlSaldo,
-                        'cargos_adicionales_total' => $penalizacion,
-                        'cargos_adicionales' => [
-                            'penalizacion' => $penalizacion,
-                        ],
+                        'penalizacion' => $penalizacion,
                     ],
                 ]
             );
