@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, FormEvent, ChangeEvent } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, FormEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -1394,7 +1394,7 @@ export default function DealsPage() {
           );
         })()}
 
-        <div className="relative w-full overflow-auto">
+        <DraggableScrollContainer className="relative w-full select-none">
         <Table className="min-w-[900px]">
           <TableHeader>
             <TableRow>
@@ -1553,7 +1553,7 @@ export default function DealsPage() {
             )}
           </TableBody>
         </Table>
-        </div>
+        </DraggableScrollContainer>
 
         {/* Pagination Controls */}
         {totalItems > 0 && (
@@ -2031,5 +2031,59 @@ export default function DealsPage() {
       </AlertDialog>
       </Card>
     </ProtectedPage>
+  );
+}
+
+function DraggableScrollContainer({ children, className }: { children: React.ReactNode, className?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isGrabbing, setIsGrabbing] = useState(false);
+  const dragState = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, input, select, textarea, [role="button"], [role="menuitem"], svg')) return;
+      dragState.current = { isDown: true, startX: e.clientX, scrollLeft: container.scrollLeft };
+      setIsGrabbing(true);
+      container.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!dragState.current.isDown) return;
+      container.scrollLeft = dragState.current.scrollLeft - (e.clientX - dragState.current.startX);
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (dragState.current.isDown) {
+        dragState.current.isDown = false;
+        setIsGrabbing(false);
+        container.releasePointerCapture(e.pointerId);
+      }
+    };
+
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className={className}
+      style={{ cursor: isGrabbing ? 'grabbing' : 'grab', overflowX: 'auto', overflowY: 'hidden', touchAction: 'pan-y' }}
+    >
+      {children}
+    </div>
   );
 }
