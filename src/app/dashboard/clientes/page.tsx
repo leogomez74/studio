@@ -1380,14 +1380,6 @@ export default function ClientesPage() {
                                 <p className="text-sm font-medium">{searchQuery ? 'Resultados de búsqueda' : 'Clientes activos'}</p>
                                 <p className="text-sm text-muted-foreground">{searchQuery ? 'Filtrando por: Clientes' : 'Casos que ya están en seguimiento.'}</p>
                             </div>
-                            {!searchQuery && (
-                              <Button asChild size="sm" variant="outline" className="w-fit">
-                                  <Link href="/dashboard/clients" className="gap-1">
-                                      Ver clientes
-                                      <ArrowUpRight className="h-4 w-4" />
-                                  </Link>
-                              </Button>
-                            )}
                         </div>
                     </div>
                     {loading ? (
