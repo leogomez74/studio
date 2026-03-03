@@ -609,18 +609,18 @@ class KpiController extends Controller
             $totalCredits = Credit::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])->count();
             $prevTotalCredits = Credit::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->count();
 
-            // Approval rate - validates full flow: Oportunidad(Ganada) → Análisis → Crédito(Formalizado+)
+            // Approval rate - validates full flow: Oportunidad(Analizada) → Análisis → Crédito(Formalizado+)
             $approvalRate = 0;
             $prevApprovalRate = 0;
             try {
-                // Won opportunities that have an análisis AND a formalized/active/closed credit
-                $wonOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
-                    ->where('status', 'Ganada')
+                // Analyzed opportunities that have an análisis AND a formalized/active/closed credit
+                $analyzedOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
+                    ->where('status', 'Analizada')
                     ->count();
 
                 $completedCredits = Credit::whereBetween('credits.created_at', [$dateRange['start'], $dateRange['end']])
                     ->whereIn('credits.status', ['Formalizado', 'Activo', 'En Mora', 'Cerrado'])
-                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Ganada'))
+                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Analizada'))
                     ->whereExists(function ($query) {
                         $query->select(DB::raw(1))
                             ->from('analisis')
@@ -628,18 +628,18 @@ class KpiController extends Controller
                     })
                     ->count();
 
-                $approvalRate = $wonOpportunities > 0
-                    ? min(round(($completedCredits / $wonOpportunities) * 100, 1), 100)
+                $approvalRate = $analyzedOpportunities > 0
+                    ? min(round(($completedCredits / $analyzedOpportunities) * 100, 1), 100)
                     : 0;
 
                 // Previous period
-                $prevWonOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->where('status', 'Ganada')
+                $prevAnalyzedOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['prev_start'], $dateRange['prev_end']])
+                    ->where('status', 'Analizada')
                     ->count();
 
                 $prevCompletedCredits = Credit::whereBetween('credits.created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
                     ->whereIn('credits.status', ['Formalizado', 'Activo', 'En Mora', 'Cerrado'])
-                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Ganada'))
+                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Analizada'))
                     ->whereExists(function ($query) {
                         $query->select(DB::raw(1))
                             ->from('analisis')
@@ -647,8 +647,8 @@ class KpiController extends Controller
                     })
                     ->count();
 
-                $prevApprovalRate = $prevWonOpportunities > 0
-                    ? min(round(($prevCompletedCredits / $prevWonOpportunities) * 100, 1), 100)
+                $prevApprovalRate = $prevAnalyzedOpportunities > 0
+                    ? min(round(($prevCompletedCredits / $prevAnalyzedOpportunities) * 100, 1), 100)
                     : 0;
             } catch (\Exception $e) {
                 // Fallback
