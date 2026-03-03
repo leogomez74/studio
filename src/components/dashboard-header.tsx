@@ -51,9 +51,12 @@ function Breadcrumbs() {
         </Link>
       )}
       {segments.map((segment, index) => {
-        const href = '/' + segments.slice(0, index + 1).join('/');
+        // Leads y clientes comparten ruta unificada /dashboard/clientes
+        const mappedSegments = segments.map(s => s === 'leads' ? 'clientes' : s);
+        const href = '/' + mappedSegments.slice(0, index + 1).join('/');
         const isLast = index === segments.length - 1;
-        const segmentDisplay = decodeURIComponent(segment).replace(/-/g, ' ');
+        const displaySegment = segment === 'leads' ? 'clientes' : segment;
+        const segmentDisplay = decodeURIComponent(displaySegment).replace(/-/g, ' ');
 
         return (
           <div key={href} className="flex items-center gap-2">

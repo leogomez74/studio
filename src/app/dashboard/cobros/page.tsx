@@ -337,6 +337,7 @@ export default function CobrosPage() {
   const [tipoCobro, setTipoCobro] = useState('normal');
   const [monto, setMonto] = useState('');
   const [fecha, setFecha] = useState('');
+  const [referencia, setReferencia] = useState('');
   // Para adelanto de cobro: cuotas seleccionadas
   const [cuotasDisponibles, setCuotasDisponibles] = useState<any[]>([]);
   const [cuotasSeleccionadas, setCuotasSeleccionadas] = useState<number[]>([]);
@@ -533,6 +534,38 @@ export default function CobrosPage() {
     return creditsList.find(c => String(c.id) === selectedCreditId);
   }, [creditsList, selectedCreditId]);
 
+  const cuotasPreview = useMemo(() => {
+    if (!selectedCredit || !monto || parseFloat(monto) <= 0) return null;
+    const pendientes = ((selectedCredit as any).plan_de_pagos || [])
+      .filter((c: any) => !['Pagado', 'Pagada'].includes(c.estado) && c.numero_cuota > 0)
+      .sort((a: any, b: any) => a.numero_cuota - b.numero_cuota);
+    if (pendientes.length === 0) return null;
+    let restante = parseFloat(monto);
+    const cuotasAfectadas: any[] = [];
+    for (const cuota of pendientes) {
+      if (restante <= 0) break;
+      const montoCuota = Number(cuota.cuota || 0);
+      if (montoCuota <= 0) continue;
+      const pagado = Math.min(restante, montoCuota);
+      const ratio = montoCuota > 0 ? pagado / montoCuota : 0;
+      const ap = (v: number) => Math.round(Number(v || 0) * ratio * 100) / 100;
+      cuotasAfectadas.push({
+        numero_cuota:      cuota.numero_cuota,
+        fecha_corte:       cuota.fecha_corte,
+        montoCuota,
+        pagado,
+        cubierta:          pagado >= montoCuota - 0.01,
+        capital:           ap(cuota.amortizacion),
+        interes_corriente: ap(cuota.interes_corriente),
+        int_vencido:       ap(cuota.int_corriente_vencido),
+        interes_moratorio: ap(cuota.interes_moratorio),
+        poliza:            ap(cuota.poliza),
+      });
+      restante -= pagado;
+    }
+    return { cuotas: cuotasAfectadas, sobrante: Math.max(0, restante) };
+  }, [selectedCredit, monto]);
+
   // Calcular cancelación anticipada cuando se selecciona un crédito con ese tipo
   useEffect(() => {
     if (tipoCobro === 'cancelacion_anticipada' && selectedCreditId) {
@@ -622,6 +655,7 @@ export default function CobrosPage() {
     setTipoCobro('normal');
     setMonto('');
     setFecha('');
+    setReferencia('');
     setSelectedLeadId('');
     setSelectedCreditId('');
     setExtraordinaryStrategy('reduce_amount'); // Reset strategy
@@ -645,6 +679,7 @@ export default function CobrosPage() {
         await api.post('/api/credit-payments/cancelacion-anticipada', {
           credit_id: selectedCreditId,
           fecha: fecha,
+          referencia: referencia || undefined,
         });
         toast({ title: 'Éxito', description: 'Cancelación anticipada procesada. El crédito ha sido cerrado.' });
         setPlanRefreshKey(k => k + 1);
@@ -668,6 +703,7 @@ export default function CobrosPage() {
         tipo: tipoCobro,
         monto: parseFloat(monto),
         fecha: fecha,
+        referencia: referencia || undefined,
         extraordinary_strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : null,
         cuotas: tipoCobro === 'adelanto' ? cuotasSeleccionadas : undefined,
       });
@@ -1700,7 +1736,14 @@ export default function CobrosPage() {
                         {/* Monto solo visible cuando NO es cancelación anticipada */}
                         {tipoCobro !== 'cancelacion_anticipada' && (
                         <div>
-                          <label className="block text-sm font-medium mb-1">Monto (CRC)</label>
+                          <label className="block text-sm font-medium mb-1">
+                            Monto (CRC)
+                            {tipoCobro === 'normal' && selectedCredit?.cuota && (
+                              <span className="ml-2 font-normal text-muted-foreground">
+                                Cuota: ₡{Number(selectedCredit.cuota).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                              </span>
+                            )}
+                          </label>
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
                             <Input
@@ -1726,19 +1769,75 @@ export default function CobrosPage() {
                         </div>
                         )}
 
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Referencia <span className="text-muted-foreground font-normal">(opcional)</span></label>
+                          <Input
+                            placeholder="Nº de recibo, cheque, transferencia..."
+                            value={referencia}
+                            onChange={e => setReferencia(e.target.value)}
+                          />
+                        </div>
+
                         {/* Mensaje de confirmación para tipo Normal */}
                         {tipoCobro === 'normal' && selectedCreditId && monto && parseFloat(monto) > 0 && (
                           <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm">
-                            <div className="flex items-center gap-2 text-blue-900">
+                            <div className="flex items-center gap-2 text-blue-900 mb-2">
                               <Check className="h-4 w-4 shrink-0" />
                               <div>
                                 <div className="font-medium">Listo para aplicar</div>
                                 <div className="text-xs text-blue-700 mt-0.5">
                                   Monto: <strong>₡{Number(monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong> •
-                                  Crédito: <strong>{selectedCredit?.reference || selectedCredit?.numero_operacion}</strong>
+                                  Crédito: <strong>{selectedCredit?.reference || (selectedCredit as any)?.numero_operacion}</strong>
                                 </div>
                               </div>
                             </div>
+                            {cuotasPreview && cuotasPreview.cuotas.length > 0 && (
+                              <div className="border-t border-blue-200 pt-2 space-y-3">
+                                {cuotasPreview.cuotas.map((c: any) => {
+                                  const fmt = (v: number) => v > 0 ? `₡${v.toLocaleString('de-DE', { minimumFractionDigits: 2 })}` : null;
+                                  const fmtFecha = (f: string) => {
+                                    const p = String(f).split('T')[0].split('-');
+                                    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : '';
+                                  };
+                                  return (
+                                    <div key={c.numero_cuota}>
+                                      {/* Encabezado de cuota */}
+                                      <div className="flex items-center justify-between text-xs font-semibold text-blue-900 mb-1">
+                                        <span>
+                                          Cuota <strong>#{c.numero_cuota}</strong>
+                                          {c.fecha_corte && (
+                                            <span className="font-normal text-blue-600 ml-1">
+                                              ({fmtFecha(c.fecha_corte)})
+                                            </span>
+                                          )}
+                                        </span>
+                                        <span>
+                                          ₡{c.pagado.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                          {c.cubierta
+                                            ? <span className="ml-1 text-green-700">✓</span>
+                                            : <span className="ml-1 text-amber-600 font-normal"> / ₡{c.montoCuota.toLocaleString('de-DE', { minimumFractionDigits: 2 })} parcial</span>
+                                          }
+                                        </span>
+                                      </div>
+                                      {/* Desglose por componente */}
+                                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 pl-2 text-[11px] text-blue-700">
+                                        {fmt(c.capital) && <><span>Capital</span><span className="text-right">{fmt(c.capital)}</span></>}
+                                        {fmt(c.interes_corriente) && <><span>Int. Corriente</span><span className="text-right">{fmt(c.interes_corriente)}</span></>}
+                                        {fmt(c.int_vencido) && <><span>Int. Vencido</span><span className="text-right">{fmt(c.int_vencido)}</span></>}
+                                        {fmt(c.interes_moratorio) && <><span>Mora</span><span className="text-right">{fmt(c.interes_moratorio)}</span></>}
+                                        {fmt(c.poliza) && <><span>Póliza</span><span className="text-right">{fmt(c.poliza)}</span></>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {cuotasPreview.sobrante > 0.01 && (
+                                  <div className="flex items-center justify-between text-xs text-blue-600 border-t border-blue-200 pt-2">
+                                    <span>Sobrante → Saldo Pendiente</span>
+                                    <span className="font-semibold">₡{cuotasPreview.sobrante.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 

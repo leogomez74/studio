@@ -35,8 +35,9 @@ class CreditPayment extends Model
         'plazo_actual',
         'dias',
         'dias_mora',
-        'source', // Origen del pago (Ventanilla, Planilla, etc.)
-        'cedula',  // Referencia para cargas masivas
+        'source',     // Origen del pago (Ventanilla, Planilla, etc.)
+        'referencia', // Nº de recibo, cheque, transferencia, etc.
+        'cedula',     // Referencia para cargas masivas
         'estado_reverso',
         'motivo_anulacion',
         'anulado_por',
