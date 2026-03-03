@@ -64,15 +64,18 @@ class SaldoPendienteController extends Controller
             });
         }
 
+        // Excluir registros huérfanos (crédito o lead eliminado)
+        $query->whereHas('credit', function ($q) {
+            $q->whereHas('lead');
+        });
+
         // Paginación
         $perPage = $request->get('per_page', 10);
         $page = $request->get('page', 1);
 
         $saldos = $query->paginate($perPage, ['*'], 'page', $page);
 
-        $mapped = $saldos->getCollection()->filter(function ($saldo) {
-            return $saldo->credit && $saldo->credit->lead;
-        })->map(function ($saldo) {
+        $mapped = $saldos->getCollection()->map(function ($saldo) {
             $person = $saldo->credit->lead;
             $cedula = $saldo->cedula ?? ($person->cedula ?? '');
             $deductoraId = $saldo->credit->deductora_id;
