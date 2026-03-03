@@ -123,6 +123,7 @@ class ClientController extends Controller
             'actividad_economica' => 'nullable|string|max:255',
             'tipo_sociedad' => 'nullable|string|max:255',
             'nombramientos' => 'nullable|string',
+            'source' => 'nullable|string|max:255',
         ]);
 
         $validated['is_active'] = $validated['is_active'] ?? true;
@@ -183,6 +184,7 @@ class ClientController extends Controller
             'actividad_economica' => 'sometimes|nullable|string|max:255',
             'tipo_sociedad' => 'sometimes|nullable|string|max:255',
             'nombramientos' => 'sometimes|nullable|string',
+            'source' => 'sometimes|nullable|string|max:255',
         ]);
 
         $client->update($validated);
