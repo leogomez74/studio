@@ -10,7 +10,7 @@ class InvestorController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Investor::query();
+        $query = Investor::withCount(['investments as active_investments_count' => fn ($q) => $q->where('estado', 'Activa')]);
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
@@ -53,7 +53,9 @@ class InvestorController extends Controller
 
     public function show(int $id)
     {
-        $investor = Investor::with(['investments.coupons', 'payments', 'capitalReserves'])->findOrFail($id);
+        $investor = Investor::withCount(['investments as active_investments_count' => fn ($q) => $q->where('estado', 'Activa')])
+            ->with(['investments.coupons', 'payments', 'capitalReserves'])
+            ->findOrFail($id);
         return response()->json($investor);
     }
 

@@ -28,7 +28,7 @@ class Investor extends Model
         'joined_at' => 'date',
     ];
 
-    protected $appends = ['active_investments_count'];
+    protected $appends = [];
 
     public function investments()
     {
