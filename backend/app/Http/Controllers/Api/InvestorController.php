@@ -83,6 +83,13 @@ class InvestorController extends Controller
     public function destroy(int $id)
     {
         $investor = Investor::findOrFail($id);
+
+        if ($investor->investments()->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar un inversionista con inversiones asociadas.',
+            ], 422);
+        }
+
         $investor->delete();
         return response()->json(['message' => 'Inversionista eliminado']);
     }
