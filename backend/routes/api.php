@@ -8,6 +8,11 @@ use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\OpportunityController;
 use App\Http\Controllers\Api\PersonDocumentController;
 use App\Http\Controllers\Api\CreditPaymentController;
+use App\Http\Controllers\Api\InvestorController;
+use App\Http\Controllers\Api\InvestmentController;
+use App\Http\Controllers\Api\InvestmentCouponController;
+use App\Http\Controllers\Api\InvestmentPaymentController;
+use App\Http\Controllers\Api\InvestmentExportController;
 // Rewards Controllers
 use App\Http\Controllers\Api\Rewards\RewardController;
 use App\Http\Controllers\Api\Rewards\BadgeController;
@@ -224,6 +229,31 @@ Route::prefix('rewards')->group(function () {
     Route::get('/redemptions', [RedemptionController::class, 'index']);
 });
 
+
+// --- Inversiones y Reservas ---
+
+// Exports (públicos, se abren en nueva pestaña del navegador)
+Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
+Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
+Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
+Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
+Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
+Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
+Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
+Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
+
+// Custom routes BEFORE apiResource
+Route::get('investments/tabla-general', [InvestmentController::class, 'tablaGeneral']);
+Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate']);
+Route::post('investments/{id}/renew', [InvestmentController::class, 'renew']);
+Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);
+Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid']);
+
+// CRUD resources
+Route::apiResource('investors', InvestorController::class);
+Route::apiResource('investments', InvestmentController::class);
+Route::apiResource('investment-payments', InvestmentPaymentController::class)->only(['index', 'store', 'destroy']);
+Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
 
 // --- Rutas Protegidas (Requieren Sanctum) ---
 Route::middleware(['auth:sanctum'])->group(function () {
