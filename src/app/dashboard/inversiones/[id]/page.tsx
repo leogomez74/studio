@@ -275,7 +275,7 @@ export default function InvestmentDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {coupons.sort((a, b) => a.fecha_cupon.localeCompare(b.fecha_cupon)).map((coupon, i) => (
+                {[...coupons].sort((a, b) => a.fecha_cupon.localeCompare(b.fecha_cupon)).map((coupon, i) => (
                   <TableRow key={coupon.id}>
                     <TableCell>{i + 1}</TableCell>
                     <TableCell>{new Date(coupon.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
