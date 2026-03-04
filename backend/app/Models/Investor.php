@@ -4,16 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 
 class Investor extends Model
 {
     use HasFactory;
-
-    protected $table = 'investors';
-    protected $primaryKey = 'id';
-    public $incrementing = false;
-    protected $keyType = 'string';
 
     protected $fillable = [
         'name',
@@ -21,6 +15,10 @@ class Investor extends Model
         'email',
         'phone',
         'status',
+        'tipo_persona',
+        'notas',
+        'cuenta_bancaria',
+        'banco',
         'investment_balance',
         'joined_at',
     ];
@@ -30,12 +28,35 @@ class Investor extends Model
         'joined_at' => 'date',
     ];
 
-    protected static function booted()
+    protected $appends = ['active_investments_count'];
+
+    public function investments()
     {
-        static::creating(function ($investor) {
-            if (empty($investor->id)) {
-                $investor->id = (string) Str::random(20);
-            }
-        });
+        return $this->hasMany(Investment::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(InvestmentPayment::class);
+    }
+
+    public function capitalReserves()
+    {
+        return $this->hasMany(CapitalReserve::class);
+    }
+
+    public function getActiveInvestmentsCountAttribute(): int
+    {
+        return $this->investments()->where('estado', 'Activa')->count();
+    }
+
+    public function getTotalInvertidoCrcAttribute(): float
+    {
+        return (float) $this->investments()->where('moneda', 'CRC')->where('estado', 'Activa')->sum('monto_capital');
+    }
+
+    public function getTotalInvertidoUsdAttribute(): float
+    {
+        return (float) $this->investments()->where('moneda', 'USD')->where('estado', 'Activa')->sum('monto_capital');
     }
 }
