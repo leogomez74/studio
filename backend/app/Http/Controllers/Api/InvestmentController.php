@@ -40,7 +40,7 @@ class InvestmentController extends Controller
         $validated = $request->validate([
             'numero_desembolso' => 'required|string|max:20|unique:investments,numero_desembolso',
             'investor_id' => 'required|exists:investors,id',
-            'monto_capital' => 'required|numeric|min:0',
+            'monto_capital' => 'required|numeric|min:0.01',
             'plazo_meses' => 'required|integer|min:1',
             'fecha_inicio' => 'required|date',
             'fecha_vencimiento' => 'required|date|after:fecha_inicio',
@@ -75,7 +75,7 @@ class InvestmentController extends Controller
         $validated = $request->validate([
             'numero_desembolso' => "string|max:20|unique:investments,numero_desembolso,{$id}",
             'investor_id' => 'exists:investors,id',
-            'monto_capital' => 'numeric|min:0',
+            'monto_capital' => 'numeric|min:0.01',
             'plazo_meses' => 'integer|min:1',
             'fecha_inicio' => 'date',
             'fecha_vencimiento' => 'date|after:' . ($request->input('fecha_inicio') ?? $investment->fecha_inicio->toDateString()),
@@ -139,7 +139,7 @@ class InvestmentController extends Controller
             'fecha_inicio' => 'required|date',
             'fecha_vencimiento' => 'required|date|after:fecha_inicio',
             'tasa_anual' => 'nullable|numeric|min:0|max:1',
-            'monto_capital' => 'nullable|numeric|min:0',
+            'monto_capital' => 'nullable|numeric|min:0.01',
             'forma_pago' => 'nullable|in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
         ]);
 
