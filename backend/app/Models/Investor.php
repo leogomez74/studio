@@ -20,12 +20,10 @@ class Investor extends Model
         'notas',
         'cuenta_bancaria',
         'banco',
-        'investment_balance',
         'joined_at',
     ];
 
     protected $casts = [
-        'investment_balance' => 'decimal:2',
         'joined_at' => 'date',
     ];
 

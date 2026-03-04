@@ -225,7 +225,6 @@ export type Investor = {
   notas?: string;
   cuenta_bancaria?: string;
   banco?: string;
-  investment_balance: number;
   joined_at?: string;
   created_at?: string;
   active_investments_count?: number;
