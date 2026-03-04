@@ -696,6 +696,10 @@ export default function CobrosPage() {
   // 'reduce_amount' = Bajar Cuota | 'reduce_term' = Bajar Plazo
   const [extraordinaryStrategy, setExtraordinaryStrategy] = useState<'reduce_amount' | 'reduce_term'>('reduce_amount');
 
+  // Advertencias de créditos ausentes en planilla
+  const [advertenciasOpen, setAdvertenciasOpen] = useState(false);
+  const [advertenciasList, setAdvertenciasList] = useState<any[]>([]);
+
   // Conteo de saldos pendientes (para badge en tab trigger)
   const [saldosCount, setSaldosCount] = useState(0);
 
@@ -1202,6 +1206,8 @@ export default function CobrosPage() {
       setUploading(true);
       const uploadRes = await api.post('/api/credit-payments/upload', form);
       const saldosSobrantes = uploadRes.data?.saldos_pendientes || [];
+      const advertencias = uploadRes.data?.advertencias || [];
+
       if (saldosSobrantes.length > 0) {
         toast({
           title: 'Planilla procesada con sobrantes',
@@ -1211,6 +1217,13 @@ export default function CobrosPage() {
       } else {
         toast({ title: 'Cargado', description: 'Planilla procesada correctamente.' });
       }
+
+      // Mostrar advertencias de créditos ausentes que entraron en mora
+      if (advertencias.length > 0) {
+        setAdvertenciasList(advertencias);
+        setAdvertenciasOpen(true);
+      }
+
       setPlanRefreshKey(k => k + 1);
       closePlanillaModal();
     } catch (err: any) {
@@ -2627,6 +2640,45 @@ export default function CobrosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Dialog de advertencias: créditos ausentes que entraron en mora */}
+      <Dialog open={advertenciasOpen} onOpenChange={setAdvertenciasOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Créditos ausentes en planilla
+            </DialogTitle>
+            <DialogDescription>
+              Los siguientes créditos no estaban en la planilla y se marcaron en mora automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted sticky top-0">
+                <tr>
+                  <th className="text-left p-2">Nombre</th>
+                  <th className="text-left p-2">Cédula</th>
+                  <th className="text-left p-2">Operación</th>
+                  <th className="text-right p-2">Cuota</th>
+                </tr>
+              </thead>
+              <tbody>
+                {advertenciasList.map((a, i) => (
+                  <tr key={i} className="border-b">
+                    <td className="p-2">{a.nombre}</td>
+                    <td className="p-2">{a.cedula}</td>
+                    <td className="p-2">{a.numero_operacion}</td>
+                    <td className="p-2 text-right">¢{Number(a.cuota).toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setAdvertenciasOpen(false)}>Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
     </ProtectedPage>
   );

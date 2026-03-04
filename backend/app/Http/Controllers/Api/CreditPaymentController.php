@@ -1687,12 +1687,36 @@ class CreditPaymentController extends Controller
                 ->values()
                 ->all();
 
+            // Construir advertencias de créditos ausentes que entraron en mora
+            $advertencias = [];
+            $moraAplicadaIds = collect($moraResults)
+                ->where('status', 'mora_aplicada')
+                ->pluck('credit_id')
+                ->toArray();
+
+            if (!empty($moraAplicadaIds)) {
+                $creditosEnMora = Credit::whereIn('id', $moraAplicadaIds)
+                    ->with('lead:id,name,apellido1,cedula')
+                    ->get(['id', 'lead_id', 'numero_operacion', 'cuota', 'status']);
+
+                foreach ($creditosEnMora as $c) {
+                    $advertencias[] = [
+                        'credit_id' => $c->id,
+                        'nombre' => trim(($c->lead->name ?? '') . ' ' . ($c->lead->apellido1 ?? '')),
+                        'cedula' => $c->lead->cedula ?? '',
+                        'numero_operacion' => $c->numero_operacion ?? '',
+                        'cuota' => $c->cuota,
+                    ];
+                }
+            }
+
             return response()->json([
                 'message' => 'Proceso completado',
                 'planilla_id' => $planillaUpload->id,
                 'results' => $results,
                 'mora_aplicada' => $moraResults,
                 'saldos_pendientes' => $saldosPendientes,
+                'advertencias' => $advertencias,
             ]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error', 'error' => $e->getMessage()], 500);
