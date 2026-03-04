@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
