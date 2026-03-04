@@ -78,7 +78,7 @@ class InvestmentController extends Controller
             'monto_capital' => 'numeric|min:0',
             'plazo_meses' => 'integer|min:1',
             'fecha_inicio' => 'date',
-            'fecha_vencimiento' => 'date',
+            'fecha_vencimiento' => 'date|after:' . ($request->input('fecha_inicio') ?? $investment->fecha_inicio->toDateString()),
             'tasa_anual' => 'numeric|min:0|max:1',
             'moneda' => 'in:CRC,USD',
             'forma_pago' => 'in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
