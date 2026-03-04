@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Investment;
 use App\Models\InvestmentCoupon;
+use App\Models\InvestmentPayment;
 use App\Models\Investor;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -129,9 +130,22 @@ class InvestmentService
 
     public function markCouponAsPaid(InvestmentCoupon $coupon, ?string $fechaPago = null): InvestmentCoupon
     {
+        $fechaPago = $fechaPago ?? now()->toDateString();
+
         $coupon->update([
             'estado' => 'Pagado',
-            'fecha_pago' => $fechaPago ?? now()->toDateString(),
+            'fecha_pago' => $fechaPago,
+        ]);
+
+        $investment = $coupon->investment;
+
+        InvestmentPayment::create([
+            'investor_id' => $investment->investor_id,
+            'investment_id' => $investment->id,
+            'fecha_pago' => $fechaPago,
+            'monto' => $coupon->interes_neto,
+            'tipo' => 'Interés',
+            'moneda' => $investment->moneda,
         ]);
 
         return $coupon;
