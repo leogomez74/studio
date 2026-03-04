@@ -1040,27 +1040,7 @@ export default function ClientDetailPage() {
     doc.setFont("helvetica", "normal");
     doc.text(`${(client as any)?.puesto || "-"}`, rightCol + labelW, infoY + 6);
 
-    const seccionesY = infoY + 18;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128);
-    doc.text("Planes de Ahorros", margin, seccionesY);
-    doc.setTextColor(0, 0, 0);
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.3);
-    doc.line(margin, seccionesY + 2, lineEnd, seccionesY + 2);
-
-    autoTable(doc, {
-      startY: seccionesY + 5,
-      head: [['N.CON', 'PLAN', 'MENSUALIDAD', 'INICIO', 'REND.CORTE', 'APORTES', 'RENDIMIENTO', 'ACUMULADO']],
-      body: [['621', 'SOBRANTES POR APLICAR', '0.00', '27/09/2022', '', '0.64', '0.00', '0.64']],
-      theme: 'plain',
-      styles: { fontSize: 8, cellPadding: 1 },
-      headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
-      columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 50 } }
-    });
-
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    let finalY = infoY + 18;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -1110,7 +1090,9 @@ export default function ClientDetailPage() {
     doc.setLineWidth(0.3);
     doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
-    if (credit.plan_de_pagos && credit.plan_de_pagos.length > 0) {
+    const cuotasPagadas = (credit.plan_de_pagos || []).filter((p: any) => ['Pagado', 'Pagada'].includes(p.estado));
+
+    if (cuotasPagadas.length > 0) {
       finalY = finalY + 20;
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
@@ -1121,7 +1103,7 @@ export default function ClientDetailPage() {
       doc.setLineWidth(0.3);
       doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
-      const paymentRows = credit.plan_de_pagos.map((p: any) => [
+      const paymentRows = cuotasPagadas.map((p: any) => [
         p.numero_cuota,
         formatDatePDF(p.fecha_corte),
         formatDatePDF(p.fecha_pago),
@@ -1142,7 +1124,9 @@ export default function ClientDetailPage() {
       });
     } else {
       doc.setFontSize(9);
-      doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(0, 0, 0);
+      doc.text("*** NO HAY CUOTAS CANCELADAS A LA FECHA ***", margin, finalY + 20);
     }
 
     doc.save(`estado_cuenta_${client?.id || 'cliente'}.pdf`);

@@ -515,9 +515,12 @@ class CreditController extends Controller
         // Permitir formalización desde cualquier estado
         $isFormalizing = isset($request->status) && strtolower($request->status) === 'formalizado';
 
+        // Permitir cambio de deductora desde cualquier estado
+        $isOnlyDeductora = $request->has('deductora_id') && empty(array_diff(array_keys($request->all()), ['deductora_id', '_method', '_token']));
+
         // PROTECCIÓN: Solo permitir edición si el crédito está en estado editable
-        // EXCEPCIÓN: Permitir cambio a "Formalizado" desde cualquier estado
-        if (!$isFormalizing && !\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
+        // EXCEPCIÓN: Permitir cambio a "Formalizado" o cambio de deductora desde cualquier estado
+        if (!$isFormalizing && !$isOnlyDeductora && !\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
             return response()->json([
                 'message' => 'No se puede editar un crédito en estado "' . $credit->status . '". Solo se pueden editar créditos en estado "' . implode('" o "', Credit::EDITABLE_STATUSES) . '".',
                 'current_status' => $credit->status,
@@ -1082,6 +1085,8 @@ class CreditController extends Controller
                     'credit_id' => $oldCredit->reference,
                     'cedula' => $oldCredit->lead->cedula ?? null,
                     'clienteNombre' => $oldCredit->lead->name ?? null,
+                    'deductora_id' => $oldCredit->deductora_id,
+                    'deductora_nombre' => $oldCredit->deductora->nombre ?? null,
                     'new_credit_id' => $newCredit->reference,
                     'amount_breakdown' => [
                         'total' => $saldoAbsorbido,
@@ -1115,8 +1120,8 @@ class CreditController extends Controller
                         'interes_moratorio' => 0,
                         'poliza' => 0,
                         'capital' => (float) $validated['monto_credito'],
-                        'cargos_adicionales_total' => 0,
-                        'cargos_adicionales' => [],
+                        'cargos_adicionales_total' => $totalCargos,
+                        'cargos_adicionales' => $cargosNuevos,
                     ],
                 ]
             );

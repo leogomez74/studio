@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "rea
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from 'date-fns';
-import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, RefreshCw, Pencil, FileText, FileSpreadsheet, Download, Check, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronDown, Building } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useForm } from "react-hook-form";
@@ -409,6 +409,10 @@ export default function CreditsPage() {
   const [selectedCredit, setSelectedCredit] = useState<CreditItem | null>(null);
   const [formalizacionDate, setFormalizacionDate] = useState<Date>(new Date());
 
+  const [cambiarDeductoraOpen, setCambiarDeductoraOpen] = useState(false);
+  const [cambiarDeductoraCredit, setCambiarDeductoraCredit] = useState<CreditItem | null>(null);
+  const [nuevaDeductoraId, setNuevaDeductoraId] = useState<string>('');
+
   // Estado para tracking de grupos expandidos
   const [expandedClientIds, setExpandedClientIds] = useState<Set<number>>(new Set());
 
@@ -691,6 +695,23 @@ export default function CreditsPage() {
     } catch (error: any) {
       console.error('Error formalizando crédito:', error);
       const message = error.response?.data?.message || "No se pudo formalizar el crédito.";
+      toastError("Error", message);
+    }
+  };
+
+  const handleCambiarDeductora = async () => {
+    if (!cambiarDeductoraCredit) return;
+    const deductoraValue = nuevaDeductoraId && nuevaDeductoraId !== 'sin_asignar' ? parseInt(nuevaDeductoraId) : null;
+    try {
+      await api.put(`/api/credits/${cambiarDeductoraCredit.id}`, {
+        deductora_id: deductoraValue,
+      });
+      const nombre = deductoras.find(d => String(d.id) === nuevaDeductoraId)?.nombre || 'Sin asignar';
+      toastSuccess("Cooperativa actualizada", `Se cambió a ${nombre}.`);
+      setCambiarDeductoraOpen(false);
+      fetchCredits();
+    } catch (error: any) {
+      const message = error.response?.data?.message || "No se pudo cambiar la cooperativa.";
       toastError("Error", message);
     }
   };
@@ -1583,6 +1604,10 @@ export default function CreditsPage() {
                                     <FileText className="h-4 w-4 mr-2" />
                                       Gestionar documentos
                                     </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { setCambiarDeductoraCredit(credit); setNuevaDeductoraId(String(credit.deductora_id || '')); setCambiarDeductoraOpen(true); }}>
+                                      <Building className="h-4 w-4 mr-2" />
+                                      Cambiar Cooperativa
+                                    </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
@@ -1763,6 +1788,10 @@ export default function CreditsPage() {
                                         <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
                                           <FileText className="h-4 w-4 mr-2" />
                                           Gestionar documentos
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => { setCambiarDeductoraCredit(credit); setNuevaDeductoraId(String(credit.deductora_id || '')); setCambiarDeductoraOpen(true); }}>
+                                          <Building className="h-4 w-4 mr-2" />
+                                          Cambiar Cooperativa
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
@@ -2280,6 +2309,36 @@ export default function CreditsPage() {
         canDownloadDocuments={canDownloadDocuments}
         deductoras={deductoras}
       />
+
+      {/* Diálogo para Cambiar Cooperativa */}
+      <Dialog open={cambiarDeductoraOpen} onOpenChange={setCambiarDeductoraOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar Cooperativa</DialogTitle>
+            <DialogDescription>
+              Crédito: <strong>{cambiarDeductoraCredit?.numero_operacion || cambiarDeductoraCredit?.reference || ''}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Cooperativa / Deductora</Label>
+            <Select value={nuevaDeductoraId} onValueChange={setNuevaDeductoraId}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Sin asignar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sin_asignar">Sin asignar</SelectItem>
+                {deductoras.map((d) => (
+                  <SelectItem key={d.id} value={String(d.id)}>{d.nombre || d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCambiarDeductoraOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCambiarDeductora}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de confirmación para Calcular Mora */}
       <Dialog open={showMoraDialog} onOpenChange={setShowMoraDialog}>
