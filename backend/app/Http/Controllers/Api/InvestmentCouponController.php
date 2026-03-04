@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InvestmentCoupon;
+use App\Models\InvestmentPayment;
 use App\Models\Investment;
 use App\Services\InvestmentService;
 use Illuminate\Http\Request;
@@ -41,13 +42,31 @@ class InvestmentCouponController extends Controller
 
         $fechaPago = $validated['fecha_pago'] ?? now()->toDateString();
 
-        InvestmentCoupon::whereIn('id', $validated['coupon_ids'])
+        $coupons = InvestmentCoupon::with('investment')
+            ->whereIn('id', $validated['coupon_ids'])
             ->where('estado', '!=', 'Pagado')
-            ->update([
-                'estado' => 'Pagado',
-                'fecha_pago' => $fechaPago,
-            ]);
+            ->get();
 
-        return response()->json(['message' => 'Cupones marcados como pagados', 'count' => count($validated['coupon_ids'])]);
+        $updated = $coupons->count();
+
+        if ($updated > 0) {
+            InvestmentCoupon::whereIn('id', $coupons->pluck('id'))
+                ->update(['estado' => 'Pagado', 'fecha_pago' => $fechaPago]);
+
+            $payments = $coupons->map(fn (InvestmentCoupon $coupon) => [
+                'investor_id' => $coupon->investment->investor_id,
+                'investment_id' => $coupon->investment_id,
+                'fecha_pago' => $fechaPago,
+                'monto' => $coupon->interes_neto,
+                'tipo' => 'Interés',
+                'moneda' => $coupon->investment->moneda,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->toArray();
+
+            InvestmentPayment::insert($payments);
+        }
+
+        return response()->json(['message' => 'Cupones marcados como pagados', 'count' => $updated]);
     }
 }
