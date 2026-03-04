@@ -48,14 +48,4 @@ class Investor extends Model
     {
         return $this->investments()->where('estado', 'Activa')->count();
     }
-
-    public function getTotalInvertidoCrcAttribute(): float
-    {
-        return (float) $this->investments()->where('moneda', 'CRC')->where('estado', 'Activa')->sum('monto_capital');
-    }
-
-    public function getTotalInvertidoUsdAttribute(): float
-    {
-        return (float) $this->investments()->where('moneda', 'USD')->where('estado', 'Activa')->sum('monto_capital');
-    }
 }
