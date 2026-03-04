@@ -79,8 +79,10 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
   // Auto-calculate fecha_vencimiento
   useEffect(() => {
     if (form.fecha_inicio && form.plazo_meses) {
-      const start = new Date(form.fecha_inicio);
-      start.setMonth(start.getMonth() + parseInt(form.plazo_meses));
+      const start = new Date(form.fecha_inicio + 'T00:00:00');
+      const targetMonth = start.getMonth() + parseInt(form.plazo_meses);
+      start.setDate(1); // Evitar desborde de mes (ej: 31 ene + 1 mes = 3 mar)
+      start.setMonth(targetMonth);
       setForm(prev => ({ ...prev, fecha_vencimiento: start.toISOString().split('T')[0] }));
     }
   }, [form.fecha_inicio, form.plazo_meses]);
