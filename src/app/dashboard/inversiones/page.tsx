@@ -114,10 +114,11 @@ function TablaGeneralSection({ data }: { data: any }) {
   const renderSection = (title: string, section: any, currency: 'CRC' | 'USD') => (
     <div className="mb-6">
       <h3 className="text-lg font-semibold mb-2 bg-primary text-primary-foreground px-3 py-1.5 rounded">{title}</h3>
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>#</TableHead>
+            <TableHead>Desembolso</TableHead>
             <TableHead>Inversionista</TableHead>
             <TableHead className="text-right">Monto Capital</TableHead>
             <TableHead className="text-center">Plazo</TableHead>
@@ -133,8 +134,16 @@ function TablaGeneralSection({ data }: { data: any }) {
         <TableBody>
           {section.inversiones.map((inv: any) => (
             <TableRow key={inv.id}>
-              <TableCell>{inv.numero_desembolso}</TableCell>
-              <TableCell>{inv.investor?.name ?? '—'}</TableCell>
+              <TableCell>
+                <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">
+                  {inv.numero_desembolso}
+                </Link>
+              </TableCell>
+              <TableCell>
+                <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">
+                  {inv.investor?.name ?? '—'}
+                </Link>
+              </TableCell>
               <TableCell className="text-right font-mono">{fmt(inv.monto_capital, currency)}</TableCell>
               <TableCell className="text-center">{inv.plazo_meses}m</TableCell>
               <TableCell>{new Date(inv.fecha_inicio).toLocaleDateString('es-CR')}</TableCell>
@@ -157,6 +166,7 @@ function TablaGeneralSection({ data }: { data: any }) {
           </TableRow>
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 
@@ -269,6 +279,7 @@ export default function InversionesPage() {
               <CardDescription>Gestiona los inversionistas de Credipep.</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -287,6 +298,7 @@ export default function InversionesPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -311,16 +323,17 @@ export default function InversionesPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Inversionista</TableHead>
-                    <TableHead className="text-right">Monto Invertido</TableHead>
-                    <TableHead className="text-center">Tasa Anual</TableHead>
-                    <TableHead>Periodicidad</TableHead>
-                    <TableHead className="text-right">Interés del Cupón</TableHead>
+                    <TableHead className="text-right">Monto Capital</TableHead>
+                    <TableHead className="text-center">Tasa</TableHead>
+                    <TableHead>Forma Pago</TableHead>
+                    <TableHead className="text-right">Int. Mensual</TableHead>
                     <TableHead className="text-right">Retención 15%</TableHead>
-                    <TableHead className="text-right">Monto Neto</TableHead>
+                    <TableHead className="text-right">Int. Neto</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead><span className="sr-only">Acciones</span></TableHead>
                   </TableRow>
@@ -331,6 +344,7 @@ export default function InversionesPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -368,6 +382,7 @@ export default function InversionesPage() {
               <CardDescription>Historial de pagos registrados.</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -383,8 +398,16 @@ export default function InversionesPage() {
                 <TableBody>
                   {payments.map(p => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.investment?.numero_desembolso ?? '—'}</TableCell>
-                      <TableCell>{p.investor?.name ?? '—'}</TableCell>
+                      <TableCell className="font-medium">
+                        {p.investment_id ? (
+                          <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investment?.numero_desembolso ?? '—'}</Link>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {p.investment_id ? (
+                          <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investor?.name ?? '—'}</Link>
+                        ) : (p.investor?.name ?? '—')}
+                      </TableCell>
                       <TableCell>{new Date(p.fecha_pago).toLocaleDateString('es-CR')}</TableCell>
                       <TableCell><Badge variant="outline">{p.tipo}</Badge></TableCell>
                       <TableCell className="text-right font-mono">{fmt(p.monto, p.moneda)}</TableCell>
@@ -397,6 +420,7 @@ export default function InversionesPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -421,6 +445,7 @@ export default function InversionesPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -449,6 +474,7 @@ export default function InversionesPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

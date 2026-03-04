@@ -275,28 +275,40 @@ export default function InvestmentDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[...coupons].sort((a, b) => a.fecha_cupon.localeCompare(b.fecha_cupon)).map((coupon, i) => (
-                  <TableRow key={coupon.id}>
-                    <TableCell>{i + 1}</TableCell>
-                    <TableCell>{new Date(coupon.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
-                    <TableCell className="text-right font-mono">{fmt(coupon.interes_bruto, investment.moneda)}</TableCell>
-                    <TableCell className="text-right font-mono text-destructive">- {fmt(coupon.retencion, investment.moneda)}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold">{fmt(coupon.interes_neto, investment.moneda)}</TableCell>
-                    <TableCell>
-                      <Badge variant={coupon.estado === 'Pagado' ? 'default' : coupon.estado === 'Reservado' ? 'secondary' : 'outline'}>
-                        {coupon.estado}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{coupon.fecha_pago ? new Date(coupon.fecha_pago).toLocaleDateString('es-CR') : '—'}</TableCell>
-                    <TableCell>
-                      {coupon.estado === 'Pendiente' && (
-                        <Button size="sm" variant="outline" onClick={() => handleMarkCouponPaid(coupon.id)}>
-                          <CheckCircle className="h-4 w-4 mr-1" /> Pagar
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {(() => {
+                  const sorted = [...coupons].sort((a, b) => a.fecha_cupon.localeCompare(b.fecha_cupon));
+                  return sorted.map((coupon, i) => {
+                    const hasPriorUnpaid = sorted.slice(0, i).some(c => c.estado === 'Pendiente');
+                    return (
+                      <TableRow key={coupon.id}>
+                        <TableCell>{i + 1}</TableCell>
+                        <TableCell>{new Date(coupon.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(coupon.interes_bruto, investment.moneda)}</TableCell>
+                        <TableCell className="text-right font-mono text-destructive">- {fmt(coupon.retencion, investment.moneda)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold">{fmt(coupon.interes_neto, investment.moneda)}</TableCell>
+                        <TableCell>
+                          <Badge variant={coupon.estado === 'Pagado' ? 'default' : coupon.estado === 'Reservado' ? 'secondary' : 'outline'}>
+                            {coupon.estado}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{coupon.fecha_pago ? new Date(coupon.fecha_pago).toLocaleDateString('es-CR') : '—'}</TableCell>
+                        <TableCell>
+                          {coupon.estado === 'Pendiente' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={hasPriorUnpaid}
+                              title={hasPriorUnpaid ? 'Debe pagar los cupones anteriores primero' : undefined}
+                              onClick={() => handleMarkCouponPaid(coupon.id)}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" /> Pagar
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
                 {coupons.length === 0 && (
                   <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Sin cupones generados</TableCell></TableRow>
                 )}

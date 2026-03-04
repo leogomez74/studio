@@ -184,7 +184,25 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
           <div className="grid grid-cols-3 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="monto_capital">Monto Capital</Label>
-              <Input id="monto_capital" type="number" step="0.01" value={form.monto_capital} onChange={e => setForm(f => ({ ...f, monto_capital: e.target.value }))} required />
+              <Input
+                id="monto_capital"
+                type="text"
+                inputMode="decimal"
+                value={(() => {
+                  if (!form.monto_capital) return '';
+                  const [int, dec] = form.monto_capital.split('.');
+                  const formatted = Number(int).toLocaleString('en-US');
+                  return dec !== undefined ? `${formatted}.${dec}` : formatted;
+                })()}
+                onChange={e => {
+                  const raw = e.target.value.replace(/[^\d.]/g, '');
+                  // Prevent multiple dots
+                  const parts = raw.split('.');
+                  const cleaned = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : raw;
+                  setForm(f => ({ ...f, monto_capital: cleaned }));
+                }}
+                required
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="moneda">Moneda</Label>
@@ -217,7 +235,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="forma_pago">Forma de Pago</Label>
               <Select value={form.forma_pago} onValueChange={v => setForm(f => ({ ...f, forma_pago: v }))}>
@@ -228,17 +246,6 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
                   <SelectItem value="SEMESTRAL">Semestral</SelectItem>
                   <SelectItem value="ANUAL">Anual</SelectItem>
                   <SelectItem value="RESERVA">Reserva</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="estado">Estado</Label>
-              <Select value={form.estado} onValueChange={v => setForm(f => ({ ...f, estado: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Activa">Activa</SelectItem>
-                  <SelectItem value="Finalizada">Finalizada</SelectItem>
-                  <SelectItem value="Liquidada">Liquidada</SelectItem>
                 </SelectContent>
               </Select>
             </div>

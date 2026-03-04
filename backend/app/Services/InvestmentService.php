@@ -130,6 +130,16 @@ class InvestmentService
 
     public function markCouponAsPaid(InvestmentCoupon $coupon, ?string $fechaPago = null): InvestmentCoupon
     {
+        // Validate sequential payment: all prior coupons must be paid
+        $unpaidBefore = InvestmentCoupon::where('investment_id', $coupon->investment_id)
+            ->where('fecha_cupon', '<', $coupon->fecha_cupon)
+            ->where('estado', 'Pendiente')
+            ->exists();
+
+        if ($unpaidBefore) {
+            abort(422, 'No se puede pagar este cupón porque existen cupones anteriores pendientes de pago.');
+        }
+
         $fechaPago = $fechaPago ?? now()->toDateString();
 
         $coupon->update([
