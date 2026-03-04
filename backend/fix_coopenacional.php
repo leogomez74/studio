@@ -84,15 +84,25 @@ foreach ($credits as $credit) {
             ->delete();
         echo "  Eliminadas {$eliminadas} cuotas\n";
 
-        // 3. Calcular cuota fija (sistema francés)
+        // 3. Calcular póliza si aplica
+        $polizaPorCuota = 0;
+        if ($credit->poliza) {
+            $loanConfig = \App\Models\LoanConfiguration::where('tipo', 'regular')->first();
+            $polizaPorCuota = (float) ($loanConfig->monto_poliza ?? 0);
+        }
+
+        // 4. Calcular cuota fija (sistema francés) + póliza
         if ($tasaMensual > 0) {
             $factor = pow(1 + $tasaMensual, $plazo);
             $cuotaFija = round($monto * ($tasaMensual * $factor) / ($factor - 1), 2);
         } else {
             $cuotaFija = round($monto / $plazo, 2);
         }
+        $cuotaConPoliza = $cuotaFija + $polizaPorCuota;
 
-        // 4. Regenerar plan de pagos
+        echo "  PMT: {$cuotaFija} + Póliza: {$polizaPorCuota} = Cuota: {$cuotaConPoliza}\n";
+
+        // 5. Regenerar plan de pagos
         $saldoRestante = $monto;
         for ($i = 1; $i <= $plazo; $i++) {
             $saldo_anterior = round($saldoRestante, 2);
@@ -101,9 +111,9 @@ foreach ($credits as $credit) {
 
             if ($i === $plazo) {
                 $amortizacion = $saldo_anterior;
-                $cuota = round($amortizacion + $interes_corriente, 2);
+                $cuota = round($amortizacion + $interes_corriente + $polizaPorCuota, 2);
             } else {
-                $cuota = $cuotaFija;
+                $cuota = $cuotaConPoliza;
                 $amortizacion = round($amortizacion, 2);
             }
 
@@ -124,7 +134,7 @@ foreach ($credits as $credit) {
                 'plazo_actual' => $plazo,
                 'cuota' => $cuota,
                 'cargos' => 0,
-                'poliza' => 0,
+                'poliza' => $polizaPorCuota,
                 'interes_corriente' => $interes_corriente,
                 'int_corriente_vencido' => 0,
                 'interes_moratorio' => 0,
@@ -151,13 +161,14 @@ foreach ($credits as $credit) {
             $saldoRestante = $saldo_nuevo;
         }
 
-        // 5. Restaurar saldo del crédito al monto original
+        // 6. Restaurar saldo y cuota del crédito
         $credit->update([
             'status' => 'Formalizado',
             'saldo' => $monto,
+            'cuota' => $cuotaConPoliza,
         ]);
 
-        echo "  ✓ Regeneradas {$plazo} cuotas. Cuota fija: {$cuotaFija}. Status → Formalizado\n";
+        echo "  ✓ Regeneradas {$plazo} cuotas. Cuota: {$cuotaConPoliza} (PMT {$cuotaFija} + Póliza {$polizaPorCuota}). Status → Formalizado\n";
     });
 
     echo "\n";
