@@ -48,8 +48,8 @@ firebase-debug.log
 firestore-debug.log
 
 # local images
-
 *.jpg
+!public/certificado/*.jpg
 GEMINI.md
 
 CLAUDE.md
