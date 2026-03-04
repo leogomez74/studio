@@ -1082,6 +1082,8 @@ class CreditController extends Controller
                     'credit_id' => $oldCredit->reference,
                     'cedula' => $oldCredit->lead->cedula ?? null,
                     'clienteNombre' => $oldCredit->lead->name ?? null,
+                    'deductora_id' => $oldCredit->deductora_id,
+                    'deductora_nombre' => $oldCredit->deductora->nombre ?? null,
                     'new_credit_id' => $newCredit->reference,
                     'amount_breakdown' => [
                         'total' => $saldoAbsorbido,
@@ -1115,8 +1117,8 @@ class CreditController extends Controller
                         'interes_moratorio' => 0,
                         'poliza' => 0,
                         'capital' => (float) $validated['monto_credito'],
-                        'cargos_adicionales_total' => 0,
-                        'cargos_adicionales' => [],
+                        'cargos_adicionales_total' => $totalCargos,
+                        'cargos_adicionales' => $cargosNuevos,
                     ],
                 ]
             );
