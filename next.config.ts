@@ -2,15 +2,12 @@ import type { NextConfig } from 'next';
 
 const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
-const nextConfig: NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } } = {
+const nextConfig: NextConfig = {
   /* Config options */
 
-  // Ignorar errores de compilación y ESLint durante el build
+  // Ignorar errores de compilación durante el build
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
 
   // Permitir imágenes remotas de estas fuentes

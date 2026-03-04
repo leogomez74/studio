@@ -2629,24 +2629,33 @@ class CreditPaymentController extends Controller
         // ============================================================
         // ACCOUNTING_API_TRIGGER: Reverso de Cancelación Anticipada
         // ============================================================
+        $montoTotal = (float) $payment->monto;
+        $capital = (float) $payment->amortizacion;
+        $interesCorriente = (float) $payment->interes_corriente;
+        $interesMoratorio = (float) $payment->interes_moratorio;
+        $poliza = (float) $payment->poliza;
+        $penalizacion = round($montoTotal - $capital - $interesCorriente - $interesMoratorio - $poliza, 2);
+        if ($penalizacion < 0) $penalizacion = 0;
+
         $this->triggerAccountingEntry(
             'REVERSO_CANCELACION',
-            (float) $payment->monto,
+            $montoTotal,
             "REVERSO-CANCEL-{$payment->id}-{$credit->reference}",
             [
                 'reference' => "REVERSO-CANCEL-{$payment->id}-{$credit->reference}",
                 'credit_id' => $credit->reference,
                 'cedula' => $credit->lead->cedula ?? null,
                 'clienteNombre' => $credit->lead->name ?? null,
+                'deductora_id' => $credit->deductora_id,
+                'deductora_nombre' => $credit->deductora->nombre ?? null,
                 'motivo' => $motivo,
                 'amount_breakdown' => [
-                    'total' => (float) $payment->monto,
-                    'interes_corriente' => 0,
-                    'interes_moratorio' => 0,
-                    'poliza' => 0,
-                    'capital' => (float) $payment->monto,
-                    'cargos_adicionales_total' => 0,
-                    'cargos_adicionales' => [],
+                    'total' => $montoTotal,
+                    'interes_corriente' => $interesCorriente,
+                    'interes_moratorio' => $interesMoratorio,
+                    'poliza' => $poliza,
+                    'capital' => $capital,
+                    'penalizacion' => $penalizacion,
                 ],
             ]
         );
