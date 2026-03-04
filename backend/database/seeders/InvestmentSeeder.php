@@ -26,6 +26,8 @@ class InvestmentSeeder extends Seeder
             ['name' => 'Gomez Salazar, Leonardo (David)', 'tipo_persona' => 'Persona Física'],
             ['name' => 'Gomez Salazar, Leonardo', 'tipo_persona' => 'Persona Física'],
             ['name' => 'Fundacion Derecho sin Fronteras', 'tipo_persona' => 'Fundación'],
+            ['name' => 'Ted Chepman', 'tipo_persona' => 'Persona Física'],
+            ['name' => 'Roberto Mora', 'tipo_persona' => 'Persona Física'],
         ];
 
         $investorMap = [];
@@ -69,6 +71,9 @@ class InvestmentSeeder extends Seeder
             ['numero_desembolso' => '30-D', 'investor' => 'Fundación DSF', 'monto' => 10000000, 'plazo' => 96, 'tasa' => 0.10, 'forma_pago' => 'TRIMESTRAL', 'moneda' => 'CRC'],
             ['numero_desembolso' => '32-D', 'investor' => 'Fundación DSF', 'monto' => 15625000, 'plazo' => 96, 'tasa' => 0.10, 'forma_pago' => 'TRIMESTRAL', 'moneda' => 'CRC'],
             ['numero_desembolso' => '55-D', 'investor' => 'Fundación DSF', 'monto' => 4500000, 'plazo' => 96, 'tasa' => 0.10, 'forma_pago' => 'TRIMESTRAL', 'moneda' => 'CRC'],
+            // Inversiones adicionales de hojas individuales del Excel
+            ['numero_desembolso' => 'TC-1', 'investor' => 'Ted Chepman', 'monto' => 20000, 'plazo' => 96, 'tasa' => 0.06, 'forma_pago' => 'RESERVA', 'moneda' => 'USD'],
+            ['numero_desembolso' => 'RM-1', 'investor' => 'Roberto Mora', 'monto' => 80000, 'plazo' => 96, 'tasa' => 0.07, 'forma_pago' => 'TRIMESTRAL', 'moneda' => 'USD'],
         ];
 
         $today = Carbon::today();
