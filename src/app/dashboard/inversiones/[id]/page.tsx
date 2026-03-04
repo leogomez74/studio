@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -282,7 +282,14 @@ export default function InvestmentDetailPage() {
                     return (
                       <TableRow key={coupon.id}>
                         <TableCell>{i + 1}</TableCell>
-                        <TableCell>{new Date(coupon.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-1.5">
+                            {new Date(coupon.fecha_cupon).toLocaleDateString('es-CR')}
+                            {coupon.estado === 'Pendiente' && new Date(coupon.fecha_cupon) < new Date() && (
+                              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" title="Cupón atrasado" />
+                            )}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-right font-mono">{fmt(coupon.interes_bruto, investment.moneda)}</TableCell>
                         <TableCell className="text-right font-mono text-destructive">- {fmt(coupon.retencion, investment.moneda)}</TableCell>
                         <TableCell className="text-right font-mono font-semibold">{fmt(coupon.interes_neto, investment.moneda)}</TableCell>
