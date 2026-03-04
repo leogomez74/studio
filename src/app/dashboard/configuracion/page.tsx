@@ -5218,7 +5218,7 @@ export default function ConfiguracionPage() {
                                       <SelectItem value="penalizacion">Penalización (abono anticipado)</SelectItem>
                                       <SelectItem value="cargos_adicionales_total">Cargos Adicionales (sumatoria total)</SelectItem>
                                       <SelectItem value="cargo_adicional">Cargo Adicional específico (seleccionar cuál →)</SelectItem>
-                                      {configForm.entry_type === 'FORMALIZACION' && (
+                                      {(configForm.entry_type === 'FORMALIZACION' || configForm.entry_type === 'REFUNDICION_NUEVO') && (
                                         <SelectItem value="monto_neto">Monto Neto (Total − Cargos Adicionales)</SelectItem>
                                       )}
                                     </SelectContent>
