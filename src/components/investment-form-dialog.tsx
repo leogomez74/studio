@@ -20,7 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
 import type { Investment, Investor } from '@/lib/data';
 
@@ -37,8 +44,9 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
   const isEditing = !!investment;
 
   const [loading, setLoading] = useState(false);
+  const [investorOpen, setInvestorOpen] = useState(false);
+  const [investorSearch, setInvestorSearch] = useState('');
   const [form, setForm] = useState({
-    numero_desembolso: '',
     investor_id: '',
     monto_capital: '',
     plazo_meses: '',
@@ -55,7 +63,6 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
   useEffect(() => {
     if (investment) {
       setForm({
-        numero_desembolso: investment.numero_desembolso,
         investor_id: String(investment.investor_id),
         monto_capital: String(investment.monto_capital),
         plazo_meses: String(investment.plazo_meses),
@@ -70,7 +77,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
       });
     } else {
       setForm({
-        numero_desembolso: '', investor_id: defaultInvestorId ? String(defaultInvestorId) : '', monto_capital: '', plazo_meses: '',
+        investor_id: defaultInvestorId ? String(defaultInvestorId) : '', monto_capital: '', plazo_meses: '',
         fecha_inicio: '', fecha_vencimiento: '', tasa_anual: '', moneda: 'CRC',
         forma_pago: 'MENSUAL', es_capitalizable: false, estado: 'Activa', notas: '',
       });
@@ -125,21 +132,52 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="numero_desembolso">Número de Desembolso</Label>
-              <Input id="numero_desembolso" value={form.numero_desembolso} onChange={e => setForm(f => ({ ...f, numero_desembolso: e.target.value }))} required />
-            </div>
+          <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="investor_id">Inversionista</Label>
-              <Select value={form.investor_id} onValueChange={v => setForm(f => ({ ...f, investor_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>
-                  {investors.map(inv => (
-                    <SelectItem key={inv.id} value={String(inv.id)}>{inv.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={investorOpen} onOpenChange={setInvestorOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={investorOpen} className="justify-between font-normal">
+                    {form.investor_id ? investors.find(i => String(i.id) === form.investor_id)?.name : 'Seleccionar...'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="Buscar inversionista..."
+                      value={investorSearch}
+                      onChange={e => setInvestorSearch(e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto p-1">
+                    {investors
+                      .filter(inv => inv.name.toLowerCase().includes(investorSearch.toLowerCase()))
+                      .map(inv => (
+                        <button
+                          key={inv.id}
+                          type="button"
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer',
+                            form.investor_id === String(inv.id) && 'bg-accent'
+                          )}
+                          onClick={() => {
+                            setForm(f => ({ ...f, investor_id: String(inv.id) }));
+                            setInvestorOpen(false);
+                            setInvestorSearch('');
+                          }}
+                        >
+                          <Check className={cn('h-4 w-4', form.investor_id === String(inv.id) ? 'opacity-100' : 'opacity-0')} />
+                          {inv.name}
+                        </button>
+                      ))}
+                    {investors.filter(inv => inv.name.toLowerCase().includes(investorSearch.toLowerCase())).length === 0 && (
+                      <div className="py-4 text-center text-sm text-muted-foreground">Sin resultados</div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 

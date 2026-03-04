@@ -38,7 +38,6 @@ class InvestmentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'numero_desembolso' => 'required|string|max:20|unique:investments,numero_desembolso',
             'investor_id' => 'required|exists:investors,id',
             'monto_capital' => 'required|numeric|min:0.01',
             'plazo_meses' => 'required|integer|min:1',
@@ -53,7 +52,10 @@ class InvestmentController extends Controller
         ]);
 
         $investment = DB::transaction(function () use ($validated) {
+            $validated['numero_desembolso'] = 'TMP';
             $investment = Investment::create($validated);
+            $suffix = $investment->moneda === 'USD' ? 'D' : 'C';
+            $investment->update(['numero_desembolso' => $investment->id . '-' . $suffix]);
             $this->service->generateCoupons($investment);
             return $investment;
         });
@@ -134,7 +136,6 @@ class InvestmentController extends Controller
         $investment = Investment::findOrFail($id);
 
         $validated = $request->validate([
-            'numero_desembolso' => 'required|string|max:20|unique:investments,numero_desembolso',
             'plazo_meses' => 'required|integer|min:1',
             'fecha_inicio' => 'required|date',
             'fecha_vencimiento' => 'required|date|after:fecha_inicio',

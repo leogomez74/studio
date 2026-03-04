@@ -173,6 +173,7 @@ class InvestmentService
 
             // Create new investment with new terms
             $newInvestment = Investment::create(array_merge([
+                'numero_desembolso' => 'TMP',
                 'investor_id' => $investment->investor_id,
                 'monto_capital' => $investment->monto_capital,
                 'moneda' => $investment->moneda,
@@ -180,6 +181,8 @@ class InvestmentService
                 'tasa_anual' => $investment->tasa_anual,
                 'es_capitalizable' => $investment->es_capitalizable,
             ], $newTerms));
+            $suffix = $newInvestment->moneda === 'USD' ? 'D' : 'C';
+            $newInvestment->update(['numero_desembolso' => $newInvestment->id . '-' . $suffix]);
 
             $this->generateCoupons($newInvestment);
 
