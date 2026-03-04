@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Investment;
+use App\Models\InvestmentCoupon;
 use App\Models\InvestmentRateHistory;
 use App\Services\InvestmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class InvestmentController extends Controller
 {
@@ -122,6 +124,51 @@ class InvestmentController extends Controller
     public function tablaGeneral()
     {
         return response()->json($this->service->getTablaGeneral());
+    }
+
+    public function pagosProximos()
+    {
+        $limit = Carbon::now()->addMonths(3)->endOfMonth();
+
+        $coupons = InvestmentCoupon::with(['investment.investor:id,name'])
+            ->where('estado', 'Pendiente')
+            ->where('fecha_cupon', '<=', $limit)
+            ->orderBy('fecha_cupon')
+            ->get();
+
+        $grouped = $coupons->groupBy(fn ($c) => Carbon::parse($c->fecha_cupon)->format('Y-m'));
+
+        $meses = $grouped->map(function ($cuponesMes, $key) {
+            $date = Carbon::createFromFormat('Y-m', $key);
+            $investmentIds = $cuponesMes->pluck('investment_id')->unique();
+
+            $byCurrency = fn (string $moneda) => $cuponesMes->filter(
+                fn ($c) => $c->investment && $c->investment->moneda === $moneda
+            );
+
+            $summarize = function ($items) {
+                return [
+                    'cantidad' => $items->count(),
+                    'interes_bruto' => round($items->sum('interes_bruto'), 2),
+                    'retencion' => round($items->sum('retencion'), 2),
+                    'interes_neto' => round($items->sum('interes_neto'), 2),
+                ];
+            };
+
+            return [
+                'mes' => $key,
+                'label' => ucfirst($date->translatedFormat('F Y')),
+                'resumen' => [
+                    'total_cupones' => $cuponesMes->count(),
+                    'total_inversiones' => $investmentIds->count(),
+                    'crc' => $summarize($byCurrency('CRC')),
+                    'usd' => $summarize($byCurrency('USD')),
+                ],
+                'cupones' => $cuponesMes->values(),
+            ];
+        })->values();
+
+        return response()->json(['meses' => $meses]);
     }
 
     public function liquidate(int $id)

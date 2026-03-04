@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -178,6 +179,132 @@ function TablaGeneralSection({ data }: { data: any }) {
   );
 }
 
+// --- Pagos Próximos ---
+function PagosProximosSection({ data }: { data: any }) {
+  if (!data) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  const meses: any[] = data.meses ?? [];
+
+  if (meses.length === 0) {
+    return <p className="text-center text-muted-foreground py-8">No hay pagos próximos pendientes.</p>;
+  }
+
+  // Global summary
+  const globalCrc = { interes_bruto: 0, retencion: 0, interes_neto: 0, cantidad: 0 };
+  const globalUsd = { interes_bruto: 0, retencion: 0, interes_neto: 0, cantidad: 0 };
+  let totalInversiones = new Set<number>();
+
+  meses.forEach((m: any) => {
+    globalCrc.interes_neto += m.resumen.crc.interes_neto;
+    globalCrc.cantidad += m.resumen.crc.cantidad;
+    globalUsd.interes_neto += m.resumen.usd.interes_neto;
+    globalUsd.cantidad += m.resumen.usd.cantidad;
+    m.cupones.forEach((c: any) => { if (c.investment) totalInversiones.add(c.investment.id); });
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total Pendiente CRC</CardDescription>
+            <CardTitle className="text-2xl font-mono">{fmt(globalCrc.interes_neto, 'CRC')}</CardTitle>
+          </CardHeader>
+          <CardContent><p className="text-sm text-muted-foreground">{globalCrc.cantidad} cupones</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total Pendiente USD</CardDescription>
+            <CardTitle className="text-2xl font-mono">{fmt(globalUsd.interes_neto, 'USD')}</CardTitle>
+          </CardHeader>
+          <CardContent><p className="text-sm text-muted-foreground">{globalUsd.cantidad} cupones</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Inversiones con Pagos Pendientes</CardDescription>
+            <CardTitle className="text-2xl">{totalInversiones.size}</CardTitle>
+          </CardHeader>
+          <CardContent><p className="text-sm text-muted-foreground">{meses.length} meses con vencimientos</p></CardContent>
+        </Card>
+      </div>
+
+      {/* Monthly sections */}
+      {meses.map((mes: any, idx: number) => {
+        const now = new Date();
+        const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const isOverdue = mes.mes < currentYM;
+
+        return (
+        <Collapsible key={mes.mes} defaultOpen={idx === 0 || isOverdue}>
+          <CollapsibleTrigger asChild>
+            <button className={`w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity ${isOverdue ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}>
+              {isOverdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CalendarClock className="h-5 w-5 shrink-0" />}
+              {mes.label}
+              {isOverdue && (
+                <span className="flex items-center gap-1 bg-destructive-foreground/20 text-destructive-foreground px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide">
+                  <AlertTriangle className="h-3 w-3" /> Pago Atrasado
+                </span>
+              )}
+              <span className="ml-auto text-sm font-normal opacity-80 flex items-center gap-3">
+                {mes.resumen.crc.cantidad > 0 && <span className="font-mono">CRC: {fmt(mes.resumen.crc.interes_neto, 'CRC')}</span>}
+                {mes.resumen.usd.cantidad > 0 && <span className="font-mono">USD: {fmt(mes.resumen.usd.interes_neto, 'USD')}</span>}
+                <span>{mes.resumen.total_cupones} cupones — {mes.resumen.total_inversiones} inversiones</span>
+                <ChevronDown className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-180" />
+              </span>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="overflow-x-auto mt-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Desembolso</TableHead>
+                    <TableHead>Inversionista</TableHead>
+                    <TableHead className="text-right">Monto Capital</TableHead>
+                    <TableHead>Periodicidad</TableHead>
+                    <TableHead>Fecha Cupón</TableHead>
+                    <TableHead className="text-right">Int. Bruto</TableHead>
+                    <TableHead className="text-right">Retención 15%</TableHead>
+                    <TableHead className="text-right">Int. Neto</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {mes.cupones.map((c: any) => {
+                    const inv = c.investment;
+                    const moneda = inv?.moneda ?? 'CRC';
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          {inv ? (
+                            <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {inv ? (
+                            <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">{inv.investor?.name ?? '—'}</Link>
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{inv ? fmt(inv.monto_capital, moneda) : '—'}</TableCell>
+                        <TableCell>{inv?.forma_pago ?? '—'}</TableCell>
+                        <TableCell>{new Date(c.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(c.interes_bruto, moneda)}</TableCell>
+                        <TableCell className="text-right font-mono text-destructive">- {fmt(c.retencion, moneda)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-primary">{fmt(c.interes_neto, moneda)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+        );
+      })}
+    </div>
+  );
+}
+
 // --- Main Page ---
 export default function InversionesPage() {
   const searchParams = useSearchParams();
@@ -187,6 +314,7 @@ export default function InversionesPage() {
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [payments, setPayments] = useState<InvestmentPayment[]>([]);
   const [tablaGeneral, setTablaGeneral] = useState<any>(null);
+  const [pagosProximos, setPagosProximos] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
@@ -220,6 +348,15 @@ export default function InversionesPage() {
     }
   }, []);
 
+  const fetchPagosProximos = useCallback(async () => {
+    try {
+      const res = await api.get('/api/investments/pagos-proximos');
+      setPagosProximos(res.data);
+    } catch (err) {
+      console.error('Error fetching pagos proximos:', err);
+    }
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDeleteInvestor = async (id: number) => {
@@ -250,13 +387,14 @@ export default function InversionesPage() {
 
   return (
     <ProtectedPage module="inversiones">
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); }}>
+      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
             <TabsTrigger value="inversiones">Inversiones</TabsTrigger>
             <TabsTrigger value="tabla-general">Tabla General</TabsTrigger>
             <TabsTrigger value="pagos">Pagos</TabsTrigger>
+            <TabsTrigger value="pagos-proximos">Pagos Próximos</TabsTrigger>
             <TabsTrigger value="retenciones">Retenciones</TabsTrigger>
           </TabsList>
           {activeTab === 'inversionistas' && (
@@ -421,6 +559,19 @@ export default function InversionesPage() {
                 </TableBody>
               </Table>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Pagos Próximos */}
+        <TabsContent value="pagos-proximos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pagos Próximos</CardTitle>
+              <CardDescription>Cupones de interés pendientes agrupados por mes.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PagosProximosSection data={pagosProximos} />
             </CardContent>
           </Card>
         </TabsContent>
