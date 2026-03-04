@@ -22,6 +22,7 @@
     <p class="fecha">Generado: {{ now()->format('d/m/Y H:i') }}</p>
 
     @foreach (['dolares' => 'DÓLARES (USD)', 'colones' => 'COLONES (CRC)'] as $key => $label)
+    @php $section = $$key; @endphp
     <h2>{{ $label }}</h2>
     <table>
         <thead>
@@ -40,7 +41,7 @@
             </tr>
         </thead>
         <tbody>
-            @forelse ($$key['inversiones'] as $inv)
+            @forelse ($section['inversiones'] as $inv)
             <tr>
                 <td>{{ $inv->numero_desembolso }}</td>
                 <td>{{ $inv->investor->name ?? '' }}</td>
@@ -59,11 +60,11 @@
             @endforelse
             <tr class="total-row">
                 <td colspan="2">TOTALES</td>
-                <td class="text-right mono">{{ number_format($$key['total_capital'], 2) }}</td>
+                <td class="text-right mono">{{ number_format($section['total_capital'], 2) }}</td>
                 <td colspan="4"></td>
-                <td class="text-right mono">{{ number_format($$key['total_interes_mensual'], 2) }}</td>
-                <td class="text-right mono">{{ number_format($$key['total_retencion'], 2) }}</td>
-                <td class="text-right mono">{{ number_format($$key['total_neto'], 2) }}</td>
+                <td class="text-right mono">{{ number_format($section['total_interes_mensual'], 2) }}</td>
+                <td class="text-right mono">{{ number_format($section['total_retencion'], 2) }}</td>
+                <td class="text-right mono">{{ number_format($section['total_neto'], 2) }}</td>
                 <td></td>
             </tr>
         </tbody>
