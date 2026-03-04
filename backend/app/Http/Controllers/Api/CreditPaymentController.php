@@ -353,7 +353,7 @@ class CreditPaymentController extends Controller
                     $q->whereNotIn('cedula', $cedulasEnArchivo);
                 })
                 ->with('lead:id,name,apellido1,cedula')
-                ->get(['id', 'lead_id', 'numero_operacion', 'cuota', 'status', 'formalized_at']);
+                ->get(['id', 'lead_id', 'numero_operacion', 'reference', 'cuota', 'status', 'formalized_at']);
 
             $advertencias = [];
             foreach ($creditosFaltantes as $c) {
@@ -377,7 +377,7 @@ class CreditPaymentController extends Controller
                     'credit_id' => $c->id,
                     'nombre' => trim(($c->lead->name ?? '') . ' ' . ($c->lead->apellido1 ?? '')),
                     'cedula' => $c->lead->cedula ?? '',
-                    'numero_operacion' => $c->numero_operacion ?? '',
+                    'numero_operacion' => $c->numero_operacion ?? $c->reference ?? '',
                     'cuota' => (float) $c->cuota,
                     'status' => $c->status,
                 ];
@@ -1740,14 +1740,14 @@ class CreditPaymentController extends Controller
             if (!empty($moraAplicadaIds)) {
                 $creditosEnMora = Credit::whereIn('id', $moraAplicadaIds)
                     ->with('lead:id,name,apellido1,cedula')
-                    ->get(['id', 'lead_id', 'numero_operacion', 'cuota', 'status']);
+                    ->get(['id', 'lead_id', 'numero_operacion', 'reference', 'cuota', 'status']);
 
                 foreach ($creditosEnMora as $c) {
                     $advertencias[] = [
                         'credit_id' => $c->id,
                         'nombre' => trim(($c->lead->name ?? '') . ' ' . ($c->lead->apellido1 ?? '')),
                         'cedula' => $c->lead->cedula ?? '',
-                        'numero_operacion' => $c->numero_operacion ?? '',
+                        'numero_operacion' => $c->numero_operacion ?? $c->reference ?? '',
                         'cuota' => $c->cuota,
                     ];
                 }
