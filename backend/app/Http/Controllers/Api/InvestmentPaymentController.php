@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Investment;
 use App\Models\InvestmentPayment;
 use Illuminate\Http\Request;
 
@@ -41,6 +42,18 @@ class InvestmentPaymentController extends Controller
             'moneda' => 'required|in:CRC,USD',
             'comentarios' => 'nullable|string',
         ]);
+
+        if (!empty($validated['investment_id'])) {
+            $belongs = Investment::where('id', $validated['investment_id'])
+                ->where('investor_id', $validated['investor_id'])
+                ->exists();
+
+            if (!$belongs) {
+                return response()->json([
+                    'message' => 'La inversión no pertenece al inversionista indicado.',
+                ], 422);
+            }
+        }
 
         $payment = InvestmentPayment::create($validated);
         return response()->json($payment->load(['investor:id,name', 'investment:id,numero_desembolso']), 201);
