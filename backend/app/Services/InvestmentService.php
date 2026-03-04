@@ -66,15 +66,15 @@ class InvestmentService
 
     public function recalculateCoupons(Investment $investment): void
     {
-        // Delete future unpaid coupons and regenerate
+        // Eliminar TODOS los cupones no pagados (pasados y futuros)
         $investment->coupons()
             ->where('estado', '!=', 'Pagado')
-            ->where('fecha_cupon', '>', now())
             ->delete();
 
         $montoCapital = (float) $investment->monto_capital;
         $tasaAnual = (float) $investment->tasa_anual;
         $formaPago = $investment->forma_pago;
+        $fechaInicio = Carbon::parse($investment->fecha_inicio);
         $fechaVencimiento = Carbon::parse($investment->fecha_vencimiento);
 
         $mesesIntervalo = match ($formaPago) {
@@ -94,11 +94,15 @@ class InvestmentService
         $estadoCupon = $formaPago === 'RESERVA' ? 'Reservado' : 'Pendiente';
         $montoReservado = $formaPago === 'RESERVA' ? $interesNeto : 0;
 
-        // Find next coupon date after the last existing coupon
-        $lastCoupon = $investment->coupons()->orderBy('fecha_cupon', 'desc')->first();
-        $nextDate = $lastCoupon
-            ? Carbon::parse($lastCoupon->fecha_cupon)->addMonths($mesesIntervalo)
-            : now()->startOfMonth()->addMonth();
+        // Regenerar desde el último cupón pagado o desde fecha_inicio
+        $lastPaidCoupon = $investment->coupons()
+            ->where('estado', 'Pagado')
+            ->orderBy('fecha_cupon', 'desc')
+            ->first();
+
+        $nextDate = $lastPaidCoupon
+            ? Carbon::parse($lastPaidCoupon->fecha_cupon)->addMonths($mesesIntervalo)
+            : $fechaInicio->copy()->addMonths($mesesIntervalo);
 
         $coupons = [];
         $now = now();
