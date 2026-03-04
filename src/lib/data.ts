@@ -355,6 +355,8 @@ export type Investment = {
   retencion_mensual?: number;
   interes_neto_mensual?: number;
   interes_del_cupon?: number;
+  retencion_del_cupon?: number;
+  interes_neto_del_cupon?: number;
   coupons?: InvestmentCoupon[];
 };
 

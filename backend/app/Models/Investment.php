@@ -32,7 +32,7 @@ class Investment extends Model
         'es_capitalizable' => 'boolean',
     ];
 
-    protected $appends = ['interes_mensual', 'retencion_mensual', 'interes_neto_mensual', 'interes_del_cupon'];
+    protected $appends = ['interes_mensual', 'retencion_mensual', 'interes_neto_mensual', 'interes_del_cupon', 'retencion_del_cupon', 'interes_neto_del_cupon'];
 
     public function investor()
     {
@@ -80,5 +80,15 @@ class Investment extends Model
             'RESERVA' => $mensual,
             default => $mensual,
         };
+    }
+
+    public function getRetencionDelCuponAttribute(): float
+    {
+        return round($this->interes_del_cupon * 0.15, 2);
+    }
+
+    public function getInteresNetoDelCuponAttribute(): float
+    {
+        return round($this->interes_del_cupon - $this->retencion_del_cupon, 2);
     }
 }

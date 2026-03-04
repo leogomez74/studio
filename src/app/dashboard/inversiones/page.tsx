@@ -74,10 +74,6 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
 
 // --- Inversiones Table ---
 const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, onDelete }: { investment: Investment; onDelete: (id: number) => void }) {
-  const interesCupon = investment.interes_del_cupon ?? 0;
-  const retencionCupon = interesCupon * 0.15;
-  const netoCupon = interesCupon - retencionCupon;
-
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell>
@@ -89,9 +85,9 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
       <TableCell className="text-right font-mono">{fmt(investment.monto_capital, investment.moneda)}</TableCell>
       <TableCell className="text-center font-mono">{(Number(investment.tasa_anual) * 100).toFixed(2)}%</TableCell>
       <TableCell>{investment.forma_pago}</TableCell>
-      <TableCell className="text-right font-mono">{fmt(interesCupon, investment.moneda)}</TableCell>
-      <TableCell className="text-right font-mono text-destructive">- {fmt(retencionCupon, investment.moneda)}</TableCell>
-      <TableCell className="text-right font-mono font-semibold text-primary">{fmt(netoCupon, investment.moneda)}</TableCell>
+      <TableCell className="text-right font-mono">{fmt(investment.interes_del_cupon ?? 0, investment.moneda)}</TableCell>
+      <TableCell className="text-right font-mono text-destructive">- {fmt(investment.retencion_del_cupon ?? 0, investment.moneda)}</TableCell>
+      <TableCell className="text-right font-mono font-semibold text-primary">{fmt(investment.interes_neto_del_cupon ?? 0, investment.moneda)}</TableCell>
       <TableCell><Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Finalizada' ? 'secondary' : 'outline'}>{investment.estado}</Badge></TableCell>
       <TableCell>
         <DropdownMenu>
