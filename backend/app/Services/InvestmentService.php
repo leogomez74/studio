@@ -140,9 +140,9 @@ class InvestmentService
     public function liquidateEarly(Investment $investment): Investment
     {
         DB::transaction(function () use ($investment) {
-            // Mark remaining coupons as paid
+            // Mark remaining coupons as paid (Pendiente y Reservado)
             $investment->coupons()
-                ->where('estado', 'Pendiente')
+                ->whereIn('estado', ['Pendiente', 'Reservado'])
                 ->update(['estado' => 'Pagado', 'fecha_pago' => now()->toDateString()]);
 
             $investment->update(['estado' => 'Liquidada']);
