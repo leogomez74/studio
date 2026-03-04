@@ -1612,6 +1612,44 @@ export default function CobrosPage() {
                               </div>
                             </div>
 
+                            {/* Advertencias: créditos faltantes que entrarán en mora */}
+                            {previewData.advertencias && previewData.advertencias.length > 0 && (
+                              <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 space-y-2">
+                                <div className="flex items-center gap-2 text-amber-700 font-semibold">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  {previewData.advertencias.length} crédito(s) de esta deductora no están en la planilla y entrarán en mora
+                                </div>
+                                <div className="max-h-40 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-amber-100 sticky top-0">
+                                      <tr>
+                                        <th className="px-2 py-1 text-left">Nombre</th>
+                                        <th className="px-2 py-1 text-left">Cédula</th>
+                                        <th className="px-2 py-1 text-left">Operación</th>
+                                        <th className="px-2 py-1 text-right">Cuota</th>
+                                        <th className="px-2 py-1 text-center">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {previewData.advertencias.map((a: any, i: number) => (
+                                        <tr key={i} className="border-t border-amber-200">
+                                          <td className="px-2 py-1">{a.nombre}</td>
+                                          <td className="px-2 py-1">{a.cedula}</td>
+                                          <td className="px-2 py-1">{a.numero_operacion || '-'}</td>
+                                          <td className="px-2 py-1 text-right">¢{Number(a.cuota).toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                                          <td className="px-2 py-1 text-center">
+                                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${a.status === 'En Mora' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                              {a.status}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Totales Monetarios */}
                             <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-lg">
                               <div>

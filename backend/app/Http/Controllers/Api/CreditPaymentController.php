@@ -341,6 +341,48 @@ class CreditPaymentController extends Controller
 
             $totales['diferencia_total'] = $totales['monto_total_planilla'] - $totales['monto_total_esperado'];
 
+            // Advertencias: créditos activos de esta deductora que NO están en el archivo
+            // y que entrarían en mora al procesar la planilla
+            $cedulasEnArchivo = collect($preview)->pluck('cedula')->unique()->toArray();
+            $mesPago = Carbon::parse($fechaProceso)->subMonth();
+
+            $creditosFaltantes = Credit::where('deductora_id', $deductoraId)
+                ->whereIn('status', ['Formalizado', 'En Mora'])
+                ->whereNotNull('formalized_at')
+                ->whereHas('lead', function ($q) use ($cedulasEnArchivo) {
+                    $q->whereNotIn('cedula', $cedulasEnArchivo);
+                })
+                ->with('lead:id,name,apellido1,cedula')
+                ->get(['id', 'lead_id', 'numero_operacion', 'cuota', 'status', 'formalized_at']);
+
+            $advertencias = [];
+            foreach ($creditosFaltantes as $c) {
+                // Buscar la primera cuota pendiente y verificar si ya venció para este período
+                $primeraCuotaPendiente = $c->planDePagos()
+                    ->where('numero_cuota', '>', 0)
+                    ->where('estado', 'Pendiente')
+                    ->orderBy('numero_cuota')
+                    ->first();
+
+                if (!$primeraCuotaPendiente) continue;
+
+                // Solo advertir si la fecha_corte de la cuota ya pasó respecto al mesPago
+                // Ej: cuota vence 2025-05-31 (mayo), mesPago = abril 2025 → aún no toca, skip
+                $fechaVencimiento = Carbon::parse($primeraCuotaPendiente->fecha_corte);
+                if ($fechaVencimiento->startOfMonth()->gt($mesPago->copy()->endOfMonth())) {
+                    continue; // La cuota aún no vence en este período
+                }
+
+                $advertencias[] = [
+                    'credit_id' => $c->id,
+                    'nombre' => trim(($c->lead->name ?? '') . ' ' . ($c->lead->apellido1 ?? '')),
+                    'cedula' => $c->lead->cedula ?? '',
+                    'numero_operacion' => $c->numero_operacion ?? '',
+                    'cuota' => (float) $c->cuota,
+                    'status' => $c->status,
+                ];
+            }
+
             // Eliminar archivo temporal
             Storage::disk('public')->delete($path);
 
@@ -359,6 +401,7 @@ class CreditPaymentController extends Controller
                 'deductora_id' => $deductoraId,
                 'fecha_proceso' => $fechaProceso,
                 'hash' => $hash,
+                'advertencias' => $advertencias,
             ]);
 
         } catch (\Exception $e) {
@@ -2173,19 +2216,6 @@ class CreditPaymentController extends Controller
      */
     private function aplicarMoraACuota(Credit $credit, Carbon $mesPago): array
     {
-        $inicioMora = Carbon::parse($credit->formalized_at)
-            ->startOfMonth()
-            ->addMonth();
-
-        if ($mesPago->lt($inicioMora)) {
-            return [
-                'credit_id' => $credit->id,
-                'lead' => $credit->lead->name ?? 'N/A',
-                'status' => 'muy_nuevo',
-                'mensaje' => 'Crédito muy nuevo, aún no genera mora'
-            ];
-        }
-
         // Buscar cuota pendiente más antigua
         $cuota = $credit->planDePagos()
             ->where('numero_cuota', '>', 0)
@@ -2198,6 +2228,18 @@ class CreditPaymentController extends Controller
                 'credit_id' => $credit->id,
                 'lead' => $credit->lead->name ?? 'N/A',
                 'status' => 'sin_cuotas_pendientes'
+            ];
+        }
+
+        // Verificar si la cuota ya venció para este período usando fecha_corte real
+        // Ej: cuota fecha_corte = 2025-05-31, mesPago = abril 2025 → aún no toca
+        $fechaVencimiento = Carbon::parse($cuota->fecha_corte);
+        if ($fechaVencimiento->startOfMonth()->gt($mesPago->copy()->endOfMonth())) {
+            return [
+                'credit_id' => $credit->id,
+                'lead' => $credit->lead->name ?? 'N/A',
+                'status' => 'muy_nuevo',
+                'mensaje' => 'La cuota aún no vence en este período'
             ];
         }
 
