@@ -193,16 +193,27 @@ class InvestmentService
 
         $totalCrc = 0;
         $totalUsd = 0;
+        $capitalActivoCrc = 0;
+        $capitalActivoUsd = 0;
         $totalInteresPagadoCrc = 0;
         $totalInteresPagadoUsd = 0;
 
         foreach ($investments as $inv) {
+            $capital = (float) $inv->monto_capital;
+            $interesPagado = $inv->coupons->where('estado', 'Pagado')->sum('interes_neto');
+
             if ($inv->moneda === 'CRC') {
-                $totalCrc += (float) $inv->monto_capital;
-                $totalInteresPagadoCrc += $inv->coupons->where('estado', 'Pagado')->sum('interes_neto');
+                $totalCrc += $capital;
+                $totalInteresPagadoCrc += $interesPagado;
+                if ($inv->estado === 'Activa') {
+                    $capitalActivoCrc += $capital;
+                }
             } else {
-                $totalUsd += (float) $inv->monto_capital;
-                $totalInteresPagadoUsd += $inv->coupons->where('estado', 'Pagado')->sum('interes_neto');
+                $totalUsd += $capital;
+                $totalInteresPagadoUsd += $interesPagado;
+                if ($inv->estado === 'Activa') {
+                    $capitalActivoUsd += $capital;
+                }
             }
         }
 
@@ -211,6 +222,8 @@ class InvestmentService
             'investments' => $investments,
             'total_capital_crc' => $totalCrc,
             'total_capital_usd' => $totalUsd,
+            'capital_activo_crc' => $capitalActivoCrc,
+            'capital_activo_usd' => $capitalActivoUsd,
             'total_interes_pagado_crc' => $totalInteresPagadoCrc,
             'total_interes_pagado_usd' => $totalInteresPagadoUsd,
         ];
