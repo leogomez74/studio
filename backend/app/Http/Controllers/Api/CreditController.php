@@ -515,9 +515,12 @@ class CreditController extends Controller
         // Permitir formalización desde cualquier estado
         $isFormalizing = isset($request->status) && strtolower($request->status) === 'formalizado';
 
+        // Permitir cambio de deductora desde cualquier estado
+        $isOnlyDeductora = $request->has('deductora_id') && empty(array_diff(array_keys($request->all()), ['deductora_id', '_method', '_token']));
+
         // PROTECCIÓN: Solo permitir edición si el crédito está en estado editable
-        // EXCEPCIÓN: Permitir cambio a "Formalizado" desde cualquier estado
-        if (!$isFormalizing && !\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
+        // EXCEPCIÓN: Permitir cambio a "Formalizado" o cambio de deductora desde cualquier estado
+        if (!$isFormalizing && !$isOnlyDeductora && !\in_array($credit->status, Credit::EDITABLE_STATUSES, true)) {
             return response()->json([
                 'message' => 'No se puede editar un crédito en estado "' . $credit->status . '". Solo se pueden editar créditos en estado "' . implode('" o "', Credit::EDITABLE_STATUSES) . '".',
                 'current_status' => $credit->status,
