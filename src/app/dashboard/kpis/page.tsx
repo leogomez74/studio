@@ -87,7 +87,7 @@ interface LeadKPIs {
   conversionRate: KPIData;
   responseTime: KPIData;
   leadAging: KPIData;
-  leadSourcePerformance: { source: string; conversion: number; count: number }[];
+  leadSourcePerformance: { source: string; conversion: number; conversionRate: number; count: number }[];
   totalLeads?: number;
   totalClients?: number;
 }
@@ -743,7 +743,7 @@ export default function KPIsPage() {
               <StatCard title="Tiempo de Respuesta" value={leadKPIs?.responseTime?.value ?? 0} unit={leadKPIs?.responseTime?.unit} change={leadKPIs?.responseTime?.change} icon={Clock} description="Tiempo promedio hasta primer contacto" colorClass="text-blue-500" isLoading={isLoading} />
               <StatCard title="Leads Envejecidos (+7 días)" value={leadKPIs?.leadAging?.value ?? 0} unit={leadKPIs?.leadAging?.unit} change={leadKPIs?.leadAging?.change} icon={AlertTriangle} description="Leads pendientes por más de 7 días" colorClass="text-amber-500" isLoading={isLoading} />
             </div>
-            <KPITable title="Rendimiento por Fuente" description="Conversión por canal de adquisición" icon={BarChart3} headers={["Fuente", "Leads", "Conversión"]} rows={(leadKPIs?.leadSourcePerformance ?? []).map(source => [source.source, source.count, <Badge key={source.source} variant={source.conversion >= 35 ? "default" : source.conversion >= 25 ? "secondary" : "outline"} className={cn(source.conversion >= 35 && "bg-green-500", source.conversion >= 25 && source.conversion < 35 && "bg-amber-500")}>{source.conversion}%</Badge>])} isLoading={isLoading} />
+            <KPITable title="Rendimiento por Fuente" description="Distribución global de leads por canal de adquisición" icon={BarChart3} headers={["Fuente", "Cantidad", "Participación", "Conversión"]} rows={(leadKPIs?.leadSourcePerformance ?? []).map(source => [source.source, source.count, <Badge key={`${source.source}-p`} variant={source.conversion >= 35 ? "default" : source.conversion >= 25 ? "secondary" : "outline"} className={cn(source.conversion >= 35 && "bg-green-500", source.conversion >= 25 && source.conversion < 35 && "bg-amber-500")}>{source.conversion}%</Badge>, <Badge key={`${source.source}-c`} variant={source.conversionRate >= 50 ? "default" : source.conversionRate >= 25 ? "secondary" : "outline"} className={cn(source.conversionRate >= 50 && "bg-green-500", source.conversionRate >= 25 && source.conversionRate < 50 && "bg-amber-500")}>{source.conversionRate}%</Badge>])} isLoading={isLoading} />
           </>
         );
 

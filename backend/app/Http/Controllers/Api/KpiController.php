@@ -273,36 +273,48 @@ class KpiController extends Controller
                 ->where('created_at', '<', $dateRange['prev_end']->copy()->subDays(7))
                 ->count();
 
-            // Lead source performance - query actual data if source field exists
+            // Lead source performance - historical across all persons (leads + converted clients)
             $leadSourcePerformance = collect([]);
             try {
-                // Check if 'source' or 'lead_source' column exists
-                $sourceColumn = \Schema::hasColumn('persons', 'source') ? 'source' :
-                               (\Schema::hasColumn('persons', 'lead_source') ? 'lead_source' : null);
+                $sourceColumn = \Schema::hasColumn('persons', 'source') ? 'source' : null;
 
                 if ($sourceColumn) {
-                    $leadSourcePerformance = Lead::select($sourceColumn, DB::raw('COUNT(*) as count'))
-                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                    // Query persons table directly to include both leads and clients
+                    // Total global de personas con fuente asignada
+                    $totalPersonsWithSource = DB::table('persons')
                         ->whereNotNull($sourceColumn)
+                        ->where($sourceColumn, '!=', '')
+                        ->count();
+
+                    $leadSourcePerformance = DB::table('persons')
+                        ->select($sourceColumn, DB::raw('COUNT(*) as total_count'))
+                        ->whereNotNull($sourceColumn)
+                        ->where($sourceColumn, '!=', '')
                         ->groupBy($sourceColumn)
                         ->get()
-                        ->map(function ($item) use ($sourceColumn, $dateRange) {
+                        ->map(function ($item) use ($sourceColumn, $totalPersonsWithSource) {
                             $source = $item->$sourceColumn;
-                            $leadsFromSource = $item->count;
+                            $totalFromSource = $item->total_count;
 
-                            // Calculate conversion for this source
-                            $clientsFromSource = Client::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                            // Porcentaje de participación global de esta fuente
+                            $percentage = $totalPersonsWithSource > 0
+                                ? round(($totalFromSource / $totalPersonsWithSource) * 100, 0)
+                                : 0;
+
+                            // Tasa de conversión: clientes / total de esta fuente
+                            $clientsFromSource = DB::table('persons')
                                 ->where($sourceColumn, $source)
+                                ->where('person_type_id', 2)
                                 ->count();
-
-                            $conversion = $leadsFromSource > 0
-                                ? round(($clientsFromSource / $leadsFromSource) * 100, 0)
+                            $conversionRate = $totalFromSource > 0
+                                ? round(($clientsFromSource / $totalFromSource) * 100, 0)
                                 : 0;
 
                             return [
                                 'source' => $source ?: 'Desconocido',
-                                'count' => $leadsFromSource,
-                                'conversion' => $conversion,
+                                'count' => $totalFromSource,
+                                'conversion' => $percentage,
+                                'conversionRate' => $conversionRate,
                             ];
                         });
                 }
@@ -370,8 +382,8 @@ class KpiController extends Controller
 
     private function getOpportunityKpis(array $dateRange): array
     {
-        // Actual statuses from the system: "Abierta", "En seguimiento", "Ganada", "Perdida"
-        $wonStatuses = ['Ganada'];
+        // Actual statuses from the system: "Abierta", "En seguimiento", "Analizada", "Perdida"
+        $wonStatuses = ['Analizada'];
         $lostStatuses = ['Perdida'];
         $openStatuses = ['Abierta', 'En seguimiento'];
         $closedStatuses = array_merge($wonStatuses, $lostStatuses);
@@ -608,18 +620,18 @@ class KpiController extends Controller
             $totalCredits = Credit::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])->count();
             $prevTotalCredits = Credit::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->count();
 
-            // Approval rate - validates full flow: Oportunidad(Ganada) → Análisis → Crédito(Formalizado+)
+            // Approval rate - validates full flow: Oportunidad(Analizada) → Análisis → Crédito(Formalizado+)
             $approvalRate = 0;
             $prevApprovalRate = 0;
             try {
-                // Won opportunities that have an análisis AND a formalized/active/closed credit
-                $wonOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
-                    ->where('status', 'Ganada')
+                // Analyzed opportunities that have an análisis AND a formalized/active/closed credit
+                $analyzedOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['start'], $dateRange['end']])
+                    ->where('status', 'Analizada')
                     ->count();
 
                 $completedCredits = Credit::whereBetween('credits.created_at', [$dateRange['start'], $dateRange['end']])
                     ->whereIn('credits.status', ['Formalizado', 'Activo', 'En Mora', 'Cerrado'])
-                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Ganada'))
+                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Analizada'))
                     ->whereExists(function ($query) {
                         $query->select(DB::raw(1))
                             ->from('analisis')
@@ -627,18 +639,18 @@ class KpiController extends Controller
                     })
                     ->count();
 
-                $approvalRate = $wonOpportunities > 0
-                    ? min(round(($completedCredits / $wonOpportunities) * 100, 1), 100)
+                $approvalRate = $analyzedOpportunities > 0
+                    ? min(round(($completedCredits / $analyzedOpportunities) * 100, 1), 100)
                     : 0;
 
                 // Previous period
-                $prevWonOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->where('status', 'Ganada')
+                $prevAnalyzedOpportunities = Opportunity::whereBetween('updated_at', [$dateRange['prev_start'], $dateRange['prev_end']])
+                    ->where('status', 'Analizada')
                     ->count();
 
                 $prevCompletedCredits = Credit::whereBetween('credits.created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
                     ->whereIn('credits.status', ['Formalizado', 'Activo', 'En Mora', 'Cerrado'])
-                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Ganada'))
+                    ->whereHas('opportunity', fn($q) => $q->where('status', 'Analizada'))
                     ->whereExists(function ($query) {
                         $query->select(DB::raw(1))
                             ->from('analisis')
@@ -646,27 +658,29 @@ class KpiController extends Controller
                     })
                     ->count();
 
-                $prevApprovalRate = $prevWonOpportunities > 0
-                    ? min(round(($prevCompletedCredits / $prevWonOpportunities) * 100, 1), 100)
+                $prevApprovalRate = $prevAnalyzedOpportunities > 0
+                    ? min(round(($prevCompletedCredits / $prevAnalyzedOpportunities) * 100, 1), 100)
                     : 0;
             } catch (\Exception $e) {
                 // Fallback
             }
 
-            // Time to disbursement - calculate from opportunity to credit creation
+            // Time to disbursement - from opportunity creation to credit opening
+            // Uses opened_at (real date) and GREATEST(0,...) to handle imported data
             $timeToDisbursement = 0;
             $prevTimeToDisbursement = 0;
             try {
-                // Get credits with their linked opportunities and calculate average days
-                $avgDays = Credit::whereBetween('credits.created_at', [$dateRange['start'], $dateRange['end']])
+                $avgDays = Credit::whereNotNull('credits.opened_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.opened_at, credits.created_at)'), [$dateRange['start'], $dateRange['end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.created_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.opened_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $timeToDisbursement = $avgDays ? round($avgDays, 1) : 0;
 
-                $prevAvgDays = Credit::whereBetween('credits.created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
+                $prevAvgDays = Credit::whereNotNull('credits.opened_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.opened_at, credits.created_at)'), [$dateRange['prev_start'], $dateRange['prev_end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.created_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.opened_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $prevTimeToDisbursement = $prevAvgDays ? round($prevAvgDays, 1) : 0;
             } catch (\Exception $e) {
@@ -674,20 +688,21 @@ class KpiController extends Controller
             }
 
             // Full cycle: opportunity creation to credit formalization
+            // Uses formalized_at (real date) and GREATEST(0,...) to handle imported data
             $fullCycleTime = 0;
             $prevFullCycleTime = 0;
             try {
-                $avgCycleDays = Credit::whereBetween('credits.formalized_at', [$dateRange['start'], $dateRange['end']])
-                    ->whereNotNull('credits.formalized_at')
+                $avgCycleDays = Credit::whereNotNull('credits.formalized_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.formalized_at, credits.created_at)'), [$dateRange['start'], $dateRange['end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.formalized_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.formalized_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $fullCycleTime = $avgCycleDays ? round($avgCycleDays, 1) : 0;
 
-                $prevAvgCycleDays = Credit::whereBetween('credits.formalized_at', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->whereNotNull('credits.formalized_at')
+                $prevAvgCycleDays = Credit::whereNotNull('credits.formalized_at')
+                    ->whereBetween(DB::raw('COALESCE(credits.formalized_at, credits.created_at)'), [$dateRange['prev_start'], $dateRange['prev_end']])
                     ->join('opportunities', 'credits.opportunity_id', '=', 'opportunities.id')
-                    ->selectRaw('AVG(DATEDIFF(credits.formalized_at, opportunities.created_at)) as avg_days')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.formalized_at, opportunities.created_at))) as avg_days')
                     ->value('avg_days');
                 $prevFullCycleTime = $prevAvgCycleDays ? round($prevAvgCycleDays, 1) : 0;
             } catch (\Exception $e) {
