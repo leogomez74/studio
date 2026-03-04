@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -262,6 +262,177 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
   };
 };
 
+// --- Certificación de Deuda PDF ---
+const generateCertificacionDeuda = async (creditId: number) => {
+  let credit: any;
+  try {
+    const res = await api.get(`/api/credits/${creditId}`);
+    credit = res.data;
+  } catch (e) {
+    console.error('Error fetching credit for certificación', e);
+    return;
+  }
+
+  const doc = new jsPDF({ orientation: 'portrait' });
+  const pageW = 210;
+  const pageH = 297;
+  const marginL = 25;
+  const marginR = 22;
+  const contentW = pageW - marginL - marginR;
+
+  // Formato moneda: ¢ (U+00A2, soportado en helvetica)
+  const fmtMoney = (v: number) => {
+    const num = Math.abs(v || 0);
+    return '\u00A2' + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
+  // Fecha larga en español (manual, sin locale)
+  const diasSemana = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const now = new Date();
+  const diaSemana = diasSemana[now.getDay()];
+  const fechaLarga = `${diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)} ${now.getDate()} de ${meses[now.getMonth()]} del ${now.getFullYear()}`;
+
+  // Datos del cliente
+  const lead = credit.lead || {};
+  const fullName = [lead.name, lead.apellido1, lead.apellido2].filter(Boolean).join(' ') || 'CLIENTE';
+  const cedula = lead.cedula || '-';
+
+  const fechaDesde = credit.formalized_at || credit.created_at;
+  const fechaDesdeFormatted = fechaDesde
+    ? (() => {
+        const d = new Date(fechaDesde);
+        return `${d.getDate()} de ${meses[d.getMonth()]} del ${d.getFullYear()}`;
+      })()
+    : '-';
+
+  // Cálculos desde plan de pagos
+  const planDePagos = credit.plan_de_pagos || [];
+  const cuotasPendientes = planDePagos.filter((p: any) => p.estado !== 'Pagado' && p.estado !== 'Pagada');
+  const interesesCorrientes = cuotasPendientes.reduce((sum: number, p: any) => sum + (parseFloat(p.interes_corriente) || 0), 0);
+  const montoCuotasPendientes = cuotasPendientes.reduce((sum: number, p: any) => sum + (parseFloat(p.cuota) || 0), 0);
+  const saldo = parseFloat(credit.saldo) || 0;
+  const totalCancelar = saldo + interesesCorrientes;
+
+  const deductoraName = credit.deductora?.nombre || 'N/A';
+  const operacion = credit.numero_operacion || credit.reference || '-';
+  const categoria = credit.category || credit.linea || '';
+
+  // Cargar las 3 imágenes: fondo, firma, sello
+  const loadImg = (src: string): Promise<HTMLImageElement | null> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+
+  const [fondoImg, firmaImg, selloImg] = await Promise.all([
+    loadImg('/certificado/fondo.jpg'),
+    loadImg('/certificado/firma.png'),
+    loadImg('/certificado/sello.png'),
+  ]);
+
+  // --- Fondo completo (ya trae header con logo y footer con contactos) ---
+  if (fondoImg) {
+    doc.addImage(fondoImg, 'JPEG', 0, 0, pageW, pageH);
+  }
+
+  let y = 50;
+
+  // Fecha (alineada a la derecha)
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(50, 50, 50);
+  doc.text(fechaLarga, pageW - marginR, y, { align: "right" });
+  y += 18;
+
+  // Saludo
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(20, 20, 20);
+  doc.text("A quien interese:", pageW / 2, y, { align: "center" });
+  y += 14;
+
+  // Párrafo introductorio
+  doc.setFontSize(10.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(30, 30, 30);
+  const intro = `El departamento de crédito de CREDIPEP hace constar que: Que el(la) señor(a) ${fullName} con cédula de identidad número ${cedula} forma parte de CREDIPEP S.A. y mantiene el estado de Cliente Activo(a) desde el ${fechaDesdeFormatted}. El Estado de su(s) operación(es) de crédito vigente(s) se detalla a continuación:`;
+  const introLines = doc.splitTextToSize(intro, contentW);
+  doc.text(introLines, marginL, y);
+  y += introLines.length * 5.2 + 8;
+
+  // --- Detalle del crédito (compacto, label: valor pegados) ---
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 30, 30);
+  const detalles = [
+    ['NUMERO DE OPERACIÓN: ', `${operacion}  ${categoria}`.trim()],
+    ['MONTO OTORGADO: ', fmtMoney(parseFloat(credit.monto_credito) || 0)],
+    ['SALDO: ', fmtMoney(saldo)],
+    ['INTERESES CORRIENTES: ', fmtMoney(interesesCorrientes)],
+    ['CUOTAS PENDIENTES: ', fmtMoney(montoCuotasPendientes)],
+    ['CUOTA: ', fmtMoney(parseFloat(credit.cuota) || 0)],
+    ['TOTAL A CANCELAR: ', fmtMoney(totalCancelar)],
+  ];
+  detalles.forEach(([label, value]) => {
+    doc.setFont("helvetica", "bold");
+    doc.text(label, marginL, y);
+    doc.text(value, marginL + doc.getTextWidth(label), y);
+    y += 5.5;
+  });
+  y += 4;
+
+  // --- Deductora y contacto ---
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(30, 30, 30);
+  doc.text(`Esta operación de crédito se deduce por medio de ${deductoraName}.`, marginL, y);
+  y += 6;
+  doc.text("Cuenta IBAN: CR90015201001033990109", marginL, y);
+  y += 6;
+  doc.text("Reportar deposito al correo cobros1@pep.cr o al WhatsApp 6150-6133", marginL, y);
+  y += 12;
+
+  // --- Párrafo de cierre ---
+  const cierre = `La presente se extiende a solicitud del interesado para los efectos que estime pertinentes, el día ${fechaLarga}.`;
+  const cierreLines = doc.splitTextToSize(cierre, contentW);
+  doc.text(cierreLines, marginL, y);
+  y += cierreLines.length * 5.2 + 12;
+
+  // --- Firma imagen + Sello (lado a lado) ---
+  const firmaStartY = y;
+  if (firmaImg) {
+    doc.addImage(firmaImg, 'PNG', marginL + 2, firmaStartY - 4, 40, 15);
+  }
+
+  // Sello centrado a la derecha, alineado con la firma
+  if (selloImg) {
+    const selloSize = 34;
+    const selloX = pageW / 2 + 12;
+    doc.addImage(selloImg, 'PNG', selloX, firmaStartY - 10, selloSize, selloSize);
+  }
+
+  y = firmaStartY + 14;
+
+  // Línea de firma
+  doc.setDrawColor(80, 80, 80);
+  doc.setLineWidth(0.3);
+  doc.line(marginL, y, marginL + 58, y);
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 30, 30);
+  doc.text("Carlos Méndez Sánchez", marginL, y);
+  y += 4;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text("Encargado área de cobro", marginL, y);
+
+  doc.save(`certificacion_deuda_${credit.reference || credit.id}.pdf`);
+};
+
 const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, currentPage, perPage, onPageChange, onPerPageChange }: { credits: Credit[], isLoading?: boolean, currentPage: number, perPage: number, onPageChange: (p: number) => void, onPerPageChange: (p: number) => void }) {
   const totalPages = Math.ceil(credits.length / perPage);
   const paginatedCredits = credits.slice((currentPage - 1) * perPage, currentPage * perPage);
@@ -327,6 +498,9 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => generateEstadoCuentaFromCredit(credit.id)}>
                           <FileSpreadsheet className="mr-2 h-4 w-4" />Estado de Cuenta
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => generateCertificacionDeuda(credit.id)}>
+                          <FileText className="mr-2 h-4 w-4" />Certificación de Deuda
                         </DropdownMenuItem>
                         <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
                         <DropdownMenuItem><Phone className="mr-2 h-4 w-4" />Registrar Llamada</DropdownMenuItem>
