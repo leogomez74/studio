@@ -32,12 +32,12 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
   return (
     <TableRow>
       <TableCell>
-        <div className="flex items-center gap-3">
+        <Link href={`/dashboard/inversiones/inversionista/${investor.id}`} className="flex items-center gap-3 hover:opacity-80">
           <Avatar className="h-9 w-9">
             <AvatarFallback>{investor.name.charAt(0)}</AvatarFallback>
           </Avatar>
-          <div className="font-medium">{investor.name}</div>
-        </div>
+          <div className="font-medium hover:underline">{investor.name}</div>
+        </Link>
       </TableCell>
       <TableCell>{investor.cedula}</TableCell>
       <TableCell className="hidden md:table-cell">
@@ -47,7 +47,7 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
       <TableCell className="hidden md:table-cell">{investor.tipo_persona}</TableCell>
       <TableCell>
         <Button variant="link" asChild>
-          <Link href={`/dashboard/inversiones?tab=inversiones&investorId=${investor.id}`}>
+          <Link href={`/dashboard/inversiones/inversionista/${investor.id}`}>
             <Badge variant="default">{investor.active_investments_count ?? 0}</Badge>
           </Link>
         </Button>
@@ -62,7 +62,7 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-            <DropdownMenuItem asChild><Link href={`/dashboard/inversiones?tab=inversiones&investorId=${investor.id}`}>Ver Inversiones</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/inversionista/${investor.id}`}>Ver Inversiones</Link></DropdownMenuItem>
             <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(investor.id)}>Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
@@ -170,7 +170,6 @@ function TablaGeneralSection({ data }: { data: any }) {
 // --- Main Page ---
 export default function InversionesPage() {
   const searchParams = useSearchParams();
-  const investorIdFilter = searchParams.get('investorId');
   const defaultTab = searchParams.get('tab') || 'inversionistas';
 
   const [investors, setInvestors] = useState<Investor[]>([]);
@@ -186,7 +185,7 @@ export default function InversionesPage() {
     try {
       const [invRes, investRes, payRes] = await Promise.all([
         api.get('/api/investors?all=true'),
-        api.get(`/api/investments?all=true${investorIdFilter ? `&investor_id=${investorIdFilter}` : ''}`),
+        api.get('/api/investments?all=true'),
         api.get('/api/investment-payments?all=true'),
       ]);
       setInvestors(invRes.data);
@@ -197,7 +196,7 @@ export default function InversionesPage() {
     } finally {
       setLoading(false);
     }
-  }, [investorIdFilter]);
+  }, []);
 
   const fetchTablaGeneral = useCallback(async () => {
     try {
@@ -226,7 +225,7 @@ export default function InversionesPage() {
     } catch (err) { console.error(err); }
   };
 
-  const filteredInvestors = investorIdFilter ? investors.filter(i => i.id === Number(investorIdFilter)) : investors;
+  const filteredInvestors = investors;
 
   if (loading) {
     return (

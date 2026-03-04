@@ -30,9 +30,10 @@ type Props = {
   investment?: Investment | null;
   investors: Investor[];
   onSuccess: () => void;
+  defaultInvestorId?: number;
 };
 
-export function InvestmentFormDialog({ open, onOpenChange, investment, investors, onSuccess }: Props) {
+export function InvestmentFormDialog({ open, onOpenChange, investment, investors, onSuccess, defaultInvestorId }: Props) {
   const isEditing = !!investment;
 
   const [loading, setLoading] = useState(false);
@@ -69,7 +70,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
       });
     } else {
       setForm({
-        numero_desembolso: '', investor_id: '', monto_capital: '', plazo_meses: '',
+        numero_desembolso: '', investor_id: defaultInvestorId ? String(defaultInvestorId) : '', monto_capital: '', plazo_meses: '',
         fecha_inicio: '', fecha_vencimiento: '', tasa_anual: '', moneda: 'CRC',
         forma_pago: 'MENSUAL', es_capitalizable: false, estado: 'Activa', notas: '',
       });
