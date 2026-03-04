@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/axios';
 import type { Investor, Investment, InvestmentPayment } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
+import { InvestorFormDialog } from '@/components/investor-form-dialog';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -179,6 +180,8 @@ export default function InversionesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
+  const [showInvestorForm, setShowInvestorForm] = useState(false);
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -237,7 +240,7 @@ export default function InversionesPage() {
 
   return (
     <ProtectedPage module="inversiones">
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => { if (v === 'tabla-general') fetchTablaGeneral(); }}>
+      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
@@ -246,9 +249,16 @@ export default function InversionesPage() {
             <TabsTrigger value="pagos">Pagos</TabsTrigger>
             <TabsTrigger value="retenciones">Retenciones</TabsTrigger>
           </TabsList>
-          <Button size="sm" className="gap-1" onClick={() => { setEditingInvestment(null); setShowForm(true); }}>
-            <PlusCircle className="h-4 w-4" /> Nueva Inversión
-          </Button>
+          {activeTab === 'inversionistas' && (
+            <Button size="sm" className="gap-1" onClick={() => setShowInvestorForm(true)}>
+              <PlusCircle className="h-4 w-4" /> Nuevo Inversionista
+            </Button>
+          )}
+          {activeTab === 'inversiones' && (
+            <Button size="sm" className="gap-1" onClick={() => { setEditingInvestment(null); setShowForm(true); }}>
+              <PlusCircle className="h-4 w-4" /> Nueva Inversión
+            </Button>
+          )}
         </div>
 
         {/* Inversionistas */}
@@ -449,6 +459,12 @@ export default function InversionesPage() {
         onOpenChange={setShowForm}
         investment={editingInvestment}
         investors={investors}
+        onSuccess={fetchData}
+      />
+
+      <InvestorFormDialog
+        open={showInvestorForm}
+        onOpenChange={setShowInvestorForm}
         onSuccess={fetchData}
       />
     </ProtectedPage>
