@@ -242,18 +242,21 @@ Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'i
 Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
 Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
 
-// Custom routes BEFORE apiResource
-Route::get('investments/tabla-general', [InvestmentController::class, 'tablaGeneral']);
-Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate']);
-Route::post('investments/{id}/renew', [InvestmentController::class, 'renew']);
-Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);
-Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid']);
+// Rutas protegidas de inversiones
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Custom routes BEFORE apiResource
+    Route::get('investments/tabla-general', [InvestmentController::class, 'tablaGeneral']);
+    Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate']);
+    Route::post('investments/{id}/renew', [InvestmentController::class, 'renew']);
+    Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);
+    Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid']);
 
-// CRUD resources
-Route::apiResource('investors', InvestorController::class);
-Route::apiResource('investments', InvestmentController::class);
-Route::apiResource('investment-payments', InvestmentPaymentController::class)->only(['index', 'store', 'destroy']);
-Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
+    // CRUD resources
+    Route::apiResource('investors', InvestorController::class);
+    Route::apiResource('investments', InvestmentController::class);
+    Route::apiResource('investment-payments', InvestmentPaymentController::class)->only(['index', 'store', 'destroy']);
+    Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
+});
 
 // --- Rutas Protegidas (Requieren Sanctum) ---
 Route::middleware(['auth:sanctum'])->group(function () {
