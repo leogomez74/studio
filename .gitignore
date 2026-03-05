@@ -55,4 +55,3 @@ GEMINI.md
 CLAUDE.md
 .claude/*
 !.claude/MEMORY.md
-!.claude/skills/
