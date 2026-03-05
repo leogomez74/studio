@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2 } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2, MessageSquare, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
@@ -35,6 +36,37 @@ interface LeadAlert {
   is_read: boolean;
   created_at: string;
 }
+
+interface CommentNotification {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  data: {
+    comment_id?: number;
+    commentable_type?: string;
+    commentable_id?: number;
+    sender_name?: string;
+  } | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+const ENTITY_ROUTES: Record<string, string> = {
+  'App\\Models\\Credit': '/dashboard/creditos',
+  'App\\Models\\Opportunity': '/dashboard/oportunidades',
+  'App\\Models\\Lead': '/dashboard/leads',
+  'App\\Models\\Client': '/dashboard/leads',
+  'App\\Models\\Analisis': '/dashboard/analizados',
+};
+
+const ENTITY_LABELS: Record<string, string> = {
+  'App\\Models\\Credit': 'Credito',
+  'App\\Models\\Opportunity': 'Oportunidad',
+  'App\\Models\\Lead': 'Lead',
+  'App\\Models\\Client': 'Cliente',
+  'App\\Models\\Analisis': 'Analisis',
+};
 
 function Breadcrumbs() {
   const pathname = usePathname();
@@ -79,13 +111,43 @@ function Breadcrumbs() {
   );
 }
 
+function relativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffSec < 60) return 'ahora';
+  if (diffMin === 1) return 'hace 1 min';
+  if (diffMin < 60) return `hace ${diffMin} min`;
+  if (diffHr === 1) return 'hace 1 hora';
+  if (diffHr < 24) return `hace ${diffHr} horas`;
+  if (diffDay === 1) return 'ayer';
+  if (diffDay < 7) return `hace ${diffDay} dias`;
+  return date.toLocaleDateString('es-ES', {
+    day: 'numeric',
+    month: 'short',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+}
+
 export function DashboardHeader() {
   const { toast } = useToast();
+  const router = useRouter();
   const [alerts, setAlerts] = useState<LeadAlert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [expandedAlert, setExpandedAlert] = useState<number | null>(null);
   const [deletingLeo, setDeletingLeo] = useState(false);
   const [deletingDaniel, setDeletingDaniel] = useState(false);
+
+  // Comment notifications state
+  const [commentNotifications, setCommentNotifications] = useState<CommentNotification[]>([]);
+  const [notifUnreadCount, setNotifUnreadCount] = useState(0);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<'alerts' | 'comments'>('alerts');
 
   const handleDeleteLeo = async () => {
     const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 108760664? Esta acción eliminará también todas las oportunidades, análisis, créditos y sus documentos asociados.');
@@ -178,6 +240,22 @@ export function DashboardHeader() {
     }
   };
 
+  const fetchNotifications = useCallback(async () => {
+    setNotifLoading(true);
+    try {
+      const [notifsRes, countRes] = await Promise.all([
+        api.get('/api/notifications', { params: { unread: true } }),
+        api.get('/api/notifications/count'),
+      ]);
+      setCommentNotifications(notifsRes.data.data || []);
+      setNotifUnreadCount(countRes.data.count || 0);
+    } catch (error) {
+      console.error('Error cargando notificaciones:', error);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, []);
+
   const markAsRead = async (id: number) => {
     try {
       await api.patch(`/api/lead-alerts/${id}/read`);
@@ -187,11 +265,54 @@ export function DashboardHeader() {
     }
   };
 
+  const markNotificationAsRead = useCallback(async (id: number) => {
+    try {
+      await api.patch(`/api/notifications/${id}/read`);
+      setCommentNotifications(prev => prev.filter(n => n.id !== id));
+      setNotifUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marcando notificacion:', error);
+    }
+  }, []);
+
+  const markAllNotificationsAsRead = useCallback(async () => {
+    try {
+      await api.patch('/api/notifications/read-all');
+      setCommentNotifications([]);
+      setNotifUnreadCount(0);
+      toast({
+        title: 'Listo',
+        description: 'Todas las notificaciones marcadas como leidas.',
+      });
+    } catch (error) {
+      console.error('Error marcando todas las notificaciones:', error);
+    }
+  }, [toast]);
+
+  const handleNotificationClick = useCallback((notification: CommentNotification) => {
+    const commentableType = notification.data?.commentable_type;
+    const commentableId = notification.data?.commentable_id;
+
+    if (commentableType && commentableId) {
+      const route = ENTITY_ROUTES[commentableType] || '/dashboard';
+      router.push(`${route}/${commentableId}`);
+    }
+
+    markNotificationAsRead(notification.id);
+  }, [router, markNotificationAsRead]);
+
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    fetchNotifications();
+    const alertInterval = setInterval(fetchAlerts, 60000);
+    const notifInterval = setInterval(fetchNotifications, 60000);
+    return () => {
+      clearInterval(alertInterval);
+      clearInterval(notifInterval);
+    };
+  }, [fetchNotifications]);
+
+  const totalUnread = unreadCount + notifUnreadCount;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -255,7 +376,7 @@ export function DashboardHeader() {
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative shrink-0">
               <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
+              {totalUnread > 0 && (
                 <span className="absolute right-1 top-1 flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/75 opacity-75"></span>
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-accent"></span>
@@ -264,119 +385,234 @@ export function DashboardHeader() {
               <span className="sr-only">Ver notificaciones</span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-96 p-0 max-h-[500px] overflow-hidden flex flex-col">
+          <PopoverContent className="w-96 p-0 max-h-[560px] overflow-hidden flex flex-col">
+            {/* Header with total count */}
             <div className="p-4 font-medium flex items-center justify-between flex-shrink-0">
               <span>Notificaciones</span>
-              {unreadCount > 0 && (
+              {totalUnread > 0 && (
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-                  {unreadCount} sin leer
+                  {totalUnread} sin leer
                 </span>
               )}
             </div>
 
-            <div className="border-t overflow-y-auto flex-1">
-              {alerts.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">
-                  No hay alertas pendientes.
-                </div>
-              ) : (
-                alerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className="border-b last:border-b-0 transition-colors hover:bg-accent/50"
-                  >
-                    <div className="p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className={cn(
-                            "h-4 w-4 flex-shrink-0",
-                            alert.alert_number === 3 ? "text-red-500" : "text-amber-500"
-                          )} />
-                          <span className={cn(
-                            "text-xs font-semibold px-1.5 py-0.5 rounded",
-                            alert.alert_number === 3
-                              ? "bg-red-100 text-red-700"
-                              : "bg-amber-100 text-amber-700"
-                          )}>
-                            {alertLabel(alert)}
+            {/* Section tabs */}
+            <div className="flex border-t border-b bg-muted/30 flex-shrink-0">
+              <button
+                onClick={() => setActiveSection('alerts')}
+                className={cn(
+                  'flex-1 px-4 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                  activeSection === 'alerts'
+                    ? 'text-foreground border-b-2 border-primary bg-background'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Alertas
+                {unreadCount > 0 && (
+                  <span className="ml-1 bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveSection('comments')}
+                className={cn(
+                  'flex-1 px-4 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                  activeSection === 'comments'
+                    ? 'text-foreground border-b-2 border-primary bg-background'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                Comentarios
+                {notifUnreadCount > 0 && (
+                  <span className="ml-1 bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {notifUnreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Content area */}
+            <div className="overflow-y-auto flex-1">
+              {activeSection === 'alerts' ? (
+                /* Alerts section */
+                alerts.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    No hay alertas pendientes.
+                  </div>
+                ) : (
+                  alerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="border-b last:border-b-0 transition-colors hover:bg-accent/50"
+                    >
+                      <div className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className={cn(
+                              "h-4 w-4 flex-shrink-0",
+                              alert.alert_number === 3 ? "text-red-500" : "text-amber-500"
+                            )} />
+                            <span className={cn(
+                              "text-xs font-semibold px-1.5 py-0.5 rounded",
+                              alert.alert_number === 3
+                                ? "bg-red-100 text-red-700"
+                                : "bg-amber-100 text-amber-700"
+                            )}>
+                              {alertLabel(alert)}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                            {formatDate(alert.created_at)}
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground flex-shrink-0">
-                          {formatDate(alert.created_at)}
-                        </span>
-                      </div>
 
-                      <p className="text-sm mt-2 text-muted-foreground">{alert.message}</p>
+                        <p className="text-sm mt-2 text-muted-foreground">{alert.message}</p>
 
-                      <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                        {alert.inactive_leads.length > 0 && (
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {alert.inactive_leads.length} leads
-                          </span>
-                        )}
-                        {alert.inactive_opportunities.length > 0 && (
-                          <span className="flex items-center gap-1">
-                            <Briefcase className="h-3 w-3" />
-                            {alert.inactive_opportunities.length} oportunidades
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Lista expandible */}
-                      <button
-                        onClick={() => setExpandedAlert(expandedAlert === alert.id ? null : alert.id)}
-                        className="text-xs text-primary mt-2 hover:underline"
-                      >
-                        {expandedAlert === alert.id ? 'Ocultar detalle' : 'Ver detalle'}
-                      </button>
-
-                      {expandedAlert === alert.id && (
-                        <div className="mt-2 space-y-2 text-xs">
+                        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                           {alert.inactive_leads.length > 0 && (
-                            <div>
-                              <p className="font-medium text-muted-foreground mb-1">Leads:</p>
-                              <ul className="space-y-0.5 ml-2">
-                                {alert.inactive_leads.map((lead) => (
-                                  <li key={lead.id} className="text-foreground">
-                                    <Link href={`/dashboard/leads/${lead.id}`} className="hover:underline text-primary">
-                                      {lead.name}
-                                    </Link>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {alert.inactive_leads.length} leads
+                            </span>
                           )}
                           {alert.inactive_opportunities.length > 0 && (
-                            <div>
-                              <p className="font-medium text-muted-foreground mb-1">Oportunidades:</p>
-                              <ul className="space-y-0.5 ml-2">
-                                {alert.inactive_opportunities.map((opp) => (
-                                  <li key={opp.id} className="text-foreground">
-                                    <Link href={`/dashboard/oportunidades/${opp.id}`} className="hover:underline text-primary">
-                                      {opp.reference}
-                                    </Link>
-                                    <span className="text-muted-foreground"> - {opp.lead_name}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                            <span className="flex items-center gap-1">
+                              <Briefcase className="h-3 w-3" />
+                              {alert.inactive_opportunities.length} oportunidades
+                            </span>
                           )}
                         </div>
-                      )}
 
-                      {/* Marcar como leída */}
-                      <div className="mt-2 flex justify-end">
+                        {/* Lista expandible */}
                         <button
-                          onClick={() => markAsRead(alert.id)}
-                          className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          onClick={() => setExpandedAlert(expandedAlert === alert.id ? null : alert.id)}
+                          className="text-xs text-primary mt-2 hover:underline"
                         >
-                          Marcar como leída
+                          {expandedAlert === alert.id ? 'Ocultar detalle' : 'Ver detalle'}
                         </button>
+
+                        {expandedAlert === alert.id && (
+                          <div className="mt-2 space-y-2 text-xs">
+                            {alert.inactive_leads.length > 0 && (
+                              <div>
+                                <p className="font-medium text-muted-foreground mb-1">Leads:</p>
+                                <ul className="space-y-0.5 ml-2">
+                                  {alert.inactive_leads.map((lead) => (
+                                    <li key={lead.id} className="text-foreground">
+                                      <Link href={`/dashboard/leads/${lead.id}`} className="hover:underline text-primary">
+                                        {lead.name}
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {alert.inactive_opportunities.length > 0 && (
+                              <div>
+                                <p className="font-medium text-muted-foreground mb-1">Oportunidades:</p>
+                                <ul className="space-y-0.5 ml-2">
+                                  {alert.inactive_opportunities.map((opp) => (
+                                    <li key={opp.id} className="text-foreground">
+                                      <Link href={`/dashboard/oportunidades/${opp.id}`} className="hover:underline text-primary">
+                                        {opp.reference}
+                                      </Link>
+                                      <span className="text-muted-foreground"> - {opp.lead_name}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Marcar como leida */}
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            onClick={() => markAsRead(alert.id)}
+                            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            Marcar como leida
+                          </button>
+                        </div>
                       </div>
                     </div>
+                  ))
+                )
+              ) : (
+                /* Comment notifications section */
+                notifLoading ? (
+                  <div className="p-6 flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando notificaciones...
                   </div>
-                ))
+                ) : commentNotifications.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    No hay notificaciones de comentarios.
+                  </div>
+                ) : (
+                  <>
+                    {/* Mark all as read button */}
+                    {notifUnreadCount > 0 && (
+                      <div className="px-3 py-2 flex justify-end border-b">
+                        <button
+                          onClick={markAllNotificationsAsRead}
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <CheckCheck className="h-3 w-3" />
+                          Marcar todas como leidas
+                        </button>
+                      </div>
+                    )}
+                    {commentNotifications.map((notif) => {
+                      const entityType = notif.data?.commentable_type || '';
+                      const entityLabel = ENTITY_LABELS[entityType] || 'Entidad';
+                      const senderName = notif.data?.sender_name || 'Alguien';
+
+                      return (
+                        <button
+                          key={notif.id}
+                          onClick={() => handleNotificationClick(notif)}
+                          className="w-full text-left border-b last:border-b-0 transition-colors hover:bg-accent/50 cursor-pointer"
+                        >
+                          <div className="p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                                <span className="text-xs font-semibold text-foreground">
+                                  {senderName}
+                                </span>
+                              </div>
+                              <span className="text-xs text-muted-foreground flex-shrink-0">
+                                {relativeTime(notif.created_at)}
+                              </span>
+                            </div>
+
+                            <p className="text-sm mt-1 text-foreground font-medium">
+                              {notif.title}
+                            </p>
+                            <p className="text-xs mt-0.5 text-muted-foreground line-clamp-2">
+                              {notif.body}
+                            </p>
+
+                            {notif.data?.commentable_id && (
+                              <div className="mt-1.5">
+                                <span className={cn(
+                                  'text-[10px] font-medium px-1.5 py-0.5 rounded',
+                                  'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
+                                )}>
+                                  {entityLabel} #{notif.data.commentable_id}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </>
+                )
               )}
             </div>
 

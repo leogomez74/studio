@@ -26,6 +26,8 @@ use App\Http\Controllers\Api\QuestionnaireController;
 use App\Http\Controllers\Api\InstitucionController;
 use App\Http\Controllers\Api\LeadAlertController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\CommentController;
+use App\Http\Controllers\Api\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -377,6 +379,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);
     Route::get('tasas/nombre/{nombre}', [\App\Http\Controllers\Api\TasaController::class, 'porNombre']);
     Route::patch('tasas/{id}/toggle-activo', [\App\Http\Controllers\Api\TasaController::class, 'toggleActivo']);
+
+    // Comments
+    Route::get('/comments', [CommentController::class, 'index']);
+    Route::get('/comments/recent', [CommentController::class, 'recent']);
+    Route::post('/comments', [CommentController::class, 'store']);
+    Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
+    Route::patch('/comments/{id}/archive', [CommentController::class, 'archive']);
+    Route::patch('/comments/{id}/unarchive', [CommentController::class, 'unarchive']);
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/count', [NotificationController::class, 'count']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 
     // --- Admin Gamificación ---
     Route::prefix('admin/gamification')->group(function () {

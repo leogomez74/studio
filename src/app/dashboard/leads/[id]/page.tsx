@@ -1889,6 +1889,7 @@ export default function LeadDetailPage() {
                             </Card>
                         </TabsContent>
 
+
                         {/* Botones de acción al fondo */}
                         <div className="flex justify-end gap-2 mt-4">
                             <TooltipProvider>

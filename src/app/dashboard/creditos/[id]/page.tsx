@@ -2712,6 +2712,7 @@ function CreditDetailClient({ id }: { id: string }) {
                 />
               )}
             </TabsContent>
+
           </Tabs>
         </div>
       </div>

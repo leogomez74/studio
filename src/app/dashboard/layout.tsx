@@ -19,6 +19,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { SidebarUserMenu } from "@/components/sidebar-user-menu";
 import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { ConfigurationMenuItem } from "@/components/configuration-menu-item";
+import { ChatBubble } from "@/components/chat-bubble";
 
 // Esta es la función principal del layout del dashboard.
 // Recibe 'children', que es el contenido específico de cada página del dashboard.
@@ -60,6 +61,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-1 flex-col p-4 lg:p-6 w-full min-w-0 overflow-x-hidden">
             <React.Suspense fallback={<div />}>{children}</React.Suspense>
           </div>
+          <ChatBubble />
         </SidebarInset>
         </SidebarProvider>
       </PermissionsProvider>

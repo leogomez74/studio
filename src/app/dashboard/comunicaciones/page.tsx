@@ -1,7 +1,8 @@
 // Importamos los componentes e íconos necesarios para la página de comunicaciones.
 // 'use client' indica que es un Componente de Cliente, lo que permite usar estado y efectos.
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PermissionButton } from "@/components/PermissionButton";
@@ -24,6 +25,13 @@ import {
   MessageCircle,
   MessagesSquare,
   List,
+  Hash,
+  AtSign,
+  CornerDownLeft,
+  ExternalLink,
+  Loader2,
+  ArrowLeft,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,11 +41,43 @@ import {
   InternalNote,
   internalNotes,
   type Lead,
-} from "@/lib/data"; // Importamos tipos de datos.
-import { cn } from "@/lib/utils"; // Utilidad para combinar clases de Tailwind.
+} from "@/lib/data";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import api from "@/lib/axios";
 import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
+
+// ---- Comment types ----
+interface CommentUser { id: number; name: string; }
+interface CommentReply { id: number; body: string; user: CommentUser; created_at: string; }
+interface InternalComment {
+  id: number; body: string; user: CommentUser; user_id: number;
+  commentable_type: string; commentable_id: number;
+  entity_reference?: string; replies?: CommentReply[];
+  created_at: string; archived_at?: string | null;
+}
+
+const COMMENT_ENTITY_MAP: Record<string, { label: string; route: string; color: string; apiType: string }> = {
+  'App\\Models\\Credit':      { label: 'Crédito',     route: '/dashboard/creditos',      color: 'bg-emerald-100 text-emerald-700', apiType: 'credit' },
+  'App\\Models\\Opportunity': { label: 'Oportunidad', route: '/dashboard/oportunidades', color: 'bg-blue-100 text-blue-700',       apiType: 'opportunity' },
+  'App\\Models\\Lead':        { label: 'Lead',        route: '/dashboard/leads',          color: 'bg-violet-100 text-violet-700',  apiType: 'lead' },
+  'App\\Models\\Client':      { label: 'Cliente',     route: '/dashboard/leads',          color: 'bg-amber-100 text-amber-700',    apiType: 'client' },
+  'App\\Models\\Analisis':    { label: 'Análisis',    route: '/dashboard/analizados',     color: 'bg-cyan-100 text-cyan-700',      apiType: 'analisis' },
+};
+const AVATAR_COLORS = ['bg-blue-500','bg-emerald-500','bg-violet-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-indigo-500','bg-teal-500'];
+function getInitials(n: string) { return n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function getAvatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
+function relativeTime(d: string) { const diff=Date.now()-new Date(d).getTime(); const m=Math.floor(diff/60000); const h=Math.floor(m/60); const dy=Math.floor(h/24); if(m<1)return'ahora'; if(m<60)return`${m}m`; if(h<24)return`${h}h`; if(dy===1)return'ayer'; return`${dy}d`; }
+function getEntityInfo(t: string) { return COMMENT_ENTITY_MAP[t] ?? { label:'Entidad', route:'/dashboard', color:'bg-gray-100 text-gray-700', apiType:'' }; }
+function renderBody(body: string) { return body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_,l)=>`<span class="font-semibold text-primary">${l}</span>`); }
+
+const NEW_ENTITY_TARGETS = [
+  { key: 'credit',      label: 'Crédito' },
+  { key: 'opportunity', label: 'Oportunidad' },
+  { key: 'lead',        label: 'Lead' },
+  { key: 'analisis',    label: 'Análisis' },
+];
 
 // Tipo para representar una conversación
 type Conversation = {
@@ -57,6 +97,10 @@ type Conversation = {
  */
 export default function CommunicationsPage() {
   const { toast } = useToast();
+  const router = useRouter();
+
+  // --- Inbox view toggle ---
+  const [activeInbox, setActiveInbox] = useState<'conversations' | 'comments'>('conversations');
 
   // Estados para las conversaciones
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -70,6 +114,149 @@ export default function CommunicationsPage() {
   // Estados para envío de mensajes
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  // --- Comentarios internos ---
+  const [commentsView, setCommentsView] = useState<'active' | 'archived'>('active');
+  const [allComments, setAllComments] = useState<InternalComment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [selectedThread, setSelectedThread] = useState<InternalComment | null>(null);
+  const [threadComments, setThreadComments] = useState<InternalComment[]>([]);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [commentSearch, setCommentSearch] = useState('');
+
+  // --- Nuevo comentario ---
+  const [composingNew, setComposingNew] = useState(false);
+  const [newEntity, setNewEntity] = useState<{ type: string; id: number; label: string } | null>(null);
+  const [newEntityPickerOpen, setNewEntityPickerOpen] = useState(false);
+  const [newEntityStep, setNewEntityStep] = useState<'type' | 'search'>('type');
+  const [newEntityType, setNewEntityType] = useState('');
+  const [newEntitySearch, setNewEntitySearch] = useState('');
+  const [newEntityResults, setNewEntityResults] = useState<any[]>([]);
+  const [newEntityLoading, setNewEntityLoading] = useState(false);
+  const [newText, setNewText] = useState('');
+  const [newMentions, setNewMentions] = useState<{ type: string; id: number; label: string }[]>([]);
+  const [sendingNew, setSendingNew] = useState(false);
+  const [userList, setUserList] = useState<any[]>([]);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [userFilter, setUserFilter] = useState('');
+  const [cursorPos, setCursorPos] = useState(0);
+  const newTextRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    api.get('/api/users').then((r) => setUserList(Array.isArray(r.data) ? r.data : r.data.data ?? [])).catch(() => {});
+  }, []);
+
+  const searchNewEntities = async (type: string, query: string) => {
+    setNewEntityLoading(true);
+    try {
+      const ep: Record<string, string> = { credit: '/api/credits', opportunity: '/api/opportunities', lead: '/api/leads', analisis: '/api/analisis' };
+      const res = await api.get(ep[type] || '/api/credits', { params: { search: query, per_page: 8 } });
+      setNewEntityResults(Array.isArray(res.data) ? res.data : res.data.data ?? []);
+    } catch { setNewEntityResults([]); } finally { setNewEntityLoading(false); }
+  };
+
+  const selectNewEntity = (entity: any) => {
+    const ref: Record<string, (e: any) => string> = {
+      credit: (e) => e.reference || `#${e.id}`,
+      opportunity: (e) => e.id || `#${e.id}`,
+      lead: (e) => e.cedula || e.name || `#${e.id}`,
+      analisis: (e) => e.reference || `#${e.id}`,
+    };
+    const label = (ref[newEntityType] || ((e: any) => `#${e.id}`))(entity);
+    const typeLabel = NEW_ENTITY_TARGETS.find((t) => t.key === newEntityType)?.label || newEntityType;
+    setNewEntity({ type: newEntityType, id: entity.id, label: `${typeLabel}: ${label}` });
+    setNewEntityPickerOpen(false);
+    setNewEntityStep('type');
+    setNewEntitySearch('');
+    setTimeout(() => newTextRef.current?.focus(), 50);
+  };
+
+  const handleNewTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setNewText(val);
+    const pos = e.target.selectionStart || 0;
+    setCursorPos(pos);
+    const before = val.slice(0, pos);
+    const atMatch = before.match(/@(\w*)$/);
+    if (atMatch) { setUserFilter(atMatch[1].toLowerCase()); setShowUserDropdown(true); }
+    else setShowUserDropdown(false);
+  };
+
+  const selectMentionUser = (u: any) => {
+    const before = newText.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf('@');
+    const updated = newText.slice(0, atIdx) + `@[${u.name}](user:${u.id}) ` + newText.slice(cursorPos);
+    setNewText(updated);
+    setNewMentions((prev) => [...prev.filter((m) => m.id !== u.id), { type: 'user', id: u.id, label: u.name }]);
+    setShowUserDropdown(false);
+    newTextRef.current?.focus();
+  };
+
+  const handleSendNew = async () => {
+    if (!newText.trim() || !newEntity) return;
+    setSendingNew(true);
+    try {
+      await api.post('/api/comments', {
+        commentable_type: newEntity.type,
+        commentable_id: newEntity.id,
+        body: newText,
+        mentions: newMentions,
+      });
+      setNewText('');
+      setNewEntity(null);
+      setNewMentions([]);
+      setComposingNew(false);
+      fetchAllComments(commentsView === 'archived');
+    } catch { /* silent */ } finally { setSendingNew(false); }
+  };
+
+  const filteredMentionUsers = userList.filter((u: any) =>
+    u.name?.toLowerCase().includes(userFilter) || u.email?.toLowerCase().includes(userFilter)
+  ).slice(0, 6);
+
+  const fetchAllComments = useCallback(async (archived = false) => {
+    setLoadingComments(true);
+    try {
+      const res = await api.get('/api/comments/recent', { params: { limit: 50, archived } });
+      const data: InternalComment[] = Array.isArray(res.data) ? res.data : res.data.data ?? [];
+      setAllComments(data);
+    } catch { /* silent */ } finally { setLoadingComments(false); }
+  }, []);
+
+  const fetchThreadComments = useCallback(async (comment: InternalComment) => {
+    setSelectedThread(comment);
+    setLoadingThread(true);
+    try {
+      const info = getEntityInfo(comment.commentable_type);
+      const res = await api.get('/api/comments', {
+        params: { commentable_type: info.apiType || comment.commentable_type, commentable_id: comment.commentable_id }
+      });
+      const data = Array.isArray(res.data) ? res.data : res.data.data ?? [];
+      setThreadComments(data);
+    } catch { /* silent */ } finally { setLoadingThread(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeInbox === 'comments') fetchAllComments(commentsView === 'archived');
+  }, [activeInbox, commentsView, fetchAllComments]);
+
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !selectedThread) return;
+    setSendingReply(true);
+    try {
+      const info = getEntityInfo(selectedThread.commentable_type);
+      await api.post('/api/comments', {
+        commentable_type: info.apiType || selectedThread.commentable_type,
+        commentable_id: selectedThread.commentable_id,
+        body: replyText,
+      });
+      setReplyText('');
+      fetchThreadComments(selectedThread);
+      fetchAllComments(commentsView === 'archived');
+    } catch { /* silent */ } finally { setSendingReply(false); }
+  };
 
   // Cargar conversaciones (leads) desde la API
   useEffect(() => {
@@ -211,59 +398,158 @@ export default function CommunicationsPage() {
       {/* Columna 1: Barra lateral de Cajas de Entrada (Inboxes) */}
       <Card className="hidden md:flex flex-col">
         <CardContent className="p-4 space-y-6">
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-              <Inbox className="h-4 w-4" /> Cajas de Entrada
+          <div className="space-y-1">
+            <h3 className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase px-2 mb-2">
+              <Inbox className="h-3.5 w-3.5" /> Cajas de Entrada
             </h3>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button
+              variant={activeInbox === 'conversations' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => setActiveInbox('conversations')}
+            >
               <MessageSquare className="mr-2 h-4 w-4" />
-              Todas las conversaciones
+              Conversaciones
             </Button>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button
+              variant={activeInbox === 'comments' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => setActiveInbox('comments')}
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Comentarios Internos
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
               <Users className="mr-2 h-4 w-4" />
               Asignadas a mí
             </Button>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
               <Star className="mr-2 h-4 w-4" />
               Importantes
             </Button>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-              <Archive className="h-4 w-4" /> Archivo
+          <Separator />
+          <div className="space-y-1">
+            <h3 className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase px-2 mb-2">
+              <Archive className="h-3.5 w-3.5" /> Archivo
             </h3>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
               <Clock className="mr-2 h-4 w-4" />
               Pendientes
             </Button>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
               <FileText className="mr-2 h-4 w-4" />
               Cerradas
             </Button>
           </div>
-          <PermissionButton module="comunicaciones" action="create" variant="outline" className="w-full">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Nueva Conversación
-          </PermissionButton>
+          {activeInbox === 'conversations' && (
+            <PermissionButton module="comunicaciones" action="create" variant="outline" className="w-full">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Nueva Conversación
+            </PermissionButton>
+          )}
         </CardContent>
       </Card>
 
-      {/* Columna 2: Lista de Conversaciones */}
+      {/* Columna 2 */}
       <Card className="flex flex-col">
-        <div className="p-4 border-b">
+        <div className="p-3 border-b space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar conversación..." className="pl-8" />
+            <Input
+              placeholder={activeInbox === 'comments' ? 'Buscar comentario...' : 'Buscar conversación...'}
+              className="pl-8"
+              value={activeInbox === 'comments' ? commentSearch : ''}
+              onChange={activeInbox === 'comments' ? (e) => setCommentSearch(e.target.value) : undefined}
+            />
           </div>
+          {activeInbox === 'comments' && (
+            <div className="space-y-2">
+              <div className="flex rounded-md border overflow-hidden text-xs">
+                <button
+                  onClick={() => { setCommentsView('active'); setSelectedThread(null); }}
+                  className={cn('flex-1 py-1.5 font-medium transition-colors', commentsView === 'active' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground')}
+                >
+                  Activos
+                </button>
+                <button
+                  onClick={() => { setCommentsView('archived'); setSelectedThread(null); }}
+                  className={cn('flex-1 py-1.5 font-medium transition-colors', commentsView === 'archived' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground')}
+                >
+                  Archivados
+                </button>
+              </div>
+              {commentsView === 'active' && (
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => { setComposingNew(true); setSelectedThread(null); }}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Nuevo comentario
+                </Button>
+              )}
+            </div>
+          )}
         </div>
         <CardContent className="p-0 flex-1 overflow-y-auto">
-          {loadingConversations ? (
+
+          {/* ----- COMMENTS LIST ----- */}
+          {activeInbox === 'comments' ? (
+            loadingComments ? (
+              <div className="flex justify-center items-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : allComments.length === 0 ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">No hay comentarios todavía</div>
+            ) : (
+              <nav>
+                {allComments
+                  .filter((c) => !commentSearch || c.body.toLowerCase().includes(commentSearch.toLowerCase()) || (c.entity_reference || '').toLowerCase().includes(commentSearch.toLowerCase()))
+                  .map((comment) => {
+                    const info = getEntityInfo(comment.commentable_type);
+                    const ref = comment.entity_reference || `#${comment.commentable_id}`;
+                    const isSelected = selectedThread?.id === comment.id;
+                    return (
+                      <button
+                        key={comment.id}
+                        onClick={() => fetchThreadComments(comment)}
+                        className={cn(
+                          'w-full text-left p-3 hover:bg-muted/50 transition-colors flex items-start gap-3 border-b last:border-0',
+                          isSelected && 'bg-muted'
+                        )}
+                      >
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className={cn('text-[11px] text-white', getAvatarColor(comment.user.id))}>
+                            {getInitials(comment.user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 justify-between">
+                            <span className="text-sm font-semibold truncate">{comment.user.name}</span>
+                            <span className="text-[11px] text-muted-foreground shrink-0">{relativeTime(comment.created_at)}</span>
+                          </div>
+                          <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-[16px] rounded border-0 mt-0.5', info.color)}>
+                            {info.label}: {ref}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            {comment.body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, l) => l)}
+                          </p>
+                          {(comment.replies?.length ?? 0) > 0 && (
+                            <span className="text-[10px] text-muted-foreground">{comment.replies!.length} respuesta{comment.replies!.length > 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+              </nav>
+            )
+          ) : (
+
+          /* ----- CONVERSATIONS LIST ----- */
+          loadingConversations ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Cargando conversaciones...</div>
           ) : conversations.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No hay conversaciones disponibles</div>
           ) : (
             <nav className="space-y-1">
-              {/* Iteramos sobre las conversaciones para mostrar cada una en la lista. */}
               {conversations.map((conv) => (
                 <button
                   key={conv.id}
@@ -291,13 +577,280 @@ export default function CommunicationsPage() {
                 </button>
               ))}
             </nav>
-          )}
+          ))}
         </CardContent>
       </Card>
 
-      {/* Columna 3: Panel del Chat Activo */}
-      <Card className="flex flex-col">
-        {!selectedConversation ? (
+      {/* Columna 3 */}
+      <Card className="flex flex-col overflow-hidden">
+
+        {/* ----- COMMENTS THREAD PANEL ----- */}
+        {activeInbox === 'comments' ? (
+          composingNew ? (
+            /* ---- NEW COMMENT COMPOSE PANEL ---- */
+            <div className="flex flex-col h-full">
+              <div className="p-4 border-b flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="font-semibold text-sm">Nuevo comentario</h3>
+                  <p className="text-xs text-muted-foreground">Selecciona una entidad y escribe tu comentario</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setComposingNew(false); setNewEntity(null); setNewText(''); setNewMentions([]); }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+                {/* Entity selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Entidad</label>
+                  {newEntity ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-sm gap-1.5 px-2 py-1">
+                        <Hash className="h-3.5 w-3.5" />
+                        {newEntity.label}
+                      </Badge>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setNewEntity(null)}>
+                        Cambiar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Button variant="outline" className="gap-2 w-full justify-start" onClick={() => { setNewEntityPickerOpen(!newEntityPickerOpen); setNewEntityStep('type'); }}>
+                        <Hash className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">Seleccionar entidad...</span>
+                      </Button>
+                      {newEntityPickerOpen && (
+                        <div className="absolute top-full left-0 mt-1 w-72 bg-popover border rounded-lg shadow-xl z-50 overflow-hidden">
+                          {newEntityStep === 'type' ? (
+                            <div className="p-1">
+                              <p className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">Tipo de entidad</p>
+                              {NEW_ENTITY_TARGETS.map((t) => (
+                                <button key={t.key}
+                                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted rounded transition-colors flex items-center gap-2"
+                                  onClick={() => { setNewEntityType(t.key); setNewEntityStep('search'); setNewEntitySearch(''); setNewEntityResults([]); }}
+                                >
+                                  <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                                  {t.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="p-2 border-b flex items-center gap-2">
+                                <button onClick={() => setNewEntityStep('type')} className="text-muted-foreground hover:text-foreground transition-colors">
+                                  <ArrowLeft className="h-4 w-4" />
+                                </button>
+                                <input autoFocus
+                                  placeholder={`Buscar ${NEW_ENTITY_TARGETS.find((t) => t.key === newEntityType)?.label}...`}
+                                  className="flex-1 text-sm px-2 py-1 bg-background outline-none"
+                                  value={newEntitySearch}
+                                  onChange={(e) => { setNewEntitySearch(e.target.value); if (e.target.value.length >= 1) searchNewEntities(newEntityType, e.target.value); }}
+                                />
+                              </div>
+                              <div className="max-h-48 overflow-auto p-1">
+                                {newEntityLoading ? (
+                                  <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                                ) : newEntityResults.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground text-center py-4">{newEntitySearch ? 'Sin resultados' : 'Escribe para buscar'}</p>
+                                ) : (
+                                  newEntityResults.map((e: any) => {
+                                    const display = e.reference || e.id || e.cedula || e.name || `#${e.id}`;
+                                    const sub = e.name && e.apellido1 ? `${e.name} ${e.apellido1}` : (e.lead?.name || '');
+                                    return (
+                                      <button key={e.id}
+                                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted rounded transition-colors"
+                                        onClick={() => selectNewEntity(e)}
+                                      >
+                                        <span className="font-medium">{display}</span>
+                                        {sub && <span className="text-muted-foreground ml-2 text-xs">{sub}</span>}
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Comment textarea with @mentions */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Comentario</label>
+                  <div className="relative">
+                    <textarea
+                      ref={newTextRef}
+                      disabled={!newEntity}
+                      placeholder={newEntity ? 'Escribe tu comentario... Usa @ para mencionar a alguien' : 'Selecciona una entidad primero'}
+                      className={cn(
+                        'w-full resize-none rounded-lg border bg-background px-3 py-3 text-sm',
+                        'outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary',
+                        'min-h-[120px] disabled:opacity-50 disabled:cursor-not-allowed'
+                      )}
+                      rows={5}
+                      value={newText}
+                      onChange={handleNewTextChange}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSendNew(); }
+                        if (e.key === 'Escape') setShowUserDropdown(false);
+                      }}
+                    />
+                    {showUserDropdown && filteredMentionUsers.length > 0 && (
+                      <div className="absolute bottom-full left-0 mb-1 w-56 bg-popover border rounded-lg shadow-lg z-50 p-1">
+                        <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                          <AtSign className="h-3 w-3" /> Mencionar usuario
+                        </p>
+                        {filteredMentionUsers.map((u: any) => (
+                          <button key={u.id} onMouseDown={() => selectMentionUser(u)}
+                            className="w-full text-left px-2 py-2 text-sm hover:bg-muted rounded flex items-center gap-2.5"
+                          >
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className={cn('text-[9px] text-white', getAvatarColor(u.id))}>
+                                {getInitials(u.name || 'U')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span>{u.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Usa @ para mencionar · Ctrl+Enter para enviar</p>
+                </div>
+
+                {/* Mentions preview */}
+                {newMentions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {newMentions.map((m) => (
+                      <Badge key={m.id} variant="secondary" className="text-xs gap-1">
+                        <AtSign className="h-2.5 w-2.5" />
+                        {m.label}
+                        <button onClick={() => setNewMentions((prev) => prev.filter((x) => x.id !== m.id))} className="ml-0.5 hover:text-destructive">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t bg-background shrink-0 flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => { setComposingNew(false); setNewEntity(null); setNewText(''); setNewMentions([]); }}>
+                  Cancelar
+                </Button>
+                <Button disabled={!newText.trim() || !newEntity || sendingNew} onClick={handleSendNew} className="gap-2">
+                  {sendingNew ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Publicar comentario
+                </Button>
+              </div>
+            </div>
+          ) : !selectedThread ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground gap-3">
+              <MessageCircle className="h-10 w-10 opacity-20" />
+              <p>Selecciona un comentario o crea uno nuevo</p>
+              <Button size="sm" variant="outline" className="gap-2 mt-1" onClick={() => setComposingNew(true)}>
+                <PlusCircle className="h-4 w-4" /> Nuevo comentario
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Thread header */}
+              <div className="p-4 border-b flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className={cn('text-xs border-0', getEntityInfo(selectedThread.commentable_type).color)}>
+                        {getEntityInfo(selectedThread.commentable_type).label}: {selectedThread.entity_reference || `#${selectedThread.commentable_id}`}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {(threadComments.length || 1)} comentario{(threadComments.length || 1) !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" className="gap-1 text-xs"
+                  onClick={() => {
+                    const info = getEntityInfo(selectedThread.commentable_type);
+                    router.push(`${info.route}/${selectedThread.commentable_id}`);
+                  }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Ver entidad
+                </Button>
+              </div>
+
+              {/* Thread messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+                {loadingThread ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                ) : (
+                  threadComments.map((c) => (
+                    <div key={c.id} className="space-y-3">
+                      {/* Root comment */}
+                      <div className="flex items-start gap-3">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarFallback className={cn('text-[11px] text-white', getAvatarColor(c.user.id))}>
+                            {getInitials(c.user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 bg-muted/60 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">{c.user.name}</span>
+                            <span className="text-[11px] text-muted-foreground">{relativeTime(c.created_at)}</span>
+                          </div>
+                          <p className="text-sm mt-0.5" dangerouslySetInnerHTML={{ __html: renderBody(c.body) }} />
+                        </div>
+                      </div>
+                      {/* Replies */}
+                      {c.replies && c.replies.length > 0 && (
+                        <div className="ml-11 space-y-2 border-l-2 border-muted pl-3">
+                          {c.replies.map((r) => (
+                            <div key={r.id} className="flex items-start gap-2">
+                              <Avatar className="h-6 w-6 shrink-0">
+                                <AvatarFallback className={cn('text-[9px] text-white', getAvatarColor(r.user.id))}>
+                                  {getInitials(r.user.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 bg-muted/40 rounded-lg px-2.5 py-1.5">
+                                <span className="text-xs font-semibold">{r.user.name} </span>
+                                <span className="text-[10px] text-muted-foreground">{relativeTime(r.created_at)}</span>
+                                <p className="text-xs mt-0.5" dangerouslySetInnerHTML={{ __html: renderBody(r.body) }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Reply compose */}
+              <div className="p-3 border-t bg-background shrink-0">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    placeholder="Escribe un comentario..."
+                    className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30 min-h-[40px] max-h-[80px]"
+                    rows={1}
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
+                  />
+                  <Button size="icon" className="h-9 w-9 rounded-lg shrink-0"
+                    disabled={!replyText.trim() || sendingReply}
+                    onClick={handleSendReply}
+                  >
+                    {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )
+        ) : (
+
+        /* ----- CONVERSATIONS PANEL ----- */
+        !selectedConversation ? (
           <div className="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground">
             Selecciona una conversación para comenzar
           </div>
@@ -406,7 +959,8 @@ export default function CommunicationsPage() {
             </div>
         </Tabs>
           </>
-        )}
+        )
+        )} {/* end conversations ternary / end activeInbox ternary */}
       </Card>
     </div>
     </ProtectedPage>

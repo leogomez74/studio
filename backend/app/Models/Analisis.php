@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Comment;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -176,5 +177,10 @@ class Analisis extends Model
     public function getCreditStatusAttribute(): ?string
     {
         return Credit::where('opportunity_id', $this->opportunity_id)->value('status');
+    }
+
+    public function comments()
+    {
+        return $this->morphMany(Comment::class, 'commentable');
     }
 }
