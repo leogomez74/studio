@@ -405,7 +405,7 @@ export default function CommunicationsPage() {
             <Button
               variant={activeInbox === 'conversations' ? 'secondary' : 'ghost'}
               className="w-full justify-start"
-              onClick={() => setActiveInbox('conversations')}
+              onClick={() => { setActiveInbox('conversations'); setCommentSearch(''); }}
             >
               <MessageSquare className="mr-2 h-4 w-4" />
               Conversaciones
@@ -413,7 +413,7 @@ export default function CommunicationsPage() {
             <Button
               variant={activeInbox === 'comments' ? 'secondary' : 'ghost'}
               className="w-full justify-start"
-              onClick={() => setActiveInbox('comments')}
+              onClick={() => { setActiveInbox('comments'); setCommentSearch(''); }}
             >
               <MessageCircle className="mr-2 h-4 w-4" />
               Comentarios Internos
@@ -458,8 +458,8 @@ export default function CommunicationsPage() {
             <Input
               placeholder={activeInbox === 'comments' ? 'Buscar comentario...' : 'Buscar conversación...'}
               className="pl-8"
-              value={activeInbox === 'comments' ? commentSearch : ''}
-              onChange={activeInbox === 'comments' ? (e) => setCommentSearch(e.target.value) : undefined}
+              value={commentSearch}
+              onChange={(e) => setCommentSearch(e.target.value)}
             />
           </div>
           {activeInbox === 'comments' && (
