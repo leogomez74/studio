@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle, RefreshCw, Ban, History, Paperclip } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
@@ -34,6 +34,7 @@ const fmt = (amount: number, currency: 'CRC' | 'USD') =>
 export default function InvestmentDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id as string;
 
   const [investment, setInvestment] = useState<Investment | null>(null);
@@ -93,6 +94,17 @@ export default function InvestmentDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchInvestment(); }, [fetchInvestment]);
+
+  // Auto-open modal from query param (?action=renew or ?action=cancel)
+  useEffect(() => {
+    if (!investment || loading) return;
+    const action = searchParams.get('action');
+    if (action === 'renew' && investment.estado === 'Activa') {
+      setShowRenewModal(true);
+    } else if (action === 'cancel' && investment.estado === 'Activa') {
+      setShowCancelModal(true);
+    }
+  }, [investment, loading, searchParams]);
 
   const handleSave = async () => {
     if (!investment) return;

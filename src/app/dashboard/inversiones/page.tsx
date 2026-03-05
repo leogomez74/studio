@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle, Landmark, Search } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle, Landmark, Search, Clock, RefreshCw, XCircle, Eye } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -80,6 +80,7 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
 
 // --- Inversiones Table ---
 const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, onDelete }: { investment: Investment; onDelete: (id: number) => void }) {
+  const isActive = investment.estado === 'Activa';
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell>
@@ -103,7 +104,21 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
             <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${investment.id}`}>Ver Detalles</Link></DropdownMenuItem>
+            {isActive && (
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/inversiones/${investment.id}?action=renew`}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Renovar
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+            {isActive && (
+              <DropdownMenuItem asChild className="text-destructive">
+                <Link href={`/dashboard/inversiones/${investment.id}?action=cancel`}>
+                  <XCircle className="h-4 w-4 mr-2" /> Cancelar
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(investment.id)}>Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -437,6 +452,99 @@ function ReservasSection({ data }: { data: any }) {
   );
 }
 
+// --- Vencimientos ---
+function VencimientosSection({ data }: { data: any }) {
+  if (!data) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  const sections = [
+    { key: 'vencidas', label: 'Vencidas', icon: AlertTriangle, color: 'bg-destructive text-destructive-foreground', data: data.vencidas ?? [] },
+    { key: '0_30', label: 'Vencen en 0–30 días', icon: Clock, color: 'bg-orange-500 text-white', data: data['0_30'] ?? [] },
+    { key: '31_60', label: 'Vencen en 31–60 días', icon: Clock, color: 'bg-yellow-500 text-white', data: data['31_60'] ?? [] },
+    { key: '61_90', label: 'Vencen en 61–90 días', icon: CalendarClock, color: 'bg-primary text-primary-foreground', data: data['61_90'] ?? [] },
+  ];
+
+  const totalCount = data.total ?? 0;
+
+  if (totalCount === 0) {
+    return <p className="text-center text-muted-foreground py-8">No hay inversiones próximas a vencer en los próximos 90 días.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {sections.map(s => (
+          <Card key={s.key}>
+            <CardHeader className="pb-2">
+              <CardDescription>{s.label}</CardDescription>
+              <CardTitle className="text-2xl">{s.data.length}</CardTitle>
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+
+      {sections.map(s => {
+        if (s.data.length === 0) return null;
+        const Icon = s.icon;
+        return (
+          <Collapsible key={s.key} defaultOpen={s.key === 'vencidas' || s.key === '0_30'}>
+            <CollapsibleTrigger asChild>
+              <button className={`w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity ${s.color}`}>
+                <Icon className="h-5 w-5 shrink-0" />
+                {s.label}
+                <span className="ml-auto text-sm font-normal opacity-80 flex items-center gap-2">
+                  {s.data.length} inversiones
+                  <ChevronDown className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-180" />
+                </span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="overflow-x-auto mt-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Desembolso</TableHead>
+                      <TableHead>Inversionista</TableHead>
+                      <TableHead className="text-right">Monto Capital</TableHead>
+                      <TableHead className="text-center">Tasa</TableHead>
+                      <TableHead>Vencimiento</TableHead>
+                      <TableHead className="text-center">Plazo</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {s.data.map((inv: any) => (
+                      <TableRow key={inv.id}>
+                        <TableCell>
+                          <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
+                        </TableCell>
+                        <TableCell>{inv.investor?.name ?? '—'}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(inv.monto_capital, inv.moneda)}</TableCell>
+                        <TableCell className="text-center font-mono">{(Number(inv.tasa_anual) * 100).toFixed(2)}%</TableCell>
+                        <TableCell>{new Date(inv.fecha_vencimiento).toLocaleDateString('es-CR')}</TableCell>
+                        <TableCell className="text-center">{inv.plazo_meses}m</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/inversiones/${inv.id}`}><Eye className="h-4 w-4 mr-1" /> Ver</Link>
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/inversiones/${inv.id}?action=renew`}><RefreshCw className="h-4 w-4 mr-1" /> Renovar</Link>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })}
+    </div>
+  );
+}
+
 // --- Main Page ---
 export default function InversionesPage() {
   const searchParams = useSearchParams();
@@ -448,6 +556,7 @@ export default function InversionesPage() {
   const [tablaGeneral, setTablaGeneral] = useState<any>(null);
   const [pagosProximos, setPagosProximos] = useState<any>(null);
   const [reservas, setReservas] = useState<any>(null);
+  const [vencimientos, setVencimientos] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
@@ -501,6 +610,15 @@ export default function InversionesPage() {
     }
   }, []);
 
+  const fetchVencimientos = useCallback(async () => {
+    try {
+      const res = await api.get('/api/investments/vencimientos');
+      setVencimientos(res.data);
+    } catch (err) {
+      console.error('Error fetching vencimientos:', err);
+    }
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDeleteInvestor = async (id: number) => {
@@ -540,7 +658,7 @@ export default function InversionesPage() {
 
   return (
     <ProtectedPage module="inversiones">
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); }}>
+      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
@@ -549,6 +667,7 @@ export default function InversionesPage() {
             <TabsTrigger value="pagos">Pagos</TabsTrigger>
             <TabsTrigger value="pagos-proximos">Pagos Próximos</TabsTrigger>
             <TabsTrigger value="reservas">Reservas</TabsTrigger>
+            <TabsTrigger value="vencimientos">Vencimientos</TabsTrigger>
             <TabsTrigger value="retenciones">Retenciones</TabsTrigger>
           </TabsList>
           {activeTab === 'inversionistas' && (
@@ -775,6 +894,19 @@ export default function InversionesPage() {
             </CardHeader>
             <CardContent>
               <ReservasSection data={reservas} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Vencimientos */}
+        <TabsContent value="vencimientos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vencimientos Próximos</CardTitle>
+              <CardDescription>Inversiones activas que vencen en los próximos 90 días.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <VencimientosSection data={vencimientos} />
             </CardContent>
           </Card>
         </TabsContent>
