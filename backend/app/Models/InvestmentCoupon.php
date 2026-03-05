@@ -19,6 +19,7 @@ class InvestmentCoupon extends Model
         'capital_acumulado',
         'estado',
         'fecha_pago',
+        'comprobante',
         'notas',
     ];
 
