@@ -43,7 +43,6 @@ import {
 } from 'lucide-react';
 import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
-import { API_BASE_URL } from '@/lib/env';
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -195,7 +194,7 @@ export default function AuditoriaPage() {
   const loadStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const res = await api.get('/activity-logs/stats');
+      const res = await api.get('/api/activity-logs/stats');
       setStats(res.data);
     } catch {
       // silencioso
@@ -216,7 +215,7 @@ export default function AuditoriaPage() {
       if (filterFechaHasta) params.fecha_hasta   = filterFechaHasta;
       if (filterIp)         params.ip_address    = filterIp;
 
-      const res = await api.get<PaginatedResponse>('/activity-logs', { params });
+      const res = await api.get<PaginatedResponse>('/api/activity-logs', { params });
       setLogs(res.data.data);
       setPage(res.data.current_page);
       setLastPage(res.data.last_page);
@@ -230,7 +229,7 @@ export default function AuditoriaPage() {
 
   const loadUsers = useCallback(async () => {
     try {
-      const res = await api.get('/users?per_page=200');
+      const res = await api.get('/api/users?per_page=200');
       const data = res.data?.data ?? res.data ?? [];
       setUsers(Array.isArray(data) ? data.map((u: { id: number; name: string }) => ({ id: u.id, name: u.name })) : []);
     } catch {
@@ -276,10 +275,8 @@ export default function AuditoriaPage() {
       if (filterFechaHasta) params.set('fecha_hasta',  filterFechaHasta);
       if (filterIp)         params.set('ip_address',   filterIp);
 
-      const token = localStorage.getItem('auth_token');
-      const url = `${API_BASE_URL}/api/activity-logs/export?${params.toString()}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const blob = await res.blob();
+      const res = await api.get(`/api/activity-logs/export?${params.toString()}`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'text/csv' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `auditoria_${new Date().toISOString().slice(0, 10)}.csv`;

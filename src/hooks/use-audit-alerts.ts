@@ -17,7 +17,7 @@ export function useAuditAlerts(enabled = true) {
   const fetchAlerts = useCallback(async () => {
     if (!enabled) return;
     try {
-      const res = await api.get<AuditAlerts>('/activity-logs/alerts');
+      const res = await api.get<AuditAlerts>('/api/activity-logs/alerts');
       setAlerts(res.data);
     } catch {
       // silencioso — no interrumpir el sidebar si falla
