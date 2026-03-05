@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle, RefreshCw, Ban, History, Paperclip } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
@@ -19,6 +19,10 @@ import { Switch } from '@/components/ui/switch';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import api from '@/lib/axios';
 import type { Investment, InvestmentCoupon } from '@/lib/data';
 
@@ -29,6 +33,7 @@ const fmt = (amount: number, currency: 'CRC' | 'USD') =>
 
 export default function InvestmentDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [investment, setInvestment] = useState<Investment | null>(null);
@@ -36,17 +41,26 @@ export default function InvestmentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Cancel modal
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelMotivo, setCancelMotivo] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  // Renew modal
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [renewForm, setRenewForm] = useState({ plazo_meses: '', fecha_inicio: '', fecha_vencimiento: '', tasa_anual: '', monto_capital: '', forma_pago: '' });
+  const [renewing, setRenewing] = useState(false);
+
+  // Coupon pay modal
+  const [payingCoupon, setPayingCoupon] = useState<InvestmentCoupon | null>(null);
+  const [payDate, setPayDate] = useState('');
+  const [payFile, setPayFile] = useState<File | null>(null);
+  const [payingLoading, setPayingLoading] = useState(false);
+
   // Editable fields
   const [form, setForm] = useState({
-    monto_capital: '',
-    plazo_meses: '',
-    fecha_inicio: '',
-    fecha_vencimiento: '',
-    tasa_anual: '',
-    forma_pago: '',
-    estado: '',
-    es_capitalizable: false,
-    notas: '',
+    monto_capital: '', plazo_meses: '', fecha_inicio: '', fecha_vencimiento: '',
+    tasa_anual: '', forma_pago: '', estado: '', es_capitalizable: false, notas: '',
   });
 
   const fetchInvestment = useCallback(async () => {
@@ -55,7 +69,6 @@ export default function InvestmentDetailPage() {
       const res = await api.get(`/api/investments/${id}`);
       const inv = res.data;
       setInvestment(inv);
-      // Fetch reserve calculation
       try {
         const resReserva = await api.get(`/api/investments/${id}/reserva`);
         setReserva(resReserva.data);
@@ -104,22 +117,91 @@ export default function InvestmentDetailPage() {
     }
   };
 
-  const handleMarkCouponPaid = async (couponId: number) => {
+  const handlePayCoupon = async () => {
+    if (!payingCoupon) return;
+    setPayingLoading(true);
     try {
-      await api.patch(`/api/investment-coupons/${couponId}/pay`);
+      const formData = new FormData();
+      if (payDate) formData.append('fecha_pago', payDate);
+      if (payFile) formData.append('comprobante', payFile);
+      await api.patch(`/api/investment-coupons/${payingCoupon.id}/pay`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPayingCoupon(null);
+      setPayDate('');
+      setPayFile(null);
       fetchInvestment();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al pagar cupón');
+    } finally {
+      setPayingLoading(false);
     }
   };
 
   const handleLiquidate = async () => {
-    if (!investment || !confirm('¿Liquidar anticipadamente esta inversión?')) return;
+    if (!investment || !confirm('¿Liquidar anticipadamente esta inversión? Se marcarán todos los cupones pendientes como pagados.')) return;
     try {
       await api.post(`/api/investments/${investment.id}/liquidate`);
       fetchInvestment();
-    } catch (err) {
-      console.error(err);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleCancel = async () => {
+    if (!investment || !cancelMotivo.trim()) return;
+    setCancelling(true);
+    try {
+      await api.post(`/api/investments/${investment.id}/cancel`, { motivo: cancelMotivo });
+      setShowCancelModal(false);
+      setCancelMotivo('');
+      fetchInvestment();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al cancelar');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const openRenewModal = () => {
+    if (!investment) return;
+    setRenewForm({
+      plazo_meses: String(investment.plazo_meses),
+      fecha_inicio: investment.fecha_vencimiento?.split('T')[0] ?? '',
+      fecha_vencimiento: '',
+      tasa_anual: String(Number(investment.tasa_anual) * 100),
+      monto_capital: String(investment.monto_capital),
+      forma_pago: investment.forma_pago,
+    });
+    setShowRenewModal(true);
+  };
+
+  // Auto-calculate fecha_vencimiento for renew
+  useEffect(() => {
+    if (renewForm.fecha_inicio && renewForm.plazo_meses) {
+      const start = new Date(renewForm.fecha_inicio + 'T00:00:00');
+      start.setDate(1);
+      start.setMonth(start.getMonth() + parseInt(renewForm.plazo_meses));
+      setRenewForm(prev => ({ ...prev, fecha_vencimiento: start.toISOString().split('T')[0] }));
+    }
+  }, [renewForm.fecha_inicio, renewForm.plazo_meses]);
+
+  const handleRenew = async () => {
+    if (!investment) return;
+    setRenewing(true);
+    try {
+      const res = await api.post(`/api/investments/${investment.id}/renew`, {
+        plazo_meses: Number(renewForm.plazo_meses),
+        fecha_inicio: renewForm.fecha_inicio,
+        fecha_vencimiento: renewForm.fecha_vencimiento,
+        tasa_anual: Number(renewForm.tasa_anual) / 100,
+        monto_capital: Number(renewForm.monto_capital),
+        forma_pago: renewForm.forma_pago,
+      });
+      setShowRenewModal(false);
+      router.push(`/dashboard/inversiones/${res.data.id}`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al renovar');
+    } finally {
+      setRenewing(false);
     }
   };
 
@@ -137,6 +219,7 @@ export default function InvestmentDetailPage() {
   }
 
   const coupons: InvestmentCoupon[] = investment.coupons || [];
+  const rateHistory = investment.rate_history || [];
 
   return (
     <div className="space-y-6">
@@ -147,6 +230,9 @@ export default function InvestmentDetailPage() {
             <Link href="/dashboard/inversiones"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
           <h1 className="text-2xl font-semibold">Inversión: {investment.numero_desembolso}</h1>
+          <Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Cancelada' ? 'destructive' : 'secondary'}>
+            {investment.estado}
+          </Badge>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/pdf`, '_blank')}>
@@ -156,7 +242,15 @@ export default function InvestmentDetailPage() {
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
           </Button>
           {investment.estado === 'Activa' && (
-            <Button variant="destructive" size="sm" onClick={handleLiquidate}>Liquidar</Button>
+            <>
+              <Button variant="outline" size="sm" onClick={openRenewModal}>
+                <RefreshCw className="h-4 w-4 mr-1" /> Renovar
+              </Button>
+              <Button variant="outline" size="sm" className="text-destructive" onClick={() => setShowCancelModal(true)}>
+                <Ban className="h-4 w-4 mr-1" /> Cancelar
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleLiquidate}>Liquidar</Button>
+            </>
           )}
         </div>
       </div>
@@ -167,29 +261,31 @@ export default function InvestmentDetailPage() {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle>{investment.investor?.name ?? '—'}</CardTitle>
-              <CardDescription>Inversionista ID: {investment.investor_id}</CardDescription>
+              <CardDescription>Cédula: {investment.investor?.cedula ?? '—'}</CardDescription>
             </div>
-            <Button onClick={handleSave} disabled={saving} size="sm">
-              <Save className="h-4 w-4 mr-1" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
-            </Button>
+            {investment.estado === 'Activa' && (
+              <Button onClick={handleSave} disabled={saving} size="sm">
+                <Save className="h-4 w-4 mr-1" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div className="grid gap-1">
             <Label>Monto Capital</Label>
-            <Input type="number" step="0.01" value={form.monto_capital} onChange={e => setForm(f => ({ ...f, monto_capital: e.target.value }))} className="font-mono" />
+            <Input type="number" step="0.01" value={form.monto_capital} onChange={e => setForm(f => ({ ...f, monto_capital: e.target.value }))} className="font-mono" disabled={investment.estado !== 'Activa'} />
           </div>
           <div className="grid gap-1">
             <Label>Tasa Anual (%)</Label>
-            <Input type="number" step="0.01" value={form.tasa_anual} onChange={e => setForm(f => ({ ...f, tasa_anual: e.target.value }))} className="font-mono" />
+            <Input type="number" step="0.01" value={form.tasa_anual} onChange={e => setForm(f => ({ ...f, tasa_anual: e.target.value }))} className="font-mono" disabled={investment.estado !== 'Activa'} />
           </div>
           <div className="grid gap-1">
             <Label>Plazo (meses)</Label>
-            <Input type="number" value={form.plazo_meses} onChange={e => setForm(f => ({ ...f, plazo_meses: e.target.value }))} />
+            <Input type="number" value={form.plazo_meses} onChange={e => setForm(f => ({ ...f, plazo_meses: e.target.value }))} disabled={investment.estado !== 'Activa'} />
           </div>
           <div className="grid gap-1">
             <Label>Forma de Pago</Label>
-            <Select value={form.forma_pago} onValueChange={v => setForm(f => ({ ...f, forma_pago: v }))}>
+            <Select value={form.forma_pago} onValueChange={v => setForm(f => ({ ...f, forma_pago: v }))} disabled={investment.estado !== 'Activa'}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="MENSUAL">Mensual</SelectItem>
@@ -202,33 +298,35 @@ export default function InvestmentDetailPage() {
           </div>
           <div className="grid gap-1">
             <Label>Fecha Inicio</Label>
-            <Input type="date" value={form.fecha_inicio} onChange={e => setForm(f => ({ ...f, fecha_inicio: e.target.value }))} />
+            <Input type="date" value={form.fecha_inicio} onChange={e => setForm(f => ({ ...f, fecha_inicio: e.target.value }))} disabled={investment.estado !== 'Activa'} />
           </div>
           <div className="grid gap-1">
             <Label>Fecha Vencimiento</Label>
-            <Input type="date" value={form.fecha_vencimiento} onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
+            <Input type="date" value={form.fecha_vencimiento} onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} disabled={investment.estado !== 'Activa'} />
           </div>
           <div className="grid gap-1">
             <Label>Estado</Label>
-            <Select value={form.estado} onValueChange={v => setForm(f => ({ ...f, estado: v }))}>
+            <Select value={form.estado} onValueChange={v => setForm(f => ({ ...f, estado: v }))} disabled={investment.estado !== 'Activa'}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Activa">Activa</SelectItem>
                 <SelectItem value="Finalizada">Finalizada</SelectItem>
                 <SelectItem value="Liquidada">Liquidada</SelectItem>
+                <SelectItem value="Cancelada">Cancelada</SelectItem>
+                <SelectItem value="Renovada">Renovada</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="grid gap-1 items-end">
             <div className="flex items-center gap-2">
-              <Switch checked={form.es_capitalizable} onCheckedChange={v => setForm(f => ({ ...f, es_capitalizable: v }))} />
+              <Switch checked={form.es_capitalizable} onCheckedChange={v => setForm(f => ({ ...f, es_capitalizable: v }))} disabled={investment.estado !== 'Activa'} />
               <Label>Capitalizable</Label>
             </div>
           </div>
         </CardContent>
         <CardContent>
           <Label>Notas</Label>
-          <Textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={3} className="mt-1" />
+          <Textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={3} className="mt-1" disabled={investment.estado !== 'Activa'} />
         </CardContent>
       </Card>
 
@@ -339,9 +437,12 @@ export default function InvestmentDetailPage() {
                           <TableCell className="text-right font-mono text-primary">{coupon.capital_acumulado ? fmt(coupon.capital_acumulado, investment.moneda) : '—'}</TableCell>
                         )}
                         <TableCell>
-                          <Badge variant={coupon.estado === 'Pagado' ? 'default' : coupon.estado === 'Reservado' ? 'secondary' : 'outline'}>
-                            {coupon.estado}
-                          </Badge>
+                          <span className="flex items-center gap-1">
+                            <Badge variant={coupon.estado === 'Pagado' ? 'default' : coupon.estado === 'Reservado' ? 'secondary' : 'outline'}>
+                              {coupon.estado}
+                            </Badge>
+                            {coupon.comprobante && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" title="Tiene comprobante" />}
+                          </span>
                         </TableCell>
                         <TableCell>{coupon.fecha_pago ? new Date(coupon.fecha_pago).toLocaleDateString('es-CR') : '—'}</TableCell>
                         <TableCell>
@@ -351,9 +452,14 @@ export default function InvestmentDetailPage() {
                               variant="outline"
                               disabled={hasPriorUnpaid}
                               title={hasPriorUnpaid ? 'Debe pagar los cupones anteriores primero' : undefined}
-                              onClick={() => handleMarkCouponPaid(coupon.id)}
+                              onClick={() => { setPayingCoupon(coupon); setPayDate(new Date().toISOString().split('T')[0]); setPayFile(null); }}
                             >
                               <CheckCircle className="h-4 w-4 mr-1" /> Pagar
+                            </Button>
+                          )}
+                          {coupon.comprobante && (
+                            <Button size="sm" variant="ghost" onClick={() => window.open(`${API_BASE}/storage/${coupon.comprobante}`, '_blank')}>
+                              <Paperclip className="h-4 w-4" />
                             </Button>
                           )}
                         </TableCell>
@@ -369,6 +475,150 @@ export default function InvestmentDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Rate History */}
+      {rateHistory.length > 0 && (
+        <Collapsible>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <History className="h-4 w-4" /> Historial de Cambios de Tasa ({rateHistory.length})
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className="text-right">Tasa Anterior</TableHead>
+                      <TableHead className="text-right">Tasa Nueva</TableHead>
+                      <TableHead>Usuario</TableHead>
+                      <TableHead>Motivo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rateHistory.map((rh: any) => (
+                      <TableRow key={rh.id}>
+                        <TableCell>{new Date(rh.created_at).toLocaleDateString('es-CR')}</TableCell>
+                        <TableCell className="text-right font-mono">{(Number(rh.tasa_anterior) * 100).toFixed(2)}%</TableCell>
+                        <TableCell className="text-right font-mono font-semibold">{(Number(rh.tasa_nueva) * 100).toFixed(2)}%</TableCell>
+                        <TableCell>{rh.changed_by?.name ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{rh.motivo ?? '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+
+      {/* Cancel Modal */}
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar Inversión</DialogTitle>
+            <DialogDescription>Esta acción marcará la inversión como cancelada. Los cupones pendientes no serán pagados.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Motivo de cancelación *</Label>
+              <Textarea value={cancelMotivo} onChange={e => setCancelMotivo(e.target.value)} rows={3} placeholder="Ingrese el motivo..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelModal(false)}>Cerrar</Button>
+            <Button variant="destructive" onClick={handleCancel} disabled={cancelling || !cancelMotivo.trim()}>
+              {cancelling ? 'Cancelando...' : 'Confirmar Cancelación'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Renew Modal */}
+      <Dialog open={showRenewModal} onOpenChange={setShowRenewModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Renovar Inversión</DialogTitle>
+            <DialogDescription>Se creará una nueva inversión con los siguientes términos. La inversión actual será marcada como renovada.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Monto Capital</Label>
+                <Input type="number" step="0.01" value={renewForm.monto_capital} onChange={e => setRenewForm(f => ({ ...f, monto_capital: e.target.value }))} className="font-mono" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Tasa Anual (%)</Label>
+                <Input type="number" step="0.01" value={renewForm.tasa_anual} onChange={e => setRenewForm(f => ({ ...f, tasa_anual: e.target.value }))} className="font-mono" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Plazo (meses)</Label>
+                <Input type="number" value={renewForm.plazo_meses} onChange={e => setRenewForm(f => ({ ...f, plazo_meses: e.target.value }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Forma de Pago</Label>
+                <Select value={renewForm.forma_pago} onValueChange={v => setRenewForm(f => ({ ...f, forma_pago: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MENSUAL">Mensual</SelectItem>
+                    <SelectItem value="TRIMESTRAL">Trimestral</SelectItem>
+                    <SelectItem value="SEMESTRAL">Semestral</SelectItem>
+                    <SelectItem value="ANUAL">Anual</SelectItem>
+                    <SelectItem value="RESERVA">Reserva</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Fecha Inicio</Label>
+                <Input type="date" value={renewForm.fecha_inicio} onChange={e => setRenewForm(f => ({ ...f, fecha_inicio: e.target.value }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Fecha Vencimiento</Label>
+                <Input type="date" value={renewForm.fecha_vencimiento} onChange={e => setRenewForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRenewModal(false)}>Cancelar</Button>
+            <Button onClick={handleRenew} disabled={renewing}>{renewing ? 'Renovando...' : 'Renovar Inversión'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay Coupon Modal */}
+      <Dialog open={!!payingCoupon} onOpenChange={open => { if (!open) setPayingCoupon(null); }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Registrar Pago de Cupón</DialogTitle>
+            <DialogDescription>
+              Cupón #{payingCoupon ? [...coupons].sort((a, b) => a.fecha_cupon.localeCompare(b.fecha_cupon)).findIndex(c => c.id === payingCoupon.id) + 1 : ''} — {payingCoupon ? fmt(payingCoupon.interes_neto, investment.moneda) : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Fecha de Pago</Label>
+              <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Comprobante (opcional)</Label>
+              <Input type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={e => setPayFile(e.target.files?.[0] ?? null)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayingCoupon(null)}>Cancelar</Button>
+            <Button onClick={handlePayCoupon} disabled={payingLoading}>{payingLoading ? 'Procesando...' : 'Confirmar Pago'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
