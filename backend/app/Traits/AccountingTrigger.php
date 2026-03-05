@@ -342,8 +342,8 @@ trait AccountingTrigger
                 continue;
             }
 
-            // Resolver monto según el componente
-            $lineAmount = $this->resolveLineAmount($line, $breakdown, $amount);
+            // Resolver monto según el componente (redondear a 2 decimales para evitar artifacts de punto flotante como 1.8e-12)
+            $lineAmount = round($this->resolveLineAmount($line, $breakdown, $amount), 2);
 
             // Si el monto es 0, skip esta línea (componente no aplicado en este pago)
             if ($lineAmount == 0) {

@@ -1372,7 +1372,7 @@ class CreditPaymentController extends Controller
         $poliza           = array_sum(array_column($paymentDetails, 'pago_poliza'));
 
         // sobrante contable: si se pasó explícitamente (-1 = no override), usar dineroDisponible
-        $sobranteEnAsiento = $sobranteContable >= 0 ? $sobranteContable : max(0.0, $dineroDisponible);
+        $sobranteEnAsiento = round($sobranteContable >= 0 ? $sobranteContable : max(0.0, $dineroDisponible), 2);
 
         $context = [
             'reference' => "PAY-{$paymentRecord->id}-{$credit->reference}",
