@@ -907,18 +907,43 @@ class CreditController extends Controller
         $nuevoMonto = (float) $request->get('monto_credito', 0);
         $cargos = $request->get('cargos_adicionales', []);
         $totalCargos = is_array($cargos) ? array_sum(array_map('floatval', $cargos)) : 0;
-        $saldoActual = (float) $credit->saldo;
-        $montoEntregado = $nuevoMonto - $saldoActual - $totalCargos;
+        $saldoCapital = (float) $credit->saldo;
+
+        // Intereses de mora (completos)
+        $interesesMora = (float) $credit->planDePagos()
+            ->where('numero_cuota', '>', 0)
+            ->where('estado', 'Mora')
+            ->sum('int_corriente_vencido');
+
+        $moratorio = (float) $credit->planDePagos()
+            ->where('numero_cuota', '>', 0)
+            ->where('estado', 'Mora')
+            ->sum('interes_moratorio');
+
+        // Interés corriente prorrateado del mes corriente
+        $tasaAnual = (float) $credit->tasa_anual;
+        $fechaRef = now();
+        $diasTranscurridos = $fechaRef->copy()->startOfMonth()->diffInDays($fechaRef);
+        $interesCorrienteMes = round($saldoCapital * ($tasaAnual / 100) / 365 * $diasTranscurridos, 2);
+
+        $interesTotal = round($interesesMora + $interesCorrienteMes, 2);
+        $saldoAbsorbido = round($saldoCapital + $interesTotal + $moratorio, 2);
+        $montoEntregado = $nuevoMonto - $saldoAbsorbido - $totalCargos;
 
         return response()->json([
-            'saldo_actual' => $saldoActual,
+            'saldo_capital' => $saldoCapital,
+            'intereses_mora' => round($interesesMora, 2),
+            'interes_corriente_mes' => $interesCorrienteMes,
+            'dias_transcurridos' => $diasTranscurridos,
+            'moratorio' => round($moratorio, 2),
+            'saldo_absorbido' => $saldoAbsorbido,
             'monto_nuevo' => $nuevoMonto,
             'cargos_nuevos' => $totalCargos,
             'monto_entregado' => max(0, $montoEntregado),
-            'is_valid' => $nuevoMonto >= $saldoActual && $montoEntregado >= 0,
+            'is_valid' => $nuevoMonto >= $saldoAbsorbido && $montoEntregado >= 0,
             'credit_status' => $credit->status,
             'can_refundir' => in_array($credit->status, Credit::REFUNDIBLE_STATUSES)
-                && $saldoActual > 0
+                && $saldoCapital > 0
                 && is_null($credit->refundicion_child_id),
         ]);
     }
@@ -970,15 +995,25 @@ class CreditController extends Controller
             }
 
             // 3. Calcular montos
-            // Desglosar intereses y poliza de todas las cuotas pendientes del crédito viejo
-            $cuotasPendientes = $oldCredit->planDePagos()
+            // Intereses de mora (se cobran completos)
+            $cuotasMora = $oldCredit->planDePagos()
                 ->where('numero_cuota', '>', 0)
-                ->whereIn('estado', ['Pendiente', 'Vigente', 'Mora', 'Parcial'])
+                ->where('estado', 'Mora')
                 ->get();
 
-            $interesesVencidos = round((float) $cuotasPendientes->sum('interes_corriente'), 2);
-            $moratorioVencido = round((float) $cuotasPendientes->sum('interes_moratorio'), 2);
-            $polizaPendiente = round((float) $cuotasPendientes->sum('poliza'), 2);
+            $interesesMora = round((float) $cuotasMora->sum('int_corriente_vencido'), 2);
+            $moratorioVencido = round((float) $cuotasMora->sum('interes_moratorio'), 2);
+
+            // Interés corriente prorrateado del mes corriente
+            $tasaAnual = (float) $oldCredit->tasa_anual;
+            $fechaRefundicion = now();
+            $diasTranscurridos = $fechaRefundicion->copy()->startOfMonth()->diffInDays($fechaRefundicion);
+            $interesCorrienteMes = round($saldoViejo * ($tasaAnual / 100) / 365 * $diasTranscurridos, 2);
+
+            $interesesVencidos = round($interesesMora + $interesCorrienteMes, 2);
+
+            // Póliza pendiente de cuotas en mora
+            $polizaPendiente = round((float) $cuotasMora->sum('poliza'), 2);
 
             $saldoCapital = $saldoViejo;
             $saldoAbsorbido = round($saldoCapital + $interesesVencidos + $moratorioVencido + $polizaPendiente, 2);
