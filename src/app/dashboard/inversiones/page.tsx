@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle, Landmark, Search, Clock, RefreshCw, XCircle, Eye } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { ProtectedPage } from "@/components/ProtectedPage";
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -76,6 +80,7 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
 
 // --- Inversiones Table ---
 const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, onDelete }: { investment: Investment; onDelete: (id: number) => void }) {
+  const isActive = investment.estado === 'Activa';
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell>
@@ -90,7 +95,7 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
       <TableCell className="text-right font-mono">{fmt(investment.interes_del_cupon ?? 0, investment.moneda)}</TableCell>
       <TableCell className="text-right font-mono text-destructive">- {fmt(investment.retencion_del_cupon ?? 0, investment.moneda)}</TableCell>
       <TableCell className="text-right font-mono font-semibold text-primary">{fmt(investment.interes_neto_del_cupon ?? 0, investment.moneda)}</TableCell>
-      <TableCell><Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Finalizada' ? 'secondary' : 'outline'}>{investment.estado}</Badge></TableCell>
+      <TableCell><Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Cancelada' ? 'destructive' : 'secondary'}>{investment.estado}</Badge></TableCell>
       <TableCell>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -99,7 +104,21 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
             <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${investment.id}`}>Ver Detalles</Link></DropdownMenuItem>
+            {isActive && (
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/inversiones/${investment.id}?action=renew`}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Renovar
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+            {isActive && (
+              <DropdownMenuItem asChild className="text-destructive">
+                <Link href={`/dashboard/inversiones/${investment.id}?action=cancel`}>
+                  <XCircle className="h-4 w-4 mr-2" /> Cancelar
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(investment.id)}>Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -172,10 +191,32 @@ function TablaGeneralSection({ data }: { data: any }) {
   );
 
   return (
-    <>
+    <div className="space-y-4">
       {renderSection('DÓLARES (USD)', data.dolares, 'USD')}
       {renderSection('COLONES (CRC)', data.colones, 'CRC')}
-    </>
+
+      {/* Consolidado */}
+      {data.consolidado_crc && (
+        <Card className="border-primary">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Total Consolidado en Colones</CardTitle>
+            <CardDescription>Tipo de cambio: ₡{data.tipo_cambio} por dólar</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Capital Total</p>
+                <p className="text-2xl font-mono font-bold text-primary">{fmt(data.consolidado_crc.total_capital, 'CRC')}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Interés Neto Mensual Total</p>
+                <p className="text-2xl font-mono font-bold text-primary">{fmt(data.consolidado_crc.total_neto, 'CRC')}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -305,6 +346,205 @@ function PagosProximosSection({ data }: { data: any }) {
   );
 }
 
+// --- Reservas de Capital ---
+function ReservasSection({ data }: { data: any }) {
+  if (!data) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  const inversores: any[] = data.inversores ?? [];
+  const gt = data.gran_total;
+
+  if (inversores.length === 0) {
+    return <p className="text-center text-muted-foreground py-8">No hay inversiones activas para calcular reservas.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Reserva Mensual CRC</CardDescription>
+            <CardTitle className="text-2xl font-mono">{fmt(gt.crc.reserva_mensual, 'CRC')}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Reserva Mensual USD</CardDescription>
+            <CardTitle className="text-2xl font-mono">{fmt(gt.usd.reserva_mensual, 'USD')}</CardTitle>
+          </CardHeader>
+        </Card>
+        {data.consolidado_crc && (
+          <Card className="border-primary">
+            <CardHeader className="pb-2">
+              <CardDescription>Consolidado Mensual (₡{data.tipo_cambio}/USD)</CardDescription>
+              <CardTitle className="text-2xl font-mono text-primary">{fmt(data.consolidado_crc.reserva_mensual, 'CRC')}</CardTitle>
+            </CardHeader>
+          </Card>
+        )}
+      </div>
+
+      {/* Per-investor sections */}
+      {inversores.map((inv: any) => (
+        <Collapsible key={inv.investor.id} defaultOpen>
+          <CollapsibleTrigger asChild>
+            <button className="w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity bg-primary text-primary-foreground">
+              <Landmark className="h-5 w-5 shrink-0" />
+              {inv.investor.name}
+              <span className="ml-auto text-sm font-normal opacity-80 flex items-center gap-3">
+                {inv.totales.crc.reserva_mensual > 0 && <span className="font-mono">CRC: {fmt(inv.totales.crc.reserva_mensual, 'CRC')}/mes</span>}
+                {inv.totales.usd.reserva_mensual > 0 && <span className="font-mono">USD: {fmt(inv.totales.usd.reserva_mensual, 'USD')}/mes</span>}
+                <span>{inv.inversiones.length} inversiones</span>
+                <ChevronDown className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-180" />
+              </span>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="overflow-x-auto mt-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Desembolso</TableHead>
+                    <TableHead className="text-right">Capital</TableHead>
+                    <TableHead className="text-center">Tasa</TableHead>
+                    <TableHead>Vencimiento</TableHead>
+                    <TableHead className="text-right">Int. Adeudados</TableHead>
+                    <TableHead className="text-right">Cap + Int</TableHead>
+                    <TableHead className="text-center">Plazo Rest.</TableHead>
+                    <TableHead className="text-right">Reserva Mensual</TableHead>
+                    <TableHead className="text-right">Reserva Capital</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inv.inversiones.map((i: any) => (
+                    <TableRow key={i.id}>
+                      <TableCell>
+                        <Link href={`/dashboard/inversiones/${i.id}`} className="font-medium hover:underline">{i.numero_desembolso}</Link>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{fmt(i.monto_capital, i.moneda)}</TableCell>
+                      <TableCell className="text-center">{(Number(i.tasa_anual) * 100).toFixed(2)}%</TableCell>
+                      <TableCell>{new Date(i.fecha_vencimiento).toLocaleDateString('es-CR')}</TableCell>
+                      <TableCell className="text-right font-mono">{fmt(i.reserva.intereses_adeudados, i.moneda)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmt(i.reserva.capital_mas_intereses, i.moneda)}</TableCell>
+                      <TableCell className="text-center">{i.reserva.plazo_restante_meses}m</TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-primary">{fmt(i.reserva.reserva_mensual, i.moneda)}</TableCell>
+                      <TableCell className="text-right font-mono font-semibold">{fmt(i.reserva.reserva_capital, i.moneda)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Totals row */}
+                  <TableRow className="bg-muted font-bold">
+                    <TableCell colSpan={7}>TOTALES</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {inv.totales.crc.reserva_mensual > 0 && <div>{fmt(inv.totales.crc.reserva_mensual, 'CRC')}</div>}
+                      {inv.totales.usd.reserva_mensual > 0 && <div>{fmt(inv.totales.usd.reserva_mensual, 'USD')}</div>}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {inv.totales.crc.reserva_capital > 0 && <div>{fmt(inv.totales.crc.reserva_capital, 'CRC')}</div>}
+                      {inv.totales.usd.reserva_capital > 0 && <div>{fmt(inv.totales.usd.reserva_capital, 'USD')}</div>}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      ))}
+    </div>
+  );
+}
+
+// --- Vencimientos ---
+function VencimientosSection({ data }: { data: any }) {
+  if (!data) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  const sections = [
+    { key: 'vencidas', label: 'Vencidas', icon: AlertTriangle, color: 'bg-destructive text-destructive-foreground', data: data.vencidas ?? [] },
+    { key: '0_30', label: 'Vencen en 0–30 días', icon: Clock, color: 'bg-orange-500 text-white', data: data['0_30'] ?? [] },
+    { key: '31_60', label: 'Vencen en 31–60 días', icon: Clock, color: 'bg-yellow-500 text-white', data: data['31_60'] ?? [] },
+    { key: '61_90', label: 'Vencen en 61–90 días', icon: CalendarClock, color: 'bg-primary text-primary-foreground', data: data['61_90'] ?? [] },
+  ];
+
+  const totalCount = data.total ?? 0;
+
+  if (totalCount === 0) {
+    return <p className="text-center text-muted-foreground py-8">No hay inversiones próximas a vencer en los próximos 90 días.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {sections.map(s => (
+          <Card key={s.key}>
+            <CardHeader className="pb-2">
+              <CardDescription>{s.label}</CardDescription>
+              <CardTitle className="text-2xl">{s.data.length}</CardTitle>
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+
+      {sections.map(s => {
+        if (s.data.length === 0) return null;
+        const Icon = s.icon;
+        return (
+          <Collapsible key={s.key} defaultOpen={s.key === 'vencidas' || s.key === '0_30'}>
+            <CollapsibleTrigger asChild>
+              <button className={`w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity ${s.color}`}>
+                <Icon className="h-5 w-5 shrink-0" />
+                {s.label}
+                <span className="ml-auto text-sm font-normal opacity-80 flex items-center gap-2">
+                  {s.data.length} inversiones
+                  <ChevronDown className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-180" />
+                </span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="overflow-x-auto mt-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Desembolso</TableHead>
+                      <TableHead>Inversionista</TableHead>
+                      <TableHead className="text-right">Monto Capital</TableHead>
+                      <TableHead className="text-center">Tasa</TableHead>
+                      <TableHead>Vencimiento</TableHead>
+                      <TableHead className="text-center">Plazo</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {s.data.map((inv: any) => (
+                      <TableRow key={inv.id}>
+                        <TableCell>
+                          <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
+                        </TableCell>
+                        <TableCell>{inv.investor?.name ?? '—'}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(inv.monto_capital, inv.moneda)}</TableCell>
+                        <TableCell className="text-center font-mono">{(Number(inv.tasa_anual) * 100).toFixed(2)}%</TableCell>
+                        <TableCell>{new Date(inv.fecha_vencimiento).toLocaleDateString('es-CR')}</TableCell>
+                        <TableCell className="text-center">{inv.plazo_meses}m</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/inversiones/${inv.id}`}><Eye className="h-4 w-4 mr-1" /> Ver</Link>
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/inversiones/${inv.id}?action=renew`}><RefreshCw className="h-4 w-4 mr-1" /> Renovar</Link>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })}
+    </div>
+  );
+}
+
 // --- Main Page ---
 export default function InversionesPage() {
   const searchParams = useSearchParams();
@@ -315,11 +555,15 @@ export default function InversionesPage() {
   const [payments, setPayments] = useState<InvestmentPayment[]>([]);
   const [tablaGeneral, setTablaGeneral] = useState<any>(null);
   const [pagosProximos, setPagosProximos] = useState<any>(null);
+  const [reservas, setReservas] = useState<any>(null);
+  const [vencimientos, setVencimientos] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [showInvestorForm, setShowInvestorForm] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const [investorSearch, setInvestorSearch] = useState('');
+  const [filters, setFilters] = useState({ investor_id: '', moneda: '', estado: '' });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -357,6 +601,24 @@ export default function InversionesPage() {
     }
   }, []);
 
+  const fetchReservas = useCallback(async () => {
+    try {
+      const res = await api.get('/api/investments/reservas');
+      setReservas(res.data);
+    } catch (err) {
+      console.error('Error fetching reservas:', err);
+    }
+  }, []);
+
+  const fetchVencimientos = useCallback(async () => {
+    try {
+      const res = await api.get('/api/investments/vencimientos');
+      setVencimientos(res.data);
+    } catch (err) {
+      console.error('Error fetching vencimientos:', err);
+    }
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDeleteInvestor = async (id: number) => {
@@ -375,7 +637,16 @@ export default function InversionesPage() {
     } catch (err) { console.error(err); }
   };
 
-  const filteredInvestors = investors;
+  const filteredInvestors = investors.filter(inv =>
+    !investorSearch || inv.name.toLowerCase().includes(investorSearch.toLowerCase()) || inv.cedula?.toLowerCase().includes(investorSearch.toLowerCase())
+  );
+
+  const filteredInvestments = investments.filter(inv => {
+    if (filters.investor_id && inv.investor_id !== Number(filters.investor_id)) return false;
+    if (filters.moneda && inv.moneda !== filters.moneda) return false;
+    if (filters.estado && inv.estado !== filters.estado) return false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -387,7 +658,7 @@ export default function InversionesPage() {
 
   return (
     <ProtectedPage module="inversiones">
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); }}>
+      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
@@ -395,6 +666,8 @@ export default function InversionesPage() {
             <TabsTrigger value="tabla-general">Tabla General</TabsTrigger>
             <TabsTrigger value="pagos">Pagos</TabsTrigger>
             <TabsTrigger value="pagos-proximos">Pagos Próximos</TabsTrigger>
+            <TabsTrigger value="reservas">Reservas</TabsTrigger>
+            <TabsTrigger value="vencimientos">Vencimientos</TabsTrigger>
             <TabsTrigger value="retenciones">Retenciones</TabsTrigger>
           </TabsList>
           {activeTab === 'inversionistas' && (
@@ -413,8 +686,16 @@ export default function InversionesPage() {
         <TabsContent value="inversionistas">
           <Card>
             <CardHeader>
-              <CardTitle>Inversionistas</CardTitle>
-              <CardDescription>Gestiona los inversionistas de Credipep.</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Inversionistas</CardTitle>
+                  <CardDescription>Gestiona los inversionistas de Credipep.</CardDescription>
+                </div>
+                <div className="relative w-64">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Buscar por nombre o cédula..." value={investorSearch} onChange={e => setInvestorSearch(e.target.value)} className="pl-8 h-9" />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -459,6 +740,34 @@ export default function InversionesPage() {
                   </Button>
                 </div>
               </div>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Select value={filters.investor_id} onValueChange={v => setFilters(f => ({ ...f, investor_id: v === 'all' ? '' : v }))}>
+                  <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Inversionista" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {investors.map(inv => <SelectItem key={inv.id} value={String(inv.id)}>{inv.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={filters.moneda} onValueChange={v => setFilters(f => ({ ...f, moneda: v === 'all' ? '' : v }))}>
+                  <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="CRC">CRC</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filters.estado} onValueChange={v => setFilters(f => ({ ...f, estado: v === 'all' ? '' : v }))}>
+                  <SelectTrigger className="w-[150px] h-9"><SelectValue placeholder="Estado" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="Activa">Activa</SelectItem>
+                    <SelectItem value="Finalizada">Finalizada</SelectItem>
+                    <SelectItem value="Liquidada">Liquidada</SelectItem>
+                    <SelectItem value="Cancelada">Cancelada</SelectItem>
+                    <SelectItem value="Renovada">Renovada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -477,7 +786,7 @@ export default function InversionesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {investments.map(investment => (
+                  {filteredInvestments.map(investment => (
                     <InvestmentTableRow key={investment.id} investment={investment} onDelete={handleDeleteInvestment} />
                   ))}
                 </TableBody>
@@ -572,6 +881,32 @@ export default function InversionesPage() {
             </CardHeader>
             <CardContent>
               <PagosProximosSection data={pagosProximos} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Reservas de Capital */}
+        <TabsContent value="reservas">
+          <Card>
+            <CardHeader>
+              <CardTitle>Reservas de Capital</CardTitle>
+              <CardDescription>Monto mensual a provisionar por inversión para cubrir capital + intereses futuros.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReservasSection data={reservas} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Vencimientos */}
+        <TabsContent value="vencimientos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vencimientos Próximos</CardTitle>
+              <CardDescription>Inversiones activas que vencen en los próximos 90 días.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <VencimientosSection data={vencimientos} />
             </CardContent>
           </Card>
         </TabsContent>

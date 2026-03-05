@@ -49,7 +49,7 @@ class InvestmentController extends Controller
             'moneda' => 'required|in:CRC,USD',
             'forma_pago' => 'required|in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
             'es_capitalizable' => 'boolean',
-            'estado' => 'in:Activa,Finalizada,Liquidada',
+            'estado' => 'in:Activa,Finalizada,Liquidada,Cancelada,Renovada',
             'notas' => 'nullable|string',
         ]);
 
@@ -87,7 +87,7 @@ class InvestmentController extends Controller
             'moneda' => 'in:CRC,USD',
             'forma_pago' => 'in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
             'es_capitalizable' => 'boolean',
-            'estado' => 'in:Activa,Finalizada,Liquidada',
+            'estado' => 'in:Activa,Finalizada,Liquidada,Cancelada,Renovada',
             'notas' => 'nullable|string',
         ]);
 
@@ -106,7 +106,7 @@ class InvestmentController extends Controller
             $investment->update($validated);
 
             // Recalculate coupons if financial terms changed
-            $financialFields = ['monto_capital', 'tasa_anual', 'plazo_meses', 'forma_pago', 'fecha_vencimiento'];
+            $financialFields = ['monto_capital', 'tasa_anual', 'plazo_meses', 'forma_pago', 'fecha_vencimiento', 'es_capitalizable'];
             if (array_intersect(array_keys($validated), $financialFields)) {
                 $this->service->recalculateCoupons($investment);
             }
@@ -171,6 +171,17 @@ class InvestmentController extends Controller
         return response()->json(['meses' => $meses]);
     }
 
+    public function reservas()
+    {
+        return response()->json($this->service->getReservas());
+    }
+
+    public function reservaDetalle(int $id)
+    {
+        $investment = Investment::with('coupons')->findOrFail($id);
+        return response()->json($this->service->calcularReserva($investment));
+    }
+
     public function liquidate(int $id)
     {
         $investment = Investment::findOrFail($id);
@@ -193,5 +204,71 @@ class InvestmentController extends Controller
 
         $newInvestment = $this->service->renewInvestment($investment, $validated);
         return response()->json($newInvestment->load('coupons'), 201);
+    }
+
+    public function cancel(Request $request, int $id)
+    {
+        $investment = Investment::findOrFail($id);
+
+        if ($investment->estado !== 'Activa') {
+            return response()->json(['message' => 'Solo se pueden cancelar inversiones activas.'], 422);
+        }
+
+        $validated = $request->validate([
+            'motivo' => 'required|string|max:500',
+            'fecha_cancelacion' => 'nullable|date',
+        ]);
+
+        $investment->update([
+            'estado' => 'Cancelada',
+            'cancelado_por' => auth()->user()?->name ?? 'Sistema',
+            'fecha_cancelacion' => $validated['fecha_cancelacion'] ?? now()->toDateString(),
+            'notas' => $investment->notas
+                ? $investment->notas . "\n\nMotivo cancelación: " . $validated['motivo']
+                : "Motivo cancelación: " . $validated['motivo'],
+        ]);
+
+        return response()->json($investment->fresh());
+    }
+
+    public function preview(Request $request)
+    {
+        $validated = $request->validate([
+            'monto_capital' => 'required|numeric|min:0.01',
+            'tasa_anual' => 'required|numeric|min:0|max:1',
+            'plazo_meses' => 'required|integer|min:1',
+            'fecha_inicio' => 'required|date',
+            'forma_pago' => 'required|in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
+            'es_capitalizable' => 'boolean',
+        ]);
+
+        $coupons = $this->service->previewCoupons($validated);
+        return response()->json($coupons);
+    }
+
+    public function vencimientos()
+    {
+        $now = Carbon::now();
+
+        $investments = Investment::with('investor:id,name,cedula')
+            ->where('estado', 'Activa')
+            ->where('fecha_vencimiento', '<=', $now->copy()->addDays(90))
+            ->orderBy('fecha_vencimiento')
+            ->get();
+
+        $groups = [
+            'vencidas' => $investments->filter(fn ($i) => Carbon::parse($i->fecha_vencimiento)->lt($now)),
+            '0_30' => $investments->filter(fn ($i) => Carbon::parse($i->fecha_vencimiento)->between($now, $now->copy()->addDays(30))),
+            '31_60' => $investments->filter(fn ($i) => Carbon::parse($i->fecha_vencimiento)->between($now->copy()->addDays(31), $now->copy()->addDays(60))),
+            '61_90' => $investments->filter(fn ($i) => Carbon::parse($i->fecha_vencimiento)->between($now->copy()->addDays(61), $now->copy()->addDays(90))),
+        ];
+
+        return response()->json([
+            'vencidas' => $groups['vencidas']->values(),
+            '0_30' => $groups['0_30']->values(),
+            '31_60' => $groups['31_60']->values(),
+            '61_90' => $groups['61_90']->values(),
+            'total' => $investments->count(),
+        ]);
     }
 }

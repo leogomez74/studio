@@ -22,13 +22,19 @@ class Investment extends Model
         'es_capitalizable',
         'estado',
         'notas',
+        'tipo_cambio',
+        'investment_origen_id',
+        'cancelado_por',
+        'fecha_cancelacion',
     ];
 
     protected $casts = [
         'monto_capital' => 'decimal:2',
         'tasa_anual' => 'decimal:4',
+        'tipo_cambio' => 'decimal:4',
         'fecha_inicio' => 'date',
         'fecha_vencimiento' => 'date',
+        'fecha_cancelacion' => 'date',
         'es_capitalizable' => 'boolean',
     ];
 
@@ -52,6 +58,16 @@ class Investment extends Model
     public function rateHistory()
     {
         return $this->hasMany(InvestmentRateHistory::class);
+    }
+
+    public function origenInvestment()
+    {
+        return $this->belongsTo(Investment::class, 'investment_origen_id');
+    }
+
+    public function renewedInvestment()
+    {
+        return $this->hasOne(Investment::class, 'investment_origen_id');
     }
 
     public function getInteresMensualAttribute(): float

@@ -20,6 +20,7 @@ class Investor extends Model
         'notas',
         'cuenta_bancaria',
         'banco',
+        'moneda_preferida',
         'joined_at',
     ];
 
