@@ -71,7 +71,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $this->logActivity('logout', 'Auth', null, "Logout: {$request->user()->email ?? ''}", [], $request);
+        $this->logActivity('logout', 'Auth', null, 'Logout: ' . ($request->user()?->email ?? ''), [], $request);
 
         // Revocar el token actual de Sanctum
         $request->user()->currentAccessToken()->delete();
