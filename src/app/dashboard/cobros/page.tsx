@@ -404,7 +404,7 @@ const generateCertificacionDeuda = async (creditId: number) => {
   // --- Firma imagen + Sello (lado a lado) ---
   const firmaStartY = y;
   if (firmaImg) {
-    doc.addImage(firmaImg, 'PNG', marginL + 5, firmaStartY + 2, 32, 12);
+    doc.addImage(firmaImg, 'PNG', marginL + 3, firmaStartY, 36, 14);
   }
 
   // Sello centrado a la derecha, alineado con la firma
