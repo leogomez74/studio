@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
@@ -11,6 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    use LogsActivity;
     //REGISTRO DE USUARIO
     public function register(Request $request)
     {
@@ -37,6 +39,14 @@ class AuthController extends Controller
         ]);
 
         if(!Auth::attempt($request->only('email','password'))){
+            $this->logActivity(
+                'login_failed',
+                'Auth',
+                null,
+                "Intento fallido: {$request->email}",
+                [],
+                $request
+            );
             throw ValidationException::withMessages([
                 'email' => ['Las credenciales son incorrectas,'],
                 'password' => ['por favor verifique e intente de nuevo.']
@@ -50,6 +60,8 @@ class AuthController extends Controller
         $user = Auth::user();
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $this->logActivity('login', 'Auth', null, "Login: {$user->email}", [], $request);
+
         return response()->json([
             'message' => 'Usuario logueado exitosamente',
             'user' => $user,
@@ -59,6 +71,8 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        $this->logActivity('logout', 'Auth', null, 'Logout: ' . ($request->user()?->email ?? ''), [], $request);
+
         // Revocar el token actual de Sanctum
         $request->user()->currentAccessToken()->delete();
 

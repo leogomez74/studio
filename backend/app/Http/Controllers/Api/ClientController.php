@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Traits\LogsActivity;
 use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class ClientController extends Controller
 {
+    use LogsActivity;
     public function index(Request $request)
     {
         $activeFilter = $this->resolveActiveFilter($request);
@@ -130,6 +132,8 @@ class ClientController extends Controller
 
         $client = Client::create($validated);
 
+        $this->logActivity('create', 'Clientes', $client, $client->cedula ?? $client->name, [], $request);
+
         return response()->json($client, 201);
     }
 
@@ -187,14 +191,22 @@ class ClientController extends Controller
             'source' => 'sometimes|nullable|string|max:255',
         ]);
 
+        $before = $client->toArray();
+
         $client->update($validated);
+
+        $changes = $this->getChanges($before, $client->fresh()->toArray());
+        $this->logActivity('update', 'Clientes', $client, $client->cedula ?? $client->name, $changes, $request);
 
         return response()->json($client, 200);
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
         $client = Client::findOrFail($id);
+
+        $this->logActivity('delete', 'Clientes', $client, $client->cedula ?? $client->name, [], $request);
+
         $client->delete();
 
         return response()->json(['message' => 'Client deleted successfully'], 200);

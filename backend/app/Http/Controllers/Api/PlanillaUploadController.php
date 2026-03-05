@@ -9,6 +9,7 @@ use App\Models\PlanDePago;
 use App\Models\Credit;
 use App\Models\SaldoPendiente;
 use App\Traits\AccountingTrigger;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -21,6 +22,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 class PlanillaUploadController extends Controller
 {
     use AccountingTrigger;
+    use LogsActivity;
     /**
      * Listar historial de planillas con paginación y filtros
      */
@@ -386,6 +388,8 @@ class PlanillaUploadController extends Controller
             ]);
 
             DB::commit();
+
+            $this->logActivity('delete', 'Planilla', $planilla, 'Planilla #' . $planilla->id, [], $request);
 
             return response()->json([
                 'message' => 'Planilla anulada exitosamente',

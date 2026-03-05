@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Task;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 
 class TaskController extends Controller
 {
+    use LogsActivity;
     /**
      * Display a listing of the resource.
      */
@@ -73,6 +75,8 @@ class TaskController extends Controller
 
         $task = Task::create($validated);
 
+        $this->logActivity('create', 'Tareas', $task, $task->title, [], $request);
+
         return response()->json($task->load('assignee'), 201);
     }
 
@@ -92,6 +96,7 @@ class TaskController extends Controller
     public function update(Request $request, string $id)
     {
         $task = Task::findOrFail($id);
+        $oldData = $task->toArray();
 
         $validated = $request->validate([
             'project_code' => 'nullable|string|max:50',
@@ -106,6 +111,8 @@ class TaskController extends Controller
         ]);
 
         $task->update($validated);
+
+        $this->logActivity('update', 'Tareas', $task, $task->title, $this->getChanges($oldData, $task->fresh()->toArray()), $request);
 
         return response()->json($task->load('assignee'));
     }
@@ -122,6 +129,8 @@ class TaskController extends Controller
             'status' => 'deleted',
         ]);
 
+        $this->logActivity('delete', 'Tareas', $task, $task->title);
+
         return response()->json([
             'message' => 'Tarea eliminada correctamente',
         ]);
@@ -137,6 +146,8 @@ class TaskController extends Controller
         $task->update([
             'status' => 'archivada',
         ]);
+
+        $this->logActivity('update', 'Tareas', $task, $task->title);
 
         return response()->json([
             'message' => 'Tarea archivada correctamente',

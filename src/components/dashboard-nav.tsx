@@ -28,9 +28,12 @@ import {
   GraduationCap,
   Trophy,
   BarChart3,
+  ShieldCheck,
+  BookOpen,
 } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Badge } from '@/components/ui/badge';
+import { useAuditAlerts } from '@/hooks/use-audit-alerts';
 
 // Grouped navigation items for better organization
 const navGroups = [
@@ -76,11 +79,20 @@ const navGroups = [
       { href: '/dashboard/rewards', icon: Trophy, label: 'Recompensas', module: 'recompensas', badge: 'Próximamente' },
     ],
   },
+  {
+    label: 'Sistema',
+    items: [
+      { href: '/dashboard/auditoria', icon: ShieldCheck, label: 'Auditoría', module: 'auditoria' },
+      { href: '/dashboard/auditoria-asientos', icon: BookOpen, label: 'Auditoría Asientos', module: 'configuracion' },
+    ],
+  },
 ];
 
 export function DashboardNav() {
   const pathname = usePathname();
   const { canViewModule } = usePermissions();
+  const canSeeAudit = canViewModule('auditoria');
+  const auditAlerts = useAuditAlerts(canSeeAudit);
 
   return (
     <div className="flex flex-col gap-1 px-2">
@@ -100,30 +112,39 @@ export function DashboardNav() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {visibleItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={
-                        item.href === '/dashboard'
-                          ? pathname === item.href
-                          : pathname.startsWith(item.href)
-                      }
-                      tooltip={item.label}
-                      className="h-9 px-3 rounded-lg transition-all duration-200 data-[active=true]:bg-blue-900/50 data-[active=true]:text-white hover:bg-blue-900/30"
-                    >
-                      <Link href={item.href} className="flex items-center gap-3">
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span className="text-sm font-medium">{item.label}</span>
-                        {item.badge && (
-                          <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {visibleItems.map((item) => {
+                  const isAudit = item.module === 'auditoria';
+                  const showAlertBadge = isAudit && auditAlerts?.has_alerts;
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={
+                          item.href === '/dashboard'
+                            ? pathname === item.href
+                            : pathname.startsWith(item.href)
+                        }
+                        tooltip={item.label}
+                        className="h-9 px-3 rounded-lg transition-all duration-200 data-[active=true]:bg-blue-900/50 data-[active=true]:text-white hover:bg-blue-900/30"
+                      >
+                        <Link href={item.href} className="flex items-center gap-3">
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          <span className="text-sm font-medium">{item.label}</span>
+                          {showAlertBadge && (
+                            <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                              !
+                            </span>
+                          )}
+                          {item.badge && !showAlertBadge && (
+                            <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">
+                              {item.badge}
+                            </Badge>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

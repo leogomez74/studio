@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ErpAccountingAccount;
 use App\Services\ErpAccountingService;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 
 class ErpAccountingConfigController extends Controller
 {
+    use LogsActivity;
     /**
      * Listar todas las cuentas contables configuradas
      */
@@ -38,7 +40,10 @@ class ErpAccountingConfigController extends Controller
         ]);
 
         $account = ErpAccountingAccount::findOrFail($id);
+        $oldData = $account->toArray();
         $account->update($validated);
+
+        $this->logActivity('update', 'Config. ERP', $account, $account->account_name . ' (' . $account->key . ')', $this->getChanges($oldData, $account->fresh()->toArray()), $request);
 
         return response()->json([
             'message' => 'Cuenta actualizada exitosamente',
@@ -59,6 +64,8 @@ class ErpAccountingConfigController extends Controller
         ]);
 
         $account = ErpAccountingAccount::create($validated);
+
+        $this->logActivity('create', 'Config. ERP', $account, $account->account_name . ' (' . $account->key . ')', [], $request);
 
         return response()->json([
             'message' => 'Cuenta creada exitosamente',
@@ -81,7 +88,10 @@ class ErpAccountingConfigController extends Controller
             ], 422);
         }
 
+        $label = $account->account_name . ' (' . $account->key . ')';
         $account->delete();
+
+        $this->logActivity('delete', 'Config. ERP', $account, $label);
 
         return response()->json(['message' => 'Cuenta eliminada exitosamente']);
     }

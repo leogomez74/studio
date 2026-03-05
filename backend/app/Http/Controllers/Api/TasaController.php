@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tasa;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
 class TasaController extends Controller
 {
+    use LogsActivity;
     /**
      * Listar todas las tasas
      */
@@ -68,6 +70,8 @@ class TasaController extends Controller
 
         $tasa = Tasa::create($validated);
 
+        $this->logActivity('create', 'Tasas', $tasa, $tasa->nombre, [], $request);
+
         return response()->json([
             'message' => 'Tasa creada exitosamente',
             'tasa' => $tasa
@@ -89,6 +93,7 @@ class TasaController extends Controller
     public function update(Request $request, string $id)
     {
         $tasa = Tasa::findOrFail($id);
+        $oldData = $tasa->toArray();
 
         $validated = $request->validate([
             'nombre' => 'sometimes|string|max:255',
@@ -110,6 +115,8 @@ class TasaController extends Controller
 
         $tasa->update($validated);
 
+        $this->logActivity('update', 'Tasas', $tasa, $tasa->nombre, $this->getChanges($oldData, $tasa->fresh()->toArray()), $request);
+
         return response()->json([
             'message' => 'Tasa actualizada exitosamente',
             'tasa' => $tasa
@@ -130,7 +137,10 @@ class TasaController extends Controller
             ], 422);
         }
 
+        $nombre = $tasa->nombre;
         $tasa->delete();
+
+        $this->logActivity('delete', 'Tasas', $tasa, $nombre);
 
         return response()->json([
             'message' => 'Tasa eliminada exitosamente'
