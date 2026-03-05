@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Traits\AccountingTrigger;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ use Carbon\Carbon;
 class CreditPaymentController extends Controller
 {
     use AccountingTrigger;
+    use LogsActivity;
 
     /** Flag temporal por payment: si la última cuota procesada tenía mora */
     private static array $moraFlags = [];
@@ -602,6 +604,8 @@ class CreditPaymentController extends Controller
         // Recargar el crédito actualizado
         $credit = Credit::find($validated['credit_id']);
 
+        $this->logActivity('create', 'Pagos', $payment, ($credit->reference ?? $validated['credit_id']) . ' - Cuota #' . ($payment->numero_cuota ?? '?'), [], $request);
+
         return response()->json([
             'message' => 'Pago aplicado correctamente',
             'payment' => $payment,
@@ -653,6 +657,7 @@ class CreditPaymentController extends Controller
             });
 
             $credit = Credit::find($validated['credit_id']);
+            $this->logActivity('create', 'Pagos', $result, ($credit->reference ?? $validated['credit_id']) . ' - Adelanto', [], $request);
             return response()->json([
                 'message' => 'Pago aplicado correctamente.',
                 'payment' => $result,
@@ -824,10 +829,13 @@ class CreditPaymentController extends Controller
             return $paymentRecord;
         });
 
+        $creditForLog = Credit::find($validated['credit_id']);
+        $this->logActivity('create', 'Pagos', $result, ($creditForLog->reference ?? $validated['credit_id']) . ' - Adelanto Extraordinario', [], $request);
+
         return response()->json([
             'message' => 'Abono extraordinario aplicado y plan regenerado.',
             'payment' => $result,
-            'nuevo_saldo' => Credit::find($validated['credit_id'])->saldo
+            'nuevo_saldo' => $creditForLog->saldo
         ]);
     }
 
@@ -1687,6 +1695,8 @@ class CreditPaymentController extends Controller
                 ->values()
                 ->all();
 
+            $this->logActivity('upload', 'Pagos', $planillaUpload, 'Planilla #' . $planillaUpload->id, [], $request);
+
             return response()->json([
                 'message' => 'Proceso completado',
                 'planilla_id' => $planillaUpload->id,
@@ -2107,6 +2117,8 @@ class CreditPaymentController extends Controller
                 ]
             );
 
+            $this->logActivity('create', 'Pagos', $payment, ($credit->reference ?? $validated['credit_id']) . ' - Cancelación Anticipada', [], $request);
+
             return response()->json([
                 'message' => 'Crédito cancelado anticipadamente',
                 'payment' => $payment,
@@ -2513,6 +2525,8 @@ class CreditPaymentController extends Controller
                     ]
                 );
             }
+
+            $this->logActivity('delete', 'Pagos', $payment, ($credit->reference ?? $payment->credit_id) . ' - Reverso #' . $payment->id, [], $request);
 
             return response()->json([
                 'message' => 'Pago revertido exitosamente.',

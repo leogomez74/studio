@@ -9,12 +9,14 @@ use App\Models\Credit;
 use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Traits\AccountingTrigger;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SaldoPendienteController extends Controller
 {
     use AccountingTrigger;
+    use LogsActivity;
     /**
      * Listar saldos pendientes (sobrantes de planilla sin asignar)
      */
@@ -418,6 +420,8 @@ class SaldoPendienteController extends Controller
                 // Nota: El trigger contable ya se disparó en processPaymentTransactionPublic
                 // No se necesita trigger adicional aquí
 
+                $this->logActivity('update', 'Saldo Pendiente', $saldo, 'Saldo #' . $saldo->id . ' → ' . ($credit->reference ?? $targetCreditId) . ' (cuota)', [], $request);
+
                 return response()->json([
                     'message' => 'Saldo aplicado a cuota exitosamente',
                     'saldo' => $saldo->fresh(),
@@ -497,6 +501,8 @@ class SaldoPendienteController extends Controller
                     ]
                 );
 
+                $this->logActivity('update', 'Saldo Pendiente', $saldo, 'Saldo #' . $saldo->id . ' → ' . ($credit->reference ?? $targetCreditId) . ' (capital)', [], $request);
+
                 return response()->json([
                     'message' => 'Saldo aplicado a capital con regeneración exitosa.',
                     'saldo' => $saldo->fresh(),
@@ -574,6 +580,8 @@ class SaldoPendienteController extends Controller
                     ],
                 ]
             );
+
+            $this->logActivity('update', 'Saldo Pendiente', $saldo, 'Saldo #' . $saldo->id . ' - Reintegro (' . ($credit->reference ?? '') . ')', [], $request);
 
             return response()->json([
                 'message' => sprintf('Saldo de ₡%s reintegrado exitosamente', number_format($monto, 2)),

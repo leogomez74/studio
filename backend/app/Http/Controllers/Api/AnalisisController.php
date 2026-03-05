@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAnalisisRequest;
 use App\Http\Requests\UpdateAnalisisRequest;
 use App\Models\Analisis;
+use App\Traits\LogsActivity;
 use App\Models\Lead;
 use App\Models\Task;
 use App\Models\TaskAutomation;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\Log;
 
 class AnalisisController extends Controller
 {
+    use LogsActivity;
+
     /**
      * Limpiar cédula removiendo caracteres no numéricos.
      */
@@ -214,6 +217,8 @@ class AnalisisController extends Controller
         // Recargar con propuestas para retornar en la respuesta
         $analisis->load('propuestas');
 
+        $this->logActivity('create', 'Análisis', $analisis, $analisis->reference ?? (string) $analisis->id, [], $request);
+
         return response()->json($analisis, 201);
     }
 
@@ -232,6 +237,7 @@ class AnalisisController extends Controller
     public function update(UpdateAnalisisRequest $request, $id)
     {
         $analisis = Analisis::findOrFail($id);
+        $oldData = $analisis->toArray();
         $validated = $request->validated();
 
         // Bloquear cambios de estado si el crédito asociado está formalizado
@@ -361,13 +367,17 @@ class AnalisisController extends Controller
             }
         }
 
+        $this->logActivity('update', 'Análisis', $analisis, $analisis->reference ?? (string) $analisis->id, $this->getChanges($oldData, $analisis->fresh()->toArray()), $request);
+
         return response()->json($analisis);
     }
 
     public function destroy($id)
     {
         $analisis = Analisis::findOrFail($id);
+        $reference = $analisis->reference ?? (string) $analisis->id;
         $analisis->delete();
+        $this->logActivity('delete', 'Análisis', $analisis, $reference);
         return response()->json(null, 204);
     }
 

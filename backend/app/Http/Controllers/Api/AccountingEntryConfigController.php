@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AccountingEntryConfig;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AccountingEntryConfigController extends Controller
 {
+    use LogsActivity;
     /**
      * Listar todas las configuraciones de asientos
      */
@@ -76,6 +78,8 @@ class AccountingEntryConfigController extends Controller
 
             DB::commit();
 
+            $this->logActivity('create', 'Config. Contable', $config, $config->name . ' (' . $config->entry_type . ')', [], $request);
+
             return response()->json([
                 'message' => 'Configuración creada exitosamente',
                 'config' => $config->load('lines'),
@@ -96,6 +100,7 @@ class AccountingEntryConfigController extends Controller
     public function update(Request $request, $id)
     {
         $config = AccountingEntryConfig::findOrFail($id);
+        $oldData = $config->toArray();
 
         $validated = $request->validate([
             'entry_type' => 'sometimes|string|max:50|unique:accounting_entry_configs,entry_type,' . $id,
@@ -140,6 +145,8 @@ class AccountingEntryConfigController extends Controller
 
             DB::commit();
 
+            $this->logActivity('update', 'Config. Contable', $config, $config->name . ' (' . $config->entry_type . ')', $this->getChanges($oldData, $config->fresh()->toArray()), $request);
+
             return response()->json([
                 'message' => 'Configuración actualizada exitosamente',
                 'config' => $config->fresh(['lines']),
@@ -160,7 +167,10 @@ class AccountingEntryConfigController extends Controller
     public function destroy($id)
     {
         $config = AccountingEntryConfig::findOrFail($id);
+        $label = $config->name . ' (' . $config->entry_type . ')';
         $config->delete();
+
+        $this->logActivity('delete', 'Config. Contable', $config, $label);
 
         return response()->json([
             'message' => 'Configuración eliminada exitosamente',
@@ -174,6 +184,8 @@ class AccountingEntryConfigController extends Controller
     {
         $config = AccountingEntryConfig::findOrFail($id);
         $config->update(['active' => !$config->active]);
+
+        $this->logActivity('update', 'Config. Contable', $config, $config->name . ' (' . $config->entry_type . ') - ' . ($config->active ? 'activado' : 'desactivado'));
 
         return response()->json([
             'message' => 'Configuración actualizada',

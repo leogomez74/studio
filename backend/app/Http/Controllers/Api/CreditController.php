@@ -14,6 +14,7 @@ use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
 use App\Helpers\NumberToWords;
 use App\Traits\AccountingTrigger;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Log;
 class CreditController extends Controller
 {
     use AccountingTrigger;
+    use LogsActivity;
     /**
      * Listar créditos con filtros (optimizado con paginación)
      */
@@ -320,6 +322,8 @@ class CreditController extends Controller
             ]);
         }
 
+        $this->logActivity('create', 'Créditos', $credit, $credit->referencia ?? $credit->reference ?? (string) $credit->id, [], $request);
+
         return response()->json($credit->load(['planDePagos', 'assignedTo:id,name']), 201);
     }
 
@@ -510,6 +514,7 @@ class CreditController extends Controller
     public function update(Request $request, $id)
     {
         $credit = Credit::findOrFail($id);
+        $oldData = $credit->toArray();
         $previousStatus = $credit->status;
 
         // Permitir formalización desde cualquier estado
@@ -668,6 +673,8 @@ class CreditController extends Controller
             );
         }
 
+        $this->logActivity('update', 'Créditos', $credit, $credit->reference, $this->getChanges($oldData, $credit->fresh()->toArray()), $request);
+
         // Cargar todas las relaciones necesarias (igual que en show)
         return response()->json($credit->load([
             'lead',
@@ -724,6 +731,8 @@ class CreditController extends Controller
             $credit->save();
         }
 
+        $this->logActivity('update', 'Créditos', $credit, $credit->reference ?? $id);
+
         return response()->json([
             'message' => 'Plan de pagos generado correctamente.',
             'plan_de_pagos' => $credit->fresh()->planDePagos()->orderBy('numero_cuota')->get()
@@ -732,7 +741,9 @@ class CreditController extends Controller
 
     public function destroy($id) {
         $credit = Credit::findOrFail($id);
+        $reference = $credit->reference;
         $credit->delete();
+        $this->logActivity('delete', 'Créditos', $credit, $reference);
         return response()->json(null, 204);
     }
 
@@ -1137,6 +1148,8 @@ class CreditController extends Controller
                 ],
             ];
         });
+
+        $this->logActivity('create', 'Créditos', $result['new_credit'] ?? null, $result['new_credit']->reference ?? null, [], $request);
 
         return response()->json($result, 201);
     }

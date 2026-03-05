@@ -148,6 +148,15 @@ Route::prefix('accounting-entry-logs')->group(function () {
     Route::post('/{id}/retry', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'retry']);
 });
 
+// Bitácora de Auditoría General del Sistema
+Route::prefix('activity-logs')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\ActivityLogController::class, 'index']);
+    Route::get('/stats', [\App\Http\Controllers\Api\ActivityLogController::class, 'stats']);
+    Route::get('/alerts', [\App\Http\Controllers\Api\ActivityLogController::class, 'alerts']);
+    Route::get('/export', [\App\Http\Controllers\Api\ActivityLogController::class, 'export']);
+    Route::get('/{id}', [\App\Http\Controllers\Api\ActivityLogController::class, 'show']);
+});
+
 // Documentos de Personas (Leads/Clientes) - Unificado
 Route::get('/person-documents', [PersonDocumentController::class, 'index']);
 Route::post('/person-documents', [PersonDocumentController::class, 'store']);

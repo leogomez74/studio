@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\LoanConfiguration;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 
 class LoanConfigurationController extends Controller
 {
+    use LogsActivity;
     /**
      * Obtener todas las configuraciones de préstamos
      */
@@ -49,6 +51,8 @@ class LoanConfigurationController extends Controller
             return response()->json(['message' => 'Configuración no encontrada'], 404);
         }
 
+        $oldData = $config->toArray();
+
         $validated = $request->validate([
             'nombre' => 'sometimes|string|max:255',
             'descripcion' => 'nullable|string',
@@ -62,6 +66,7 @@ class LoanConfigurationController extends Controller
         ]);
 
         $config->update($validated);
+        $this->logActivity('update', 'Configuración', $config, $config->nombre ?? $tipo, $this->getChanges($oldData, $config->fresh()->toArray()), $request);
         return response()->json($config);
     }
 

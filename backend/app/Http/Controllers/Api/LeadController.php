@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Traits\LogsActivity;
 use App\Models\Lead;
 use App\Models\Person;
 use App\Models\LeadStatus;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
 
 class LeadController extends Controller
 {
+    use LogsActivity;
     public function index(Request $request)
     {
         $activeFilter = $this->resolveActiveFilter($request);
@@ -236,6 +238,8 @@ class LeadController extends Controller
 
         $result['lead']->load(['assignedAgent', 'leadStatus']);
 
+        $this->logActivity('create', 'Leads', $result['lead'], $result['lead']->cedula ?? $result['lead']->name, [], $request);
+
         // Crear tarea automática si está configurada
         try {
             $automation = TaskAutomation::where('event_type', 'lead_created')
@@ -349,15 +353,23 @@ class LeadController extends Controller
             $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? null;
         }
 
+        $before = $lead->toArray();
+
         $lead->update($validated);
         $lead->load(['assignedAgent', 'leadStatus']);
+
+        $changes = $this->getChanges($before, $lead->fresh()->toArray());
+        $this->logActivity('update', 'Leads', $lead, $lead->cedula ?? $lead->name, $changes, $request);
 
         return response()->json($lead);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $lead = Lead::findOrFail($id);
+
+        $this->logActivity('delete', 'Leads', $lead, $lead->cedula ?? $lead->name, [], $request);
+
         $lead->delete();
 
         return response()->json(null, 204);
@@ -419,7 +431,7 @@ class LeadController extends Controller
         return true;
     }
 
-    public function convertToClient($id)
+    public function convertToClient(Request $request, $id)
     {
         $lead = Lead::findOrFail($id);
 
@@ -427,6 +439,8 @@ class LeadController extends Controller
         $lead->person_type_id = 2;
         $lead->status = 'Activo'; // Default client status
         $lead->save();
+
+        $this->logActivity('update', 'Leads', $lead, "Convertido a cliente: {$lead->cedula}", [], $request);
 
         return response()->json($lead);
     }

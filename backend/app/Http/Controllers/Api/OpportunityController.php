@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Opportunity;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,8 @@ use App\Models\TaskAutomation;
 
 class OpportunityController extends Controller
 {
+    use LogsActivity;
+
     /**
      * Limpiar cédula removiendo caracteres no numéricos.
      */
@@ -239,6 +242,8 @@ class OpportunityController extends Controller
             Log::error('Error creando tarea automática para oportunidad', ['error' => $e->getMessage()]);
         }
 
+        $this->logActivity('create', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), [], $request);
+
         return response()->json([
             'opportunity' => $opportunity,
             'files_moved' => $moveResult
@@ -254,6 +259,7 @@ class OpportunityController extends Controller
     public function update(Request $request, string $id)
     {
         $opportunity = Opportunity::findOrFail($id);
+        $oldData = $opportunity->toArray();
 
         $validated = $request->validate([
             'lead_cedula' => 'sometimes|string|exists:persons,cedula',
@@ -278,13 +284,17 @@ class OpportunityController extends Controller
             }
         }
 
+        $this->logActivity('update', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), $this->getChanges($oldData, $opportunity->fresh()->toArray()), $request);
+
         return response()->json($opportunity, 200);
     }
 
     public function destroy(string $id)
     {
         $opportunity = Opportunity::findOrFail($id);
+        $label = '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? '');
         $opportunity->delete();
+        $this->logActivity('delete', 'Oportunidades', $opportunity, $label);
 
         return response()->json(['message' => 'Opportunity deleted successfully'], 200);
     }
@@ -326,6 +336,8 @@ class OpportunityController extends Controller
                 'old_status' => $oldStatus,
                 'new_status' => $newStatus
             ]);
+
+            $this->logActivity('update', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), [['field' => 'status', 'old_value' => $oldStatus, 'new_value' => $newStatus]], $request);
 
             return response()->json([
                 'success' => true,
@@ -914,6 +926,7 @@ class OpportunityController extends Controller
                     }
 
                     $opportunity->delete();
+                    $this->logActivity('delete', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''));
                     $successful++;
 
                 } catch (\Exception $e) {

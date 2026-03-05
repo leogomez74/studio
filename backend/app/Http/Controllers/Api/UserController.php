@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Traits\LogsActivity;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -10,6 +11,7 @@ use Illuminate\Validation\Rules;
 
 class UserController extends Controller
 {
+    use LogsActivity;
     /**
      * Display a listing of the resource.
      */
@@ -41,6 +43,8 @@ class UserController extends Controller
             'monto_max_aprobacion' => $request->monto_max_aprobacion ?? -1,
         ]);
 
+        $this->logActivity('create', 'Usuarios', $user, $user->email ?? $user->name, [], $request);
+
         return response()->json($user->load('role'), 201);
     }
 
@@ -58,6 +62,8 @@ class UserController extends Controller
     public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
+
+        $before = $user->toArray();
 
         $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -89,15 +95,21 @@ class UserController extends Controller
 
         $user->save();
 
+        $changes = $this->getChanges($before, $user->fresh()->toArray(), ['password']);
+        $this->logActivity('update', 'Usuarios', $user, $user->email ?? $user->name, $changes, $request);
+
         return $user->load('role');
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
         $user = User::findOrFail($id);
+
+        $this->logActivity('delete', 'Usuarios', $user, $user->email ?? $user->name, [], $request);
+
         $user->delete();
 
         return response()->noContent();
