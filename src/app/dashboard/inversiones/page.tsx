@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle, Landmark } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle, Landmark, Search } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { ProtectedPage } from "@/components/ProtectedPage";
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -90,7 +94,7 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
       <TableCell className="text-right font-mono">{fmt(investment.interes_del_cupon ?? 0, investment.moneda)}</TableCell>
       <TableCell className="text-right font-mono text-destructive">- {fmt(investment.retencion_del_cupon ?? 0, investment.moneda)}</TableCell>
       <TableCell className="text-right font-mono font-semibold text-primary">{fmt(investment.interes_neto_del_cupon ?? 0, investment.moneda)}</TableCell>
-      <TableCell><Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Finalizada' ? 'secondary' : 'outline'}>{investment.estado}</Badge></TableCell>
+      <TableCell><Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Cancelada' ? 'destructive' : 'secondary'}>{investment.estado}</Badge></TableCell>
       <TableCell>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -449,6 +453,8 @@ export default function InversionesPage() {
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [showInvestorForm, setShowInvestorForm] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const [investorSearch, setInvestorSearch] = useState('');
+  const [filters, setFilters] = useState({ investor_id: '', moneda: '', estado: '' });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -513,7 +519,16 @@ export default function InversionesPage() {
     } catch (err) { console.error(err); }
   };
 
-  const filteredInvestors = investors;
+  const filteredInvestors = investors.filter(inv =>
+    !investorSearch || inv.name.toLowerCase().includes(investorSearch.toLowerCase()) || inv.cedula?.toLowerCase().includes(investorSearch.toLowerCase())
+  );
+
+  const filteredInvestments = investments.filter(inv => {
+    if (filters.investor_id && inv.investor_id !== Number(filters.investor_id)) return false;
+    if (filters.moneda && inv.moneda !== filters.moneda) return false;
+    if (filters.estado && inv.estado !== filters.estado) return false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -552,8 +567,16 @@ export default function InversionesPage() {
         <TabsContent value="inversionistas">
           <Card>
             <CardHeader>
-              <CardTitle>Inversionistas</CardTitle>
-              <CardDescription>Gestiona los inversionistas de Credipep.</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Inversionistas</CardTitle>
+                  <CardDescription>Gestiona los inversionistas de Credipep.</CardDescription>
+                </div>
+                <div className="relative w-64">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Buscar por nombre o cédula..." value={investorSearch} onChange={e => setInvestorSearch(e.target.value)} className="pl-8 h-9" />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -598,6 +621,34 @@ export default function InversionesPage() {
                   </Button>
                 </div>
               </div>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Select value={filters.investor_id} onValueChange={v => setFilters(f => ({ ...f, investor_id: v === 'all' ? '' : v }))}>
+                  <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Inversionista" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {investors.map(inv => <SelectItem key={inv.id} value={String(inv.id)}>{inv.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={filters.moneda} onValueChange={v => setFilters(f => ({ ...f, moneda: v === 'all' ? '' : v }))}>
+                  <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="CRC">CRC</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filters.estado} onValueChange={v => setFilters(f => ({ ...f, estado: v === 'all' ? '' : v }))}>
+                  <SelectTrigger className="w-[150px] h-9"><SelectValue placeholder="Estado" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="Activa">Activa</SelectItem>
+                    <SelectItem value="Finalizada">Finalizada</SelectItem>
+                    <SelectItem value="Liquidada">Liquidada</SelectItem>
+                    <SelectItem value="Cancelada">Cancelada</SelectItem>
+                    <SelectItem value="Renovada">Renovada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -616,7 +667,7 @@ export default function InversionesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {investments.map(investment => (
+                  {filteredInvestments.map(investment => (
                     <InvestmentTableRow key={investment.id} investment={investment} onDelete={handleDeleteInvestment} />
                   ))}
                 </TableBody>

@@ -225,6 +225,7 @@ export type Investor = {
   notas?: string;
   cuenta_bancaria?: string;
   banco?: string;
+  moneda_preferida?: 'CRC' | 'USD';
   joined_at?: string;
   created_at?: string;
   active_investments_count?: number;
@@ -348,8 +349,12 @@ export type Investment = {
   moneda: 'CRC' | 'USD';
   forma_pago: 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | 'RESERVA';
   es_capitalizable: boolean;
-  estado: 'Activa' | 'Finalizada' | 'Liquidada';
+  estado: 'Activa' | 'Finalizada' | 'Liquidada' | 'Cancelada' | 'Renovada';
   notas?: string;
+  tipo_cambio?: number;
+  investment_origen_id?: number;
+  cancelado_por?: string;
+  fecha_cancelacion?: string;
   interes_mensual?: number;
   retencion_mensual?: number;
   interes_neto_mensual?: number;
@@ -357,6 +362,7 @@ export type Investment = {
   retencion_del_cupon?: number;
   interes_neto_del_cupon?: number;
   coupons?: InvestmentCoupon[];
+  rate_history?: { id: number; tasa_anterior: number; tasa_nueva: number; cambiado_por?: number; motivo?: string; created_at: string; changed_by?: { id: number; name: string } }[];
 };
 
 export type InvestmentCoupon = {
@@ -370,6 +376,7 @@ export type InvestmentCoupon = {
   capital_acumulado?: number;
   estado: 'Pendiente' | 'Pagado' | 'Reservado';
   fecha_pago?: string;
+  comprobante?: string;
   notas?: string;
 };
 
