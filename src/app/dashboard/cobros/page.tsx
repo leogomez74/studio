@@ -263,7 +263,7 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
 };
 
 // --- Certificación de Deuda PDF ---
-const generateCertificacionDeuda = async (creditId: number) => {
+const generateCertificacionDeuda = async (creditId: number, fechaCorte: string) => {
   let credit: any;
   try {
     const res = await api.get(`/api/credits/${creditId}`);
@@ -306,13 +306,33 @@ const generateCertificacionDeuda = async (creditId: number) => {
       })()
     : '-';
 
-  // Cálculos desde plan de pagos
+  // Cálculos con fecha de corte
   const planDePagos = credit.plan_de_pagos || [];
-  const cuotasPendientes = planDePagos.filter((p: any) => p.estado !== 'Pagado' && p.estado !== 'Pagada');
-  const interesesCorrientes = cuotasPendientes.reduce((sum: number, p: any) => sum + (parseFloat(p.interes_corriente) || 0), 0);
-  const montoCuotasPendientes = cuotasPendientes.reduce((sum: number, p: any) => sum + (parseFloat(p.cuota) || 0), 0);
   const saldo = parseFloat(credit.saldo) || 0;
-  const totalCancelar = saldo + interesesCorrientes;
+
+  // Intereses proporcionales: saldo * (tasa_anual/100) / 365 * días del 1 al corte
+  const tasaAnual = parseFloat(credit.tasa_anual || '0');
+  const tasaDiaria = (tasaAnual / 100) / 365;
+  const fcDate = new Date(fechaCorte + 'T00:00:00');
+  const diasAlCorte = fcDate.getDate();
+  const interesesAlCorte = Math.round(saldo * tasaDiaria * diasAlCorte * 100) / 100;
+
+  // Cuotas en atraso (solo estado Mora)
+  const cuotasAtraso = planDePagos.filter((p: any) => p.estado === 'Mora');
+  const montoCuotasAtraso = cuotasAtraso.reduce((sum: number, p: any) => sum + (parseFloat(p.cuota) || 0), 0);
+
+  // Penalización por cancelación anticipada (< 12 meses desde formalización)
+  const fechaFormalizacion = credit.formalized_at ? new Date(credit.formalized_at) : null;
+  let penalizacion = 0;
+  if (fechaFormalizacion) {
+    const diffMs = fcDate.getTime() - fechaFormalizacion.getTime();
+    const mesesTranscurridos = diffMs / (1000 * 60 * 60 * 24 * 30.44);
+    if (mesesTranscurridos < 12) {
+      penalizacion = Math.round(saldo * tasaDiaria * 90 * 100) / 100; // 3 meses = 90 días
+    }
+  }
+
+  const totalCancelar = saldo + interesesAlCorte + penalizacion + montoCuotasAtraso;
 
   const deductoraName = credit.deductora?.nombre || 'N/A';
   const operacion = credit.numero_operacion || credit.reference || '-';
@@ -367,22 +387,33 @@ const generateCertificacionDeuda = async (creditId: number) => {
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 30, 30);
-  const detalles = [
-    ['NUMERO DE OPERACIÓN: ', `${operacion}  ${categoria}`.trim()],
-    ['MONTO OTORGADO: ', fmtMoney(parseFloat(credit.monto_credito) || 0)],
+  const detalles: [string, string][] = [
+    ['NUMERO DE OPERACIÓN: ', `${operacion} ${categoria}`.trim()],
     ['SALDO: ', fmtMoney(saldo)],
-    ['INTERESES CORRIENTES: ', fmtMoney(interesesCorrientes)],
-    ['CUOTAS PENDIENTES: ', fmtMoney(montoCuotasPendientes)],
-    ['CUOTA: ', fmtMoney(parseFloat(credit.cuota) || 0)],
-    ['TOTAL A CANCELAR: ', fmtMoney(totalCancelar)],
+    ['INTERESES AL CORTE + CARGOS: ', fmtMoney(interesesAlCorte)],
+    ['CUOTAS PENDIENTES: ', fmtMoney(montoCuotasAtraso)],
   ];
+  if (penalizacion > 0) {
+    detalles.push(['PENALIZACIÓN POR CANCELACIÓN ANTICIPADA: ', fmtMoney(penalizacion)]);
+  }
+  detalles.push(
+    ['TOTAL A CANCELAR: ', fmtMoney(totalCancelar)],
+    ['CUOTA: ', fmtMoney(parseFloat(credit.cuota) || 0)],
+  );
   detalles.forEach(([label, value]) => {
     doc.setFont("helvetica", "bold");
     doc.text(label, marginL, y);
     doc.text(value, marginL + doc.getTextWidth(label), y);
     y += 5.5;
   });
-  y += 4;
+  y += 6;
+
+  // Fecha de corte para cálculo de intereses
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  const fcFormatted = `${fcDate.getDate().toString().padStart(2, '0')}/${(fcDate.getMonth() + 1).toString().padStart(2, '0')}/${fcDate.getFullYear()}`;
+  doc.text(`Fecha de Corte para Cálculo de Intereses: ${fcFormatted}`, marginL, y);
+  y += 8;
 
   // --- Deductora y contacto ---
   doc.setFontSize(10);
@@ -404,7 +435,9 @@ const generateCertificacionDeuda = async (creditId: number) => {
   // --- Firma imagen + Sello (lado a lado) ---
   const firmaStartY = y;
   if (firmaImg) {
-    doc.addImage(firmaImg, 'PNG', marginL + 2, firmaStartY - 4, 40, 15);
+    // La imagen PNG tiene padding transparente debajo del trazo,
+    // por eso se extiende más allá de la línea para que el trazo quede justo encima
+    doc.addImage(firmaImg, 'PNG', marginL + 2, firmaStartY, 44, 24);
   }
 
   // Sello centrado a la derecha, alineado con la firma
@@ -414,7 +447,7 @@ const generateCertificacionDeuda = async (creditId: number) => {
     doc.addImage(selloImg, 'PNG', selloX, firmaStartY - 10, selloSize, selloSize);
   }
 
-  y = firmaStartY + 14;
+  y = firmaStartY + 20;
 
   // Línea de firma
   doc.setDrawColor(80, 80, 80);
@@ -433,7 +466,7 @@ const generateCertificacionDeuda = async (creditId: number) => {
   doc.save(`certificacion_deuda_${credit.reference || credit.id}.pdf`);
 };
 
-const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, currentPage, perPage, onPageChange, onPerPageChange }: { credits: Credit[], isLoading?: boolean, currentPage: number, perPage: number, onPageChange: (p: number) => void, onPerPageChange: (p: number) => void }) {
+const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, currentPage, perPage, onPageChange, onPerPageChange, onCertificacion }: { credits: Credit[], isLoading?: boolean, currentPage: number, perPage: number, onPageChange: (p: number) => void, onPerPageChange: (p: number) => void, onCertificacion?: (creditId: number) => void }) {
   const totalPages = Math.ceil(credits.length / perPage);
   const paginatedCredits = credits.slice((currentPage - 1) * perPage, currentPage * perPage);
 
@@ -499,7 +532,7 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
                         <DropdownMenuItem onClick={() => generateEstadoCuentaFromCredit(credit.id)}>
                           <FileSpreadsheet className="mr-2 h-4 w-4" />Estado de Cuenta
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => generateCertificacionDeuda(credit.id)}>
+                        <DropdownMenuItem onClick={() => onCertificacion?.(credit.id)}>
                           <FileText className="mr-2 h-4 w-4" />Certificación de Deuda
                         </DropdownMenuItem>
                         <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
@@ -695,6 +728,15 @@ export default function CobrosPage() {
   // --- NUEVO: Estado para estrategia de Abono Extraordinario ---
   // 'reduce_amount' = Bajar Cuota | 'reduce_term' = Bajar Plazo
   const [extraordinaryStrategy, setExtraordinaryStrategy] = useState<'reduce_amount' | 'reduce_term'>('reduce_amount');
+
+  // Advertencias de créditos ausentes en planilla
+  const [advertenciasOpen, setAdvertenciasOpen] = useState(false);
+  const [advertenciasList, setAdvertenciasList] = useState<any[]>([]);
+
+  // Dialog para fecha de corte de certificación de deuda
+  const [certDialogOpen, setCertDialogOpen] = useState(false);
+  const [certCreditId, setCertCreditId] = useState<number | null>(null);
+  const [certFechaCorte, setCertFechaCorte] = useState('');
 
   // Conteo de saldos pendientes (para badge en tab trigger)
   const [saldosCount, setSaldosCount] = useState(0);
@@ -1202,6 +1244,8 @@ export default function CobrosPage() {
       setUploading(true);
       const uploadRes = await api.post('/api/credit-payments/upload', form);
       const saldosSobrantes = uploadRes.data?.saldos_pendientes || [];
+      const advertencias = uploadRes.data?.advertencias || [];
+
       if (saldosSobrantes.length > 0) {
         toast({
           title: 'Planilla procesada con sobrantes',
@@ -1211,6 +1255,13 @@ export default function CobrosPage() {
       } else {
         toast({ title: 'Cargado', description: 'Planilla procesada correctamente.' });
       }
+
+      // Mostrar advertencias de créditos ausentes que entraron en mora
+      if (advertencias.length > 0) {
+        setAdvertenciasList(advertencias);
+        setAdvertenciasOpen(true);
+      }
+
       setPlanRefreshKey(k => k + 1);
       closePlanillaModal();
     } catch (err: any) {
@@ -1352,12 +1403,12 @@ export default function CobrosPage() {
                             <TabsTrigger value="mas-180-dias">+180 días ({mas180.length})</TabsTrigger>
                         </TabsList>
                     </CardHeader>
-                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
-                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
-                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
-                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
-                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
-                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} /></CardContent></TabsContent>
+                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
+                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
+                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
+                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
+                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
+                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
                 </Card>
             </Tabs>
         </TabsContent>
@@ -1598,6 +1649,44 @@ export default function CobrosPage() {
                                 </table>
                               </div>
                             </div>
+
+                            {/* Advertencias: créditos faltantes que entrarán en mora */}
+                            {previewData.advertencias && previewData.advertencias.length > 0 && (
+                              <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 space-y-2">
+                                <div className="flex items-center gap-2 text-amber-700 font-semibold">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  {previewData.advertencias.length} crédito(s) de esta deductora no están en la planilla y entrarán en mora
+                                </div>
+                                <div className="max-h-40 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-amber-100 sticky top-0">
+                                      <tr>
+                                        <th className="px-2 py-1 text-left">Nombre</th>
+                                        <th className="px-2 py-1 text-left">Cédula</th>
+                                        <th className="px-2 py-1 text-left">Operación</th>
+                                        <th className="px-2 py-1 text-right">Cuota</th>
+                                        <th className="px-2 py-1 text-center">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {previewData.advertencias.map((a: any, i: number) => (
+                                        <tr key={i} className="border-t border-amber-200">
+                                          <td className="px-2 py-1">{a.nombre}</td>
+                                          <td className="px-2 py-1">{a.cedula}</td>
+                                          <td className="px-2 py-1">{a.numero_operacion || '-'}</td>
+                                          <td className="px-2 py-1 text-right">¢{Number(a.cuota).toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                                          <td className="px-2 py-1 text-center">
+                                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${a.status === 'En Mora' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                              {a.status}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Totales Monetarios */}
                             <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-lg">
@@ -2627,6 +2716,80 @@ export default function CobrosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Dialog de advertencias: créditos ausentes que entraron en mora */}
+      <Dialog open={advertenciasOpen} onOpenChange={setAdvertenciasOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Créditos ausentes en planilla
+            </DialogTitle>
+            <DialogDescription>
+              Los siguientes créditos no estaban en la planilla y se marcaron en mora automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted sticky top-0">
+                <tr>
+                  <th className="text-left p-2">Nombre</th>
+                  <th className="text-left p-2">Cédula</th>
+                  <th className="text-left p-2">Operación</th>
+                  <th className="text-right p-2">Cuota</th>
+                </tr>
+              </thead>
+              <tbody>
+                {advertenciasList.map((a, i) => (
+                  <tr key={i} className="border-b">
+                    <td className="p-2">{a.nombre}</td>
+                    <td className="p-2">{a.cedula}</td>
+                    <td className="p-2">{a.numero_operacion}</td>
+                    <td className="p-2 text-right">¢{Number(a.cuota).toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setAdvertenciasOpen(false)}>Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Dialog para pedir fecha de corte antes de generar Certificación de Deuda */}
+      <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Fecha de Corte para Certificación</DialogTitle>
+            <DialogDescription>
+              Ingrese la fecha estimada de cancelación del crédito para calcular los intereses al corte.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="cert-fecha-corte">Fecha de posible cancelación</Label>
+            <Input
+              id="cert-fecha-corte"
+              type="date"
+              value={certFechaCorte}
+              onChange={(e) => setCertFechaCorte(e.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCertDialogOpen(false)}>Cancelar</Button>
+            <Button
+              disabled={!certFechaCorte}
+              onClick={() => {
+                if (certCreditId && certFechaCorte) {
+                  generateCertificacionDeuda(certCreditId, certFechaCorte);
+                  setCertDialogOpen(false);
+                }
+              }}
+            >
+              Generar Certificación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
     </ProtectedPage>
   );

@@ -12,6 +12,7 @@ use App\Traits\AccountingTrigger;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -240,7 +241,145 @@ class PlanillaUploadController extends Controller
                 }
             }
 
-            // 7. Marcar planilla como anulada
+            // 7. Revertir mora de créditos ausentes (marcados por calcularMoraAusentes)
+            $creditIdsConPago = CreditPayment::where('planilla_upload_id', $planilla->id)
+                ->pluck('credit_id')->unique()->toArray();
+
+            $mesPago = Carbon::parse($planilla->fecha_planilla);
+
+            $creditosMoraAusentes = Credit::where('deductora_id', $planilla->deductora_id)
+                ->where('status', 'En Mora')
+                ->whereNotIn('id', $creditIdsConPago)
+                ->whereNotNull('formalized_at')
+                ->get();
+
+            foreach ($creditosMoraAusentes as $credit) {
+                // Solo revertir si esta planilla pudo haber aplicado mora a este crédito
+                $inicioMora = Carbon::parse($credit->formalized_at)->startOfMonth()->addMonth();
+                if ($mesPago->lt($inicioMora)) {
+                    continue; // Crédito muy nuevo, esta planilla no le aplicó mora
+                }
+
+                $plazo = (int) $credit->plazo;
+                $tasaAnual = (float) ($credit->tasa_anual ?? 0);
+                $tasaMensual = $tasaAnual / 100 / 12;
+
+                // Buscar la última cuota en Mora dentro del plazo original
+                $cuotaMora = PlanDePago::where('credit_id', $credit->id)
+                    ->where('estado', 'Mora')
+                    ->where('numero_cuota', '>', 0)
+                    ->where('numero_cuota', '<=', $plazo)
+                    ->orderBy('numero_cuota', 'desc')
+                    ->first();
+
+                if (!$cuotaMora) continue;
+
+                // Restaurar cuota: recalcular valores basados en el capital real
+                $saldoAnterior = (float) $credit->saldo;
+                $interesCorriente = round($saldoAnterior * $tasaMensual, 2);
+                $poliza = (float) ($cuotaMora->poliza ?? 0);
+                $cuotaFija = (float) $cuotaMora->cuota;
+                $amortizacion = round($cuotaFija - $interesCorriente - $poliza, 2);
+                $saldoNuevo = round($saldoAnterior - $amortizacion, 2);
+
+                $cuotaMora->update([
+                    'estado' => 'Pendiente',
+                    'int_corriente_vencido' => 0,
+                    'interes_moratorio' => 0,
+                    'interes_corriente' => $interesCorriente,
+                    'amortizacion' => $amortizacion,
+                    'saldo_anterior' => $saldoAnterior,
+                    'saldo_nuevo' => max(0, $saldoNuevo),
+                    'dias_mora' => 0,
+                ]);
+
+                // Recalcular la siguiente cuota pendiente
+                $siguienteCuota = PlanDePago::where('credit_id', $credit->id)
+                    ->where('numero_cuota', '>', $cuotaMora->numero_cuota)
+                    ->where('estado', 'Pendiente')
+                    ->orderBy('numero_cuota')
+                    ->first();
+
+                if ($siguienteCuota) {
+                    $sigSaldo = max(0, $saldoNuevo);
+                    $sigInteres = round($sigSaldo * $tasaMensual, 2);
+                    $sigPoliza = (float) ($siguienteCuota->poliza ?? 0);
+                    $sigAmort = round((float) $siguienteCuota->cuota - $sigInteres - $sigPoliza, 2);
+
+                    $siguienteCuota->update([
+                        'saldo_anterior' => $sigSaldo,
+                        'interes_corriente' => $sigInteres,
+                        'amortizacion' => $sigAmort,
+                        'saldo_nuevo' => max(0, round($sigSaldo - $sigAmort, 2)),
+                    ]);
+                }
+
+                // Revertir cuota desplazada: reducir saldo_nuevo de cuota[plazo] y regenerar
+                $cuotaPlazo = PlanDePago::where('credit_id', $credit->id)
+                    ->where('numero_cuota', $plazo)
+                    ->first();
+
+                if ($cuotaPlazo && $amortizacion > 0) {
+                    $cuotaPlazo->saldo_nuevo = max(0, (float) $cuotaPlazo->saldo_nuevo - $amortizacion);
+                    $cuotaPlazo->save();
+
+                    // Eliminar todas las cuotas desplazadas y regenerar
+                    PlanDePago::where('credit_id', $credit->id)
+                        ->where('numero_cuota', '>', $plazo)
+                        ->delete();
+
+                    // Regenerar cuotas desplazadas si queda saldo
+                    if ($cuotaPlazo->saldo_nuevo > 0.01) {
+                        $saldo = (float) $cuotaPlazo->saldo_nuevo;
+                        $numero = $plazo + 1;
+                        $fechaBase = Carbon::parse($cuotaPlazo->fecha_corte);
+                        $cuotaNormal = PlanDePago::where('credit_id', $credit->id)
+                            ->where('numero_cuota', 1)->first();
+                        $cuotaFijaDesp = $cuotaNormal ? (float) $cuotaNormal->cuota : $cuotaFija;
+
+                        while ($saldo > 0.01) {
+                            $intDesp = round($saldo * $tasaMensual, 2);
+                            if ($saldo + $intDesp <= $cuotaFijaDesp) {
+                                $amortDesp = round($saldo, 2);
+                                $cuotaMontoDesp = round($amortDesp + $intDesp, 2);
+                            } else {
+                                $cuotaMontoDesp = $cuotaFijaDesp;
+                                $amortDesp = round($cuotaFijaDesp - $intDesp, 2);
+                            }
+                            $saldoNuevoDesp = max(0, round($saldo - $amortDesp, 2));
+
+                            PlanDePago::create([
+                                'credit_id' => $credit->id,
+                                'numero_cuota' => $numero,
+                                'fecha_inicio' => $fechaBase->copy(),
+                                'fecha_corte' => $fechaBase->copy()->addMonth(),
+                                'tasa_actual' => $tasaAnual,
+                                'cuota' => $cuotaMontoDesp,
+                                'poliza' => 0,
+                                'interes_corriente' => $intDesp,
+                                'amortizacion' => $amortDesp,
+                                'saldo_anterior' => $saldo,
+                                'saldo_nuevo' => $saldoNuevoDesp,
+                                'estado' => 'Pendiente',
+                                'movimiento_total' => 0,
+                            ]);
+
+                            $saldo = $saldoNuevoDesp;
+                            $numero++;
+                            $fechaBase = $fechaBase->copy()->addMonth();
+                        }
+                    }
+                }
+
+                // Restaurar status del crédito si no quedan cuotas en Mora
+                $tieneMora = PlanDePago::where('credit_id', $credit->id)
+                    ->where('estado', 'Mora')->exists();
+                if (!$tieneMora) {
+                    $credit->update(['status' => 'Formalizado']);
+                }
+            }
+
+            // 8. Marcar planilla como anulada
             $planilla->update([
                 'estado' => 'anulada',
                 'anulada_at' => now(),

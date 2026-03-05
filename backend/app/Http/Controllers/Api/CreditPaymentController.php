@@ -343,6 +343,48 @@ class CreditPaymentController extends Controller
 
             $totales['diferencia_total'] = $totales['monto_total_planilla'] - $totales['monto_total_esperado'];
 
+            // Advertencias: créditos activos de esta deductora que NO están en el archivo
+            // y que entrarían en mora al procesar la planilla
+            $cedulasEnArchivo = collect($preview)->pluck('cedula')->unique()->toArray();
+            $mesPago = Carbon::parse($fechaProceso)->subMonth();
+
+            $creditosFaltantes = Credit::where('deductora_id', $deductoraId)
+                ->whereIn('status', ['Formalizado', 'En Mora'])
+                ->whereNotNull('formalized_at')
+                ->whereHas('lead', function ($q) use ($cedulasEnArchivo) {
+                    $q->whereNotIn('cedula', $cedulasEnArchivo);
+                })
+                ->with('lead:id,name,apellido1,cedula')
+                ->get(['id', 'lead_id', 'numero_operacion', 'reference', 'cuota', 'status', 'formalized_at']);
+
+            $advertencias = [];
+            foreach ($creditosFaltantes as $c) {
+                // Buscar la primera cuota pendiente y verificar si ya venció para este período
+                $primeraCuotaPendiente = $c->planDePagos()
+                    ->where('numero_cuota', '>', 0)
+                    ->where('estado', 'Pendiente')
+                    ->orderBy('numero_cuota')
+                    ->first();
+
+                if (!$primeraCuotaPendiente) continue;
+
+                // Solo advertir si la fecha_corte de la cuota ya pasó respecto al mesPago
+                // Ej: cuota vence 2025-05-31 (mayo), mesPago = abril 2025 → aún no toca, skip
+                $fechaVencimiento = Carbon::parse($primeraCuotaPendiente->fecha_corte);
+                if ($fechaVencimiento->startOfMonth()->gt($mesPago->copy()->endOfMonth())) {
+                    continue; // La cuota aún no vence en este período
+                }
+
+                $advertencias[] = [
+                    'credit_id' => $c->id,
+                    'nombre' => trim(($c->lead->name ?? '') . ' ' . ($c->lead->apellido1 ?? '')),
+                    'cedula' => $c->lead->cedula ?? '',
+                    'numero_operacion' => $c->numero_operacion ?? $c->reference ?? '',
+                    'cuota' => (float) $c->cuota,
+                    'status' => $c->status,
+                ];
+            }
+
             // Eliminar archivo temporal
             Storage::disk('public')->delete($path);
 
@@ -361,6 +403,7 @@ class CreditPaymentController extends Controller
                 'deductora_id' => $deductoraId,
                 'fecha_proceso' => $fechaProceso,
                 'hash' => $hash,
+                'advertencias' => $advertencias,
             ]);
 
         } catch (\Exception $e) {
@@ -1695,6 +1738,29 @@ class CreditPaymentController extends Controller
                 ->values()
                 ->all();
 
+            // Construir advertencias de créditos ausentes que entraron en mora
+            $advertencias = [];
+            $moraAplicadaIds = collect($moraResults)
+                ->where('status', 'mora_aplicada')
+                ->pluck('credit_id')
+                ->toArray();
+
+            if (!empty($moraAplicadaIds)) {
+                $creditosEnMora = Credit::whereIn('id', $moraAplicadaIds)
+                    ->with('lead:id,name,apellido1,cedula')
+                    ->get(['id', 'lead_id', 'numero_operacion', 'reference', 'cuota', 'status']);
+
+                foreach ($creditosEnMora as $c) {
+                    $advertencias[] = [
+                        'credit_id' => $c->id,
+                        'nombre' => trim(($c->lead->name ?? '') . ' ' . ($c->lead->apellido1 ?? '')),
+                        'cedula' => $c->lead->cedula ?? '',
+                        'numero_operacion' => $c->numero_operacion ?? $c->reference ?? '',
+                        'cuota' => $c->cuota,
+                    ];
+                }
+            }
+
             $this->logActivity('upload', 'Pagos', $planillaUpload, 'Planilla #' . $planillaUpload->id, [], $request);
 
             return response()->json([
@@ -1703,6 +1769,7 @@ class CreditPaymentController extends Controller
                 'results' => $results,
                 'mora_aplicada' => $moraResults,
                 'saldos_pendientes' => $saldosPendientes,
+                'advertencias' => $advertencias,
             ]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error', 'error' => $e->getMessage()], 500);
@@ -1718,9 +1785,11 @@ class CreditPaymentController extends Controller
     {
         $validated = $request->validate([
             'credit_id' => 'required|exists:credits,id',
+            'fecha' => 'nullable|date',
         ]);
 
         $credit = Credit::findOrFail($validated['credit_id']);
+        $fechaOperacion = \Carbon\Carbon::parse($validated['fecha'] ?? now());
 
         // Buscar la última cuota pagada
         $ultimaCuotaPagada = $credit->planDePagos()
@@ -1734,42 +1803,28 @@ class CreditPaymentController extends Controller
         // Saldo de capital pendiente
         $saldoCapital = (float) $credit->saldo;
 
-        // Sumar intereses vencidos de cuotas en mora
-        $interesesVencidos = (float) $credit->planDePagos()
+        // Intereses vencidos de cuotas en mora (se cobran completos)
+        $interesesMora = (float) $credit->planDePagos()
             ->where('numero_cuota', '>', 0)
             ->where('estado', 'Mora')
             ->sum('int_corriente_vencido');
 
+        // Interés corriente prorrateado del mes corriente
+        // = saldo × (tasa_anual / 100) / 365 × días transcurridos desde el 1ro del mes
+        $tasaAnual = (float) $credit->tasa_anual;
+        $diasTranscurridos = $fechaOperacion->copy()->startOfMonth()->diffInDays($fechaOperacion);
+        $interesCorrienteMes = round($saldoCapital * ($tasaAnual / 100) / 365 * $diasTranscurridos, 2);
+
+        $interesesVencidos = round($interesesMora + $interesCorrienteMes, 2);
         $saldoPendiente = round($saldoCapital + $interesesVencidos, 2);
 
         // Valor de la cuota mensual
         $cuotaMensual = (float) $credit->cuota;
 
-        // Penalización: suma de los 3 intereses corrientes de las próximas cuotas por vencer (si está antes de la cuota 12)
+        // Penalización: cuota × 3 si está antes de la cuota 12
         $penalizacion = 0;
-        $cuotasPenalizacion = 0;
-        $interesesPenalizacion = [];
         if ($numeroCuotaActual < 12) {
-            // Obtener las próximas 3 cuotas pendientes
-            $proximasCuotas = $credit->planDePagos()
-                ->where('numero_cuota', '>', $numeroCuotaActual)
-                ->where('estado', '!=', 'Pagado')
-                ->orderBy('numero_cuota')
-                ->take(3)
-                ->get();
-
-            // Sumar solo los intereses corrientes de esas cuotas
-            foreach ($proximasCuotas as $cuota) {
-                $interesCorriente = (float) $cuota->interes_corriente;
-                $interesesPenalizacion[] = [
-                    'numero_cuota' => $cuota->numero_cuota,
-                    'interes_corriente' => $interesCorriente
-                ];
-                $penalizacion += $interesCorriente;
-            }
-
-            $cuotasPenalizacion = count($proximasCuotas);
-            $penalizacion = round($penalizacion, 2);
+            $penalizacion = round($cuotaMensual * 3, 2);
         }
 
         $montoTotalCancelar = round($saldoPendiente + $penalizacion, 2);
@@ -1778,12 +1833,13 @@ class CreditPaymentController extends Controller
             'credit_id' => $credit->id,
             'cuota_actual' => $numeroCuotaActual,
             'saldo_capital' => $saldoCapital,
+            'intereses_mora' => $interesesMora,
+            'interes_corriente_mes' => $interesCorrienteMes,
+            'dias_transcurridos' => $diasTranscurridos,
             'intereses_vencidos' => $interesesVencidos,
             'saldo_pendiente' => $saldoPendiente,
             'cuota_mensual' => $cuotaMensual,
             'aplica_penalizacion' => $numeroCuotaActual < 12,
-            'cuotas_penalizacion' => $cuotasPenalizacion,
-            'intereses_penalizacion' => $interesesPenalizacion,
             'monto_penalizacion' => $penalizacion,
             'monto_total_cancelar' => $montoTotalCancelar,
         ]);
@@ -1983,7 +2039,9 @@ class CreditPaymentController extends Controller
             'fecha'     => 'required|date',
         ]);
 
-        return DB::transaction(function () use ($validated) {
+        $fechaOperacion = \Carbon\Carbon::parse($validated['fecha']);
+
+        return DB::transaction(function () use ($validated, $fechaOperacion) {
             $credit = Credit::lockForUpdate()->findOrFail($validated['credit_id']);
 
             // Calcular montos
@@ -1997,12 +2055,18 @@ class CreditPaymentController extends Controller
             $saldoCapital = (float) $credit->saldo;
             $cuotaMensual = (float) $credit->cuota;
 
-            // Sumar intereses vencidos de cuotas en mora
-            $interesesVencidos = (float) $credit->planDePagos()
+            // Intereses vencidos de cuotas en mora (se cobran completos)
+            $interesesMora = (float) $credit->planDePagos()
                 ->where('numero_cuota', '>', 0)
                 ->where('estado', 'Mora')
                 ->sum('int_corriente_vencido');
 
+            // Interés corriente prorrateado del mes corriente
+            $tasaAnual = (float) $credit->tasa_anual;
+            $diasTranscurridos = $fechaOperacion->copy()->startOfMonth()->diffInDays($fechaOperacion);
+            $interesCorrienteMes = round($saldoCapital * ($tasaAnual / 100) / 365 * $diasTranscurridos, 2);
+
+            $interesesVencidos = round($interesesMora + $interesCorrienteMes, 2);
             $saldoPendiente = round($saldoCapital + $interesesVencidos, 2);
 
             $penalizacion = 0;
@@ -2161,19 +2225,6 @@ class CreditPaymentController extends Controller
      */
     private function aplicarMoraACuota(Credit $credit, Carbon $mesPago): array
     {
-        $inicioMora = Carbon::parse($credit->formalized_at)
-            ->startOfMonth()
-            ->addMonth();
-
-        if ($mesPago->lt($inicioMora)) {
-            return [
-                'credit_id' => $credit->id,
-                'lead' => $credit->lead->name ?? 'N/A',
-                'status' => 'muy_nuevo',
-                'mensaje' => 'Crédito muy nuevo, aún no genera mora'
-            ];
-        }
-
         // Buscar cuota pendiente más antigua
         $cuota = $credit->planDePagos()
             ->where('numero_cuota', '>', 0)
@@ -2186,6 +2237,18 @@ class CreditPaymentController extends Controller
                 'credit_id' => $credit->id,
                 'lead' => $credit->lead->name ?? 'N/A',
                 'status' => 'sin_cuotas_pendientes'
+            ];
+        }
+
+        // Verificar si la cuota ya venció para este período usando fecha_corte real
+        // Ej: cuota fecha_corte = 2025-05-31, mesPago = abril 2025 → aún no toca
+        $fechaVencimiento = Carbon::parse($cuota->fecha_corte);
+        if ($fechaVencimiento->startOfMonth()->gt($mesPago->copy()->endOfMonth())) {
+            return [
+                'credit_id' => $credit->id,
+                'lead' => $credit->lead->name ?? 'N/A',
+                'status' => 'muy_nuevo',
+                'mensaje' => 'La cuota aún no vence en este período'
             ];
         }
 

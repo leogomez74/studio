@@ -1,0 +1,67 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Investment;
+use App\Models\InvestmentPayment;
+use Illuminate\Http\Request;
+
+class InvestmentPaymentController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = InvestmentPayment::with(['investor:id,name', 'investment:id,numero_desembolso,moneda']);
+
+        if ($request->has('investor_id')) {
+            $query->where('investor_id', $request->investor_id);
+        }
+        if ($request->has('fecha_desde')) {
+            $query->where('fecha_pago', '>=', $request->fecha_desde);
+        }
+        if ($request->has('fecha_hasta')) {
+            $query->where('fecha_pago', '<=', $request->fecha_hasta);
+        }
+
+        if ($request->get('all') === 'true') {
+            return response()->json($query->latest('fecha_pago')->get());
+        }
+
+        $perPage = min($request->get('per_page', 50), 100);
+        return response()->json($query->latest('fecha_pago')->paginate($perPage));
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'investor_id' => 'required|exists:investors,id',
+            'investment_id' => 'nullable|exists:investments,id',
+            'fecha_pago' => 'required|date',
+            'monto' => 'required|numeric|min:0',
+            'tipo' => 'required|in:Interés,Capital,Adelanto,Liquidación',
+            'moneda' => 'required|in:CRC,USD',
+            'comentarios' => 'nullable|string',
+        ]);
+
+        if (!empty($validated['investment_id'])) {
+            $belongs = Investment::where('id', $validated['investment_id'])
+                ->where('investor_id', $validated['investor_id'])
+                ->exists();
+
+            if (!$belongs) {
+                return response()->json([
+                    'message' => 'La inversión no pertenece al inversionista indicado.',
+                ], 422);
+            }
+        }
+
+        $payment = InvestmentPayment::create($validated);
+        return response()->json($payment->load(['investor:id,name', 'investment:id,numero_desembolso']), 201);
+    }
+
+    public function destroy(int $id)
+    {
+        InvestmentPayment::findOrFail($id)->delete();
+        return response()->json(['message' => 'Pago eliminado']);
+    }
+}

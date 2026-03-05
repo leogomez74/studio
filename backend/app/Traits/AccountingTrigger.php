@@ -290,14 +290,15 @@ trait AccountingTrigger
         $variables = [
             '{reference}' => $reference,
             '{amount}' => number_format($amount, 2),
-            '{clienteNombre}' => $context['lead_nombre'] ?? 'N/A',
+            '{clienteNombre}' => $context['clienteNombre'] ?? $context['lead_nombre'] ?? 'N/A',
             '{cedula}' => $context['cedula'] ?? '',
             '{credit_id}' => $context['credit_id'] ?? '',
-            '{deductora_nombre}' => $context['deductora_nombre'] ?? '',
+            '{deductora_nombre}' => '', // Se resuelve dinámicamente según si se usó deductora o fallback
         ];
 
         // Construir items del asiento desde la configuración
         $items = [];
+        $deductoraResuelta = null; // Nombre de la deductora que realmente se usó en alguna línea
         foreach ($config->lines as $line) {
             $accountCode = null;
             $deductoraContextNombre = null;
@@ -357,7 +358,8 @@ trait AccountingTrigger
             // Reemplazar variables en la descripción de la línea
             $lineDescription = $line->description ?? $config->name;
             if ($deductoraContextNombre) {
-                // Si esta línea es de tipo deductora, agregar el nombre de la deductora
+                // Si esta línea usó deductora, guardar para la descripción principal
+                $deductoraResuelta = $deductoraContextNombre;
                 $variables['{deductora_nombre}'] = $deductoraContextNombre;
             }
             $lineDescription = str_replace(array_keys($variables), array_values($variables), $lineDescription);
@@ -395,7 +397,7 @@ trait AccountingTrigger
         }
 
         // Enviar al ERP
-        $clienteNombre = $context['lead_nombre'] ?? 'N/A';
+        $clienteNombre = $context['clienteNombre'] ?? $context['lead_nombre'] ?? 'N/A';
         $cedula = $context['cedula'] ?? '';
 
         // Reemplazar variables en la descripción principal del asiento

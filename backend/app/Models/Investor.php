@@ -4,16 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Investor extends Model
 {
-    use HasFactory;
-
-    protected $table = 'investors';
-    protected $primaryKey = 'id';
-    public $incrementing = false;
-    protected $keyType = 'string';
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -21,21 +16,37 @@ class Investor extends Model
         'email',
         'phone',
         'status',
-        'investment_balance',
+        'tipo_persona',
+        'notas',
+        'cuenta_bancaria',
+        'banco',
+        'moneda_preferida',
         'joined_at',
     ];
 
     protected $casts = [
-        'investment_balance' => 'decimal:2',
         'joined_at' => 'date',
     ];
 
-    protected static function booted()
+    protected $appends = [];
+
+    public function investments()
     {
-        static::creating(function ($investor) {
-            if (empty($investor->id)) {
-                $investor->id = (string) Str::random(20);
-            }
-        });
+        return $this->hasMany(Investment::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(InvestmentPayment::class);
+    }
+
+    public function capitalReserves()
+    {
+        return $this->hasMany(CapitalReserve::class);
+    }
+
+    public function getActiveInvestmentsCountAttribute(): int
+    {
+        return $this->investments()->where('estado', 'Activa')->count();
     }
 }

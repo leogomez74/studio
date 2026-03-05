@@ -215,17 +215,21 @@ export type Client = {
 };
 
 export type Investor = {
-  id: string;
+  id: number;
   name: string;
   cedula: string;
   email: string;
   phone: string;
   status: 'Activo' | 'Inactivo';
-  activeInvestments?: number;
-  registeredOn?: string;
-  avatarUrl?: string;
-  investment_balance?: number;
+  tipo_persona: string;
+  notas?: string;
+  cuenta_bancaria?: string;
+  banco?: string;
+  moneda_preferida?: 'CRC' | 'USD';
   joined_at?: string;
+  created_at?: string;
+  active_investments_count?: number;
+  investments?: Investment[];
 };
 
 export type Opportunity = {
@@ -333,17 +337,60 @@ export type Deductora = {
 };
 
 export type Investment = {
-  investmentNumber: string;
-  investorName: string;
-  investorId: string;
-  startDate: string;
-  endDate: string;
-  amount: number;
-  currency: 'CRC' | 'USD';
-  rate: number;
-  interestFrequency: 'Mensual' | 'Trimestral' | 'Semestral' | 'Anual';
-  isCapitalizable: boolean;
-  status: 'Activa' | 'Finalizada' | 'Liquidada';
+  id: number;
+  numero_desembolso: string;
+  investor_id: number;
+  investor?: Investor;
+  monto_capital: number;
+  plazo_meses: number;
+  fecha_inicio: string;
+  fecha_vencimiento: string;
+  tasa_anual: number;
+  moneda: 'CRC' | 'USD';
+  forma_pago: 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | 'RESERVA';
+  es_capitalizable: boolean;
+  estado: 'Activa' | 'Finalizada' | 'Liquidada' | 'Cancelada' | 'Renovada';
+  notas?: string;
+  tipo_cambio?: number;
+  investment_origen_id?: number;
+  cancelado_por?: string;
+  fecha_cancelacion?: string;
+  interes_mensual?: number;
+  retencion_mensual?: number;
+  interes_neto_mensual?: number;
+  interes_del_cupon?: number;
+  retencion_del_cupon?: number;
+  interes_neto_del_cupon?: number;
+  coupons?: InvestmentCoupon[];
+  rate_history?: { id: number; tasa_anterior: number; tasa_nueva: number; cambiado_por?: number; motivo?: string; created_at: string; changed_by?: { id: number; name: string } }[];
+};
+
+export type InvestmentCoupon = {
+  id: number;
+  investment_id: number;
+  fecha_cupon: string;
+  interes_bruto: number;
+  retencion: number;
+  interes_neto: number;
+  monto_reservado: number;
+  capital_acumulado?: number;
+  estado: 'Pendiente' | 'Pagado' | 'Reservado';
+  fecha_pago?: string;
+  comprobante?: string;
+  notas?: string;
+};
+
+export type InvestmentPayment = {
+  id: number;
+  investor_id: number;
+  investment_id?: number;
+  fecha_pago: string;
+  monto: number;
+  tipo: 'Interés' | 'Capital' | 'Adelanto' | 'Liquidación';
+  moneda: 'CRC' | 'USD';
+  comentarios?: string;
+  investor?: Investor;
+  investment?: Investment;
 };
 
 
@@ -751,11 +798,6 @@ export const clients: Client[] = [
     },
 ];
 
-export const investors: Investor[] = [
-    { id: 'INV001', name: 'Laura Montes', cedula: '1-0987-6543', email: 'laura.montes@inversion.com', phone: '8888-9999', status: 'Activo', activeInvestments: 1, registeredOn: '2022-08-15', avatarUrl: 'https://picsum.photos/seed/investor1/40/40' },
-    { id: 'INV002', name: 'Ricardo Vega', cedula: '2-0876-5432', email: 'ricardo.vega@inversion.com', phone: '7777-6666', status: 'Activo', activeInvestments: 2, registeredOn: '2023-01-20', avatarUrl: 'https://picsum.photos/seed/investor2/40/40' },
-    { id: 'INV003', name: 'Elena Solis', cedula: '3-0765-4321', email: 'elena.solis@inversion.com', phone: '6666-5555', status: 'Inactivo', activeInvestments: 0, registeredOn: '2021-11-30', avatarUrl: 'https://picsum.photos/seed/investor3/40/40' },
-];
 
 export const opportunities: Opportunity[] = [
     { id: 'OPP001', leadCedula: '2-0987-6543', creditType: 'Regular', amount: 5000000, status: 'En proceso', startDate: '2023-11-01', assignedTo: 'Wilmer Marquez' },
@@ -932,11 +974,6 @@ export const credits: Credit[] = [
     }
 ];
 
-export const investments: Investment[] = [
-    { investmentNumber: 'INV-001', investorName: 'Ricardo Vega', investorId: '2-0876-5432', startDate: '2023-01-15', endDate: '2025-01-15', amount: 10000000, currency: 'CRC', rate: 7.05, interestFrequency: 'Mensual', isCapitalizable: false, status: 'Activa' },
-    { investmentNumber: 'INV-002', investorName: 'Laura Montes', investorId: '1-0987-6543', startDate: '2023-03-01', endDate: '2024-03-01', amount: 50000, currency: 'USD', rate: 7.05, interestFrequency: 'Trimestral', isCapitalizable: true, status: 'Activa' },
-    { investmentNumber: 'INV-003', investorName: 'Ricardo Vega', investorId: '2-0876-5432', startDate: '2022-05-20', endDate: '2023-05-20', amount: 5000000, currency: 'CRC', rate: 7.05, interestFrequency: 'Anual', isCapitalizable: false, status: 'Finalizada' },
-];
 
 export const notifications = [
   { id: 1, text: 'Nueva oportunidad para "Carla Díaz Solano" registrada.', time: 'hace 10 min', read: false },

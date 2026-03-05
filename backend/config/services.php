@@ -45,4 +45,8 @@ return [
         'password' => env('ERP_API_PASSWORD', ''),
     ],
 
+    'inversiones' => [
+        'tipo_cambio_usd' => (float) env('TIPO_CAMBIO_USD', 500),
+    ],
+
 ];
