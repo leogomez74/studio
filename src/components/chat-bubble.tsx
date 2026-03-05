@@ -153,7 +153,7 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
 
   const filteredUsers = userList.filter((u: any) =>
     u.name?.toLowerCase().includes(userFilter) || u.email?.toLowerCase().includes(userFilter)
-  ).slice(0, 6);
+  );
 
   const selectUser = (u: any) => {
     const before = text.slice(0, cursorPos);
@@ -198,7 +198,7 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
         />
         {showUsers && filteredUsers.length > 0 && (
           <div
-            className="absolute bottom-full left-0 mb-1 w-52 bg-popover border rounded-lg shadow-lg z-50 p-1"
+            className="absolute bottom-full left-0 mb-1 w-52 bg-popover border rounded-lg shadow-lg z-50 p-1 max-h-48 overflow-y-auto"
           >
             <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
               <AtSign className="h-3 w-3" /> Mencionar
@@ -306,10 +306,10 @@ export function ChatBubble() {
     return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', esc); };
   }, [isOpen]);
 
-  // Fetch users once
+  // Fetch users when panel opens
   useEffect(() => {
-    api.get('/api/users').then((r) => setUserList(Array.isArray(r.data) ? r.data : r.data.data ?? [])).catch(() => {});
-  }, []);
+    if (isOpen) api.get('/api/users').then((r) => setUserList(Array.isArray(r.data) ? r.data : r.data.data ?? [])).catch(() => {});
+  }, [isOpen]);
 
   // ---- Entity search ----
   const searchEntities = async (type: string, query: string) => {
