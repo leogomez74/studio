@@ -26,10 +26,16 @@ class InvestmentCouponController extends Controller
 
         $validated = $request->validate([
             'fecha_pago' => 'nullable|date',
+            'comprobante' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
-        $this->service->markCouponAsPaid($coupon, $validated['fecha_pago'] ?? null);
-        return response()->json($coupon);
+        $comprobantePath = null;
+        if ($request->hasFile('comprobante')) {
+            $comprobantePath = $request->file('comprobante')->store('comprobantes/inversiones', 'public');
+        }
+
+        $this->service->markCouponAsPaid($coupon, $validated['fecha_pago'] ?? null, $comprobantePath);
+        return response()->json($coupon->fresh());
     }
 
     public function markBulkPaid(Request $request)

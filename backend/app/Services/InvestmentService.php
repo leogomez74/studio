@@ -108,7 +108,7 @@ class InvestmentService
         }
     }
 
-    public function markCouponAsPaid(InvestmentCoupon $coupon, ?string $fechaPago = null): InvestmentCoupon
+    public function markCouponAsPaid(InvestmentCoupon $coupon, ?string $fechaPago = null, ?string $comprobantePath = null): InvestmentCoupon
     {
         // Validate sequential payment: all prior coupons must be paid
         $unpaidBefore = InvestmentCoupon::where('investment_id', $coupon->investment_id)
@@ -122,10 +122,16 @@ class InvestmentService
 
         $fechaPago = $fechaPago ?? now()->toDateString();
 
-        $coupon->update([
+        $updateData = [
             'estado' => 'Pagado',
             'fecha_pago' => $fechaPago,
-        ]);
+        ];
+
+        if ($comprobantePath) {
+            $updateData['comprobante'] = $comprobantePath;
+        }
+
+        $coupon->update($updateData);
 
         $investment = $coupon->investment;
 
@@ -158,10 +164,10 @@ class InvestmentService
     public function renewInvestment(Investment $investment, array $newTerms): Investment
     {
         return DB::transaction(function () use ($investment, $newTerms) {
-            // Finalize old investment
-            $investment->update(['estado' => 'Finalizada']);
+            // Finalize old investment as Renovada
+            $investment->update(['estado' => 'Renovada']);
 
-            // Create new investment with new terms
+            // Create new investment with new terms, linking to origin
             $newInvestment = Investment::create(array_merge([
                 'numero_desembolso' => 'TMP',
                 'investor_id' => $investment->investor_id,
@@ -170,6 +176,7 @@ class InvestmentService
                 'forma_pago' => $investment->forma_pago,
                 'tasa_anual' => $investment->tasa_anual,
                 'es_capitalizable' => $investment->es_capitalizable,
+                'investment_origen_id' => $investment->id,
             ], $newTerms));
             $suffix = $newInvestment->moneda === 'USD' ? 'D' : 'C';
             $newInvestment->update(['numero_desembolso' => $newInvestment->id . '-' . $suffix]);
@@ -178,6 +185,51 @@ class InvestmentService
 
             return $newInvestment;
         });
+    }
+
+    public function previewCoupons(array $params): array
+    {
+        $montoCapital = (float) $params['monto_capital'];
+        $tasaAnual = (float) $params['tasa_anual'];
+        $formaPago = $params['forma_pago'];
+        $esCapitalizable = (bool) ($params['es_capitalizable'] ?? false);
+        $fechaInicio = Carbon::parse($params['fecha_inicio']);
+        $plazoMeses = (int) $params['plazo_meses'];
+        $fechaVencimiento = $fechaInicio->copy()->addMonths($plazoMeses);
+
+        $mesesIntervalo = $this->getMesesIntervalo($formaPago);
+        $estadoCupon = ($formaPago === 'RESERVA' || $esCapitalizable) ? 'Reservado' : 'Pendiente';
+
+        $fechaCupon = $fechaInicio->copy()->addMonths($mesesIntervalo);
+        $coupons = [];
+        $capitalActual = $montoCapital;
+        $num = 1;
+
+        while ($fechaCupon->lte($fechaVencimiento)) {
+            $interesMensual = round($capitalActual * $tasaAnual / 12, 2);
+            $interesCupon = round($interesMensual * $mesesIntervalo, 2);
+            $retencion = round($interesCupon * 0.15, 2);
+            $interesNeto = round($interesCupon - $retencion, 2);
+            $montoReservado = ($formaPago === 'RESERVA' || $esCapitalizable) ? $interesNeto : 0;
+
+            if ($esCapitalizable) {
+                $capitalActual = round($capitalActual + $interesNeto, 2);
+            }
+
+            $coupons[] = [
+                'numero' => $num++,
+                'fecha_cupon' => $fechaCupon->toDateString(),
+                'interes_bruto' => $interesCupon,
+                'retencion' => $retencion,
+                'interes_neto' => $interesNeto,
+                'monto_reservado' => $montoReservado,
+                'capital_acumulado' => $esCapitalizable ? $capitalActual : null,
+                'estado' => $estadoCupon,
+            ];
+            $fechaCupon->addMonths($mesesIntervalo);
+        }
+
+        return $coupons;
     }
 
     public function getSummaryByInvestor(Investor $investor): array
