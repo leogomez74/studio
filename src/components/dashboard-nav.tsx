@@ -29,6 +29,7 @@ import {
   Trophy,
   BarChart3,
   ShieldCheck,
+  BookOpen,
 } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Badge } from '@/components/ui/badge';
@@ -82,6 +83,7 @@ const navGroups = [
     label: 'Sistema',
     items: [
       { href: '/dashboard/auditoria', icon: ShieldCheck, label: 'Auditoría', module: 'auditoria' },
+      { href: '/dashboard/auditoria-asientos', icon: BookOpen, label: 'Auditoría Asientos', module: 'configuracion' },
     ],
   },
 ];
