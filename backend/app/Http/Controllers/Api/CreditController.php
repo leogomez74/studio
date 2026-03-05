@@ -970,7 +970,18 @@ class CreditController extends Controller
             }
 
             // 3. Calcular montos
-            $saldoAbsorbido = $saldoViejo;
+            // Desglosar intereses y poliza de todas las cuotas pendientes del crédito viejo
+            $cuotasPendientes = $oldCredit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->whereIn('estado', ['Pendiente', 'Vigente', 'Mora', 'Parcial'])
+                ->get();
+
+            $interesesVencidos = round((float) $cuotasPendientes->sum('interes_corriente'), 2);
+            $moratorioVencido = round((float) $cuotasPendientes->sum('interes_moratorio'), 2);
+            $polizaPendiente = round((float) $cuotasPendientes->sum('poliza'), 2);
+
+            $saldoCapital = $saldoViejo;
+            $saldoAbsorbido = round($saldoCapital + $interesesVencidos + $moratorioVencido + $polizaPendiente, 2);
             $cargosNuevos = $validated['cargos_adicionales'] ?? [];
             $totalCargos = is_array($cargosNuevos) ? array_sum($cargosNuevos) : 0;
             $montoEntregado = $validated['monto_credito'] - $saldoAbsorbido - $totalCargos;
@@ -987,16 +998,17 @@ class CreditController extends Controller
                 'numero_cuota' => 0,
                 'fecha_pago' => now(),
                 'monto' => $saldoAbsorbido,
-                'saldo_anterior' => $saldoAbsorbido,
+                'saldo_anterior' => $saldoCapital,
                 'nuevo_saldo' => 0,
                 'estado' => 'Aplicado',
-                'amortizacion' => $saldoAbsorbido,
-                'interes_corriente' => 0,
-                'interes_moratorio' => 0,
+                'amortizacion' => $saldoCapital,
+                'interes_corriente' => $interesesVencidos,
+                'interes_moratorio' => $moratorioVencido,
+                'poliza' => $polizaPendiente,
                 'source' => 'Refundición',
                 'cedula' => $oldCredit->lead->cedula ?? null,
                 'movimiento_total' => $saldoAbsorbido,
-                'movimiento_amortizacion' => $saldoAbsorbido,
+                'movimiento_amortizacion' => $saldoCapital,
             ]);
 
             // 4c. Actualizar estado del crédito viejo
@@ -1091,12 +1103,10 @@ class CreditController extends Controller
                     'new_credit_id' => $newCredit->reference,
                     'amount_breakdown' => [
                         'total' => $saldoAbsorbido,
-                        'interes_corriente' => 0,
-                        'interes_moratorio' => 0,
-                        'poliza' => 0,
-                        'capital' => $saldoAbsorbido,
-                        'cargos_adicionales_total' => 0,
-                        'cargos_adicionales' => [],
+                        'interes_corriente' => $interesesVencidos,
+                        'interes_moratorio' => $moratorioVencido,
+                        'poliza' => $polizaPendiente,
+                        'capital' => $saldoCapital,
                     ],
                 ]
             );

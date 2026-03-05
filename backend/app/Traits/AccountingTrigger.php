@@ -290,7 +290,7 @@ trait AccountingTrigger
         $variables = [
             '{reference}' => $reference,
             '{amount}' => number_format($amount, 2),
-            '{clienteNombre}' => $context['lead_nombre'] ?? 'N/A',
+            '{clienteNombre}' => $context['clienteNombre'] ?? $context['lead_nombre'] ?? 'N/A',
             '{cedula}' => $context['cedula'] ?? '',
             '{credit_id}' => $context['credit_id'] ?? '',
             '{deductora_nombre}' => $context['deductora_nombre'] ?? '',
@@ -395,7 +395,7 @@ trait AccountingTrigger
         }
 
         // Enviar al ERP
-        $clienteNombre = $context['lead_nombre'] ?? 'N/A';
+        $clienteNombre = $context['clienteNombre'] ?? $context['lead_nombre'] ?? 'N/A';
         $cedula = $context['cedula'] ?? '';
 
         // Reemplazar variables en la descripción principal del asiento
