@@ -404,7 +404,9 @@ const generateCertificacionDeuda = async (creditId: number) => {
   // --- Firma imagen + Sello (lado a lado) ---
   const firmaStartY = y;
   if (firmaImg) {
-    doc.addImage(firmaImg, 'PNG', marginL + 3, firmaStartY, 36, 14);
+    // La imagen PNG tiene padding transparente debajo del trazo,
+    // por eso se extiende más allá de la línea para que el trazo quede justo encima
+    doc.addImage(firmaImg, 'PNG', marginL + 2, firmaStartY, 50, 28);
   }
 
   // Sello centrado a la derecha, alineado con la firma
@@ -414,7 +416,7 @@ const generateCertificacionDeuda = async (creditId: number) => {
     doc.addImage(selloImg, 'PNG', selloX, firmaStartY - 10, selloSize, selloSize);
   }
 
-  y = firmaStartY + 14;
+  y = firmaStartY + 20;
 
   // Línea de firma
   doc.setDrawColor(80, 80, 80);
