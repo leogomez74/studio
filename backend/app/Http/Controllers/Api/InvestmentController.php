@@ -106,7 +106,7 @@ class InvestmentController extends Controller
             $investment->update($validated);
 
             // Recalculate coupons if financial terms changed
-            $financialFields = ['monto_capital', 'tasa_anual', 'plazo_meses', 'forma_pago', 'fecha_vencimiento'];
+            $financialFields = ['monto_capital', 'tasa_anual', 'plazo_meses', 'forma_pago', 'fecha_vencimiento', 'es_capitalizable'];
             if (array_intersect(array_keys($validated), $financialFields)) {
                 $this->service->recalculateCoupons($investment);
             }
@@ -169,6 +169,17 @@ class InvestmentController extends Controller
         })->values();
 
         return response()->json(['meses' => $meses]);
+    }
+
+    public function reservas()
+    {
+        return response()->json($this->service->getReservas());
+    }
+
+    public function reservaDetalle(int $id)
+    {
+        $investment = Investment::with('coupons')->findOrFail($id);
+        return response()->json($this->service->calcularReserva($investment));
     }
 
     public function liquidate(int $id)

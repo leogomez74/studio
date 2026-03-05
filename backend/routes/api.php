@@ -247,6 +247,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Custom routes BEFORE apiResource
     Route::get('investments/tabla-general', [InvestmentController::class, 'tablaGeneral']);
     Route::get('investments/pagos-proximos', [InvestmentController::class, 'pagosProximos']);
+    Route::get('investments/reservas', [InvestmentController::class, 'reservas']);
+    Route::get('investments/{id}/reserva', [InvestmentController::class, 'reservaDetalle']);
     Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate']);
     Route::post('investments/{id}/renew', [InvestmentController::class, 'renew']);
     Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);

@@ -32,6 +32,7 @@ export default function InvestmentDetailPage() {
   const id = params.id as string;
 
   const [investment, setInvestment] = useState<Investment | null>(null);
+  const [reserva, setReserva] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -54,6 +55,12 @@ export default function InvestmentDetailPage() {
       const res = await api.get(`/api/investments/${id}`);
       const inv = res.data;
       setInvestment(inv);
+      // Fetch reserve calculation
+      try {
+        const resReserva = await api.get(`/api/investments/${id}/reserva`);
+        setReserva(resReserva.data);
+      } catch { setReserva(null); }
+
       setForm({
         monto_capital: String(inv.monto_capital),
         plazo_meses: String(inv.plazo_meses),
@@ -253,6 +260,40 @@ export default function InvestmentDetailPage() {
         </Card>
       </div>
 
+      {/* Reserve Calculation */}
+      {reserva && investment.estado === 'Activa' && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Cálculo de Reserva</CardTitle>
+            <CardDescription>Provisión mensual requerida para esta inversión.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Int. Adeudados</p>
+                <p className="text-lg font-mono font-semibold">{fmt(reserva.intereses_adeudados, investment.moneda)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Capital + Intereses</p>
+                <p className="text-lg font-mono font-semibold">{fmt(reserva.capital_mas_intereses, investment.moneda)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Plazo Restante</p>
+                <p className="text-lg font-semibold">{reserva.plazo_restante_meses} meses</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Reserva Mensual</p>
+                <p className="text-lg font-mono font-bold text-primary">{fmt(reserva.reserva_mensual, investment.moneda)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Reserva Capital</p>
+                <p className="text-lg font-mono font-bold">{fmt(reserva.reserva_capital, investment.moneda)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Coupons Table */}
       <Card>
         <CardHeader>
@@ -269,6 +310,7 @@ export default function InvestmentDetailPage() {
                   <TableHead className="text-right">Interés Bruto</TableHead>
                   <TableHead className="text-right">Retención 15%</TableHead>
                   <TableHead className="text-right">Interés Neto</TableHead>
+                  {investment.es_capitalizable && <TableHead className="text-right">Capital Acumulado</TableHead>}
                   <TableHead>Estado</TableHead>
                   <TableHead>Fecha Pago</TableHead>
                   <TableHead><span className="sr-only">Acciones</span></TableHead>
@@ -293,6 +335,9 @@ export default function InvestmentDetailPage() {
                         <TableCell className="text-right font-mono">{fmt(coupon.interes_bruto, investment.moneda)}</TableCell>
                         <TableCell className="text-right font-mono text-destructive">- {fmt(coupon.retencion, investment.moneda)}</TableCell>
                         <TableCell className="text-right font-mono font-semibold">{fmt(coupon.interes_neto, investment.moneda)}</TableCell>
+                        {investment.es_capitalizable && (
+                          <TableCell className="text-right font-mono text-primary">{coupon.capital_acumulado ? fmt(coupon.capital_acumulado, investment.moneda) : '—'}</TableCell>
+                        )}
                         <TableCell>
                           <Badge variant={coupon.estado === 'Pagado' ? 'default' : coupon.estado === 'Reservado' ? 'secondary' : 'outline'}>
                             {coupon.estado}
@@ -317,7 +362,7 @@ export default function InvestmentDetailPage() {
                   });
                 })()}
                 {coupons.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Sin cupones generados</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={investment.es_capitalizable ? 9 : 8} className="text-center text-muted-foreground py-8">Sin cupones generados</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

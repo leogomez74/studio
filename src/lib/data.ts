@@ -367,6 +367,7 @@ export type InvestmentCoupon = {
   retencion: number;
   interes_neto: number;
   monto_reservado: number;
+  capital_acumulado?: number;
   estado: 'Pendiente' | 'Pagado' | 'Reservado';
   fecha_pago?: string;
   notas?: string;

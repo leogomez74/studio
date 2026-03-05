@@ -16,53 +16,7 @@ class InvestmentService
         // Delete existing coupons before regenerating
         $investment->coupons()->delete();
 
-        $fechaInicio = Carbon::parse($investment->fecha_inicio);
-        $fechaVencimiento = Carbon::parse($investment->fecha_vencimiento);
-        $montoCapital = (float) $investment->monto_capital;
-        $tasaAnual = (float) $investment->tasa_anual;
-        $formaPago = $investment->forma_pago;
-
-        // Calculate interval in months
-        $mesesIntervalo = match ($formaPago) {
-            'MENSUAL' => 1,
-            'TRIMESTRAL' => 3,
-            'SEMESTRAL' => 6,
-            'ANUAL' => 12,
-            'RESERVA' => 1,
-            default => 1,
-        };
-
-        $interesMensual = round($montoCapital * $tasaAnual / 12, 2);
-        $interesCupon = round($interesMensual * $mesesIntervalo, 2);
-        $retencion = round($interesCupon * 0.15, 2);
-        $interesNeto = round($interesCupon - $retencion, 2);
-
-        $estadoCupon = $formaPago === 'RESERVA' ? 'Reservado' : 'Pendiente';
-        $montoReservado = $formaPago === 'RESERVA' ? $interesNeto : 0;
-
-        $fechaCupon = $fechaInicio->copy()->addMonths($mesesIntervalo);
-        $coupons = [];
-        $now = now();
-
-        while ($fechaCupon->lte($fechaVencimiento)) {
-            $coupons[] = [
-                'investment_id' => $investment->id,
-                'fecha_cupon' => $fechaCupon->toDateString(),
-                'interes_bruto' => $interesCupon,
-                'retencion' => $retencion,
-                'interes_neto' => $interesNeto,
-                'monto_reservado' => $montoReservado,
-                'estado' => $estadoCupon,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-            $fechaCupon->addMonths($mesesIntervalo);
-        }
-
-        // Bulk insert for performance
-        if (!empty($coupons)) {
-            InvestmentCoupon::insert($coupons);
-        }
+        $this->buildCoupons($investment, Carbon::parse($investment->fecha_inicio), (float) $investment->monto_capital);
     }
 
     public function recalculateCoupons(Investment $investment): void
@@ -72,28 +26,7 @@ class InvestmentService
             ->where('estado', '!=', 'Pagado')
             ->delete();
 
-        $montoCapital = (float) $investment->monto_capital;
-        $tasaAnual = (float) $investment->tasa_anual;
-        $formaPago = $investment->forma_pago;
-        $fechaInicio = Carbon::parse($investment->fecha_inicio);
-        $fechaVencimiento = Carbon::parse($investment->fecha_vencimiento);
-
-        $mesesIntervalo = match ($formaPago) {
-            'MENSUAL' => 1,
-            'TRIMESTRAL' => 3,
-            'SEMESTRAL' => 6,
-            'ANUAL' => 12,
-            'RESERVA' => 1,
-            default => 1,
-        };
-
-        $interesMensual = round($montoCapital * $tasaAnual / 12, 2);
-        $interesCupon = round($interesMensual * $mesesIntervalo, 2);
-        $retencion = round($interesCupon * 0.15, 2);
-        $interesNeto = round($interesCupon - $retencion, 2);
-
-        $estadoCupon = $formaPago === 'RESERVA' ? 'Reservado' : 'Pendiente';
-        $montoReservado = $formaPago === 'RESERVA' ? $interesNeto : 0;
+        $mesesIntervalo = $this->getMesesIntervalo($investment->forma_pago);
 
         // Regenerar desde el último cupón pagado o desde fecha_inicio
         $lastPaidCoupon = $investment->coupons()
@@ -101,26 +34,73 @@ class InvestmentService
             ->orderBy('fecha_cupon', 'desc')
             ->first();
 
-        $nextDate = $lastPaidCoupon
-            ? Carbon::parse($lastPaidCoupon->fecha_cupon)->addMonths($mesesIntervalo)
-            : $fechaInicio->copy()->addMonths($mesesIntervalo);
+        $startDate = $lastPaidCoupon
+            ? Carbon::parse($lastPaidCoupon->fecha_cupon)
+            : Carbon::parse($investment->fecha_inicio);
 
+        // Para capitalizable, el capital acumulado parte del último cupón pagado
+        $capitalInicial = (float) $investment->monto_capital;
+        if ($investment->es_capitalizable && $lastPaidCoupon && $lastPaidCoupon->capital_acumulado) {
+            $capitalInicial = (float) $lastPaidCoupon->capital_acumulado;
+        }
+
+        $this->buildCoupons($investment, $startDate, $capitalInicial);
+    }
+
+    private function getMesesIntervalo(string $formaPago): int
+    {
+        return match ($formaPago) {
+            'MENSUAL' => 1,
+            'TRIMESTRAL' => 3,
+            'SEMESTRAL' => 6,
+            'ANUAL' => 12,
+            'RESERVA' => 1,
+            default => 1,
+        };
+    }
+
+    private function buildCoupons(Investment $investment, Carbon $startDate, float $capitalInicial): void
+    {
+        $fechaVencimiento = Carbon::parse($investment->fecha_vencimiento);
+        $tasaAnual = (float) $investment->tasa_anual;
+        $formaPago = $investment->forma_pago;
+        $esCapitalizable = (bool) $investment->es_capitalizable;
+
+        $mesesIntervalo = $this->getMesesIntervalo($formaPago);
+
+        $estadoCupon = ($formaPago === 'RESERVA' || $esCapitalizable) ? 'Reservado' : 'Pendiente';
+
+        $fechaCupon = $startDate->copy()->addMonths($mesesIntervalo);
         $coupons = [];
         $now = now();
+        $capitalActual = $capitalInicial;
 
-        while ($nextDate->lte($fechaVencimiento)) {
+        while ($fechaCupon->lte($fechaVencimiento)) {
+            $interesMensual = round($capitalActual * $tasaAnual / 12, 2);
+            $interesCupon = round($interesMensual * $mesesIntervalo, 2);
+            $retencion = round($interesCupon * 0.15, 2);
+            $interesNeto = round($interesCupon - $retencion, 2);
+
+            $montoReservado = ($formaPago === 'RESERVA' || $esCapitalizable) ? $interesNeto : 0;
+
+            // Para capitalizable, el interés neto se suma al capital
+            if ($esCapitalizable) {
+                $capitalActual = round($capitalActual + $interesNeto, 2);
+            }
+
             $coupons[] = [
                 'investment_id' => $investment->id,
-                'fecha_cupon' => $nextDate->toDateString(),
+                'fecha_cupon' => $fechaCupon->toDateString(),
                 'interes_bruto' => $interesCupon,
                 'retencion' => $retencion,
                 'interes_neto' => $interesNeto,
                 'monto_reservado' => $montoReservado,
+                'capital_acumulado' => $esCapitalizable ? $capitalActual : null,
                 'estado' => $estadoCupon,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
-            $nextDate->addMonths($mesesIntervalo);
+            $fechaCupon->addMonths($mesesIntervalo);
         }
 
         if (!empty($coupons)) {
@@ -242,6 +222,106 @@ class InvestmentService
         ];
     }
 
+    public function calcularReserva(Investment $investment): array
+    {
+        $interesesAdeudados = (float) $investment->coupons()
+            ->whereIn('estado', ['Pendiente', 'Reservado'])
+            ->sum('interes_neto');
+
+        $montoCapital = (float) $investment->monto_capital;
+        $capitalMasIntereses = $montoCapital + $interesesAdeudados;
+
+        $fechaVencimiento = Carbon::parse($investment->fecha_vencimiento);
+        $plazoRestante = max(1, (int) ceil(Carbon::now()->diffInMonths($fechaVencimiento, false)));
+
+        // Si ya venció, plazo restante = 1 para evitar división por 0
+        if ($fechaVencimiento->isPast()) {
+            $plazoRestante = 1;
+        }
+
+        $reservaMensual = round($capitalMasIntereses / $plazoRestante, 2);
+        $interesNetoMensual = (float) $investment->interes_neto_mensual;
+        $reservaCapital = round($reservaMensual - $interesNetoMensual, 2);
+
+        return [
+            'intereses_adeudados' => round($interesesAdeudados, 2),
+            'capital_mas_intereses' => round($capitalMasIntereses, 2),
+            'plazo_restante_meses' => $plazoRestante,
+            'reserva_mensual' => $reservaMensual,
+            'reserva_capital' => $reservaCapital,
+        ];
+    }
+
+    public function getReservas(): array
+    {
+        $investments = Investment::with(['investor:id,name', 'coupons'])
+            ->where('estado', 'Activa')
+            ->get();
+
+        $byInvestor = $investments->groupBy('investor_id');
+
+        $granTotalCrc = ['reserva_mensual' => 0, 'reserva_capital' => 0];
+        $granTotalUsd = ['reserva_mensual' => 0, 'reserva_capital' => 0];
+
+        $inversores = $byInvestor->map(function ($invs) use (&$granTotalCrc, &$granTotalUsd) {
+            $investor = $invs->first()->investor;
+            $totalesCrc = ['reserva_mensual' => 0, 'reserva_capital' => 0];
+            $totalesUsd = ['reserva_mensual' => 0, 'reserva_capital' => 0];
+
+            $inversiones = $invs->map(function ($inv) use (&$totalesCrc, &$totalesUsd) {
+                $reserva = $this->calcularReserva($inv);
+                $bucket = $inv->moneda === 'CRC' ? 'crc' : 'usd';
+
+                if ($bucket === 'crc') {
+                    $totalesCrc['reserva_mensual'] += $reserva['reserva_mensual'];
+                    $totalesCrc['reserva_capital'] += $reserva['reserva_capital'];
+                } else {
+                    $totalesUsd['reserva_mensual'] += $reserva['reserva_mensual'];
+                    $totalesUsd['reserva_capital'] += $reserva['reserva_capital'];
+                }
+
+                return [
+                    'id' => $inv->id,
+                    'numero_desembolso' => $inv->numero_desembolso,
+                    'moneda' => $inv->moneda,
+                    'monto_capital' => $inv->monto_capital,
+                    'tasa_anual' => $inv->tasa_anual,
+                    'fecha_vencimiento' => $inv->fecha_vencimiento,
+                    'reserva' => $reserva,
+                ];
+            })->values();
+
+            $granTotalCrc['reserva_mensual'] += $totalesCrc['reserva_mensual'];
+            $granTotalCrc['reserva_capital'] += $totalesCrc['reserva_capital'];
+            $granTotalUsd['reserva_mensual'] += $totalesUsd['reserva_mensual'];
+            $granTotalUsd['reserva_capital'] += $totalesUsd['reserva_capital'];
+
+            return [
+                'investor' => $investor,
+                'inversiones' => $inversiones,
+                'totales' => [
+                    'crc' => ['reserva_mensual' => round($totalesCrc['reserva_mensual'], 2), 'reserva_capital' => round($totalesCrc['reserva_capital'], 2)],
+                    'usd' => ['reserva_mensual' => round($totalesUsd['reserva_mensual'], 2), 'reserva_capital' => round($totalesUsd['reserva_capital'], 2)],
+                ],
+            ];
+        })->values();
+
+        $tipoCambio = (float) config('services.inversiones.tipo_cambio_usd', 500);
+
+        return [
+            'inversores' => $inversores,
+            'gran_total' => [
+                'crc' => ['reserva_mensual' => round($granTotalCrc['reserva_mensual'], 2), 'reserva_capital' => round($granTotalCrc['reserva_capital'], 2)],
+                'usd' => ['reserva_mensual' => round($granTotalUsd['reserva_mensual'], 2), 'reserva_capital' => round($granTotalUsd['reserva_capital'], 2)],
+            ],
+            'tipo_cambio' => $tipoCambio,
+            'consolidado_crc' => [
+                'reserva_mensual' => round($granTotalCrc['reserva_mensual'] + ($granTotalUsd['reserva_mensual'] * $tipoCambio), 2),
+                'reserva_capital' => round($granTotalCrc['reserva_capital'] + ($granTotalUsd['reserva_capital'] * $tipoCambio), 2),
+            ],
+        ];
+    }
+
     public function getTablaGeneral(): array
     {
         $investments = Investment::with('investor:id,name')->where('estado', 'Activa')->get();
@@ -249,20 +329,32 @@ class InvestmentService
         $dolares = $investments->where('moneda', 'USD')->values();
         $colones = $investments->where('moneda', 'CRC')->values();
 
+        $tipoCambio = (float) config('services.inversiones.tipo_cambio_usd', 500);
+
+        $totalCapitalUsd = $dolares->sum('monto_capital');
+        $totalNetoUsd = $dolares->sum(fn ($i) => $i->interes_neto_mensual);
+        $totalCapitalCrc = $colones->sum('monto_capital');
+        $totalNetoCrc = $colones->sum(fn ($i) => $i->interes_neto_mensual);
+
         return [
             'dolares' => [
                 'inversiones' => $dolares,
-                'total_capital' => $dolares->sum('monto_capital'),
+                'total_capital' => $totalCapitalUsd,
                 'total_interes_mensual' => $dolares->sum(fn ($i) => $i->interes_mensual),
                 'total_retencion' => $dolares->sum(fn ($i) => $i->retencion_mensual),
-                'total_neto' => $dolares->sum(fn ($i) => $i->interes_neto_mensual),
+                'total_neto' => $totalNetoUsd,
             ],
             'colones' => [
                 'inversiones' => $colones,
-                'total_capital' => $colones->sum('monto_capital'),
+                'total_capital' => $totalCapitalCrc,
                 'total_interes_mensual' => $colones->sum(fn ($i) => $i->interes_mensual),
                 'total_retencion' => $colones->sum(fn ($i) => $i->retencion_mensual),
-                'total_neto' => $colones->sum(fn ($i) => $i->interes_neto_mensual),
+                'total_neto' => $totalNetoCrc,
+            ],
+            'tipo_cambio' => $tipoCambio,
+            'consolidado_crc' => [
+                'total_capital' => round($totalCapitalCrc + ($totalCapitalUsd * $tipoCambio), 2),
+                'total_neto' => round($totalNetoCrc + ($totalNetoUsd * $tipoCambio), 2),
             ],
         ];
     }
