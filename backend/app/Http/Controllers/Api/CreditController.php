@@ -458,7 +458,8 @@ class CreditController extends Controller
             'opportunity',
             'documents',
             'payments',
-            'tasa',  // ✓ Agregar relación tasa
+            'tasa',
+            'deductora',
             'planDePagos' => function($q) {
                 $q->orderBy('numero_cuota', 'asc');
             }
