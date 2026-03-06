@@ -38,6 +38,26 @@ class InvestmentCouponController extends Controller
         return response()->json($coupon->fresh());
     }
 
+    public function correct(Request $request, int $id)
+    {
+        $coupon = InvestmentCoupon::findOrFail($id);
+
+        $validated = $request->validate([
+            'monto_pagado_real' => 'required|numeric|min:0',
+            'motivo_correccion' => 'required|string|max:500',
+        ]);
+
+        $coupon = $this->service->correctCoupon(
+            $coupon,
+            (float) $validated['monto_pagado_real'],
+            $validated['motivo_correccion']
+        );
+
+        // Return the full investment with updated coupons
+        $investment = $coupon->investment->load('coupons');
+        return response()->json($investment);
+    }
+
     public function markBulkPaid(Request $request)
     {
         $validated = $request->validate([

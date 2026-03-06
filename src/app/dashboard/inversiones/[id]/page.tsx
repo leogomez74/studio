@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle, RefreshCw, Ban, History, Paperclip } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle, RefreshCw, Ban, History, Paperclip, Pencil, Calculator } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -22,6 +22,9 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import api from '@/lib/axios';
 import type { Investment, InvestmentCoupon } from '@/lib/data';
@@ -57,6 +60,16 @@ export default function InvestmentDetailPage() {
   const [payDate, setPayDate] = useState('');
   const [payFile, setPayFile] = useState<File | null>(null);
   const [payingLoading, setPayingLoading] = useState(false);
+
+  // Correction modal
+  const [correctingCoupon, setCorrectingCoupon] = useState<InvestmentCoupon | null>(null);
+  const [correctAmount, setCorrectAmount] = useState('');
+  const [correctMotivo, setCorrectMotivo] = useState('');
+  const [correctingLoading, setCorrectingLoading] = useState(false);
+
+  // Interest calculator
+  const [calcDesde, setCalcDesde] = useState('');
+  const [calcHasta, setCalcHasta] = useState('');
 
   // Editable fields
   const [form, setForm] = useState({
@@ -94,6 +107,27 @@ export default function InvestmentDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchInvestment(); }, [fetchInvestment]);
+
+  const calcResult = useMemo(() => {
+    if (!investment || !calcDesde || !calcHasta) return null;
+    const desde = new Date(calcDesde + 'T00:00:00');
+    const hasta = new Date(calcHasta + 'T00:00:00');
+    const diffMs = hasta.getTime() - desde.getTime();
+    if (diffMs <= 0) return null;
+    const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const tasaAnual = Number(investment.tasa_anual);
+    const capital = Number(investment.monto_capital);
+    const interesBruto = capital * tasaAnual * dias / 365;
+    const tasaRetencion = Number(investment.tasa_retencion) || 0;
+    const retencion = interesBruto * tasaRetencion;
+    const interesNeto = interesBruto - retencion;
+    return {
+      dias,
+      interes_bruto: Math.round(interesBruto * 100) / 100,
+      retencion: Math.round(retencion * 100) / 100,
+      interes_neto: Math.round(interesNeto * 100) / 100,
+    };
+  }, [investment, calcDesde, calcHasta]);
 
   // Auto-open modal from query param (?action=renew or ?action=cancel)
   useEffect(() => {
@@ -147,6 +181,25 @@ export default function InvestmentDetailPage() {
       alert(err.response?.data?.message || 'Error al pagar cupón');
     } finally {
       setPayingLoading(false);
+    }
+  };
+
+  const handleCorrectCoupon = async () => {
+    if (!correctingCoupon || !correctAmount || !correctMotivo.trim()) return;
+    setCorrectingLoading(true);
+    try {
+      await api.patch(`/api/investment-coupons/${correctingCoupon.id}/correct`, {
+        monto_pagado_real: Number(correctAmount),
+        motivo_correccion: correctMotivo,
+      });
+      setCorrectingCoupon(null);
+      setCorrectAmount('');
+      setCorrectMotivo('');
+      fetchInvestment();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al corregir cupón');
+    } finally {
+      setCorrectingLoading(false);
     }
   };
 
@@ -253,6 +306,21 @@ export default function InvestmentDetailPage() {
           <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/excel`, '_blank')}>
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <FileText className="h-4 w-4 mr-1" /> Estado de Cuenta
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=es`, '_blank')}>
+                Descargar en Español
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=en`, '_blank')}>
+                Download in English
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {investment.estado === 'Activa' && (
             <>
               <Button variant="outline" size="sm" onClick={openRenewModal}>
@@ -358,7 +426,7 @@ export default function InvestmentDetailPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Retención 15%</p>
+            <p className="text-sm text-muted-foreground">Retención {((Number(investment.tasa_retencion) || 0.15) * 100).toFixed(0)}%</p>
             <p className="text-xl font-mono font-bold text-destructive">- {fmt(investment.retencion_mensual ?? 0, investment.moneda)}</p>
           </CardContent>
         </Card>
@@ -369,6 +437,53 @@ export default function InvestmentDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Interest Calculator */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calculator className="h-4 w-4" /> Calculadora de Interés por Días
+          </CardTitle>
+          <CardDescription>Seleccione un rango de fechas para calcular el interés bruto proporcional.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+            <div className="grid gap-1">
+              <Label>Fecha Desde</Label>
+              <Input type="date" value={calcDesde} onChange={e => setCalcDesde(e.target.value)} />
+            </div>
+            <div className="grid gap-1">
+              <Label>Fecha Hasta</Label>
+              <Input type="date" value={calcHasta} onChange={e => setCalcHasta(e.target.value)} />
+            </div>
+            {calcResult && (
+              <>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Días</p>
+                  <p className="text-2xl font-bold">{calcResult.dias}</p>
+                </div>
+                <div />
+              </>
+            )}
+          </div>
+          {calcResult && (
+            <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
+              <div>
+                <p className="text-sm text-muted-foreground">Interés Bruto</p>
+                <p className="text-xl font-mono font-bold">{fmt(calcResult.interes_bruto, investment.moneda)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Retención {((Number(investment.tasa_retencion) || 0) * 100).toFixed(0)}%</p>
+                <p className="text-xl font-mono font-bold text-destructive">- {fmt(calcResult.retencion, investment.moneda)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Interés Neto</p>
+                <p className="text-xl font-mono font-bold text-primary">{fmt(calcResult.interes_neto, investment.moneda)}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Reserve Calculation */}
       {reserva && investment.estado === 'Activa' && (
@@ -404,6 +519,44 @@ export default function InvestmentDetailPage() {
         </Card>
       )}
 
+      {/* Payment Summary */}
+      {(() => {
+        const paidCoupons = coupons.filter(c => c.estado === 'Pagado');
+        const totalIntereses = paidCoupons.reduce((sum, c) => sum + (c.monto_pagado_real != null ? Number(c.monto_pagado_real) : Number(c.interes_neto)), 0);
+        const capitalPayments = (investment.payments || []).filter(p => p.tipo === 'Capital' || p.tipo === 'Liquidación');
+        const totalCapital = capitalPayments.reduce((sum, p) => sum + Number(p.monto), 0);
+        const totalGeneral = totalIntereses + totalCapital;
+
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Resumen de Pagos</CardTitle>
+              <CardDescription>Totales abonados a la fecha.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Cupones Pagados</p>
+                  <p className="text-lg font-mono font-semibold">{paidCoupons.length} de {coupons.length}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Intereses Pagados</p>
+                  <p className="text-lg font-mono font-bold text-primary">{fmt(totalIntereses, investment.moneda)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Abonado a Capital</p>
+                  <p className="text-lg font-mono font-bold text-primary">{fmt(totalCapital, investment.moneda)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total General</p>
+                  <p className="text-lg font-mono font-bold text-primary">{fmt(totalGeneral, investment.moneda)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Coupons Table */}
       <Card>
         <CardHeader>
@@ -418,8 +571,9 @@ export default function InvestmentDetailPage() {
                   <TableHead>#</TableHead>
                   <TableHead>Fecha Cupón</TableHead>
                   <TableHead className="text-right">Interés Bruto</TableHead>
-                  <TableHead className="text-right">Retención 15%</TableHead>
+                  <TableHead className="text-right">Retención {((Number(investment.tasa_retencion) || 0.15) * 100).toFixed(0)}%</TableHead>
                   <TableHead className="text-right">Interés Neto</TableHead>
+                  <TableHead className="text-right">Monto Pagado</TableHead>
                   {investment.es_capitalizable && <TableHead className="text-right">Capital Acumulado</TableHead>}
                   <TableHead>Estado</TableHead>
                   <TableHead>Fecha Pago</TableHead>
@@ -445,6 +599,18 @@ export default function InvestmentDetailPage() {
                         <TableCell className="text-right font-mono">{fmt(coupon.interes_bruto, investment.moneda)}</TableCell>
                         <TableCell className="text-right font-mono text-destructive">- {fmt(coupon.retencion, investment.moneda)}</TableCell>
                         <TableCell className="text-right font-mono font-semibold">{fmt(coupon.interes_neto, investment.moneda)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {coupon.estado === 'Pagado' ? (
+                            <span className={coupon.monto_pagado_real != null && Number(coupon.monto_pagado_real) !== Number(coupon.interes_neto) ? 'text-amber-600 font-semibold' : ''}>
+                              {fmt(coupon.monto_pagado_real != null ? Number(coupon.monto_pagado_real) : Number(coupon.interes_neto), investment.moneda)}
+                              {coupon.motivo_correccion && (
+                                <span className="block text-xs text-muted-foreground truncate max-w-[120px]" title={coupon.motivo_correccion}>
+                                  {coupon.motivo_correccion}
+                                </span>
+                              )}
+                            </span>
+                          ) : '—'}
+                        </TableCell>
                         {investment.es_capitalizable && (
                           <TableCell className="text-right font-mono text-primary">{coupon.capital_acumulado ? fmt(coupon.capital_acumulado, investment.moneda) : '—'}</TableCell>
                         )}
@@ -458,29 +624,45 @@ export default function InvestmentDetailPage() {
                         </TableCell>
                         <TableCell>{coupon.fecha_pago ? new Date(coupon.fecha_pago).toLocaleDateString('es-CR') : '—'}</TableCell>
                         <TableCell>
-                          {coupon.estado === 'Pendiente' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={hasPriorUnpaid}
-                              title={hasPriorUnpaid ? 'Debe pagar los cupones anteriores primero' : undefined}
-                              onClick={() => { setPayingCoupon(coupon); setPayDate(new Date().toISOString().split('T')[0]); setPayFile(null); }}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" /> Pagar
-                            </Button>
-                          )}
-                          {coupon.comprobante && (
-                            <Button size="sm" variant="ghost" onClick={() => window.open(`${API_BASE}/storage/${coupon.comprobante}`, '_blank')}>
-                              <Paperclip className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {coupon.estado === 'Pendiente' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={hasPriorUnpaid}
+                                title={hasPriorUnpaid ? 'Debe pagar los cupones anteriores primero' : undefined}
+                                onClick={() => { setPayingCoupon(coupon); setPayDate(new Date().toISOString().split('T')[0]); setPayFile(null); }}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" /> Pagar
+                              </Button>
+                            )}
+                            {coupon.estado === 'Pagado' && investment.estado === 'Activa' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                                onClick={() => {
+                                  setCorrectingCoupon(coupon);
+                                  setCorrectAmount(String(coupon.monto_pagado_real ?? coupon.interes_neto));
+                                  setCorrectMotivo(coupon.motivo_correccion ?? '');
+                                }}
+                              >
+                                <Pencil className="h-4 w-4 mr-1" /> Corregir
+                              </Button>
+                            )}
+                            {coupon.comprobante && (
+                              <Button size="sm" variant="ghost" onClick={() => window.open(`${API_BASE}/storage/${coupon.comprobante}`, '_blank')}>
+                                <Paperclip className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
                   });
                 })()}
                 {coupons.length === 0 && (
-                  <TableRow><TableCell colSpan={investment.es_capitalizable ? 9 : 8} className="text-center text-muted-foreground py-8">Sin cupones generados</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={investment.es_capitalizable ? 10 : 9} className="text-center text-muted-foreground py-8">Sin cupones generados</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -628,6 +810,62 @@ export default function InvestmentDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayingCoupon(null)}>Cancelar</Button>
             <Button onClick={handlePayCoupon} disabled={payingLoading}>{payingLoading ? 'Procesando...' : 'Confirmar Pago'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Correct Coupon Modal */}
+      <Dialog open={!!correctingCoupon} onOpenChange={open => { if (!open) setCorrectingCoupon(null); }}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Corregir Monto de Cupón</DialogTitle>
+            <DialogDescription>
+              {correctingCoupon && (
+                <>
+                  Cupón #{[...coupons].sort((a, b) => a.fecha_cupon.localeCompare(b.fecha_cupon)).findIndex(c => c.id === correctingCoupon.id) + 1}
+                  {' — '}Monto calculado: {fmt(correctingCoupon.interes_neto, investment.moneda)}
+                  {investment.es_capitalizable && (
+                    <span className="block text-xs mt-1 text-amber-600">Esta inversión es capitalizable. Al corregir el monto, se recalcularán los cupones futuros.</span>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Monto Real Pagado ({investment.moneda})</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={correctAmount}
+                onChange={e => setCorrectAmount(e.target.value)}
+                className="font-mono"
+              />
+              {correctingCoupon && correctAmount && Number(correctAmount) !== Number(correctingCoupon.interes_neto) && (
+                <p className="text-sm text-amber-600">
+                  Diferencia: {fmt(Number(correctAmount) - Number(correctingCoupon.interes_neto), investment.moneda)}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label>Motivo de la corrección *</Label>
+              <Textarea
+                value={correctMotivo}
+                onChange={e => setCorrectMotivo(e.target.value)}
+                rows={3}
+                placeholder="Ej: Por orden de Leo se pagó un monto diferente..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCorrectingCoupon(null)}>Cancelar</Button>
+            <Button
+              onClick={handleCorrectCoupon}
+              disabled={correctingLoading || !correctAmount || !correctMotivo.trim()}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {correctingLoading ? 'Guardando...' : 'Guardar Corrección'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

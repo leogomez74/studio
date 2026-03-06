@@ -252,6 +252,7 @@ Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inv
 Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
 Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
 Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
+Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
 
 // Rutas protegidas de inversiones
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -267,6 +268,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('investments/{id}/cancel', [InvestmentController::class, 'cancel']);
     Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);
     Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid']);
+    Route::patch('investment-coupons/{id}/correct', [InvestmentCouponController::class, 'correct']);
 
     // CRUD resources
     Route::apiResource('investors', InvestorController::class);

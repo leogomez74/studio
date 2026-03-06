@@ -195,7 +195,7 @@ function InvestmentsTable({ investments, onDelete }: { investments: Investment[]
           <TableHead>Inicio</TableHead>
           <TableHead>Vencimiento</TableHead>
           <TableHead className="text-right">Interés del Cupón</TableHead>
-          <TableHead className="text-right">Retención 15%</TableHead>
+          <TableHead className="text-right">Retención</TableHead>
           <TableHead className="text-right">Monto Neto</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead><span className="sr-only">Acciones</span></TableHead>
@@ -236,6 +236,47 @@ function InvestmentsTable({ investments, onDelete }: { investments: Investment[]
             </TableCell>
           </TableRow>
         ))}
+        {investments.length > 1 && (() => {
+          const currencies = [...new Set(investments.map(i => i.moneda))];
+          const hasMultipleCurrencies = currencies.length > 1;
+          const rows = currencies.map(currency => {
+            const filtered = investments.filter(i => i.moneda === currency);
+            const totalCapital = filtered.reduce((s, i) => s + Number(i.monto_capital), 0);
+            const totalInteres = filtered.reduce((s, i) => s + Number(i.interes_del_cupon ?? 0), 0);
+            const totalRetencion = filtered.reduce((s, i) => s + Number(i.retencion_del_cupon ?? 0), 0);
+            const totalNeto = filtered.reduce((s, i) => s + Number(i.interes_neto_del_cupon ?? 0), 0);
+            return (
+              <TableRow key={`total-${currency}`} className="bg-muted/50 font-bold border-t-2">
+                <TableCell>{hasMultipleCurrencies ? `Total ${currency}` : 'Total'}</TableCell>
+                <TableCell className="text-right font-mono">{fmt(totalCapital, currency)}</TableCell>
+                <TableCell colSpan={5}></TableCell>
+                <TableCell className="text-right font-mono">{fmt(totalInteres, currency)}</TableCell>
+                <TableCell className="text-right font-mono text-destructive">- {fmt(totalRetencion, currency)}</TableCell>
+                <TableCell className="text-right font-mono font-semibold text-primary">{fmt(totalNeto, currency)}</TableCell>
+                <TableCell colSpan={2}></TableCell>
+              </TableRow>
+            );
+          });
+
+          const grandCapital = investments.reduce((s, i) => s + Number(i.monto_capital), 0);
+          const grandInteres = investments.reduce((s, i) => s + Number(i.interes_del_cupon ?? 0), 0);
+          const grandRetencion = investments.reduce((s, i) => s + Number(i.retencion_del_cupon ?? 0), 0);
+          const grandNeto = investments.reduce((s, i) => s + Number(i.interes_neto_del_cupon ?? 0), 0);
+          const grandTotal = grandCapital + grandInteres - grandRetencion + grandNeto;
+          const mainCurrency = currencies[0] ?? 'CRC';
+
+          return (
+            <>
+              {rows}
+              <TableRow className="bg-primary/10 font-bold border-t-2 border-primary text-base">
+                <TableCell colSpan={10}></TableCell>
+                <TableCell className="text-right font-mono font-semibold text-primary whitespace-nowrap" colSpan={2}>
+                  Total Final: {fmt(grandCapital + grandInteres + grandRetencion + grandNeto, mainCurrency)}
+                </TableCell>
+              </TableRow>
+            </>
+          );
+        })()}
       </TableBody>
     </Table>
   );

@@ -63,6 +63,7 @@ class InvestmentService
     {
         $fechaVencimiento = Carbon::parse($investment->fecha_vencimiento);
         $tasaAnual = (float) $investment->tasa_anual;
+        $tasaRetencion = (float) $investment->tasa_retencion;
         $formaPago = $investment->forma_pago;
         $esCapitalizable = (bool) $investment->es_capitalizable;
 
@@ -78,7 +79,7 @@ class InvestmentService
         while ($fechaCupon->lte($fechaVencimiento)) {
             $interesMensual = round($capitalActual * $tasaAnual / 12, 2);
             $interesCupon = round($interesMensual * $mesesIntervalo, 2);
-            $retencion = round($interesCupon * 0.15, 2);
+            $retencion = round($interesCupon * $tasaRetencion, 2);
             $interesNeto = round($interesCupon - $retencion, 2);
 
             $montoReservado = ($formaPago === 'RESERVA' || $esCapitalizable) ? $interesNeto : 0;
@@ -147,6 +148,114 @@ class InvestmentService
         return $coupon;
     }
 
+    /**
+     * Corregir el monto real pagado de un cupón.
+     * Si la inversión es capitalizable, recalcula los cupones posteriores no pagados.
+     */
+    public function correctCoupon(InvestmentCoupon $coupon, float $montoPagadoReal, string $motivo): InvestmentCoupon
+    {
+        return DB::transaction(function () use ($coupon, $montoPagadoReal, $motivo) {
+            $coupon->update([
+                'monto_pagado_real' => $montoPagadoReal,
+                'motivo_correccion' => $motivo,
+            ]);
+
+            // Actualizar el InvestmentPayment correspondiente
+            $investment = $coupon->investment;
+            if ($coupon->estado === 'Pagado' && $coupon->fecha_pago) {
+                InvestmentPayment::where('investment_id', $investment->id)
+                    ->where('tipo', 'Interés')
+                    ->where('fecha_pago', $coupon->fecha_pago)
+                    ->where('monto', '!=', $montoPagadoReal)
+                    ->orderBy('created_at', 'desc')
+                    ->limit(1)
+                    ->update(['monto' => $montoPagadoReal]);
+            }
+
+            // Si es capitalizable, recalcular cupones posteriores no pagados
+            if ($investment->es_capitalizable) {
+                $this->recalculateCouponsAfterCorrection($investment);
+            }
+
+            return $coupon->fresh();
+        });
+    }
+
+    /**
+     * Recalcular cupones no pagados considerando montos reales pagados en cupones anteriores.
+     */
+    private function recalculateCouponsAfterCorrection(Investment $investment): void
+    {
+        $tasaAnual = (float) $investment->tasa_anual;
+        $tasaRetencion = (float) $investment->tasa_retencion;
+        $mesesIntervalo = $this->getMesesIntervalo($investment->forma_pago);
+        $fechaVencimiento = Carbon::parse($investment->fecha_vencimiento);
+
+        // Obtener todos los cupones pagados ordenados
+        $paidCoupons = $investment->coupons()
+            ->where('estado', 'Pagado')
+            ->orderBy('fecha_cupon')
+            ->get();
+
+        // Calcular el capital acumulado real considerando montos corregidos
+        $capitalActual = (float) $investment->monto_capital;
+        foreach ($paidCoupons as $paid) {
+            $montoEfectivo = $paid->monto_pagado_real !== null
+                ? (float) $paid->monto_pagado_real
+                : (float) $paid->interes_neto;
+            $capitalActual = round($capitalActual + $montoEfectivo, 2);
+        }
+
+        // Eliminar cupones no pagados
+        $investment->coupons()
+            ->where('estado', '!=', 'Pagado')
+            ->delete();
+
+        // Regenerar desde el último cupón pagado
+        $lastPaidCoupon = $paidCoupons->last();
+        $startDate = $lastPaidCoupon
+            ? Carbon::parse($lastPaidCoupon->fecha_cupon)
+            : Carbon::parse($investment->fecha_inicio);
+
+        // Actualizar capital_acumulado del último cupón pagado
+        if ($lastPaidCoupon) {
+            $lastPaidCoupon->update(['capital_acumulado' => $capitalActual]);
+        }
+
+        $estadoCupon = ($investment->forma_pago === 'RESERVA' || $investment->es_capitalizable) ? 'Reservado' : 'Pendiente';
+        $fechaCupon = $startDate->copy()->addMonths($mesesIntervalo);
+        $coupons = [];
+        $now = now();
+
+        while ($fechaCupon->lte($fechaVencimiento)) {
+            $interesMensual = round($capitalActual * $tasaAnual / 12, 2);
+            $interesCupon = round($interesMensual * $mesesIntervalo, 2);
+            $retencion = round($interesCupon * $tasaRetencion, 2);
+            $interesNeto = round($interesCupon - $retencion, 2);
+            $montoReservado = ($investment->forma_pago === 'RESERVA' || $investment->es_capitalizable) ? $interesNeto : 0;
+
+            $capitalActual = round($capitalActual + $interesNeto, 2);
+
+            $coupons[] = [
+                'investment_id' => $investment->id,
+                'fecha_cupon' => $fechaCupon->toDateString(),
+                'interes_bruto' => $interesCupon,
+                'retencion' => $retencion,
+                'interes_neto' => $interesNeto,
+                'monto_reservado' => $montoReservado,
+                'capital_acumulado' => $capitalActual,
+                'estado' => $estadoCupon,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            $fechaCupon->addMonths($mesesIntervalo);
+        }
+
+        if (!empty($coupons)) {
+            InvestmentCoupon::insert($coupons);
+        }
+    }
+
     public function liquidateEarly(Investment $investment): Investment
     {
         DB::transaction(function () use ($investment) {
@@ -193,6 +302,7 @@ class InvestmentService
         $tasaAnual = (float) $params['tasa_anual'];
         $formaPago = $params['forma_pago'];
         $esCapitalizable = (bool) ($params['es_capitalizable'] ?? false);
+        $tasaRetencion = (float) ($params['tasa_retencion'] ?? 0.15);
         $fechaInicio = Carbon::parse($params['fecha_inicio']);
         $plazoMeses = (int) $params['plazo_meses'];
         $fechaVencimiento = $fechaInicio->copy()->addMonths($plazoMeses);
@@ -208,7 +318,7 @@ class InvestmentService
         while ($fechaCupon->lte($fechaVencimiento)) {
             $interesMensual = round($capitalActual * $tasaAnual / 12, 2);
             $interesCupon = round($interesMensual * $mesesIntervalo, 2);
-            $retencion = round($interesCupon * 0.15, 2);
+            $retencion = round($interesCupon * $tasaRetencion, 2);
             $interesNeto = round($interesCupon - $retencion, 2);
             $montoReservado = ($formaPago === 'RESERVA' || $esCapitalizable) ? $interesNeto : 0;
 

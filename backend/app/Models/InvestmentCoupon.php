@@ -15,11 +15,13 @@ class InvestmentCoupon extends Model
         'interes_bruto',
         'retencion',
         'interes_neto',
+        'monto_pagado_real',
         'monto_reservado',
         'capital_acumulado',
         'estado',
         'fecha_pago',
         'comprobante',
+        'motivo_correccion',
         'notas',
     ];
 
@@ -27,6 +29,7 @@ class InvestmentCoupon extends Model
         'interes_bruto' => 'decimal:2',
         'retencion' => 'decimal:2',
         'interes_neto' => 'decimal:2',
+        'monto_pagado_real' => 'decimal:2',
         'monto_reservado' => 'decimal:2',
         'capital_acumulado' => 'decimal:2',
         'fecha_cupon' => 'date',

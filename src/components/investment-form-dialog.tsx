@@ -46,6 +46,7 @@ type PreviewCoupon = {
 function calculatePreviewCoupons(
   montoCapital: number, tasaAnual: number, plazoMeses: number,
   fechaInicio: string, formaPago: string, esCapitalizable: boolean,
+  tasaRetencion: number,
 ): PreviewCoupon[] {
   if (!montoCapital || !tasaAnual || !plazoMeses || !fechaInicio) return [];
   const mesesIntervalo: Record<string, number> = { MENSUAL: 1, TRIMESTRAL: 3, SEMESTRAL: 6, ANUAL: 12, RESERVA: 1 };
@@ -63,7 +64,7 @@ function calculatePreviewCoupons(
   while (cursor <= end) {
     const intMensual = Math.round(capital * tasaAnual / 12 * 100) / 100;
     const intCupon = Math.round(intMensual * intervalo * 100) / 100;
-    const ret = Math.round(intCupon * 0.15 * 100) / 100;
+    const ret = Math.round(intCupon * tasaRetencion * 100) / 100;
     const neto = Math.round((intCupon - ret) * 100) / 100;
     if (esCapitalizable) capital = Math.round((capital + neto) * 100) / 100;
     coupons.push({
@@ -103,6 +104,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
     fecha_inicio: '',
     fecha_vencimiento: '',
     tasa_anual: '',
+    tasa_retencion: '7.05',
     moneda: 'CRC' as 'CRC' | 'USD',
     forma_pago: 'MENSUAL' as string,
     es_capitalizable: false,
@@ -119,6 +121,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
         fecha_inicio: investment.fecha_inicio?.split('T')[0] ?? '',
         fecha_vencimiento: investment.fecha_vencimiento?.split('T')[0] ?? '',
         tasa_anual: String(Number(investment.tasa_anual) * 100),
+        tasa_retencion: String(Number(investment.tasa_retencion) * 100),
         moneda: investment.moneda,
         forma_pago: investment.forma_pago,
         es_capitalizable: investment.es_capitalizable,
@@ -128,7 +131,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
     } else {
       setForm({
         investor_id: defaultInvestorId ? String(defaultInvestorId) : '', monto_capital: '', plazo_meses: '',
-        fecha_inicio: '', fecha_vencimiento: '', tasa_anual: '', moneda: 'CRC',
+        fecha_inicio: '', fecha_vencimiento: '', tasa_anual: '', tasa_retencion: '7.05', moneda: 'CRC',
         forma_pago: 'MENSUAL', es_capitalizable: false, estado: 'Activa', notas: '',
       });
     }
@@ -149,7 +152,8 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
   const previewCoupons = useMemo(() => calculatePreviewCoupons(
     Number(form.monto_capital), Number(form.tasa_anual) / 100,
     Number(form.plazo_meses), form.fecha_inicio, form.forma_pago, form.es_capitalizable,
-  ), [form.monto_capital, form.tasa_anual, form.plazo_meses, form.fecha_inicio, form.forma_pago, form.es_capitalizable]);
+    Number(form.tasa_retencion) / 100,
+  ), [form.monto_capital, form.tasa_anual, form.plazo_meses, form.fecha_inicio, form.forma_pago, form.es_capitalizable, form.tasa_retencion]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,6 +165,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
       monto_capital: Number(form.monto_capital),
       plazo_meses: Number(form.plazo_meses),
       tasa_anual: Number(form.tasa_anual) / 100,
+      tasa_retencion: Number(form.tasa_retencion) / 100,
     };
 
     try {
@@ -237,7 +242,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="monto_capital">Monto Capital</Label>
               <Input
@@ -272,6 +277,10 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
             <div className="grid gap-2">
               <Label htmlFor="tasa_anual">Tasa Anual (%)</Label>
               <Input id="tasa_anual" type="number" step="0.01" value={form.tasa_anual} onChange={e => setForm(f => ({ ...f, tasa_anual: e.target.value }))} required />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="tasa_retencion">Retención (%)</Label>
+              <Input id="tasa_retencion" type="number" step="0.01" value={form.tasa_retencion} onChange={e => setForm(f => ({ ...f, tasa_retencion: e.target.value }))} required />
             </div>
           </div>
 
@@ -328,7 +337,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
                       <TableHead className="text-xs">#</TableHead>
                       <TableHead className="text-xs">Fecha</TableHead>
                       <TableHead className="text-xs text-right">Int. Bruto</TableHead>
-                      <TableHead className="text-xs text-right">Ret. 15%</TableHead>
+                      <TableHead className="text-xs text-right">Ret. {form.tasa_retencion}%</TableHead>
                       <TableHead className="text-xs text-right">Int. Neto</TableHead>
                       {form.es_capitalizable && <TableHead className="text-xs text-right">Cap. Acum.</TableHead>}
                     </TableRow>
@@ -339,7 +348,7 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
                         <TableCell className="text-xs py-1">{c.numero}</TableCell>
                         <TableCell className="text-xs py-1">{new Date(c.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
                         <TableCell className="text-xs py-1 text-right font-mono">{fmtP(c.interes_bruto)}</TableCell>
-                        <TableCell className="text-xs py-1 text-right font-mono text-destructive">-{fmtP(c.retencion)}</TableCell>
+                        <TableCell className="text-xs py-1 text-right font-mono ">-{fmtP(c.retencion)}</TableCell>
                         <TableCell className="text-xs py-1 text-right font-mono font-semibold">{fmtP(c.interes_neto)}</TableCell>
                         {form.es_capitalizable && <TableCell className="text-xs py-1 text-right font-mono text-primary">{c.capital_acumulado ? fmtP(c.capital_acumulado) : '—'}</TableCell>}
                       </TableRow>

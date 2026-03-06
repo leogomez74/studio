@@ -46,6 +46,7 @@ class InvestmentController extends Controller
             'fecha_inicio' => 'required|date',
             'fecha_vencimiento' => 'required|date|after:fecha_inicio',
             'tasa_anual' => 'required|numeric|min:0|max:1',
+            'tasa_retencion' => 'nullable|numeric|min:0|max:1',
             'moneda' => 'required|in:CRC,USD',
             'forma_pago' => 'required|in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
             'es_capitalizable' => 'boolean',
@@ -84,6 +85,7 @@ class InvestmentController extends Controller
             'fecha_inicio' => 'date',
             'fecha_vencimiento' => 'date|after:' . ($request->input('fecha_inicio') ?? $investment->fecha_inicio->toDateString()),
             'tasa_anual' => 'numeric|min:0|max:1',
+            'tasa_retencion' => 'nullable|numeric|min:0|max:1',
             'moneda' => 'in:CRC,USD',
             'forma_pago' => 'in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
             'es_capitalizable' => 'boolean',
@@ -106,7 +108,7 @@ class InvestmentController extends Controller
             $investment->update($validated);
 
             // Recalculate coupons if financial terms changed
-            $financialFields = ['monto_capital', 'tasa_anual', 'plazo_meses', 'forma_pago', 'fecha_vencimiento', 'es_capitalizable'];
+            $financialFields = ['monto_capital', 'tasa_anual', 'tasa_retencion', 'plazo_meses', 'forma_pago', 'fecha_vencimiento', 'es_capitalizable'];
             if (array_intersect(array_keys($validated), $financialFields)) {
                 $this->service->recalculateCoupons($investment);
             }
@@ -240,6 +242,7 @@ class InvestmentController extends Controller
             'fecha_inicio' => 'required|date',
             'forma_pago' => 'required|in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
             'es_capitalizable' => 'boolean',
+            'tasa_retencion' => 'nullable|numeric|min:0|max:1',
         ]);
 
         $coupons = $this->service->previewCoupons($validated);

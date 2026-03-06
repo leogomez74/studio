@@ -46,7 +46,7 @@
                 <th>#</th>
                 <th>Fecha Cupón</th>
                 <th class="text-right">Interés Bruto</th>
-                <th class="text-right">Retención 15%</th>
+                <th class="text-right">Retención {{ number_format($investment->tasa_retencion * 100, 2) }}%</th>
                 <th class="text-right">Interés Neto</th>
                 <th>Estado</th>
                 <th>Fecha Pago</th>

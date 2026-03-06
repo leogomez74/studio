@@ -17,6 +17,7 @@ class InvestmentPayment extends Model
         'tipo',
         'moneda',
         'comentarios',
+        'registered_by',
     ];
 
     protected $casts = [
@@ -32,5 +33,10 @@ class InvestmentPayment extends Model
     public function investment()
     {
         return $this->belongsTo(Investment::class);
+    }
+
+    public function registeredByUser()
+    {
+        return $this->belongsTo(User::class, 'registered_by');
     }
 }

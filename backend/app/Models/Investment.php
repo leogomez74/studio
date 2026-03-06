@@ -17,6 +17,7 @@ class Investment extends Model
         'fecha_inicio',
         'fecha_vencimiento',
         'tasa_anual',
+        'tasa_retencion',
         'moneda',
         'forma_pago',
         'es_capitalizable',
@@ -31,6 +32,7 @@ class Investment extends Model
     protected $casts = [
         'monto_capital' => 'decimal:2',
         'tasa_anual' => 'decimal:4',
+        'tasa_retencion' => 'decimal:4',
         'tipo_cambio' => 'decimal:4',
         'fecha_inicio' => 'date',
         'fecha_vencimiento' => 'date',
@@ -77,7 +79,7 @@ class Investment extends Model
 
     public function getRetencionMensualAttribute(): float
     {
-        return round($this->interes_mensual * 0.15, 2);
+        return round($this->interes_mensual * (float) $this->tasa_retencion, 2);
     }
 
     public function getInteresNetoMensualAttribute(): float
@@ -100,7 +102,7 @@ class Investment extends Model
 
     public function getRetencionDelCuponAttribute(): float
     {
-        return round($this->interes_del_cupon * 0.15, 2);
+        return round($this->interes_del_cupon * (float) $this->tasa_retencion, 2);
     }
 
     public function getInteresNetoDelCuponAttribute(): float

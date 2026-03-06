@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Investor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InvestorController extends Controller
 {
@@ -84,13 +85,18 @@ class InvestorController extends Controller
     {
         $investor = Investor::findOrFail($id);
 
-        if ($investor->investments()->exists()) {
-            return response()->json([
-                'message' => 'No se puede eliminar un inversionista con inversiones asociadas.',
-            ], 422);
-        }
+        DB::transaction(function () use ($investor) {
+            // Cascade delete related records
+            $investor->capitalReserves()->delete();
+            $investor->payments()->delete();
+            $investor->investments()->each(function ($investment) {
+                $investment->coupons()->delete();
+                $investment->delete();
+            });
 
-        $investor->delete();
+            $investor->delete();
+        });
+
         return response()->json(['message' => 'Inversionista eliminado']);
     }
 }

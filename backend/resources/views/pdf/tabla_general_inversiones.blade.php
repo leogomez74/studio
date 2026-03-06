@@ -35,7 +35,7 @@
                 <th>Vencimiento</th>
                 <th class="text-center">Tasa</th>
                 <th class="text-right">Int. Mensual</th>
-                <th class="text-right">Retención 15%</th>
+                <th class="text-right">Retención</th>
                 <th class="text-right">Int. Neto</th>
                 <th>Forma Pago</th>
             </tr>

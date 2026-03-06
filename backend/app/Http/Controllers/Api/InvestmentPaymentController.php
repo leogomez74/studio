@@ -11,7 +11,7 @@ class InvestmentPaymentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = InvestmentPayment::with(['investor:id,name', 'investment:id,numero_desembolso,moneda']);
+        $query = InvestmentPayment::with(['investor:id,name', 'investment:id,numero_desembolso,moneda', 'registeredByUser:id,name']);
 
         if ($request->has('investor_id')) {
             $query->where('investor_id', $request->investor_id);
@@ -41,6 +41,7 @@ class InvestmentPaymentController extends Controller
             'tipo' => 'required|in:Interés,Capital,Adelanto,Liquidación',
             'moneda' => 'required|in:CRC,USD',
             'comentarios' => 'nullable|string',
+            'registered_by' => 'required|exists:users,id',
         ]);
 
         if (!empty($validated['investment_id'])) {
@@ -56,7 +57,7 @@ class InvestmentPaymentController extends Controller
         }
 
         $payment = InvestmentPayment::create($validated);
-        return response()->json($payment->load(['investor:id,name', 'investment:id,numero_desembolso']), 201);
+        return response()->json($payment->load(['investor:id,name', 'investment:id,numero_desembolso', 'registeredByUser:id,name']), 201);
     }
 
     public function destroy(int $id)
