@@ -1167,10 +1167,12 @@ export default function CobrosPage() {
     return credits.filter(credit => {
       if (credit.status !== 'En Mora') return false;
       const diasAtraso = calculateDaysInArrears(credit);
+      // Créditos en mora sin dias_mora calculados van al rango 1-30 como fallback
+      const effectiveDias = diasAtraso === 0 ? 1 : diasAtraso;
       if (daysEnd === null) {
-        return diasAtraso >= daysStart;
+        return effectiveDias >= daysStart;
       }
-      return diasAtraso >= daysStart && diasAtraso <= daysEnd;
+      return effectiveDias >= daysStart && effectiveDias <= daysEnd;
     });
   }, []);
 
