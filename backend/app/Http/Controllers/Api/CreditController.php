@@ -1132,12 +1132,13 @@ class CreditController extends Controller
             // ============================================================
             // ACCOUNTING_API_TRIGGER: Refundición - Doble Asiento
             // ============================================================
-            // 1. Cierre del crédito viejo (pago sintético):
-            //    DÉBITO: Banco CREDIPEP (saldo_absorbido)
-            //    CRÉDITO: Cuentas por Cobrar (saldo_absorbido)
+            // 1. Cierre del crédito viejo:
+            //    El total del desembolso debe coincidir con el monto_neto del crédito nuevo
+            //    para que ambos asientos (cierre y nuevo) cuadren en la cuenta de desembolso.
+            $montoNetoNuevo = (float) $validated['monto_credito'] - $totalCargos;
             $this->triggerAccountingEntry(
                 'REFUNDICION_CIERRE',
-                $saldoAbsorbido,
+                $montoNetoNuevo,
                 "REFUND-CIERRE-{$oldCredit->reference}",
                 [
                     'reference' => "REFUND-CIERRE-{$oldCredit->reference}",
@@ -1148,11 +1149,12 @@ class CreditController extends Controller
                     'deductora_nombre' => $oldCredit->deductora->nombre ?? null,
                     'new_credit_id' => $newCredit->reference,
                     'amount_breakdown' => [
-                        'total' => $saldoAbsorbido,
+                        'total' => $montoNetoNuevo,
                         'interes_corriente' => $interesesVencidos,
                         'interes_moratorio' => $moratorioVencido,
                         'poliza' => $polizaPendiente,
                         'capital' => $saldoCapital,
+                        'sobrante' => round(max(0, $montoEntregado), 2),
                     ],
                 ]
             );

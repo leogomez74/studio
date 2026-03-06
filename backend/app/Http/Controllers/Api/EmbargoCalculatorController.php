@@ -3,13 +3,46 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\MtssEmbargoService;
+use App\Models\Person;
+use App\Services\EmbargoCalculatorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class EmbargoCalculatorController extends Controller
 {
+    /**
+     * Buscar personas (leads + clientes) con salario para la calculadora.
+     */
+    public function buscarPersonas(Request $request): JsonResponse
+    {
+        $query = Person::select('id', 'name', 'apellido1', 'apellido2', 'cedula', 'salario_exacto', 'person_type_id')
+            ->where('is_active', true);
+
+        if ($request->filled('q')) {
+            $q = $request->input('q');
+            $query->where(function ($builder) use ($q) {
+                $builder->where('name', 'LIKE', "%{$q}%")
+                    ->orWhere('apellido1', 'LIKE', "%{$q}%")
+                    ->orWhere('apellido2', 'LIKE', "%{$q}%")
+                    ->orWhere('cedula', 'LIKE', "%{$q}%");
+            });
+        }
+
+        $results = $query->orderByDesc('updated_at')
+            ->limit((int) $request->input('per_page', 15))
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => trim("{$p->name} {$p->apellido1} {$p->apellido2}"),
+                'cedula' => $p->cedula,
+                'salario_exacto' => $p->salario_exacto,
+                'tipo' => $p->person_type_id === 2 ? 'Cliente' : 'Lead',
+            ]);
+
+        return response()->json($results);
+    }
+
     public function calcular(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -25,16 +58,10 @@ class EmbargoCalculatorController extends Controller
         $embargo2 = (float) ($validated['otro_embargo_2'] ?? 0);
 
         try {
-            $service = new MtssEmbargoService();
-            $result = $service->calcular($salario, $pension, $embargo1, $embargo2);
-
-            return response()->json([
-                'resultado' => $result['resultado'],
-                'source' => 'mtss',
-                'cached' => $result['cached'] ?? false,
-            ]);
+            $service = new EmbargoCalculatorService();
+            return response()->json($service->calcular($salario, $pension, $embargo1, $embargo2));
         } catch (\Exception $e) {
-            Log::warning('MTSS Embargo: scraping failed', [
+            Log::warning('Embargo Calculator: calculation failed', [
                 'error' => $e->getMessage(),
                 'salario' => $salario,
             ]);

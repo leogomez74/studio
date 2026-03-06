@@ -64,3 +64,19 @@ Schedule::command('rewards:generate-metrics --period=monthly --store')
     ->monthlyOn(1, '03:00')
     ->withoutOverlapping()
     ->onOneServer();
+
+/*
+|--------------------------------------------------------------------------
+| Scheduled Tasks - Embargo / Salario Mínimo
+|--------------------------------------------------------------------------
+|
+| Verifica el PDF de salarios mínimos del MTSS dos veces al año
+| (enero y julio) para actualizar el salario mínimo inembargable.
+|
+*/
+
+// Verificar salario mínimo el 5 de enero y el 5 de julio a las 06:00
+Schedule::command('embargo:actualizar-smi')
+    ->cron('0 6 5 1,7 *')
+    ->withoutOverlapping()
+    ->onOneServer();
