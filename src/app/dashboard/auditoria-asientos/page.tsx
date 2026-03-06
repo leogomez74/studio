@@ -105,6 +105,8 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   ANULACION_PLANILLA:     'Anulación Planilla',
   ANULACION_SOBRANTE:     'Anulación Sobrante',
   REVERSO_PAGO:           'Anulación de Abono',
+  REVERSO_EXTRAORDINARIO: 'Reverso Extraordinario',
+  REVERSO_CANCELACION:    'Reverso Cancelación',
 };
 
 // ---------------------------------------------------------------------------
@@ -120,7 +122,7 @@ function formatDate(dateStr: string) {
 
 function formatAmount(amount: string | number | null) {
   if (amount === null || amount === undefined) return '-';
-  return Number(amount).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '₡' + Number(amount).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // ---------------------------------------------------------------------------

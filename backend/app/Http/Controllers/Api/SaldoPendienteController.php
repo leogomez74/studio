@@ -386,7 +386,7 @@ class SaldoPendienteController extends Controller
             ? min((float) $validated['monto'], (float) $saldo->monto)
             : (float) $saldo->monto;
 
-        return DB::transaction(function () use ($saldo, $accion, $validated, $targetCreditId, $montoAplicar) {
+        return DB::transaction(function () use ($saldo, $accion, $validated, $targetCreditId, $montoAplicar, $request) {
             $credit = Credit::lockForUpdate()->findOrFail($targetCreditId);
 
             if ($accion === 'cuota') {
@@ -542,7 +542,7 @@ class SaldoPendienteController extends Controller
             ], 404);
         }
 
-        return DB::transaction(function () use ($saldo, $validated, $user) {
+        return DB::transaction(function () use ($saldo, $validated, $user, $request) {
             $monto = (float) $saldo->monto;
             $credit = $saldo->credit;
 

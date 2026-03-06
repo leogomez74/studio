@@ -1245,8 +1245,6 @@ function CreditDetailClient({ id }: { id: string }) {
         const data = response.data.data || response.data;
         const allTasks = Array.isArray(data) ? data : [];
 
-        console.log('[DEBUG RESPONSABLE] ==================================');
-        console.log('[DEBUG RESPONSABLE] Total de tareas cargadas:', allTasks.length);
 
         // Función para normalizar texto (eliminar acentos y convertir a minúsculas)
         const normalizeText = (text: string) => {
@@ -1267,18 +1265,12 @@ function CreditDetailClient({ id }: { id: string }) {
           );
         });
 
-        console.log('[DEBUG RESPONSABLE] Tareas con título "Nuevo credito creado":', filteredTasks);
-        console.log('[DEBUG RESPONSABLE] Número de tareas encontradas:', filteredTasks.length);
 
         if (filteredTasks.length > 0) {
-          console.log('[DEBUG RESPONSABLE] Primera tarea:', filteredTasks[0]);
           if (filteredTasks[0].assignee) {
-            console.log('[DEBUG RESPONSABLE] Responsable encontrado:', filteredTasks[0].assignee.name);
           }
         } else {
-          console.log('[DEBUG RESPONSABLE] NO se encontró tarea de crédito creado');
         }
-        console.log('[DEBUG RESPONSABLE] ==================================');
 
         setCreditTasks(filteredTasks);
       } catch (error) {
@@ -2373,29 +2365,19 @@ function CreditDetailClient({ id }: { id: string }) {
                             ) : (
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
                                 {(() => {
-                                  console.log('[DEBUG DISPLAY] ==================================');
-                                  console.log('[DEBUG DISPLAY] formData.assignedTo:', formData.assignedTo);
-                                  console.log('[DEBUG DISPLAY] formData.assigned_to:', formData.assigned_to);
-                                  console.log('[DEBUG DISPLAY] creditTasks:', creditTasks);
-                                  console.log('[DEBUG DISPLAY] creditTasks.length:', creditTasks.length);
 
                                   // Primero intentar mostrar el responsable del crédito
                                   if (formData.assignedTo?.name) {
-                                    console.log('[DEBUG DISPLAY] Mostrando responsable del crédito:', formData.assignedTo.name);
                                     return formData.assignedTo.name;
                                   }
 
                                   // Si no hay, buscar en las tareas asociadas al crédito
                                   const taskWithAssignee = creditTasks.find(task => task.assignee?.name);
-                                  console.log('[DEBUG DISPLAY] Tarea con assignee encontrada:', taskWithAssignee);
 
                                   if (taskWithAssignee?.assignee?.name) {
-                                    console.log('[DEBUG DISPLAY] Mostrando responsable de tarea:', taskWithAssignee.assignee.name);
                                     return taskWithAssignee.assignee.name;
                                   }
 
-                                  console.log('[DEBUG DISPLAY] No se encontró responsable, mostrando "-"');
-                                  console.log('[DEBUG DISPLAY] ==================================');
                                   return "-";
                                 })()}
                               </p>

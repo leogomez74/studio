@@ -119,7 +119,6 @@ export function AnalisisWizardModal({
   // Sincronizar currentProducto con prop producto
   useEffect(() => {
     if (producto) {
-      console.log('[PRODUCTO RECIBIDO]', { producto });
       setCurrentProducto(producto);
     }
   }, [producto]);
@@ -157,7 +156,6 @@ export function AnalisisWizardModal({
       // Cargar configuraciones de préstamos para validación
       api.get('/api/loan-configurations/rangos')
         .then(res => {
-          console.log('[LOAN CONFIGS LOADED]', res.data);
           setLoanConfigs(res.data);
         })
         .catch(err => console.error('Error loading loan configs:', err));
@@ -172,7 +170,6 @@ export function AnalisisWizardModal({
       return;
     }
 
-    console.log('[Validación Monto]', { monto, currentProducto, loanConfigs });
 
     // Determinar el tipo de crédito actual
     const esMicroCredito = currentProducto.toLowerCase().includes('micro');
@@ -184,11 +181,9 @@ export function AnalisisWizardModal({
       return;
     }
 
-    console.log('[Validación Monto]', { esMicroCredito, tipoCredito, config });
 
     // Cambio automático: Si es Micro Crédito y monto sobrepasa el máximo → cambiar a Crédito
     if (esMicroCredito && monto > config.monto_maximo) {
-      console.log('[CAMBIO AUTOMÁTICO] Micro Crédito → Crédito', { monto, max: config.monto_maximo });
       const regularConfig = loanConfigs['regular'];
 
       if (regularConfig && monto >= regularConfig.monto_minimo && monto <= regularConfig.monto_maximo) {
@@ -207,7 +202,6 @@ export function AnalisisWizardModal({
     }
     // Cambio automático: Si es Crédito y monto es menor al mínimo → cambiar a Micro Crédito
     else if (!esMicroCredito && monto < config.monto_minimo) {
-      console.log('[CAMBIO AUTOMÁTICO] Crédito → Micro Crédito', { monto, min: config.monto_minimo });
       const microConfig = loanConfigs['microcredito'];
 
       if (microConfig && monto >= microConfig.monto_minimo && monto <= microConfig.monto_maximo) {
@@ -243,12 +237,10 @@ export function AnalisisWizardModal({
     }
 
     if (currentProducto !== producto) {
-      console.log('[UPDATE OPPORTUNITY TYPE]', { from: producto, to: currentProducto, opportunityId });
 
       // Actualizar la oportunidad con el nuevo tipo
       api.put(`/api/opportunities/${opportunityId}`, { opportunity_type: currentProducto })
         .then(() => {
-          console.log('[OPPORTUNITY TYPE UPDATED]', currentProducto);
           // Notificar al padre que el tipo cambió
           if (onTipoChange) {
             onTipoChange(currentProducto);

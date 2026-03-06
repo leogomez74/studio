@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import api from "@/lib/axios";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth-guard";
 import { Separator } from "@/components/ui/separator";
 
 // ---- Comment types ----
@@ -98,6 +99,7 @@ type Conversation = {
 export default function CommunicationsPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const { user } = useAuth();
 
   // --- Inbox view toggle ---
   const [activeInbox, setActiveInbox] = useState<'conversations' | 'comments'>('conversations');
@@ -344,7 +346,7 @@ export default function CommunicationsPage() {
       const response = await api.post('/api/chat-messages', {
         conversation_id: selectedConversation.id,
         sender_type: 'agent',
-        sender_name: 'Agente', // TODO: Obtener del usuario actual
+        sender_name: user?.name || 'Agente',
         text: newMessage,
         message_type: 'text',
       });
@@ -355,7 +357,7 @@ export default function CommunicationsPage() {
           id: String(response.data.data.id),
           conversationId: selectedConversation.id,
           senderType: 'agent',
-          senderName: 'Agente',
+          senderName: user?.name || 'Agente',
           avatarUrl: '',
           text: newMessage,
           time: new Date().toLocaleTimeString('es-ES', {

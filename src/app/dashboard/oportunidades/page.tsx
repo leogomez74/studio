@@ -707,7 +707,6 @@ export default function DealsPage() {
             action: {
               label: "Ver detalles",
               onClick: () => {
-                console.log("Errores:", errors);
                 alert(`Errores:\n${errors.map((e: any) => `- ${e.message}`).join('\n')}`);
               }
             }

@@ -672,26 +672,6 @@ export const projects: Project[] = [
     }
 ]
 
-// --- Mock Data ---
-
-export const creditConfigs = {
-  regular: {
-    interestRate: 36,
-    minAmount: 500000,
-    maxAmount: 10000000,
-    minTerm: 12,
-    maxTerm: 72,
-  },
-  micro: {
-    interestRate: 54,
-    minAmount: 100000,
-    maxAmount: 1000000,
-    minTerm: 6,
-    maxTerm: 24,
-  },
-};
-
-
 export const users: User[] = [
     { id: 'STF001', name: 'Carlos Mendez', email: 'carlosm@pep.cr', avatarUrl: 'https://picsum.photos/seed/staff1/40/40' },
     { id: 'STF002', name: 'Wilmer Marquez', email: 'coder@gomez.cr', avatarUrl: 'https://picsum.photos/seed/staff2/40/40' },
