@@ -2168,10 +2168,10 @@ export default function CobrosPage() {
                             </SelectContent>
                           </Select>
                           
-                          {selectedCredit && ['Por Firmar', 'Cerrado'].includes(selectedCredit.status) && (
+                          {selectedCredit && ['Por firmar', 'Cerrado'].includes(selectedCredit.status) && (
                             <div className="mt-3 p-4 text-[14px] leading-tight bg-amber-50 border border-amber-200 text-red-700 rounded-md flex items-start gap-2">
                               <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                              <span>Este crédito está en estado <strong>{selectedCredit.status}</strong>. No se pueden registrar abonos manuales en créditos con estado &quot;Por Firmar&quot; o &quot;Cerrado&quot;.</span>
+                              <span>Este crédito está en estado <strong>{selectedCredit.status}</strong>. No se pueden registrar abonos manuales en créditos con estado &quot;Por firmar&quot; o &quot;Cerrado&quot;.</span>
                             </div>
                           )}
                         </div>
@@ -2598,7 +2598,7 @@ export default function CobrosPage() {
                             type="submit"
                             disabled={
                               !selectedCreditId ||
-                              ['Por Firmar', 'Cerrado'].includes(selectedCredit?.status || '') ||
+                              ['Por firmar', 'Cerrado'].includes(selectedCredit?.status || '') ||
                               (tipoCobro === 'cancelacion_anticipada' && (!cancelacionData || loadingCancelacion))
                             }
                           >
