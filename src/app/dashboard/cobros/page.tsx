@@ -70,7 +70,7 @@ interface PaymentWithRelations extends Payment {
 const getStatusVariantCobros = (status: Credit['status']) => {
   switch (status) {
     case 'Al día': return 'secondary';
-    case 'En mora': return 'destructive';
+    case 'En Mora': return 'destructive';
     default: return 'outline';
   }
 };
