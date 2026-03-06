@@ -218,7 +218,9 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
     doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
     // Plan de Pagos
-    if (credit.plan_de_pagos && credit.plan_de_pagos.length > 0) {
+    const cuotasPagadas = (credit.plan_de_pagos || []).filter((p: any) => ['Pagado', 'Pagada'].includes(p.estado || ''));
+
+    if (cuotasPagadas.length > 0) {
       finalY = finalY + 20;
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
@@ -229,7 +231,7 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
       doc.setLineWidth(0.3);
       doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
-      const paymentRows = credit.plan_de_pagos.map((p: any) => [
+      const paymentRows = cuotasPagadas.map((p: any) => [
         p.numero_cuota, formatDatePDF(p.fecha_corte), formatDatePDF(p.fecha_pago),
         fmtNum(p.cuota), fmtNum(p.interes_corriente), fmtNum(p.amortizacion), fmtNum(p.nuevo_saldo), p.estado
       ]);
@@ -243,7 +245,8 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
       });
     } else {
       doc.setFontSize(9);
-      doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
+      doc.setFont("helvetica", "normal");
+      doc.text("*** NO HAY CUOTAS CANCELADAS A LA FECHA ***", 20, finalY + 10);
     }
 
     doc.save(`estado_cuenta_${credit.reference || credit.id}.pdf`);
