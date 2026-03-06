@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet, FileText } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet, FileText, X, ExternalLink, Building2, User, Calendar, CreditCard, Banknote, Percent, Clock, Maximize2, Minimize2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -44,6 +44,8 @@ import { Credit, Payment } from '@/lib/data';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { SaldosPorAsignar } from '@/components/saldos-por-asignar';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -472,7 +474,268 @@ const generateCertificacionDeuda = async (creditId: number, fechaCorte: string) 
   doc.save(`certificacion_deuda_${credit.reference || credit.id}.pdf`);
 };
 
-const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, currentPage, perPage, onPageChange, onPerPageChange, onCertificacion }: { credits: Credit[], isLoading?: boolean, currentPage: number, perPage: number, onPageChange: (p: number) => void, onPerPageChange: (p: number) => void, onCertificacion?: (creditId: number) => void }) {
+// ---------------------------------------------------------------------------
+// Panel lateral de detalle de crédito
+// ---------------------------------------------------------------------------
+function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onToggleExpand }: { credit: Credit; tab: string; onTabChange: (t: 'credito' | 'plan' | 'cliente') => void; onClose: () => void; expanded: boolean; onToggleExpand: () => void }) {
+  const lead = credit.lead as any;
+  const plan = (credit as any).plan_de_pagos || [];
+  const fmtMoney = (v: any) => `₡${Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`;
+  const fmtDate = (d: any) => {
+    if (!d) return '-';
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) {
+      // Try appending time if it's a date-only string like "2025-01-15"
+      const dt2 = new Date(d + 'T00:00:00');
+      if (isNaN(dt2.getTime())) return '-';
+      return dt2.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    return dt.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  const getEstadoBadge = (estado: string) => {
+    switch (estado) {
+      case 'Pagado': return 'bg-emerald-100 text-emerald-700';
+      case 'Mora': return 'bg-red-100 text-red-700';
+      case 'Parcial': return 'bg-amber-100 text-amber-700';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  return (
+    <Card className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold truncate">{credit.reference || credit.numero_operacion || `#${credit.id}`}</h3>
+          <Badge variant={getStatusVariantCobros(credit.status)} className="mt-0.5">{credit.status}</Badge>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleExpand} title={expanded ? 'Reducir' : 'Expandir'}>
+            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b shrink-0">
+        {(['credito', 'plan', 'cliente'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => onTabChange(t)}
+            className={`flex-1 py-2 text-xs font-medium transition-colors border-b-2 ${tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            {t === 'credito' ? 'Crédito' : t === 'plan' ? 'Plan de Pagos' : 'Cliente'}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      {tab === 'plan' ? (
+        plan.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-sm text-muted-foreground">No hay plan de pagos generado</p>
+          </div>
+        ) : (
+          <div
+            className="flex-1 min-h-0 overflow-auto cursor-grab active:cursor-grabbing"
+            style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 transparent' }}
+            onMouseDown={(e) => {
+              if ((e.target as HTMLElement).closest('button, a, input')) return;
+              e.preventDefault();
+              const el = e.currentTarget;
+              const startX = e.pageX;
+              const startY = e.pageY;
+              const scrollL = el.scrollLeft;
+              const scrollT = el.scrollTop;
+              el.style.cursor = 'grabbing';
+              const onMove = (ev: MouseEvent) => { ev.preventDefault(); el.scrollLeft = scrollL - (ev.pageX - startX); el.scrollTop = scrollT - (ev.pageY - startY); };
+              const onUp = () => { el.style.cursor = ''; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+          >
+            <style>{`.plan-scroll::-webkit-scrollbar{width:8px;height:8px}.plan-scroll::-webkit-scrollbar-track{background:transparent}.plan-scroll::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px}.plan-scroll::-webkit-scrollbar-thumb:hover{background:#64748b}`}</style>
+            <table className="text-xs" style={{ minWidth: '1400px' }}>
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b text-left bg-muted/80">
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">#</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Proceso</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">F. Inicio</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">F. Corte</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">F. Pago</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Tasa</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Plazo</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Cuota</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Póliza</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Int. Corr.</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Int. C. Venc.</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Int. Mora</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Amortización</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Capital</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Saldo</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Días</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Estado</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Mora</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">F. Mov.</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Mov. Total</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Mov. Póliza</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Mov. Int. C.</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Mov. Int. Mora</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Mov. Amort.</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Concepto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.filter((p: any) => p.numero_cuota > 0).map((p: any) => (
+                  <tr key={p.numero_cuota} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="py-1.5 px-2 tabular-nums">{p.numero_cuota}</td>
+                    <td className="py-1.5 px-2 whitespace-nowrap">{p.proceso || '-'}</td>
+                    <td className="py-1.5 px-2 whitespace-nowrap">{fmtDate(p.fecha_inicio)}</td>
+                    <td className="py-1.5 px-2 whitespace-nowrap">{fmtDate(p.fecha_corte)}</td>
+                    <td className="py-1.5 px-2 whitespace-nowrap">{fmtDate(p.fecha_pago)}</td>
+                    <td className="py-1.5 px-2 tabular-nums">{p.tasa_actual || '-'}</td>
+                    <td className="py-1.5 px-2 tabular-nums">{p.plazo_actual || '-'}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.cuota)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.poliza)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.interes_corriente)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.int_corriente_vencido ?? 0)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.interes_moratorio)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.amortizacion)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.saldo_anterior)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums font-medium">{fmtMoney(p.saldo_nuevo)}</td>
+                    <td className="py-1.5 px-2 tabular-nums">{p.dias || '-'}</td>
+                    <td className="py-1.5 px-2">
+                      {p.estado ? (
+                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${getEstadoBadge(p.estado)}`}>
+                          {p.estado}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">
+                      {p.dias_mora && p.dias_mora > 0 ? (
+                        <span className="text-destructive font-medium">{p.dias_mora}d</span>
+                      ) : '-'}
+                    </td>
+                    <td className="py-1.5 px-2 whitespace-nowrap">{fmtDate(p.fecha_movimiento)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.movimiento_total)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.movimiento_poliza)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.movimiento_interes_corriente)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.movimiento_interes_moratorio)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.movimiento_amortizacion)}</td>
+                    <td className="py-1.5 px-2 whitespace-nowrap">{p.concepto || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : (
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-4 space-y-4">
+          {tab === 'credito' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { icon: Banknote, label: 'Saldo', value: fmtMoney(credit.saldo) },
+                  { icon: CreditCard, label: 'Monto', value: fmtMoney(credit.monto_credito) },
+                  { icon: Wallet, label: 'Cuota', value: fmtMoney(credit.cuota) },
+                  { icon: Percent, label: 'Tasa Anual', value: `${credit.tasa_anual || 0}%` },
+                  { icon: Clock, label: 'Plazo', value: `${credit.plazo || 0} meses` },
+                  { icon: Calculator, label: 'Divisa', value: (credit as any).divisa || 'CRC' },
+                ].map(({ icon: Icon, label, value }) => (
+                  <div key={label} className="rounded-lg border p-2.5 bg-background">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-0.5">
+                      <Icon className="h-3 w-3" /> {label}
+                    </div>
+                    <p className="text-sm font-semibold truncate">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Deductora:</span>
+                  <span className="font-medium">{(credit as any).deductora?.nombre || 'Sin asignar'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Formalizado:</span>
+                  <span className="font-medium">{fmtDate((credit as any).formalized_at)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Culminación:</span>
+                  <span className="font-medium">{fmtDate((credit as any).fecha_culminacion_credito)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Apertura:</span>
+                  <span className="font-medium">{fmtDate((credit as any).fecha_apertura_credito)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Línea:</span>
+                  <span className="font-medium">{(credit as any).category || (credit as any).linea || '-'}</span>
+                </div>
+              </div>
+
+              <Link href={`/dashboard/creditos/${credit.id}`} className="flex items-center gap-1 text-xs text-primary hover:underline font-medium pt-1">
+                <ExternalLink className="h-3 w-3" /> Ver crédito completo
+              </Link>
+            </>
+          )}
+
+          {tab === 'cliente' && (
+            lead ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 pb-2">
+                  <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/10">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">{`${lead.name || ''} ${lead.apellido1 || ''} ${lead.apellido2 || ''}`.trim()}</p>
+                    <p className="text-xs text-muted-foreground">Cédula: {lead.cedula || '-'}</p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {[
+                  { label: 'Institución', value: lead.institucion_labora },
+                  { label: 'Puesto', value: lead.puesto },
+                  { label: 'Nombramiento', value: lead.estado_puesto },
+                  { label: 'Teléfono', value: lead.telefono || lead.phone },
+                  { label: 'Email', value: lead.email },
+                  { label: 'Ocupación', value: lead.ocupacion },
+                ].filter(({ value }) => value).map(({ label, value }) => (
+                  <div key={label} className="flex items-start gap-2 text-xs">
+                    <span className="text-muted-foreground w-24 shrink-0">{label}:</span>
+                    <span className="font-medium">{value}</span>
+                  </div>
+                ))}
+
+                <Link href={`/dashboard/leads/${credit.lead_id}`} className="flex items-center gap-1 text-xs text-primary hover:underline font-medium pt-2">
+                  <ExternalLink className="h-3 w-3" /> Ver cliente completo
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">Sin datos del cliente</p>
+            )
+          )}
+        </div>
+      </ScrollArea>
+      )}
+    </Card>
+  );
+}
+
+const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, currentPage, perPage, onPageChange, onPerPageChange, onCertificacion, onSelectCredit, selectedCreditId }: { credits: Credit[], isLoading?: boolean, currentPage: number, perPage: number, onPageChange: (p: number) => void, onPerPageChange: (p: number) => void, onCertificacion?: (creditId: number) => void, onSelectCredit?: (id: number) => void, selectedCreditId?: number | null }) {
   const totalPages = Math.ceil(credits.length / perPage);
   const paginatedCredits = credits.slice((currentPage - 1) * perPage, currentPage * perPage);
 
@@ -504,11 +767,11 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
             {paginatedCredits.map((credit) => {
               const diasAtraso = calculateDaysInArrears(credit);
               return (
-                <TableRow key={credit.id} className="hover:bg-muted/50">
+                <TableRow key={credit.id} className={`hover:bg-muted/50 cursor-pointer ${selectedCreditId === credit.id ? 'bg-muted' : ''}`} onClick={() => onSelectCredit?.(credit.id)}>
                   <TableCell className="font-medium">
-                    <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                    <span className="hover:underline text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelectCredit?.(credit.id); }}>
                       {credit.reference || credit.numero_operacion || credit.id}
-                    </Link>
+                    </span>
                   </TableCell>
                   <TableCell>
                     {credit.lead
@@ -775,6 +1038,15 @@ export default function CobrosPage() {
   // Paginación - Gestión de Cobros
   const [cobrosPage, setCobrosPage] = useState(1);
   const [cobrosPerPage, setCobrosPerPage] = useState(10);
+
+  // Panel lateral de detalle de crédito
+  const [panelCreditId, setPanelCreditId] = useState<number | null>(null);
+  const [panelTab, setPanelTab] = useState<'credito' | 'plan' | 'cliente'>('credito');
+  const [panelExpanded, setPanelExpanded] = useState(false);
+  const panelCredit = useMemo(() => {
+    if (!panelCreditId) return null;
+    return creditsList.find((c) => c.id === panelCreditId) || null;
+  }, [panelCreditId, creditsList]);
 
   // Reverso de pago
   const [reverseDialogOpen, setReverseDialogOpen] = useState(false);
@@ -1397,6 +1669,9 @@ export default function CobrosPage() {
         </TabsList>
 
         <TabsContent value="gestion">
+          <div className="flex gap-4">
+            {/* Tabla de créditos */}
+            <div className={`transition-all duration-300 overflow-hidden ${panelCredit ? (panelExpanded ? 'w-0 hidden' : 'w-[55%]') : 'w-full'}`}>
              <Tabs defaultValue="al-dia" className="w-full">
                 <Card>
                     <CardHeader className="pt-4">
@@ -1409,14 +1684,23 @@ export default function CobrosPage() {
                             <TabsTrigger value="mas-180-dias">+180 días ({mas180.length})</TabsTrigger>
                         </TabsList>
                     </CardHeader>
-                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
-                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
-                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
-                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
-                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
-                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} /></CardContent></TabsContent>
+                    <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
+                    <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
+                    <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
+                    <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
+                    <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
+                    <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
                 </Card>
-            </Tabs>
+             </Tabs>
+            </div>
+
+            {/* Panel lateral de detalle */}
+            {panelCredit && (
+              <div className={`transition-all duration-300 shrink-0 h-[calc(100vh-220px)] sticky top-4 ${panelExpanded ? 'w-full' : 'w-[45%]'}`}>
+                <CreditDetailPanel credit={panelCredit} tab={panelTab} onTabChange={setPanelTab} onClose={() => { setPanelCreditId(null); setPanelExpanded(false); }} expanded={panelExpanded} onToggleExpand={() => setPanelExpanded(e => !e)} />
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="abonos">
