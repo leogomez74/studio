@@ -383,17 +383,10 @@ export default function ClientesPage() {
 
         // Fetch products
         const resProducts = await api.get('/api/products');
-        console.log('=== DEBUG PRODUCTOS ===');
-        console.log('Respuesta completa:', resProducts);
-        console.log('resProducts.data:', resProducts.data);
-        console.log('Tipo de resProducts.data:', typeof resProducts.data);
-        console.log('Es array resProducts.data?', Array.isArray(resProducts.data));
 
         // Axios wraps the response in a data property
         const productsArray = Array.isArray(resProducts.data) ? resProducts.data : [];
 
-        console.log('Productos a establecer:', productsArray);
-        console.log('Cantidad de productos:', productsArray.length);
 
         setProducts(productsArray);
 
@@ -804,10 +797,8 @@ export default function ClientesPage() {
   const getMontoError = () => {
     const productId = watchedProductId;
     const montoStr = watchedMonto;
-    console.log('=== VALIDACIÓN MONTO ===', { productId, montoStr, products: products.length, loanConfigs });
     if (!productId || !montoStr) return null;
     const limits = getMontoLimits(productId);
-    console.log('Limits encontrados:', limits);
     if (!limits) return null;
     const monto = Number(montoStr);
     if (monto < limits.min) return `El monto mínimo para ${limits.nombre} es ₡${formatMonto(String(limits.min))}`;
@@ -1716,7 +1707,6 @@ export default function ClientesPage() {
                           <SelectContent>
                             {products.length === 0 && <div className="p-2 text-sm text-muted-foreground">Cargando productos...</div>}
                             {products.map((product) => {
-                              console.log('Renderizando producto:', product);
                               return (
                                 <SelectItem key={product.id} value={String(product.id)}>
                                   {product.name}

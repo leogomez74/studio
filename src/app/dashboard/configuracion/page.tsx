@@ -2916,7 +2916,6 @@ export default function ConfiguracionPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        console.log('Roles fetched for usuarios tab:', data);
         setAvailableRoles(data);
       } else {
         console.error('Failed to fetch roles, status:', res.status);
@@ -2939,7 +2938,6 @@ export default function ConfiguracionPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        console.log('Users fetched:', data);
         setUsers(data);
       } else {
         console.error('Failed to fetch users, status:', res.status);

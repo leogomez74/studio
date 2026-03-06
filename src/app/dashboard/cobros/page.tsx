@@ -1321,10 +1321,8 @@ export default function CobrosPage() {
 
   // Cargar deductoras al montar el componente (necesarias para filtros)
   useEffect(() => {
-    console.log('Cargando deductoras...');
     api.get('/api/deductoras')
       .then(res => {
-        console.log('Deductoras recibidas:', res.data);
         setDeductoras(res.data);
       })
       .catch(err => {

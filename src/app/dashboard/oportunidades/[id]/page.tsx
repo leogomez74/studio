@@ -698,7 +698,6 @@ export default function OpportunityDetailPage() {
 
   // Subir archivo con prefijo específico
   const handleFileUploadWithType = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, type: 'cedula' | 'recibo') => {
-    console.log('[DEBUG] handleFileUploadWithType iniciado', { type, opportunity_id: opportunity?.id });
 
     if (!opportunity) {
       console.error('[DEBUG] No hay oportunidad cargada');
@@ -707,10 +706,8 @@ export default function OpportunityDetailPage() {
     }
 
     const file = e.target.files?.[0];
-    console.log('[DEBUG] Archivo seleccionado:', file?.name);
 
     if (!file) {
-      console.log('[DEBUG] No se seleccionó archivo, saliendo');
       return;
     }
 
@@ -720,7 +717,6 @@ export default function OpportunityDetailPage() {
     // Renombrar archivo con prefijo
     const ext = file.name.split('.').pop();
     const newFileName = `${prefix}_${opportunity?.lead_cedula || 'unknown'}.${ext}`;
-    console.log('[DEBUG] Archivo renombrado a:', newFileName);
 
     // Usar FormData.append con 3 parámetros en lugar de new File() para evitar error de Turbopack
     const formData = new FormData();
@@ -728,18 +724,14 @@ export default function OpportunityDetailPage() {
 
     try {
       setUploadingState(true);
-      console.log('[DEBUG] Enviando archivo al servidor...');
 
       const response = await api.post(`/api/opportunities/${id}/files`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      console.log('[DEBUG] Respuesta del servidor:', response.data);
       toast({ title: "Éxito", description: `${type === 'cedula' ? 'Cédula' : 'Recibo'} subido correctamente.` });
 
-      console.log('[DEBUG] Refrescando lista de archivos...');
       await fetchFiles();
-      console.log('[DEBUG] Lista de archivos refrescada');
     } catch (error: any) {
       console.error("[DEBUG] Error completo:", error);
       console.error("[DEBUG] Error response:", error.response?.data);
@@ -751,7 +743,6 @@ export default function OpportunityDetailPage() {
     } finally {
       setUploadingState(false);
       e.target.value = '';
-      console.log('[DEBUG] handleFileUploadWithType finalizado');
     }
   }, [opportunity, id, toast, fetchFiles]);
 
