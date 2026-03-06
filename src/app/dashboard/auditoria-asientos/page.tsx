@@ -122,7 +122,7 @@ function formatDate(dateStr: string) {
 
 function formatAmount(amount: string | number | null) {
   if (amount === null || amount === undefined) return '-';
-  return Number(amount).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '₡' + Number(amount).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // ---------------------------------------------------------------------------

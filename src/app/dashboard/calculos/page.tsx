@@ -23,9 +23,8 @@ import {
 // Importamos los íconos que usaremos.
 import { Calculator, Search, RefreshCw, MessageSquare, Mail } from 'lucide-react';
 import { ProtectedPage } from "@/components/ProtectedPage";
-// $$$ CONECTOR MYSQL: Se importan la configuración de créditos.
-// Los créditos y leads ahora se obtienen de la API en tiempo real.
-import { Credit, creditConfigs, type Lead } from '@/lib/data';
+// Los créditos y leads se obtienen de la API en tiempo real.
+import { Credit, type Lead } from '@/lib/data';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
@@ -39,18 +38,32 @@ import CalculadoraEmbargo from '@/components/calculadora-embargo';
  * Componente principal de la página de Cálculos.
  * Contiene dos calculadoras: una para cuotas de nuevos créditos y otra para arreglos de pago.
  */
+type LoanConfig = {
+  nombre: string;
+  monto_minimo: number;
+  monto_maximo: number;
+  tasa_anual: number;
+  plazo_minimo: number;
+  plazo_maximo: number;
+  rangos_plazo: { value: number; label: string }[];
+};
+
 export default function CalculosPage() {
   const { toast } = useToast();
 
+  // --- Configuración dinámica de préstamos ---
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, LoanConfig>>({});
+  const [loadingConfigs, setLoadingConfigs] = useState(true); // true: loading on mount
+
   // --- Estados para la Calculadora de Cuotas ---
-  const [creditType, setCreditType] = useState<'regular' | 'micro'>('regular'); // Tipo de crédito seleccionado
-  const [amount, setAmount] = useState('5000000'); // Monto del préstamo
-  const [rate, setRate] = useState(creditConfigs.regular.interestRate.toString()); // Tasa de interés anual, inicializada con la de crédito regular
-  const [term, setTerm] = useState('36'); // Plazo en meses
-  const [monthlyPayment, setMonthlyPayment] = useState<number | null>(null); // Cuota mensual calculada
-  const [selectedLead, setSelectedLead] = useState<string | undefined>(undefined); // Lead seleccionado para enviarle la cotización
-  const [leads, setLeads] = useState<Lead[]>([]); // Lista de leads desde la API
-  const [loadingLeads, setLoadingLeads] = useState(false); // Estado de carga de leads
+  const [creditType, setCreditType] = useState<'regular' | 'microcredito'>('regular');
+  const [amount, setAmount] = useState('5000000');
+  const [rate, setRate] = useState('');
+  const [term, setTerm] = useState('36');
+  const [monthlyPayment, setMonthlyPayment] = useState<number | null>(null);
+  const [selectedLead, setSelectedLead] = useState<string | undefined>(undefined);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
 
   // --- Estados para la Calculadora de Arreglos de Pago ---
   const [operationNumber, setOperationNumber] = useState(''); // Número de operación a buscar
@@ -65,6 +78,37 @@ export default function CalculosPage() {
   const [selectedOpportunityId, setSelectedOpportunityId] = useState('');
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(false);
+
+  // Cargar configuraciones de préstamos desde el backend
+  useEffect(() => {
+    const fetchConfigs = async () => {
+      try {
+        const response = await api.get('/api/loan-configurations/rangos');
+        const data = response.data as Record<string, LoanConfig>;
+        setLoanConfigs(data);
+        // Inicializar tasa y validar plazo con la config del tipo seleccionado
+        const config = data[creditType];
+        if (config) {
+          setRate(String(config.tasa_anual));
+          const currentTerm = parseInt(term, 10);
+          if (currentTerm < config.plazo_minimo || currentTerm > config.plazo_maximo) {
+            setTerm(String(config.plazo_minimo));
+          }
+        }
+      } catch (error) {
+        console.error('Error cargando configuraciones de préstamos:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las configuraciones de préstamos.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingConfigs(false);
+      }
+    };
+    fetchConfigs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const fetchOpportunities = async () => {
@@ -87,6 +131,12 @@ export default function CalculosPage() {
     };
     fetchOpportunities();
   }, [toast]);
+
+  // Plazo máximo global para arreglos de pago (el mayor de todas las configs)
+  const maxPlazoGlobal = useMemo(() => {
+    const valores = Object.values(loanConfigs).map(c => c.plazo_maximo);
+    return valores.length > 0 ? Math.max(...valores) : 96;
+  }, [loanConfigs]);
 
   const filteredOpportunities = useMemo(() =>
     opportunities.filter(o => {
@@ -115,7 +165,7 @@ export default function CalculosPage() {
     // Determinar el tipo de crédito basado en opportunity_type
     const oppType = selectedOpportunity.opportunity_type?.toLowerCase() || '';
     if (oppType.includes('micro')) {
-      setCreditType('micro');
+      setCreditType('microcredito');
     } else {
       setCreditType('regular');
     }
@@ -155,16 +205,19 @@ export default function CalculosPage() {
     fetchLeads();
   }, [toast]);
 
-  /**
-   * Efecto que se ejecuta cuando el tipo de crédito cambia.
-   * Actualiza la tasa de interés en el formulario según la configuración del tipo de crédito seleccionado.
-   */
+  // Actualiza tasa y plazo cuando cambia el tipo de crédito
   useEffect(() => {
-    // Cuando el usuario cambia el tipo de crédito (regular o micro),
-    // buscamos la tasa de interés correspondiente en nuestro objeto de configuración
-    // y actualizamos el estado 'rate' del formulario.
-    setRate(creditConfigs[creditType].interestRate.toString());
-  }, [creditType]);
+    const config = loanConfigs[creditType];
+    if (config) {
+      setRate(String(config.tasa_anual));
+      // Si el plazo actual no está en los rangos válidos, resetear al primero disponible
+      const currentTerm = parseInt(term, 10);
+      if (currentTerm < config.plazo_minimo || currentTerm > config.plazo_maximo) {
+        const firstValid = config.rangos_plazo[0]?.value;
+        if (firstValid) setTerm(String(firstValid));
+      }
+    }
+  }, [creditType, loanConfigs]);
 
   /**
    * Calcula la cuota mensual para un nuevo préstamo.
@@ -185,8 +238,22 @@ export default function CalculosPage() {
       annualInterestRate <= 0 ||
       numberOfMonths <= 0
     ) {
-      setMonthlyPayment(null); // Si no son válidos, reseteamos el resultado.
+      setMonthlyPayment(null);
       return;
+    }
+
+    // Validar monto contra límites del tipo de crédito
+    const config = loanConfigs[creditType];
+    if (config) {
+      if (principal < config.monto_minimo || principal > config.monto_maximo) {
+        setMonthlyPayment(null);
+        toast({
+          title: "Monto fuera de rango",
+          description: `El monto debe estar entre ₡${config.monto_minimo.toLocaleString('de-DE')} y ₡${config.monto_maximo.toLocaleString('de-DE')} para ${config.nombre}.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Fórmula para calcular la cuota mensual.
@@ -218,18 +285,13 @@ export default function CalculosPage() {
     setSearchingCredit(true);
 
     try {
-      // Llamamos a la API para obtener todos los créditos
-      const response = await api.get('/api/credits');
+      const response = await api.get(`/api/credits`, {
+        params: { reference: operationNumber.trim() }
+      });
       const creditsList = Array.isArray(response.data) ? response.data : response.data.data || [];
 
-      // Buscamos el crédito por número de operación (ignorando mayúsculas/minúsculas)
-      // El campo principal es 'reference', pero mantenemos compatibilidad con 'numero_operacion'
-      const credit = creditsList.find((c: Credit) =>
-        c.reference?.toLowerCase() === operationNumber.toLowerCase() ||
-        c.numero_operacion?.toLowerCase() === operationNumber.toLowerCase()
-      );
-
-      if (credit) {
+      if (creditsList.length > 0) {
+        const credit = creditsList[0];
         setFoundCredit(credit);
         const debtorName = credit.lead?.name || 'Cliente sin nombre';
         toast({
@@ -312,7 +374,7 @@ export default function CalculosPage() {
         rate: parseFloat(rate),
         term: parseInt(term, 10),
         monthly_payment: monthlyPayment,
-        credit_type: creditType,
+        credit_type: creditType === 'microcredito' ? 'micro' : 'regular',
         method: method,
       };
 
@@ -410,17 +472,18 @@ export default function CalculosPage() {
             <RadioGroup
               defaultValue="regular"
               className="flex gap-4 pt-2"
-              onValueChange={(value) => setCreditType(value as 'regular' | 'micro')}
+              onValueChange={(value) => setCreditType(value as 'regular' | 'microcredito')}
               value={creditType}
             >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="regular" id="r1" />
-                <Label htmlFor="r1">Crédito Regular</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="micro" id="r2" />
-                <Label htmlFor="r2">Micro-crédito</Label>
-              </div>
+              {Object.entries(loanConfigs).map(([tipo, config]) => (
+                <div key={tipo} className="flex items-center space-x-2">
+                  <RadioGroupItem value={tipo} id={`type-${tipo}`} />
+                  <Label htmlFor={`type-${tipo}`}>{config.nombre}</Label>
+                </div>
+              ))}
+              {loadingConfigs && (
+                <p className="text-sm text-muted-foreground">Cargando tipos...</p>
+              )}
             </RadioGroup>
           </div>
           {/* Campo para el monto del préstamo */}
@@ -433,9 +496,9 @@ export default function CalculosPage() {
                 type="text"
                 inputMode="numeric"
                 className="pl-7"
-                value={amount ? Number(amount).toLocaleString('en-US') : ''}
+                value={amount ? Number(amount).toLocaleString('de-DE') : ''}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ''))}
-                placeholder="5,000,000"
+                placeholder="5.000.000"
               />
             </div>
           </div>
@@ -458,15 +521,11 @@ export default function CalculosPage() {
                 <SelectValue placeholder="Selecciona un plazo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="6">6 meses</SelectItem>
-                <SelectItem value="9">9 meses</SelectItem>
-                <SelectItem value="12">12 meses</SelectItem>
-                <SelectItem value="18">18 meses</SelectItem>
-                <SelectItem value="24">24 meses</SelectItem>
-                <SelectItem value="36">36 meses</SelectItem>
-                <SelectItem value="48">48 meses</SelectItem>
-                <SelectItem value="60">60 meses</SelectItem>
-                <SelectItem value="72">72 meses</SelectItem>
+                {(loanConfigs[creditType]?.rangos_plazo ?? []).map((p) => (
+                  <SelectItem key={p.value} value={String(p.value)}>
+                    {p.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -606,12 +665,11 @@ export default function CalculosPage() {
                               <SelectValue placeholder="Selecciona un nuevo plazo" />
                           </SelectTrigger>
                           <SelectContent>
-                              <SelectItem value="12">12 meses</SelectItem>
-                              <SelectItem value="18">18 meses</SelectItem>
-                              <SelectItem value="24">24 meses</SelectItem>
-                              <SelectItem value="36">36 meses</SelectItem>
-                              <SelectItem value="48">48 meses</SelectItem>
-                              <SelectItem value="60">60 meses</SelectItem>
+                              {Array.from({ length: maxPlazoGlobal }, (_, i) => i + 1).map((p) => (
+                                <SelectItem key={p} value={String(p)}>
+                                  {p} meses
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                       </Select>
                   </div>

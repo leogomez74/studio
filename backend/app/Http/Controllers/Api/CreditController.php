@@ -43,6 +43,10 @@ class CreditController extends Controller
             $query->where('lead_id', $request->lead_id);
         }
 
+        if ($request->filled('reference')) {
+            $query->where('reference', $request->reference);
+        }
+
         // Paginación: 50 por página (ajustable con ?per_page=X)
         $perPage = min($request->get('per_page', 50), 100); // Máximo 100
 

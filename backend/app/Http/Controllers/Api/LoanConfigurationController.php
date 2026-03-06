@@ -127,15 +127,12 @@ class LoanConfigurationController extends Controller
     private function generarRangosPlazo(LoanConfiguration $config): array
     {
         $rangos = [];
-        $plazos = [6, 12, 18, 24, 36, 48, 60, 72];
 
-        foreach ($plazos as $plazo) {
-            if ($plazo >= $config->plazo_minimo && $plazo <= $config->plazo_maximo) {
-                $rangos[] = [
-                    'value' => $plazo,
-                    'label' => $plazo . ' meses',
-                ];
-            }
+        for ($plazo = $config->plazo_minimo; $plazo <= $config->plazo_maximo; $plazo++) {
+            $rangos[] = [
+                'value' => $plazo,
+                'label' => $plazo . ' meses',
+            ];
         }
 
         return $rangos;
