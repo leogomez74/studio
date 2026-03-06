@@ -55,6 +55,7 @@ import { API_BASE_URL } from '@/lib/env';
 import { useAuth } from '@/components/auth-guard';
 import api from '@/lib/axios';
 import { EMPRESAS_MOCK, Empresa, Requirement } from '@/lib/empresas-mock';
+import EmbargoConfiguracionTab from '@/components/embargo-configuracion-tab';
 
 // ----------------------------------------------------------------------
 // 1. COMPONENTES Y CONSTANTES AUXILIARES (Definidos FUERA del componente principal)
@@ -3966,6 +3967,7 @@ export default function ConfiguracionPage() {
           )}
         </TabsTrigger>
         <TabsTrigger value="poliza">Póliza</TabsTrigger>
+        <TabsTrigger value="embargo">Embargo</TabsTrigger>
         <TabsTrigger value="tareas">Tareas</TabsTrigger>
       </TabsList>
 
@@ -5493,6 +5495,10 @@ export default function ConfiguracionPage() {
             <AccountingAuditLog onAlertCount={setAccountingAlertCount} />
           </CardContent>
         </Card>
+      </TabsContent>
+
+      <TabsContent value="embargo">
+        <EmbargoConfiguracionTab />
       </TabsContent>
 
       <TabsContent value="tareas">

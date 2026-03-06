@@ -17,25 +17,17 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calculator, ChevronsUpDown, Search, Loader2, Check } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { type Lead } from '@/lib/data';
 import api from '@/lib/axios';
 
-// ─── Configuración por defecto (Costa Rica 2026) ───────────────────────────
-
-interface CalculadoraEmbargoConfig {
-  salarioMinimoInembargable: number;
-  tasaCargasSociales: number;
-  tasaPrimerTramo: number;
-  tasaSegundoTramo: number;
+interface PersonaEmbargo {
+  id: number;
+  name: string;
+  cedula: string | null;
+  salario_exacto: number | string | null;
+  tipo: 'Lead' | 'Cliente';
 }
-
-const DEFAULTS: CalculadoraEmbargoConfig = {
-  salarioMinimoInembargable: 268731.31,
-  tasaCargasSociales: 0.1083,
-  tasaPrimerTramo: 0.125,
-  tasaSegundoTramo: 0.25,
-};
 
 function formatColones(value: number): string {
   return value.toLocaleString('es-CR', {
@@ -46,14 +38,10 @@ function formatColones(value: number): string {
 
 /** Format a raw input string with thousand separators (dots) */
 function formatInputWithSeparators(raw: string): string {
-  // Strip everything except digits and comma/dot for decimals
   const cleaned = raw.replace(/[^0-9.,]/g, '');
-  // Remove dots (thousand seps) to get just digits + possible comma decimal
   const withoutDots = cleaned.replace(/\./g, '');
-  // Split on comma for decimal part
   const parts = withoutDots.split(',');
-  const intPart = parts[0].replace(/^0+(?=\d)/, ''); // remove leading zeros
-  // Add thousand separators (dots)
+  const intPart = parts[0].replace(/^0+(?=\d)/, '');
   const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   if (parts.length > 1) {
     return formatted + ',' + parts[1].slice(0, 2);
@@ -61,39 +49,34 @@ function formatInputWithSeparators(raw: string): string {
   return formatted;
 }
 
-/** Parse a formatted string back to a plain number string */
+/** Parse a formatted string back to a plain number */
 function parseFormattedInput(value: string): number {
-  // Remove dots (thousand seps), replace comma with dot for decimal
   return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
 }
 
-function calcularEmbargo(
-  salarioBruto: number,
-  pensionAlimenticia: number,
-  otroEmbargo1: number,
-  otroEmbargo2: number,
-  config: CalculadoraEmbargoConfig
-): number {
-  const {
-    salarioMinimoInembargable: smi,
-    tasaCargasSociales,
-    tasaPrimerTramo,
-    tasaSegundoTramo,
-  } = config;
+interface EmbargoDesglose {
+  salario_bruto: number;
+  descuento_ccss: number;
+  impuesto_renta: number;
+  salario_liquido: number;
+  pension_alimenticia: number;
+  salario_minimo_protegido: number;
+  monto_embargable: number;
+  limite_tramo1: number;
+  embargo_tramo1: number;
+  embargo_tramo2: number;
+  total_embargo: number;
+}
 
-  const salarioNeto = salarioBruto * (1 - tasaCargasSociales);
-  const despuesPension = salarioNeto - pensionAlimenticia;
-  const despuesOtrosEmbargos = despuesPension - otroEmbargo1 - otroEmbargo2;
-  const embargable = Math.max(0, despuesOtrosEmbargos - smi);
-
-  if (embargable <= 0) return 0;
-
-  const limiteTramo1 = 2 * smi;
-  const montoTramo1 = Math.min(embargable, limiteTramo1) * tasaPrimerTramo;
-  const montoTramo2 =
-    Math.max(0, embargable - limiteTramo1) * tasaSegundoTramo;
-
-  return Math.round((montoTramo1 + montoTramo2) * 100) / 100;
+interface EmbargoResult {
+  resultado: number;
+  source: string;
+  desglose?: EmbargoDesglose;
+  config?: {
+    anio: number;
+    decreto: string | null;
+    ultima_verificacion: string | null;
+  };
 }
 
 export default function CalculadoraEmbargo() {
@@ -102,59 +85,46 @@ export default function CalculadoraEmbargo() {
   const [pensionAlimenticia, setPensionAlimenticia] = useState('');
   const [otroEmbargo1, setOtroEmbargo1] = useState('');
   const [otroEmbargo2, setOtroEmbargo2] = useState('');
-  const [resultado, setResultado] = useState<number | null>(null);
+  const [resultado, setResultado] = useState<EmbargoResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Person selector state
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loadingLeads, setLoadingLeads] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [personas, setPersonas] = useState<PersonaEmbargo[]>([]);
+  const [loadingPersonas, setLoadingPersonas] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState<PersonaEmbargo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Load initial preview (few recent records)
-  useEffect(() => {
-    const fetchPreview = async () => {
-      setLoadingLeads(true);
-      try {
-        const response = await api.get('/api/leads?per_page=8&is_active=all');
-        const list = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setLeads(list);
-      } catch (error) {
-        console.error('Error cargando personas:', error);
-      } finally {
-        setLoadingLeads(false);
-      }
-    };
-    fetchPreview();
+  const fetchPersonas = useCallback(async (q?: string) => {
+    setLoadingPersonas(true);
+    try {
+      const params = new URLSearchParams({ per_page: '15' });
+      if (q?.trim()) params.set('q', q.trim());
+      const response = await api.get(`/api/embargo/personas?${params.toString()}`);
+      setPersonas(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Error buscando personas:', error);
+    } finally {
+      setLoadingPersonas(false);
+    }
   }, []);
 
-  // Search leads with debounce
+  // Load initial preview
+  useEffect(() => {
+    fetchPersonas();
+  }, [fetchPersonas]);
+
+  // Search with debounce
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    debounceRef.current = setTimeout(async () => {
-      setLoadingLeads(true);
-      try {
-        const params = new URLSearchParams({ per_page: '15', is_active: 'all' });
-        if (searchQuery.trim()) params.set('q', searchQuery.trim());
-        const response = await api.get(`/api/leads?${params.toString()}`);
-        const list = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setLeads(list);
-      } catch (error) {
-        console.error('Error buscando personas:', error);
-      } finally {
-        setLoadingLeads(false);
-      }
-    }, 300);
-
+    debounceRef.current = setTimeout(() => fetchPersonas(searchQuery), 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchQuery]);
+  }, [searchQuery, fetchPersonas]);
 
   // Focus search input when popover opens
   useEffect(() => {
@@ -163,23 +133,23 @@ export default function CalculadoraEmbargo() {
     }
   }, [open]);
 
-  const handleSelectLead = (lead: Lead) => {
-    setSelectedLead(lead);
+  const handleSelectPersona = (persona: PersonaEmbargo) => {
+    setSelectedPersona(persona);
     setOpen(false);
     setSearchQuery('');
 
-    const salario = lead.salario_exacto ? Number(lead.salario_exacto) : 0;
+    const salario = persona.salario_exacto ? Number(persona.salario_exacto) : 0;
     if (salario > 0) {
       setSalarioBruto(formatInputWithSeparators(String(Math.round(salario))));
       toast({
         title: 'Persona cargada',
-        description: `Salario de ${lead.name} (₡${formatColones(salario)}) cargado.`,
+        description: `Salario de ${persona.name} (₡${formatColones(salario)}) cargado.`,
       });
     } else {
       setSalarioBruto('');
       toast({
         title: 'Sin salario registrado',
-        description: `${lead.name} no tiene un salario exacto registrado. Ingresalo manualmente.`,
+        description: `${persona.name} no tiene un salario exacto registrado. Ingresalo manualmente.`,
         variant: 'destructive',
       });
     }
@@ -213,7 +183,7 @@ export default function CalculadoraEmbargo() {
         otro_embargo_2: embargo2,
       });
 
-      setResultado(response.data.resultado);
+      setResultado(response.data);
     } catch (error: any) {
       const msg =
         error?.response?.data?.error ||
@@ -227,6 +197,8 @@ export default function CalculadoraEmbargo() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleCalcular();
   };
+
+  const desglose = resultado?.desglose;
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -247,15 +219,18 @@ export default function CalculadoraEmbargo() {
                 aria-expanded={open}
                 className="w-full md:w-[500px] justify-between font-normal"
               >
-                {selectedLead ? (
+                {selectedPersona ? (
                   <span className="truncate">
-                    <span className="font-medium">{selectedLead.name}</span>
-                    {selectedLead.cedula && (
-                      <span className="text-muted-foreground"> | {selectedLead.cedula}</span>
+                    <span className="font-medium">{selectedPersona.name}</span>
+                    {selectedPersona.cedula && (
+                      <span className="text-muted-foreground"> | {selectedPersona.cedula}</span>
                     )}
+                    <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0">
+                      {selectedPersona.tipo}
+                    </Badge>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Buscar persona por nombre o cédula...</span>
+                  <span className="text-muted-foreground">Buscar persona por nombre o cedula...</span>
                 )}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
@@ -265,37 +240,40 @@ export default function CalculadoraEmbargo() {
                 <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
                 <input
                   ref={searchInputRef}
-                  placeholder="Buscar por nombre o cédula..."
+                  placeholder="Buscar por nombre o cedula..."
                   className="flex h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                {loadingLeads && <Loader2 className="ml-2 h-4 w-4 animate-spin opacity-50" />}
+                {loadingPersonas && <Loader2 className="ml-2 h-4 w-4 animate-spin opacity-50" />}
               </div>
               <div className="max-h-[250px] overflow-y-auto">
-                {leads.length === 0 ? (
+                {personas.length === 0 ? (
                   <div className="p-4 text-sm text-muted-foreground text-center">
-                    {loadingLeads ? 'Buscando...' : 'No se encontraron resultados'}
+                    {loadingPersonas ? 'Buscando...' : 'No se encontraron resultados'}
                   </div>
                 ) : (
-                  leads.map((lead) => (
+                  personas.map((persona) => (
                     <button
-                      key={lead.id}
+                      key={persona.id}
                       type="button"
                       className="relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-3 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                      onClick={() => handleSelectLead(lead)}
+                      onClick={() => handleSelectPersona(persona)}
                     >
-                      {selectedLead?.id === lead.id && (
+                      {selectedPersona?.id === persona.id && (
                         <Check className="h-4 w-4 shrink-0 text-primary" />
                       )}
-                      <span className={selectedLead?.id === lead.id ? '' : 'pl-6'}>
-                        <span className="font-medium">{lead.name}</span>
-                        {lead.cedula && (
-                          <span className="mx-2 text-muted-foreground">| {lead.cedula}</span>
+                      <span className={selectedPersona?.id === persona.id ? '' : 'pl-6'}>
+                        <span className="font-medium">{persona.name}</span>
+                        {persona.cedula && (
+                          <span className="mx-2 text-muted-foreground">| {persona.cedula}</span>
                         )}
-                        {lead.salario_exacto && Number(lead.salario_exacto) > 0 && (
-                          <span className="mx-2 text-green-600">
-                            ₡{formatColones(Number(lead.salario_exacto))}
+                        <Badge variant="outline" className="mx-1 text-[10px] px-1.5 py-0">
+                          {persona.tipo}
+                        </Badge>
+                        {persona.salario_exacto && Number(persona.salario_exacto) > 0 && (
+                          <span className="mx-1 text-green-600">
+                            ₡{formatColones(Number(persona.salario_exacto))}
                           </span>
                         )}
                       </span>
@@ -303,9 +281,9 @@ export default function CalculadoraEmbargo() {
                   ))
                 )}
               </div>
-              {!searchQuery && leads.length > 0 && (
+              {!searchQuery && personas.length > 0 && (
                 <div className="border-t px-3 py-2 text-xs text-muted-foreground text-center">
-                  Escribí para buscar entre todas las personas
+                  Escribi para buscar entre todas las personas
                 </div>
               )}
             </PopoverContent>
@@ -318,7 +296,7 @@ export default function CalculadoraEmbargo() {
         <CardHeader>
           <CardTitle>Calculadora de Embargo</CardTitle>
           <CardDescription>
-            Calcula el monto máximo embargable según el Art. 172 del Código de
+            Calcula el monto maximo embargable segun el Art. 172 del Codigo de
             Trabajo de Costa Rica.
           </CardDescription>
         </CardHeader>
@@ -426,41 +404,104 @@ export default function CalculadoraEmbargo() {
             ) : (
               <Calculator className="mr-2 h-4 w-4" />
             )}
-            {isLoading ? 'Consultando MTSS...' : 'Calcular Embargo'}
+            {isLoading ? 'Calculando...' : 'Calcular Embargo'}
           </Button>
 
           {errorMsg && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-center">
               <p className="text-sm text-destructive font-medium">{errorMsg}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Presioná &quot;Calcular Embargo&quot; para volver a intentarlo.
+                Presiona &quot;Calcular Embargo&quot; para volver a intentarlo.
               </p>
             </div>
           )}
 
           {resultado !== null && (
-            <div className={`rounded-lg border p-4 text-center ${resultado === 0 ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-muted'}`}>
-              {resultado === 0 ? (
-                <>
-                  <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
-                    El ingreso bruto no aplica para embargo
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    El salario neto no supera el mínimo inembargable
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Total máximo a embargar
-                  </p>
-                  <p className="text-2xl font-bold text-primary">
-                    ₡{formatColones(resultado)}
-                  </p>
-                  <p className="text-xs text-green-600 mt-2">
-                    Dato oficial del Ministerio de Trabajo (MTSS)
-                  </p>
-                </>
+            <div className="space-y-3">
+              {/* Resultado principal */}
+              <div className={`rounded-lg border p-4 text-center ${resultado.resultado === 0 ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-muted'}`}>
+                {resultado.resultado === 0 ? (
+                  <>
+                    <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                      El ingreso bruto no aplica para embargo
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      El salario liquido no supera el minimo inembargable
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Total maximo a embargar
+                    </p>
+                    <p className="text-2xl font-bold text-primary">
+                      ₡{formatColones(resultado.resultado)}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Desglose detallado */}
+              {desglose && resultado.resultado > 0 && (
+                <div className="rounded-lg border p-4 space-y-2">
+                  <p className="text-sm font-medium mb-3">Desglose del calculo</p>
+                  <div className="grid grid-cols-2 gap-y-1.5 text-sm">
+                    <span className="text-muted-foreground">Salario bruto</span>
+                    <span className="text-right">₡{formatColones(desglose.salario_bruto)}</span>
+
+                    <span className="text-muted-foreground">CCSS (10.83%)</span>
+                    <span className="text-right text-red-600">-₡{formatColones(desglose.descuento_ccss)}</span>
+
+                    {desglose.impuesto_renta > 0 && (
+                      <>
+                        <span className="text-muted-foreground">Impuesto sobre la renta</span>
+                        <span className="text-right text-red-600">-₡{formatColones(desglose.impuesto_renta)}</span>
+                      </>
+                    )}
+
+                    <span className="text-muted-foreground font-medium">Salario liquido</span>
+                    <span className="text-right font-medium">₡{formatColones(desglose.salario_liquido)}</span>
+
+                    {desglose.pension_alimenticia > 0 && (
+                      <>
+                        <span className="text-muted-foreground">Pension alimentaria</span>
+                        <span className="text-right text-red-600">-₡{formatColones(desglose.pension_alimenticia)}</span>
+                      </>
+                    )}
+
+                    <div className="col-span-2 border-t my-1" />
+
+                    <span className="text-muted-foreground">Minimo protegido (SMI)</span>
+                    <span className="text-right">₡{formatColones(desglose.salario_minimo_protegido)}</span>
+
+                    <span className="text-muted-foreground">Monto embargable</span>
+                    <span className="text-right">₡{formatColones(desglose.monto_embargable)}</span>
+
+                    <div className="col-span-2 border-t my-1" />
+
+                    <span className="text-muted-foreground">Tramo 1 (1/8)</span>
+                    <span className="text-right">₡{formatColones(desglose.embargo_tramo1)}</span>
+
+                    {desglose.embargo_tramo2 > 0 && (
+                      <>
+                        <span className="text-muted-foreground">Tramo 2 (1/4)</span>
+                        <span className="text-right">₡{formatColones(desglose.embargo_tramo2)}</span>
+                      </>
+                    )}
+
+                    <span className="font-semibold">Total embargo</span>
+                    <span className="text-right font-semibold text-primary">₡{formatColones(desglose.total_embargo)}</span>
+                  </div>
+
+                  {resultado.config && (
+                    <p className="text-xs text-muted-foreground mt-3 pt-2 border-t">
+                      Decreto {resultado.config.decreto} ({resultado.config.anio})
+                      {resultado.config.ultima_verificacion && (
+                        <> &middot; Verificado: {new Date(resultado.config.ultima_verificacion).toLocaleDateString('es-CR')}</>
+                      )}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
