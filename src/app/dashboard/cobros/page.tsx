@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet, FileText, X, ExternalLink, Building2, User, Calendar, CreditCard, Banknote, Percent, Clock, Maximize2, Minimize2 } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Info, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet, FileText, X, ExternalLink, Building2, User, Calendar, CreditCard, Banknote, Percent, Clock, Maximize2, Minimize2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -2172,6 +2172,13 @@ export default function CobrosPage() {
                             <div className="mt-3 p-4 text-[14px] leading-tight bg-amber-50 border border-amber-200 text-red-700 rounded-md flex items-start gap-2">
                               <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                               <span>Este crédito está en estado <strong>{selectedCredit.status}</strong>. No se pueden registrar abonos manuales en créditos con estado &quot;Por firmar&quot; o &quot;Cerrado&quot;.</span>
+                            </div>
+                          )}
+
+                          {selectedCredit && selectedCredit.status === 'En Mora' && (
+                            <div className="mt-3 p-4 text-[14px] leading-tight bg-blue-50 border border-blue-200 text-blue-800 rounded-md flex items-start gap-2">
+                              <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                              <span>Este crédito se encuentra <strong>En Mora</strong>. El pago se aplicará primero a los intereses moratorios y corrientes vencidos antes de abonar al capital.</span>
                             </div>
                           )}
                         </div>
