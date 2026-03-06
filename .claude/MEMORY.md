@@ -79,7 +79,7 @@ class MiController extends Controller {
 ### 🟡 Media
 - 21 controllers sin `LogsActivity`: Investment*, Product, Role, KPI, Chat, Comment...
 - `empresas-mock.ts` con datos hardcodeados como fallback
-- Dividir `configuracion/page.tsx` (ahora 5,142 líneas — tab duplicado eliminado)
+- Dividir `configuracion/page.tsx` (ahora 4,035 líneas — Contabilidad ERP extraído a `ContabilidadErpTab.tsx`)
 
 ### 🟢 Baja
 - 292 `as any` en TypeScript
