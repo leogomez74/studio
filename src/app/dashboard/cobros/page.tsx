@@ -77,18 +77,41 @@ const getStatusVariantCobros = (status: Credit['status']) => {
 
 // Helper function to calculate days in arrears from plan de pagos
 const calculateDaysInArrears = (credit: Credit): number => {
-  // Obtener el máximo de dias_mora de las cuotas en el plan de pagos
   if (!credit.plan_de_pagos || !Array.isArray(credit.plan_de_pagos) || credit.plan_de_pagos.length === 0) {
     return 0;
   }
 
-  // Buscar la cuota con más días de mora
-  const maxDiasMora = credit.plan_de_pagos.reduce((max, cuota) => {
-    const diasMora = cuota.dias_mora || 0;
-    return diasMora > max ? diasMora : max;
-  }, 0);
+  // Buscar la cuota en mora más antigua por fecha_corte
+  const cuotasMora = credit.plan_de_pagos.filter((c: any) => c.estado === 'Mora' && c.numero_cuota > 0);
+  if (cuotasMora.length === 0) {
+    // Fallback: max dias_mora
+    return credit.plan_de_pagos.reduce((max, cuota) => {
+      const dm = cuota.dias_mora || 0;
+      return dm > max ? dm : max;
+    }, 0);
+  }
 
-  return maxDiasMora;
+  // Encontrar la fecha_corte más antigua de las cuotas en mora
+  let earliestDate: Date | null = null;
+  for (const c of cuotasMora) {
+    const fc = (c as any).fecha_corte;
+    if (fc) {
+      const d = new Date(fc);
+      if (!isNaN(d.getTime()) && (!earliestDate || d < earliestDate)) {
+        earliestDate = d;
+      }
+    }
+  }
+
+  if (earliestDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffMs = today.getTime() - earliestDate.getTime();
+    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  }
+
+  // Fallback: cuotas en mora × 30
+  return cuotasMora.length * 30;
 };
 
 // --- Estado de Cuenta PDF ---
