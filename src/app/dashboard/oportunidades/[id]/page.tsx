@@ -522,6 +522,7 @@ export default function OpportunityDetailPage() {
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [loanConfigs, setLoanConfigs] = useState<{ nombre: string; tasa: { tasa: string } | null }[]>([]);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [defaultAnalisisAssignee, setDefaultAnalisisAssignee] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -606,8 +607,13 @@ export default function OpportunityDetailPage() {
     const plazo = parseInt(analisisForm.plazo) || 36;
 
     if (monto > 0 && plazo > 0) {
-      // Usar tasa fija del 25% anual (o obtener de configuración)
-      const tasaAnual = 25; // TODO: obtener de loan_configurations
+      // Buscar tasa real desde loan_configurations según el producto seleccionado
+      const categoria = analisisForm.category || '';
+      const configMatch = loanConfigs.find(c =>
+        c.nombre?.toLowerCase().includes(categoria.toLowerCase()) ||
+        categoria.toLowerCase().includes(c.nombre?.toLowerCase() || '')
+      );
+      const tasaAnual = configMatch?.tasa?.tasa ? parseFloat(configMatch.tasa.tasa) : 25;
       const tasaMensual = (tasaAnual / 100) / 12;
 
       if (tasaMensual > 0) {
@@ -621,7 +627,7 @@ export default function OpportunityDetailPage() {
     } else {
       setAnalisisForm(prev => ({ ...prev, cuota: "" }));
     }
-  }, [analisisForm.monto_sugerido, analisisForm.plazo]);
+  }, [analisisForm.monto_sugerido, analisisForm.plazo, analisisForm.category, loanConfigs]);
 
   // Cargar archivos de la oportunidad
   const fetchFiles = async () => {
@@ -652,7 +658,7 @@ export default function OpportunityDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [opportunityRes, productsRes, usersRes, automationsRes] = await Promise.all([
+        const [opportunityRes, productsRes, usersRes, automationsRes, loanConfigsRes] = await Promise.all([
           api.get(`/api/opportunities/${id}`),
           api.get('/api/products?all=true'),
           api.get('/api/agents?all=true'),
@@ -667,6 +673,7 @@ export default function OpportunityDetailPage() {
 
         setOpportunity(opportunityData);
         setProducts(productsData);
+        setLoanConfigs(Array.isArray(loanConfigsRes.data) ? loanConfigsRes.data : []);
         setUsers(usersRes.data);
 
         // Cargar archivos y verificar análisis existente
