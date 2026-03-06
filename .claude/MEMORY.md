@@ -75,7 +75,6 @@ class MiController extends Controller {
 
 ### 🔴 Alta
 - Rutas `api.php` sin `auth:sanctum` (197/209 rutas sin middleware explícito)
-- `sender_name: 'Agente'` hardcodeado en `comunicaciones/page.tsx`
 
 ### 🟡 Media
 - 21 controllers sin `LogsActivity`: Investment*, Product, Role, KPI, Chat, Comment...
@@ -92,3 +91,4 @@ class MiController extends Controller {
 - Comunicarse siempre en **español**
 - Commits y push: solo cuando el usuario lo pida explícitamente
 - Si el push es rechazado: `git pull origin main --rebase` antes de reintentar
+- **Siempre actualizar `.claude/MEMORY.md` y archivos de memoria del repo** al completar cada tarea

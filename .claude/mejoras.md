@@ -12,6 +12,7 @@
 | Mar 2026 | Fix prefijo `/api/` faltante en módulo auditoría |
 | Mar 2026 | Fix PHP syntax error `??` dentro de `{}` en AuthController |
 | Mar 2026 | Archivo `nul` basura en backend/ eliminado |
+| Mar 2026 | `sender_name: 'Agente'` → `user?.name \|\| 'Agente'` en `comunicaciones/page.tsx` (usando `useAuth()`) |
 
 ## Pendiente — Alta prioridad
 
@@ -19,10 +20,6 @@
 - 197 de 209 rutas en `api.php` sin middleware explícito
 - Solo middleware en: `leads/bulk-archive`, `leads/bulk-convert`, `opportunities/bulk`, y 2 grupos al final
 - Acción: auditar rutas críticas (pagos, créditos) y moverlas dentro de `Route::middleware(['auth:sanctum'])`
-
-### 2. sender_name hardcodeado en Comunicaciones
-- `src/app/dashboard/comunicaciones/page.tsx` → `sender_name: 'Agente'`
-- Fix: leer de `useAuth()` o contexto de sesión
 
 ## Pendiente — Media prioridad
 
