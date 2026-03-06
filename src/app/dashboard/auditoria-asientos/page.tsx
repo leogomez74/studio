@@ -105,6 +105,8 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   ANULACION_PLANILLA:     'Anulación Planilla',
   ANULACION_SOBRANTE:     'Anulación Sobrante',
   REVERSO_PAGO:           'Anulación de Abono',
+  REVERSO_EXTRAORDINARIO: 'Reverso Extraordinario',
+  REVERSO_CANCELACION:    'Reverso Cancelación',
 };
 
 // ---------------------------------------------------------------------------

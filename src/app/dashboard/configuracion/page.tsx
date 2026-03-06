@@ -155,6 +155,13 @@ const ACCOUNTING_ENTRY_TYPES = [
     reference: 'REVERSE-CANCEL-{ID}'
   },
   {
+    value: 'ABONO_CAPITAL',
+    label: 'Abono a Capital (Saldo Pendiente)',
+    description: 'Aplicación de saldo sobrante como abono a capital del crédito',
+    controller: 'SaldoPendienteController@asignar',
+    reference: 'CAPITAL-{ID}'
+  },
+  {
     value: 'SALDO_SOBRANTE',
     label: 'Saldo Sobrante de Planilla',
     description: 'Se dispara automáticamente cuando queda sobrante tras pagar todos los créditos de una planilla',
