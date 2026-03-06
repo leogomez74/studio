@@ -74,7 +74,7 @@ class MiController extends Controller {
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta
-- Rutas `api.php` sin `auth:sanctum` (197/209 rutas sin middleware explícito)
+- (sin pendientes críticos)
 
 ### 🟡 Media
 - 21 controllers sin `LogsActivity`: Investment*, Product, Role, KPI, Chat, Comment...
