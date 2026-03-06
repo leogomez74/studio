@@ -30,13 +30,13 @@ interface PersonaEmbargo {
 }
 
 function formatColones(value: number): string {
-  return value.toLocaleString('es-CR', {
+  return value.toLocaleString('de-DE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
-/** Format a raw input string with thousand separators (dots) */
+/** Format a raw input string with thousand separators (dots) and decimal comma */
 function formatInputWithSeparators(raw: string): string {
   const cleaned = raw.replace(/[^0-9.,]/g, '');
   const withoutDots = cleaned.replace(/\./g, '');
