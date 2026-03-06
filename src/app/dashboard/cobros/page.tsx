@@ -332,7 +332,9 @@ const generateCertificacionDeuda = async (creditId: number, fechaCorte: string) 
     }
   }
 
-  const totalCancelar = saldo + interesesAlCorte + penalizacion + montoCuotasAtraso;
+  // Si hay penalización, no se cobran intereses al corte (mutuamente excluyentes)
+  const interesesAplicados = penalizacion > 0 ? 0 : interesesAlCorte;
+  const totalCancelar = saldo + interesesAplicados + penalizacion + montoCuotasAtraso;
 
   const deductoraName = credit.deductora?.nombre || 'N/A';
   const operacion = credit.numero_operacion || credit.reference || '-';
@@ -390,12 +392,13 @@ const generateCertificacionDeuda = async (creditId: number, fechaCorte: string) 
   const detalles: [string, string][] = [
     ['NUMERO DE OPERACIÓN: ', `${operacion} ${categoria}`.trim()],
     ['SALDO: ', fmtMoney(saldo)],
-    ['INTERESES AL CORTE + CARGOS: ', fmtMoney(interesesAlCorte)],
-    ['CUOTAS PENDIENTES: ', fmtMoney(montoCuotasAtraso)],
   ];
   if (penalizacion > 0) {
     detalles.push(['PENALIZACIÓN POR CANCELACIÓN ANTICIPADA: ', fmtMoney(penalizacion)]);
+  } else {
+    detalles.push(['INTERESES AL CORTE + CARGOS: ', fmtMoney(interesesAlCorte)]);
   }
+  detalles.push(['CUOTAS PENDIENTES: ', fmtMoney(montoCuotasAtraso)]);
   detalles.push(
     ['TOTAL A CANCELAR: ', fmtMoney(totalCancelar)],
     ['CUOTA: ', fmtMoney(parseFloat(credit.cuota) || 0)],
