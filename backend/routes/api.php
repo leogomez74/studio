@@ -58,6 +58,9 @@ Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'd
 Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
 Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
 
+// --- Registro público de leads (formulario compartido en redes) ---
+Route::post('/leads', [LeadController::class, 'store']);
+
 // =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum
 // =============================================================================
