@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, AlertTriangle, Landmark, Search, Clock, RefreshCw, XCircle, Eye, CheckCircle2, Trash2, DollarSign } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, AlertTriangle, Landmark, Search, Clock, RefreshCw, XCircle, Eye, CheckCircle2, Trash2, DollarSign } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -266,6 +266,8 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
   const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; coupon: any | null }>({ open: false, coupon: null });
   const [paymentForm, setPaymentForm] = useState({ fecha_pago: '', monto: '', tipo: 'Interés' as string, comentarios: '' });
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [monthPages, setMonthPages] = useState<Record<string, number>>({});
+  const CUPONES_PER_PAGE = 15;
 
   const openPaymentDialog = (coupon: any) => {
     const inv = coupon.investment;
@@ -419,7 +421,7 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-64">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar inversionista o desembolso..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
+          <Input placeholder="Buscar inversionista o desembolso..." value={search} onChange={e => { setSearch(e.target.value); setMonthPages({}); }} className="pl-8 h-9" />
         </div>
         <Button variant="outline" size="sm" onClick={selectAllOverdue} disabled={paying}>
           <AlertTriangle className="h-4 w-4 mr-1" /> Seleccionar todos los atrasados
@@ -454,6 +456,11 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         const monthIds = filteredCupones.map((c: any) => c.id);
         const allMonthSelected = monthIds.length > 0 && monthIds.every((id: number) => selected.has(id));
         const someMonthSelected = monthIds.some((id: number) => selected.has(id));
+
+        // Pagination per month
+        const currentPage = monthPages[mes.mes] || 1;
+        const totalPages = Math.ceil(filteredCupones.length / CUPONES_PER_PAGE);
+        const paginatedCupones = filteredCupones.slice((currentPage - 1) * CUPONES_PER_PAGE, currentPage * CUPONES_PER_PAGE);
 
         return (
         <Collapsible key={mes.mes} defaultOpen={idx === 0 || isOverdue}>
@@ -510,7 +517,7 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCupones.map((c: any) => {
+                  {paginatedCupones.map((c: any) => {
                     const inv = c.investment;
                     const moneda = inv?.moneda ?? 'CRC';
                     return (
@@ -549,6 +556,32 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
                 </TableBody>
               </Table>
             </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-2 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {(currentPage - 1) * CUPONES_PER_PAGE + 1}–{Math.min(currentPage * CUPONES_PER_PAGE, filteredCupones.length)} de {filteredCupones.length} cupones
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setMonthPages(prev => ({ ...prev, [mes.mes]: currentPage - 1 }))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium">{currentPage} / {totalPages}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setMonthPages(prev => ({ ...prev, [mes.mes]: currentPage + 1 }))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CollapsibleContent>
         </Collapsible>
         );
