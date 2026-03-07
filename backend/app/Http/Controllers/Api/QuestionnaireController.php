@@ -43,7 +43,7 @@ class QuestionnaireController extends Controller
         return response()->json([
             'completed' => !is_null($lead->questionnaire_completed_at),
             'completed_at' => $lead->questionnaire_completed_at,
-            'lead_name' => $lead->nombre_completo
+            'lead_name' => trim("{$lead->name} {$lead->apellido1} {$lead->apellido2}")
         ]);
     }
 
