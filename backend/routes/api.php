@@ -28,6 +28,9 @@ use App\Http\Controllers\Api\LeadAlertController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\MetaVentaController;
+use App\Http\Controllers\Api\VisitaController;
+use App\Http\Controllers\Api\ComisionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -347,6 +350,27 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/notifications/count', [NotificationController::class, 'count']);
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+
+    // --- Ventas: Metas ---
+    Route::apiResource('metas-venta', MetaVentaController::class);
+
+    // --- Ventas: Visitas ---
+    Route::get('visitas/proximas', [VisitaController::class, 'proximas']);
+    Route::patch('visitas/{id}/status', [VisitaController::class, 'updateStatus']);
+    Route::apiResource('visitas', VisitaController::class);
+
+    // --- Ventas: Comisiones ---
+    Route::get('comisiones/resumen', [ComisionController::class, 'resumen']);
+    Route::patch('comisiones/{id}/aprobar', [ComisionController::class, 'aprobar']);
+    Route::patch('comisiones/{id}/pagar', [ComisionController::class, 'pagar']);
+    Route::patch('comisiones/bulk-aprobar', [ComisionController::class, 'bulkAprobar']);
+    Route::patch('comisiones/bulk-pagar', [ComisionController::class, 'bulkPagar']);
+    Route::apiResource('comisiones', ComisionController::class)->only(['index', 'store', 'destroy']);
+    // Reglas de comisión
+    Route::get('reglas-comision', [ComisionController::class, 'reglas']);
+    Route::post('reglas-comision', [ComisionController::class, 'storeRegla']);
+    Route::put('reglas-comision/{id}', [ComisionController::class, 'updateRegla']);
+    Route::delete('reglas-comision/{id}', [ComisionController::class, 'destroyRegla']);
 
     // --- Admin ---
     Route::post('/admin/trigger-inactivity-check', function () {

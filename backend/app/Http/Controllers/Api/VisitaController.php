@@ -1,0 +1,127 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Visita;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class VisitaController extends Controller
+{
+    public function index(Request $request): JsonResponse
+    {
+        $query = Visita::with(['user:id,name', 'institucion:id,nombre']);
+
+        if ($request->has('user_id')) {
+            $query->where('user_id', $request->input('user_id'));
+        }
+        if ($request->has('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->has('institucion_id')) {
+            $query->where('institucion_id', $request->input('institucion_id'));
+        }
+        if ($request->has('desde')) {
+            $query->where('fecha_planificada', '>=', $request->input('desde'));
+        }
+        if ($request->has('hasta')) {
+            $query->where('fecha_planificada', '<=', $request->input('hasta'));
+        }
+        if ($request->has('anio') && $request->has('mes')) {
+            $query->delPeriodo((int) $request->input('anio'), (int) $request->input('mes'));
+        }
+
+        $perPage = min((int) $request->input('per_page', 20), 100);
+
+        return response()->json(
+            $query->orderBy('fecha_planificada', 'desc')->paginate($perPage)
+        );
+    }
+
+    public function proximas(): JsonResponse
+    {
+        $visitas = Visita::with(['user:id,name', 'institucion:id,nombre'])
+            ->proximas()
+            ->limit(10)
+            ->get();
+
+        return response()->json($visitas);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'institucion_id' => 'nullable|exists:instituciones,id',
+            'institucion_nombre' => 'nullable|string|max:255',
+            'fecha_planificada' => 'required|date',
+            'notas' => 'nullable|string|max:1000',
+            'contacto_nombre' => 'nullable|string|max:255',
+            'contacto_telefono' => 'nullable|string|max:50',
+            'contacto_email' => 'nullable|email|max:255',
+        ]);
+
+        $visita = Visita::create($validated);
+
+        return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']), 201);
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        $visita = Visita::with(['user:id,name', 'institucion:id,nombre'])->findOrFail($id);
+
+        return response()->json($visita);
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $visita = Visita::findOrFail($id);
+
+        $validated = $request->validate([
+            'user_id' => 'nullable|exists:users,id',
+            'institucion_id' => 'nullable|exists:instituciones,id',
+            'institucion_nombre' => 'nullable|string|max:255',
+            'fecha_planificada' => 'nullable|date',
+            'fecha_realizada' => 'nullable|date',
+            'status' => 'nullable|in:Planificada,Completada,Cancelada,Reprogramada',
+            'notas' => 'nullable|string|max:1000',
+            'resultado' => 'nullable|string|max:1000',
+            'contacto_nombre' => 'nullable|string|max:255',
+            'contacto_telefono' => 'nullable|string|max:50',
+            'contacto_email' => 'nullable|email|max:255',
+        ]);
+
+        $visita->update($validated);
+
+        return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']));
+    }
+
+    public function updateStatus(Request $request, int $id): JsonResponse
+    {
+        $visita = Visita::findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => 'required|in:Planificada,Completada,Cancelada,Reprogramada',
+            'resultado' => 'nullable|string|max:1000',
+            'fecha_realizada' => 'nullable|date',
+        ]);
+
+        if ($validated['status'] === 'Completada' && !isset($validated['fecha_realizada'])) {
+            $validated['fecha_realizada'] = now()->toDateString();
+        }
+
+        $visita->update($validated);
+
+        return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']));
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        Visita::findOrFail($id)->delete();
+
+        return response()->json(null, 204);
+    }
+}

@@ -59,7 +59,7 @@ const navGroups = [
     items: [
       { href: '/dashboard/cobros', icon: Banknote, label: 'Cobros', module: 'cobros' },
       { href: '/dashboard/cobro-judicial', icon: Gavel, label: 'Cobro Judicial', module: 'cobro_judicial', badge: 'Próximamente' },
-      { href: '/dashboard/ventas', icon: DollarSign, label: 'Ventas', module: 'ventas', badge: 'Próximamente' },
+      { href: '/dashboard/ventas', icon: DollarSign, label: 'Ventas', module: 'ventas' },
       { href: '/dashboard/inversiones', icon: PiggyBank, label: 'Inversiones', module: 'inversiones', badge: 'Próximamente' },
     ],
   },
