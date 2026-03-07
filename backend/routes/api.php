@@ -96,7 +96,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
     Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
     Route::get('/persons/search', [LeadController::class, 'search']);
-    Route::apiResource('leads', LeadController::class);
+    Route::apiResource('leads', LeadController::class)->except(['store']);
 
     // --- Cuestionarios ---
     Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
