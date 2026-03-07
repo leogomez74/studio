@@ -61,6 +61,10 @@ Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController:
 // --- Registro público de leads (formulario compartido en redes) ---
 Route::post('/leads', [LeadController::class, 'store']);
 
+// --- Cuestionario público (accedido desde link enviado por WhatsApp) ---
+Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
+Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
+
 // =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum
 // =============================================================================
@@ -97,10 +101,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
     Route::get('/persons/search', [LeadController::class, 'search']);
     Route::apiResource('leads', LeadController::class)->except(['store']);
-
-    // --- Cuestionarios ---
-    Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
-    Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
 
     // --- Clientes ---
     Route::apiResource('clients', ClientController::class);
