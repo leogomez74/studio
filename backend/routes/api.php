@@ -64,6 +64,7 @@ Route::post('/leads', [LeadController::class, 'store']);
 // --- Cuestionario público (accedido desde link enviado por WhatsApp) ---
 Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatus']);
 Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
+Route::get('/instituciones', [InstitucionController::class, 'index']);
 
 // =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum
@@ -90,7 +91,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // --- Productos e Instituciones ---
     Route::apiResource('products', ProductController::class);
-    Route::apiResource('instituciones', InstitucionController::class);
+    Route::apiResource('instituciones', InstitucionController::class)->except(['index']);
 
     // --- Leads ---
     Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
