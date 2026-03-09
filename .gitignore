@@ -52,7 +52,6 @@ firestore-debug.log
 !public/certificado/*.jpg
 GEMINI.md
 
-CLAUDE.md
 .claude/*
 !.claude/MEMORY.md
 !.claude/auditoria.md

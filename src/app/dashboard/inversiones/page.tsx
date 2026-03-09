@@ -915,16 +915,19 @@ export default function InversionesPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [invRes, investRes, payRes, usersRes] = await Promise.all([
+      const [invRes, investRes, payRes] = await Promise.all([
         api.get('/api/investors?all=true'),
         api.get('/api/investments?all=true'),
         api.get('/api/investment-payments?all=true'),
-        api.get('/api/users?all=true'),
       ]);
       setInvestors(invRes.data);
       setInvestments(investRes.data);
       setPayments(payRes.data);
-      setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.data ?? []);
+      // Users requiere middleware admin — cargar por separado para no bloquear datos principales
+      try {
+        const usersRes = await api.get('/api/users?all=true');
+        setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.data ?? []);
+      } catch { /* usuario sin acceso admin — lista de usuarios vacía */ }
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {

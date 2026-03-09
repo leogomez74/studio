@@ -17,23 +17,23 @@
 | Mar 2026 | `configuracion/page.tsx`: eliminado tab duplicado `auditoria-asientos` + componente `AccountingAuditLog` (544 líneas → de 5,675 a 5,142) |
 | Mar 2026 | `configuracion/page.tsx`: tab Contabilidad ERP extraído a `ContabilidadErpTab.tsx` (5,142 → 4,035 líneas) |
 | Mar 2026 | Fix permisos sidebar vacío para usuarios no-admin: PermissionsContext usa `/me` en vez de endpoints con middleware admin |
+| Mar 2026 | `configuracion/page.tsx` dividido en 12 componentes (4,035 → 96 líneas) |
+| Mar 2026 | Fix inversiones vacías para no-admin: `/api/users` (middleware admin) estaba en `Promise.all` bloqueando todos los datos |
+| Mar 2026 | `CreditPaymentController` refactorizado: 2,868 → 406 líneas. Lógica extraída en 7 Services |
 
 ## Pendiente — Media prioridad
 
-### 3. configuracion/page.tsx con 4,035 líneas
-- Mezcla: roles, usuarios, cuentas ERP, configs asientos, tasas, deductoras, productos
-- Solución: crear sub-páginas como se hizo con `auditoria-asientos`
+### ~~3. configuracion/page.tsx con 4,035 líneas~~ ✅ Resuelto (Mar 2026)
+Dividido en 12 componentes en `src/components/configuracion/`. page.tsx ahora es orquestador de 96 líneas.
 
 ### ~~4. Controllers sin LogsActivity~~ ✅ Resuelto (Mar 2026)
 31 controllers con LogsActivity. Solo quedan sin él los de solo lectura (ver `auditoria.md`).
 
-### 5. empresas-mock.ts con datos hardcodeados
-- `src/lib/empresas-mock.ts` — fallback que puede mostrar empresas incorrectas
-- Fix: eliminar fallback o migrar empresas a BD
+### ~~5. empresas-mock.ts con datos hardcodeados~~ ✅ No aplica
+Funciona como respaldo intencional si falla la lista de empresas desde BD.
 
-### 6. CreditPaymentController con 2,847 líneas
-- Mezcla planillas, ventanilla, abonos, refundiciones, mora
-- Solución largo plazo: extraer en Services
+### ~~6. CreditPaymentController con 2,847 líneas~~ ✅ Resuelto (Mar 2026)
+Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingService, PlanillaService, AbonoService, CancelacionService, ReversalService. Controller ahora es orquestador de 406 líneas.
 
 ## Pendiente — Baja prioridad
 
