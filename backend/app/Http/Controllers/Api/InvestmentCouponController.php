@@ -8,9 +8,11 @@ use App\Models\InvestmentPayment;
 use App\Models\Investment;
 use App\Services\InvestmentService;
 use Illuminate\Http\Request;
+use App\Traits\LogsActivity;
 
 class InvestmentCouponController extends Controller
 {
+    use LogsActivity;
     public function __construct(private InvestmentService $service) {}
 
     public function index(int $id)
@@ -35,6 +37,7 @@ class InvestmentCouponController extends Controller
         }
 
         $this->service->markCouponAsPaid($coupon, $validated['fecha_pago'] ?? null, $comprobantePath);
+        $this->logActivity('mark_paid', 'Cupones Inversión', $coupon, 'Cupón #' . $coupon->id, [], $request);
         return response()->json($coupon->fresh());
     }
 
@@ -52,6 +55,8 @@ class InvestmentCouponController extends Controller
             (float) $validated['monto_pagado_real'],
             $validated['motivo_correccion']
         );
+
+        $this->logActivity('correct', 'Cupones Inversión', $coupon, 'Cupón #' . $coupon->id, [], $request);
 
         // Return the full investment with updated coupons
         $investment = $coupon->investment->load('coupons');
@@ -92,6 +97,8 @@ class InvestmentCouponController extends Controller
 
             InvestmentPayment::insert($payments);
         }
+
+        $this->logActivity('bulk_mark_paid', 'Cupones Inversión', null, 'Bulk: ' . $updated, [], $request);
 
         return response()->json(['message' => 'Cupones marcados como pagados', 'count' => $updated]);
     }

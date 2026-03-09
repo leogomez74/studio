@@ -9,9 +9,11 @@ use App\Models\Comision;
 use App\Models\ReglaComision;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Traits\LogsActivity;
 
 class ComisionController extends Controller
 {
+    use LogsActivity;
     public function index(Request $request): JsonResponse
     {
         $query = Comision::with(['user:id,name', 'aprobadaPor:id,name']);
@@ -67,6 +69,8 @@ class ComisionController extends Controller
 
         $comision = Comision::create($validated);
 
+        $this->logActivity('create', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
+
         return response()->json($comision->load(['user:id,name']), 201);
     }
 
@@ -80,6 +84,8 @@ class ComisionController extends Controller
             'aprobada_por' => $request->user()->id,
         ]);
 
+        $this->logActivity('aprobar', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
+
         return response()->json($comision->load(['user:id,name', 'aprobadaPor:id,name']));
     }
 
@@ -91,6 +97,8 @@ class ComisionController extends Controller
             'estado' => 'Pagada',
             'fecha_pago' => now()->toDateString(),
         ]);
+
+        $this->logActivity('pagar', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
 
         return response()->json($comision->load(['user:id,name', 'aprobadaPor:id,name']));
     }
@@ -110,6 +118,8 @@ class ComisionController extends Controller
                 'aprobada_por' => $request->user()->id,
             ]);
 
+        $this->logActivity('bulk_aprobar', 'Comisiones', null, $updated . ' comisiones aprobadas', [], $request);
+
         return response()->json(['updated' => $updated]);
     }
 
@@ -127,12 +137,17 @@ class ComisionController extends Controller
                 'fecha_pago' => now()->toDateString(),
             ]);
 
+        $this->logActivity('bulk_pagar', 'Comisiones', null, $updated . ' comisiones pagadas', [], $request);
+
         return response()->json(['updated' => $updated]);
     }
 
     public function destroy(int $id): JsonResponse
     {
         $comision = Comision::where('estado', 'Pendiente')->findOrFail($id);
+
+        $this->logActivity('delete', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision);
+
         $comision->delete();
 
         return response()->json(null, 204);
@@ -158,6 +173,8 @@ class ComisionController extends Controller
 
         $regla = ReglaComision::create($validated);
 
+        $this->logActivity('create', 'Reglas Comisión', $regla, $regla->nombre, [], $request);
+
         return response()->json($regla, 201);
     }
 
@@ -174,14 +191,22 @@ class ComisionController extends Controller
             'activo' => 'nullable|boolean',
         ]);
 
+        $oldData = $regla->toArray();
         $regla->update($validated);
+
+        $changes = $this->getChanges($oldData, $regla->fresh()->toArray());
+        $this->logActivity('update', 'Reglas Comisión', $regla, $regla->nombre, $changes, $request);
 
         return response()->json($regla);
     }
 
     public function destroyRegla(int $id): JsonResponse
     {
-        ReglaComision::findOrFail($id)->delete();
+        $regla = ReglaComision::findOrFail($id);
+
+        $this->logActivity('delete', 'Reglas Comisión', $regla, $regla->nombre);
+
+        $regla->delete();
 
         return response()->json(null, 204);
     }

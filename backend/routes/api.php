@@ -42,9 +42,9 @@ use App\Http\Controllers\Api\ComisionController;
 |
 */
 
-// --- Autenticación (públicas) ---
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+// --- Autenticación (públicas, con rate limiting) ---
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
 // --- PDFs/Excel públicos del Plan de Pagos (se abren en nueva pestaña) ---
 Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
@@ -79,10 +79,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // --- Usuarios y Roles ---
-    Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
-    Route::post('/users/{id}/set-default-lead-assignee', [\App\Http\Controllers\Api\UserController::class, 'setDefaultLeadAssignee']);
-    Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class);
+    // --- Usuarios y Roles (admin) ---
+    Route::apiResource('users', \App\Http\Controllers\Api\UserController::class)->middleware('admin');
+    Route::post('/users/{id}/set-default-lead-assignee', [\App\Http\Controllers\Api\UserController::class, 'setDefaultLeadAssignee'])->middleware('admin');
+    Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class)->middleware('admin');
 
     // --- Utilidades / Listas ---
     Route::get('/agents', function () {
@@ -99,7 +99,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Leads ---
     Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
     Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
-    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula']);
+    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula'])->middleware('permission:crm,delete');
     // Bulk actions ANTES del apiResource para evitar conflictos de rutas
     Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
     Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
@@ -113,10 +113,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/opportunities/{id}/move-files', [OpportunityController::class, 'moveFiles']);
     Route::get('/opportunities/{id}/files', [OpportunityController::class, 'getFiles']);
     Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadFile']);
-    Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile']);
+    Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile'])->middleware('permission:oportunidades,delete');
     Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
     // Bulk action ANTES del apiResource
-    Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete']);
+    Route::delete('/opportunities/bulk', [OpportunityController::class, 'bulkDelete'])->middleware('permission:oportunidades,delete');
     Route::apiResource('opportunities', OpportunityController::class);
 
     // --- Tareas ---
@@ -286,7 +286,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
     Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
-    Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile']);
+    Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile'])->middleware('permission:analizados,delete');
 
     // --- Propuestas de Análisis ---
     Route::get('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'index']);
@@ -303,7 +303,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos']);
     Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
     Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
-    Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument']);
+    Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument'])->middleware('permission:creditos,delete');
     Route::get('credits/{id}/refundicion-preview', [\App\Http\Controllers\Api\CreditController::class, 'refundicionPreview']);
     Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion']);
 
@@ -373,37 +373,39 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('reglas-comision/{id}', [ComisionController::class, 'updateRegla']);
     Route::delete('reglas-comision/{id}', [ComisionController::class, 'destroyRegla']);
 
-    // --- Admin ---
-    Route::post('/admin/trigger-inactivity-check', function () {
-        \Illuminate\Support\Facades\Artisan::call('leads:check-inactivity');
-        $output = \Illuminate\Support\Facades\Artisan::output();
-        return response()->json([
-            'message' => 'Comando ejecutado exitosamente',
-            'output'  => $output,
-            'timestamp' => now()->toIso8601String()
-        ]);
-    });
+    // --- Admin (requiere full_access) ---
+    Route::middleware('admin')->group(function () {
+        Route::post('/admin/trigger-inactivity-check', function () {
+            \Illuminate\Support\Facades\Artisan::call('leads:check-inactivity');
+            $output = \Illuminate\Support\Facades\Artisan::output();
+            return response()->json([
+                'message' => 'Comando ejecutado exitosamente',
+                'output'  => $output,
+                'timestamp' => now()->toIso8601String()
+            ]);
+        });
 
-    Route::post('/admin/clear-cache', function () {
-        \Illuminate\Support\Facades\Artisan::call('cache:clear');
-        $cacheOutput = \Illuminate\Support\Facades\Artisan::output();
-        \Illuminate\Support\Facades\Artisan::call('config:clear');
-        $configOutput = \Illuminate\Support\Facades\Artisan::output();
-        \Illuminate\Support\Facades\Artisan::call('route:clear');
-        $routeOutput = \Illuminate\Support\Facades\Artisan::output();
-        return response()->json([
-            'message' => 'Caché limpiado exitosamente',
-            'cache'   => trim($cacheOutput),
-            'config'  => trim($configOutput),
-            'route'   => trim($routeOutput),
-            'timestamp' => now()->toIso8601String()
-        ]);
-    });
+        Route::post('/admin/clear-cache', function () {
+            \Illuminate\Support\Facades\Artisan::call('cache:clear');
+            $cacheOutput = \Illuminate\Support\Facades\Artisan::output();
+            \Illuminate\Support\Facades\Artisan::call('config:clear');
+            $configOutput = \Illuminate\Support\Facades\Artisan::output();
+            \Illuminate\Support\Facades\Artisan::call('route:clear');
+            $routeOutput = \Illuminate\Support\Facades\Artisan::output();
+            return response()->json([
+                'message' => 'Caché limpiado exitosamente',
+                'cache'   => trim($cacheOutput),
+                'config'  => trim($configOutput),
+                'route'   => trim($routeOutput),
+                'timestamp' => now()->toIso8601String()
+            ]);
+        });
 
-    // --- Admin Gamificación ---
-    Route::prefix('admin/gamification')->group(function () {
-        Route::get('/config', [GamificationConfigController::class, 'index']);
-        Route::put('/config', [GamificationConfigController::class, 'update']);
-        Route::get('/stats', [GamificationConfigController::class, 'stats']);
-    });
-});
+        // --- Admin Gamificación ---
+        Route::prefix('admin/gamification')->group(function () {
+            Route::get('/config', [GamificationConfigController::class, 'index']);
+            Route::put('/config', [GamificationConfigController::class, 'update']);
+            Route::get('/stats', [GamificationConfigController::class, 'stats']);
+        });
+    }); // fin middleware admin
+}); // fin middleware auth:sanctum

@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class ChatMessageController extends Controller
 {
+    use LogsActivity;
+
     /**
      * Obtiene todos los mensajes de una conversación específica
      */
@@ -58,6 +61,8 @@ class ChatMessageController extends Controller
 
         try {
             $message = ChatMessage::create($validator->validated());
+
+            $this->logActivity('create', 'Chat', $message, 'Msg en ' . $message->conversation_id, null, $request);
 
             return response()->json([
                 'success' => true,

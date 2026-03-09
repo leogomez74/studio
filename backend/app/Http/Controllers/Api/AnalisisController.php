@@ -598,7 +598,7 @@ class AnalisisController extends Controller
     public function uploadFile(Request $request, int $id)
     {
         $request->validate([
-            'file' => 'required|file|max:10240', // 10MB max
+            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png,gif,webp|max:10240',
         ]);
 
         $analisis = Analisis::with(['lead', 'opportunity'])->findOrFail($id);

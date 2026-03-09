@@ -77,13 +77,13 @@ class MiController extends Controller {
 - (sin pendientes críticos)
 
 ### 🟡 Media
-- 21 controllers sin `LogsActivity`: Investment*, Product, Role, KPI, Chat, Comment...
 - `empresas-mock.ts` con datos hardcodeados como fallback
 - Dividir `configuracion/page.tsx` (ahora 4,035 líneas — Contabilidad ERP extraído a `ContabilidadErpTab.tsx`)
+- `CreditPaymentController` con 2,847 líneas — extraer en Services
 
 ### 🟢 Baja
-- 292 `as any` en TypeScript
-- Solo 48 `Log::` en backend
+- 149 `as any` en TypeScript (bajó de 292)
+- 64 `Log::` en backend (subió de 48)
 
 ---
 

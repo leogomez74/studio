@@ -625,7 +625,7 @@ class OpportunityController extends Controller
     public function uploadFile(Request $request, string $id)
     {
         $request->validate([
-            'file' => 'required|file|max:10240', // 10MB max
+            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png,gif,webp|max:10240',
         ]);
 
         $opportunity = Opportunity::findOrFail($id);

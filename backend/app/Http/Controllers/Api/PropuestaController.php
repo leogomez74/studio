@@ -13,9 +13,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Traits\LogsActivity;
 
 class PropuestaController extends Controller
 {
+    use LogsActivity;
     /**
      * Listar propuestas de un análisis.
      */
@@ -66,6 +68,8 @@ class PropuestaController extends Controller
 
         $propuesta->load('aceptadaPorUser:id,name');
 
+        $this->logActivity('create', 'Propuestas', $propuesta, 'Propuesta #' . $propuesta->id . ' - ' . $propuesta->monto, [], $request);
+
         return response()->json($propuesta, 201);
     }
 
@@ -102,8 +106,12 @@ class PropuestaController extends Controller
             'categoria' => 'nullable|string|max:255',
         ]);
 
+        $oldData = $propuesta->toArray();
         $propuesta->update($validated);
         $propuesta->load('aceptadaPorUser:id,name');
+
+        $changes = $this->getChanges($oldData, $propuesta->fresh()->toArray());
+        $this->logActivity('update', 'Propuestas', $propuesta, 'Propuesta #' . $propuesta->id . ' - ' . $propuesta->monto, $changes, $request);
 
         return response()->json($propuesta);
     }
@@ -130,6 +138,8 @@ class PropuestaController extends Controller
                 'message' => 'Solo se pueden eliminar propuestas cuando el análisis está en estado "Pendiente de cambios".',
             ], 422);
         }
+
+        $this->logActivity('delete', 'Propuestas', $propuesta, 'Propuesta #' . $propuesta->id . ' - ' . $propuesta->monto);
 
         $propuesta->delete();
 
@@ -204,6 +214,8 @@ class PropuestaController extends Controller
 
         $propuesta->load('aceptadaPorUser:id,name');
 
+        $this->logActivity('aceptar', 'Propuestas', $propuesta, 'Propuesta #' . $propuesta->id . ' - ' . $propuesta->monto);
+
         return response()->json($propuesta);
     }
 
@@ -241,6 +253,8 @@ class PropuestaController extends Controller
         }
 
         $propuesta->load('aceptadaPorUser:id,name');
+
+        $this->logActivity('denegar', 'Propuestas', $propuesta, 'Propuesta #' . $propuesta->id . ' - ' . $propuesta->monto, [], $request);
 
         return response()->json($propuesta);
     }

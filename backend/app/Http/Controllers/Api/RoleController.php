@@ -8,9 +8,11 @@ use App\Models\RolePermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Traits\LogsActivity;
 
 class RoleController extends Controller
 {
+    use LogsActivity;
     /**
      * Display a listing of the resource.
      */
@@ -73,6 +75,8 @@ class RoleController extends Controller
 
             DB::commit();
 
+            $this->logActivity('create', 'Roles', $role, $role->name, [], $request);
+
             return response()->json([
                 'message' => 'Rol creado exitosamente',
                 'data' => $role->load('permissions')
@@ -124,6 +128,8 @@ class RoleController extends Controller
             'permissions' => 'required|array',
         ]);
 
+        $oldData = $role->toArray();
+
         DB::beginTransaction();
         try {
             // Actualizar el rol
@@ -154,6 +160,9 @@ class RoleController extends Controller
 
             DB::commit();
 
+            $changes = $this->getChanges($oldData, $role->fresh()->toArray());
+            $this->logActivity('update', 'Roles', $role, $role->name, $changes, $request);
+
             return response()->json([
                 'message' => 'Rol actualizado exitosamente',
                 'data' => $role->load('permissions')
@@ -181,6 +190,8 @@ class RoleController extends Controller
                 'message' => 'No se puede eliminar el rol porque tiene usuarios asignados'
             ], 422);
         }
+
+        $this->logActivity('delete', 'Roles', $role, $role->name);
 
         // Eliminar permisos asociados
         RolePermission::where('role_id', $role->id)->delete();

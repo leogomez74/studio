@@ -9,9 +9,11 @@ use App\Models\Opportunity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use App\Traits\LogsActivity;
 
 class PersonDocumentController extends Controller
 {
+    use LogsActivity;
     public function index(Request $request)
     {
         $request->validate([
@@ -126,6 +128,8 @@ class PersonDocumentController extends Controller
             'size' => $file->getSize(),
         ]);
 
+        $this->logActivity('create', 'Documentos', $document, $document->name, [], $request);
+
         // Auto-sync: copiar archivo a oportunidades existentes del lead
         $syncResult = $this->syncFileToOpportunities($person->cedula, $path, $fileName, $document->category);
 
@@ -231,6 +235,8 @@ class PersonDocumentController extends Controller
     public function destroy($id)
     {
         $document = PersonDocument::findOrFail($id);
+
+        $this->logActivity('delete', 'Documentos', $document, 'Doc #' . $document->id);
 
         if (Storage::disk('public')->exists($document->path)) {
             Storage::disk('public')->delete($document->path);

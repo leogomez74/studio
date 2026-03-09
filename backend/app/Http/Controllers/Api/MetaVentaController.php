@@ -8,11 +8,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Credit;
 use App\Models\Investment;
 use App\Models\MetaVenta;
+use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MetaVentaController extends Controller
 {
+    use LogsActivity;
+
     public function index(Request $request): JsonResponse
     {
         $query = MetaVenta::with('user:id,name');
@@ -72,6 +75,8 @@ class MetaVentaController extends Controller
             $validated
         );
 
+        $this->logActivity('create', 'Metas Venta', $meta, 'Meta #' . $meta->id, null, $request);
+
         return response()->json($meta->load('user:id,name'), 201);
     }
 
@@ -85,6 +90,7 @@ class MetaVentaController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $meta = MetaVenta::findOrFail($id);
+        $oldData = $meta->toArray();
 
         $validated = $request->validate([
             'meta_creditos_monto' => 'nullable|numeric|min:0',
@@ -97,12 +103,18 @@ class MetaVentaController extends Controller
 
         $meta->update($validated);
 
+        $this->logActivity('update', 'Metas Venta', $meta, 'Meta #' . $meta->id, $this->getChanges($oldData, $meta->fresh()->toArray()), $request);
+
         return response()->json($meta->load('user:id,name'));
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(Request $request, int $id): JsonResponse
     {
-        MetaVenta::findOrFail($id)->delete();
+        $meta = MetaVenta::findOrFail($id);
+
+        $this->logActivity('delete', 'Metas Venta', $meta, 'Meta #' . $meta->id, null, $request);
+
+        $meta->delete();
 
         return response()->json(null, 204);
     }
