@@ -510,12 +510,8 @@ class InvestmentService
                         'moneda' => $investment->moneda,
                     ]);
                 }
-            } else {
-                // sin_intereses: mark pending coupons as paid with 0
-                $investment->coupons()
-                    ->whereIn('estado', ['Pendiente', 'Reservado'])
-                    ->update(['estado' => 'Pagado', 'fecha_pago' => $now, 'monto_pagado_real' => 0]);
             }
+            // sin_intereses: coupons remain active (Pendiente/Reservado) — only capital is returned
 
             // Register capital return payment
             InvestmentPayment::create([
@@ -528,11 +524,19 @@ class InvestmentService
                 'comentarios' => 'Cancelación total ' . ($tipo === 'con_intereses' ? 'con intereses' : 'sin intereses'),
             ]);
 
-            $investment->update([
+            $updateData = [
                 'estado' => 'Finalizada',
                 'fecha_pago_total' => now(),
                 'tipo_cancelacion_total' => $tipo,
-            ]);
+            ];
+
+            // When only capital is returned, zero out capital and monthly interest
+            if ($tipo === 'sin_intereses') {
+                $updateData['monto_capital'] = 0;
+                $updateData['interes_mensual'] = 0;
+            }
+
+            $investment->update($updateData);
 
             return $investment->fresh();
         });
