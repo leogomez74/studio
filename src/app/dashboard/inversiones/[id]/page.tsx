@@ -239,11 +239,11 @@ export default function InvestmentDetailPage() {
     try {
       await api.post(`/api/investments/${investment.id}/cancelacion-total`, { tipo: tipoCancelacion });
       setShowCancelacionTotal(false);
-      toastSuccess('Cancelación total realizada exitosamente.');
+      toastSuccess('Abono realizado exitosamente.');
       setShowEstadoCuentaPrompt(true);
       fetchInvestment();
     } catch (err: any) {
-      toastError(err.response?.data?.message || 'Error al procesar la cancelación total');
+      toastError(err.response?.data?.message || 'Error al procesar el abono');
     } finally {
       setCancelacionLoading(false);
     }
@@ -350,7 +350,7 @@ export default function InvestmentDetailPage() {
                 <RefreshCw className="h-4 w-4 mr-1" /> Renovar
               </Button>
               <Button variant="outline" size="sm" onClick={() => setShowCancelacionTotal(true)}>
-                <Banknote className="h-4 w-4 mr-1" /> Cancelación Total
+                <Banknote className="h-4 w-4 mr-1" /> Abono
               </Button>
               <Button variant="outline" size="sm" className="text-destructive" onClick={() => setShowCancelModal(true)}>
                 <Ban className="h-4 w-4 mr-1" /> Cancelar
@@ -900,7 +900,7 @@ export default function InvestmentDetailPage() {
       <Dialog open={showCancelacionTotal} onOpenChange={setShowCancelacionTotal}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Cancelación Total de Inversión</DialogTitle>
+            <DialogTitle>Abono de Inversión</DialogTitle>
             <DialogDescription>Se devolverá el capital completo al inversionista y la inversión pasará a estado Finalizada.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -969,7 +969,7 @@ export default function InvestmentDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelacionTotal(false)}>Cerrar</Button>
             <Button onClick={handleCancelacionTotal} disabled={cancelacionLoading}>
-              {cancelacionLoading ? 'Procesando...' : 'Confirmar Cancelación Total'}
+              {cancelacionLoading ? 'Procesando...' : 'Confirmar Abono'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -980,7 +980,7 @@ export default function InvestmentDetailPage() {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Inversión Finalizada</DialogTitle>
-            <DialogDescription>La cancelación total se ha procesado exitosamente. ¿Desea generar el estado de cuenta?</DialogDescription>
+            <DialogDescription>El abono se ha procesado exitosamente. ¿Desea generar el estado de cuenta?</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 sm:justify-between">
             <Button variant="outline" onClick={() => setShowEstadoCuentaPrompt(false)}>No, cerrar</Button>
