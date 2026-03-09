@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\TaskAutomation;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 
 class TaskAutomationController extends Controller
 {
+    use LogsActivity;
+
     public function index()
     {
         return TaskAutomation::with('assignee:id,name')->get();
@@ -27,6 +30,8 @@ class TaskAutomationController extends Controller
             ['event_type' => $validated['event_type']],
             $validated
         );
+
+        $this->logActivity('upsert', 'Automatización Tareas', $automation, $automation->title, null, $request);
 
         return response()->json($automation->load('assignee:id,name'));
     }

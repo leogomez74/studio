@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Investment;
 use App\Models\InvestmentPayment;
 use Illuminate\Http\Request;
+use App\Traits\LogsActivity;
 
 class InvestmentPaymentController extends Controller
 {
+    use LogsActivity;
     public function index(Request $request)
     {
         $query = InvestmentPayment::with(['investor:id,name', 'investment:id,numero_desembolso,moneda', 'registeredByUser:id,name']);
@@ -57,12 +59,15 @@ class InvestmentPaymentController extends Controller
         }
 
         $payment = InvestmentPayment::create($validated);
+        $this->logActivity('create', 'Pagos Inversión', $payment, $payment->tipo . ' - ' . $payment->monto, [], $request);
         return response()->json($payment->load(['investor:id,name', 'investment:id,numero_desembolso', 'registeredByUser:id,name']), 201);
     }
 
     public function destroy(int $id)
     {
-        InvestmentPayment::findOrFail($id)->delete();
+        $payment = InvestmentPayment::findOrFail($id);
+        $this->logActivity('delete', 'Pagos Inversión', $payment, $payment->tipo . ' - ' . $payment->monto);
+        $payment->delete();
         return response()->json(['message' => 'Pago eliminado']);
     }
 }

@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Investor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Traits\LogsActivity;
 
 class InvestorController extends Controller
 {
+    use LogsActivity;
     public function index(Request $request)
     {
         $query = Investor::withCount(['investments as active_investments_count' => fn ($q) => $q->where('estado', 'Activa')]);
@@ -49,6 +51,7 @@ class InvestorController extends Controller
         ]);
 
         $investor = Investor::create($validated);
+        $this->logActivity('create', 'Inversionistas', $investor, $investor->name . ' (' . ($investor->cedula ?? 'Sin cédula') . ')', [], $request);
         return response()->json($investor, 201);
     }
 
@@ -63,6 +66,7 @@ class InvestorController extends Controller
     public function update(Request $request, int $id)
     {
         $investor = Investor::findOrFail($id);
+        $oldData = $investor->toArray();
 
         $validated = $request->validate([
             'name' => 'string|max:255',
@@ -78,12 +82,15 @@ class InvestorController extends Controller
         ]);
 
         $investor->update($validated);
+        $changes = $this->getChanges($oldData, $investor->fresh()->toArray());
+        $this->logActivity('update', 'Inversionistas', $investor, $investor->name . ' (' . ($investor->cedula ?? 'Sin cédula') . ')', $changes, $request);
         return response()->json($investor);
     }
 
     public function destroy(int $id)
     {
         $investor = Investor::findOrFail($id);
+        $this->logActivity('delete', 'Inversionistas', $investor, $investor->name . ' (' . ($investor->cedula ?? 'Sin cédula') . ')');
 
         DB::transaction(function () use ($investor) {
             // Cascade delete related records

@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
 use App\Models\Notification;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 class CommentController extends Controller
 {
+    use LogsActivity;
+
     private array $typeMap = [
         'credit'      => 'App\\Models\\Credit',
         'opportunity' => 'App\\Models\\Opportunity',
@@ -61,6 +64,8 @@ class CommentController extends Controller
             'mentions'         => $request->mentions,
         ]);
 
+        $this->logActivity('create', 'Comentarios', $comment, 'Comentario #' . $comment->id, null, $request);
+
         // Unarchive parent if this reply mentions someone
         if ($request->parent_id) {
             $parent = Comment::find($request->parent_id);
@@ -102,6 +107,8 @@ class CommentController extends Controller
         if ($comment->user_id !== $request->user()->id) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
+
+        $this->logActivity('delete', 'Comentarios', $comment, 'Comentario #' . $comment->id, null, $request);
 
         $comment->delete();
 

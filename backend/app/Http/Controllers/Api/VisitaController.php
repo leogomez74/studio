@@ -8,9 +8,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Visita;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Traits\LogsActivity;
 
 class VisitaController extends Controller
 {
+    use LogsActivity;
     public function index(Request $request): JsonResponse
     {
         $query = Visita::with(['user:id,name', 'institucion:id,nombre']);
@@ -66,6 +68,8 @@ class VisitaController extends Controller
 
         $visita = Visita::create($validated);
 
+        $this->logActivity('create', 'Visitas', $visita, 'Visita #' . $visita->id, [], $request);
+
         return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']), 201);
     }
 
@@ -94,7 +98,11 @@ class VisitaController extends Controller
             'contacto_email' => 'nullable|email|max:255',
         ]);
 
+        $oldData = $visita->toArray();
         $visita->update($validated);
+
+        $changes = $this->getChanges($oldData, $visita->fresh()->toArray());
+        $this->logActivity('update', 'Visitas', $visita, 'Visita #' . $visita->id, $changes, $request);
 
         return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']));
     }
@@ -115,12 +123,18 @@ class VisitaController extends Controller
 
         $visita->update($validated);
 
+        $this->logActivity('update_status', 'Visitas', $visita, 'Visita #' . $visita->id, [], $request);
+
         return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']));
     }
 
     public function destroy(int $id): JsonResponse
     {
-        Visita::findOrFail($id)->delete();
+        $visita = Visita::findOrFail($id);
+
+        $this->logActivity('delete', 'Visitas', $visita, 'Visita #' . $visita->id);
+
+        $visita->delete();
 
         return response()->json(null, 204);
     }

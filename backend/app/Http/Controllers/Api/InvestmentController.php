@@ -10,9 +10,11 @@ use App\Services\InvestmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Traits\LogsActivity;
 
 class InvestmentController extends Controller
 {
+    use LogsActivity;
     public function __construct(private InvestmentService $service) {}
 
     public function index(Request $request)
@@ -63,6 +65,8 @@ class InvestmentController extends Controller
             return $investment;
         });
 
+        $this->logActivity('create', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
+
         return response()->json($investment->load('coupons'), 201);
     }
 
@@ -76,6 +80,7 @@ class InvestmentController extends Controller
     public function update(Request $request, int $id)
     {
         $investment = Investment::findOrFail($id);
+        $oldData = $investment->toArray();
 
         $validated = $request->validate([
             'numero_desembolso' => "string|max:20|unique:investments,numero_desembolso,{$id}",
@@ -114,12 +119,17 @@ class InvestmentController extends Controller
             }
         });
 
+        $changes = $this->getChanges($oldData, $investment->fresh()->toArray());
+        $this->logActivity('update', 'Inversiones', $investment, $investment->numero_desembolso, $changes, $request);
+
         return response()->json($investment->fresh()->load('coupons'));
     }
 
     public function destroy(int $id)
     {
-        Investment::findOrFail($id)->delete();
+        $investment = Investment::findOrFail($id);
+        $this->logActivity('delete', 'Inversiones', $investment, $investment->numero_desembolso);
+        $investment->delete();
         return response()->json(['message' => 'Inversión eliminada']);
     }
 
@@ -188,6 +198,7 @@ class InvestmentController extends Controller
     {
         $investment = Investment::findOrFail($id);
         $result = $this->service->liquidateEarly($investment);
+        $this->logActivity('liquidate', 'Inversiones', $investment, $investment->numero_desembolso);
         return response()->json($result);
     }
 
@@ -205,6 +216,7 @@ class InvestmentController extends Controller
         ]);
 
         $newInvestment = $this->service->renewInvestment($investment, $validated);
+        $this->logActivity('renew', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
         return response()->json($newInvestment->load('coupons'), 201);
     }
 
@@ -229,6 +241,8 @@ class InvestmentController extends Controller
                 ? $investment->notas . "\n\nMotivo cancelación: " . $validated['motivo']
                 : "Motivo cancelación: " . $validated['motivo'],
         ]);
+
+        $this->logActivity('cancel', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
 
         return response()->json($investment->fresh());
     }

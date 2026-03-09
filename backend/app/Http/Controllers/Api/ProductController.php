@@ -7,9 +7,11 @@ use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Traits\LogsActivity;
 
 class ProductController extends Controller
 {
+    use LogsActivity;
     /**
      * Display a listing of the resource.
      */
@@ -35,6 +37,7 @@ class ProductController extends Controller
         $validated['slug'] = Str::slug($validated['name']);
 
         $product = Product::create($validated);
+        $this->logActivity('create', 'Productos', $product, $product->name, [], $request);
 
         return response()->json($product, 201);
     }
@@ -54,6 +57,7 @@ class ProductController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $product = Product::findOrFail($id);
+        $oldData = $product->toArray();
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:150|unique:products,name,' . $id,
@@ -68,6 +72,8 @@ class ProductController extends Controller
         }
 
         $product->update($validated);
+        $changes = $this->getChanges($oldData, $product->fresh()->toArray());
+        $this->logActivity('update', 'Productos', $product, $product->name, $changes, $request);
 
         return response()->json($product);
     }
@@ -78,6 +84,7 @@ class ProductController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $product = Product::findOrFail($id);
+        $this->logActivity('delete', 'Productos', $product, $product->name);
         $product->delete();
 
         return response()->json(['message' => 'Producto eliminado exitosamente'], 200);

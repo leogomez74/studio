@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmbargoConfiguracion;
+use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 
 class EmbargoConfiguracionController extends Controller
 {
+    use LogsActivity;
+
     public function show(): JsonResponse
     {
         $config = EmbargoConfiguracion::vigente();
@@ -38,16 +41,21 @@ class EmbargoConfiguracionController extends Controller
         ]);
 
         $config = EmbargoConfiguracion::vigente();
+        $oldData = $config ? $config->toArray() : null;
 
         if (!$config) {
             $config = EmbargoConfiguracion::create(array_merge($validated, [
                 'fuente' => 'manual',
                 'activo' => true,
             ]));
+
+            $this->logActivity('create', 'Configuración Embargo', $config, 'Config Embargo ' . ($config->anio ?? ''), null, $request);
         } else {
             $config->update(array_merge($validated, [
                 'fuente' => 'manual',
             ]));
+
+            $this->logActivity('update', 'Configuración Embargo', $config, 'Config Embargo ' . ($config->anio ?? ''), $this->getChanges($oldData, $config->fresh()->toArray()), $request);
         }
 
         Log::info('Embargo config updated manually', [
