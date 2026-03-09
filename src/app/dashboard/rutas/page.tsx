@@ -180,6 +180,28 @@ const rutaStatusColors: Record<RutaStatus, string> = {
   completada: "bg-green-100 text-green-800",
 };
 
+const statusLabels: Record<TareaStatus, string> = {
+  pendiente: "Pendiente",
+  asignada: "Asignada",
+  en_transito: "En Tránsito",
+  completada: "Completada",
+  fallida: "Fallida",
+  cancelada: "Cancelada",
+};
+
+const rutaStatusLabels: Record<RutaStatus, string> = {
+  borrador: "Borrador",
+  confirmada: "Confirmada",
+  en_progreso: "En Progreso",
+  completada: "Completada",
+};
+
+const prioridadLabels: Record<TareaPrioridad, string> = {
+  normal: "Normal",
+  urgente: "Urgente",
+  critica: "Crítica",
+};
+
 // ==============================
 // MAIN PAGE
 // ==============================
@@ -437,7 +459,7 @@ function TareasPendientesTab({ users, toast }: { users: UserOption[]; toast: Ret
                   <TableCell>
                     <Badge className={prioridadColors[t.prioridad]}>
                       {t.prioridad_override && <AlertTriangle className="h-3 w-3 mr-1" />}
-                      {t.prioridad}
+                      {prioridadLabels[t.prioridad]}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -679,7 +701,7 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
                       <span className="font-medium text-sm truncate">{t.titulo}</span>
                       <Badge className={`${prioridadColors[t.prioridad]} text-xs`}>
                         {t.prioridad_override && <AlertTriangle className="h-3 w-3 mr-0.5" />}
-                        {t.prioridad}
+                        {prioridadLabels[t.prioridad]}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -876,7 +898,7 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm">{new Date(r.fecha).toLocaleDateString("es-CR", { weekday: "short", day: "numeric", month: "short" })}</span>
-                    <Badge className={rutaStatusColors[r.status]}>{r.status}</Badge>
+                    <Badge className={rutaStatusColors[r.status]}>{rutaStatusLabels[r.status]}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {r.mensajero?.name || "Sin asignar"} — {r.completadas_count ?? r.completadas}/{r.tareas_count ?? r.total_tareas} tareas
@@ -935,7 +957,7 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
                         <div className="flex items-center gap-2">
                           {tipoIcons[t.tipo]}
                           <span className="font-medium text-sm">{t.titulo}</span>
-                          <Badge className={`${statusColors[t.status]} text-xs`}>{t.status}</Badge>
+                          <Badge className={`${statusColors[t.status]} text-xs`}>{statusLabels[t.status]}</Badge>
                         </div>
                         {t.empresa_destino && (
                           <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
@@ -1111,7 +1133,7 @@ function HistorialTab() {
                     <span className="font-medium text-sm">
                       {new Date(r.fecha).toLocaleDateString("es-CR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                     </span>
-                    <Badge className={rutaStatusColors[r.status]}>{r.status}</Badge>
+                    <Badge className={rutaStatusColors[r.status]}>{rutaStatusLabels[r.status]}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {r.mensajero?.name} — {r.completadas_count ?? r.completadas}/{r.tareas_count ?? r.total_tareas} tareas
@@ -1144,7 +1166,7 @@ function HistorialTab() {
                     </div>
                     {t.empresa_destino && <div className="text-xs text-muted-foreground">{t.empresa_destino}</div>}
                   </div>
-                  <Badge className={statusColors[t.status]}>{t.status}</Badge>
+                  <Badge className={statusColors[t.status]}>{statusLabels[t.status]}</Badge>
                   {t.completada_at && (
                     <span className="text-xs text-muted-foreground">
                       {new Date(t.completada_at).toLocaleTimeString("es-CR", { hour: "2-digit", minute: "2-digit" })}
@@ -1276,7 +1298,7 @@ function MiRutaTab() {
               </p>
             </div>
             <Badge className={`${rutaStatusColors[ruta.status]} text-sm px-3 py-1`}>
-              {ruta.status === "en_progreso" ? "En Progreso" : ruta.status}
+              {rutaStatusLabels[ruta.status]}
             </Badge>
           </div>
 
@@ -1335,7 +1357,7 @@ function MiRutaTab() {
                       <span className="font-semibold">{t.titulo}</span>
                       <Badge className={`${prioridadColors[t.prioridad]} text-xs`}>
                         {t.prioridad_override && <AlertTriangle className="h-3 w-3 mr-0.5" />}
-                        {t.prioridad}
+                        {prioridadLabels[t.prioridad]}
                       </Badge>
                       <Badge variant="outline" className="text-xs">
                         {tipoIcons[t.tipo]}
