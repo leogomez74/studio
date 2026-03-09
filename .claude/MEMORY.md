@@ -24,10 +24,10 @@
 | Cobros | `/dashboard/cobros` | ✅ |
 | Analisis | `/dashboard/analisis` | ✅ |
 | Oportunidades | `/dashboard/oportunidades` | ✅ |
-| Configuración | `/dashboard/configuracion` | ✅ (4,035 líneas — candidato a dividir) |
+| Configuración | `/dashboard/configuracion` | ✅ (96 líneas — refactorizado Mar 2026) |
 | Auditoría General | `/dashboard/auditoria` | ✅ Mar 2026 |
 | Auditoría Asientos ERP | `/dashboard/auditoria-asientos` | ✅ Mar 2026 |
-| Inversiones | `/dashboard/inversiones` | ✅ (migraciones pendientes en prod) |
+| Inversiones | `/dashboard/inversiones` | ✅ |
 | Rewards | `/dashboard/rewards` | ✅ |
 | Tareas | `/dashboard/tareas` | ✅ |
 
@@ -40,6 +40,7 @@
 - Frontend: `canViewModule('modulo')` desde `PermissionsContext`
 - **Flujo de permisos**: `/me` retorna `user` + `permissions` → `PermissionsContext` usa `/me` (NO `/users/{id}` ni `/roles/{id}` que requieren middleware admin)
 - **Bug resuelto Mar 2026**: usuarios no-admin veían sidebar vacío porque PermissionsContext llamaba endpoints con middleware `admin` → fix: usar `/me`
+- **Patrón crítico**: NUNCA mezclar `/api/users` (middleware admin) en `Promise.all` con otros endpoints — si falla uno, fallan todos. Siempre separar con try/catch propio.
 
 ---
 
@@ -79,8 +80,6 @@ class MiController extends Controller {
 - (sin pendientes críticos)
 
 ### 🟡 Media
-- `empresas-mock.ts` con datos hardcodeados como fallback
-- Dividir `configuracion/page.tsx` (ahora 4,035 líneas — Contabilidad ERP extraído a `ContabilidadErpTab.tsx`)
 - `CreditPaymentController` con 2,847 líneas — extraer en Services
 
 ### 🟢 Baja
