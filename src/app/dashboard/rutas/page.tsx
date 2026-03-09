@@ -209,7 +209,7 @@ export default function RutasPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
+          <TabsList className="w-full justify-center">
             <TabsTrigger value="pendientes">
               <PackageCheck className="h-4 w-4 mr-1" />
               Tareas Pendientes
@@ -321,7 +321,7 @@ function TareasPendientesTab({ users, toast }: { users: UserOption[]; toast: Ret
       canton: t.canton || "",
       contacto_nombre: t.contacto_nombre || "",
       contacto_telefono: t.contacto_telefono || "",
-      fecha_limite: t.fecha_limite || "",
+      fecha_limite: t.fecha_limite ? t.fecha_limite.slice(0, 10) : "",
     });
     setShowDialog(true);
   };
@@ -445,7 +445,7 @@ function TareasPendientesTab({ users, toast }: { users: UserOption[]; toast: Ret
                     {t.canton && <div className="text-xs text-muted-foreground">{t.canton}, {t.provincia}</div>}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {t.fecha_limite ? new Date(t.fecha_limite + "T12:00:00").toLocaleDateString("es-CR") : "-"}
+                    {t.fecha_limite ? new Date(t.fecha_limite).toLocaleDateString("es-CR") : "-"}
                   </TableCell>
                   <TableCell className="text-sm">{t.solicitante?.name || "-"}</TableCell>
                   <TableCell>
@@ -685,7 +685,7 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       {t.empresa_destino && <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{t.empresa_destino}</span>}
                       {t.canton && <span>{t.canton}</span>}
-                      {t.fecha_limite && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />Límite: {new Date(t.fecha_limite + "T12:00:00").toLocaleDateString("es-CR")}</span>}
+                      {t.fecha_limite && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />Límite: {new Date(t.fecha_limite).toLocaleDateString("es-CR")}</span>}
                     </div>
                   </div>
                 </div>
@@ -875,7 +875,7 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
                   onClick={() => fetchRutaDetail(r.id)}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{new Date(r.fecha + "T12:00:00").toLocaleDateString("es-CR", { weekday: "short", day: "numeric", month: "short" })}</span>
+                    <span className="font-medium text-sm">{new Date(r.fecha).toLocaleDateString("es-CR", { weekday: "short", day: "numeric", month: "short" })}</span>
                     <Badge className={rutaStatusColors[r.status]}>{r.status}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
@@ -1109,7 +1109,7 @@ function HistorialTab() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm">
-                      {new Date(r.fecha + "T12:00:00").toLocaleDateString("es-CR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                      {new Date(r.fecha).toLocaleDateString("es-CR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                     </span>
                     <Badge className={rutaStatusColors[r.status]}>{r.status}</Badge>
                   </div>
@@ -1272,7 +1272,7 @@ function MiRutaTab() {
             <div>
               <h2 className="text-lg font-bold">Mi Ruta de Hoy</h2>
               <p className="text-sm text-muted-foreground">
-                {new Date(ruta.fecha + "T12:00:00").toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long" })}
+                {new Date(ruta.fecha).toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long" })}
               </p>
             </div>
             <Badge className={`${rutaStatusColors[ruta.status]} text-sm px-3 py-1`}>
