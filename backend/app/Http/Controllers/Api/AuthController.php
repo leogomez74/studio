@@ -83,6 +83,15 @@ class AuthController extends Controller
     {
         $user = Auth::user();
         $user->load('role');
-        return response()->json(['user' => $user], 200);
+
+        $permissions = [];
+        if ($user->role) {
+            $permissions = $user->role->getFormattedPermissions();
+        }
+
+        return response()->json([
+            'user' => $user,
+            'permissions' => $permissions,
+        ], 200);
     }
 }

@@ -40,8 +40,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     }
 
     try {
-      // Obtener el usuario con su rol y permisos
-      const res = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+      // Obtener permisos directamente del endpoint /me (no requiere admin)
+      const res = await fetch(`${API_BASE_URL}/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
@@ -49,31 +49,12 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       });
 
       if (res.ok) {
-        const userData = await res.json();
-        console.log('User data received:', userData);
-
-        if (userData.role) {
-          // Si tiene rol, obtener los detalles del rol con permisos
-          const roleRes = await fetch(`${API_BASE_URL}/roles/${userData.role.id}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/json',
-            },
-          });
-
-          if (roleRes.ok) {
-            const roleData = await roleRes.json();
-            const perms = roleData.permissions || {};
-            setPermissions(perms);
-          } else {
-            console.error('Role fetch failed:', roleRes.status);
-            setPermissions({});
-          }
-        } else {
-          console.log('User has no role assigned');
-          // Sin rol asignado = sin permisos
-          setPermissions({});
-        }
+        const data = await res.json();
+        const perms = data.permissions || {};
+        setPermissions(perms);
+      } else {
+        console.error('Permissions fetch failed:', res.status);
+        setPermissions({});
       }
     } catch (error) {
       console.error('Error fetching permissions:', error);

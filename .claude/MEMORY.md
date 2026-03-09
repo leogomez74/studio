@@ -24,7 +24,7 @@
 | Cobros | `/dashboard/cobros` | ✅ |
 | Analisis | `/dashboard/analisis` | ✅ |
 | Oportunidades | `/dashboard/oportunidades` | ✅ |
-| Configuración | `/dashboard/configuracion` | ✅ (5675 líneas — candidato a dividir) |
+| Configuración | `/dashboard/configuracion` | ✅ (4,035 líneas — candidato a dividir) |
 | Auditoría General | `/dashboard/auditoria` | ✅ Mar 2026 |
 | Auditoría Asientos ERP | `/dashboard/auditoria-asientos` | ✅ Mar 2026 |
 | Inversiones | `/dashboard/inversiones` | ✅ (migraciones pendientes en prod) |
@@ -38,6 +38,8 @@
 - Módulos: `reportes, kpis, crm, oportunidades, analizados, creditos, calculos, cobros, cobro_judicial, ventas, inversiones, rutas, proyectos, comunicaciones, staff, entrenamiento, recompensas, configuracion, tareas, auditoria`
 - `full_access=true` → acceso total automático
 - Frontend: `canViewModule('modulo')` desde `PermissionsContext`
+- **Flujo de permisos**: `/me` retorna `user` + `permissions` → `PermissionsContext` usa `/me` (NO `/users/{id}` ni `/roles/{id}` que requieren middleware admin)
+- **Bug resuelto Mar 2026**: usuarios no-admin veían sidebar vacío porque PermissionsContext llamaba endpoints con middleware `admin` → fix: usar `/me`
 
 ---
 

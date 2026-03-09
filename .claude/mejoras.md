@@ -16,10 +16,11 @@
 | Mar 2026 | Todas las rutas de `api.php` protegidas con `auth:sanctum` — solo público: register, login, plan-pdf/excel, exports de inversiones |
 | Mar 2026 | `configuracion/page.tsx`: eliminado tab duplicado `auditoria-asientos` + componente `AccountingAuditLog` (544 líneas → de 5,675 a 5,142) |
 | Mar 2026 | `configuracion/page.tsx`: tab Contabilidad ERP extraído a `ContabilidadErpTab.tsx` (5,142 → 4,035 líneas) |
+| Mar 2026 | Fix permisos sidebar vacío para usuarios no-admin: PermissionsContext usa `/me` en vez de endpoints con middleware admin |
 
 ## Pendiente — Media prioridad
 
-### 3. configuracion/page.tsx con 5,675 líneas
+### 3. configuracion/page.tsx con 4,035 líneas
 - Mezcla: roles, usuarios, cuentas ERP, configs asientos, tasas, deductoras, productos
 - Solución: crear sub-páginas como se hizo con `auditoria-asientos`
 
