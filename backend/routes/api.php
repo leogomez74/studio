@@ -256,6 +256,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('investments/reservas', [InvestmentController::class, 'reservas']);
     Route::get('investments/preview', [InvestmentController::class, 'preview']);
     Route::get('investments/vencimientos', [InvestmentController::class, 'vencimientos']);
+    Route::post('investments/recalculate-all', [InvestmentController::class, 'recalculateAll']);
     Route::get('investments/{id}/reserva', [InvestmentController::class, 'reservaDetalle']);
     Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate']);
     Route::post('investments/{id}/renew', [InvestmentController::class, 'renew']);

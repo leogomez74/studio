@@ -29,7 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import api from '@/lib/axios';
 import type { Investment, InvestmentCoupon } from '@/lib/data';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);

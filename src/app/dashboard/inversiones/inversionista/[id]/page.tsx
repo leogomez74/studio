@@ -15,7 +15,7 @@ import api from '@/lib/axios';
 import type { Investor, Investment } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
@@ -229,7 +229,7 @@ function InvestmentsTable({ investments, onDelete }: { investments: Investment[]
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                   <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${inv.id}`}>Ver Detalles</Link></DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}/api/investments/${inv.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
                   <DropdownMenuItem className="text-destructive" onClick={() => onDelete(inv.id)}>Eliminar</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

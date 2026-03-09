@@ -233,6 +233,22 @@ class InvestmentController extends Controller
         return response()->json($investment->fresh());
     }
 
+    public function recalculateAll()
+    {
+        $investments = Investment::all();
+        $count = 0;
+
+        foreach ($investments as $investment) {
+            $this->service->generateCoupons($investment);
+            $count++;
+        }
+
+        return response()->json([
+            'message' => "Se recalcularon los cupones de {$count} inversión(es).",
+            'count' => $count,
+        ]);
+    }
+
     public function preview(Request $request)
     {
         $validated = $request->validate([

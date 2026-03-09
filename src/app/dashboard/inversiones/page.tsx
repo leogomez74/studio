@@ -36,7 +36,7 @@ import type { Investor, Investment, InvestmentPayment, User } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
 import { InvestorFormDialog } from '@/components/investor-form-dialog';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
@@ -893,6 +893,7 @@ export default function InversionesPage() {
   const [reservas, setReservas] = useState<any>(null);
   const [vencimientos, setVencimientos] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [showInvestorForm, setShowInvestorForm] = useState(false);
@@ -1138,6 +1139,22 @@ export default function InversionesPage() {
                   <CardDescription>Gestiona todas las inversiones de capital.</CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={recalculating} onClick={async () => {
+                    if (!confirm('¿Recalcular los cupones de TODAS las inversiones? Esto regenerará todos los cupones.')) return;
+                    setRecalculating(true);
+                    try {
+                      const res = await api.post('/api/investments/recalculate-all');
+                      toastSuccess(res.data.message);
+                      fetchData();
+                    } catch (err: any) {
+                      toastError(err?.response?.data?.message || 'Error al recalcular cupones.');
+                    } finally {
+                      setRecalculating(false);
+                    }
+                  }}>
+                    {recalculating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    Recalcular Cupones
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-pdf`, '_blank')}>
                     <FileText className="h-4 w-4 mr-1" /> PDF
                   </Button>
