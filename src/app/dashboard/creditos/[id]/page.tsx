@@ -206,8 +206,13 @@ interface ClientOption {
   cedula: string;
   email: string;
   phone: string;
+  apellido1?: string | null;
+  apellido2?: string | null;
   ocupacion?: string;
   departamento_cargo?: string;
+  estado_civil?: string;
+  direccion1?: string;
+  direccion2?: string;
 }
 
 // Configuración de cargos adicionales con reglas de negocio
@@ -287,12 +292,17 @@ interface CreditItem {
   lead?: {
     id: number;
     name: string;
+    apellido1?: string | null;
+    apellido2?: string | null;
     cedula?: string | null;
     institucion_labora?: string | null;
     documents?: CreditDocument[];
     deductora_id?: number,
     assigned_to_id: number,
     ocupacion?: string | null;
+    estado_civil?: string | null;
+    direccion1?: string | null;
+    direccion2?: string | null;
   } | null;
   opportunity_id: string | null;
   client?: ClientOption | null;
@@ -1485,7 +1495,7 @@ function CreditDetailClient({ id }: { id: string }) {
       }
     });
 
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    let finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -1521,7 +1531,7 @@ function CreditDetailClient({ id }: { id: string }) {
       headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
     });
 
-    finalY = (doc as any).lastAutoTable.finalY + 10;
+    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -1595,12 +1605,12 @@ function CreditDetailClient({ id }: { id: string }) {
 
     const debtor = creditData.client || creditData.lead || null;
     const nombre = (debtor?.name || '').toUpperCase();
-    const cedula = (debtor as any)?.cedula || '';
-    const estadoCivil = ((debtor as any)?.estado_civil || '').toUpperCase();
+    const cedula = debtor?.cedula || '';
+    const estadoCivil = (debtor?.estado_civil || '').toUpperCase();
     const profesion = (debtor?.ocupacion || '').toUpperCase();
     const direccion = [
-      (debtor as any)?.direccion1,
-      (debtor as any)?.direccion2,
+      debtor?.direccion1,
+      debtor?.direccion2,
     ].filter(Boolean).join(', ').toUpperCase();
 
     let y = 35;

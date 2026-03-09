@@ -112,6 +112,7 @@ type CreditFormValues = z.infer<typeof creditSchema>;
 interface DeductoraOption {
   id: string | number;
   nombre: string;
+  name?: string;
 }
 
 
@@ -998,7 +999,7 @@ export default function CreditsPage() {
     });
 
     // Créditos / Otras deducciones
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    let finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -1053,7 +1054,7 @@ export default function CreditsPage() {
     });
 
     // Fianzas
-    finalY = (doc as any).lastAutoTable.finalY + 10;
+    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -1112,12 +1113,12 @@ export default function CreditsPage() {
 
     const debtor = credit.client || credit.lead || null;
     const nombre = (debtor?.name || '').toUpperCase();
-    const cedula = (debtor as any)?.cedula || '';
-    const estadoCivil = ((debtor as any)?.estado_civil || '').toUpperCase();
+    const cedula = debtor?.cedula || '';
+    const estadoCivil = (debtor?.estado_civil || '').toUpperCase();
     const profesion = (debtor?.ocupacion || '').toUpperCase();
     const direccion = [
-      (debtor as any)?.direccion1,
-      (debtor as any)?.direccion2,
+      debtor?.direccion1,
+      debtor?.direccion2,
     ].filter(Boolean).join(', ').toUpperCase();
 
     let y = 35;

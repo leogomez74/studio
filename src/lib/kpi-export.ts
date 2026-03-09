@@ -1248,7 +1248,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
     },
   });
 
-  yPos = (doc as any).lastAutoTable.finalY + 12;
+  yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
 
   // ── LEADS ──
   if (data.leads) {
@@ -1279,7 +1279,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 8;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
     // Source sub-table
     if (data.leads.leadSourcePerformance?.length > 0) {
@@ -1305,7 +1305,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           }
         },
       });
-      yPos = (doc as any).lastAutoTable.finalY + 10;
+      yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     }
   }
 
@@ -1334,7 +1334,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 8;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
     // Credit type comparison
     if (data.opportunities.creditTypeComparison?.length > 0) {
@@ -1395,7 +1395,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           }
         },
       });
-      yPos = (doc as any).lastAutoTable.finalY + 10;
+      yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     }
   }
 
@@ -1429,7 +1429,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 6;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
     // Quality (inverted colors for PAR/NPL)
     yPos = pdfEnsureSpace(doc, yPos, 25);
@@ -1470,7 +1470,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 6;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
     // Tiempos
     yPos = pdfEnsureSpace(doc, yPos, 25);
@@ -1497,7 +1497,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 6;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
     // Comportamiento
     yPos = pdfEnsureSpace(doc, yPos, 25);
@@ -1525,7 +1525,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
   }
 
   // ── COBROS ──
@@ -1554,7 +1554,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 8;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
     // Payment sources
     if (data.collections.paymentSourceDistribution?.length > 0) {
@@ -1581,7 +1581,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           }
         },
       });
-      yPos = (doc as any).lastAutoTable.finalY + 8;
+      yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
     }
 
   }
@@ -1641,7 +1641,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
   }
 
   // ── GAMIFICACIÓN ──
@@ -1669,7 +1669,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 8;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
     // Level distribution
     if (data.gamification.levelDistribution?.length > 0) {
@@ -1700,7 +1700,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           }
         },
       });
-      yPos = (doc as any).lastAutoTable.finalY + 10;
+      yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     }
   }
 
@@ -1748,7 +1748,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
   }
 
   // ── TENDENCIAS ──
@@ -1799,7 +1799,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
         }
       },
     });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
+    yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
 
     // Individual trend sections with data bars
     for (const cfg of trendConfigs) {
@@ -1832,7 +1832,7 @@ export const exportToPDF = async (data: AllKPIData, period: string, trendData?: 
           }
         },
       });
-      yPos = (doc as any).lastAutoTable.finalY + 8;
+      yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
     }
   }
 

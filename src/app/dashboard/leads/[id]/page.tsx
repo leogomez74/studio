@@ -650,7 +650,7 @@ export default function LeadDetailPage() {
     const checkIsComplete = useCallback(() => {
         if (!formData) return false;
         const allFieldsFilled = REQUIRED_FIELDS.every(field => {
-            const value = (formData as any)[field];
+            const value = (formData as Record<string, unknown>)[field];
             return value !== null && value !== undefined && value !== '';
         });
         const hasReference = hasAtLeastOneCompleteReference();
@@ -659,7 +659,7 @@ export default function LeadDetailPage() {
 
     const isFieldMissing = useCallback((field: string) => {
         if (!formData || !REQUIRED_FIELDS.includes(field)) return false;
-        const value = (formData as any)[field];
+        const value = (formData as Record<string, unknown>)[field];
         return value === null || value === undefined || value === '';
     }, [formData]);
 
@@ -675,7 +675,7 @@ export default function LeadDetailPage() {
     const employmentFields = ['profesion', 'nivel_academico', 'puesto', 'estado_puesto', 'institucion_labora', 'sector', 'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion'];
 
     const getMissingDocuments = useCallback(() => {
-        const documents = (lead as any)?.documents || [];
+        const documents = lead?.documents || [];
         if (documents.length === 0) return ['Cédula', 'Cédula (Reverso)', 'Recibo de Servicio'];
 
         // Si ningún documento tiene categoría asignada (archivos viejos), no mostrar alerta
@@ -697,7 +697,7 @@ export default function LeadDetailPage() {
     const getMissingFieldsCount = useCallback(() => {
         if (!formData) return 0;
         let count = REQUIRED_FIELDS.filter(field => {
-            const value = (formData as any)[field];
+            const value = (formData as Record<string, unknown>)[field];
             return value === null || value === undefined || value === '';
         }).length;
 
@@ -896,22 +896,22 @@ export default function LeadDetailPage() {
     const workProvinceOptions = useMemo(() => getProvinceOptions(), []);
 
     const workCantonOptions = useMemo(() => {
-        const options = getCantonOptions((formData as any).trabajo_provincia ?? "");
-        const current = (formData as any).trabajo_canton;
+        const options = getCantonOptions(formData.trabajo_provincia ?? "");
+        const current = formData.trabajo_canton;
         if (current && !options.some(o => o.value === current)) {
             return [{ value: current, label: current }, ...options];
         }
         return options;
-    }, [(formData as any).trabajo_provincia, (formData as any).trabajo_canton]);
+    }, [formData.trabajo_provincia, formData.trabajo_canton]);
 
     const workDistrictOptions = useMemo(() => {
-        const options = getDistrictOptions((formData as any).trabajo_provincia ?? "", (formData as any).trabajo_canton ?? "");
-        const current = (formData as any).trabajo_distrito;
+        const options = getDistrictOptions(formData.trabajo_provincia ?? "", formData.trabajo_canton ?? "");
+        const current = formData.trabajo_distrito;
         if (current && !options.some(o => o.value === current)) {
             return [{ value: current, label: current }, ...options];
         }
         return options;
-    }, [(formData as any).trabajo_provincia, (formData as any).trabajo_canton, (formData as any).trabajo_distrito]);
+    }, [formData.trabajo_provincia, formData.trabajo_canton, formData.trabajo_distrito]);
 
     const handleProvinceChange = (value: string) => {
         setFormData(prev => {
@@ -1199,7 +1199,7 @@ export default function LeadDetailPage() {
                                         <Label>Vencimiento Cédula</Label>
                                         <Input
                                             type="date"
-                                            value={(formData as any).cedula_vencimiento || ""}
+                                            value={formData.cedula_vencimiento || ""}
                                             onChange={(e) => handleInputChange("cedula_vencimiento" as keyof Lead, e.target.value)}
                                             disabled={!isEditMode} onBlur={handleBlur}
                                         />
@@ -1217,7 +1217,7 @@ export default function LeadDetailPage() {
                                         <Label>Género</Label>
                                         {isEditMode ? (
                                             <Select 
-                                                value={(formData as any).genero || ""} 
+                                                value={formData.genero || ""} 
                                                 onValueChange={(value) => handleSelectChange("genero" as keyof Lead, value)}
                                             >
                                                 <SelectTrigger>
@@ -1229,14 +1229,14 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                         ) : (
-                                            <Input value={(formData as any).genero || ""} disabled />
+                                            <Input value={formData.genero || ""} disabled />
                                         )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Estado Civil {isFieldMissing('estado_civil') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Select
-                                                value={(formData as any).estado_civil || ""} 
+                                                value={formData.estado_civil || ""} 
                                                 onValueChange={(value) => handleSelectChange("estado_civil" as keyof Lead, value)}
                                             >
                                                 <SelectTrigger>
@@ -1251,7 +1251,7 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                         ) : (
-                                            <Input value={(formData as any).estado_civil || ""} disabled />
+                                            <Input value={formData.estado_civil || ""} disabled />
                                         )}
                                     </div>
                                 </div>
@@ -1296,7 +1296,7 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Teléfono 2</Label>
                                         <Input
-                                            value={formatPhoneCR((formData as any).telefono2)}
+                                            value={formatPhoneCR(formData.telefono2)}
                                             onChange={(e) => handleInputChange("telefono2" as keyof Lead, parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
                                             inputMode="tel"
@@ -1316,7 +1316,7 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Teléfono Casa</Label>
                                         <Input
-                                            value={formatPhoneCR((formData as any).tel_casa)}
+                                            value={formatPhoneCR(formData.tel_casa)}
                                             onChange={(e) => handleInputChange("tel_casa" as keyof Lead, parsePhone(e.target.value))}
                                             disabled={!isEditMode} onBlur={handleBlur}
                                             inputMode="tel"
@@ -1349,9 +1349,9 @@ export default function LeadDetailPage() {
                                     <h4 className="text-sm font-medium mb-3 text-muted-foreground">Referencia 1</h4>
                                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                         <div className="space-y-2">
-                                            <Label>Número de Referencia {!hasAtLeastOneCompleteReference() && !(formData as any).tel_amigo && <span className="text-red-500">*</span>}</Label>
+                                            <Label>Número de Referencia {!hasAtLeastOneCompleteReference() && !formData.tel_amigo && <span className="text-red-500">*</span>}</Label>
                                             <Input
-                                                value={formatPhoneCR((formData as any).tel_amigo)}
+                                                value={formatPhoneCR(formData.tel_amigo)}
                                                 onChange={(e) => handleInputChange("tel_amigo" as keyof Lead, parsePhone(e.target.value))}
                                                 disabled={!isEditMode} onBlur={handleBlur}
                                                 inputMode="tel"
@@ -1359,18 +1359,18 @@ export default function LeadDetailPage() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Nombre de la Persona {!hasAtLeastOneCompleteReference() && !(formData as any).relacionado_a && <span className="text-red-500">*</span>}</Label>
+                                            <Label>Nombre de la Persona {!hasAtLeastOneCompleteReference() && !formData.relacionado_a && <span className="text-red-500">*</span>}</Label>
                                             <Input
-                                                value={(formData as any).relacionado_a || ""}
+                                                value={formData.relacionado_a || ""}
                                                 onChange={(e) => handleInputChange("relacionado_a" as keyof Lead, e.target.value)}
                                                 disabled={!isEditMode} onBlur={handleBlur}
                                                 placeholder="Nombre completo"
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Relación {!hasAtLeastOneCompleteReference() && !(formData as any).tipo_relacion && <span className="text-red-500">*</span>}</Label>
+                                            <Label>Relación {!hasAtLeastOneCompleteReference() && !formData.tipo_relacion && <span className="text-red-500">*</span>}</Label>
                                             <Input
-                                                value={(formData as any).tipo_relacion || ""}
+                                                value={formData.tipo_relacion || ""}
                                                 onChange={(e) => handleInputChange("tipo_relacion" as keyof Lead, e.target.value)}
                                                 disabled={!isEditMode} onBlur={handleBlur}
                                                 placeholder="Ej: Amigo, Familiar"
@@ -1386,7 +1386,7 @@ export default function LeadDetailPage() {
                                         <div className="space-y-2">
                                             <Label>Número de Referencia</Label>
                                             <Input
-                                                value={formatPhoneCR((formData as any).tel_amigo_2)}
+                                                value={formatPhoneCR(formData.tel_amigo_2)}
                                                 onChange={(e) => handleInputChange("tel_amigo_2" as keyof Lead, parsePhone(e.target.value))}
                                                 disabled={!isEditMode} onBlur={handleBlur}
                                                 inputMode="tel"
@@ -1396,7 +1396,7 @@ export default function LeadDetailPage() {
                                         <div className="space-y-2">
                                             <Label>Nombre de la Persona</Label>
                                             <Input
-                                                value={(formData as any).relacionado_a_2 || ""}
+                                                value={formData.relacionado_a_2 || ""}
                                                 onChange={(e) => handleInputChange("relacionado_a_2" as keyof Lead, e.target.value)}
                                                 disabled={!isEditMode} onBlur={handleBlur}
                                                 placeholder="Nombre completo"
@@ -1405,7 +1405,7 @@ export default function LeadDetailPage() {
                                         <div className="space-y-2">
                                             <Label>Relación</Label>
                                             <Input
-                                                value={(formData as any).tipo_relacion_2 || ""}
+                                                value={formData.tipo_relacion_2 || ""}
                                                 onChange={(e) => handleInputChange("tipo_relacion_2" as keyof Lead, e.target.value)}
                                                 disabled={!isEditMode} onBlur={handleBlur}
                                                 placeholder="Ej: Amigo, Familiar"
@@ -1437,7 +1437,7 @@ export default function LeadDetailPage() {
                                         <Label>Provincia {isFieldMissing('province') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Select
-                                                value={(formData as any).province || ""}
+                                                value={formData.province || ""}
                                                 onValueChange={handleProvinceChange}
                                             >
                                                 <SelectTrigger>
@@ -1452,14 +1452,14 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                         ) : (
-                                            <Input value={(formData as any).province || ""} disabled />
+                                            <Input value={formData.province || ""} disabled />
                                         )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Cantón {isFieldMissing('canton') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Select
-                                                value={(formData as any).canton || ""}
+                                                value={formData.canton || ""}
                                                 onValueChange={handleCantonChange}
                                                 disabled={!formData?.province}
                                             >
@@ -1475,14 +1475,14 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                          ) : (
-                                             <Input value={(formData as any).canton || ""} disabled />
+                                             <Input value={formData.canton || ""} disabled />
                                          )}
                                      </div>
                                      <div className="space-y-2">
                                          <Label>Distrito {isFieldMissing('distrito') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
                                             <Select
-                                                value={(formData as any).distrito || ""}
+                                                value={formData.distrito || ""}
                                                 onValueChange={handleDistrictChange}
                                                 disabled={!formData?.canton}
                                             >
@@ -1498,7 +1498,7 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                          ) : (
-                                             <Input value={(formData as any).distrito || ""} disabled />
+                                             <Input value={formData.distrito || ""} disabled />
                                          )}
                                      </div>
 
@@ -1513,7 +1513,7 @@ export default function LeadDetailPage() {
                                     <div className="col-span-3 md:col-span-1 space-y-2">
                                         <Label>Dirección 2 (Opcional)</Label>
                                         <Textarea
-                                            value={(formData as any).direccion2 || ""}
+                                            value={formData.direccion2 || ""}
                                             onChange={(e) => handleInputChange("direccion2" as keyof Lead, e.target.value)}
                                             disabled={!isEditMode} onBlur={handleBlur}
                                         />
@@ -1543,7 +1543,7 @@ export default function LeadDetailPage() {
                                         <Label>Nivel Académico {isFieldMissing('nivel_academico') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Select
-                                                value={(formData as any).nivel_academico || ""}
+                                                value={formData.nivel_academico || ""}
                                                 onValueChange={(value) => handleSelectChange("nivel_academico" as keyof Lead, value)}
                                             >
                                                 <SelectTrigger>
@@ -1559,7 +1559,7 @@ export default function LeadDetailPage() {
                                             </Select>
                                         ) : (
                                             <Input
-                                                value={(formData as any).nivel_academico || ""}
+                                                value={formData.nivel_academico || ""}
                                                 disabled
                                             />
                                         )}
@@ -1575,7 +1575,7 @@ export default function LeadDetailPage() {
                                                         aria-expanded={profesionOpen}
                                                         className="w-full justify-between font-normal"
                                                     >
-                                                        {(formData as any).profesion || "Seleccionar profesión"}
+                                                        {formData.profesion || "Seleccionar profesión"}
                                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                     </Button>
                                                 </PopoverTrigger>
@@ -1602,7 +1602,7 @@ export default function LeadDetailPage() {
                                                                         setProfesionSearch("");
                                                                     }}
                                                                 >
-                                                                    <Check className={`h-4 w-4 ${(formData as any).profesion === prof ? "opacity-100" : "opacity-0"}`} />
+                                                                    <Check className={`h-4 w-4 ${formData.profesion === prof ? "opacity-100" : "opacity-0"}`} />
                                                                     {prof}
                                                                 </div>
                                                             ))
@@ -1615,7 +1615,7 @@ export default function LeadDetailPage() {
                                             </Popover>
                                         ) : (
                                             <Input
-                                                value={(formData as any).profesion || ""}
+                                                value={formData.profesion || ""}
                                                 disabled
                                             />
                                         )}
@@ -1623,7 +1623,7 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Sector {isFieldMissing('sector') && <span className="text-red-500">*</span>}</Label>
                                         <Input
-                                            value={(formData as any).sector || ""}
+                                            value={formData.sector || ""}
                                             onChange={(e) => handleInputChange("sector" as keyof Lead, e.target.value)} 
                                             disabled={!isEditMode} onBlur={handleBlur} 
                                         />
@@ -1631,7 +1631,7 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Puesto {isFieldMissing('puesto') && <span className="text-red-500">*</span>}</Label>
                                         <Input
-                                            value={(formData as any).puesto || ""}
+                                            value={formData.puesto || ""}
                                             onChange={(e) => handleInputChange("puesto" as keyof Lead, e.target.value)} 
                                             disabled={!isEditMode} onBlur={handleBlur} 
                                         />
@@ -1639,7 +1639,7 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Nombramiento {isFieldMissing('estado_puesto') && <span className="text-red-500">*</span>}</Label>
                                         <Select
-                                            value={(formData as any).estado_puesto || ""}
+                                            value={formData.estado_puesto || ""}
                                             onValueChange={(value) => handleSelectChange("estado_puesto" as keyof Lead, value)}
                                             disabled={!isEditMode}
                                         >
@@ -1664,7 +1664,7 @@ export default function LeadDetailPage() {
                                                         aria-expanded={institucionOpen}
                                                         className="w-full justify-between font-normal"
                                                     >
-                                                        {(formData as any).institucion_labora || "Seleccionar institución"}
+                                                        {formData.institucion_labora || "Seleccionar institución"}
                                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                     </Button>
                                                 </PopoverTrigger>
@@ -1692,7 +1692,7 @@ export default function LeadDetailPage() {
                                                                         setInstitucionSearch("");
                                                                     }}
                                                                 >
-                                                                    <Check className={`h-4 w-4 ${(formData as any).institucion_labora === inst.nombre ? "opacity-100" : "opacity-0"}`} />
+                                                                    <Check className={`h-4 w-4 ${formData.institucion_labora === inst.nombre ? "opacity-100" : "opacity-0"}`} />
                                                                     {inst.nombre}
                                                                 </div>
                                                             ))
@@ -1705,7 +1705,7 @@ export default function LeadDetailPage() {
                                             </Popover>
                                         ) : (
                                             <Input
-                                                value={(formData as any).institucion_labora || ""}
+                                                value={formData.institucion_labora || ""}
                                                 disabled
                                             />
                                         )}
@@ -1715,11 +1715,11 @@ export default function LeadDetailPage() {
                                         <div className="flex items-center gap-6">
                                             <Button
                                                 type="button"
-                                                variant={!(formData as any).deductora_id || (formData as any).deductora_id === 0 ? "default" : "outline"}
+                                                variant={!formData.deductora_id || formData.deductora_id === 0 ? "default" : "outline"}
                                                 size="default"
                                                 onClick={() => { if (isEditMode) { handleSelectChange("deductora_id" as keyof Lead, null); } }}
                                                 disabled={!isEditMode}
-                                                className={`flex-1 ${!(formData as any).deductora_id || (formData as any).deductora_id === 0 ? "bg-primary text-primary-foreground" : ""}`}
+                                                className={`flex-1 ${!formData.deductora_id || formData.deductora_id === 0 ? "bg-primary text-primary-foreground" : ""}`}
                                             >
                                                 Sin deductora
                                             </Button>
@@ -1727,11 +1727,11 @@ export default function LeadDetailPage() {
                                                 <Button
                                                     key={deductora.id}
                                                     type="button"
-                                                    variant={(formData as any).deductora_id === deductora.id ? "default" : "outline"}
+                                                    variant={formData.deductora_id === deductora.id ? "default" : "outline"}
                                                     size="default"
                                                     onClick={() => { if (isEditMode) { handleSelectChange("deductora_id" as keyof Lead, deductora.id); } }}
                                                     disabled={!isEditMode}
-                                                    className={`flex-1 ${(formData as any).deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
+                                                    className={`flex-1 ${formData.deductora_id === deductora.id ? "bg-primary text-primary-foreground" : ""}`}
                                                 >
                                                     {deductora.nombre}
                                                 </Button>
@@ -1747,7 +1747,7 @@ export default function LeadDetailPage() {
                                         <Label>Provincia {isFieldMissing('trabajo_provincia') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
                                             <Select
-                                                value={(formData as any).trabajo_provincia || ""}
+                                                value={formData.trabajo_provincia || ""}
                                                 onValueChange={handleWorkProvinceChange}
                                             >
                                                 <SelectTrigger>
@@ -1762,16 +1762,16 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                         ) : (
-                                            <Input value={(formData as any).trabajo_provincia || ""} disabled />
+                                            <Input value={formData.trabajo_provincia || ""} disabled />
                                         )}
                                     </div>
                                      <div className="space-y-2">
                                          <Label>Cantón {isFieldMissing('trabajo_canton') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
                                             <Select
-                                                value={(formData as any).trabajo_canton || ""}
+                                                value={formData.trabajo_canton || ""}
                                                 onValueChange={handleWorkCantonChange}
-                                                disabled={!((formData as any).trabajo_provincia)}
+                                                disabled={!(formData.trabajo_provincia)}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Seleccionar cantón" />
@@ -1785,16 +1785,16 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                          ) : (
-                                             <Input value={(formData as any).trabajo_canton || ""} disabled />
+                                             <Input value={formData.trabajo_canton || ""} disabled />
                                          )}
                                      </div>
                                      <div className="space-y-2">
                                          <Label>Distrito {isFieldMissing('trabajo_distrito') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
                                             <Select
-                                                value={(formData as any).trabajo_distrito || ""}
+                                                value={formData.trabajo_distrito || ""}
                                                 onValueChange={handleWorkDistrictChange}
-                                                disabled={!((formData as any).trabajo_canton)}
+                                                disabled={!(formData.trabajo_canton)}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Seleccionar distrito" />
@@ -1808,13 +1808,13 @@ export default function LeadDetailPage() {
                                                 </SelectContent>
                                             </Select>
                                          ) : (
-                                             <Input value={(formData as any).trabajo_distrito || ""} disabled />
+                                             <Input value={formData.trabajo_distrito || ""} disabled />
                                          )}
                                      </div>
                                     <div className="col-span-3 space-y-2">
                                          <Label>Dirección Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
                                          <Textarea
-                                             value={(formData as any).trabajo_direccion || ""}
+                                             value={formData.trabajo_direccion || ""}
                                              onChange={(e) => handleInputChange("trabajo_direccion" as keyof Lead, e.target.value)}
                                              disabled={!isEditMode} onBlur={handleBlur}
                                          />
@@ -1827,7 +1827,7 @@ export default function LeadDetailPage() {
                         </TabsContent>
 
                         <TabsContent value="tareas">
-                            <TareasTab opportunityReference={String(lead.id)} opportunityId={lead.id} />
+                            <TareasTab opportunityReference={String(lead.id)} opportunityId={Number(lead.id)} />
                         </TabsContent>
 
                         <TabsContent value="archivos">
@@ -1882,7 +1882,7 @@ export default function LeadDetailPage() {
                                 <CardContent>
                                     <DocumentManager
                                         personId={Number(lead.id)}
-                                        initialDocuments={(lead as any).documents || []}
+                                        initialDocuments={lead?.documents || []}
                                         onDocumentChange={fetchLead}
                                     />
                                 </CardContent>

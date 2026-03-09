@@ -138,12 +138,12 @@ export default function PagarePage() {
 
   const debtor = credit.client || credit.lead || null;
   const nombre = (debtor?.name || '').toUpperCase();
-  const cedula = (debtor as any)?.cedula || '';
-  const estadoCivil = ((debtor as any)?.estado_civil || '').toUpperCase();
+  const cedula = debtor?.cedula || '';
+  const estadoCivil = (debtor?.estado_civil || '').toUpperCase();
   const profesion = (debtor?.ocupacion || '').toUpperCase();
   const direccion = [
-    (debtor as any)?.direccion1,
-    (debtor as any)?.direccion2,
+    debtor?.direccion1,
+    debtor?.direccion2,
   ].filter(Boolean).join(', ').toUpperCase();
 
   const monto = Number(credit.monto_credito ?? 0);

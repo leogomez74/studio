@@ -1164,8 +1164,8 @@ export default function OpportunityDetailPage() {
 
       // Agregar cargo y nombramiento directamente del lead asociado
       if (opportunity?.lead) {
-        payload.cargo = (opportunity.lead as any)?.puesto || null;
-        payload.nombramiento = (opportunity.lead as any)?.estado_puesto || null;
+        payload.cargo = opportunity.lead?.puesto || null;
+        payload.nombramiento = opportunity.lead?.estado_puesto || null;
       }
 
       const response = await api.post('/api/analisis', payload);
@@ -1250,7 +1250,7 @@ export default function OpportunityDetailPage() {
                   <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
                   <div className="flex items-center gap-2">
                     {OPPORTUNITY_STATUSES.map((status) => {
-                      const currentStatusIndex = OPPORTUNITY_STATUSES.indexOf(opportunity.status as any);
+                      const currentStatusIndex = OPPORTUNITY_STATUSES.indexOf(opportunity.status as typeof OPPORTUNITY_STATUSES[number]);
                       const newStatusIndex = OPPORTUNITY_STATUSES.indexOf(status);
                       // No permitir retroceder (excepto "Perdida" que siempre está disponible)
                       const isBackward = newStatusIndex < currentStatusIndex && status !== 'Perdida';

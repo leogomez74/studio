@@ -15,9 +15,10 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 interface Document {
   id: number;
   name: string;
-  created_at: string;
+  created_at?: string;
   url?: string | null;
   mime_type?: string | null;
+  category?: string;
 }
 
 interface DocumentManagerProps {
@@ -119,7 +120,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
 
     // Check if trying to upload cedula when one already exists
     if (category === 'cedula') {
-      const existingCedula = documents.find(doc => (doc as any).category === 'cedula');
+      const existingCedula = documents.find(doc => doc.category === 'cedula');
       if (existingCedula) {
         toast({
           title: 'Error',
@@ -133,7 +134,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
 
     // Check if trying to upload cedula reverso when one already exists
     if (category === 'cedula_reverso') {
-      const existingCedulaReverso = documents.find(doc => (doc as any).category === 'cedula_reverso');
+      const existingCedulaReverso = documents.find(doc => doc.category === 'cedula_reverso');
       if (existingCedulaReverso) {
         toast({
           title: 'Error',
@@ -147,7 +148,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
 
     // Check if trying to upload recibo when one already exists
     if (category === 'recibo_servicio') {
-      const existingRecibo = documents.find(doc => (doc as any).category === 'recibo_servicio');
+      const existingRecibo = documents.find(doc => doc.category === 'recibo_servicio');
       if (existingRecibo) {
         toast({
           title: 'Error',
@@ -246,9 +247,9 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
   };
 
   // Check if documents exist
-  const hasCedula = documents.some(doc => (doc as any).category === 'cedula');
-  const hasCedulaReverso = documents.some(doc => (doc as any).category === 'cedula_reverso');
-  const hasRecibo = documents.some(doc => (doc as any).category === 'recibo_servicio');
+  const hasCedula = documents.some(doc => doc.category === 'cedula');
+  const hasCedulaReverso = documents.some(doc => doc.category === 'cedula_reverso');
+  const hasRecibo = documents.some(doc => doc.category === 'recibo_servicio');
 
   return (
     <div className="space-y-4">
@@ -380,7 +381,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                           <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-normal ${color} border-current opacity-80`}>
                             {label}
                           </Badge>
-                          {(doc as any).category && (doc as any).category !== 'otro' && (
+                          {doc.category && doc.category !== 'otro' && (
                             <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
                               {({
                                 cedula: '📄 Cédula',
@@ -388,7 +389,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                                 recibo_servicio: '💡 Recibo',
                                 comprobante_ingresos: '💰 Ingresos',
                                 constancia_trabajo: '💼 Trabajo'
-                              } as Record<string, string>)[(doc as any).category] || (doc as any).category}
+                              } as Record<string, string>)[doc.category] || doc.category}
                             </Badge>
                           )}
                           <span className="text-xs text-muted-foreground">{formatDate(doc.created_at)}</span>

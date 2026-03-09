@@ -1049,8 +1049,8 @@ export default function DealsPage() {
 
       // Agregar cargo y nombramiento directamente del lead asociado
       if (analisisOpportunity?.lead) {
-        payload.cargo = (analisisOpportunity.lead as any)?.puesto || null;
-        payload.nombramiento = (analisisOpportunity.lead as any)?.estado_puesto || null;
+        payload.cargo = analisisOpportunity.lead?.puesto || null;
+        payload.nombramiento = analisisOpportunity.lead?.estado_puesto || null;
       }
 
       await api.post('/api/analisis', payload);
@@ -1071,9 +1071,9 @@ export default function DealsPage() {
   // Analisis button - opens dialog directly to create analysis for the opportunity
   const getAnalisisButtonProps = (opportunity: Opportunity) => {
     // Check if opportunity already has an analysis
-    const hasAnalysis = opportunity.status === 'En análisis' || (opportunity as any).has_analysis || (opportunity as any).analisis;
+    const hasAnalysis = opportunity.status === 'En análisis' || opportunity.has_analysis || opportunity.analisis;
     const isAnalizada = opportunity.status === 'Analizada';
-    const hasMissingDocuments = (opportunity as any).missing_documents?.length > 0;
+    const hasMissingDocuments = (opportunity.missing_documents?.length ?? 0) > 0;
 
     if (hasAnalysis) {
       return { label: "Análisis creado", color: "bg-gray-400", icon: <PlusCircle className="h-4 w-4" />, disabled: true };
@@ -1482,21 +1482,21 @@ export default function DealsPage() {
                     <TableCell>{opportunity.opportunity_type || "-"}</TableCell>
                     <TableCell>{formatAmount(resolveEstimatedOpportunityAmount(opportunity.amount))}</TableCell>
                     <TableCell>
-                      {(opportunity as any).missing_documents?.length > 0 ? (
+                      {(opportunity.missing_documents?.length ?? 0) > 0 ? (
                         <Link href={`/dashboard/oportunidades/${opportunity.id}#archivos`}>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger>
                                 <Badge variant="destructive" className="text-xs cursor-pointer hover:bg-red-700 transition-colors">
                                   <AlertCircle className="h-3 w-3 mr-1" />
-                                  Faltan {(opportunity as any).missing_documents.length}
+                                  Faltan {opportunity.missing_documents!.length}
                                 </Badge>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p className="text-xs font-medium mb-1">Click para ir a la sección de archivos</p>
                                 <p className="text-xs">Documentos faltantes:</p>
                                 <ul className="list-disc list-inside text-xs">
-                                  {(opportunity as any).missing_documents.map((doc: string, idx: number) => (
+                                  {opportunity.missing_documents!.map((doc: string, idx: number) => (
                                     <li key={idx}>{doc}</li>
                                   ))}
                                 </ul>

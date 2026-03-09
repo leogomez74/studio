@@ -65,6 +65,8 @@ interface PaymentWithRelations extends Payment {
     estado_reverso?: string;
     motivo_anulacion?: string | null;
     fecha_anulacion?: string | null;
+    movimiento_total?: number | null;
+    estado?: string;
 }
 
 const getStatusVariantCobros = (status: Credit['status']) => {
@@ -94,7 +96,7 @@ const calculateDaysInArrears = (credit: Credit): number => {
   // Encontrar la fecha_corte más antigua de las cuotas en mora
   let earliestDate: Date | null = null;
   for (const c of cuotasMora) {
-    const fc = (c as any).fecha_corte;
+    const fc = c.fecha_corte;
     if (fc) {
       const d = new Date(fc);
       if (!isNaN(d.getTime()) && (!earliestDate || d < earliestDate)) {
@@ -199,7 +201,7 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
     });
 
     // Créditos
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    let finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -232,7 +234,7 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
     });
 
     // Fianzas
-    finalY = (doc as any).lastAutoTable.finalY + 10;
+    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -501,8 +503,8 @@ const generateCertificacionDeuda = async (creditId: number, fechaCorte: string) 
 // Panel lateral de detalle de crédito
 // ---------------------------------------------------------------------------
 function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onToggleExpand }: { credit: Credit; tab: string; onTabChange: (t: 'credito' | 'plan' | 'cliente') => void; onClose: () => void; expanded: boolean; onToggleExpand: () => void }) {
-  const lead = credit.lead as any;
-  const plan = (credit as any).plan_de_pagos || [];
+  const lead = credit.lead;
+  const plan = credit.plan_de_pagos || [];
   const fmtMoney = (v: any) => `₡${Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`;
   const fmtDate = (d: any) => {
     if (!d) return '-';
@@ -667,7 +669,7 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                   { icon: Wallet, label: 'Cuota', value: fmtMoney(credit.cuota) },
                   { icon: Percent, label: 'Tasa Anual', value: `${credit.tasa_anual || 0}%` },
                   { icon: Clock, label: 'Plazo', value: `${credit.plazo || 0} meses` },
-                  { icon: Calculator, label: 'Divisa', value: (credit as any).divisa || 'CRC' },
+                  { icon: Calculator, label: 'Divisa', value: credit.divisa || 'CRC' },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="rounded-lg border p-2.5 bg-background">
                     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-0.5">
@@ -684,27 +686,27 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                 <div className="flex items-center gap-2 text-xs">
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Deductora:</span>
-                  <span className="font-medium">{(credit as any).deductora?.nombre || 'Sin asignar'}</span>
+                  <span className="font-medium">{credit.deductora?.nombre || 'Sin asignar'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Formalizado:</span>
-                  <span className="font-medium">{fmtDate((credit as any).formalized_at)}</span>
+                  <span className="font-medium">{fmtDate(credit.formalized_at)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Culminación:</span>
-                  <span className="font-medium">{fmtDate((credit as any).fecha_culminacion_credito)}</span>
+                  <span className="font-medium">{fmtDate(credit.fecha_culminacion_credito)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Apertura:</span>
-                  <span className="font-medium">{fmtDate((credit as any).fecha_apertura_credito)}</span>
+                  <span className="font-medium">{fmtDate(credit.fecha_apertura_credito)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Línea:</span>
-                  <span className="font-medium">{(credit as any).category || (credit as any).linea || '-'}</span>
+                  <span className="font-medium">{credit.category || credit.linea || '-'}</span>
                 </div>
               </div>
 
@@ -790,15 +792,15 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
             {paginatedCredits.map((credit) => {
               const diasAtraso = calculateDaysInArrears(credit);
               return (
-                <TableRow key={credit.id} className={`hover:bg-muted/50 cursor-pointer ${selectedCreditId === credit.id ? 'bg-muted' : ''}`} onClick={() => onSelectCredit?.(credit.id)}>
+                <TableRow key={credit.id} className={`hover:bg-muted/50 cursor-pointer ${selectedCreditId === credit.id ? 'bg-muted' : ''}`} onClick={() => onSelectCredit?.(credit.id!)}>
                   <TableCell className="font-medium">
-                    <span className="hover:underline text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelectCredit?.(credit.id); }}>
+                    <span className="hover:underline text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelectCredit?.(credit.id!); }}>
                       {credit.reference || credit.numero_operacion || credit.id}
                     </span>
                   </TableCell>
                   <TableCell>
                     {credit.lead
-                      ? `${credit.lead.name || ''} ${(credit.lead as any).apellido1 || ''} ${(credit.lead as any).apellido2 || ''}`.trim() || '-'
+                      ? `${credit.lead.name || ''} ${credit.lead?.apellido1 || ''} ${credit.lead?.apellido2 || ''}`.trim() || '-'
                       : '-'}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
@@ -821,10 +823,10 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => generateEstadoCuentaFromCredit(credit.id)}>
+                        <DropdownMenuItem onClick={() => generateEstadoCuentaFromCredit(credit.id!)}>
                           <FileSpreadsheet className="mr-2 h-4 w-4" />Estado de Cuenta
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onCertificacion?.(credit.id)}>
+                        <DropdownMenuItem onClick={() => onCertificacion?.(credit.id!)}>
                           <FileText className="mr-2 h-4 w-4" />Certificación de Deuda
                         </DropdownMenuItem>
                         <DropdownMenuItem><MessageSquareWarning className="mr-2 h-4 w-4" />Enviar Recordatorio</DropdownMenuItem>
@@ -885,7 +887,7 @@ const PaymentTableRow = React.memo(function PaymentTableRow({ payment, canRevers
   const lead = credit?.lead;
 
   const leadName = lead
-    ? `${lead.name || ''} ${(lead as any).apellido1 || ''} ${(lead as any).apellido2 || ''}`.trim() || 'Sin nombre'
+    ? `${lead.name || ''} ${lead?.apellido1 || ''} ${lead?.apellido2 || ''}`.trim() || 'Sin nombre'
     : (payment.cedula ? String(payment.cedula) : 'Desconocido');
   const operationNumber = credit?.numero_operacion || credit?.reference || '-';
 
@@ -1231,7 +1233,7 @@ export default function CobrosPage() {
 
   const cuotasPreview = useMemo(() => {
     if (!selectedCredit || !monto || parseFloat(monto) <= 0) return null;
-    const pendientes = ((selectedCredit as any).plan_de_pagos || [])
+    const pendientes = (selectedCredit.plan_de_pagos || [])
       .filter((c: any) => !['Pagado', 'Pagada'].includes(c.estado) && c.numero_cuota > 0)
       .sort((a: any, b: any) => a.numero_cuota - b.numero_cuota);
     if (pendientes.length === 0) return null;
@@ -1252,9 +1254,9 @@ export default function CobrosPage() {
         cubierta:          pagado >= montoCuota - 0.01,
         capital:           ap(cuota.amortizacion),
         interes_corriente: ap(cuota.interes_corriente),
-        int_vencido:       ap(cuota.int_corriente_vencido),
-        interes_moratorio: ap(cuota.interes_moratorio),
-        poliza:            ap(cuota.poliza),
+        int_vencido:       ap(cuota.int_corriente_vencido ?? 0),
+        interes_moratorio: ap(cuota.interes_moratorio ?? 0),
+        poliza:            ap(cuota.poliza ?? 0),
       });
       restante -= pagado;
     }
@@ -2546,7 +2548,7 @@ export default function CobrosPage() {
                                 <div className="font-medium">Listo para aplicar</div>
                                 <div className="text-xs text-blue-700 mt-0.5">
                                   Monto: <strong>₡{Number(monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong> •
-                                  Crédito: <strong>{selectedCredit?.reference || (selectedCredit as any)?.numero_operacion}</strong>
+                                  Crédito: <strong>{selectedCredit?.reference || selectedCredit?.numero_operacion}</strong>
                                 </div>
                               </div>
                             </div>

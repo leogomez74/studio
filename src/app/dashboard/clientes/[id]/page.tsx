@@ -789,7 +789,7 @@ export default function ClientDetailPage() {
 
   const isFieldMissing = useCallback((field: string) => {
     if (!formData || !REQUIRED_FIELDS.includes(field)) return false;
-    const value = (formData as any)[field];
+    const value = (formData as Record<string, unknown>)[field];
     return value === null || value === undefined || value === '';
   }, [formData]);
 
@@ -813,7 +813,7 @@ export default function ClientDetailPage() {
   }, [formData]);
 
   const getMissingDocuments = useCallback(() => {
-    const documents = (client as any)?.documents || [];
+    const documents = client?.documents || [];
     if (documents.length === 0) return ['Cédula', 'Cédula (Reverso)', 'Recibo de Servicio'];
 
     // Si ningún documento tiene categoría asignada (archivos viejos), no mostrar alerta
@@ -835,7 +835,7 @@ export default function ClientDetailPage() {
   const getMissingFieldsCount = useCallback(() => {
     if (!formData) return 0;
     let count = REQUIRED_FIELDS.filter(field => {
-      const value = (formData as any)[field];
+      const value = (formData as Record<string, unknown>)[field];
       return value === null || value === undefined || value === '';
     }).length;
 
@@ -1033,12 +1033,12 @@ export default function ClientDetailPage() {
     doc.setFont("helvetica", "bold");
     doc.text("Inst./Empresa:", rightCol, infoY);
     doc.setFont("helvetica", "normal");
-    doc.text(`${(client as any)?.institucion_labora || (client as any)?.ocupacion || "-"}`, rightCol + labelW, infoY);
+    doc.text(`${client?.institucion_labora || client?.ocupacion || "-"}`, rightCol + labelW, infoY);
 
     doc.setFont("helvetica", "bold");
     doc.text("Sección:", rightCol, infoY + 6);
     doc.setFont("helvetica", "normal");
-    doc.text(`${(client as any)?.puesto || "-"}`, rightCol + labelW, infoY + 6);
+    doc.text(`${client?.puesto || "-"}`, rightCol + labelW, infoY + 6);
 
     let finalY = infoY + 18;
     doc.setFontSize(11);
@@ -1080,7 +1080,7 @@ export default function ClientDetailPage() {
       },
     });
 
-    finalY = (doc as any).lastAutoTable.finalY + 10;
+    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
@@ -2341,7 +2341,8 @@ export default function ClientDetailPage() {
                                         size="icon"
                                         className="h-8 w-8"
                                         title="Balance General"
-                                        onClick={() => toggleBalance(credit.id)}
+                                        onClick={() => toggleBalance(credit.id!)}
+
                                       >
                                         <DollarSign className="h-4 w-4" />
                                       </Button>
@@ -2626,7 +2627,7 @@ export default function ClientDetailPage() {
             </TabsContent>
 
             <TabsContent value="tareas">
-              <TareasTab opportunityReference={String(client.id)} opportunityId={client.id} />
+              <TareasTab opportunityReference={String(client.id)} opportunityId={Number(client.id)} />
             </TabsContent>
 
             <TabsContent value="archivos">
@@ -2658,7 +2659,7 @@ export default function ClientDetailPage() {
                 <CardContent>
                    <DocumentManager
                       personId={parseInt(client.id)}
-                      initialDocuments={client.documents || []}
+                      initialDocuments={(client.documents || []).map(doc => ({ id: doc.id, name: doc.name, created_at: doc.file_created_at || '', url: doc.url, mime_type: doc.mime_type }))}
                       onDocumentChange={fetchClient}
                    />
                 </CardContent>

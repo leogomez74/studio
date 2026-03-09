@@ -152,7 +152,7 @@ const getStatusBadgeClassName = (label: string): string => {
 
 const getLeadDisplayName = (lead?: Lead | Client | null): string => {
   if (!lead) return "";
-  const fullName = [lead.name, (lead as any).apellido1, (lead as any).apellido2]
+  const fullName = [lead.name, lead.apellido1, lead.apellido2]
     .filter(Boolean)
     .join(" ");
   return fullName || lead.name || "";
@@ -203,7 +203,7 @@ const checkMissingFields = (item: Lead | Client): string[] => {
 
   // Iterar sobre los campos requeridos y verificar si están vacíos
   Object.entries(requiredFieldsMap).forEach(([field, label]) => {
-    const value = (item as any)[field];
+    const value = (item as Record<string, unknown>)[field];
 
     // Verificar si el campo está vacío (null, undefined, string vacío, o 0 para deductora_id)
     if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '') || (field === 'deductora_id' && value === 0)) {
@@ -212,7 +212,7 @@ const checkMissingFields = (item: Lead | Client): string[] => {
   });
 
   // Validar documentos requeridos (Cédula y Recibo)
-  const documents = (item as any).documents || [];
+  const documents = item.documents || [];
   const hasCedula = documents.some((doc: any) => doc.category === 'cedula');
   const hasRecibo = documents.some((doc: any) => doc.category === 'recibo_servicio');
 
@@ -912,13 +912,13 @@ export default function ClientesPage() {
               setEditingType('lead');
               form.reset({
                 name: lead.name,
-                apellido1: (lead as any).apellido1 || "",
-                apellido2: (lead as any).apellido2 || "",
+                apellido1: lead.apellido1 || "",
+                apellido2: lead.apellido2 || "",
                 email: lead.email,
                 phone: lead.phone || "",
                 cedula: lead.cedula || "",
-                fechaNacimiento: (lead as any).fecha_nacimiento ? formatDateForInput((lead as any).fecha_nacimiento) : "",
-                sector: (lead as any).sector || "",
+                fechaNacimiento: lead.fecha_nacimiento ? formatDateForInput(lead.fecha_nacimiento) : "",
+                sector: lead.sector || "",
               });
               setIsLeadDialogOpen(true);
               break;
@@ -983,7 +983,7 @@ export default function ClientesPage() {
   };
 
   const handleRestore = async (item: Lead | Client) => {
-      const isLead = (item as any).lead_status_id !== undefined || (item as any).lead_status !== undefined;
+      const isLead = (item as Lead).lead_status_id !== undefined || (item as Lead).lead_status !== undefined;
       const endpoint = isLead ? `/api/leads/${item.id}/toggle-active` : `/api/clients/${item.id}/toggle-active`;
       try {
           await api.patch(endpoint);
@@ -1000,13 +1000,13 @@ export default function ClientesPage() {
       setEditingType('client');
       form.reset({
         name: client.name,
-        apellido1: (client as any).apellido1 || "",
-        apellido2: (client as any).apellido2 || "",
+        apellido1: client.apellido1 || "",
+        apellido2: client.apellido2 || "",
         email: client.email,
         phone: client.phone || "",
         cedula: client.cedula || "",
-        fechaNacimiento: (client as any).fecha_nacimiento ? formatDateForInput((client as any).fecha_nacimiento) : "",
-        sector: (client as any).sector || "",
+        fechaNacimiento: client.fecha_nacimiento ? formatDateForInput(client.fecha_nacimiento) : "",
+        sector: client.sector || "",
       });
       setIsLeadDialogOpen(true);
   };
@@ -1148,7 +1148,7 @@ export default function ClientesPage() {
       item.name || "-",
       item.email || "-",
       item.phone || "-",
-      (item as any).lead_status?.name || (item as any).status || "-",
+      (typeof (item as Lead).lead_status === 'object' ? ((item as Lead).lead_status as { name: string }).name : (item as Lead).lead_status) || item.status || "-",
       new Date(item.created_at || "").toLocaleDateString()
     ]);
 
@@ -1444,7 +1444,7 @@ export default function ClientesPage() {
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
                     ) : searchQuery && unifiedSearchResults.length > 0 ? (
                         <>
-                          <UnifiedSearchTable data={unifiedSearchResults} activeTab={activeTab} onAction={handleRestore} />
+                          <UnifiedSearchTable data={unifiedSearchResults} activeTab={activeTab} onAction={(_action: string, item: Lead | Client) => handleRestore(item)} />
                         </>
                     ) : (
                         <InactiveTable
@@ -2405,11 +2405,11 @@ function UnifiedSearchTable({
                   {item._type === 'lead' && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', item)} disabled={hasActiveOpportunity((item as any).opportunities)}>
+                        <PermissionButton module="oportunidades" action="create" size="icon" onClick={() => onAction('create_opportunity', item)} disabled={hasActiveOpportunity(item.opportunities)}>
                           <Sparkles className="h-4 w-4" />
                         </PermissionButton>
                       </TooltipTrigger>
-                      <TooltipContent>{getActiveOpportunityMessage((item as any).opportunities) || "Crear oportunidad"}</TooltipContent>
+                      <TooltipContent>{getActiveOpportunityMessage(item.opportunities) || "Crear oportunidad"}</TooltipContent>
                     </Tooltip>
                   )}
                   {item._type === 'inactivo' && (
@@ -2490,7 +2490,7 @@ function InactiveTable({ data, onRestore, selection, onBulkAction, onBulkExport 
           <TableBody>
             {data.map((item) => {
                 const displayName = getLeadDisplayName(item);
-                const statusLabel = (item as any).lead_status?.name || (item as any).status || 'Inactivo';
+                const statusLabel = (typeof (item as Lead).lead_status === 'object' ? ((item as Lead).lead_status as { name: string }).name : (item as Lead).lead_status as string | undefined) || item.status || 'Inactivo';
                 const badgeClassName = getStatusBadgeClassName(statusLabel);
 
                 return (
@@ -2517,7 +2517,7 @@ function InactiveTable({ data, onRestore, selection, onBulkAction, onBulkExport 
                         <Badge className={badgeClassName}>{statusLabel}</Badge>
                     </TableCell>
                     <TableCell>
-                        {formatRegistered((item as any).updated_at || (item as any).created_at)}
+                        {formatRegistered(item.updated_at || item.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
                         <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => onRestore(item)}>

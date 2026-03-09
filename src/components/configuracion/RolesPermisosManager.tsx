@@ -317,7 +317,7 @@ const RolesPermisosManager: React.FC = () => {
                       </TableHeader>
                       <TableBody>
                         {MODULES.map((module) => {
-                          const perms = roleForm.permissions[module.key] || { view: false, create: false, edit: false, delete: false, archive: false };
+                          const perms = roleForm.permissions[module.key] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false };
                           const modulePermissions = module.permissions || ['view', 'create', 'edit', 'delete'];
                           const isModuleEnabled = perms.view || perms.create || perms.edit || perms.delete || perms.archive || perms.assign;
 
@@ -327,7 +327,7 @@ const RolesPermisosManager: React.FC = () => {
                               <div className="flex flex-col items-center gap-1">
                                 <input
                                   type="checkbox"
-                                  checked={(perms as any)[permType] || false}
+                                  checked={perms[permType] || false}
                                   onChange={(e) => handlePermissionChange(module.key, permType, e.target.checked)}
                                   disabled={saving || roleForm.full_access}
                                   className="h-4 w-4"

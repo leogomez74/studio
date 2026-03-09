@@ -20,6 +20,7 @@
 | Mar 2026 | `configuracion/page.tsx` dividido en 12 componentes (4,035 → 96 líneas) |
 | Mar 2026 | Fix inversiones vacías para no-admin: `/api/users` (middleware admin) estaba en `Promise.all` bloqueando todos los datos |
 | Mar 2026 | `CreditPaymentController` refactorizado: 2,868 → 406 líneas. Lógica extraída en 7 Services |
+| Mar 2026 | **149 `as any` → 0** en 13 archivos frontend. Tipos extendidos en `data.ts`, interfaces locales actualizadas, jsPDF tipado con `unknown` cast |
 
 ## Pendiente — Media prioridad
 
@@ -37,8 +38,8 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 
 ## Pendiente — Baja prioridad
 
-### 7. 149 usos de `as any` en TypeScript (bajó de 292)
-- Origen de los errores TS en analisis, creditos, cobros, clientes, inversiones
+### ~~7. 149 usos de `as any` en TypeScript~~ ✅ Resuelto (Mar 2026)
+0 `as any` en todo `src/`. Errores TS pre-existentes quedan en: analisis (3), inversiones (2), oportunidades/[id] (3 — bug tuple), use-toast (3), exceljs (2 — módulo no instalado).
 
 ### 8. Log de errores en backend (64 `Log::`, subió de 48)
 - Poco contexto cuando algo falla en producción

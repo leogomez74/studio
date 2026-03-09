@@ -650,7 +650,7 @@ export default function TasksPage() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
-            <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value as any)}>
+            <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value as TaskTableFilters["status"])}>
               <SelectTrigger className="w-auto min-w-[130px]">
                 <SelectValue />
               </SelectTrigger>
@@ -665,7 +665,7 @@ export default function TasksPage() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prioridad</Label>
-            <Select value={filters.priority} onValueChange={(value) => handleFilterChange("priority", value as any)}>
+            <Select value={filters.priority} onValueChange={(value) => handleFilterChange("priority", value as TaskTableFilters["priority"])}>
               <SelectTrigger className="w-auto min-w-[130px]">
                 <SelectValue />
               </SelectTrigger>

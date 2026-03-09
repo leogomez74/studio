@@ -112,7 +112,9 @@ export type PersonDocument = {
       url?: string;
       mime_type?: string;
       size?: number;
+      category?: string;
       file_created_at?: string;
+      created_at?: string;
 };
 
 export type CreditPayment = {
@@ -150,6 +152,7 @@ export type CreditPayment = {
       fecha?: string;
       created_at?: string;
       credit?: { id: number; reference?: string };
+      estado_reverso?: string;
 };
 
 export type Client = {
@@ -165,6 +168,7 @@ export type Client = {
       status?: string;
       is_active?: boolean;
       created_at?: string;
+      updated_at?: string;
       apellido1?: string;
       apellido2?: string;
       whatsapp?: string;
@@ -249,6 +253,8 @@ export type Opportunity = {
   amparo_id?: string;
   tags?: string[];
   missing_documents?: string[];
+  has_analysis?: boolean;
+  analisis?: { id: number; monto_credito?: number; plazo?: number; category?: string; divisa?: string; lead_id?: number } | null;
 
   // Legacy / UI fields
   leadCedula?: string;
@@ -289,7 +295,7 @@ export type Credit = {
   saldo?: number | null;
   proceso?: string | null;
   documento_id?: string | null;
-  lead?: { id: number; name: string; email: string | null  ; cedula?: number} | null;
+  lead?: { id: number; name: string; email: string | null; cedula?: number | string; apellido1?: string | null; apellido2?: string | null; institucion_labora?: string | null; puesto?: string | null; estado_puesto?: string | null; telefono?: string | null; phone?: string | null; ocupacion?: string | null } | null;
   opportunity?: { id: string; title: string | null } | null;
   plan_de_pagos?: Array<{
     id: number;
@@ -303,6 +309,12 @@ export type Credit = {
     fecha_pago: string | null;
     estado: string;
     dias_mora?: number;
+    fecha_corte?: string;
+    int_corriente_vencido?: number | null;
+    interes_moratorio?: number | null;
+    poliza?: number | null;
+    movimiento_total?: number | null;
+    movimiento_interes_moratorio?: number | null;
   }> | null;
 
   // Refundición
@@ -314,6 +326,9 @@ export type Credit = {
   cierre_motivo?: string | null;
   refundicion_parent?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
   refundicion_child?: { id: number; reference: string; monto_credito: number; saldo: number } | null;
+
+  formalized_at?: string | null;
+  fecha_apertura_credito?: string | null;
 
   // Legacy / UI fields for cobro-judicial
   operationNumber?: string;
