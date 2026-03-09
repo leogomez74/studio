@@ -487,6 +487,57 @@ class InvestmentService
         ];
     }
 
+    public function cancelacionTotal(Investment $investment, string $tipo): Investment
+    {
+        return DB::transaction(function () use ($investment, $tipo) {
+            $now = now()->toDateString();
+
+            if ($tipo === 'con_intereses') {
+                // Mark all pending/reserved coupons as paid
+                $pendingCoupons = $investment->coupons()
+                    ->whereIn('estado', ['Pendiente', 'Reservado'])
+                    ->get();
+
+                foreach ($pendingCoupons as $coupon) {
+                    $coupon->update(['estado' => 'Pagado', 'fecha_pago' => $now]);
+
+                    InvestmentPayment::create([
+                        'investor_id' => $investment->investor_id,
+                        'investment_id' => $investment->id,
+                        'fecha_pago' => $now,
+                        'monto' => $coupon->interes_neto,
+                        'tipo' => 'Interés',
+                        'moneda' => $investment->moneda,
+                    ]);
+                }
+            } else {
+                // sin_intereses: mark pending coupons as paid with 0
+                $investment->coupons()
+                    ->whereIn('estado', ['Pendiente', 'Reservado'])
+                    ->update(['estado' => 'Pagado', 'fecha_pago' => $now, 'monto_pagado_real' => 0]);
+            }
+
+            // Register capital return payment
+            InvestmentPayment::create([
+                'investor_id' => $investment->investor_id,
+                'investment_id' => $investment->id,
+                'fecha_pago' => $now,
+                'monto' => $investment->monto_capital,
+                'tipo' => 'Capital',
+                'moneda' => $investment->moneda,
+                'comentarios' => 'Cancelación total ' . ($tipo === 'con_intereses' ? 'con intereses' : 'sin intereses'),
+            ]);
+
+            $investment->update([
+                'estado' => 'Finalizada',
+                'fecha_pago_total' => now(),
+                'tipo_cancelacion_total' => $tipo,
+            ]);
+
+            return $investment->fresh();
+        });
+    }
+
     public function getTablaGeneral(): array
     {
         $investments = Investment::with('investor:id,name')->where('estado', 'Activa')->get();

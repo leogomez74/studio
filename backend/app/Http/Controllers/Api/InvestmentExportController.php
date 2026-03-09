@@ -236,19 +236,33 @@ class InvestmentExportController extends Controller
 
             $totalPago = $dayPayments->sum(fn($p) => (float) $p->monto);
 
-            // Interest is paid first, remainder goes to capital
-            $interestPayment = min($interes, $totalPago);
-            $capitalPayment = $totalPago - $interestPayment;
-            $balance = $balance - $capitalPayment;
+            // Separate capital payments (Capital, Liquidación) from interest payments
+            $explicitCapital = $dayPayments
+                ->filter(fn($p) => in_array($p->tipo, ['Capital', 'Liquidación']))
+                ->sum(fn($p) => (float) $p->monto);
+            $explicitInterest = $dayPayments
+                ->filter(fn($p) => in_array($p->tipo, ['Interés', 'Adelanto']))
+                ->sum(fn($p) => (float) $p->monto);
+
+            if ($explicitCapital > 0) {
+                // When there are explicit capital payments, use actual payment types
+                $interestPayment = $explicitInterest;
+                $capitalPayment = $explicitCapital;
+            } else {
+                // Legacy behavior: interest is paid first, remainder goes to capital
+                $interestPayment = min($interes, $totalPago);
+                $capitalPayment = $totalPago - $interestPayment;
+            }
+            $balance = round($balance - $capitalPayment, 2);
 
             $rows[] = [
                 'date' => $fechaPago->format($lang === 'en' ? 'F d,Y' : 'd/m/Y'),
                 'days' => $dias,
                 'interest' => $interes,
                 'payment' => $totalPago,
-                'interest_payment' => $interestPayment,
-                'capital_payment' => $capitalPayment,
-                'balance' => round($balance, 2),
+                'interest_payment' => round($interestPayment, 2),
+                'capital_payment' => round($capitalPayment, 2),
+                'balance' => $balance,
             ];
 
             $fechaAnterior = $fechaPago;

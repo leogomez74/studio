@@ -908,6 +908,9 @@ export default function InversionesPage() {
   const [paymentForm, setPaymentForm] = useState({ investor_id: '', investment_id: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
   const [savingPayment, setSavingPayment] = useState(false);
   const [retencionesMoneda, setRetencionesMoneda] = useState('');
+  const [pagadas, setPagadas] = useState<Investment[]>([]);
+  const [pagadasLoading, setPagadasLoading] = useState(false);
+  const [pagadasMoneda, setPagadasMoneda] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -962,6 +965,18 @@ export default function InversionesPage() {
       setVencimientos(res.data);
     } catch (err) {
       console.error('Error fetching vencimientos:', err);
+    }
+  }, []);
+
+  const fetchPagadas = useCallback(async () => {
+    setPagadasLoading(true);
+    try {
+      const res = await api.get('/api/investments/pagadas');
+      setPagadas(res.data);
+    } catch (err) {
+      console.error('Error fetching pagadas:', err);
+    } finally {
+      setPagadasLoading(false);
     }
   }, []);
 
@@ -1065,7 +1080,7 @@ export default function InversionesPage() {
 
   return (
     <ProtectedPage module="inversiones">
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); }}>
+      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
@@ -1076,6 +1091,7 @@ export default function InversionesPage() {
             <TabsTrigger value="reservas">Reservas</TabsTrigger>
             <TabsTrigger value="vencimientos">Vencimientos</TabsTrigger>
             <TabsTrigger value="retenciones">Retenciones</TabsTrigger>
+            <TabsTrigger value="pagadas">Inversiones Pagadas</TabsTrigger>
           </TabsList>
           {activeTab === 'inversionistas' && (
             <Button size="sm" className="gap-1" onClick={() => setShowInvestorForm(true)}>
@@ -1430,6 +1446,84 @@ export default function InversionesPage() {
                 </TableBody>
               </Table>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Inversiones Pagadas */}
+        <TabsContent value="pagadas">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Inversiones Pagadas</CardTitle>
+                  <CardDescription>Inversiones que han sido canceladas totalmente (capital devuelto).</CardDescription>
+                </div>
+                <Select value={pagadasMoneda} onValueChange={v => setPagadasMoneda(v === 'all' ? '' : v)}>
+                  <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="CRC">CRC</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {pagadasLoading ? (
+                <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>N° Desembolso</TableHead>
+                        <TableHead>Inversionista</TableHead>
+                        <TableHead className="text-right">Monto Capital</TableHead>
+                        <TableHead>Moneda</TableHead>
+                        <TableHead>Fecha Inicio</TableHead>
+                        <TableHead>Fecha Pago Total</TableHead>
+                        <TableHead>Tipo Cancelación</TableHead>
+                        <TableHead><span className="sr-only">Acciones</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pagadas.filter(p => !pagadasMoneda || p.moneda === pagadasMoneda).map(inv => (
+                        <TableRow key={inv.id}>
+                          <TableCell>
+                            <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
+                          </TableCell>
+                          <TableCell>{inv.investor?.name ?? '—'}</TableCell>
+                          <TableCell className="text-right font-mono">{fmt(inv.monto_capital, inv.moneda)}</TableCell>
+                          <TableCell><Badge variant="outline">{inv.moneda}</Badge></TableCell>
+                          <TableCell>{inv.fecha_inicio ? new Date(inv.fecha_inicio).toLocaleDateString('es-CR') : '—'}</TableCell>
+                          <TableCell>{inv.fecha_pago_total ? new Date(inv.fecha_pago_total).toLocaleDateString('es-CR') : '—'}</TableCell>
+                          <TableCell>
+                            <Badge variant={inv.tipo_cancelacion_total === 'con_intereses' ? 'default' : 'secondary'}>
+                              {inv.tipo_cancelacion_total === 'con_intereses' ? 'Con intereses' : 'Sin intereses'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${inv.id}`}>Ver Detalle</Link></DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/estado-cuenta?lang=es`, '_blank')}>Estado de Cuenta (ES)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/estado-cuenta?lang=en`, '_blank')}>Account Statement (EN)</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {pagadas.filter(p => !pagadasMoneda || p.moneda === pagadasMoneda).length === 0 && (
+                        <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No hay inversiones pagadas.</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

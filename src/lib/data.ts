@@ -356,6 +356,8 @@ export type Investment = {
   investment_origen_id?: number;
   cancelado_por?: string;
   fecha_cancelacion?: string;
+  fecha_pago_total?: string;
+  tipo_cancelacion_total?: 'con_intereses' | 'sin_intereses';
   interes_mensual?: number;
   retencion_mensual?: number;
   interes_neto_mensual?: number;

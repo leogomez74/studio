@@ -256,11 +256,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('investments/reservas', [InvestmentController::class, 'reservas']);
     Route::get('investments/preview', [InvestmentController::class, 'preview']);
     Route::get('investments/vencimientos', [InvestmentController::class, 'vencimientos']);
+    Route::get('investments/pagadas', [InvestmentController::class, 'pagadas']);
     Route::post('investments/recalculate-all', [InvestmentController::class, 'recalculateAll']);
     Route::get('investments/{id}/reserva', [InvestmentController::class, 'reservaDetalle']);
     Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate']);
     Route::post('investments/{id}/renew', [InvestmentController::class, 'renew']);
     Route::post('investments/{id}/cancel', [InvestmentController::class, 'cancel']);
+    Route::post('investments/{id}/cancelacion-total', [InvestmentController::class, 'cancelacionTotal']);
     Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);
     Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid']);
     Route::patch('investment-coupons/{id}/correct', [InvestmentCouponController::class, 'correct']);

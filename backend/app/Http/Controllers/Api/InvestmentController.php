@@ -247,6 +247,37 @@ class InvestmentController extends Controller
         return response()->json($investment->fresh());
     }
 
+    public function cancelacionTotal(Request $request, int $id)
+    {
+        $investment = Investment::findOrFail($id);
+
+        if ($investment->estado !== 'Activa') {
+            return response()->json(['message' => 'Solo se pueden finalizar inversiones activas.'], 422);
+        }
+
+        $validated = $request->validate([
+            'tipo' => 'required|in:con_intereses,sin_intereses',
+        ]);
+
+        $result = $this->service->cancelacionTotal($investment, $validated['tipo']);
+        $this->logActivity('cancelacion_total', 'Inversiones', $investment, $investment->numero_desembolso, ['tipo' => $validated['tipo']], $request);
+
+        return response()->json($result->load(['investor:id,name,cedula', 'coupons', 'payments']));
+    }
+
+    public function pagadas(Request $request)
+    {
+        $query = Investment::with('investor:id,name,cedula')
+            ->where('estado', 'Finalizada')
+            ->whereNotNull('fecha_pago_total');
+
+        if ($request->has('moneda')) {
+            $query->where('moneda', $request->moneda);
+        }
+
+        return response()->json($query->latest('fecha_pago_total')->get());
+    }
+
     public function recalculateAll()
     {
         $investments = Investment::all();

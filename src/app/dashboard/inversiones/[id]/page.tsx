@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle, RefreshCw, Ban, History, Paperclip, Pencil, Calculator } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, FileSpreadsheet, Loader2, Save, AlertTriangle, RefreshCw, Ban, History, Paperclip, Pencil, Calculator, Banknote } from 'lucide-react';
+import { toastSuccess, toastError } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -66,6 +67,12 @@ export default function InvestmentDetailPage() {
   const [correctAmount, setCorrectAmount] = useState('');
   const [correctMotivo, setCorrectMotivo] = useState('');
   const [correctingLoading, setCorrectingLoading] = useState(false);
+
+  // Cancelacion total modal
+  const [showCancelacionTotal, setShowCancelacionTotal] = useState(false);
+  const [tipoCancelacion, setTipoCancelacion] = useState<'con_intereses' | 'sin_intereses'>('con_intereses');
+  const [cancelacionLoading, setCancelacionLoading] = useState(false);
+  const [showEstadoCuentaPrompt, setShowEstadoCuentaPrompt] = useState(false);
 
   // Interest calculator
   const [calcDesde, setCalcDesde] = useState('');
@@ -226,6 +233,22 @@ export default function InvestmentDetailPage() {
     }
   };
 
+  const handleCancelacionTotal = async () => {
+    if (!investment) return;
+    setCancelacionLoading(true);
+    try {
+      await api.post(`/api/investments/${investment.id}/cancelacion-total`, { tipo: tipoCancelacion });
+      setShowCancelacionTotal(false);
+      toastSuccess('Cancelación total realizada exitosamente.');
+      setShowEstadoCuentaPrompt(true);
+      fetchInvestment();
+    } catch (err: any) {
+      toastError(err.response?.data?.message || 'Error al procesar la cancelación total');
+    } finally {
+      setCancelacionLoading(false);
+    }
+  };
+
   const openRenewModal = () => {
     if (!investment) return;
     setRenewForm({
@@ -325,6 +348,9 @@ export default function InvestmentDetailPage() {
             <>
               <Button variant="outline" size="sm" onClick={openRenewModal}>
                 <RefreshCw className="h-4 w-4 mr-1" /> Renovar
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowCancelacionTotal(true)}>
+                <Banknote className="h-4 w-4 mr-1" /> Cancelación Total
               </Button>
               <Button variant="outline" size="sm" className="text-destructive" onClick={() => setShowCancelModal(true)}>
                 <Ban className="h-4 w-4 mr-1" /> Cancelar
@@ -866,6 +892,113 @@ export default function InvestmentDetailPage() {
             >
               {correctingLoading ? 'Guardando...' : 'Guardar Corrección'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancelacion Total Modal */}
+      <Dialog open={showCancelacionTotal} onOpenChange={setShowCancelacionTotal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Cancelación Total de Inversión</DialogTitle>
+            <DialogDescription>Se devolverá el capital completo al inversionista y la inversión pasará a estado Finalizada.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Capital</p>
+                <p className="text-lg font-mono font-bold">{fmt(investment.monto_capital, investment.moneda)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Intereses Pendientes</p>
+                <p className="text-lg font-mono font-bold">
+                  {fmt(
+                    (investment.coupons || [])
+                      .filter(c => c.estado === 'Pendiente' || c.estado === 'Reservado')
+                      .reduce((sum, c) => sum + Number(c.interes_neto), 0),
+                    investment.moneda
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="border rounded-lg p-4 space-y-3">
+              <p className="font-medium text-sm">¿Cómo desea realizar la cancelación?</p>
+              <div className="space-y-2">
+                <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${tipoCancelacion === 'con_intereses' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
+                  <input
+                    type="radio"
+                    name="tipoCancelacion"
+                    checked={tipoCancelacion === 'con_intereses'}
+                    onChange={() => setTipoCancelacion('con_intereses')}
+                    className="accent-primary"
+                  />
+                  <div>
+                    <p className="font-medium text-sm">Con intereses</p>
+                    <p className="text-xs text-muted-foreground">Se pagan todos los cupones pendientes + devolución de capital</p>
+                    <p className="text-sm font-mono font-semibold mt-1 text-primary">
+                      Total: {fmt(
+                        Number(investment.monto_capital) +
+                        (investment.coupons || [])
+                          .filter(c => c.estado === 'Pendiente' || c.estado === 'Reservado')
+                          .reduce((sum, c) => sum + Number(c.interes_neto), 0),
+                        investment.moneda
+                      )}
+                    </p>
+                  </div>
+                </label>
+                <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${tipoCancelacion === 'sin_intereses' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
+                  <input
+                    type="radio"
+                    name="tipoCancelacion"
+                    checked={tipoCancelacion === 'sin_intereses'}
+                    onChange={() => setTipoCancelacion('sin_intereses')}
+                    className="accent-primary"
+                  />
+                  <div>
+                    <p className="font-medium text-sm">Sin intereses</p>
+                    <p className="text-xs text-muted-foreground">Solo devolución de capital, sin pagar intereses pendientes</p>
+                    <p className="text-sm font-mono font-semibold mt-1 text-primary">
+                      Total: {fmt(Number(investment.monto_capital), investment.moneda)}
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelacionTotal(false)}>Cerrar</Button>
+            <Button onClick={handleCancelacionTotal} disabled={cancelacionLoading}>
+              {cancelacionLoading ? 'Procesando...' : 'Confirmar Cancelación Total'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Estado de Cuenta Prompt after Cancelacion Total */}
+      <Dialog open={showEstadoCuentaPrompt} onOpenChange={setShowEstadoCuentaPrompt}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Inversión Finalizada</DialogTitle>
+            <DialogDescription>La cancelación total se ha procesado exitosamente. ¿Desea generar el estado de cuenta?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => setShowEstadoCuentaPrompt(false)}>No, cerrar</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <FileText className="h-4 w-4 mr-1" /> Generar Estado de Cuenta
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=es`, '_blank'); setShowEstadoCuentaPrompt(false); }}>
+                  Descargar en Español
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=en`, '_blank'); setShowEstadoCuentaPrompt(false); }}>
+                  Download in English
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </DialogFooter>
         </DialogContent>
       </Dialog>

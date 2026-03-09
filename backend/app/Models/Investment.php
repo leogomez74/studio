@@ -27,6 +27,8 @@ class Investment extends Model
         'investment_origen_id',
         'cancelado_por',
         'fecha_cancelacion',
+        'fecha_pago_total',
+        'tipo_cancelacion_total',
     ];
 
     protected $casts = [
@@ -37,6 +39,7 @@ class Investment extends Model
         'fecha_inicio' => 'date',
         'fecha_vencimiento' => 'date',
         'fecha_cancelacion' => 'date',
+        'fecha_pago_total' => 'datetime',
         'es_capitalizable' => 'boolean',
     ];
 
