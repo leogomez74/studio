@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\MetaVentaController;
 use App\Http\Controllers\Api\VisitaController;
 use App\Http\Controllers\Api\ComisionController;
+use App\Http\Controllers\Api\TareaRutaController;
+use App\Http\Controllers\Api\RutaDiariaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -127,6 +129,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/tareas/{task}', [TaskController::class, 'destroy']);
     Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive']);
     Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore']);
+
+    // --- Rutas (Mensajería / Logística) ---
+    Route::apiResource('tareas-ruta', TareaRutaController::class);
+    Route::patch('/tareas-ruta/{id}/completar', [TareaRutaController::class, 'completar']);
+    Route::patch('/tareas-ruta/{id}/fallar', [TareaRutaController::class, 'fallar']);
+    Route::patch('/tareas-ruta/{id}/prioridad', [TareaRutaController::class, 'overridePrioridad'])->middleware('admin');
+
+    Route::get('/rutas-diarias', [RutaDiariaController::class, 'index']);
+    Route::get('/rutas-diarias/mi-ruta', [RutaDiariaController::class, 'miRuta']);
+    Route::get('/rutas-diarias/{id}', [RutaDiariaController::class, 'show']);
+    Route::post('/rutas-diarias/generar', [RutaDiariaController::class, 'generar'])->middleware('admin');
+    Route::patch('/rutas-diarias/{id}/confirmar', [RutaDiariaController::class, 'confirmar'])->middleware('admin');
+    Route::patch('/rutas-diarias/{id}/iniciar', [RutaDiariaController::class, 'iniciar']);
+    Route::patch('/rutas-diarias/{id}/reordenar', [RutaDiariaController::class, 'reordenar'])->middleware('admin');
 
     // --- Automatización de Tareas ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index']);

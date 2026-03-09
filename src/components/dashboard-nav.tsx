@@ -66,7 +66,7 @@ const navGroups = [
   {
     label: 'Operaciones',
     items: [
-      { href: '/dashboard/rutas', icon: Route, label: 'Rutas', module: 'rutas', badge: 'Próximamente' },
+      { href: '/dashboard/rutas', icon: Route, label: 'Rutas', module: 'rutas' },
       { href: '/dashboard/tareas', icon: ClipboardCheck, label: 'Tareas', module: 'tareas' },
       { href: '/dashboard/comunicaciones', icon: MessageSquare, label: 'Comunicaciones', module: 'comunicaciones', badge: 'Próximamente' },
     ],
