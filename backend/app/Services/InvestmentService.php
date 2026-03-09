@@ -76,11 +76,10 @@ class InvestmentService
         $now = now();
         $capitalActual = $capitalInicial;
 
-        // El interés siempre se calcula sobre el capital original, no el acumulado
+        // El interés del cupón es siempre el interés mensual (capital * tasa / 12)
         $interesMensual = round($capitalInicial * $tasaAnual / 12, 2);
-        $interesCupon = round($interesMensual * $mesesIntervalo, 2);
-        $retencion = round($interesCupon * $tasaRetencion, 2);
-        $interesNeto = round($interesCupon - $retencion, 2);
+        $retencion = round($interesMensual * $tasaRetencion, 2);
+        $interesNeto = round($interesMensual - $retencion, 2);
 
         while ($fechaCupon->lte($fechaVencimiento)) {
             $montoReservado = ($formaPago === 'RESERVA' || $esCapitalizable) ? $interesNeto : 0;
@@ -93,7 +92,7 @@ class InvestmentService
             $coupons[] = [
                 'investment_id' => $investment->id,
                 'fecha_cupon' => $fechaCupon->toDateString(),
-                'interes_bruto' => $interesCupon,
+                'interes_bruto' => $interesMensual,
                 'retencion' => $retencion,
                 'interes_neto' => $interesNeto,
                 'monto_reservado' => $montoReservado,
@@ -228,12 +227,11 @@ class InvestmentService
         $coupons = [];
         $now = now();
 
-        // El interés siempre se calcula sobre el capital original
+        // El interés del cupón es siempre el interés mensual (capital * tasa / 12)
         $capitalOriginal = (float) $investment->monto_capital;
         $interesMensual = round($capitalOriginal * $tasaAnual / 12, 2);
-        $interesCupon = round($interesMensual * $mesesIntervalo, 2);
-        $retencion = round($interesCupon * $tasaRetencion, 2);
-        $interesNeto = round($interesCupon - $retencion, 2);
+        $retencion = round($interesMensual * $tasaRetencion, 2);
+        $interesNeto = round($interesMensual - $retencion, 2);
 
         while ($fechaCupon->lte($fechaVencimiento)) {
             $montoReservado = ($investment->forma_pago === 'RESERVA' || $investment->es_capitalizable) ? $interesNeto : 0;
@@ -243,7 +241,7 @@ class InvestmentService
             $coupons[] = [
                 'investment_id' => $investment->id,
                 'fecha_cupon' => $fechaCupon->toDateString(),
-                'interes_bruto' => $interesCupon,
+                'interes_bruto' => $interesMensual,
                 'retencion' => $retencion,
                 'interes_neto' => $interesNeto,
                 'monto_reservado' => $montoReservado,
@@ -319,11 +317,10 @@ class InvestmentService
         $capitalActual = $montoCapital;
         $num = 1;
 
-        // El interés siempre se calcula sobre el capital original
+        // El interés del cupón es siempre el interés mensual (capital * tasa / 12)
         $interesMensual = round($montoCapital * $tasaAnual / 12, 2);
-        $interesCupon = round($interesMensual * $mesesIntervalo, 2);
-        $retencion = round($interesCupon * $tasaRetencion, 2);
-        $interesNeto = round($interesCupon - $retencion, 2);
+        $retencion = round($interesMensual * $tasaRetencion, 2);
+        $interesNeto = round($interesMensual - $retencion, 2);
 
         while ($fechaCupon->lte($fechaVencimiento)) {
             $montoReservado = ($formaPago === 'RESERVA' || $esCapitalizable) ? $interesNeto : 0;
@@ -335,7 +332,7 @@ class InvestmentService
             $coupons[] = [
                 'numero' => $num++,
                 'fecha_cupon' => $fechaCupon->toDateString(),
-                'interes_bruto' => $interesCupon,
+                'interes_bruto' => $interesMensual,
                 'retencion' => $retencion,
                 'interes_neto' => $interesNeto,
                 'monto_reservado' => $montoReservado,

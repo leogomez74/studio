@@ -89,15 +89,8 @@ class Investment extends Model
 
     public function getInteresDelCuponAttribute(): float
     {
-        $mensual = $this->interes_mensual;
-        return match ($this->forma_pago) {
-            'MENSUAL' => $mensual,
-            'TRIMESTRAL' => round($mensual * 3, 2),
-            'SEMESTRAL' => round($mensual * 6, 2),
-            'ANUAL' => round($mensual * 12, 2),
-            'RESERVA' => $mensual,
-            default => $mensual,
-        };
+        // El interés del cupón es siempre el interés mensual, sin importar la periodicidad
+        return $this->interes_mensual;
     }
 
     public function getRetencionDelCuponAttribute(): float
