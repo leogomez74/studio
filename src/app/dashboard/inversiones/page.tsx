@@ -232,27 +232,38 @@ function TablaGeneralSection({ data }: { data: any }) {
       {renderSection('DÓLARES (USD)', data.dolares, 'USD')}
       {renderSection('COLONES (CRC)', data.colones, 'CRC')}
 
-      {/* Consolidado */}
-      {data.consolidado_crc && (
-        <Card className="border-primary">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Total Consolidado en Colones</CardTitle>
-            <CardDescription>Tipo de cambio: ₡{data.tipo_cambio} por dólar</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Totales por moneda */}
+      <Card className="border-primary">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Totales Generales</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-muted-foreground">Colones (CRC)</p>
               <div>
-                <p className="text-sm text-muted-foreground">Capital Total</p>
-                <p className="text-2xl font-mono font-bold text-primary">{fmt(data.consolidado_crc.total_capital, 'CRC')}</p>
+                <p className="text-xs text-muted-foreground">Capital</p>
+                <p className="text-2xl font-mono font-bold text-primary">{fmt(data.colones?.total_capital ?? 0, 'CRC')}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Interés Neto Mensual Total</p>
-                <p className="text-2xl font-mono font-bold text-primary">{fmt(data.consolidado_crc.total_neto, 'CRC')}</p>
+                <p className="text-xs text-muted-foreground">Interés Neto Mensual</p>
+                <p className="text-lg font-mono font-semibold">{fmt(data.colones?.total_neto ?? 0, 'CRC')}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-muted-foreground">Dólares (USD)</p>
+              <div>
+                <p className="text-xs text-muted-foreground">Capital</p>
+                <p className="text-2xl font-mono font-bold text-primary">{fmt(data.dolares?.total_capital ?? 0, 'USD')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Interés Neto Mensual</p>
+                <p className="text-lg font-mono font-semibold">{fmt(data.dolares?.total_neto ?? 0, 'USD')}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -695,14 +706,18 @@ function ReservasSection({ data }: { data: any }) {
             <CardTitle className="text-2xl font-mono">{fmt(gt.usd.reserva_mensual, 'USD')}</CardTitle>
           </CardHeader>
         </Card>
-        {data.consolidado_crc && (
-          <Card className="border-primary">
-            <CardHeader className="pb-2">
-              <CardDescription>Consolidado Mensual (₡{data.tipo_cambio}/USD)</CardDescription>
-              <CardTitle className="text-2xl font-mono text-primary">{fmt(data.consolidado_crc.reserva_mensual, 'CRC')}</CardTitle>
-            </CardHeader>
-          </Card>
-        )}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Reserva Capital CRC</CardDescription>
+            <CardTitle className="text-2xl font-mono">{fmt(gt.crc.reserva_capital, 'CRC')}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Reserva Capital USD</CardDescription>
+            <CardTitle className="text-2xl font-mono">{fmt(gt.usd.reserva_capital, 'USD')}</CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       {/* Per-investor sections */}
@@ -911,6 +926,8 @@ export default function InversionesPage() {
   const [pagadas, setPagadas] = useState<Investment[]>([]);
   const [pagadasLoading, setPagadasLoading] = useState(false);
   const [pagadasMoneda, setPagadasMoneda] = useState('');
+  const [tipoCambio, setTipoCambio] = useState<{ compra: number | null; venta: number | null; fecha: string | null; fuente: string } | null>(null);
+  const [refreshingTC, setRefreshingTC] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -983,7 +1000,29 @@ export default function InversionesPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchTipoCambio = useCallback(async () => {
+    try {
+      const res = await api.get('/api/exchange-rates/current');
+      setTipoCambio(res.data);
+    } catch (err) {
+      console.error('Error fetching tipo de cambio:', err);
+    }
+  }, []);
+
+  const handleRefreshTC = async () => {
+    setRefreshingTC(true);
+    try {
+      const res = await api.post('/api/exchange-rates/refresh');
+      setTipoCambio(res.data);
+      toastSuccess('Tipo de cambio actualizado desde BCCR.');
+    } catch (err: any) {
+      toastError(err?.response?.data?.message || 'No se pudo actualizar el tipo de cambio.');
+    } finally {
+      setRefreshingTC(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); fetchTipoCambio(); }, [fetchData, fetchTipoCambio]);
 
   const handleDeleteInvestor = async (id: number) => {
     if (!confirm('¿Eliminar este inversionista y todas sus inversiones?')) return;
@@ -1083,6 +1122,37 @@ export default function InversionesPage() {
 
   return (
     <ProtectedPage module="inversiones">
+      {/* Tipo de Cambio */}
+      {tipoCambio && (
+        <Card className="mb-4 border-blue-200 bg-gradient-to-r from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Landmark className="h-5 w-5 text-blue-600" />
+                  <span className="font-semibold text-sm text-blue-800 dark:text-blue-300">Tipo de Cambio</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Venta BCCR:</span>{' '}
+                  <span className="font-mono font-bold text-primary">₡{Number(tipoCambio.venta).toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {tipoCambio.fecha && (
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(tipoCambio.fecha + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {tipoCambio.fuente !== 'BCCR' && ` (${tipoCambio.fuente})`}
+                  </span>
+                )}
+                <Button variant="ghost" size="sm" onClick={handleRefreshTC} disabled={refreshingTC} className="h-7 px-2">
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshingTC ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>

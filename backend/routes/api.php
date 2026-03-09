@@ -266,6 +266,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/redemptions', [RedemptionController::class, 'index']);
     });
 
+    // --- Tipo de Cambio ---
+    Route::get('exchange-rates/current', [\App\Http\Controllers\Api\ExchangeRateController::class, 'current']);
+    Route::get('exchange-rates/history', [\App\Http\Controllers\Api\ExchangeRateController::class, 'history']);
+    Route::post('exchange-rates', [\App\Http\Controllers\Api\ExchangeRateController::class, 'store']);
+    Route::post('exchange-rates/refresh', [\App\Http\Controllers\Api\ExchangeRateController::class, 'refresh']);
+
     // --- Inversiones ---
     Route::get('investments/tabla-general', [InvestmentController::class, 'tablaGeneral']);
     Route::get('investments/pagos-proximos', [InvestmentController::class, 'pagosProximos']);

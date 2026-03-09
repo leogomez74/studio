@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ExchangeRate;
 use App\Models\Investment;
 use App\Models\InvestmentCoupon;
 use App\Models\InvestmentPayment;
@@ -471,7 +472,7 @@ class InvestmentService
             ];
         })->values();
 
-        $tipoCambio = (float) config('services.inversiones.tipo_cambio_usd', 500);
+        $tipoCambio = ExchangeRate::ventaActual();
 
         return [
             'inversores' => $inversores,
@@ -549,7 +550,7 @@ class InvestmentService
         $dolares = $investments->where('moneda', 'USD')->values();
         $colones = $investments->where('moneda', 'CRC')->values();
 
-        $tipoCambio = (float) config('services.inversiones.tipo_cambio_usd', 500);
+        $tipoCambio = ExchangeRate::ventaActual();
 
         $totalCapitalUsd = $dolares->sum('monto_capital');
         $totalNetoUsd = $dolares->sum(fn ($i) => $i->interes_neto_mensual);
