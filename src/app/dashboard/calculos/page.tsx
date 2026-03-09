@@ -210,11 +210,9 @@ export default function CalculosPage() {
     const config = loanConfigs[creditType];
     if (config) {
       setRate(String(config.tasa_anual));
-      // Si el plazo actual no está en los rangos válidos, resetear al primero disponible
       const currentTerm = parseInt(term, 10);
       if (currentTerm < config.plazo_minimo || currentTerm > config.plazo_maximo) {
-        const firstValid = config.rangos_plazo[0]?.value;
-        if (firstValid) setTerm(String(firstValid));
+        setTerm(String(config.plazo_minimo));
       }
     }
   }, [creditType, loanConfigs]);
