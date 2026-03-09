@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Api\CreditPaymentController;
+use App\Services\AbonoService;
+use App\Services\PaymentProcessingService;
 use App\Models\SaldoPendiente;
 use App\Models\Credit;
 use App\Models\CreditPayment;
@@ -391,8 +392,8 @@ class SaldoPendienteController extends Controller
 
             if ($accion === 'cuota') {
                 // Aplicar como pago a la siguiente cuota pendiente
-                $controller = new CreditPaymentController();
-                $payment = $controller->processPaymentTransactionPublic(
+                $paymentService = app(PaymentProcessingService::class);
+                $payment = $paymentService->processPaymentTransactionPublic(
                     $credit,
                     $montoAplicar,
                     now(),
@@ -436,9 +437,9 @@ class SaldoPendienteController extends Controller
                 $saldoAnterior = (float) $credit->saldo;
                 $montoCapital = min($montoAplicar, $saldoAnterior);
 
-                // Usar la lógica de abono extraordinario del CreditPaymentController
-                $controller = new CreditPaymentController();
-                $payment = $controller->procesarAbonoCapitalConEstrategia(
+                // Usar la lógica de abono extraordinario del AbonoService
+                $abonoService = app(AbonoService::class);
+                $payment = $abonoService->procesarAbonoCapitalConEstrategia(
                     $credit,
                     $montoCapital,
                     now(),

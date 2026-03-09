@@ -80,7 +80,7 @@ class MiController extends Controller {
 - (sin pendientes críticos)
 
 ### 🟡 Media
-- `CreditPaymentController` con 2,847 líneas — extraer en Services
+- ~~`CreditPaymentController` con 2,847 líneas~~ ✅ Resuelto — extraído en 7 Services (406 líneas el controller)
 
 ### 🟢 Baja
 - 149 `as any` en TypeScript (bajó de 292)

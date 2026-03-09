@@ -19,6 +19,7 @@
 | Mar 2026 | Fix permisos sidebar vacío para usuarios no-admin: PermissionsContext usa `/me` en vez de endpoints con middleware admin |
 | Mar 2026 | `configuracion/page.tsx` dividido en 12 componentes (4,035 → 96 líneas) |
 | Mar 2026 | Fix inversiones vacías para no-admin: `/api/users` (middleware admin) estaba en `Promise.all` bloqueando todos los datos |
+| Mar 2026 | `CreditPaymentController` refactorizado: 2,868 → 406 líneas. Lógica extraída en 7 Services |
 
 ## Pendiente — Media prioridad
 
@@ -31,9 +32,8 @@ Dividido en 12 componentes en `src/components/configuracion/`. page.tsx ahora es
 ### ~~5. empresas-mock.ts con datos hardcodeados~~ ✅ No aplica
 Funciona como respaldo intencional si falla la lista de empresas desde BD.
 
-### 6. CreditPaymentController con 2,847 líneas
-- Mezcla planillas, ventanilla, abonos, refundiciones, mora
-- Solución largo plazo: extraer en Services
+### ~~6. CreditPaymentController con 2,847 líneas~~ ✅ Resuelto (Mar 2026)
+Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingService, PlanillaService, AbonoService, CancelacionService, ReversalService. Controller ahora es orquestador de 406 líneas.
 
 ## Pendiente — Baja prioridad
 
