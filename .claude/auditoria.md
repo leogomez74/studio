@@ -29,16 +29,21 @@
 | `logout` | Gris |
 | `export`/`upload` | Amarillo |
 
-## Controllers CON LogsActivity
+## Controllers CON LogsActivity (31 total)
 AuthController, LeadController, ClientController, UserController, CreditController,
 CreditPaymentController, PlanillaUploadController, AnalisisController, OpportunityController,
 TaskController, LoanConfigurationController, TasaController, DeductoraController,
-AccountingEntryConfigController, ErpAccountingConfigController, SaldoPendienteController
-
-## Controllers SIN LogsActivity (pendiente)
+AccountingEntryConfigController, ErpAccountingConfigController, SaldoPendienteController,
+EnterpriseEmployeeDocumentController, InstitucionController,
 InvestmentController, InvestorController, InvestmentCouponController, InvestmentPaymentController,
-ProductController, RoleController, LeadAlertController, KpiController, PropuestaController,
-ChatMessageController, CommentController, NotificationController, QuestionnaireController
+ProductController, RoleController, PropuestaController, PersonDocumentController,
+ComisionController, VisitaController, MetaVentaController, EmbargoConfiguracionController,
+TaskAutomationController, ChatMessageController, CommentController
+
+## Controllers SIN LogsActivity (solo lectura — no necesitan)
+ActivityLogController, AccountingEntryLogController, KpiController, LeadAlertController,
+QuestionnaireController, QuoteController, InvestmentExportController, NotificationController,
+EmbargoCalculatorController, Rewards/* (9 controllers)
 
 ## Rutas API
 ```

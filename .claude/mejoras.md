@@ -23,8 +23,8 @@
 - Mezcla: roles, usuarios, cuentas ERP, configs asientos, tasas, deductoras, productos
 - Solución: crear sub-páginas como se hizo con `auditoria-asientos`
 
-### 4. Controllers sin LogsActivity
-Ver lista en `auditoria.md`. Más urgentes: InvestmentController, RoleController, ProductController
+### ~~4. Controllers sin LogsActivity~~ ✅ Resuelto (Mar 2026)
+31 controllers con LogsActivity. Solo quedan sin él los de solo lectura (ver `auditoria.md`).
 
 ### 5. empresas-mock.ts con datos hardcodeados
 - `src/lib/empresas-mock.ts` — fallback que puede mostrar empresas incorrectas
@@ -36,11 +36,10 @@ Ver lista en `auditoria.md`. Más urgentes: InvestmentController, RoleController
 
 ## Pendiente — Baja prioridad
 
-### 7. 292 usos de `as any` en TypeScript
+### 7. 149 usos de `as any` en TypeScript (bajó de 292)
 - Origen de los errores TS en analisis, creditos, cobros, clientes, inversiones
 
-### 8. Log de errores escaso en backend
-- Solo 48 `Log::` en todos los controllers
+### 8. Log de errores en backend (64 `Log::`, subió de 48)
 - Poco contexto cuando algo falla en producción
 
 ## Estadísticas del proyecto
