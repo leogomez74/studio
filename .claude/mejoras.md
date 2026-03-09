@@ -27,9 +27,8 @@
 ### ~~4. Controllers sin LogsActivity~~ ✅ Resuelto (Mar 2026)
 31 controllers con LogsActivity. Solo quedan sin él los de solo lectura (ver `auditoria.md`).
 
-### 5. empresas-mock.ts con datos hardcodeados
-- `src/lib/empresas-mock.ts` — fallback que puede mostrar empresas incorrectas
-- Fix: eliminar fallback o migrar empresas a BD
+### ~~5. empresas-mock.ts con datos hardcodeados~~ ✅ No aplica
+Funciona como respaldo intencional si falla la lista de empresas desde BD.
 
 ### 6. CreditPaymentController con 2,847 líneas
 - Mezcla planillas, ventanilla, abonos, refundiciones, mora
