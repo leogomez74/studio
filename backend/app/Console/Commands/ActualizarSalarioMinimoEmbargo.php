@@ -48,7 +48,7 @@ class ActualizarSalarioMinimoEmbargo extends Command
 
             if ($salarioMinimo === null) {
                 $this->error('No se pudo extraer el salario mínimo del PDF.');
-                Log::error('embargo:actualizar-smi - Could not parse minimum salary from PDF');
+                Log::error('embargo:actualizar-smi - Could not parse minimum salary from PDF', ['url' => $pdfUrl, 'body_length' => strlen($response->body())]);
                 return self::FAILURE;
             }
 

@@ -209,7 +209,7 @@ class PropuestaController extends Controller
                 Log::info('Tarea automática creada (pep_aceptado)', ['task_id' => $task->id, 'analisis_id' => $analisis->id]);
             }
         } catch (\Exception $e) {
-            Log::error('Error creando tarea automática para propuesta aprobada', ['error' => $e->getMessage()]);
+            Log::error('Error creando tarea automática para propuesta aprobada', ['propuesta_id' => $propuesta->id, 'analisis_id' => $analisis->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
         }
 
         $propuesta->load('aceptadaPorUser:id,name');

@@ -239,7 +239,7 @@ class OpportunityController extends Controller
                 Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $opportunity->id]);
             }
         } catch (\Exception $e) {
-            Log::error('Error creando tarea automática para oportunidad', ['error' => $e->getMessage()]);
+            Log::error('Error creando tarea automática para oportunidad', ['opportunity_id' => $opportunity->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
         }
 
         $this->logActivity('create', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), [], $request);

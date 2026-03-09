@@ -816,7 +816,7 @@ class PlanillaService
             try {
                 $moraResults = $this->mora->calcularMoraAusentes($deductoraId, $creditosQuePagaron, $mesPago, $diasDelMes, $tasaMora);
             } catch (\Exception $e) {
-                \Log::error('Error calculando mora ausentes: ' . $e->getMessage());
+                \Log::error('Error calculando mora ausentes', ['deductora_id' => $deductoraId, 'mes_pago' => $mesPago, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             }
 
             // Recopilar saldos pendientes creados en esta carga

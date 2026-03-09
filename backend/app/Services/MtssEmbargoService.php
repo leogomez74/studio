@@ -74,7 +74,7 @@ class MtssEmbargoService
         foreach (['__VIEWSTATE', '__VIEWSTATEGENERATOR', '__EVENTVALIDATION'] as $name) {
             $node = $xpath->query("//input[@name='{$name}']")->item(0);
             if (!$node) {
-                Log::error("MTSS: token '{$name}' not found in page");
+                Log::error("MTSS: token '{$name}' not found in page", ['url' => self::MTSS_URL, 'html_length' => strlen($html)]);
                 throw new Exception("La página del MTSS cambió su estructura. No se encontró el token '{$name}'.");
             }
             $tokens[$name] = $node->getAttribute('value');
@@ -107,7 +107,7 @@ class MtssEmbargoService
             ->post(self::MTSS_URL, $formData);
 
         if (!$response->successful()) {
-            Log::error('MTSS: POST failed', ['status' => $response->status()]);
+            Log::error('MTSS: POST failed', ['status' => $response->status(), 'body' => substr($response->body(), 0, 500), 'cedula' => $formData['txtCedula'] ?? null]);
             throw new Exception('Error al enviar datos al MTSS (status ' . $response->status() . '). Intentá de nuevo.');
         }
 

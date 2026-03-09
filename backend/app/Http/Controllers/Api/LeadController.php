@@ -279,7 +279,7 @@ class LeadController extends Controller
                 }
             }
         } catch (\Exception $e) {
-            Log::error('Error creando tarea automática', ['error' => $e->getMessage()]);
+            Log::error('Error creando tarea automática', ['lead_id' => $result['lead']->id ?? null, 'opportunity_id' => $result['opportunity']->id ?? null, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
         }
 
         return response()->json([
@@ -601,7 +601,7 @@ class LeadController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error eliminando por cédula: ' . $e->getMessage());
+            Log::error('Error eliminando por cédula', ['person_id' => $person->id ?? null, 'cedula' => $cedula, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
 
             return response()->json([
                 'success' => false,

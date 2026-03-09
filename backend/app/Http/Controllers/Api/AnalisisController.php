@@ -211,7 +211,7 @@ class AnalisisController extends Controller
                 Log::info('Tarea automática creada para análisis', ['analisis_id' => $analisis->id]);
             }
         } catch (\Exception $e) {
-            Log::error('Error creando tarea automática para análisis', ['error' => $e->getMessage()]);
+            Log::error('Error creando tarea automática para análisis', ['analisis_id' => $analisis->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
         }
 
         // Recargar con propuestas para retornar en la respuesta
@@ -350,7 +350,7 @@ class AnalisisController extends Controller
                     Log::info("Tarea automática creada ({$eventType})", ['task_id' => $task->id, 'analisis_id' => $analisis->id]);
                 }
             } catch (\Exception $e) {
-                Log::error('Error creando tarea automática para estado PEP', ['error' => $e->getMessage()]);
+                Log::error('Error creando tarea automática para estado PEP', ['analisis_id' => $analisis->id, 'event_type' => $eventType, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             }
         }
 

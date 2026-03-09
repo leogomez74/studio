@@ -21,6 +21,7 @@
 | Mar 2026 | Fix inversiones vacías para no-admin: `/api/users` (middleware admin) estaba en `Promise.all` bloqueando todos los datos |
 | Mar 2026 | `CreditPaymentController` refactorizado: 2,868 → 406 líneas. Lógica extraída en 7 Services |
 | Mar 2026 | **149 `as any` → 0** en 13 archivos frontend. Tipos extendidos en `data.ts`, interfaces locales actualizadas, jsPDF tipado con `unknown` cast |
+| Mar 2026 | 9 `Log::error/warning` mejorados con contexto (IDs, trace, datos relevantes) en 7 archivos backend |
 
 ## Pendiente — Media prioridad
 
@@ -41,8 +42,8 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 ### ~~7. 149 usos de `as any` en TypeScript~~ ✅ Resuelto (Mar 2026)
 0 `as any` en todo `src/`. Errores TS pre-existentes quedan en: analisis (3), inversiones (2), oportunidades/[id] (3 — bug tuple), use-toast (3), exceljs (2 — módulo no instalado).
 
-### 8. Log de errores en backend (64 `Log::`, subió de 48)
-- Poco contexto cuando algo falla en producción
+### ~~8. Log de errores en backend~~ ✅ Resuelto (Mar 2026)
+9 logs sin contexto corregidos. Todos los `Log::error/warning/critical` ahora incluyen IDs relevantes, `getMessage()` y `getTraceAsString()`.
 
 ## Estadísticas del proyecto
 - Backend PHP: 163 archivos
