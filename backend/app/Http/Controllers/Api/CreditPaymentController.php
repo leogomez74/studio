@@ -1237,6 +1237,10 @@ class CreditPaymentController extends Controller
                 $cuota->fecha_pago = $fecha;
             }
 
+            // Trazabilidad: quién aplicó, tipo y referencia contable
+            $cuota->movimiento_caja_usuario = Auth::user()?->name ?? 'Sistema';
+            $cuota->tipo_documento = $source;
+
             // Calcular total exigible incluyendo int_corriente_vencido
             $totalExigible = $cuota->interes_corriente
                            + $cuota->int_corriente_vencido
@@ -1355,6 +1359,14 @@ class CreditPaymentController extends Controller
         // Guardar detalles por cuota para posible reverso
         foreach ($paymentDetails as $detail) {
             $paymentRecord->details()->create($detail);
+        }
+
+        // Trazabilidad: asignar numero_documento (referencia contable) a las cuotas afectadas
+        $refContable = "PAY-{$paymentRecord->id}-{$credit->reference}";
+        $cuotaIdsAfectadas = array_column($paymentDetails, 'plan_de_pago_id');
+        if (!empty($cuotaIdsAfectadas)) {
+            PlanDePago::whereIn('id', $cuotaIdsAfectadas)
+                ->update(['numero_documento' => $refContable]);
         }
 
         // ============================================================
@@ -2123,6 +2135,9 @@ class CreditPaymentController extends Controller
                 ->update([
                     'estado' => 'Pagado',
                     'fecha_pago' => $validated['fecha'],
+                    'movimiento_caja_usuario' => Auth::user()?->name ?? 'Sistema',
+                    'tipo_documento' => 'Cancelación Anticipada',
+                    'numero_documento' => "CANCEL-{$payment->id}-{$credit->reference}",
                 ]);
 
             // Cerrar el crédito
@@ -2500,6 +2515,9 @@ class CreditPaymentController extends Controller
                     $cuota->concepto = null;
                     $cuota->fecha_pago = null;
                     $cuota->fecha_movimiento = null;
+                    $cuota->movimiento_caja_usuario = null;
+                    $cuota->tipo_documento = null;
+                    $cuota->numero_documento = null;
                 } else {
                     $totalExigible = $cuota->interes_corriente
                         + ($cuota->int_corriente_vencido ?? 0)
@@ -2691,6 +2709,9 @@ class CreditPaymentController extends Controller
 
             $cuota->estado = $cuotaInfo['estado_anterior'];
             $cuota->fecha_pago = $cuotaInfo['fecha_pago_anterior'];
+            $cuota->movimiento_caja_usuario = null;
+            $cuota->tipo_documento = null;
+            $cuota->numero_documento = null;
             $cuota->save();
             $cuotasRevertidas++;
         }

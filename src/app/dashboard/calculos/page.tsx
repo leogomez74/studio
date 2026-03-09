@@ -513,21 +513,21 @@ export default function CalculosPage() {
               placeholder="Ej: 24"
             />
           </div>
-          {/* Selector para el plazo en meses */}
+          {/* Campo numérico para el plazo en meses */}
           <div className="space-y-2">
             <Label htmlFor="term">Plazo (meses)</Label>
-            <Select value={term} onValueChange={setTerm}>
-              <SelectTrigger id="term">
-                <SelectValue placeholder="Selecciona un plazo" />
-              </SelectTrigger>
-              <SelectContent>
-                {(loanConfigs[creditType]?.rangos_plazo ?? []).map((p) => (
-                  <SelectItem key={p.value} value={String(p.value)}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="term"
+              type="number"
+              value={term}
+              min={loanConfigs[creditType]?.plazo_minimo ?? 1}
+              max={loanConfigs[creditType]?.plazo_maximo ?? 120}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder={`${loanConfigs[creditType]?.plazo_minimo ?? 6} - ${loanConfigs[creditType]?.plazo_maximo ?? 72}`}
+            />
+            <p className="text-xs text-muted-foreground">
+              Mín: {loanConfigs[creditType]?.plazo_minimo ?? '-'} — Máx: {loanConfigs[creditType]?.plazo_maximo ?? '-'} meses
+            </p>
           </div>
           <Button onClick={handleCalculateFee} className="w-full">
             <Calculator className="mr-2 h-4 w-4" />
