@@ -115,16 +115,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Tareas ---
     Route::get('/tareas/overdue-count', [TaskController::class, 'overdueCount']);
     Route::get('/tareas', [TaskController::class, 'index']);
-    Route::post('/tareas', [TaskController::class, 'store']);
+    Route::post('/tareas', [TaskController::class, 'store'])->middleware('permission:tareas,create');
     Route::get('/tareas/{task}', [TaskController::class, 'show']);
-    Route::put('/tareas/{task}', [TaskController::class, 'update']);
-    Route::delete('/tareas/{task}', [TaskController::class, 'destroy']);
-    Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive']);
-    Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore']);
+    Route::put('/tareas/{task}', [TaskController::class, 'update'])->middleware('permission:tareas,edit');
+    Route::delete('/tareas/{task}', [TaskController::class, 'destroy'])->middleware('permission:tareas,delete');
+    Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive'])->middleware('permission:tareas,archive');
+    Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore'])->middleware('permission:tareas,edit');
     Route::get('/tareas/{task}/timeline', [TaskController::class, 'timeline']);
     Route::get('/tareas/{task}/documents', [TaskController::class, 'documents']);
-    Route::post('/tareas/{task}/documents', [TaskController::class, 'storeDocument']);
-    Route::delete('/tareas/{task}/documents/{document}', [TaskController::class, 'destroyDocument']);
+    Route::post('/tareas/{task}/documents', [TaskController::class, 'storeDocument'])->middleware('permission:tareas,edit');
+    Route::delete('/tareas/{task}/documents/{document}', [TaskController::class, 'destroyDocument'])->middleware('permission:tareas,delete');
 
     // --- Rutas (Mensajería / Logística) ---
     Route::apiResource('tareas-ruta', TareaRutaController::class);
