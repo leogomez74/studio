@@ -18,6 +18,7 @@ import {
 
 import api from '@/lib/axios';
 import { useAuth } from '@/components/auth-guard';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 import { Button } from '@/components/ui/button';
@@ -73,7 +74,7 @@ const ENTITY_TYPE_MAP: Record<string, { label: string; route: string; color: str
   'App\\Models\\Opportunity': { label: 'Oportunidad', route: '/dashboard/oportunidades', color: 'bg-blue-100 text-blue-700',     apiType: 'opportunity' },
   'App\\Models\\Lead':        { label: 'Lead',        route: '/dashboard/leads',         color: 'bg-violet-100 text-violet-700', apiType: 'lead' },
   'App\\Models\\Client':      { label: 'Cliente',     route: '/dashboard/leads',         color: 'bg-amber-100 text-amber-700',   apiType: 'client' },
-  'App\\Models\\Analisis':    { label: 'Análisis',    route: '/dashboard/analizados',    color: 'bg-cyan-100 text-cyan-700',     apiType: 'analisis' },
+  'App\\Models\\Analisis':    { label: 'Análisis',    route: '/dashboard/analisis',      color: 'bg-cyan-100 text-cyan-700',     apiType: 'analisis' },
 };
 
 const ENTITY_TARGETS = [
@@ -105,7 +106,14 @@ function relativeTime(dateStr: string) {
   return `${day}d`;
 }
 function getEntityInfo(type: string) {
-  return ENTITY_TYPE_MAP[type] ?? { label: 'Entidad', route: '/dashboard', color: 'bg-gray-100 text-gray-700', apiType: '' };
+  // Direct match first
+  if (ENTITY_TYPE_MAP[type]) return ENTITY_TYPE_MAP[type];
+  // Fallback: match by apiType or partial class name (e.g. "opportunity" or "Opportunity")
+  const lower = type.toLowerCase();
+  const entry = Object.entries(ENTITY_TYPE_MAP).find(([k, v]) =>
+    v.apiType === lower || k.toLowerCase().endsWith(lower)
+  );
+  return entry?.[1] ?? { label: 'Entidad', route: '/dashboard', color: 'bg-gray-100 text-gray-700', apiType: '' };
 }
 function renderBody(body: string) {
   // Replace @[Name](user:id) and #[Label](type:id) with styled spans
@@ -168,10 +176,15 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
   const submit = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
-    await onSend(text, mentions).catch(() => {});
-    setText('');
-    setMentions([]);
-    setSending(false);
+    try {
+      await onSend(text, mentions);
+      setText('');
+      setMentions([]);
+    } catch {
+      // Error already handled by caller — don't clear text
+    } finally {
+      setSending(false);
+    }
   };
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -237,6 +250,7 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
 export function ChatBubble() {
   const { user } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [isOpen, setIsOpen] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -341,13 +355,19 @@ export function ChatBubble() {
   // ---- Send new comment ----
   const handleSend = async (body: string, mentions: Mention[]) => {
     if (!selectedEntity) return;
-    await api.post('/api/comments', {
-      commentable_type: selectedEntity.type,
-      commentable_id: selectedEntity.id,
-      body,
-      mentions,
-    });
-    fetchComments(showArchived);
+    try {
+      await api.post('/api/comments', {
+        commentable_type: selectedEntity.type,
+        commentable_id: selectedEntity.id,
+        body,
+        mentions,
+      });
+      fetchComments(showArchived);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al enviar comentario';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      throw err; // Re-throw so Compose doesn't clear the text
+    }
   };
 
   // ---- Send reply ----
@@ -416,7 +436,7 @@ export function ChatBubble() {
           'transition-all duration-300 ease-out origin-bottom-right',
           isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-2 pointer-events-none'
         )}
-        style={{ maxHeight: 'calc(100vh - 100px)' }}
+        style={{ maxHeight: '540px' }}
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
@@ -446,7 +466,21 @@ export function ChatBubble() {
         </div>
 
         {/* Comments list */}
-        <ScrollArea className="flex-1 min-h-0">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto cursor-grab active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onMouseDown={(e) => {
+            if ((e.target as HTMLElement).closest('button, a, input, textarea')) return;
+            e.preventDefault();
+            const el = e.currentTarget;
+            const startY = e.pageY;
+            const scrollT = el.scrollTop;
+            el.style.cursor = 'grabbing';
+            const onMove = (ev: MouseEvent) => { ev.preventDefault(); el.scrollTop = scrollT - (ev.pageY - startY); };
+            const onUp = () => { el.style.cursor = ''; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          }}
+        >
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -578,7 +612,7 @@ export function ChatBubble() {
               })}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         {/* Compose new comment — hidden in archived view */}
         {!showArchived && <div className="border-t bg-muted/20 p-3 space-y-2 shrink-0">

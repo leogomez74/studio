@@ -61,7 +61,7 @@ const navGroups = [
       { href: '/dashboard/cobros', icon: Banknote, label: 'Cobros', module: 'cobros' },
       { href: '/dashboard/cobro-judicial', icon: Gavel, label: 'Cobro Judicial', module: 'cobro_judicial', badge: 'Próximamente' },
       { href: '/dashboard/ventas', icon: DollarSign, label: 'Ventas', module: 'ventas' },
-      { href: '/dashboard/inversiones', icon: PiggyBank, label: 'Inversiones', module: 'inversiones', badge: 'Próximamente' },
+      { href: '/dashboard/inversiones', icon: PiggyBank, label: 'Inversiones', module: 'inversiones' },
     ],
   },
   {
@@ -69,7 +69,7 @@ const navGroups = [
     items: [
       { href: '/dashboard/rutas', icon: Route, label: 'Rutas', module: 'rutas' },
       { href: '/dashboard/tareas', icon: ClipboardCheck, label: 'Tareas', module: 'tareas' },
-      { href: '/dashboard/comunicaciones', icon: MessageSquare, label: 'Comunicaciones', module: 'comunicaciones', badge: 'Próximamente' },
+      { href: '/dashboard/comunicaciones', icon: MessageSquare, label: 'Comunicaciones', module: 'comunicaciones' },
     ],
   },
   {
@@ -117,8 +117,7 @@ export function DashboardNav() {
                 {visibleItems.map((item) => {
                   const isAudit = item.module === 'auditoria';
                   const showAlertBadge = isAudit && auditAlerts?.has_alerts;
-                  const isTareas = item.module === 'tareas';
-                  const overdueCount = isTareas ? (overdueTasks?.count ?? 0) : 0;
+                  const overdueCount = 0;
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton

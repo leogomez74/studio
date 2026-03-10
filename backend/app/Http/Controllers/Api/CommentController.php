@@ -26,7 +26,7 @@ class CommentController extends Controller
     {
         $request->validate([
             'commentable_type' => 'required|string',
-            'commentable_id'   => 'required|integer',
+            'commentable_id'   => 'required',
         ]);
 
         $type = $this->typeMap[$request->commentable_type] ?? $request->commentable_type;
@@ -47,7 +47,7 @@ class CommentController extends Controller
     {
         $request->validate([
             'commentable_type' => 'required|string',
-            'commentable_id'   => 'required|integer',
+            'commentable_id'   => 'required',
             'body'             => 'required|string|max:5000',
             'mentions'         => 'nullable|array',
             'parent_id'        => 'nullable|integer|exists:comments,id',
@@ -64,7 +64,7 @@ class CommentController extends Controller
             'mentions'         => $request->mentions,
         ]);
 
-        $this->logActivity('create', 'Comentarios', $comment, 'Comentario #' . $comment->id, null, $request);
+        $this->logActivity('create', 'Comentarios', $comment, 'Comentario #' . $comment->id, [], $request);
 
         // Unarchive parent if this reply mentions someone
         if ($request->parent_id) {
@@ -76,18 +76,22 @@ class CommentController extends Controller
 
         // Create notifications for mentioned users
         if ($request->mentions) {
+            $entityRef = $comment->entity_reference;
             foreach ($request->mentions as $mention) {
                 if (($mention['type'] ?? '') === 'user' && $mention['id'] !== $request->user()->id) {
+                    $truncatedBody = \Illuminate\Support\Str::limit($request->body, 120);
                     Notification::create([
                         'user_id' => $mention['id'],
                         'type'    => 'comment_mention',
                         'title'   => 'Te mencionaron en un comentario',
-                        'body'    => $request->user()->name . ' te mencionó en un comentario',
+                        'body'    => $request->user()->name . ': ' . $truncatedBody,
                         'data'    => [
                             'comment_id'        => $comment->id,
                             'commentable_type'  => $request->commentable_type,
                             'commentable_id'    => $request->commentable_id,
                             'sender_name'       => $request->user()->name,
+                            'comment_body'      => $truncatedBody,
+                            'entity_reference'  => $entityRef,
                         ],
                     ]);
                 }

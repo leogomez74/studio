@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2, MessageSquare, CheckCheck, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -48,6 +48,8 @@ interface CommentNotification {
     commentable_type?: string;
     commentable_id?: number;
     sender_name?: string;
+    comment_body?: string;
+    entity_reference?: string;
   } | null;
   read_at: string | null;
   created_at: string;
@@ -58,15 +60,38 @@ const ENTITY_ROUTES: Record<string, string> = {
   'App\\Models\\Opportunity': '/dashboard/oportunidades',
   'App\\Models\\Lead': '/dashboard/leads',
   'App\\Models\\Client': '/dashboard/leads',
-  'App\\Models\\Analisis': '/dashboard/analizados',
+  'App\\Models\\Analisis': '/dashboard/analisis',
+  'credit': '/dashboard/creditos',
+  'opportunity': '/dashboard/oportunidades',
+  'lead': '/dashboard/leads',
+  'client': '/dashboard/leads',
+  'analisis': '/dashboard/analisis',
 };
 
 const ENTITY_LABELS: Record<string, string> = {
-  'App\\Models\\Credit': 'Credito',
+  'App\\Models\\Credit': 'Crédito',
   'App\\Models\\Opportunity': 'Oportunidad',
   'App\\Models\\Lead': 'Lead',
   'App\\Models\\Client': 'Cliente',
-  'App\\Models\\Analisis': 'Analisis',
+  'App\\Models\\Analisis': 'Análisis',
+  'credit': 'Crédito',
+  'opportunity': 'Oportunidad',
+  'lead': 'Lead',
+  'client': 'Cliente',
+  'analisis': 'Análisis',
+};
+
+const ENTITY_COLORS: Record<string, string> = {
+  'App\\Models\\Credit': 'bg-emerald-100 text-emerald-700',
+  'App\\Models\\Opportunity': 'bg-blue-100 text-blue-700',
+  'App\\Models\\Lead': 'bg-violet-100 text-violet-700',
+  'App\\Models\\Client': 'bg-amber-100 text-amber-700',
+  'App\\Models\\Analisis': 'bg-cyan-100 text-cyan-700',
+  'credit': 'bg-emerald-100 text-emerald-700',
+  'opportunity': 'bg-blue-100 text-blue-700',
+  'lead': 'bg-violet-100 text-violet-700',
+  'client': 'bg-amber-100 text-amber-700',
+  'analisis': 'bg-cyan-100 text-cyan-700',
 };
 
 function Breadcrumbs() {
@@ -150,6 +175,27 @@ export function DashboardHeader() {
   const [notifLoading, setNotifLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<'alerts' | 'comments' | 'tasks'>('alerts');
   const overdueTasks = useOverdueTasks();
+  const prevNotifCount = useRef<number | null>(null);
+
+  const playBellSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const play = (freq: number, start: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur);
+      };
+      play(830, 0, 0.15);
+      play(1050, 0.18, 0.25);
+    } catch {}
+  }, []);
 
   const handleDeleteLeo = async () => {
     const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 108760664? Esta acción eliminará también todas las oportunidades, análisis, créditos y sus documentos asociados.');
@@ -249,8 +295,13 @@ export function DashboardHeader() {
         api.get('/api/notifications', { params: { unread: true } }),
         api.get('/api/notifications/count'),
       ]);
+      const newCount = countRes.data.count || 0;
       setCommentNotifications(notifsRes.data.data || []);
-      setNotifUnreadCount(countRes.data.count || 0);
+      if (prevNotifCount.current !== null && newCount > prevNotifCount.current) {
+        playBellSound();
+      }
+      prevNotifCount.current = newCount;
+      setNotifUnreadCount(newCount);
     } catch (error) {
       console.error('Error cargando notificaciones:', error);
     } finally {
@@ -307,7 +358,7 @@ export function DashboardHeader() {
     fetchAlerts();
     fetchNotifications();
     const alertInterval = setInterval(fetchAlerts, 60000);
-    const notifInterval = setInterval(fetchNotifications, 60000);
+    const notifInterval = setInterval(fetchNotifications, 15000);
     return () => {
       clearInterval(alertInterval);
       clearInterval(notifInterval);
@@ -377,12 +428,22 @@ export function DashboardHeader() {
 
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative shrink-0">
-              <Bell className="h-5 w-5" />
-              {totalUnread > 0 && (
-                <span className="absolute right-1 top-1 flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/75 opacity-75"></span>
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-accent"></span>
+            <Button variant="ghost" size="icon" className="relative shrink-0 h-10 w-10">
+              <Bell className="h-6 w-6" />
+              {/* LED indicators */}
+              {notifUnreadCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white ring-2 ring-background">
+                  {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                </span>
+              )}
+              {unreadCount > 0 && (
+                <span className="absolute bottom-0.5 right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-green-500 text-[8px] font-bold text-white ring-2 ring-background">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+              {overdueCount > 0 && (
+                <span className="absolute top-0.5 left-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white ring-2 ring-background">
+                  {overdueCount > 9 ? '9+' : overdueCount}
                 </span>
               )}
               <span className="sr-only">Ver notificaciones</span>
@@ -660,16 +721,16 @@ export function DashboardHeader() {
                               {notif.title}
                             </p>
                             <p className="text-xs mt-0.5 text-muted-foreground line-clamp-2">
-                              {notif.body}
+                              {(notif.data?.comment_body || notif.body).replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1')}
                             </p>
 
                             {notif.data?.commentable_id && (
                               <div className="mt-1.5">
                                 <span className={cn(
                                   'text-[10px] font-medium px-1.5 py-0.5 rounded',
-                                  'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
+                                  ENTITY_COLORS[entityType] || 'bg-gray-100 text-gray-700'
                                 )}>
-                                  {entityLabel} #{notif.data.commentable_id}
+                                  {entityLabel}: {notif.data.entity_reference || `#${notif.data.commentable_id}`}
                                 </span>
                               </div>
                             )}

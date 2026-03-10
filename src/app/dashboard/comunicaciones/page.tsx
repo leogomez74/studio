@@ -453,7 +453,7 @@ export default function CommunicationsPage() {
       </Card>
 
       {/* Columna 2 */}
-      <Card className="flex flex-col">
+      <Card className="flex flex-col overflow-hidden">
         <div className="p-3 border-b space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
