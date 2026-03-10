@@ -19,6 +19,23 @@ class CredidController extends Controller
     }
 
     /**
+     * Verificar configuración de Credid (sin hacer consulta externa).
+     * GET /api/credid/status
+     */
+    public function status(): JsonResponse
+    {
+        $url = config('services.credid.url', '');
+        $token = config('services.credid.token', '');
+
+        return response()->json([
+            'url_configured' => !empty($url),
+            'url_value' => $url,
+            'token_configured' => !empty($token),
+            'token_length' => strlen($token),
+        ]);
+    }
+
+    /**
      * Consultar reporte Credid por cédula y retornar datos procesados para análisis.
      * GET /api/credid/reporte?cedula=123456789
      */
