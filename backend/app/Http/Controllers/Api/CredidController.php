@@ -19,20 +19,40 @@ class CredidController extends Controller
     }
 
     /**
-     * Verificar configuración de Credid (sin hacer consulta externa).
-     * GET /api/credid/status
+     * Verificar configuración y probar consulta de Credid.
+     * GET /api/credid/status?cedula=123456789
      */
-    public function status(): JsonResponse
+    public function status(Request $request): JsonResponse
     {
         $url = config('services.credid.url', '');
         $token = config('services.credid.token', '');
 
-        return response()->json([
+        $result = [
             'url_configured' => !empty($url),
             'url_value' => $url,
             'token_configured' => !empty($token),
             'token_length' => strlen($token),
-        ]);
+        ];
+
+        // Si se pasa cédula, hacer consulta de diagnóstico
+        if ($cedula = $request->input('cedula')) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::timeout(30)->get($url, [
+                    'token' => $token,
+                    'cedula' => preg_replace('/[^0-9]/', '', $cedula),
+                ]);
+                $result['http_status'] = $response->status();
+                $result['content_type'] = $response->header('Content-Type');
+                $body = $response->body();
+                $result['body_length'] = strlen($body);
+                $result['body_type'] = gettype($response->json());
+                $result['body_preview'] = substr($body, 0, 300);
+            } catch (\Exception $e) {
+                $result['error'] = $e->getMessage();
+            }
+        }
+
+        return response()->json($result);
     }
 
     /**
