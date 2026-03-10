@@ -41,6 +41,20 @@ class CredidService
 
             $data = $response->json();
 
+            // Si json() retorna string en vez de array, intentar decodificar manualmente
+            if (is_string($data)) {
+                $data = json_decode($data, true);
+                if (!is_array($data)) {
+                    Log::warning('Credid: respuesta no es JSON válido', ['cedula' => $cleanCedula]);
+                    return null;
+                }
+            }
+
+            if (!is_array($data)) {
+                Log::warning('Credid: respuesta inesperada', ['type' => gettype($data), 'cedula' => $cleanCedula]);
+                return null;
+            }
+
             if (isset($data['Message'])) {
                 Log::warning('Credid: API error', ['message' => $data['Message'], 'cedula' => $cleanCedula]);
                 return null;

@@ -27,6 +27,9 @@
 | Mar 2026 | Módulo Inversiones — Fase 2: O5, O6, O7, O8, O9, O10 implementados (ver detalle abajo) |
 | Mar 2026 | TareasTab extraído a `src/components/TareasTab.tsx`: 5 implementaciones inline → 1 componente reutilizable (-2,126 líneas en leads, oportunidades, analisis, creditos, clientes) |
 | Mar 2026 | Integración API Credid: backend service + controller + endpoint, auto-consulta al crear análisis (wizard pre-llena paso 3 + cargo/nombramiento), botón manual en detalle para re-consultar |
+| Mar 2026 | Wizard análisis reordenado: Paso 1=Historial Crediticio (Credid), Paso 2=Info Básica, Paso 3=Ingresos, Paso 4=Documentos |
+| Mar 2026 | Estados de juicios normalizados: `En Trámite` / `Finalizado` en backend (CredidService, validaciones) y frontend (tipos, wizard, badges) |
+| Mar 2026 | Fix producción Credid: `$response->json()` retornaba string → fallback con `json_decode` + validación de tipo en `CredidService` |
 | Mar 2026 | `due_date` configurable en automatizaciones: campo `due_days_offset` en `task_automations` (default 3 días). Actualizado en 7 puntos de creación (6 controllers + 1 command). UI con input numérico en Configuración > Tareas Automáticas |
 | Mar 2026 | Detalle de tarea (`tareas/[id]/page.tsx`): Timeline real desde `activity_logs` con diffs visuales, archivos adjuntos (upload/download/delete con `task_documents`), campos editables (título, descripción, prioridad, asignado, fechas). Backend: modelo `TaskDocument`, migración, 4 endpoints nuevos |
 | Mar 2026 | Seguridad tareas: `/api/task-automations` protegido con middleware `admin`. Índices BD en `tasks` (`assigned_to`, `status`, `due_date`) para rendimiento |
