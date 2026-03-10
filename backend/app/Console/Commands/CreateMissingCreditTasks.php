@@ -64,6 +64,8 @@ class CreateMissingCreditTasks extends Command
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',
                     'assigned_to' => $automation->assigned_to,
+                    'start_date' => now()->toDateString(),
+                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                 ]);
 
                 $tasksCreated++;

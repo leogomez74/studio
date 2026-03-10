@@ -23,6 +23,7 @@ class TaskAutomationController extends Controller
             'title' => 'required|string|max:255',
             'assigned_to' => 'nullable|integer|exists:users,id',
             'priority' => 'nullable|string|in:alta,media,baja',
+            'due_days_offset' => 'nullable|integer|min:0|max:365',
             'is_active' => 'required|boolean',
         ]);
 

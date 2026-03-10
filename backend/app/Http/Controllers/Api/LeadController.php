@@ -254,7 +254,7 @@ class LeadController extends Controller
                     'priority' => $automation->priority ?? 'media',
                     'assigned_to' => $automation->assigned_to,
                     'start_date' => now()->toDateString(),
-                    'due_date' => now()->toDateString(),
+                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                 ]);
                 Log::info('Tarea automática creada para lead', ['cedula' => $result['lead']->cedula]);
             }
@@ -273,7 +273,7 @@ class LeadController extends Controller
                         'priority' => $oppAutomation->priority ?? 'media',
                         'assigned_to' => $oppAutomation->assigned_to,
                         'start_date' => now()->toDateString(),
-                        'due_date' => now()->toDateString(),
+                        'due_date' => now()->addDays($oppAutomation->due_days_offset ?? 3)->toDateString(),
                     ]);
                     Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $result['opportunity']->id]);
                 }

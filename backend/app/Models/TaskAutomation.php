@@ -11,6 +11,7 @@ class TaskAutomation extends Model
         'title',
         'assigned_to',
         'priority',
+        'due_days_offset',
         'is_active',
     ];
 
