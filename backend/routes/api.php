@@ -142,8 +142,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware('admin');
 
     // --- Automatización de Tareas ---
-    Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index']);
-    Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert']);
+    Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
+    Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
 
     // --- Deductoras ---
     Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show', 'update']);
