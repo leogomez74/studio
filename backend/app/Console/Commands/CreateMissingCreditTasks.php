@@ -56,7 +56,7 @@ class CreateMissingCreditTasks extends Command
 
             if (!$existingTask) {
                 // Crear la tarea
-                Task::create([
+                $task = Task::create([
                     'project_code' => 'CRED-' . $credit->id,
                     'project_name' => $credit->title,
                     'title' => $automation->title,
@@ -67,6 +67,7 @@ class CreateMissingCreditTasks extends Command
                     'start_date' => now()->toDateString(),
                     'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                 ]);
+                $task->copyChecklistFromAutomation($automation);
 
                 $tasksCreated++;
                 $this->line("✓ Tarea creada para crédito: {$credit->reference}");

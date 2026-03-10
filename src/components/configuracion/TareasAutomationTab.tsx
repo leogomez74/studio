@@ -4,21 +4,28 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 import { useAuth } from '@/components/auth-guard';
 import { API_BASE_URL } from '@/lib/env';
 import api from '@/lib/axios';
+
+interface ChecklistTemplate {
+  id?: number;
+  title: string;
+}
 
 interface AutomationConfig {
   assigned_to: string;
   due_days_offset: number;
   is_active: boolean;
+  checklist_items: ChecklistTemplate[];
 }
 
 const AUTOMATION_EVENTS = [
@@ -33,7 +40,7 @@ const AUTOMATION_EVENTS = [
 const TareasAutomationTab: React.FC = () => {
   const { toast } = useToast();
   const { token } = useAuth();
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [automationsLoading, setAutomationsLoading] = useState(false);
   const [configs, setConfigs] = useState<Record<string, AutomationConfig>>({});
 
@@ -53,11 +60,15 @@ const TareasAutomationTab: React.FC = () => {
       const data = Array.isArray(res.data) ? res.data : [];
       const newConfigs: Record<string, AutomationConfig> = {};
       AUTOMATION_EVENTS.forEach(event => {
-        const auto = data.find((a: any) => a.event_type === event.key);
+        const auto = data.find((a: Record<string, unknown>) => a.event_type === event.key);
+        const checklistItems = Array.isArray(auto?.checklist_items)
+          ? (auto.checklist_items as { id: number; title: string }[]).map((item) => ({ id: item.id, title: item.title }))
+          : [];
         newConfigs[event.key] = {
           assigned_to: auto?.assigned_to ? String(auto.assigned_to) : '',
-          due_days_offset: auto?.due_days_offset ?? 3,
-          is_active: auto?.is_active ?? false,
+          due_days_offset: (auto?.due_days_offset as number) ?? 3,
+          is_active: (auto?.is_active as boolean) ?? false,
+          checklist_items: checklistItems,
         };
       });
       setConfigs(newConfigs);
@@ -69,16 +80,51 @@ const TareasAutomationTab: React.FC = () => {
     if (token) { fetchUsers(); fetchAutomations(); }
   }, [token, fetchAutomations]);
 
-  const saveAutomation = async (eventType: string, title: string, assignedTo: string, dueDaysOffset?: number) => {
+  const saveAutomation = async (eventType: string, title: string, assignedTo: string, dueDaysOffset?: number, checklistItems?: ChecklistTemplate[]) => {
     try {
       await api.post('/api/task-automations', {
         event_type: eventType, title, assigned_to: assignedTo ? Number(assignedTo) : null,
         priority: 'media', due_days_offset: dueDaysOffset ?? configs[eventType]?.due_days_offset ?? 3, is_active: !!assignedTo,
+        checklist_items: checklistItems ?? configs[eventType]?.checklist_items ?? [],
       });
       toast({ title: 'Guardado', description: 'Configuración actualizada.' });
     } catch (error) {
       console.error('Error saving automation:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la configuración.' });
+    }
+  };
+
+  const addChecklistItem = (eventKey: string) => {
+    setConfigs(prev => ({
+      ...prev,
+      [eventKey]: {
+        ...prev[eventKey],
+        checklist_items: [...(prev[eventKey]?.checklist_items || []), { title: '' }],
+      },
+    }));
+  };
+
+  const updateChecklistItem = (eventKey: string, index: number, title: string) => {
+    setConfigs(prev => {
+      const items = [...(prev[eventKey]?.checklist_items || [])];
+      items[index] = { ...items[index], title };
+      return { ...prev, [eventKey]: { ...prev[eventKey], checklist_items: items } };
+    });
+  };
+
+  const removeChecklistItem = (eventKey: string, index: number) => {
+    setConfigs(prev => {
+      const items = [...(prev[eventKey]?.checklist_items || [])];
+      items.splice(index, 1);
+      return { ...prev, [eventKey]: { ...prev[eventKey], checklist_items: items } };
+    });
+  };
+
+  const saveChecklist = (eventKey: string) => {
+    const config = configs[eventKey];
+    if (config?.assigned_to) {
+      const validItems = config.checklist_items.filter(i => i.title.trim());
+      saveAutomation(eventKey, AUTOMATION_EVENTS.find(e => e.key === eventKey)?.defaultTitle || '', config.assigned_to, config.due_days_offset, validItems);
     }
   };
 
@@ -142,6 +188,52 @@ const TareasAutomationTab: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                {/* Checklist template */}
+                {configs[event.key]?.assigned_to && (
+                  <div className="mt-4 border-t pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-xs text-muted-foreground">Subtareas predefinidas</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => addChecklistItem(event.key)}
+                        className="h-6 text-xs"
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Agregar
+                      </Button>
+                    </div>
+                    {(configs[event.key]?.checklist_items || []).length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">Sin subtareas configuradas</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {(configs[event.key]?.checklist_items || []).map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground w-4">{idx + 1}.</span>
+                            <Input
+                              value={item.title}
+                              onChange={(e) => updateChecklistItem(event.key, idx, e.target.value)}
+                              onBlur={() => saveChecklist(event.key)}
+                              placeholder="Nombre de la subtarea"
+                              className="h-7 text-sm"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                removeChecklistItem(event.key, idx);
+                                setTimeout(() => saveChecklist(event.key), 100);
+                              }}
+                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

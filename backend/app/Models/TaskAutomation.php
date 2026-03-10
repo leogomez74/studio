@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TaskAutomation extends Model
 {
@@ -22,5 +23,10 @@ class TaskAutomation extends Model
     public function assignee()
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function checklistItems(): HasMany
+    {
+        return $this->hasMany(TaskAutomationChecklistItem::class, 'automation_id')->orderBy('sort_order');
     }
 }

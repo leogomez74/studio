@@ -125,6 +125,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/tareas/{task}/documents', [TaskController::class, 'documents']);
     Route::post('/tareas/{task}/documents', [TaskController::class, 'storeDocument'])->middleware('permission:tareas,edit');
     Route::delete('/tareas/{task}/documents/{document}', [TaskController::class, 'destroyDocument'])->middleware('permission:tareas,delete');
+    Route::get('/tareas/{task}/checklist', [TaskController::class, 'checklistItems']);
+    Route::post('/tareas/{task}/checklist', [TaskController::class, 'storeChecklistItem'])->middleware('permission:tareas,edit');
+    Route::patch('/tareas/{task}/checklist/{item}/toggle', [TaskController::class, 'toggleChecklistItem'])->middleware('permission:tareas,edit');
+    Route::delete('/tareas/{task}/checklist/{item}', [TaskController::class, 'destroyChecklistItem'])->middleware('permission:tareas,delete');
 
     // --- Rutas (Mensajería / Logística) ---
     Route::apiResource('tareas-ruta', TareaRutaController::class);

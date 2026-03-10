@@ -41,6 +41,24 @@ class Task extends Model
         return $this->hasMany(TaskDocument::class);
     }
 
+    public function checklistItems(): HasMany
+    {
+        return $this->hasMany(TaskChecklistItem::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Copy checklist items from an automation template to this task.
+     */
+    public function copyChecklistFromAutomation(TaskAutomation $automation): void
+    {
+        foreach ($automation->checklistItems as $templateItem) {
+            $this->checklistItems()->create([
+                'title' => $templateItem->title,
+                'sort_order' => $templateItem->sort_order,
+            ]);
+        }
+    }
+
     /**
      * Auto-gestión de archived_at basado en status.
      */

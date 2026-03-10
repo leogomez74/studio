@@ -15,6 +15,9 @@ import {
   Clock,
   Edit2,
   Plus,
+  CheckSquare,
+  Square,
+  Check,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +94,15 @@ interface TaskDoc {
   notes: string | null;
   created_at: string;
   uploader: { id: number; name: string } | null;
+}
+
+interface ChecklistItem {
+  id: number;
+  task_id: number;
+  title: string;
+  is_completed: boolean;
+  sort_order: number;
+  completed_at: string | null;
 }
 
 // --- Helper Functions ---
@@ -246,6 +258,11 @@ export default function TaskDetailPage() {
   const [uploadNotes, setUploadNotes] = useState("");
   const [showUploadForm, setShowUploadForm] = useState(false);
 
+  // Checklist
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [newItemTitle, setNewItemTitle] = useState("");
+
   // Fetch task data
   const fetchTask = useCallback(async () => {
     try {
@@ -302,14 +319,27 @@ export default function TaskDetailPage() {
     }
   }, [taskId]);
 
+  const fetchChecklist = useCallback(async () => {
+    try {
+      setChecklistLoading(true);
+      const res = await api.get(`/api/tareas/${taskId}/checklist`);
+      setChecklist(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Error fetching checklist:", err);
+    } finally {
+      setChecklistLoading(false);
+    }
+  }, [taskId]);
+
   useEffect(() => {
     if (taskId && token) {
       fetchTask();
       fetchUsers();
       fetchTimeline();
       fetchDocuments();
+      fetchChecklist();
     }
-  }, [taskId, token, fetchTask, fetchUsers, fetchTimeline, fetchDocuments]);
+  }, [taskId, token, fetchTask, fetchUsers, fetchTimeline, fetchDocuments, fetchChecklist]);
 
   // Save all editable fields
   const handleSave = async () => {
@@ -400,6 +430,42 @@ export default function TaskDetailPage() {
       toast({ title: "Error", description: "No se pudo eliminar el documento.", variant: "destructive" });
     }
   };
+
+  // Checklist operations
+  const handleToggleChecklistItem = async (itemId: number) => {
+    try {
+      const res = await api.patch(`/api/tareas/${taskId}/checklist/${itemId}/toggle`);
+      setChecklist((prev) => prev.map((item) => (item.id === itemId ? (res.data as ChecklistItem) : item)));
+    } catch (err) {
+      console.error("Error toggling checklist item:", err);
+      toast({ title: "Error", description: "No se pudo actualizar el ítem.", variant: "destructive" });
+    }
+  };
+
+  const handleAddChecklistItem = async () => {
+    if (!newItemTitle.trim()) return;
+    try {
+      const res = await api.post(`/api/tareas/${taskId}/checklist`, { title: newItemTitle.trim() });
+      setChecklist((prev) => [...prev, res.data as ChecklistItem]);
+      setNewItemTitle("");
+    } catch (err) {
+      console.error("Error adding checklist item:", err);
+      toast({ title: "Error", description: "No se pudo agregar el ítem.", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteChecklistItem = async (itemId: number) => {
+    try {
+      await api.delete(`/api/tareas/${taskId}/checklist/${itemId}`);
+      setChecklist((prev) => prev.filter((item) => item.id !== itemId));
+    } catch (err) {
+      console.error("Error deleting checklist item:", err);
+      toast({ title: "Error", description: "No se pudo eliminar el ítem.", variant: "destructive" });
+    }
+  };
+
+  const completedCount = checklist.filter((i) => i.is_completed).length;
+  const totalCount = checklist.length;
 
   // Check if form has changes
   const hasChanges = task
@@ -802,6 +868,77 @@ export default function TaskDetailPage() {
 
         {/* Side Panel */}
         <div className="lg:col-span-1 space-y-6">
+          {/* Checklist */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4" /> Checklist
+                </CardTitle>
+                {totalCount > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {completedCount}/{totalCount}
+                  </span>
+                )}
+              </div>
+              {totalCount > 0 && (
+                <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+                  <div
+                    className="bg-green-500 h-1.5 rounded-full transition-all"
+                    style={{ width: `${(completedCount / totalCount) * 100}%` }}
+                  />
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              {checklistLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {checklist.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 group py-1">
+                      <button
+                        onClick={() => handleToggleChecklistItem(item.id)}
+                        className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                      >
+                        {item.is_completed ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
+                      <span className={`text-sm flex-1 ${item.is_completed ? "line-through text-muted-foreground" : ""}`}>
+                        {item.title}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteChecklistItem(item.id)}
+                        className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  {/* Add new item */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <Plus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Input
+                      value={newItemTitle}
+                      onChange={(e) => setNewItemTitle(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleAddChecklistItem(); }}
+                      placeholder="Agregar ítem..."
+                      className="h-7 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Comunicaciones */}
           <Card className="h-[600px] flex flex-col">
             <CardHeader className="pb-3 flex-shrink-0">

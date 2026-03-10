@@ -13,7 +13,7 @@ class TaskAutomationController extends Controller
 
     public function index()
     {
-        return TaskAutomation::with('assignee:id,name')->get();
+        return TaskAutomation::with(['assignee:id,name', 'checklistItems'])->get();
     }
 
     public function upsert(Request $request)
@@ -25,15 +25,31 @@ class TaskAutomationController extends Controller
             'priority' => 'nullable|string|in:alta,media,baja',
             'due_days_offset' => 'nullable|integer|min:0|max:365',
             'is_active' => 'required|boolean',
+            'checklist_items' => 'nullable|array',
+            'checklist_items.*.title' => 'required|string|max:255',
         ]);
+
+        $checklistItems = $validated['checklist_items'] ?? null;
+        unset($validated['checklist_items']);
 
         $automation = TaskAutomation::updateOrCreate(
             ['event_type' => $validated['event_type']],
             $validated
         );
 
+        // Sincronizar checklist items si se enviaron
+        if ($checklistItems !== null) {
+            $automation->checklistItems()->delete();
+            foreach ($checklistItems as $index => $item) {
+                $automation->checklistItems()->create([
+                    'title' => $item['title'],
+                    'sort_order' => $index,
+                ]);
+            }
+        }
+
         $this->logActivity('upsert', 'Automatización Tareas', $automation, $automation->title, null, $request);
 
-        return response()->json($automation->load('assignee:id,name'));
+        return response()->json($automation->load(['assignee:id,name', 'checklistItems']));
     }
 }

@@ -247,7 +247,7 @@ class LeadController extends Controller
                 ->first();
 
             if ($automation && $automation->assigned_to) {
-                Task::create([
+                $task = Task::create([
                     'project_code' => 'LEAD-' . $result['lead']->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
@@ -256,6 +256,7 @@ class LeadController extends Controller
                     'start_date' => now()->toDateString(),
                     'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                 ]);
+                $task->copyChecklistFromAutomation($automation);
                 Log::info('Tarea automática creada para lead', ['cedula' => $result['lead']->cedula]);
             }
 
@@ -266,7 +267,7 @@ class LeadController extends Controller
                     ->first();
 
                 if ($oppAutomation && $oppAutomation->assigned_to) {
-                    Task::create([
+                    $oppTask = Task::create([
                         'project_code' => 'OPP-' . $result['opportunity']->id,
                         'title' => $oppAutomation->title,
                         'status' => 'pendiente',
@@ -275,6 +276,7 @@ class LeadController extends Controller
                         'start_date' => now()->toDateString(),
                         'due_date' => now()->addDays($oppAutomation->due_days_offset ?? 3)->toDateString(),
                     ]);
+                    $oppTask->copyChecklistFromAutomation($oppAutomation);
                     Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $result['opportunity']->id]);
                 }
             }

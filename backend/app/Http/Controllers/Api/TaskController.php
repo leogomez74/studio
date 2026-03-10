@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Task;
+use App\Models\TaskChecklistItem;
 use App\Models\TaskDocument;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
@@ -292,6 +293,61 @@ class TaskController extends Controller
         $this->logActivity('delete', 'Tareas', $task, $task->title, [
             ['field' => 'documento', 'old_value' => $doc->name, 'new_value' => null],
         ]);
+
+        return response()->json(null, 204);
+    }
+
+    /**
+     * List checklist items for a task.
+     */
+    public function checklistItems(string $id)
+    {
+        $task = Task::findOrFail($id);
+
+        return response()->json($task->checklistItems);
+    }
+
+    /**
+     * Add a checklist item to a task.
+     */
+    public function storeChecklistItem(Request $request, string $id)
+    {
+        $task = Task::findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        $item = $task->checklistItems()->create([
+            'title' => $validated['title'],
+            'sort_order' => $validated['sort_order'] ?? $task->checklistItems()->count(),
+        ]);
+
+        return response()->json($item, 201);
+    }
+
+    /**
+     * Toggle a checklist item completion.
+     */
+    public function toggleChecklistItem(string $id, string $itemId)
+    {
+        $item = TaskChecklistItem::where('task_id', $id)->findOrFail($itemId);
+
+        $item->is_completed = !$item->is_completed;
+        $item->completed_at = $item->is_completed ? now() : null;
+        $item->save();
+
+        return response()->json($item);
+    }
+
+    /**
+     * Delete a checklist item.
+     */
+    public function destroyChecklistItem(string $id, string $itemId)
+    {
+        $item = TaskChecklistItem::where('task_id', $id)->findOrFail($itemId);
+        $item->delete();
 
         return response()->json(null, 204);
     }

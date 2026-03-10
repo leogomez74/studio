@@ -199,7 +199,7 @@ class AnalisisController extends Controller
                 ->first();
 
             if ($automation && $automation->assigned_to) {
-                Task::create([
+                $task = Task::create([
                     'project_code' => 'ANA-' . $analisis->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
@@ -208,6 +208,7 @@ class AnalisisController extends Controller
                     'start_date' => now()->toDateString(),
                     'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                 ]);
+                $task->copyChecklistFromAutomation($automation);
                 Log::info('Tarea automática creada para análisis', ['analisis_id' => $analisis->id]);
             }
         } catch (\Exception $e) {
@@ -347,6 +348,7 @@ class AnalisisController extends Controller
                         'start_date' => now()->toDateString(),
                         'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                     ]);
+                    $task->copyChecklistFromAutomation($automation);
                     Log::info("Tarea automática creada ({$eventType})", ['task_id' => $task->id, 'analisis_id' => $analisis->id]);
                 }
             } catch (\Exception $e) {

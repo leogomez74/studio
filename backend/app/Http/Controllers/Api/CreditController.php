@@ -315,7 +315,7 @@ class CreditController extends Controller
             $credit->update(['assigned_to' => $automation->assigned_to]);
 
             // Crear la tarea automática
-            \App\Models\Task::create([
+            $task = \App\Models\Task::create([
                 'project_code' => 'CRED-' . $credit->id,
                 'project_name' => $credit->title,
                 'title' => $automation->title,
@@ -326,6 +326,7 @@ class CreditController extends Controller
                 'start_date' => now()->toDateString(),
                 'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
             ]);
+            $task->copyChecklistFromAutomation($automation);
         }
 
         $this->logActivity('create', 'Créditos', $credit, $credit->referencia ?? $credit->reference ?? (string) $credit->id, [], $request);
