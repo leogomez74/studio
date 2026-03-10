@@ -248,7 +248,7 @@ class LeadController extends Controller
 
             if ($automation && $automation->assigned_to) {
                 Task::create([
-                    'project_code' => (string) $result['lead']->id,
+                    'project_code' => 'LEAD-' . $result['lead']->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',
@@ -267,7 +267,7 @@ class LeadController extends Controller
 
                 if ($oppAutomation && $oppAutomation->assigned_to) {
                     Task::create([
-                        'project_code' => (string) $result['opportunity']->id,
+                        'project_code' => 'OPP-' . $result['opportunity']->id,
                         'title' => $oppAutomation->title,
                         'status' => 'pendiente',
                         'priority' => $oppAutomation->priority ?? 'media',
@@ -564,13 +564,13 @@ class LeadController extends Controller
                     ->delete();
             }
 
-            // Eliminar tareas vinculadas (por project_code = person.id, opportunity.id, o credit.reference)
-            $taskCodes = collect([(string) $person->id]);
+            // Eliminar tareas vinculadas (por project_code con prefijo LEAD-, OPP-, CRED-)
+            $taskCodes = collect(['LEAD-' . $person->id]);
             if ($opportunities->isNotEmpty()) {
-                $taskCodes = $taskCodes->merge($opportunities->map(fn ($id) => (string) $id));
+                $taskCodes = $taskCodes->merge($opportunities->map(fn ($id) => 'OPP-' . $id));
             }
-            if (isset($creditRefs) && $creditRefs->isNotEmpty()) {
-                $taskCodes = $taskCodes->merge($creditRefs);
+            if (isset($credits) && $credits->isNotEmpty()) {
+                $taskCodes = $taskCodes->merge($credits->map(fn ($id) => 'CRED-' . $id));
             }
             $deletedTasks = DB::table('tasks')
                 ->whereIn('project_code', $taskCodes->filter()->unique()->toArray())

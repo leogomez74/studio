@@ -136,9 +136,27 @@ const toDateInput = (dateString: string | null): string => {
   return dateString.substring(0, 10);
 };
 
-const extractOpportunityId = (projectCode: string): number | null => {
-  const match = projectCode.match(/-(\d+)-/);
-  return match ? Number(match[1]) : null;
+const MODULE_LABELS: Record<string, string> = {
+  LEAD: "Lead vinculado",
+  OPP: "Oportunidad vinculada",
+  ANA: "Análisis vinculado",
+  CRED: "Crédito vinculado",
+  CLIENT: "Cliente vinculado",
+};
+
+const parseProjectCode = (projectCode: string | null): { module: string; id: string; url: string; label: string } | null => {
+  if (!projectCode) return null;
+  const match = projectCode.match(/^(LEAD|OPP|ANA|CRED|CLIENT)-(.+)$/);
+  if (!match) return null;
+  const [, module, id] = match;
+  const urlMap: Record<string, string> = {
+    LEAD: `/dashboard/leads/${id}`,
+    OPP: `/dashboard/oportunidades/${id}`,
+    ANA: `/dashboard/analisis/${id}`,
+    CRED: `/dashboard/creditos/${id}`,
+    CLIENT: `/dashboard/clientes/${id}`,
+  };
+  return { module, id, url: urlMap[module] || "", label: MODULE_LABELS[module] || "Entidad vinculada" };
 };
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -418,7 +436,7 @@ export default function TaskDetailPage() {
   }
 
   const isOverdue = isTaskOverdue(task);
-  const opportunityId = task.project_code ? extractOpportunityId(task.project_code) : null;
+  const parsed = parseProjectCode(task.project_code);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -569,26 +587,17 @@ export default function TaskDetailPage() {
                     <Input value={formatDate(task.created_at)} readOnly disabled className="mt-1 bg-muted" />
                   </div>
 
-                  {/* Link to credit or opportunity */}
-                  {task.project_code && task.project_code.endsWith("-CRED") && task.project_name ? (
+                  {/* Link to related entity */}
+                  {parsed && (
                     <div>
-                      <Label className="text-xs text-muted-foreground">Crédito vinculado</Label>
+                      <Label className="text-xs text-muted-foreground">{parsed.label}</Label>
                       <div className="mt-1">
-                        <Link href={`/dashboard/creditos/${task.project_name}`} className="text-sm text-blue-600 hover:underline">
+                        <Link href={parsed.url} className="text-sm text-blue-600 hover:underline">
                           {task.project_code}
                         </Link>
                       </div>
                     </div>
-                  ) : task.project_code && opportunityId ? (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Oportunidad vinculada</Label>
-                      <div className="mt-1">
-                        <Link href={`/dashboard/oportunidades/${opportunityId}`} className="text-sm text-blue-600 hover:underline">
-                          {task.project_code}
-                        </Link>
-                      </div>
-                    </div>
-                  ) : null}
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

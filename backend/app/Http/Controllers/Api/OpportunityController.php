@@ -228,7 +228,7 @@ class OpportunityController extends Controller
 
             if ($automation && $automation->assigned_to) {
                 Task::create([
-                    'project_code' => (string) $opportunity->id,
+                    'project_code' => 'OPP-' . $opportunity->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',

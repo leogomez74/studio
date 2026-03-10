@@ -1304,7 +1304,7 @@ export default function OpportunityDetailPage() {
             </TabsContent>
 
             <TabsContent value="tareas">
-              <TareasTab projectCode={String(opportunity.id)} entityLabel="de la Oportunidad" />
+              <TareasTab projectCode={`OPP-${opportunity.id}`} entityLabel="de la Oportunidad" />
             </TabsContent>
 
             {/* Botón de navegación */}

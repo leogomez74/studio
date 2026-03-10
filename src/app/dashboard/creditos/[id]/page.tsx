@@ -2081,7 +2081,7 @@ function CreditDetailClient({ id }: { id: string }) {
                           <CaseChat conversationId={credit.reference} />
                         </TabsContent>
                         <TabsContent value="tareas" className="flex-1 overflow-y-auto p-4">
-                          <TareasTab projectCode={credit.reference} entityLabel="del Crédito" />
+                          <TareasTab projectCode={`CRED-${credit.id}`} entityLabel="del Crédito" />
                         </TabsContent>
                       </Tabs>
                     </Card>

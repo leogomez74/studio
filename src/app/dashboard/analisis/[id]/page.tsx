@@ -1483,7 +1483,7 @@ export default function AnalisisDetailPage() {
         </TabsContent>
 
         <TabsContent value="tareas">
-          <TareasTab projectCode={String(analisis.id)} entityLabel="del Análisis" />
+          <TareasTab projectCode={`ANA-${analisis.id}`} entityLabel="del Análisis" />
         </TabsContent>
       </Tabs>
 

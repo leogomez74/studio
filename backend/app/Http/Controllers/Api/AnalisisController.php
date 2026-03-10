@@ -200,7 +200,7 @@ class AnalisisController extends Controller
 
             if ($automation && $automation->assigned_to) {
                 Task::create([
-                    'project_code' => (string) $analisis->id,
+                    'project_code' => 'ANA-' . $analisis->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',
@@ -339,7 +339,7 @@ class AnalisisController extends Controller
 
                 if ($automation && $automation->assigned_to) {
                     $task = Task::create([
-                        'project_code' => (string) $analisis->id,
+                        'project_code' => 'ANA-' . $analisis->id,
                         'title' => $automation->title,
                         'status' => 'pendiente',
                         'priority' => $automation->priority ?? 'media',

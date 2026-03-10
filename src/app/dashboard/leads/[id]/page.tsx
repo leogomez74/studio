@@ -1398,7 +1398,7 @@ export default function LeadDetailPage() {
                         </TabsContent>
 
                         <TabsContent value="tareas">
-                            <TareasTab projectCode={String(lead.id)} entityLabel="del Lead" />
+                            <TareasTab projectCode={`LEAD-${lead.id}`} entityLabel="del Lead" />
                         </TabsContent>
 
                         <TabsContent value="archivos">

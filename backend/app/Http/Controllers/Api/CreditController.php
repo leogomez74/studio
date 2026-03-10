@@ -316,7 +316,7 @@ class CreditController extends Controller
 
             // Crear la tarea automática
             \App\Models\Task::create([
-                'project_code' => $credit->reference,
+                'project_code' => 'CRED-' . $credit->id,
                 'project_name' => $credit->title,
                 'title' => $automation->title,
                 'details' => 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.',

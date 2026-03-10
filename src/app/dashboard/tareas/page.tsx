@@ -160,10 +160,19 @@ const isTaskOverdue = (task: TaskItem): boolean => {
   return dueDate < today;
 };
 
-const extractOpportunityId = (projectCode: string | null): number | null => {
+const parseProjectCode = (projectCode: string | null): { module: string; id: string; url: string } | null => {
   if (!projectCode) return null;
-  const match = projectCode.match(/-(\d+)-[A-Z]+$/);
-  return match ? Number(match[1]) : null;
+  const match = projectCode.match(/^(LEAD|OPP|ANA|CRED|CLIENT)-(.+)$/);
+  if (!match) return null;
+  const [, module, id] = match;
+  const urlMap: Record<string, string> = {
+    LEAD: `/dashboard/leads/${id}`,
+    OPP: `/dashboard/oportunidades/${id}`,
+    ANA: `/dashboard/analisis/${id}`,
+    CRED: `/dashboard/creditos/${id}`,
+    CLIENT: `/dashboard/clientes/${id}`,
+  };
+  return { module, id, url: urlMap[module] || "" };
 };
 
 const getTodayDateString = (): string => {
@@ -789,16 +798,20 @@ export default function TasksPage() {
                 ) : (
                   paginatedTasks.map(task => {
                     const isOverdue = isTaskOverdue(task);
-                    const opportunityId = extractOpportunityId(task.project_code);
+                    const parsed = parseProjectCode(task.project_code);
 
                     return (
                       <TableRow key={task.id}>
                         <TableCell className="font-mono text-sm">
                           <div className="flex flex-col">
                             <span className="font-semibold">{formatTaskReference(task.id)}</span>
-                            {task.project_code && (
+                            {parsed ? (
+                              <Link href={parsed.url} className="text-xs text-blue-600 hover:underline">
+                                {task.project_code}
+                              </Link>
+                            ) : task.project_code ? (
                               <span className="text-xs text-muted-foreground">{task.project_code}</span>
-                            )}
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell>

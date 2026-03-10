@@ -2198,7 +2198,7 @@ export default function ClientDetailPage() {
             </TabsContent>
 
             <TabsContent value="tareas">
-              <TareasTab projectCode={String(client.id)} entityLabel="del Cliente" />
+              <TareasTab projectCode={`CLIENT-${client.id}`} entityLabel="del Cliente" />
             </TabsContent>
 
             <TabsContent value="archivos">
