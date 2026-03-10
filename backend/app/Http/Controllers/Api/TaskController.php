@@ -75,7 +75,7 @@ class TaskController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'project_code' => 'nullable|string|max:50',
+            'project_code' => ['nullable', 'string', 'max:50', 'regex:/^(LEAD|OPP|ANA|CRED|CLIENT)-.+$/'],
             'project_name' => 'nullable|string|max:255',
             'title' => 'required|string|max:255',
             'details' => 'nullable|string',
@@ -112,7 +112,7 @@ class TaskController extends Controller
         $oldData = $task->toArray();
 
         $validated = $request->validate([
-            'project_code' => 'nullable|string|max:50',
+            'project_code' => ['nullable', 'string', 'max:50', 'regex:/^(LEAD|OPP|ANA|CRED|CLIENT)-.+$/'],
             'project_name' => 'nullable|string|max:255',
             'title' => 'sometimes|required|string|max:255',
             'details' => 'nullable|string',

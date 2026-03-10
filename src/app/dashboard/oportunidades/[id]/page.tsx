@@ -237,11 +237,11 @@ export default function OpportunityDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [opportunityRes, productsRes, usersRes, automationsRes, loanConfigsRes] = await Promise.all([
+        const [opportunityRes, productsRes, usersRes, automationsRes] = await Promise.all([
           api.get(`/api/opportunities/${id}`),
           api.get('/api/products?all=true'),
           api.get('/api/agents?all=true'),
-          api.get('/api/task-automations'),
+          api.get('/api/task-automations').catch(() => ({ data: [] })),
         ]);
 
         const opportunityData = opportunityRes.data.data || opportunityRes.data;
