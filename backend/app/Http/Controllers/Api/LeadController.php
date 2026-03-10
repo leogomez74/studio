@@ -373,6 +373,7 @@ class LeadController extends Controller
 
         $this->logActivity('delete', 'Leads', $lead, $lead->cedula ?? $lead->name, [], $request);
 
+        Task::where('project_code', 'LEAD-' . $id)->delete();
         $lead->delete();
 
         return response()->json(null, 204);

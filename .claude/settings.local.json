@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pm2 status:*)",
+      "Bash(pm2 logs:*)",
+      "Bash(grep -n \"jsPDF\\\\|generatePDF\\\\|pdfMake\" c:/laragon/www/studio/src/app/dashboard/clientes/[id]/page.tsx)",
+      "Bash(php artisan migrate)",
+      "Bash(php artisan tinker --execute=\"echo \\\\Illuminate\\\\Support\\\\Facades\\\\Schema::getColumnType\\(''comments'', ''commentable_id''\\);\")"
+    ]
+  }
+}

@@ -38,6 +38,7 @@
 | Mar 2026 | Campo `reference` (TA-XXXX) en tabla `tasks`: auto-generado al crear, único, con índice. Búsqueda server-side por `?search=` (reference, title, project_code) |
 | Mar 2026 | Módulo Reportes completo: 6 tabs (Cartera Activa, Mora, Por Deductora, Novedades de Planilla, Cobros, Inversiones). Backend: `ReporteController` con 15 endpoints. Novedades de Planilla detecta inclusiones/exclusiones/cambios de cuota por deductora |
 | Mar 2026 | Subtareas/checklist en tareas: `task_checklist_items` + `task_automation_checklist_items` (plantillas). UI: checklist con barra de progreso en detalle, plantillas editables en Configuración > Tareas Automáticas. 8 controllers actualizados con `copyChecklistFromAutomation()` |
+| Mar 2026 | Limpieza de tareas huérfanas: `Task::where('project_code', 'PREFIX-'.$id)->delete()` en 5 controllers (Lead, Opportunity, Analisis, Credit, Client) al eliminar entidades |
 
 ## Pendiente — Media prioridad
 
