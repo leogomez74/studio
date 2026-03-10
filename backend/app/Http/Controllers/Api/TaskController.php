@@ -56,6 +56,15 @@ class TaskController extends Controller
             $query->where('project_code', $request->project_code);
         }
 
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('reference', 'LIKE', "%{$search}%")
+                  ->orWhere('title', 'LIKE', "%{$search}%")
+                  ->orWhere('project_code', 'LIKE', "%{$search}%");
+            });
+        }
+
         return $query->orderBy('created_at', 'desc')->get();
     }
 
