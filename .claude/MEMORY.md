@@ -74,6 +74,16 @@ class MiController extends Controller {
 
 ---
 
+## Integración Credid API
+- **Endpoint:** `GET /api/credid/reporte?cedula=...` (auth:sanctum)
+- **Backend:** `CredidService` (consultar API + extraer datos análisis) + `CredidController`
+- **Config:** `services.credid` con `CREDID_API_URL` y `CREDID_API_TOKEN` en `.env`
+- **Frontend:** Auto-consulta al crear análisis (wizard modal) + botón manual "Consultar Credid" en detalle de análisis
+- **Datos auto-llenados:** cargo, nombramiento, manchas/juicios/embargos (conteo + detalles), PEP, score, refs comerciales
+- **No auto-llena:** montos, plazo, cuota, ingreso neto exacto, deducciones, propuesta
+
+---
+
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta

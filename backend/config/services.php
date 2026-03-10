@@ -49,4 +49,9 @@ return [
         'tipo_cambio_usd' => (float) env('TIPO_CAMBIO_USD', 500),
     ],
 
+    'credid' => [
+        'url' => env('CREDID_API_URL', 'https://ws.credid.net/wstest/api/reporte'),
+        'token' => env('CREDID_API_TOKEN', ''),
+    ],
+
 ];

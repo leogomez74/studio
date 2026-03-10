@@ -309,6 +309,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/lead-alerts', [LeadAlertController::class, 'index']);
     Route::patch('/lead-alerts/{id}/read', [LeadAlertController::class, 'markAsRead']);
 
+    // --- Credid (consulta externa) ---
+    Route::get('credid/reporte', [\App\Http\Controllers\Api\CredidController::class, 'reporte']);
+
     // --- Analisis ---
     Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
     Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);

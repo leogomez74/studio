@@ -158,6 +158,65 @@ export default function AnalisisDetailPage() {
   const [juiciosOpen, setJuiciosOpen] = useState(false);
   const [embargosOpen, setEmbargosOpen] = useState(false);
 
+  // Estados para consulta Credid
+  const [credidLoading, setCredidLoading] = useState(false);
+  const [credidData, setCredidData] = useState<any>(null);
+  const [credidDialogOpen, setCredidDialogOpen] = useState(false);
+  const [credidApplying, setCredidApplying] = useState(false);
+
+  // Consultar Credid API
+  const handleConsultarCredid = async () => {
+    const cedula = lead?.cedula;
+    if (!cedula) {
+      toast({ title: 'Error', description: 'No se encontró la cédula del lead.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setCredidLoading(true);
+      const res = await api.get('/api/credid/reporte', { params: { cedula } });
+      if (res.data.success) {
+        setCredidData(res.data.datos_analisis);
+        setCredidDialogOpen(true);
+      } else {
+        toast({ title: 'Error', description: res.data.message || 'No se pudo obtener el reporte.', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Error al consultar Credid.', variant: 'destructive' });
+    } finally {
+      setCredidLoading(false);
+    }
+  };
+
+  // Aplicar datos de Credid al análisis
+  const handleAplicarCredid = async () => {
+    if (!credidData || !analisis) return;
+    try {
+      setCredidApplying(true);
+      const payload: any = {
+        numero_manchas: credidData.numero_manchas,
+        numero_juicios: credidData.numero_juicios,
+        numero_embargos: credidData.numero_embargos,
+        manchas_detalle: credidData.manchas_detalle,
+        juicios_detalle: credidData.juicios_detalle,
+        embargos_detalle: credidData.embargos_detalle,
+      };
+      if (credidData.cargo) payload.cargo = credidData.cargo;
+      if (credidData.nombramiento) payload.nombramiento = credidData.nombramiento;
+
+      await api.put(`/api/analisis/${analisisId}`, payload);
+      toast({ title: 'Datos aplicados', description: 'Los datos de Credid se aplicaron al análisis.' });
+      setCredidDialogOpen(false);
+      setCredidData(null);
+      // Refrescar análisis
+      const res = await api.get(`/api/analisis/${analisisId}`);
+      setAnalisis(res.data as AnalisisItem);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Error al aplicar datos.', variant: 'destructive' });
+    } finally {
+      setCredidApplying(false);
+    }
+  };
+
   // Cargar archivos del filesystem
   const fetchAnalisisFiles = useCallback(async () => {
     try {
@@ -897,8 +956,18 @@ export default function AnalisisDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Resumen de Manchas/Juicios/Embargos con detalles expandibles */}
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-medium text-gray-500">Historial Crediticio</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleConsultarCredid}
+                disabled={credidLoading || !lead?.cedula}
+                className="h-7 text-xs gap-1"
+              >
+                {credidLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                Consultar Credid
+              </Button>
             </CardHeader>
             <CardContent className="space-y-3">
               {/* Manchas */}
@@ -1725,6 +1794,162 @@ export default function AnalisisDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Dialog de resultados Credid */}
+      <Dialog open={credidDialogOpen} onOpenChange={setCredidDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resultados Credid</DialogTitle>
+            <DialogDescription>
+              Revise los datos obtenidos antes de aplicarlos al análisis.
+            </DialogDescription>
+          </DialogHeader>
+
+          {credidData && (
+            <div className="space-y-4">
+              {/* Info general */}
+              <div className="grid grid-cols-2 gap-3">
+                {credidData.cargo && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cargo</p>
+                    <p className="text-sm font-medium">{credidData.cargo}</p>
+                  </div>
+                )}
+                {credidData.nombramiento && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Nombramiento</p>
+                    <p className="text-sm font-medium">{credidData.nombramiento}</p>
+                  </div>
+                )}
+                {credidData.ingreso_sugerido && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Ingreso sugerido</p>
+                    <p className="text-sm font-medium">₡{Number(credidData.ingreso_sugerido).toLocaleString()}</p>
+                  </div>
+                )}
+                {credidData.score && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Score</p>
+                    <Badge variant={credidData.score_color === 'Green' ? 'default' : credidData.score_color === 'Red' ? 'destructive' : 'secondary'}>
+                      {credidData.score}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* PEP */}
+              {credidData.es_pep && (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm font-medium text-yellow-800 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" /> Persona Políticamente Expuesta (PEP)
+                  </p>
+                  {credidData.pep_detalle && (
+                    <p className="text-xs text-yellow-700 mt-1">{credidData.pep_detalle}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Listas internacionales */}
+              {credidData.listas_internacionales > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded">
+                  <p className="text-sm font-medium text-red-800 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" /> Coincidencias en listas internacionales: {credidData.listas_internacionales}
+                  </p>
+                </div>
+              )}
+
+              {/* Resumen historial */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-orange-50 rounded border border-orange-200 text-center">
+                  <p className="text-xs text-orange-700">Manchas</p>
+                  <p className="text-2xl font-bold text-orange-900">{credidData.numero_manchas}</p>
+                </div>
+                <div className="p-3 bg-red-50 rounded border border-red-200 text-center">
+                  <p className="text-xs text-red-700">Juicios</p>
+                  <p className="text-2xl font-bold text-red-900">{credidData.numero_juicios}</p>
+                </div>
+                <div className="p-3 bg-purple-50 rounded border border-purple-200 text-center">
+                  <p className="text-xs text-purple-700">Embargos</p>
+                  <p className="text-2xl font-bold text-purple-900">{credidData.numero_embargos}</p>
+                </div>
+              </div>
+
+              {/* Detalle manchas */}
+              {credidData.manchas_detalle?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Detalle de manchas</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {credidData.manchas_detalle.map((m: any, i: number) => (
+                      <div key={i} className="text-xs p-2 bg-gray-50 rounded border">
+                        <span className="font-medium">{m.descripcion}</span>
+                        {m.monto > 0 && <span className="ml-2">₡{Number(m.monto).toLocaleString()}</span>}
+                        <span className="ml-2 text-muted-foreground">{m.fecha_inicio}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Detalle juicios */}
+              {credidData.juicios_detalle?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Detalle de juicios</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {credidData.juicios_detalle.map((j: any, i: number) => (
+                      <div key={i} className="text-xs p-2 bg-gray-50 rounded border">
+                        <span className="font-medium">{j.expediente}</span>
+                        <Badge variant={j.estado === 'activo' ? 'destructive' : 'secondary'} className="ml-2 text-[10px]">{j.estado}</Badge>
+                        {j.monto > 0 && <span className="ml-2">₡{Number(j.monto).toLocaleString()}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Detalle embargos */}
+              {credidData.embargos_detalle?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Detalle de embargos</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {credidData.embargos_detalle.map((e: any, i: number) => (
+                      <div key={i} className="text-xs p-2 bg-gray-50 rounded border">
+                        <span className="font-medium">{e.motivo}</span>
+                        {e.monto > 0 && <span className="ml-2">₡{Number(e.monto).toLocaleString()}</span>}
+                        <span className="ml-2 text-muted-foreground">{e.fecha_inicio}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Referencias comerciales */}
+              {credidData.referencias_comerciales?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Referencias comerciales</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {credidData.referencias_comerciales.map((r: any, i: number) => (
+                      <div key={i} className="text-xs p-2 bg-gray-50 rounded border flex justify-between">
+                        <span>{r.entidad}</span>
+                        <span>{r.tipo} - ₡{Number(r.saldo).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCredidDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAplicarCredid} disabled={credidApplying}>
+              {credidApplying && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Aplicar al análisis
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

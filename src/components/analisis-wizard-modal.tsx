@@ -105,7 +105,9 @@ export function AnalisisWizardModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extraMonths, setExtraMonths] = useState(0);
   const [users, setUsers] = useState<Array<{ id: number; name: string }>>([]);
-  const [leadData, setLeadData] = useState<{ profesion?: string; puesto?: string; estado_puesto?: string } | null>(null);
+  const [leadData, setLeadData] = useState<{ profesion?: string; puesto?: string; estado_puesto?: string; cedula?: string } | null>(null);
+  const [credidLoading, setCredidLoading] = useState(false);
+  const [credidLoaded, setCredidLoaded] = useState(false);
   const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number; tasa_anual: string }>>({});
   const [montoError, setMontoError] = useState<string>('');
 
@@ -139,16 +141,48 @@ export function AnalisisWizardModal({
         }
       }).catch(err => console.error('Error loading users/automations:', err));
 
-      // Cargar oportunidad con lead para obtener profesion, puesto y nombramiento
+      // Cargar oportunidad con lead para obtener profesion, puesto, nombramiento y cédula
       api.get(`/api/opportunities/${opportunityId}`)
-        .then(res => {
+        .then(async (res) => {
           const lead = res.data.lead;
           if (lead) {
             setLeadData({
               profesion: lead.profesion,
               puesto: lead.puesto,
-              estado_puesto: lead.estado_puesto
+              estado_puesto: lead.estado_puesto,
+              cedula: lead.cedula
             });
+
+            // Consultar Credid automáticamente si hay cédula
+            if (lead.cedula) {
+              try {
+                setCredidLoading(true);
+                const credidRes = await api.get('/api/credid/reporte', { params: { cedula: lead.cedula } });
+                if (credidRes.data.success) {
+                  const d = credidRes.data.datos_analisis;
+                  setFormData(prev => ({
+                    ...prev,
+                    numero_manchas: d.numero_manchas || 0,
+                    numero_juicios: d.numero_juicios || 0,
+                    numero_embargos: d.numero_embargos || 0,
+                    manchas_detalle: d.manchas_detalle || [],
+                    juicios_detalle: d.juicios_detalle || [],
+                    embargos_detalle: d.embargos_detalle || [],
+                  }));
+                  // Guardar cargo/nombramiento del Credid para usarlos en el submit
+                  setLeadData(prev => prev ? {
+                    ...prev,
+                    puesto: d.cargo || prev.puesto,
+                    estado_puesto: d.nombramiento || prev.estado_puesto
+                  } : prev);
+                  setCredidLoaded(true);
+                }
+              } catch (err) {
+                console.error('Error consultando Credid:', err);
+              } finally {
+                setCredidLoading(false);
+              }
+            }
           }
         })
         .catch(err => console.error('Error loading opportunity:', err));
@@ -473,6 +507,7 @@ export function AnalisisWizardModal({
       setCurrentStep(1);
       setExtraMonths(0);
       setSelectedFiles([]);
+      setCredidLoaded(false);
 
       const createdId = response.data?.data?.id || response.data?.id;
       toast({
@@ -793,7 +828,19 @@ export function AnalisisWizardModal({
         {currentStep === 3 && (
           <Card>
             <CardHeader>
-              <CardTitle>Historial Crediticio</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                Historial Crediticio
+                {credidLoading && (
+                  <span className="flex items-center gap-1 text-xs font-normal text-blue-600">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Consultando Credid...
+                  </span>
+                )}
+                {credidLoaded && (
+                  <Badge variant="outline" className="text-xs font-normal text-green-700 border-green-300 bg-green-50">
+                    <Check className="h-3 w-3 mr-1" /> Pre-llenado con Credid
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Contadores */}
