@@ -275,6 +275,15 @@ class InvestmentService
 
     public function renewInvestment(Investment $investment, array $newTerms): Investment
     {
+        if (!in_array($investment->estado, ['Activa', 'Finalizada'])) {
+            abort(422, 'Solo se pueden renovar inversiones activas o finalizadas.');
+        }
+
+        $hasPendingCoupons = $investment->coupons()->where('estado', 'Pendiente')->exists();
+        if ($hasPendingCoupons) {
+            abort(422, 'No se puede renovar una inversión con cupones pendientes de pago.');
+        }
+
         return DB::transaction(function () use ($investment, $newTerms) {
             // Finalize old investment as Renovada
             $investment->update(['estado' => 'Renovada']);

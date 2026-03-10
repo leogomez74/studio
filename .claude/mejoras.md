@@ -24,6 +24,7 @@
 | Mar 2026 | 9 `Log::error/warning` mejorados con contexto (IDs, trace, datos relevantes) en 7 archivos backend |
 | Mar 2026 | Notificaciones de tareas vencidas: badge rojo en sidebar + pestaña "Tareas" en popover de notificaciones del header |
 | Mar 2026 | Módulo Inversiones — Auditoría completa: 3 mejoras implementadas (ver detalle abajo) |
+| Mar 2026 | Módulo Inversiones — Fase 2: O5, O6, O7, O8, O9, O10 implementados (ver detalle abajo) |
 
 ## Pendiente — Media prioridad
 
@@ -54,17 +55,20 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 - **O3**: Indicador visual de mora en Tabla General — backend `InvestmentService@getTablaGeneral` agrega `overdue_coupons_count` vía `withCount`. Frontend colorea la fila rojo claro y muestra ícono ⚠️ con tooltip si hay cupones atrasados. `page.tsx` + `InvestmentService.php`
 - **O4**: Sección Pagos Próximos — banner rojo al tope si hay meses con cupones atrasados (muestra cantidad y montos totales); separador visual "PRÓXIMOS PAGOS" entre la sección de atrasados y futuros. `page.tsx`
 
+### ✅ Implementado en Fase 2 (Mar 2026)
+- **O5**: Banner de alerta en dashboard si hay inversiones vencidas o que vencen en ≤30 días. `vencimientos` se carga en el `useEffect` inicial. Banner sobre los Tabs con botón "Ver vencimientos →". `page.tsx`
+- **O6**: Filtros avanzados en TablaGeneralSection — se añadieron filtros por moneda (CRC/USD) y rango de tasa (min/max %). `page.tsx`
+- **O7**: Botón "Editar" en menú dropdown de `InvestorTableRow`. `InvestorFormDialog` pasa `investor={editingInvestor}` para modo edición. `page.tsx`
+- **O8**: Tab "Historial de Pagos" en detalle del inversionista (`inversionista/[id]/page.tsx`). Página reestructurada con Tabs: Activas / Otras / Historial de Pagos. Nuevo componente `PaymentsTable`. Se agregó `payments?: InvestmentPayment[]` al tipo `Investor` en `data.ts`.
+- **O9**: `InvestmentService@renewInvestment` valida que la inversión sea Activa/Finalizada y que no tenga cupones Pendientes antes de renovar. Aborta con 422 si falla. `InvestmentService.php`
+- **O10**: Mensaje en `cancelacionTotal()` corregido de "Solo se pueden finalizar..." a "Solo se pueden realizar abonos totales...". `InvestmentController.php`
+
 ### 🔲 Pendiente (del plan de auditoría)
 - **O1**: Capitalización — el negocio confirmó que capitalizar por interés neto está correcto. Sin cambio.
 - **S1**: Proteger rutas de exportación (mover a auth:sanctum + cambiar frontend de window.open a axios blob)
 - **S3**: Validar estado inversión en `markPaid/markBulkPaid`
-- **S6**: Validar estado en `liquidate()` y `renew()`
 - **S4**: Unicidad de cédula en inversionistas
-- **O10**: Mensaje confuso en `cancelacionTotal()`
-- **O5**: Alerta de vencimientos próximos en dashboard
 - **S7**: Reemplazar catch silenciosos con toasts en frontend
-- **O7**: Botón editar inversionista desde la lista
-- **O8**: Tab historial de pagos en detalle de inversionista
 - **S10**: Índice en `numero_desembolso`
 
 ## Estadísticas del proyecto

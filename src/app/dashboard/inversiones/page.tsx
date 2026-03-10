@@ -42,7 +42,7 @@ const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
 
 // --- Inversionistas Table ---
-const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDelete }: { investor: Investor; onDelete: (id: number) => void }) {
+const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDelete, onEdit }: { investor: Investor; onDelete: (id: number) => void; onEdit: (investor: Investor) => void }) {
   return (
     <TableRow>
       <TableCell>
@@ -77,6 +77,7 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
             <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/inversionista/${investor.id}`}>Ver Inversiones</Link></DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEdit(investor)}>Editar</DropdownMenuItem>
             <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(investor.id)}>Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
@@ -139,6 +140,9 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
 function TablaGeneralSection({ data }: { data: any }) {
   const [search, setSearch] = useState('');
   const [formaPagoFilter, setFormaPagoFilter] = useState('');
+  const [monedaFilter, setMonedaFilter] = useState('');
+  const [tasaMin, setTasaMin] = useState('');
+  const [tasaMax, setTasaMax] = useState('');
 
   if (!data) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
@@ -146,10 +150,13 @@ function TablaGeneralSection({ data }: { data: any }) {
     inversiones.filter((inv: any) => {
       if (search && !(inv.investor?.name ?? '').toLowerCase().includes(search.toLowerCase()) && !(inv.numero_desembolso ?? '').toLowerCase().includes(search.toLowerCase())) return false;
       if (formaPagoFilter && inv.forma_pago !== formaPagoFilter) return false;
+      if (tasaMin && Number(inv.tasa_anual) * 100 < Number(tasaMin)) return false;
+      if (tasaMax && Number(inv.tasa_anual) * 100 > Number(tasaMax)) return false;
       return true;
     });
 
   const renderSection = (title: string, section: any, currency: 'CRC' | 'USD') => {
+    if (monedaFilter && monedaFilter !== currency) return null;
     const filtered = filterInversiones(section.inversiones);
     return (
     <div className="mb-6">
@@ -235,6 +242,19 @@ function TablaGeneralSection({ data }: { data: any }) {
             {formasPago.map(fp => <SelectItem key={fp} value={fp}>{fp}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={monedaFilter} onValueChange={v => setMonedaFilter(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="USD">USD</SelectItem>
+            <SelectItem value="CRC">CRC</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1.5">
+          <Input placeholder="Tasa min %" value={tasaMin} onChange={e => setTasaMin(e.target.value)} className="w-24 h-9" type="number" min="0" max="100" step="0.01" />
+          <span className="text-muted-foreground text-sm">–</span>
+          <Input placeholder="Tasa max %" value={tasaMax} onChange={e => setTasaMax(e.target.value)} className="w-24 h-9" type="number" min="0" max="100" step="0.01" />
+        </div>
       </div>
       {renderSection('DÓLARES (USD)', data.dolares, 'USD')}
       {renderSection('COLONES (CRC)', data.colones, 'CRC')}
@@ -954,6 +974,7 @@ export default function InversionesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [showInvestorForm, setShowInvestorForm] = useState(false);
+  const [editingInvestor, setEditingInvestor] = useState<Investor | null>(null);
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [investorSearch, setInvestorSearch] = useState('');
   const [filters, setFilters] = useState({ investor_id: '', moneda: '', estado: '' });
@@ -1064,7 +1085,7 @@ export default function InversionesPage() {
     }
   };
 
-  useEffect(() => { fetchData(); fetchTipoCambio(); }, [fetchData, fetchTipoCambio]);
+  useEffect(() => { fetchData(); fetchTipoCambio(); fetchVencimientos(); }, [fetchData, fetchTipoCambio, fetchVencimientos]);
 
   const handleDeleteInvestor = async (id: number) => {
     if (!confirm('¿Eliminar este inversionista y todas sus inversiones?')) return;
@@ -1195,7 +1216,35 @@ export default function InversionesPage() {
         </Card>
       )}
 
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
+      {/* Alertas de vencimientos */}
+      {(vencimientos?.vencidas?.length > 0 || vencimientos?.['0_30']?.length > 0) && (
+        <div className="mb-4 space-y-2">
+          {vencimientos.vencidas?.length > 0 && (
+            <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-3 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+              <p className="text-sm font-semibold text-destructive">
+                {vencimientos.vencidas.length} inversión(es) vencida(s) sin renovar o liquidar.
+              </p>
+              <Button variant="link" size="sm" className="ml-auto text-destructive p-0 h-auto" onClick={() => setActiveTab('vencimientos')}>
+                Ver vencimientos →
+              </Button>
+            </div>
+          )}
+          {vencimientos['0_30']?.length > 0 && (
+            <div className="rounded-lg border border-orange-400 bg-orange-50 dark:bg-orange-950/20 p-3 flex items-center gap-3">
+              <Clock className="h-5 w-5 text-orange-600 shrink-0" />
+              <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                {vencimientos['0_30'].length} inversión(es) vence(n) en los próximos 30 días.
+              </p>
+              <Button variant="link" size="sm" className="ml-auto text-orange-600 p-0 h-auto" onClick={() => setActiveTab('vencimientos')}>
+                Ver vencimientos →
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
@@ -1251,7 +1300,7 @@ export default function InversionesPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredInvestors.map(investor => (
-                    <InvestorTableRow key={investor.id} investor={investor} onDelete={handleDeleteInvestor} />
+                    <InvestorTableRow key={investor.id} investor={investor} onDelete={handleDeleteInvestor} onEdit={(inv) => { setEditingInvestor(inv); setShowInvestorForm(true); }} />
                   ))}
                 </TableBody>
               </Table>
@@ -1638,7 +1687,8 @@ export default function InversionesPage() {
 
       <InvestorFormDialog
         open={showInvestorForm}
-        onOpenChange={setShowInvestorForm}
+        onOpenChange={(open) => { setShowInvestorForm(open); if (!open) setEditingInvestor(null); }}
+        investor={editingInvestor}
         onSuccess={fetchData}
       />
 
