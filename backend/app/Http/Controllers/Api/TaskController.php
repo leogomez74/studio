@@ -156,6 +156,42 @@ class TaskController extends Controller
     }
 
     /**
+     * Get overdue tasks count for the authenticated user.
+     */
+    public function overdueCount()
+    {
+        $user = auth('sanctum')->user();
+        $query = Task::whereIn('status', ['pendiente', 'en_progreso'])
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->toDateString());
+
+        if ($user) {
+            $canViewAll = false;
+            if ($user->role) {
+                $permissions = $user->role->getFormattedPermissions();
+                $canViewAll = $permissions['tareas']['view'] ?? false;
+            }
+            if (!$canViewAll) {
+                $query->where('assigned_to', $user->id);
+            }
+        }
+
+        $tasks = $query->with('assignee:id,name')->orderBy('due_date', 'asc')->limit(10)->get();
+
+        return response()->json([
+            'count' => $query->count(),
+            'tasks' => $tasks->map(fn ($t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'due_date' => $t->due_date?->format('Y-m-d'),
+                'priority' => $t->priority,
+                'assignee' => $t->assignee?->name,
+                'days_overdue' => $t->due_date ? (int) now()->diffInDays($t->due_date) : 0,
+            ]),
+        ]);
+    }
+
+    /**
      * Restore an archived or deleted task.
      */
     public function restore(string $id)

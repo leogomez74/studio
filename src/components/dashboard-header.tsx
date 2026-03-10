@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
-import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2, MessageSquare, CheckCheck } from 'lucide-react';
+import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2, MessageSquare, CheckCheck, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
+import { useOverdueTasks } from '@/hooks/use-overdue-tasks';
 
 interface LeadAlertItem {
   id: number;
@@ -147,7 +148,8 @@ export function DashboardHeader() {
   const [commentNotifications, setCommentNotifications] = useState<CommentNotification[]>([]);
   const [notifUnreadCount, setNotifUnreadCount] = useState(0);
   const [notifLoading, setNotifLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState<'alerts' | 'comments'>('alerts');
+  const [activeSection, setActiveSection] = useState<'alerts' | 'comments' | 'tasks'>('alerts');
+  const overdueTasks = useOverdueTasks();
 
   const handleDeleteLeo = async () => {
     const confirmed = window.confirm('¿Está seguro de eliminar el registro con cédula 108760664? Esta acción eliminará también todas las oportunidades, análisis, créditos y sus documentos asociados.');
@@ -312,7 +314,8 @@ export function DashboardHeader() {
     };
   }, [fetchNotifications]);
 
-  const totalUnread = unreadCount + notifUnreadCount;
+  const overdueCount = overdueTasks?.count ?? 0;
+  const totalUnread = unreadCount + notifUnreadCount + overdueCount;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -432,11 +435,74 @@ export function DashboardHeader() {
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => setActiveSection('tasks')}
+                className={cn(
+                  'flex-1 px-4 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                  activeSection === 'tasks'
+                    ? 'text-foreground border-b-2 border-primary bg-background'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Tareas
+                {overdueCount > 0 && (
+                  <span className="ml-1 bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {overdueCount}
+                  </span>
+                )}
+              </button>
             </div>
 
             {/* Content area */}
             <div className="overflow-y-auto flex-1">
-              {activeSection === 'alerts' ? (
+              {activeSection === 'tasks' ? (
+                /* Overdue tasks section */
+                overdueCount === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    No hay tareas vencidas.
+                  </div>
+                ) : (
+                  overdueTasks?.tasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/dashboard/tareas/${task.id}`}
+                      className="block border-b last:border-b-0 transition-colors hover:bg-accent/50"
+                    >
+                      <div className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ClipboardCheck className="h-4 w-4 flex-shrink-0 text-red-500" />
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {task.title}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 flex-shrink-0">
+                            {task.days_overdue}d
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
+                          <span>Vencida: {new Date(task.due_date).toLocaleDateString('es-CR', { day: '2-digit', month: 'short' })}</span>
+                          {task.assignee && (
+                            <>
+                              <span className="text-muted-foreground/50">|</span>
+                              <span>{task.assignee}</span>
+                            </>
+                          )}
+                          <span className={cn(
+                            'ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded',
+                            task.priority === 'alta' ? 'bg-red-50 text-red-600' :
+                            task.priority === 'media' ? 'bg-amber-50 text-amber-600' :
+                            'bg-gray-50 text-gray-600'
+                          )}>
+                            {task.priority}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                )
+              ) : activeSection === 'alerts' ? (
                 /* Alerts section */
                 alerts.length === 0 ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">

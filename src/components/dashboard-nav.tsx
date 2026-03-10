@@ -34,6 +34,7 @@ import {
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Badge } from '@/components/ui/badge';
 import { useAuditAlerts } from '@/hooks/use-audit-alerts';
+import { useOverdueTasks } from '@/hooks/use-overdue-tasks';
 
 // Grouped navigation items for better organization
 const navGroups = [
@@ -93,6 +94,7 @@ export function DashboardNav() {
   const { canViewModule } = usePermissions();
   const canSeeAudit = canViewModule('auditoria');
   const auditAlerts = useAuditAlerts(canSeeAudit);
+  const overdueTasks = useOverdueTasks();
 
   return (
     <div className="flex flex-col gap-1 px-2">
@@ -115,6 +117,8 @@ export function DashboardNav() {
                 {visibleItems.map((item) => {
                   const isAudit = item.module === 'auditoria';
                   const showAlertBadge = isAudit && auditAlerts?.has_alerts;
+                  const isTareas = item.module === 'tareas';
+                  const overdueCount = isTareas ? (overdueTasks?.count ?? 0) : 0;
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
@@ -135,7 +139,12 @@ export function DashboardNav() {
                               !
                             </span>
                           )}
-                          {item.badge && !showAlertBadge && (
+                          {overdueCount > 0 && (
+                            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white px-1">
+                              {overdueCount}
+                            </span>
+                          )}
+                          {item.badge && !showAlertBadge && overdueCount === 0 && (
                             <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">
                               {item.badge}
                             </Badge>

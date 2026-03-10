@@ -122,6 +122,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('opportunities', OpportunityController::class);
 
     // --- Tareas ---
+    Route::get('/tareas/overdue-count', [TaskController::class, 'overdueCount']);
     Route::get('/tareas', [TaskController::class, 'index']);
     Route::post('/tareas', [TaskController::class, 'store']);
     Route::get('/tareas/{task}', [TaskController::class, 'show']);
