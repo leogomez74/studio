@@ -173,11 +173,18 @@ function TablaGeneralSection({ data }: { data: any }) {
         </TableHeader>
         <TableBody>
           {filtered.map((inv: any) => (
-            <TableRow key={inv.id}>
+            <TableRow key={inv.id} className={inv.overdue_coupons_count > 0 ? 'bg-destructive/5' : ''}>
               <TableCell>
-                <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">
-                  {inv.numero_desembolso}
-                </Link>
+                <div className="flex items-center gap-1.5">
+                  <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">
+                    {inv.numero_desembolso}
+                  </Link>
+                  {inv.overdue_coupons_count > 0 && (
+                    <span title={`${inv.overdue_coupons_count} cupón(es) atrasado(s)`}>
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                    </span>
+                  )}
+                </div>
               </TableCell>
               <TableCell>
                 <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">
@@ -451,11 +458,36 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         )}
       </div>
 
+      {/* Banner de cupones atrasados */}
+      {(() => {
+        const now = new Date();
+        const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const atrasados = meses.filter((m: any) => m.mes < currentYM);
+        if (atrasados.length === 0) return null;
+        const totalCupones = atrasados.reduce((s: number, m: any) => s + m.resumen.total_cupones, 0);
+        const totalCrc = atrasados.reduce((s: number, m: any) => s + m.resumen.crc.interes_neto, 0);
+        const totalUsd = atrasados.reduce((s: number, m: any) => s + m.resumen.usd.interes_neto, 0);
+        return (
+          <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-bold text-destructive">{atrasados.length} mes(es) con cupones atrasados — {totalCupones} cupón(es) sin pagar</p>
+              <div className="flex flex-wrap gap-4 mt-1 text-sm">
+                {totalCrc > 0 && <span className="font-mono text-destructive">{fmt(totalCrc, 'CRC')}</span>}
+                {totalUsd > 0 && <span className="font-mono text-destructive">{fmt(totalUsd, 'USD')}</span>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Monthly sections */}
       {meses.map((mes: any, idx: number) => {
         const now = new Date();
         const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const isOverdue = mes.mes < currentYM;
+        const prevIsOverdue = idx > 0 && meses[idx - 1].mes < currentYM;
+        const isFirstProximo = idx > 0 && prevIsOverdue && !isOverdue;
         const filteredCupones = search
           ? mes.cupones.filter((c: any) => {
               const inv = c.investment;
@@ -474,7 +506,17 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         const paginatedCupones = filteredCupones.slice((currentPage - 1) * CUPONES_PER_PAGE, currentPage * CUPONES_PER_PAGE);
 
         return (
-        <Collapsible key={mes.mes} defaultOpen={idx === 0 || isOverdue}>
+        <React.Fragment key={mes.mes}>
+          {isFirstProximo && (
+            <div className="flex items-center gap-3 my-3">
+              <div className="flex-1 border-t border-border" />
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide px-3 flex items-center gap-1.5">
+                <CalendarClock className="h-4 w-4" /> Próximos pagos
+              </span>
+              <div className="flex-1 border-t border-border" />
+            </div>
+          )}
+        <Collapsible defaultOpen={idx === 0 || isOverdue}>
           <CollapsibleTrigger asChild>
             <button className={`w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity ${isOverdue ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}>
               {isOverdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CalendarClock className="h-5 w-5 shrink-0" />}
@@ -595,6 +637,7 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
             )}
           </CollapsibleContent>
         </Collapsible>
+        </React.Fragment>
         );
       })}
 

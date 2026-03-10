@@ -545,7 +545,13 @@ class InvestmentService
 
     public function getTablaGeneral(): array
     {
-        $investments = Investment::with('investor:id,name')->where('estado', 'Activa')->get();
+        $today = Carbon::today();
+        $investments = Investment::with('investor:id,name')
+            ->withCount(['coupons as overdue_coupons_count' => function ($q) use ($today) {
+                $q->where('estado', 'Pendiente')->where('fecha_cupon', '<', $today);
+            }])
+            ->where('estado', 'Activa')
+            ->get();
 
         $dolares = $investments->where('moneda', 'USD')->values();
         $colones = $investments->where('moneda', 'CRC')->values();

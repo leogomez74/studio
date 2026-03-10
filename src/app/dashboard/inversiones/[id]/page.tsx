@@ -124,12 +124,26 @@ export default function InvestmentDetailPage() {
     const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
     const tasaAnual = Number(investment.tasa_anual);
     const capital = Number(investment.monto_capital);
-    const interesBruto = capital * tasaAnual * dias / 365;
+    // Convención Actual/Actual: usar 366 si el período incluye un 29 de febrero
+    const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    const incluyeBisiesto = (() => {
+      for (let y = desde.getFullYear(); y <= hasta.getFullYear(); y++) {
+        if (isLeapYear(y)) {
+          const feb29 = new Date(y, 1, 29);
+          if (feb29 >= desde && feb29 <= hasta) return true;
+        }
+      }
+      return false;
+    })();
+    const diasEnAnio = incluyeBisiesto ? 366 : 365;
+    const interesBruto = capital * tasaAnual * dias / diasEnAnio;
     const tasaRetencion = Number(investment.tasa_retencion) || 0;
     const retencion = interesBruto * tasaRetencion;
     const interesNeto = interesBruto - retencion;
     return {
       dias,
+      diasEnAnio,
+      incluyeBisiesto,
       interes_bruto: Math.round(interesBruto * 100) / 100,
       retencion: Math.round(retencion * 100) / 100,
       interes_neto: Math.round(interesNeto * 100) / 100,
@@ -487,6 +501,7 @@ export default function InvestmentDetailPage() {
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">Días</p>
                   <p className="text-2xl font-bold">{calcResult.dias}</p>
+                  <p className="text-xs text-muted-foreground">base {calcResult.diasEnAnio}{calcResult.incluyeBisiesto ? ' (bisiesto)' : ''}</p>
                 </div>
                 <div />
               </>

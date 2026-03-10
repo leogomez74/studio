@@ -23,6 +23,7 @@
 | Mar 2026 | **149 `as any` → 0** en 13 archivos frontend. Tipos extendidos en `data.ts`, interfaces locales actualizadas, jsPDF tipado con `unknown` cast |
 | Mar 2026 | 9 `Log::error/warning` mejorados con contexto (IDs, trace, datos relevantes) en 7 archivos backend |
 | Mar 2026 | Notificaciones de tareas vencidas: badge rojo en sidebar + pestaña "Tareas" en popover de notificaciones del header |
+| Mar 2026 | Módulo Inversiones — Auditoría completa: 3 mejoras implementadas (ver detalle abajo) |
 
 ## Pendiente — Media prioridad
 
@@ -45,6 +46,26 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 
 ### ~~8. Log de errores en backend~~ ✅ Resuelto (Mar 2026)
 9 logs sin contexto corregidos. Todos los `Log::error/warning/critical` ahora incluyen IDs relevantes, `getMessage()` y `getTraceAsString()`.
+
+## Auditoría Módulo Inversiones (Mar 2026)
+
+### ✅ Implementado en esta sesión
+- **O2**: Calculadora de interés diario ahora usa convención Actual/Actual — detecta si el período incluye 29-Feb y usa base 366 en años bisiestos. UI muestra "base 366 (bisiesto)" cuando aplica. `inversiones/[id]/page.tsx`
+- **O3**: Indicador visual de mora en Tabla General — backend `InvestmentService@getTablaGeneral` agrega `overdue_coupons_count` vía `withCount`. Frontend colorea la fila rojo claro y muestra ícono ⚠️ con tooltip si hay cupones atrasados. `page.tsx` + `InvestmentService.php`
+- **O4**: Sección Pagos Próximos — banner rojo al tope si hay meses con cupones atrasados (muestra cantidad y montos totales); separador visual "PRÓXIMOS PAGOS" entre la sección de atrasados y futuros. `page.tsx`
+
+### 🔲 Pendiente (del plan de auditoría)
+- **O1**: Capitalización — el negocio confirmó que capitalizar por interés neto está correcto. Sin cambio.
+- **S1**: Proteger rutas de exportación (mover a auth:sanctum + cambiar frontend de window.open a axios blob)
+- **S3**: Validar estado inversión en `markPaid/markBulkPaid`
+- **S6**: Validar estado en `liquidate()` y `renew()`
+- **S4**: Unicidad de cédula en inversionistas
+- **O10**: Mensaje confuso en `cancelacionTotal()`
+- **O5**: Alerta de vencimientos próximos en dashboard
+- **S7**: Reemplazar catch silenciosos con toasts en frontend
+- **O7**: Botón editar inversionista desde la lista
+- **O8**: Tab historial de pagos en detalle de inversionista
+- **S10**: Índice en `numero_desembolso`
 
 ## Estadísticas del proyecto
 - Backend PHP: 163 archivos
