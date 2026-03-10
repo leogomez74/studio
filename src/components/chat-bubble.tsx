@@ -73,7 +73,7 @@ const ENTITY_TYPE_MAP: Record<string, { label: string; route: string; color: str
   'App\\Models\\Credit':      { label: 'Crédito',    route: '/dashboard/creditos',     color: 'bg-emerald-100 text-emerald-700', apiType: 'credit' },
   'App\\Models\\Opportunity': { label: 'Oportunidad', route: '/dashboard/oportunidades', color: 'bg-blue-100 text-blue-700',     apiType: 'opportunity' },
   'App\\Models\\Lead':        { label: 'Lead',        route: '/dashboard/leads',         color: 'bg-violet-100 text-violet-700', apiType: 'lead' },
-  'App\\Models\\Client':      { label: 'Cliente',     route: '/dashboard/leads',         color: 'bg-amber-100 text-amber-700',   apiType: 'client' },
+  'App\\Models\\Client':      { label: 'Cliente',     route: '/dashboard/clientes',      color: 'bg-amber-100 text-amber-700',   apiType: 'client' },
   'App\\Models\\Analisis':    { label: 'Análisis',    route: '/dashboard/analisis',      color: 'bg-cyan-100 text-cyan-700',     apiType: 'analisis' },
 };
 

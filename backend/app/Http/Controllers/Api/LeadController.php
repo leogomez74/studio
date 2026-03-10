@@ -290,7 +290,8 @@ class LeadController extends Controller
 
     public function show($id)
     {
-        $lead = Lead::with(['assignedAgent', 'leadStatus', 'documents'])->findOrFail($id);
+        $lead = Lead::with(['assignedAgent', 'leadStatus', 'documents'])->find($id)
+            ?? Person::with(['assignedAgent', 'leadStatus', 'documents'])->findOrFail($id);
         return response()->json($lead);
     }
 

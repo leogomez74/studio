@@ -59,12 +59,12 @@ const ENTITY_ROUTES: Record<string, string> = {
   'App\\Models\\Credit': '/dashboard/creditos',
   'App\\Models\\Opportunity': '/dashboard/oportunidades',
   'App\\Models\\Lead': '/dashboard/leads',
-  'App\\Models\\Client': '/dashboard/leads',
+  'App\\Models\\Client': '/dashboard/clientes',
   'App\\Models\\Analisis': '/dashboard/analisis',
   'credit': '/dashboard/creditos',
   'opportunity': '/dashboard/oportunidades',
   'lead': '/dashboard/leads',
-  'client': '/dashboard/leads',
+  'client': '/dashboard/clientes',
   'analisis': '/dashboard/analisis',
 };
 
