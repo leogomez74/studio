@@ -52,18 +52,20 @@ class CreateMissingCreditTasks extends Command
 
         foreach ($credits as $credit) {
             // Verificar si ya existe una tarea para este crédito
-            $existingTask = Task::where('project_code', $credit->reference)->first();
+            $existingTask = Task::where('project_code', 'CRED-' . $credit->id)->first();
 
             if (!$existingTask) {
                 // Crear la tarea
                 Task::create([
-                    'project_code' => $credit->reference,
+                    'project_code' => 'CRED-' . $credit->id,
                     'project_name' => $credit->title,
                     'title' => $automation->title,
                     'details' => 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.',
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',
                     'assigned_to' => $automation->assigned_to,
+                    'start_date' => now()->toDateString(),
+                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                 ]);
 
                 $tasksCreated++;

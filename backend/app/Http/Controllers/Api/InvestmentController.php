@@ -252,7 +252,7 @@ class InvestmentController extends Controller
         $investment = Investment::findOrFail($id);
 
         if ($investment->estado !== 'Activa') {
-            return response()->json(['message' => 'Solo se pueden finalizar inversiones activas.'], 422);
+            return response()->json(['message' => 'Solo se pueden realizar abonos totales en inversiones activas.'], 422);
         }
 
         $validated = $request->validate([

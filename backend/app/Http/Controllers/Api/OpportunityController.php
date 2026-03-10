@@ -228,13 +228,13 @@ class OpportunityController extends Controller
 
             if ($automation && $automation->assigned_to) {
                 Task::create([
-                    'project_code' => (string) $opportunity->id,
+                    'project_code' => 'OPP-' . $opportunity->id,
                     'title' => $automation->title,
                     'status' => 'pendiente',
                     'priority' => $automation->priority ?? 'media',
                     'assigned_to' => $automation->assigned_to,
                     'start_date' => now()->toDateString(),
-                    'due_date' => now()->toDateString(),
+                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
                 ]);
                 Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $opportunity->id]);
             }

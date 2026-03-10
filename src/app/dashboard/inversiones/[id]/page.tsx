@@ -29,6 +29,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import api from '@/lib/axios';
 import type { Investment, InvestmentCoupon } from '@/lib/data';
+import { downloadExport } from '@/lib/download-export';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 
@@ -124,12 +125,26 @@ export default function InvestmentDetailPage() {
     const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
     const tasaAnual = Number(investment.tasa_anual);
     const capital = Number(investment.monto_capital);
-    const interesBruto = capital * tasaAnual * dias / 365;
+    // Convención Actual/Actual: usar 366 si el período incluye un 29 de febrero
+    const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    const incluyeBisiesto = (() => {
+      for (let y = desde.getFullYear(); y <= hasta.getFullYear(); y++) {
+        if (isLeapYear(y)) {
+          const feb29 = new Date(y, 1, 29);
+          if (feb29 >= desde && feb29 <= hasta) return true;
+        }
+      }
+      return false;
+    })();
+    const diasEnAnio = incluyeBisiesto ? 366 : 365;
+    const interesBruto = capital * tasaAnual * dias / diasEnAnio;
     const tasaRetencion = Number(investment.tasa_retencion) || 0;
     const retencion = interesBruto * tasaRetencion;
     const interesNeto = interesBruto - retencion;
     return {
       dias,
+      diasEnAnio,
+      incluyeBisiesto,
       interes_bruto: Math.round(interesBruto * 100) / 100,
       retencion: Math.round(retencion * 100) / 100,
       interes_neto: Math.round(interesNeto * 100) / 100,
@@ -215,7 +230,7 @@ export default function InvestmentDetailPage() {
     try {
       await api.post(`/api/investments/${investment.id}/liquidate`);
       fetchInvestment();
-    } catch (err) { console.error(err); }
+    } catch (err: any) { toastError(err?.response?.data?.message || 'Error al liquidar la inversión.'); }
   };
 
   const handleCancel = async () => {
@@ -323,10 +338,10 @@ export default function InvestmentDetailPage() {
           </Badge>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/pdf`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investments/${investment.id}/export/pdf`, `inversion-${investment.numero_desembolso}.pdf`)}>
             <FileText className="h-4 w-4 mr-1" /> PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/excel`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investments/${investment.id}/export/excel`, `inversion-${investment.numero_desembolso}.xlsx`)}>
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
           </Button>
           <DropdownMenu>
@@ -336,10 +351,10 @@ export default function InvestmentDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=es`, '_blank')}>
+              <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=es`, `estado-cuenta-${investment.numero_desembolso}-es.pdf`)}>
                 Descargar en Español
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=en`, '_blank')}>
+              <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=en`, `estado-cuenta-${investment.numero_desembolso}-en.pdf`)}>
                 Download in English
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -487,6 +502,7 @@ export default function InvestmentDetailPage() {
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">Días</p>
                   <p className="text-2xl font-bold">{calcResult.dias}</p>
+                  <p className="text-xs text-muted-foreground">base {calcResult.diasEnAnio}{calcResult.incluyeBisiesto ? ' (bisiesto)' : ''}</p>
                 </div>
                 <div />
               </>
@@ -991,10 +1007,10 @@ export default function InvestmentDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => { window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=es`, '_blank'); setShowEstadoCuentaPrompt(false); }}>
+                <DropdownMenuItem onClick={() => { downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=es`, `estado-cuenta-${investment.numero_desembolso}-es.pdf`); setShowEstadoCuentaPrompt(false); }}>
                   Descargar en Español
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=en`, '_blank'); setShowEstadoCuentaPrompt(false); }}>
+                <DropdownMenuItem onClick={() => { downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=en`, `estado-cuenta-${investment.numero_desembolso}-en.pdf`); setShowEstadoCuentaPrompt(false); }}>
                   Download in English
                 </DropdownMenuItem>
               </DropdownMenuContent>

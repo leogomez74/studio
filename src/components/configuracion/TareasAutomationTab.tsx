@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -16,6 +17,7 @@ import api from '@/lib/axios';
 
 interface AutomationConfig {
   assigned_to: string;
+  due_days_offset: number;
   is_active: boolean;
 }
 
@@ -54,6 +56,7 @@ const TareasAutomationTab: React.FC = () => {
         const auto = data.find((a: any) => a.event_type === event.key);
         newConfigs[event.key] = {
           assigned_to: auto?.assigned_to ? String(auto.assigned_to) : '',
+          due_days_offset: auto?.due_days_offset ?? 3,
           is_active: auto?.is_active ?? false,
         };
       });
@@ -66,11 +69,11 @@ const TareasAutomationTab: React.FC = () => {
     if (token) { fetchUsers(); fetchAutomations(); }
   }, [token, fetchAutomations]);
 
-  const saveAutomation = async (eventType: string, title: string, assignedTo: string) => {
+  const saveAutomation = async (eventType: string, title: string, assignedTo: string, dueDaysOffset?: number) => {
     try {
       await api.post('/api/task-automations', {
         event_type: eventType, title, assigned_to: assignedTo ? Number(assignedTo) : null,
-        priority: 'media', is_active: !!assignedTo,
+        priority: 'media', due_days_offset: dueDaysOffset ?? configs[eventType]?.due_days_offset ?? 3, is_active: !!assignedTo,
       });
       toast({ title: 'Guardado', description: 'Configuración actualizada.' });
     } catch (error) {
@@ -98,24 +101,46 @@ const TareasAutomationTab: React.FC = () => {
               <div key={event.key} className="rounded-lg border p-4">
                 <h4 className="font-medium">{event.title}</h4>
                 <p className="text-sm text-muted-foreground mb-3">{event.description}</p>
-                <div className="space-y-2">
-                  <Label>Asignar tarea a</Label>
-                  <Select
-                    value={configs[event.key]?.assigned_to || 'none'}
-                    onValueChange={(value) => {
-                      const assignedTo = value === 'none' ? '' : value;
-                      setConfigs(prev => ({ ...prev, [event.key]: { assigned_to: assignedTo, is_active: !!assignedTo } }));
-                      saveAutomation(event.key, event.defaultTitle, assignedTo);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Ninguno</SelectItem>
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Asignar tarea a</Label>
+                    <Select
+                      value={configs[event.key]?.assigned_to || 'none'}
+                      onValueChange={(value) => {
+                        const assignedTo = value === 'none' ? '' : value;
+                        setConfigs(prev => ({ ...prev, [event.key]: { ...prev[event.key], assigned_to: assignedTo, is_active: !!assignedTo } }));
+                        saveAutomation(event.key, event.defaultTitle, assignedTo);
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Días de plazo</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={configs[event.key]?.due_days_offset ?? 3}
+                      onChange={(e) => {
+                        const days = Math.max(0, Math.min(365, Number(e.target.value) || 0));
+                        setConfigs(prev => ({ ...prev, [event.key]: { ...prev[event.key], due_days_offset: days } }));
+                      }}
+                      onBlur={() => {
+                        const config = configs[event.key];
+                        if (config?.assigned_to) {
+                          saveAutomation(event.key, event.defaultTitle, config.assigned_to, config.due_days_offset);
+                        }
+                      }}
+                      disabled={!configs[event.key]?.assigned_to}
+                    />
+                  </div>
                 </div>
               </div>
             ))}

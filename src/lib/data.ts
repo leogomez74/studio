@@ -234,6 +234,7 @@ export type Investor = {
   created_at?: string;
   active_investments_count?: number;
   investments?: Investment[];
+  payments?: InvestmentPayment[];
 };
 
 export type Opportunity = {

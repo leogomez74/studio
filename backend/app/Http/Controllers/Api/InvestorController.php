@@ -39,7 +39,7 @@ class InvestorController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'cedula' => 'nullable|string|max:20',
+            'cedula' => 'nullable|string|max:20|unique:investors,cedula',
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:20',
             'status' => 'in:Activo,Inactivo',
@@ -70,7 +70,7 @@ class InvestorController extends Controller
 
         $validated = $request->validate([
             'name' => 'string|max:255',
-            'cedula' => 'nullable|string|max:20',
+            'cedula' => "nullable|string|max:20|unique:investors,cedula,{$id}",
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:20',
             'status' => 'in:Activo,Inactivo',

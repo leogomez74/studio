@@ -34,7 +34,7 @@ export interface ManchaDetalle {
 export interface JuicioDetalle {
   id?: number;
   fecha_inicio: string;
-  estado?: 'activo' | 'cerrado';
+  estado?: 'En Trámite' | 'Finalizado';
   expediente?: string;
   monto?: number;
 }

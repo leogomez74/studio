@@ -61,7 +61,7 @@ class StoreAnalisisRequest extends FormRequest
             // Juicios detalle
             'juicios_detalle' => 'nullable|array|max:50',
             'juicios_detalle.*.fecha_inicio' => 'required|date',
-            'juicios_detalle.*.estado' => 'nullable|string|in:activo,cerrado',
+            'juicios_detalle.*.estado' => 'nullable|string|in:En Trámite,Finalizado',
             'juicios_detalle.*.expediente' => 'nullable|string|max:100',
             'juicios_detalle.*.monto' => 'nullable|numeric|min:0|max:999999999.99',
             // Embargos detalle

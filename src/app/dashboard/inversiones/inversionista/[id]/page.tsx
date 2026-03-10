@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MoreHorizontal, FileText, FileSpreadsheet, Loader2, PlusCircle } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, FileText, FileSpreadsheet, Loader2, PlusCircle, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +12,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ProtectedPage } from '@/components/ProtectedPage';
 import api from '@/lib/axios';
-import type { Investor, Investment } from '@/lib/data';
+import { toastError } from '@/hooks/use-toast';
+import type { Investor, Investment, InvestmentPayment } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { downloadExport } from '@/lib/download-export';
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
@@ -38,8 +39,8 @@ export default function InvestorDetailPage() {
       ]);
       setInvestor(res.data);
       setAllInvestors(invRes.data);
-    } catch (err) {
-      console.error('Error fetching investor:', err);
+    } catch {
+      toastError('Error al cargar los datos del inversionista.');
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ export default function InvestorDetailPage() {
     try {
       await api.delete(`/api/investments/${id}`);
       fetchInvestor();
-    } catch (err) { console.error(err); }
+    } catch (err: any) { toastError(err?.response?.data?.message || 'Error al eliminar la inversión.'); }
   };
 
   if (loading) {
@@ -98,10 +99,10 @@ export default function InvestorDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/pdf`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investors/${investor.id}/export/pdf`, `inversionista-${investor.name}.pdf`)}>
             <FileText className="h-4 w-4 mr-1" /> PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/excel`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investors/${investor.id}/export/excel`, `inversionista-${investor.name}.xlsx`)}>
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
           </Button>
           <Button size="sm" className="gap-1" onClick={() => setShowForm(true)}>
@@ -142,29 +143,48 @@ export default function InvestorDetailPage() {
         )}
       </div>
 
-      {/* Active investments table */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Inversiones Activas</CardTitle>
-          <CardDescription>{activeInvestments.length} inversión(es) activa(s)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InvestmentsTable investments={activeInvestments} onDelete={handleDeleteInvestment} />
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="activas">
+        <TabsList className="mb-4">
+          <TabsTrigger value="activas">Inversiones Activas ({activeInvestments.length})</TabsTrigger>
+          {otherInvestments.length > 0 && (
+            <TabsTrigger value="otras">Otras Inversiones ({otherInvestments.length})</TabsTrigger>
+          )}
+          <TabsTrigger value="pagos">
+            <DollarSign className="h-4 w-4 mr-1" />
+            Historial de Pagos ({(investor.payments ?? []).length})
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Other investments */}
-      {otherInvestments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Otras Inversiones</CardTitle>
-            <CardDescription>Inversiones finalizadas o liquidadas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <InvestmentsTable investments={otherInvestments} onDelete={handleDeleteInvestment} />
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="activas">
+          <Card>
+            <CardHeader>
+              <CardTitle>Inversiones Activas</CardTitle>
+              <CardDescription>{activeInvestments.length} inversión(es) activa(s)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <InvestmentsTable investments={activeInvestments} onDelete={handleDeleteInvestment} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {otherInvestments.length > 0 && (
+          <TabsContent value="otras">
+            <Card>
+              <CardHeader>
+                <CardTitle>Otras Inversiones</CardTitle>
+                <CardDescription>Inversiones finalizadas, liquidadas o canceladas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <InvestmentsTable investments={otherInvestments} onDelete={handleDeleteInvestment} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        <TabsContent value="pagos">
+          <PaymentsTable payments={(investor.payments ?? []) as InvestmentPayment[]} />
+        </TabsContent>
+      </Tabs>
 
       <InvestmentFormDialog
         open={showForm}
@@ -175,6 +195,64 @@ export default function InvestorDetailPage() {
         onSuccess={fetchInvestor}
       />
     </ProtectedPage>
+  );
+}
+
+function PaymentsTable({ payments }: { payments: InvestmentPayment[] }) {
+  if (payments.length === 0) {
+    return <Card><CardContent className="py-12 text-center text-muted-foreground">Sin pagos registrados.</CardContent></Card>;
+  }
+
+  const totalCRC = payments.filter(p => p.moneda === 'CRC').reduce((s, p) => s + Number(p.monto), 0);
+  const totalUSD = payments.filter(p => p.moneda === 'USD').reduce((s, p) => s + Number(p.monto), 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Historial de Pagos</CardTitle>
+        <CardDescription>
+          {payments.length} pago(s) registrado(s)
+          {totalCRC > 0 && <span className="ml-2 font-mono">{fmt(totalCRC, 'CRC')}</span>}
+          {totalUSD > 0 && <span className="ml-2 font-mono">{fmt(totalUSD, 'USD')}</span>}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Inversión</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Monto</TableHead>
+                <TableHead>Moneda</TableHead>
+                <TableHead>Registrado por</TableHead>
+                <TableHead>Comentarios</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payments.sort((a, b) => new Date(b.fecha_pago).getTime() - new Date(a.fecha_pago).getTime()).map(p => (
+                <TableRow key={p.id}>
+                  <TableCell>{new Date(p.fecha_pago).toLocaleDateString('es-CR')}</TableCell>
+                  <TableCell>
+                    {p.investment_id ? (
+                      <Link href={`/dashboard/inversiones/${p.investment_id}`} className="font-medium hover:underline">
+                        {p.investment?.numero_desembolso ?? `#${p.investment_id}`}
+                      </Link>
+                    ) : '—'}
+                  </TableCell>
+                  <TableCell><Badge variant="outline">{p.tipo}</Badge></TableCell>
+                  <TableCell className="text-right font-mono font-semibold">{fmt(Number(p.monto), p.moneda)}</TableCell>
+                  <TableCell>{p.moneda}</TableCell>
+                  <TableCell>{p.registered_by_user?.name ?? '—'}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{p.comentarios ?? '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -229,7 +307,7 @@ function InvestmentsTable({ investments, onDelete }: { investments: Investment[]
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                   <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${inv.id}`}>Ver Detalles</Link></DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${inv.id}/export/pdf`, `inversion-${inv.numero_desembolso ?? inv.id}.pdf`)}>Exportar PDF</DropdownMenuItem>
                   <DropdownMenuItem className="text-destructive" onClick={() => onDelete(inv.id)}>Eliminar</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

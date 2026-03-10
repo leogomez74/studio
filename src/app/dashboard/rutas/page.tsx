@@ -826,17 +826,6 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
     }
   };
 
-  const handleIniciar = async (id: number) => {
-    try {
-      await api.patch(`/api/rutas-diarias/${id}/iniciar`);
-      toast({ title: "Ruta iniciada" });
-      fetchRutas();
-      if (selectedRuta?.id === id) fetchRutaDetail(id);
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
-    }
-  };
-
   const handleCancelarRuta = async () => {
     if (!selectedRuta) return;
     setActionLoading(true);
@@ -912,12 +901,6 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
                   <Button size="sm" onClick={() => handleConfirmar(selectedRuta.id)}>
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     Confirmar Ruta
-                  </Button>
-                )}
-                {selectedRuta.status === "confirmada" && (
-                  <Button size="sm" onClick={() => handleIniciar(selectedRuta.id)}>
-                    <Play className="h-4 w-4 mr-1" />
-                    Iniciar Ruta
                   </Button>
                 )}
                 <div className="ml-auto flex items-center gap-3">

@@ -261,6 +261,10 @@ class InvestmentService
 
     public function liquidateEarly(Investment $investment): Investment
     {
+        if ($investment->estado !== 'Activa') {
+            abort(422, 'Solo se pueden liquidar inversiones activas.');
+        }
+
         DB::transaction(function () use ($investment) {
             // Mark remaining coupons as paid (Pendiente y Reservado)
             $investment->coupons()
@@ -275,6 +279,15 @@ class InvestmentService
 
     public function renewInvestment(Investment $investment, array $newTerms): Investment
     {
+        if (!in_array($investment->estado, ['Activa', 'Finalizada'])) {
+            abort(422, 'Solo se pueden renovar inversiones activas o finalizadas.');
+        }
+
+        $hasPendingCoupons = $investment->coupons()->where('estado', 'Pendiente')->exists();
+        if ($hasPendingCoupons) {
+            abort(422, 'No se puede renovar una inversión con cupones pendientes de pago.');
+        }
+
         return DB::transaction(function () use ($investment, $newTerms) {
             // Finalize old investment as Renovada
             $investment->update(['estado' => 'Renovada']);
@@ -545,7 +558,13 @@ class InvestmentService
 
     public function getTablaGeneral(): array
     {
-        $investments = Investment::with('investor:id,name')->where('estado', 'Activa')->get();
+        $today = Carbon::today();
+        $investments = Investment::with('investor:id,name')
+            ->withCount(['coupons as overdue_coupons_count' => function ($q) use ($today) {
+                $q->where('estado', 'Pendiente')->where('fecha_cupon', '<', $today);
+            }])
+            ->where('estado', 'Activa')
+            ->get();
 
         $dolares = $investments->where('moneda', 'USD')->values();
         $colones = $investments->where('moneda', 'CRC')->values();

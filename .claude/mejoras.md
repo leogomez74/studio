@@ -23,6 +23,18 @@
 | Mar 2026 | **149 `as any` → 0** en 13 archivos frontend. Tipos extendidos en `data.ts`, interfaces locales actualizadas, jsPDF tipado con `unknown` cast |
 | Mar 2026 | 9 `Log::error/warning` mejorados con contexto (IDs, trace, datos relevantes) en 7 archivos backend |
 | Mar 2026 | Notificaciones de tareas vencidas: badge rojo en sidebar + pestaña "Tareas" en popover de notificaciones del header |
+| Mar 2026 | Módulo Inversiones — Auditoría completa: 3 mejoras implementadas (ver detalle abajo) |
+| Mar 2026 | Módulo Inversiones — Fase 2: O5, O6, O7, O8, O9, O10 implementados (ver detalle abajo) |
+| Mar 2026 | TareasTab extraído a `src/components/TareasTab.tsx`: 5 implementaciones inline → 1 componente reutilizable (-2,126 líneas en leads, oportunidades, analisis, creditos, clientes) |
+| Mar 2026 | Integración API Credid: backend service + controller + endpoint, auto-consulta al crear análisis (wizard pre-llena paso 3 + cargo/nombramiento), botón manual en detalle para re-consultar |
+| Mar 2026 | Wizard análisis reordenado: Paso 1=Historial Crediticio (Credid), Paso 2=Info Básica, Paso 3=Ingresos, Paso 4=Documentos |
+| Mar 2026 | Estados de juicios normalizados: `En Trámite` / `Finalizado` en backend (CredidService, validaciones) y frontend (tipos, wizard, badges) |
+| Mar 2026 | Fix producción Credid: `$response->json()` retornaba string → fallback con `json_decode` + validación de tipo en `CredidService` |
+| Mar 2026 | `due_date` configurable en automatizaciones: campo `due_days_offset` en `task_automations` (default 3 días). Actualizado en 7 puntos de creación (6 controllers + 1 command). UI con input numérico en Configuración > Tareas Automáticas |
+| Mar 2026 | Detalle de tarea (`tareas/[id]/page.tsx`): Timeline real desde `activity_logs` con diffs visuales, archivos adjuntos (upload/download/delete con `task_documents`), campos editables (título, descripción, prioridad, asignado, fechas). Backend: modelo `TaskDocument`, migración, 4 endpoints nuevos |
+| Mar 2026 | Seguridad tareas: `/api/task-automations` protegido con middleware `admin`. Índices BD en `tasks` (`assigned_to`, `status`, `due_date`) para rendimiento |
+| Mar 2026 | Permisos granulares en tareas: middleware `permission:tareas,{action}` en 7 rutas (create, edit, delete, archive, restore, upload doc, delete doc). Lectura y view sin restricción adicional |
+| Mar 2026 | `project_code` estandarizado: formato `{MODULO}-{ID}` (LEAD, OPP, ANA, CRED, CLIENT). 6 controllers + 1 command + migración de datos existentes. Frontend con `parseProjectCode()` y links automáticos por módulo |
 
 ## Pendiente — Media prioridad
 
@@ -45,6 +57,33 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 
 ### ~~8. Log de errores en backend~~ ✅ Resuelto (Mar 2026)
 9 logs sin contexto corregidos. Todos los `Log::error/warning/critical` ahora incluyen IDs relevantes, `getMessage()` y `getTraceAsString()`.
+
+## Auditoría Módulo Inversiones (Mar 2026)
+
+### ✅ Implementado en esta sesión
+- **O2**: Calculadora de interés diario ahora usa convención Actual/Actual — detecta si el período incluye 29-Feb y usa base 366 en años bisiestos. UI muestra "base 366 (bisiesto)" cuando aplica. `inversiones/[id]/page.tsx`
+- **O3**: Indicador visual de mora en Tabla General — backend `InvestmentService@getTablaGeneral` agrega `overdue_coupons_count` vía `withCount`. Frontend colorea la fila rojo claro y muestra ícono ⚠️ con tooltip si hay cupones atrasados. `page.tsx` + `InvestmentService.php`
+- **O4**: Sección Pagos Próximos — banner rojo al tope si hay meses con cupones atrasados (muestra cantidad y montos totales); separador visual "PRÓXIMOS PAGOS" entre la sección de atrasados y futuros. `page.tsx`
+
+### ✅ Implementado en Fase 2 (Mar 2026)
+- **O5**: Banner de alerta en dashboard si hay inversiones vencidas o que vencen en ≤30 días. `vencimientos` se carga en el `useEffect` inicial. Banner sobre los Tabs con botón "Ver vencimientos →". `page.tsx`
+- **O6**: Filtros avanzados en TablaGeneralSection — se añadieron filtros por moneda (CRC/USD) y rango de tasa (min/max %). `page.tsx`
+- **O7**: Botón "Editar" en menú dropdown de `InvestorTableRow`. `InvestorFormDialog` pasa `investor={editingInvestor}` para modo edición. `page.tsx`
+- **O8**: Tab "Historial de Pagos" en detalle del inversionista (`inversionista/[id]/page.tsx`). Página reestructurada con Tabs: Activas / Otras / Historial de Pagos. Nuevo componente `PaymentsTable`. Se agregó `payments?: InvestmentPayment[]` al tipo `Investor` en `data.ts`.
+- **O9**: `InvestmentService@renewInvestment` valida que la inversión sea Activa/Finalizada y que no tenga cupones Pendientes antes de renovar. Aborta con 422 si falla. `InvestmentService.php`
+- **O10**: Mensaje en `cancelacionTotal()` corregido de "Solo se pueden finalizar..." a "Solo se pueden realizar abonos totales...". `InvestmentController.php`
+
+### ✅ Implementado en Fase 3 — Seguridad y Calidad (Mar 2026)
+- **S1**: Rutas export movidas a grupo `auth:sanctum` en `api.php`. Helper `downloadExport()` en `src/lib/download-export.ts` reemplaza todos los `window.open()` de exports de inversiones.
+- **S3**: `markPaid` verifica estado=Activa antes de pagar. `markBulkPaid` filtra con `whereHas(investment, estado=Activa)`. `InvestmentCouponController.php`
+- **S4**: `unique:investors,cedula` en store; `unique:investors,cedula,{id}` en update. `InvestorController.php`
+- **S5**: Ya estaba correcto — `registered_by => required|exists:users,id` ya existía.
+- **S6**: `liquidateEarly()` aborta 422 si no está Activa. `InvestmentService.php`
+- **S7**: `console.error` silenciosos reemplazados por `toastError()` en fetch functions de los 3 archivos. Cargas opcionales de fondo (vencimientos, tipoCambio) permanecen silenciosas.
+
+### 🔲 Pendiente (del plan de auditoría)
+- **O1**: Capitalización — el negocio confirmó que capitalizar por interés neto está correcto. Sin cambio.
+- **S10**: Índice en `numero_desembolso` — nueva migration (baja prioridad)
 
 ## Estadísticas del proyecto
 - Backend PHP: 163 archivos

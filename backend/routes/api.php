@@ -52,16 +52,7 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10
 Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
 Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
 
-// --- Exports de Inversiones (se abren en nueva pestaña del navegador, sin auth header) ---
-Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
-Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
-Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
-Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
-Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
-Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
-Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
-Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
-Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
+// (exports de inversiones movidos a grupo auth:sanctum — ver abajo)
 
 // --- Registro público de leads (formulario compartido en redes) ---
 Route::post('/leads', [LeadController::class, 'store']);
@@ -124,12 +115,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Tareas ---
     Route::get('/tareas/overdue-count', [TaskController::class, 'overdueCount']);
     Route::get('/tareas', [TaskController::class, 'index']);
-    Route::post('/tareas', [TaskController::class, 'store']);
+    Route::post('/tareas', [TaskController::class, 'store'])->middleware('permission:tareas,create');
     Route::get('/tareas/{task}', [TaskController::class, 'show']);
-    Route::put('/tareas/{task}', [TaskController::class, 'update']);
-    Route::delete('/tareas/{task}', [TaskController::class, 'destroy']);
-    Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive']);
-    Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore']);
+    Route::put('/tareas/{task}', [TaskController::class, 'update'])->middleware('permission:tareas,edit');
+    Route::delete('/tareas/{task}', [TaskController::class, 'destroy'])->middleware('permission:tareas,delete');
+    Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive'])->middleware('permission:tareas,archive');
+    Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore'])->middleware('permission:tareas,edit');
+    Route::get('/tareas/{task}/timeline', [TaskController::class, 'timeline']);
+    Route::get('/tareas/{task}/documents', [TaskController::class, 'documents']);
+    Route::post('/tareas/{task}/documents', [TaskController::class, 'storeDocument'])->middleware('permission:tareas,edit');
+    Route::delete('/tareas/{task}/documents/{document}', [TaskController::class, 'destroyDocument'])->middleware('permission:tareas,delete');
 
     // --- Rutas (Mensajería / Logística) ---
     Route::apiResource('tareas-ruta', TareaRutaController::class);
@@ -147,8 +142,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware('admin');
 
     // --- Automatización de Tareas ---
-    Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index']);
-    Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert']);
+    Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
+    Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
 
     // --- Deductoras ---
     Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show', 'update']);
@@ -295,6 +290,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('investment-payments', InvestmentPaymentController::class)->only(['index', 'store', 'destroy']);
     Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
 
+    // --- Exports de Inversiones (protegidos con auth) ---
+    Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
+    Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
+    Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
+    Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
+    Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
+    Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
+    Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
+    Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
+    Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
+
     // --- Embargo ---
     Route::get('/embargo/personas', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'buscarPersonas']);
     Route::post('/calcular-embargo', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'calcular']);
@@ -306,6 +312,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/lead-alerts/count', [LeadAlertController::class, 'count']);
     Route::get('/lead-alerts', [LeadAlertController::class, 'index']);
     Route::patch('/lead-alerts/{id}/read', [LeadAlertController::class, 'markAsRead']);
+
+    // --- Credid (consulta externa) ---
+    Route::get('credid/status', [\App\Http\Controllers\Api\CredidController::class, 'status']);
+    Route::get('credid/reporte', [\App\Http\Controllers\Api\CredidController::class, 'reporte']);
 
     // --- Analisis ---
     Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);

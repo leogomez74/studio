@@ -35,14 +35,13 @@ import { toastSuccess, toastError } from '@/hooks/use-toast';
 import type { Investor, Investment, InvestmentPayment, User } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
 import { InvestorFormDialog } from '@/components/investor-form-dialog';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
+import { downloadExport } from '@/lib/download-export';
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
 
 // --- Inversionistas Table ---
-const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDelete }: { investor: Investor; onDelete: (id: number) => void }) {
+const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDelete, onEdit }: { investor: Investor; onDelete: (id: number) => void; onEdit: (investor: Investor) => void }) {
   return (
     <TableRow>
       <TableCell>
@@ -77,7 +76,8 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
             <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/inversionista/${investor.id}`}>Ver Inversiones</Link></DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEdit(investor)}>Editar</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => downloadExport(`/api/investors/${investor.id}/export/pdf`, `inversionista-${investor.id}.pdf`)}>Exportar PDF</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(investor.id)}>Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -119,7 +119,7 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
                 </Link>
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${investment.id}/export/pdf`, `inversion-${investment.numero_desembolso ?? investment.id}.pdf`)}>Exportar PDF</DropdownMenuItem>
             {isActive && (
               <DropdownMenuItem asChild className="text-destructive">
                 <Link href={`/dashboard/inversiones/${investment.id}?action=cancel`}>
@@ -139,6 +139,9 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
 function TablaGeneralSection({ data }: { data: any }) {
   const [search, setSearch] = useState('');
   const [formaPagoFilter, setFormaPagoFilter] = useState('');
+  const [monedaFilter, setMonedaFilter] = useState('');
+  const [tasaMin, setTasaMin] = useState('');
+  const [tasaMax, setTasaMax] = useState('');
 
   if (!data) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
@@ -146,10 +149,13 @@ function TablaGeneralSection({ data }: { data: any }) {
     inversiones.filter((inv: any) => {
       if (search && !(inv.investor?.name ?? '').toLowerCase().includes(search.toLowerCase()) && !(inv.numero_desembolso ?? '').toLowerCase().includes(search.toLowerCase())) return false;
       if (formaPagoFilter && inv.forma_pago !== formaPagoFilter) return false;
+      if (tasaMin && Number(inv.tasa_anual) * 100 < Number(tasaMin)) return false;
+      if (tasaMax && Number(inv.tasa_anual) * 100 > Number(tasaMax)) return false;
       return true;
     });
 
   const renderSection = (title: string, section: any, currency: 'CRC' | 'USD') => {
+    if (monedaFilter && monedaFilter !== currency) return null;
     const filtered = filterInversiones(section.inversiones);
     return (
     <div className="mb-6">
@@ -173,11 +179,18 @@ function TablaGeneralSection({ data }: { data: any }) {
         </TableHeader>
         <TableBody>
           {filtered.map((inv: any) => (
-            <TableRow key={inv.id}>
+            <TableRow key={inv.id} className={inv.overdue_coupons_count > 0 ? 'bg-destructive/5' : ''}>
               <TableCell>
-                <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">
-                  {inv.numero_desembolso}
-                </Link>
+                <div className="flex items-center gap-1.5">
+                  <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">
+                    {inv.numero_desembolso}
+                  </Link>
+                  {inv.overdue_coupons_count > 0 && (
+                    <span title={`${inv.overdue_coupons_count} cupón(es) atrasado(s)`}>
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                    </span>
+                  )}
+                </div>
               </TableCell>
               <TableCell>
                 <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">
@@ -228,6 +241,19 @@ function TablaGeneralSection({ data }: { data: any }) {
             {formasPago.map(fp => <SelectItem key={fp} value={fp}>{fp}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={monedaFilter} onValueChange={v => setMonedaFilter(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="USD">USD</SelectItem>
+            <SelectItem value="CRC">CRC</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1.5">
+          <Input placeholder="Tasa min %" value={tasaMin} onChange={e => setTasaMin(e.target.value)} className="w-24 h-9" type="number" min="0" max="100" step="0.01" />
+          <span className="text-muted-foreground text-sm">–</span>
+          <Input placeholder="Tasa max %" value={tasaMax} onChange={e => setTasaMax(e.target.value)} className="w-24 h-9" type="number" min="0" max="100" step="0.01" />
+        </div>
       </div>
       {renderSection('DÓLARES (USD)', data.dolares, 'USD')}
       {renderSection('COLONES (CRC)', data.colones, 'CRC')}
@@ -451,11 +477,36 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         )}
       </div>
 
+      {/* Banner de cupones atrasados */}
+      {(() => {
+        const now = new Date();
+        const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const atrasados = meses.filter((m: any) => m.mes < currentYM);
+        if (atrasados.length === 0) return null;
+        const totalCupones = atrasados.reduce((s: number, m: any) => s + m.resumen.total_cupones, 0);
+        const totalCrc = atrasados.reduce((s: number, m: any) => s + m.resumen.crc.interes_neto, 0);
+        const totalUsd = atrasados.reduce((s: number, m: any) => s + m.resumen.usd.interes_neto, 0);
+        return (
+          <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-bold text-destructive">{atrasados.length} mes(es) con cupones atrasados — {totalCupones} cupón(es) sin pagar</p>
+              <div className="flex flex-wrap gap-4 mt-1 text-sm">
+                {totalCrc > 0 && <span className="font-mono text-destructive">{fmt(totalCrc, 'CRC')}</span>}
+                {totalUsd > 0 && <span className="font-mono text-destructive">{fmt(totalUsd, 'USD')}</span>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Monthly sections */}
       {meses.map((mes: any, idx: number) => {
         const now = new Date();
         const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const isOverdue = mes.mes < currentYM;
+        const prevIsOverdue = idx > 0 && meses[idx - 1].mes < currentYM;
+        const isFirstProximo = idx > 0 && prevIsOverdue && !isOverdue;
         const filteredCupones = search
           ? mes.cupones.filter((c: any) => {
               const inv = c.investment;
@@ -474,7 +525,17 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         const paginatedCupones = filteredCupones.slice((currentPage - 1) * CUPONES_PER_PAGE, currentPage * CUPONES_PER_PAGE);
 
         return (
-        <Collapsible key={mes.mes} defaultOpen={idx === 0 || isOverdue}>
+        <React.Fragment key={mes.mes}>
+          {isFirstProximo && (
+            <div className="flex items-center gap-3 my-3">
+              <div className="flex-1 border-t border-border" />
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide px-3 flex items-center gap-1.5">
+                <CalendarClock className="h-4 w-4" /> Próximos pagos
+              </span>
+              <div className="flex-1 border-t border-border" />
+            </div>
+          )}
+        <Collapsible defaultOpen={idx === 0 || isOverdue}>
           <CollapsibleTrigger asChild>
             <button className={`w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity ${isOverdue ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}>
               {isOverdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CalendarClock className="h-5 w-5 shrink-0" />}
@@ -595,6 +656,7 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
             )}
           </CollapsibleContent>
         </Collapsible>
+        </React.Fragment>
         );
       })}
 
@@ -911,6 +973,7 @@ export default function InversionesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [showInvestorForm, setShowInvestorForm] = useState(false);
+  const [editingInvestor, setEditingInvestor] = useState<Investor | null>(null);
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [investorSearch, setInvestorSearch] = useState('');
   const [filters, setFilters] = useState({ investor_id: '', moneda: '', estado: '' });
@@ -944,8 +1007,8 @@ export default function InversionesPage() {
         const usersRes = await api.get('/api/users?all=true');
         setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.data ?? []);
       } catch { /* usuario sin acceso admin — lista de usuarios vacía */ }
-    } catch (err) {
-      console.error('Error fetching data:', err);
+    } catch {
+      toastError('Error al cargar los datos de inversiones. Recarga la página.');
     } finally {
       setLoading(false);
     }
@@ -955,8 +1018,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/tabla-general');
       setTablaGeneral(res.data);
-    } catch (err) {
-      console.error('Error fetching tabla general:', err);
+    } catch {
+      toastError('Error al cargar la tabla general de inversiones.');
     }
   }, []);
 
@@ -964,8 +1027,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/pagos-proximos');
       setPagosProximos(res.data);
-    } catch (err) {
-      console.error('Error fetching pagos proximos:', err);
+    } catch {
+      toastError('Error al cargar los pagos próximos.');
     }
   }, []);
 
@@ -973,8 +1036,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/reservas');
       setReservas(res.data);
-    } catch (err) {
-      console.error('Error fetching reservas:', err);
+    } catch {
+      toastError('Error al cargar las reservas de capital.');
     }
   }, []);
 
@@ -982,8 +1045,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/vencimientos');
       setVencimientos(res.data);
-    } catch (err) {
-      console.error('Error fetching vencimientos:', err);
+    } catch {
+      // No toast — se carga en background al inicio
     }
   }, []);
 
@@ -992,8 +1055,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/pagadas');
       setPagadas(res.data);
-    } catch (err) {
-      console.error('Error fetching pagadas:', err);
+    } catch {
+      toastError('Error al cargar las inversiones pagadas.');
     } finally {
       setPagadasLoading(false);
     }
@@ -1003,8 +1066,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/exchange-rates/current');
       setTipoCambio(res.data);
-    } catch (err) {
-      console.error('Error fetching tipo de cambio:', err);
+    } catch {
+      // No toast — tipo de cambio es opcional
     }
   }, []);
 
@@ -1021,7 +1084,7 @@ export default function InversionesPage() {
     }
   };
 
-  useEffect(() => { fetchData(); fetchTipoCambio(); }, [fetchData, fetchTipoCambio]);
+  useEffect(() => { fetchData(); fetchTipoCambio(); fetchVencimientos(); }, [fetchData, fetchTipoCambio, fetchVencimientos]);
 
   const handleDeleteInvestor = async (id: number) => {
     if (!confirm('¿Eliminar este inversionista y todas sus inversiones?')) return;
@@ -1152,7 +1215,35 @@ export default function InversionesPage() {
         </Card>
       )}
 
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
+      {/* Alertas de vencimientos */}
+      {(vencimientos?.vencidas?.length > 0 || vencimientos?.['0_30']?.length > 0) && (
+        <div className="mb-4 space-y-2">
+          {vencimientos.vencidas?.length > 0 && (
+            <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-3 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+              <p className="text-sm font-semibold text-destructive">
+                {vencimientos.vencidas.length} inversión(es) vencida(s) sin renovar o liquidar.
+              </p>
+              <Button variant="link" size="sm" className="ml-auto text-destructive p-0 h-auto" onClick={() => setActiveTab('vencimientos')}>
+                Ver vencimientos →
+              </Button>
+            </div>
+          )}
+          {vencimientos['0_30']?.length > 0 && (
+            <div className="rounded-lg border border-orange-400 bg-orange-50 dark:bg-orange-950/20 p-3 flex items-center gap-3">
+              <Clock className="h-5 w-5 text-orange-600 shrink-0" />
+              <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                {vencimientos['0_30'].length} inversión(es) vence(n) en los próximos 30 días.
+              </p>
+              <Button variant="link" size="sm" className="ml-auto text-orange-600 p-0 h-auto" onClick={() => setActiveTab('vencimientos')}>
+                Ver vencimientos →
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
@@ -1208,7 +1299,7 @@ export default function InversionesPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredInvestors.map(investor => (
-                    <InvestorTableRow key={investor.id} investor={investor} onDelete={handleDeleteInvestor} />
+                    <InvestorTableRow key={investor.id} investor={investor} onDelete={handleDeleteInvestor} onEdit={(inv) => { setEditingInvestor(inv); setShowInvestorForm(true); }} />
                   ))}
                 </TableBody>
               </Table>
@@ -1227,10 +1318,10 @@ export default function InversionesPage() {
                   <CardDescription>Gestiona todas las inversiones de capital.</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-pdf`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-pdf', 'tabla-general.pdf')}>
                     <FileText className="h-4 w-4 mr-1" /> PDF
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-excel`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-excel', 'tabla-general.xlsx')}>
                     <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
                   </Button>
                 </div>
@@ -1301,10 +1392,10 @@ export default function InversionesPage() {
                   <CardDescription>Resumen agrupado por moneda con totales.</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-pdf`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-pdf', 'tabla-general.pdf')}>
                     <FileText className="h-4 w-4 mr-1" /> PDF
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-excel`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-excel', 'tabla-general.xlsx')}>
                     <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
                   </Button>
                 </div>
@@ -1452,10 +1543,10 @@ export default function InversionesPage() {
                   <CardDescription>Retenciones aplicadas a los cupones de intereses.</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/retenciones-pdf`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/retenciones-pdf', 'retenciones.pdf')}>
                     <FileText className="h-4 w-4 mr-1" /> PDF
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/retenciones-excel`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/retenciones-excel', 'retenciones.xlsx')}>
                     <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
                   </Button>
                 </div>
@@ -1566,8 +1657,8 @@ export default function InversionesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${inv.id}`}>Ver Detalle</Link></DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/estado-cuenta?lang=es`, '_blank')}>Estado de Cuenta (ES)</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/estado-cuenta?lang=en`, '_blank')}>Account Statement (EN)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${inv.id}/export/estado-cuenta?lang=es`, `estado-cuenta-${inv.numero_desembolso ?? inv.id}-es.pdf`)}>Estado de Cuenta (ES)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${inv.id}/export/estado-cuenta?lang=en`, `estado-cuenta-${inv.numero_desembolso ?? inv.id}-en.pdf`)}>Account Statement (EN)</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -1595,7 +1686,8 @@ export default function InversionesPage() {
 
       <InvestorFormDialog
         open={showInvestorForm}
-        onOpenChange={setShowInvestorForm}
+        onOpenChange={(open) => { setShowInvestorForm(open); if (!open) setEditingInvestor(null); }}
+        investor={editingInvestor}
         onSuccess={fetchData}
       />
 
