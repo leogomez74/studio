@@ -53,5 +53,12 @@ class Task extends Model
                 $task->archived_at = null;
             }
         });
+
+        static::created(function (Task $task) {
+            if (!$task->reference) {
+                $task->reference = 'TA-' . str_pad($task->id, 4, '0', STR_PAD_LEFT);
+                $task->saveQuietly();
+            }
+        });
     }
 }
