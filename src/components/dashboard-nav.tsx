@@ -28,6 +28,7 @@ import {
   GraduationCap,
   Trophy,
   BarChart3,
+  BarChart2,
   ShieldCheck,
   BookOpen,
 } from 'lucide-react';
@@ -41,7 +42,7 @@ const navGroups = [
   {
     label: 'General',
     items: [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Reportes', module: 'reportes' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', module: 'dashboard' },
       { href: '/dashboard/kpis', icon: BarChart3, label: 'KPIs', module: 'kpis' },
     ],
   },
@@ -62,6 +63,7 @@ const navGroups = [
       { href: '/dashboard/cobro-judicial', icon: Gavel, label: 'Cobro Judicial', module: 'cobro_judicial', badge: 'Próximamente' },
       { href: '/dashboard/ventas', icon: DollarSign, label: 'Ventas', module: 'ventas' },
       { href: '/dashboard/inversiones', icon: PiggyBank, label: 'Inversiones', module: 'inversiones' },
+      { href: '/dashboard/reportes', icon: BarChart2, label: 'Reportes', module: 'reportes' },
     ],
   },
   {
@@ -101,7 +103,7 @@ export function DashboardNav() {
       {navGroups.map((group) => {
         // Filter items based on permissions (bypass for tareas during testing)
         const visibleItems = group.items.filter((item) =>
-          item.module === 'tareas' ? true : canViewModule(item.module)
+          item.module === 'tareas' || item.module === 'dashboard' ? true : canViewModule(item.module)
         );
 
         // Only render group if it has visible items

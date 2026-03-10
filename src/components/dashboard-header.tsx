@@ -96,11 +96,17 @@ const ENTITY_COLORS: Record<string, string> = {
 
 function Breadcrumbs() {
   const pathname = usePathname();
-  const segments = pathname.split('/').filter(Boolean);
+  const allSegments = pathname.split('/').filter(Boolean);
+  // Leads y clientes comparten ruta unificada /dashboard/clientes
+  const mappedSegments = allSegments.map(s => s === 'leads' ? 'clientes' : s);
+  // Omitir 'dashboard' del breadcrumb — el ícono Home ya enlaza al dashboard
+  const visibleSegments = allSegments
+    .map((segment, originalIndex) => ({ segment, originalIndex }))
+    .filter(({ segment }) => segment !== 'dashboard');
 
   return (
     <nav className="hidden items-center gap-2 text-sm font-medium md:flex">
-      {segments.length > 0 && (
+      {allSegments.length > 0 && (
         <Link
           href="/dashboard"
           className="text-muted-foreground transition-colors hover:text-foreground"
@@ -108,11 +114,9 @@ function Breadcrumbs() {
           <Home className="h-4 w-4" />
         </Link>
       )}
-      {segments.map((segment, index) => {
-        // Leads y clientes comparten ruta unificada /dashboard/clientes
-        const mappedSegments = segments.map(s => s === 'leads' ? 'clientes' : s);
-        const href = '/' + mappedSegments.slice(0, index + 1).join('/');
-        const isLast = index === segments.length - 1;
+      {visibleSegments.map(({ segment, originalIndex }, index) => {
+        const href = '/' + mappedSegments.slice(0, originalIndex + 1).join('/');
+        const isLast = index === visibleSegments.length - 1;
         const displaySegment = segment === 'leads' ? 'clientes' : segment;
         const segmentDisplay = decodeURIComponent(displaySegment).replace(/-/g, ' ');
 

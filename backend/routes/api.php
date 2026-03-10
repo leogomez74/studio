@@ -215,6 +215,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'index']);
     Route::post('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'store']);
 
+    // --- Reportes ---
+    Route::prefix('reportes')->group(function () {
+        Route::get('cartera',                   [\App\Http\Controllers\Api\ReporteController::class, 'cartera']);
+        Route::get('cartera/excel',             [\App\Http\Controllers\Api\ReporteController::class, 'carteraExcel']);
+        Route::get('cartera/pdf',               [\App\Http\Controllers\Api\ReporteController::class, 'carteraPdf']);
+        Route::get('cartera-mora',              [\App\Http\Controllers\Api\ReporteController::class, 'carteraMora']);
+        Route::get('cartera-mora/excel',        [\App\Http\Controllers\Api\ReporteController::class, 'carteraMoraExcel']);
+        Route::get('cartera-mora/pdf',          [\App\Http\Controllers\Api\ReporteController::class, 'carteraMoraPdf']);
+        Route::get('cartera-deductora',         [\App\Http\Controllers\Api\ReporteController::class, 'carteraDeductora']);
+        Route::get('cartera-deductora/excel',   [\App\Http\Controllers\Api\ReporteController::class, 'carteraDeductoraExcel']);
+        Route::get('novedades-planilla',        [\App\Http\Controllers\Api\ReporteController::class, 'novedadesPlanilla']);
+        Route::get('cobros',                    [\App\Http\Controllers\Api\ReporteController::class, 'cobros']);
+        Route::get('cobros/excel',              [\App\Http\Controllers\Api\ReporteController::class, 'cobrosExcel']);
+        Route::get('cobros/pdf',                [\App\Http\Controllers\Api\ReporteController::class, 'cobrosPdf']);
+        Route::get('inversiones',               [\App\Http\Controllers\Api\ReporteController::class, 'inversiones']);
+        Route::get('inversiones/excel',         [\App\Http\Controllers\Api\ReporteController::class, 'inversionesExcel']);
+    });
+
     // --- KPIs ---
     Route::prefix('kpis')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\KpiController::class, 'all']);

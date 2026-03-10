@@ -36,6 +36,7 @@
 | Mar 2026 | Permisos granulares en tareas: middleware `permission:tareas,{action}` en 7 rutas (create, edit, delete, archive, restore, upload doc, delete doc). Lectura y view sin restricción adicional |
 | Mar 2026 | `project_code` estandarizado: formato `{MODULO}-{ID}` (LEAD, OPP, ANA, CRED, CLIENT). 6 controllers + 1 command + migración de datos existentes. Frontend con `parseProjectCode()` y links automáticos por módulo |
 | Mar 2026 | Campo `reference` (TA-XXXX) en tabla `tasks`: auto-generado al crear, único, con índice. Búsqueda server-side por `?search=` (reference, title, project_code) |
+| Mar 2026 | Módulo Reportes completo: 6 tabs (Cartera Activa, Mora, Por Deductora, Novedades de Planilla, Cobros, Inversiones). Backend: `ReporteController` con 15 endpoints. Novedades de Planilla detecta inclusiones/exclusiones/cambios de cuota por deductora |
 | Mar 2026 | Subtareas/checklist en tareas: `task_checklist_items` + `task_automation_checklist_items` (plantillas). UI: checklist con barra de progreso en detalle, plantillas editables en Configuración > Tareas Automáticas. 8 controllers actualizados con `copyChecklistFromAutomation()` |
 
 ## Pendiente — Media prioridad
