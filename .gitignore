@@ -52,8 +52,5 @@ firestore-debug.log
 !public/certificado/*.jpg
 GEMINI.md
 
-.claude/*
-!.claude/MEMORY.md
-!.claude/auditoria.md
-!.claude/mejoras.md
-!.claude/accounting.md
+
+# .claude rules removed as requested
