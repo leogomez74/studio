@@ -8,6 +8,13 @@ import {
   Save,
   Loader2,
   AlertCircle,
+  Upload,
+  Trash2,
+  Download,
+  FileText,
+  Clock,
+  Edit2,
+  Plus,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -32,12 +39,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/axios";
+import { API_BASE_URL } from "@/lib/env";
+import { useAuth } from "@/components/auth-guard";
 import { CaseChat } from "@/components/case-chat";
 
 // --- Types ---
 
 type TaskStatus = "pendiente" | "en_progreso" | "completada" | "archivada" | "deleted";
 type TaskPriority = "alta" | "media" | "baja";
+
+interface Agent {
+  id: number;
+  name: string;
+  email: string;
+}
 
 interface TaskItem {
   id: number;
@@ -48,11 +63,7 @@ interface TaskItem {
   status: TaskStatus;
   priority: TaskPriority;
   assigned_to: number | null;
-  assignee: {
-    id: number;
-    name: string;
-    email: string;
-  } | null;
+  assignee: Agent | null;
   start_date: string | null;
   due_date: string | null;
   archived_at: string | null;
@@ -60,19 +71,37 @@ interface TaskItem {
   updated_at: string | null;
 }
 
+interface TimelineEntry {
+  id: number;
+  user_name: string;
+  action: string;
+  changes: { field: string; old_value: string | null; new_value: string | null }[] | null;
+  created_at: string;
+}
+
+interface TaskDoc {
+  id: number;
+  task_id: number;
+  uploaded_by: number | null;
+  name: string;
+  path: string;
+  url: string | null;
+  mime_type: string | null;
+  size: number | null;
+  notes: string | null;
+  created_at: string;
+  uploader: { id: number; name: string } | null;
+}
+
 // --- Helper Functions ---
 
-const formatTaskReference = (id: number): string => {
-  return `TA-${String(id).padStart(4, "0")}`;
-};
+const formatTaskReference = (id: number): string => `TA-${String(id).padStart(4, "0")}`;
 
 const isTaskOverdue = (task: TaskItem): boolean => {
   if (!task.due_date || task.status === "completada") return false;
-
   const dueDate = new Date(task.due_date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   return dueDate < today;
 };
 
@@ -85,8 +114,29 @@ const formatDate = (dateString: string | null): string => {
   });
 };
 
+const formatDateTime = (dateString: string): string => {
+  return new Date(dateString).toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const formatFileSize = (bytes: number | null): string => {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const toDateInput = (dateString: string | null): string => {
+  if (!dateString) return "";
+  return dateString.substring(0, 10);
+};
+
 const extractOpportunityId = (projectCode: string): number | null => {
-  // Pattern: "25-12345-0007-CO" -> extract 12345
   const match = projectCode.match(/-(\d+)-/);
   return match ? Number(match[1]) : null;
 };
@@ -119,12 +169,34 @@ const PRIORITY_VARIANTS: Record<TaskPriority, "destructive" | "default" | "secon
   baja: "secondary",
 };
 
+const ACTION_LABELS: Record<string, string> = {
+  create: "Creación",
+  update: "Actualización",
+  delete: "Eliminación",
+  upload: "Archivo subido",
+  archive: "Archivado",
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "Título",
+  details: "Descripción",
+  status: "Estado",
+  priority: "Prioridad",
+  assigned_to: "Asignado a",
+  start_date: "Fecha inicio",
+  due_date: "Fecha vencimiento",
+  documento: "Documento",
+  project_code: "Código proyecto",
+  project_name: "Nombre proyecto",
+};
+
 // --- Main Component ---
 
 export default function TaskDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { token } = useAuth();
   const taskId = params.id as string;
 
   const [task, setTask] = useState<TaskItem | null>(null);
@@ -132,9 +204,29 @@ export default function TaskDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Editable fields
+  const [editedTitle, setEditedTitle] = useState("");
   const [editedDetails, setEditedDetails] = useState("");
-  const [savingDetails, setSavingDetails] = useState(false);
+  const [editedPriority, setEditedPriority] = useState<TaskPriority>("media");
+  const [editedAssignedTo, setEditedAssignedTo] = useState("");
+  const [editedStartDate, setEditedStartDate] = useState("");
+  const [editedDueDate, setEditedDueDate] = useState("");
+  const [saving, setSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Users
+  const [users, setUsers] = useState<Agent[]>([]);
+
+  // Timeline
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
+  // Documents
+  const [documents, setDocuments] = useState<TaskDoc[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadName, setUploadName] = useState("");
+  const [uploadNotes, setUploadNotes] = useState("");
+  const [showUploadForm, setShowUploadForm] = useState(false);
 
   // Fetch task data
   const fetchTask = useCallback(async () => {
@@ -143,7 +235,12 @@ export default function TaskDetailPage() {
       const res = await api.get(`/api/tareas/${taskId}`);
       const data = res.data as TaskItem;
       setTask(data);
+      setEditedTitle(data.title);
       setEditedDetails(data.details || "");
+      setEditedPriority(data.priority);
+      setEditedAssignedTo(data.assigned_to ? String(data.assigned_to) : "");
+      setEditedStartDate(toDateInput(data.start_date));
+      setEditedDueDate(toDateInput(data.due_date));
     } catch (err) {
       console.error("Error fetching task:", err);
       setError("No se pudo cargar la tarea.");
@@ -152,70 +249,149 @@ export default function TaskDetailPage() {
     }
   }, [taskId]);
 
-  useEffect(() => {
-    if (taskId) {
-      fetchTask();
-    }
-  }, [taskId, fetchTask]);
-
-  // Save task details
-  const handleSaveDetails = async () => {
-    if (!task) return;
-
+  const fetchUsers = useCallback(async () => {
     try {
-      setSavingDetails(true);
-      await api.put(`/api/tareas/${task.id}`, {
-        details: editedDetails,
+      const res = await fetch(`${API_BASE_URL}/users`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
-
-      setTask((prev) => prev ? { ...prev, details: editedDetails } : null);
-
-      toast({
-        title: "Guardado",
-        description: "Los detalles de la tarea se guardaron correctamente.",
-      });
+      if (res.ok) setUsers(await res.json());
     } catch (err) {
-      console.error("Error saving details:", err);
-      toast({
-        title: "Error",
-        description: "No se pudieron guardar los detalles.",
-        variant: "destructive",
-      });
+      console.error("Error fetching users:", err);
+    }
+  }, [token]);
+
+  const fetchTimeline = useCallback(async () => {
+    try {
+      setTimelineLoading(true);
+      const res = await api.get(`/api/tareas/${taskId}/timeline`);
+      setTimeline(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Error fetching timeline:", err);
     } finally {
-      setSavingDetails(false);
+      setTimelineLoading(false);
+    }
+  }, [taskId]);
+
+  const fetchDocuments = useCallback(async () => {
+    try {
+      setDocsLoading(true);
+      const res = await api.get(`/api/tareas/${taskId}/documents`);
+      setDocuments(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Error fetching documents:", err);
+    } finally {
+      setDocsLoading(false);
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    if (taskId && token) {
+      fetchTask();
+      fetchUsers();
+      fetchTimeline();
+      fetchDocuments();
+    }
+  }, [taskId, token, fetchTask, fetchUsers, fetchTimeline, fetchDocuments]);
+
+  // Save all editable fields
+  const handleSave = async () => {
+    if (!task) return;
+    try {
+      setSaving(true);
+      const payload: Record<string, unknown> = {
+        title: editedTitle,
+        details: editedDetails,
+        priority: editedPriority,
+        assigned_to: editedAssignedTo ? Number(editedAssignedTo) : null,
+        start_date: editedStartDate || null,
+        due_date: editedDueDate || null,
+      };
+      const res = await api.put(`/api/tareas/${task.id}`, payload);
+      setTask(res.data as TaskItem);
+      toast({ title: "Guardado", description: "La tarea se actualizó correctamente." });
+      fetchTimeline();
+    } catch (err) {
+      console.error("Error saving task:", err);
+      toast({ title: "Error", description: "No se pudo guardar la tarea.", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   };
 
   // Quick status update
   const handleStatusChange = async (newStatus: TaskStatus) => {
     if (!task) return;
-
     const previousStatus = task.status;
-
     try {
       setUpdatingStatus(true);
-      setTask((prev) => prev ? { ...prev, status: newStatus } : null);
-
-      await api.put(`/api/tareas/${task.id}`, {
-        status: newStatus,
-      });
-
-      toast({
-        title: "Estado actualizado",
-        description: `La tarea ahora está ${STATUS_LABELS[newStatus].toLowerCase()}.`,
-      });
+      setTask((prev) => (prev ? { ...prev, status: newStatus } : null));
+      await api.put(`/api/tareas/${task.id}`, { status: newStatus });
+      toast({ title: "Estado actualizado", description: `La tarea ahora está ${STATUS_LABELS[newStatus].toLowerCase()}.` });
+      fetchTimeline();
     } catch (err) {
       console.error("Error updating status:", err);
-      setTask((prev) => prev ? { ...prev, status: previousStatus } : null);
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el estado.",
-        variant: "destructive",
-      });
+      setTask((prev) => (prev ? { ...prev, status: previousStatus } : null));
+      toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
     } finally {
       setUpdatingStatus(false);
     }
   };
+
+  // Upload document
+  const handleUploadDocument = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fileInput = form.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = fileInput?.files?.[0];
+    if (!file || !uploadName.trim()) return;
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", uploadName.trim());
+      if (uploadNotes.trim()) formData.append("notes", uploadNotes.trim());
+
+      const res = await api.post(`/api/tareas/${taskId}/documents`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setDocuments((prev) => [res.data as TaskDoc, ...prev]);
+      setUploadName("");
+      setUploadNotes("");
+      setShowUploadForm(false);
+      fileInput.value = "";
+      toast({ title: "Archivo subido", description: "El documento se subió correctamente." });
+      fetchTimeline();
+    } catch (err) {
+      console.error("Error uploading document:", err);
+      toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Delete document
+  const handleDeleteDocument = async (docId: number) => {
+    try {
+      await api.delete(`/api/tareas/${taskId}/documents/${docId}`);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      toast({ title: "Eliminado", description: "El documento se eliminó correctamente." });
+      fetchTimeline();
+    } catch (err) {
+      console.error("Error deleting document:", err);
+      toast({ title: "Error", description: "No se pudo eliminar el documento.", variant: "destructive" });
+    }
+  };
+
+  // Check if form has changes
+  const hasChanges = task
+    ? editedTitle !== task.title ||
+      editedDetails !== (task.details || "") ||
+      editedPriority !== task.priority ||
+      editedAssignedTo !== (task.assigned_to ? String(task.assigned_to) : "") ||
+      editedStartDate !== toDateInput(task.start_date) ||
+      editedDueDate !== toDateInput(task.due_date)
+    : false;
 
   // Loading state
   if (loading) {
@@ -233,11 +409,7 @@ export default function TaskDetailPage() {
         <div className="text-center text-red-500">
           <AlertCircle className="h-12 w-12 mx-auto mb-4" />
           <p>{error || "Tarea no encontrada"}</p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => router.push("/dashboard/tareas")}
-          >
+          <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/tareas")}>
             <ArrowLeft className="h-4 w-4 mr-2" /> Volver al listado
           </Button>
         </div>
@@ -253,38 +425,32 @@ export default function TaskDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/dashboard/tareas")}
-          >
+          <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/tareas")}>
             <ArrowLeft className="h-4 w-4 mr-2" /> Volver
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-800">
-                {formatTaskReference(task.id)}
-              </h1>
-              <Badge variant={STATUS_VARIANTS[task.status]}>
-                {STATUS_LABELS[task.status]}
-              </Badge>
-              <Badge variant={PRIORITY_VARIANTS[task.priority]}>
-                {PRIORITY_LABELS[task.priority]}
-              </Badge>
+              <h1 className="text-2xl font-bold text-gray-800">{formatTaskReference(task.id)}</h1>
+              <Badge variant={STATUS_VARIANTS[task.status]}>{STATUS_LABELS[task.status]}</Badge>
+              <Badge variant={PRIORITY_VARIANTS[task.priority]}>{PRIORITY_LABELS[task.priority]}</Badge>
               {isOverdue && (
-                <Badge variant="destructive" className="bg-red-600">
-                  ATRASADA
-                </Badge>
+                <Badge variant="destructive" className="bg-red-600">ATRASADA</Badge>
               )}
             </div>
             <p className="text-sm text-gray-500 mt-1">{task.title}</p>
           </div>
         </div>
+        {hasChanges && (
+          <Button onClick={handleSave} disabled={saving} size="sm">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Guardar cambios
+          </Button>
+        )}
       </div>
 
-      {/* Main Layout: Content Area + Side Panel */}
+      {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content Area (2/3 width on large screens) */}
+        {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-6">
           {/* Quick Status Update */}
           <Card>
@@ -309,21 +475,34 @@ export default function TaskDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Tabs: Resumen / Seguimiento */}
+          {/* Tabs */}
           <Tabs defaultValue="resumen" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
               <TabsTrigger value="seguimiento">Seguimiento</TabsTrigger>
+              <TabsTrigger value="archivos">Archivos</TabsTrigger>
             </TabsList>
 
             {/* Resumen Tab */}
             <TabsContent value="resumen" className="space-y-4 mt-4">
-              {/* Task Details (editable) */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Detalles de la tarea</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Edit2 className="h-4 w-4" /> Detalles de la tarea
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-4">
+                  {/* Title */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Título</Label>
+                    <Input
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  {/* Description */}
                   <div>
                     <Label className="text-xs text-muted-foreground">Descripción</Label>
                     <Textarea
@@ -333,72 +512,69 @@ export default function TaskDetailPage() {
                       rows={5}
                       className="mt-1"
                     />
-                    <div className="flex justify-end mt-2">
-                      <Button
-                        size="sm"
-                        onClick={handleSaveDetails}
-                        disabled={savingDetails || editedDetails === (task.details || "")}
-                      >
-                        {savingDetails && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
-                        <Save className="h-3 w-3 mr-2" />
-                        Guardar
-                      </Button>
+                  </div>
+
+                  {/* Priority & Assigned */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Prioridad</Label>
+                      <Select value={editedPriority} onValueChange={(v) => setEditedPriority(v as TaskPriority)}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="alta">Alta</SelectItem>
+                          <SelectItem value="media">Media</SelectItem>
+                          <SelectItem value="baja">Baja</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Asignado a</Label>
+                      <Select value={editedAssignedTo || "none"} onValueChange={(v) => setEditedAssignedTo(v === "none" ? "" : v)}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sin asignar</SelectItem>
+                          {users.map((u) => (
+                            <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
-                  {/* Assigned to (display only) */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Asignado a</Label>
-                    <Input
-                      value={task.assignee?.name || "Sin asignar"}
-                      readOnly
-                      disabled
-                      className="mt-1 bg-muted"
-                    />
-                  </div>
-
-                  {/* Dates (display only) */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground">Fecha de inicio</Label>
                       <Input
-                        value={formatDate(task.start_date)}
-                        readOnly
-                        disabled
-                        className="mt-1 bg-muted"
+                        type="date"
+                        value={editedStartDate}
+                        onChange={(e) => setEditedStartDate(e.target.value)}
+                        className="mt-1"
                       />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Fecha de vencimiento</Label>
                       <Input
-                        value={formatDate(task.due_date)}
-                        readOnly
-                        disabled
-                        className="mt-1 bg-muted"
+                        type="date"
+                        value={editedDueDate}
+                        onChange={(e) => setEditedDueDate(e.target.value)}
+                        className="mt-1"
                       />
                     </div>
                   </div>
 
-                  {/* Created date */}
+                  {/* Created date (read-only) */}
                   <div>
                     <Label className="text-xs text-muted-foreground">Fecha de creación</Label>
-                    <Input
-                      value={formatDate(task.created_at)}
-                      readOnly
-                      disabled
-                      className="mt-1 bg-muted"
-                    />
+                    <Input value={formatDate(task.created_at)} readOnly disabled className="mt-1 bg-muted" />
                   </div>
 
-                  {/* Link to credit or opportunity (if exists) */}
-                  {task.project_code && task.project_code.endsWith('-CRED') && task.project_name ? (
+                  {/* Link to credit or opportunity */}
+                  {task.project_code && task.project_code.endsWith("-CRED") && task.project_name ? (
                     <div>
                       <Label className="text-xs text-muted-foreground">Crédito vinculado</Label>
                       <div className="mt-1">
-                        <Link
-                          href={`/dashboard/creditos/${task.project_name}`}
-                          className="text-sm text-blue-600 hover:underline"
-                        >
+                        <Link href={`/dashboard/creditos/${task.project_name}`} className="text-sm text-blue-600 hover:underline">
                           {task.project_code}
                         </Link>
                       </div>
@@ -407,10 +583,7 @@ export default function TaskDetailPage() {
                     <div>
                       <Label className="text-xs text-muted-foreground">Oportunidad vinculada</Label>
                       <div className="mt-1">
-                        <Link
-                          href={`/dashboard/oportunidades/${opportunityId}`}
-                          className="text-sm text-blue-600 hover:underline"
-                        >
+                        <Link href={`/dashboard/oportunidades/${opportunityId}`} className="text-sm text-blue-600 hover:underline">
                           {task.project_code}
                         </Link>
                       </div>
@@ -424,22 +597,201 @@ export default function TaskDetailPage() {
             <TabsContent value="seguimiento" className="space-y-4 mt-4">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Timeline de eventos</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Timeline de eventos
+                  </CardTitle>
                   <CardDescription className="text-xs">
                     Historial de cambios y actualizaciones
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8 text-sm text-muted-foreground">
-                    <p>Timeline de eventos próximamente disponible</p>
+                  {timelineLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : timeline.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">
+                      <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      <p>No hay eventos registrados aún</p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      {/* Vertical line */}
+                      <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
+
+                      <div className="space-y-6">
+                        {timeline.map((entry) => (
+                          <div key={entry.id} className="relative pl-8">
+                            {/* Dot */}
+                            <div className={`absolute left-1.5 top-1.5 w-3 h-3 rounded-full border-2 border-background ${
+                              entry.action === "create" ? "bg-green-500" :
+                              entry.action === "delete" ? "bg-red-500" :
+                              entry.action === "upload" ? "bg-blue-500" :
+                              "bg-yellow-500"
+                            }`} />
+
+                            <div className="bg-muted/50 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium">
+                                  {ACTION_LABELS[entry.action] || entry.action}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDateTime(entry.created_at)}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-1">
+                                por {entry.user_name || "Sistema"}
+                              </p>
+
+                              {/* Changes detail */}
+                              {entry.changes && entry.changes.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {entry.changes.map((change, idx) => (
+                                    <div key={idx} className="text-xs bg-background rounded px-2 py-1">
+                                      <span className="font-medium">{FIELD_LABELS[change.field] || change.field}:</span>{" "}
+                                      {change.old_value ? (
+                                        <>
+                                          <span className="text-red-500 line-through">{change.old_value}</span>
+                                          {" → "}
+                                          <span className="text-green-600">{change.new_value || "—"}</span>
+                                        </>
+                                      ) : (
+                                        <span className="text-green-600">{change.new_value || "—"}</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Archivos Tab */}
+            <TabsContent value="archivos" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText className="h-4 w-4" /> Documentos adjuntos
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        {documents.length} documento{documents.length !== 1 ? "s" : ""}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowUploadForm(!showUploadForm)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Subir
+                    </Button>
                   </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Upload form */}
+                  {showUploadForm && (
+                    <form onSubmit={handleUploadDocument} className="border rounded-lg p-4 mb-4 space-y-3 bg-muted/30">
+                      <div>
+                        <Label className="text-xs">Nombre del documento</Label>
+                        <Input
+                          value={uploadName}
+                          onChange={(e) => setUploadName(e.target.value)}
+                          placeholder="Ej: Contrato firmado"
+                          className="mt-1"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Archivo</Label>
+                        <Input type="file" className="mt-1" required />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Notas (opcional)</Label>
+                        <Input
+                          value={uploadNotes}
+                          onChange={(e) => setUploadNotes(e.target.value)}
+                          placeholder="Observaciones sobre el documento"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setShowUploadForm(false)}>
+                          Cancelar
+                        </Button>
+                        <Button type="submit" size="sm" disabled={uploading}>
+                          {uploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+                          Subir archivo
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Documents list */}
+                  {docsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : documents.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">
+                      <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      <p>No hay documentos adjuntos</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {documents.map((doc) => (
+                        <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3 hover:bg-muted/30">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileText className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{doc.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {doc.uploader?.name || "—"} · {formatDate(doc.created_at)}
+                                {doc.size ? ` · ${formatFileSize(doc.size)}` : ""}
+                              </p>
+                              {doc.notes && (
+                                <p className="text-xs text-muted-foreground italic mt-0.5">{doc.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                            {doc.url && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                asChild
+                              >
+                                <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                  <Download className="h-4 w-4" />
+                                </a>
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteDocument(doc.id)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
         </div>
 
-        {/* Side Panel (1/3 width on large screens) */}
+        {/* Side Panel */}
         <div className="lg:col-span-1 space-y-6">
           {/* Comunicaciones */}
           <Card className="h-[600px] flex flex-col">
@@ -448,18 +800,6 @@ export default function TaskDetailPage() {
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0">
               <CaseChat conversationId={`TASK-${taskId}`} />
-            </CardContent>
-          </Card>
-
-          {/* Archivos */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Archivos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                <p>Gestión de archivos próximamente disponible</p>
-              </div>
             </CardContent>
           </Card>
         </div>

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Task;
+use App\Models\TaskDocument;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class TaskController extends Controller
 {
@@ -206,5 +209,81 @@ class TaskController extends Controller
             'message' => 'Tarea restaurada correctamente',
             'task' => $task->load('assignee'),
         ]);
+    }
+
+    /**
+     * Get activity timeline for a task.
+     */
+    public function timeline(string $id)
+    {
+        Task::findOrFail($id);
+
+        $logs = ActivityLog::where('model_type', 'App\\Models\\Task')
+            ->where('model_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get(['id', 'user_name', 'action', 'changes', 'created_at']);
+
+        return response()->json($logs);
+    }
+
+    /**
+     * List documents for a task.
+     */
+    public function documents(string $id)
+    {
+        $task = Task::findOrFail($id);
+
+        return response()->json($task->documents()->with('uploader:id,name')->orderBy('created_at', 'desc')->get());
+    }
+
+    /**
+     * Upload a document for a task.
+     */
+    public function storeDocument(Request $request, string $id)
+    {
+        $task = Task::findOrFail($id);
+
+        $request->validate([
+            'file' => 'required|file|max:10240',
+            'name' => 'required|string|max:255',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $path = $request->file('file')->store('task-docs/' . $id, 'public');
+
+        $doc = $task->documents()->create([
+            'uploaded_by' => auth('sanctum')->id(),
+            'name' => $request->name,
+            'path' => $path,
+            'url' => asset(Storage::url($path)),
+            'mime_type' => $request->file('file')->getClientMimeType(),
+            'size' => $request->file('file')->getSize(),
+            'notes' => $request->notes,
+        ]);
+
+        $this->logActivity('upload', 'Tareas', $task, $task->title, [
+            ['field' => 'documento', 'old_value' => null, 'new_value' => $request->name],
+        ], $request);
+
+        return response()->json($doc->load('uploader:id,name'), 201);
+    }
+
+    /**
+     * Delete a document from a task.
+     */
+    public function destroyDocument(string $id, string $documentId)
+    {
+        $doc = TaskDocument::where('task_id', $id)->findOrFail($documentId);
+        $task = $doc->task;
+
+        Storage::disk('public')->delete($doc->path);
+        $doc->delete();
+
+        $this->logActivity('delete', 'Tareas', $task, $task->title, [
+            ['field' => 'documento', 'old_value' => $doc->name, 'new_value' => null],
+        ]);
+
+        return response()->json(null, 204);
     }
 }

@@ -121,6 +121,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/tareas/{task}', [TaskController::class, 'destroy']);
     Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive']);
     Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore']);
+    Route::get('/tareas/{task}/timeline', [TaskController::class, 'timeline']);
+    Route::get('/tareas/{task}/documents', [TaskController::class, 'documents']);
+    Route::post('/tareas/{task}/documents', [TaskController::class, 'storeDocument']);
+    Route::delete('/tareas/{task}/documents/{document}', [TaskController::class, 'destroyDocument']);
 
     // --- Rutas (Mensajería / Logística) ---
     Route::apiResource('tareas-ruta', TareaRutaController::class);
