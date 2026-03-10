@@ -365,6 +365,7 @@ export function ChatBubble() {
         mentions,
       });
       fetchComments(showArchived);
+      setSelectedEntity(null);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Error al enviar comentario';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
