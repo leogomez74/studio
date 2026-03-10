@@ -144,6 +144,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/rutas-diarias/{id}/confirmar', [RutaDiariaController::class, 'confirmar'])->middleware('admin');
     Route::patch('/rutas-diarias/{id}/iniciar', [RutaDiariaController::class, 'iniciar']);
     Route::patch('/rutas-diarias/{id}/reordenar', [RutaDiariaController::class, 'reordenar'])->middleware('admin');
+    Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware('admin');
 
     // --- Automatización de Tareas ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index']);

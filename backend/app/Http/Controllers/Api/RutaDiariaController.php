@@ -189,4 +189,37 @@ class RutaDiariaController extends Controller
             $ruta->load(['tareas' => fn($q) => $q->orderBy('posicion')])
         );
     }
+
+    /**
+     * Cancelar una ruta: devuelve todas las tareas no completadas a pendiente y elimina la ruta.
+     */
+    public function cancelar(string $id)
+    {
+        $ruta = RutaDiaria::findOrFail($id);
+
+        if ($ruta->status === 'completada') {
+            return response()->json(['message' => 'No se puede cancelar una ruta completada.'], 422);
+        }
+
+        return DB::transaction(function () use ($ruta) {
+            // Devolver tareas no completadas a pendiente
+            $ruta->tareas()
+                ->whereNotIn('status', ['completada'])
+                ->update([
+                    'status' => 'pendiente',
+                    'ruta_diaria_id' => null,
+                    'fecha_asignada' => null,
+                    'posicion' => null,
+                    'asignado_a' => null,
+                ]);
+
+            $fecha = $ruta->fecha->format('Y-m-d');
+
+            $this->logActivity('delete', 'Rutas', $ruta, "Ruta cancelada: {$fecha}");
+
+            $ruta->delete();
+
+            return response()->json(['message' => 'Ruta cancelada. Las tareas pendientes fueron liberadas.']);
+        });
+    }
 }

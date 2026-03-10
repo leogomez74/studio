@@ -579,7 +579,7 @@ function TareasPendientesTab({ users, toast }: { users: UserOption[]; toast: Ret
 
 function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; toast: ReturnType<typeof useToast>["toast"]; onGenerated: () => void }) {
   const [tareasPendientes, setTareasPendientes] = useState<TareaRuta[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [mensajeroId, setMensajeroId] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -600,37 +600,39 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
   useEffect(() => { fetchPendientes(); }, [fetchPendientes]);
 
   const toggleSelect = (id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   };
 
   const toggleAll = () => {
-    if (selectedIds.size === tareasPendientes.length) {
-      setSelectedIds(new Set());
+    if (selectedIds.length === tareasPendientes.length) {
+      setSelectedIds([]);
     } else {
-      setSelectedIds(new Set(tareasPendientes.map((t) => t.id)));
+      setSelectedIds(tareasPendientes.map((t) => t.id));
     }
   };
 
   const moveUp = (id: number) => {
-    const ids = Array.from(selectedIds);
-    const idx = ids.indexOf(id);
-    if (idx > 0) {
-      [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
-      setSelectedIds(new Set(ids));
-    }
+    setSelectedIds((prev) => {
+      const ids = [...prev];
+      const idx = ids.indexOf(id);
+      if (idx > 0) {
+        [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+      }
+      return ids;
+    });
   };
 
   const moveDown = (id: number) => {
-    const ids = Array.from(selectedIds);
-    const idx = ids.indexOf(id);
-    if (idx < ids.length - 1) {
-      [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
-      setSelectedIds(new Set(ids));
-    }
+    setSelectedIds((prev) => {
+      const ids = [...prev];
+      const idx = ids.indexOf(id);
+      if (idx < ids.length - 1) {
+        [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+      }
+      return ids;
+    });
   };
 
   const handleGenerar = async () => {
@@ -638,7 +640,7 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
       toast({ title: "Error", description: "Selecciona un mensajero.", variant: "destructive" });
       return;
     }
-    if (selectedIds.size === 0) {
+    if (selectedIds.length === 0) {
       toast({ title: "Error", description: "Selecciona al menos una tarea.", variant: "destructive" });
       return;
     }
@@ -647,10 +649,10 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
       await api.post("/api/rutas-diarias/generar", {
         fecha,
         mensajero_id: parseInt(mensajeroId),
-        tarea_ids: Array.from(selectedIds),
+        tarea_ids: selectedIds,
       });
-      toast({ title: "Ruta generada", description: `Ruta con ${selectedIds.size} tareas creada para ${fecha}.` });
-      setSelectedIds(new Set());
+      toast({ title: "Ruta generada", description: `Ruta con ${selectedIds.length} tareas creada para ${fecha}.` });
+      setSelectedIds([]);
       fetchPendientes();
       onGenerated();
     } catch (err: unknown) {
@@ -661,7 +663,7 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
     }
   };
 
-  const selectedTareas = tareasPendientes.filter((t) => selectedIds.has(t.id));
+  const selectedTareas = selectedIds.map((id) => tareasPendientes.find((t) => t.id === id)).filter(Boolean) as TareaRuta[];
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -683,7 +685,7 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               <div className="flex items-center gap-2 pb-2 border-b">
                 <Checkbox
-                  checked={selectedIds.size === tareasPendientes.length && tareasPendientes.length > 0}
+                  checked={selectedIds.length === tareasPendientes.length && tareasPendientes.length > 0}
                   onCheckedChange={toggleAll}
                 />
                 <span className="text-sm text-muted-foreground">Seleccionar todas ({tareasPendientes.length})</span>
@@ -691,10 +693,10 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
               {tareasPendientes.map((t) => (
                 <div
                   key={t.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${selectedIds.has(t.id) ? "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800" : "hover:bg-muted/50"}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${selectedIds.includes(t.id) ? "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800" : "hover:bg-muted/50"}`}
                   onClick={() => toggleSelect(t.id)}
                 >
-                  <Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggleSelect(t.id)} />
+                  <Checkbox checked={selectedIds.includes(t.id)} onCheckedChange={() => toggleSelect(t.id)} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       {tipoIcons[t.tipo]}
@@ -741,7 +743,7 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="font-medium text-sm mb-2">Tareas seleccionadas ({selectedIds.size})</h4>
+            <h4 className="font-medium text-sm mb-2">Tareas seleccionadas ({selectedIds.length})</h4>
             {selectedTareas.length === 0 ? (
               <p className="text-xs text-muted-foreground">Selecciona tareas de la lista.</p>
             ) : (
@@ -765,9 +767,9 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
             )}
           </div>
 
-          <Button className="w-full" onClick={handleGenerar} disabled={generating || selectedIds.size === 0}>
+          <Button className="w-full" onClick={handleGenerar} disabled={generating || selectedIds.length === 0}>
             {generating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            Generar Ruta ({selectedIds.size} tareas)
+            Generar Ruta ({selectedIds.length} tareas)
           </Button>
         </CardContent>
       </Card>
@@ -783,11 +785,7 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
   const [rutas, setRutas] = useState<RutaDiaria[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRuta, setSelectedRuta] = useState<RutaDiaria | null>(null);
-  const [showCompletarDialog, setShowCompletarDialog] = useState(false);
-  const [showFallarDialog, setShowFallarDialog] = useState(false);
-  const [selectedTarea, setSelectedTarea] = useState<TareaRuta | null>(null);
-  const [notasCompletado, setNotasCompletado] = useState("");
-  const [motivoFallo, setMotivoFallo] = useState("");
+  const [showCancelarDialog, setShowCancelarDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchRutas = useCallback(async () => {
@@ -839,35 +837,17 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
     }
   };
 
-  const handleCompletarTarea = async () => {
-    if (!selectedTarea) return;
+  const handleCancelarRuta = async () => {
+    if (!selectedRuta) return;
     setActionLoading(true);
     try {
-      await api.patch(`/api/tareas-ruta/${selectedTarea.id}/completar`, { notas_completado: notasCompletado || null });
-      toast({ title: "Tarea completada" });
-      setShowCompletarDialog(false);
-      setNotasCompletado("");
-      if (selectedRuta) fetchRutaDetail(selectedRuta.id);
+      await api.delete(`/api/rutas-diarias/${selectedRuta.id}/cancelar`);
+      toast({ title: "Ruta cancelada", description: "Las tareas pendientes fueron liberadas." });
+      setShowCancelarDialog(false);
+      setSelectedRuta(null);
       fetchRutas();
     } catch {
-      toast({ title: "Error", variant: "destructive" });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleFallarTarea = async () => {
-    if (!selectedTarea || !motivoFallo.trim()) return;
-    setActionLoading(true);
-    try {
-      await api.patch(`/api/tareas-ruta/${selectedTarea.id}/fallar`, { motivo_fallo: motivoFallo });
-      toast({ title: "Tarea reportada como fallida", description: "Vuelve a tareas pendientes." });
-      setShowFallarDialog(false);
-      setMotivoFallo("");
-      if (selectedRuta) fetchRutaDetail(selectedRuta.id);
-      fetchRutas();
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
+      toast({ title: "Error", description: "No se pudo cancelar la ruta.", variant: "destructive" });
     } finally {
       setActionLoading(false);
     }
@@ -940,8 +920,16 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
                     Iniciar Ruta
                   </Button>
                 )}
-                <div className="ml-auto text-sm text-muted-foreground">
-                  {selectedRuta.tareas?.filter((t) => t.status === "completada").length || 0} / {selectedRuta.tareas?.length || 0} completadas
+                <div className="ml-auto flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">
+                    {selectedRuta.tareas?.filter((t) => t.status === "completada").length || 0} / {selectedRuta.tareas?.length || 0} completadas
+                  </span>
+                  {selectedRuta.status === "borrador" && (
+                    <Button size="sm" variant="destructive" onClick={() => setShowCancelarDialog(true)}>
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Cancelar Ruta
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -995,29 +983,6 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
                           <div className="mt-1 text-xs text-red-600">Motivo fallo: {t.motivo_fallo}</div>
                         )}
                       </div>
-                      {/* Action buttons for active tasks */}
-                      {(t.status === "asignada" || t.status === "en_transito") && (
-                        <div className="flex gap-1 shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-green-700 border-green-300"
-                            onClick={() => { setSelectedTarea(t); setShowCompletarDialog(true); }}
-                          >
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Completar
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-red-600 border-red-300"
-                            onClick={() => { setSelectedTarea(t); setShowFallarDialog(true); }}
-                          >
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Fallar
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -1027,47 +992,20 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
         </CardContent>
       </Card>
 
-      {/* Completar dialog */}
-      <AlertDialog open={showCompletarDialog} onOpenChange={setShowCompletarDialog}>
+      {/* Cancelar ruta dialog */}
+      <AlertDialog open={showCancelarDialog} onOpenChange={setShowCancelarDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Completar tarea</AlertDialogTitle>
+            <AlertDialogTitle>Cancelar ruta</AlertDialogTitle>
             <AlertDialogDescription>
-              Marca &quot;{selectedTarea?.titulo}&quot; como completada.
+              Se cancelará la ruta y todas las tareas no completadas volverán a pendientes para re-asignación.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div>
-            <Label>Notas (opcional)</Label>
-            <Textarea value={notasCompletado} onChange={(e) => setNotasCompletado(e.target.value)} placeholder="Ej: Entregado en recepción a Juan" rows={2} />
-          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCompletarTarea} disabled={actionLoading}>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelarRuta} disabled={actionLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {actionLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Completar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Fallar dialog */}
-      <AlertDialog open={showFallarDialog} onOpenChange={setShowFallarDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reportar tarea fallida</AlertDialogTitle>
-            <AlertDialogDescription>
-              La tarea &quot;{selectedTarea?.titulo}&quot; volverá a pendientes para re-asignación.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div>
-            <Label>Motivo *</Label>
-            <Textarea value={motivoFallo} onChange={(e) => setMotivoFallo(e.target.value)} placeholder="Ej: Oficina cerrada, no había personal" rows={2} />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleFallarTarea} disabled={actionLoading || !motivoFallo.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {actionLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Reportar Fallo
+              Cancelar Ruta
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
