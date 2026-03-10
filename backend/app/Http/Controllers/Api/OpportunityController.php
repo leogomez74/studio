@@ -294,6 +294,7 @@ class OpportunityController extends Controller
     {
         $opportunity = Opportunity::findOrFail($id);
         $label = '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? '');
+        Task::where('project_code', 'OPP-' . $id)->delete();
         $opportunity->delete();
         $this->logActivity('delete', 'Oportunidades', $opportunity, $label);
 

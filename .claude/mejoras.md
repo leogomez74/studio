@@ -37,6 +37,7 @@
 | Mar 2026 | `project_code` estandarizado: formato `{MODULO}-{ID}` (LEAD, OPP, ANA, CRED, CLIENT). 6 controllers + 1 command + migración de datos existentes. Frontend con `parseProjectCode()` y links automáticos por módulo |
 | Mar 2026 | Campo `reference` (TA-XXXX) en tabla `tasks`: auto-generado al crear, único, con índice. Búsqueda server-side por `?search=` (reference, title, project_code) |
 | Mar 2026 | Subtareas/checklist en tareas: `task_checklist_items` + `task_automation_checklist_items` (plantillas). UI: checklist con barra de progreso en detalle, plantillas editables en Configuración > Tareas Automáticas. 8 controllers actualizados con `copyChecklistFromAutomation()` |
+| Mar 2026 | Limpieza de tareas huérfanas: `Task::where('project_code', 'PREFIX-'.$id)->delete()` en 5 controllers (Lead, Opportunity, Analisis, Credit, Client) al eliminar entidades |
 
 ## Pendiente — Media prioridad
 

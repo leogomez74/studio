@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Traits\LogsActivity;
 use App\Models\Client;
+use App\Models\Task;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -207,6 +208,7 @@ class ClientController extends Controller
 
         $this->logActivity('delete', 'Clientes', $client, $client->cedula ?? $client->name, [], $request);
 
+        Task::where('project_code', 'CLIENT-' . $id)->delete();
         $client->delete();
 
         return response()->json(['message' => 'Client deleted successfully'], 200);

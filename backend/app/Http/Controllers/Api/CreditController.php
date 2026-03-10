@@ -750,6 +750,7 @@ class CreditController extends Controller
     public function destroy($id) {
         $credit = Credit::findOrFail($id);
         $reference = $credit->reference;
+        Task::where('project_code', 'CRED-' . $id)->delete();
         $credit->delete();
         $this->logActivity('delete', 'Créditos', $credit, $reference);
         return response()->json(null, 204);

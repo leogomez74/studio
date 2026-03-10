@@ -378,6 +378,7 @@ class AnalisisController extends Controller
     {
         $analisis = Analisis::findOrFail($id);
         $reference = $analisis->reference ?? (string) $analisis->id;
+        Task::where('project_code', 'ANA-' . $id)->delete();
         $analisis->delete();
         $this->logActivity('delete', 'Análisis', $analisis, $reference);
         return response()->json(null, 204);
