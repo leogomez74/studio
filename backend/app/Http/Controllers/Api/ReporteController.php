@@ -1,0 +1,766 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Credit;
+use App\Models\CreditPayment;
+use App\Models\Deductora;
+use App\Models\Investment;
+use App\Models\InvestmentCoupon;
+use App\Models\PlanDePago;
+use Barryvdh\DomPDF\Facade\Pdf;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+class ReporteController extends Controller
+{
+    // ─────────────────────────────────────────────────────────────
+    //  1. CARTERA ACTIVA
+    // ─────────────────────────────────────────────────────────────
+
+    public function cartera(Request $request)
+    {
+        $deductoraId = $request->input('deductora_id');
+        $estado      = $request->input('estado');
+
+        // Por defecto: todos los créditos con cartera activa (excluir solo Cerrado)
+        $allActiveStatuses = ['Activo', 'En Mora', 'Formalizado', 'Legal', 'En Progreso', 'Aprobado', 'Por firmar'];
+        if ($estado && $estado !== 'all') {
+            $statuses = [$estado];
+        } else {
+            $statuses = $allActiveStatuses;
+        }
+
+        $credits = Credit::with(['lead:id,name,cedula', 'deductora:id,nombre'])
+            ->whereIn('status', $statuses)
+            ->when($deductoraId, fn($q) => $q->where('deductora_id', $deductoraId))
+            ->get(['id', 'reference', 'status', 'monto_credito', 'saldo', 'cuota',
+                   'cuotas_atrasadas', 'lead_id', 'deductora_id', 'plazo', 'opened_at']);
+
+        // Próxima cuota pendiente por crédito
+        $creditIds = $credits->pluck('id');
+        $proximasCuotas = PlanDePago::whereIn('credit_id', $creditIds)
+            ->where('estado', 'Pendiente')
+            ->where('numero_cuota', '>', 0)
+            ->select('credit_id', DB::raw('MIN(fecha_corte) as proxima_fecha'))
+            ->groupBy('credit_id')
+            ->pluck('proxima_fecha', 'credit_id');
+
+        $rows = $credits->map(function ($c) use ($proximasCuotas) {
+            return [
+                'id'              => $c->id,
+                'referencia'      => $c->reference,
+                'cliente'         => $c->lead?->name ?? '—',
+                'cedula'          => $c->lead?->cedula ?? '—',
+                'deductora'       => $c->deductora?->nombre ?? 'Sin deductora',
+                'deductora_id'    => $c->deductora_id,
+                'monto_credito'   => (float) $c->monto_credito,
+                'saldo'           => (float) $c->saldo,
+                'cuota'           => (float) $c->cuota,
+                'cuotas_atrasadas'=> (int) $c->cuotas_atrasadas,
+                'plazo'           => $c->plazo,
+                'proxima_fecha'   => $proximasCuotas[$c->id] ?? null,
+                'status'          => $c->status,
+                'opened_at'       => $c->opened_at?->toDateString(),
+            ];
+        })->values();
+
+        // Totales por estado para gráfico
+        $porEstado = $credits->groupBy('status')->map(fn($g) => [
+            'count'  => $g->count(),
+            'saldo'  => round($g->sum('saldo'), 2),
+            'monto'  => round($g->sum('monto_credito'), 2),
+        ]);
+
+        return response()->json([
+            'data'      => $rows,
+            'totales'   => [
+                'creditos'    => $credits->count(),
+                'saldo_total' => round($credits->sum('saldo'), 2),
+                'monto_total' => round($credits->sum('monto_credito'), 2),
+                'cuota_total' => round($credits->sum('cuota'), 2),
+            ],
+            'por_estado' => $porEstado,
+        ]);
+    }
+
+    public function carteraExcel(Request $request)
+    {
+        $data = $this->cartera($request)->getData(true);
+        $rows = $data['data'];
+        $totales = $data['totales'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Cartera Activa');
+
+        $headers = ['Referencia', 'Cliente', 'Cédula', 'Deductora', 'Monto Crédito', 'Saldo', 'Cuota', 'Cuotas Atrasadas', 'Próxima Fecha', 'Estado'];
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue(chr(65 + $col) . '1', $header);
+        }
+        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:J1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('DBEAFE');
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $sheet->setCellValue("A{$row}", $r['referencia']);
+            $sheet->setCellValue("B{$row}", $r['cliente']);
+            $sheet->setCellValue("C{$row}", $r['cedula']);
+            $sheet->setCellValue("D{$row}", $r['deductora']);
+            $sheet->setCellValue("E{$row}", $r['monto_credito']);
+            $sheet->setCellValue("F{$row}", $r['saldo']);
+            $sheet->setCellValue("G{$row}", $r['cuota']);
+            $sheet->setCellValue("H{$row}", $r['cuotas_atrasadas']);
+            $sheet->setCellValue("I{$row}", $r['proxima_fecha'] ?? '');
+            $sheet->setCellValue("J{$row}", $r['status']);
+            $row++;
+        }
+
+        // Totales
+        $sheet->setCellValue("A{$row}", 'TOTALES');
+        $sheet->setCellValue("E{$row}", $totales['monto_total']);
+        $sheet->setCellValue("F{$row}", $totales['saldo_total']);
+        $sheet->setCellValue("G{$row}", $totales['cuota_total']);
+        $sheet->getStyle("A{$row}:J{$row}")->getFont()->setBold(true);
+
+        foreach (['E', 'F', 'G'] as $col) {
+            $sheet->getStyle("{$col}2:{$col}{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        }
+        foreach (range('A', 'J') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return $this->downloadExcel($spreadsheet, 'cartera_activa.xlsx');
+    }
+
+    public function carteraPdf(Request $request)
+    {
+        $data = $this->cartera($request)->getData(true);
+        $pdf = Pdf::loadHTML($this->buildCarteraPdfHtml($data['data'], $data['totales']))
+            ->setPaper('legal', 'landscape');
+        return $pdf->stream('cartera_activa.pdf');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  2. CARTERA EN MORA
+    // ─────────────────────────────────────────────────────────────
+
+    public function carteraMora(Request $request)
+    {
+        $deductoraId = $request->input('deductora_id');
+
+        $credits = Credit::with(['lead:id,name,cedula', 'deductora:id,nombre'])
+            ->whereNotIn('status', ['Cerrado'])
+            ->where('cuotas_atrasadas', '>', 0)
+            ->when($deductoraId, fn($q) => $q->where('deductora_id', $deductoraId))
+            ->get(['id', 'reference', 'status', 'monto_credito', 'saldo', 'cuota',
+                   'cuotas_atrasadas', 'lead_id', 'deductora_id', 'plazo']);
+
+        // Días mora: cuotas_atrasadas × 30 aproximado; mejor usar PlanDePago
+        $creditIds = $credits->pluck('id');
+        $diasMoraMap = PlanDePago::whereIn('credit_id', $creditIds)
+            ->where('estado', 'Pendiente')
+            ->where('numero_cuota', '>', 0)
+            ->where('dias_mora', '>', 0)
+            ->select('credit_id', DB::raw('MAX(dias_mora) as max_dias'))
+            ->groupBy('credit_id')
+            ->pluck('max_dias', 'credit_id');
+
+        $rows = $credits->map(function ($c) use ($diasMoraMap) {
+            $dias = $diasMoraMap[$c->id] ?? ($c->cuotas_atrasadas * 30);
+            $rango = match (true) {
+                $dias <= 30  => '1-30 días',
+                $dias <= 60  => '31-60 días',
+                $dias <= 90  => '61-90 días',
+                default      => 'Más de 90 días',
+            };
+            return [
+                'id'              => $c->id,
+                'referencia'      => $c->reference,
+                'cliente'         => $c->lead?->name ?? '—',
+                'cedula'          => $c->lead?->cedula ?? '—',
+                'deductora'       => $c->deductora?->nombre ?? 'Sin deductora',
+                'monto_credito'   => (float) $c->monto_credito,
+                'saldo'           => (float) $c->saldo,
+                'cuota'           => (float) $c->cuota,
+                'cuotas_atrasadas'=> (int) $c->cuotas_atrasadas,
+                'dias_mora'       => $dias,
+                'rango_mora'      => $rango,
+                'status'          => $c->status,
+            ];
+        })->values();
+
+        // Agrupamiento por rango para gráfico
+        $porRango = $rows->groupBy('rango_mora')->map(fn($g) => [
+            'count' => $g->count(),
+            'saldo' => round($g->sum('saldo'), 2),
+        ]);
+
+        $orden = ['1-30 días', '31-60 días', '61-90 días', 'Más de 90 días'];
+        $porRangoOrdenado = collect($orden)->mapWithKeys(fn($r) => [
+            $r => $porRango[$r] ?? ['count' => 0, 'saldo' => 0]
+        ]);
+
+        return response()->json([
+            'data'      => $rows,
+            'totales'   => [
+                'creditos'    => $credits->count(),
+                'saldo_mora'  => round($credits->sum('saldo'), 2),
+                'cuota_mora'  => round($credits->sum('cuota'), 2),
+            ],
+            'por_rango' => $porRangoOrdenado,
+        ]);
+    }
+
+    public function carteraMoraExcel(Request $request)
+    {
+        $data = $this->carteraMora($request)->getData(true);
+        $rows = $data['data'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Cartera en Mora');
+
+        $headers = ['Referencia', 'Cliente', 'Cédula', 'Deductora', 'Saldo', 'Cuota', 'Cuotas Atrasadas', 'Días Mora', 'Rango', 'Estado'];
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue(chr(65 + $col) . '1', $header);
+        }
+        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:J1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FEE2E2');
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $sheet->setCellValue("A{$row}", $r['referencia']);
+            $sheet->setCellValue("B{$row}", $r['cliente']);
+            $sheet->setCellValue("C{$row}", $r['cedula']);
+            $sheet->setCellValue("D{$row}", $r['deductora']);
+            $sheet->setCellValue("E{$row}", $r['saldo']);
+            $sheet->setCellValue("F{$row}", $r['cuota']);
+            $sheet->setCellValue("G{$row}", $r['cuotas_atrasadas']);
+            $sheet->setCellValue("H{$row}", $r['dias_mora']);
+            $sheet->setCellValue("I{$row}", $r['rango_mora']);
+            $sheet->setCellValue("J{$row}", $r['status']);
+            $row++;
+        }
+
+        foreach (['E', 'F'] as $col) {
+            $sheet->getStyle("{$col}2:{$col}{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        }
+        foreach (range('A', 'J') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return $this->downloadExcel($spreadsheet, 'cartera_mora.xlsx');
+    }
+
+    public function carteraMoraPdf(Request $request)
+    {
+        $data = $this->carteraMora($request)->getData(true);
+        $pdf = Pdf::loadHTML($this->buildMoraPdfHtml($data['data'], $data['totales']))
+            ->setPaper('legal', 'landscape');
+        return $pdf->stream('cartera_mora.pdf');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  3. CARTERA POR DEDUCTORA
+    // ─────────────────────────────────────────────────────────────
+
+    public function carteraDeductora(Request $request)
+    {
+        $estadoParam = $request->input('estado');
+        if ($estadoParam && $estadoParam !== 'all') {
+            $statuses = is_array($estadoParam) ? $estadoParam : [$estadoParam];
+        } else {
+            $statuses = ['Activo', 'En Mora', 'Formalizado', 'Legal', 'En Progreso', 'Aprobado', 'Por firmar'];
+        }
+
+        $deductoras = Deductora::withCount(['credits as total_creditos' => function ($q) use ($statuses) {
+            $q->whereIn('status', $statuses);
+        }])->get(['id', 'nombre']);
+
+        $totalesPorDeductora = Credit::whereIn('status', $statuses)
+            ->select(
+                'deductora_id',
+                DB::raw('COUNT(*) as total_creditos'),
+                DB::raw('SUM(monto_credito) as monto_total'),
+                DB::raw('SUM(saldo) as saldo_total'),
+                DB::raw('SUM(cuota) as cuota_total')
+            )
+            ->groupBy('deductora_id')
+            ->get()
+            ->keyBy('deductora_id');
+
+        $totalSaldoGeneral = $totalesPorDeductora->sum('saldo_total');
+
+        $rows = $deductoras->map(function ($d) use ($totalesPorDeductora, $totalSaldoGeneral) {
+            $t = $totalesPorDeductora[$d->id] ?? null;
+            $saldo = $t ? (float) $t->saldo_total : 0;
+            return [
+                'deductora_id'  => $d->id,
+                'deductora'     => $d->nombre,
+                'total_creditos'=> $t ? (int) $t->total_creditos : 0,
+                'monto_total'   => $t ? round((float) $t->monto_total, 2) : 0,
+                'saldo_total'   => round($saldo, 2),
+                'cuota_total'   => $t ? round((float) $t->cuota_total, 2) : 0,
+                'porcentaje'    => $totalSaldoGeneral > 0 ? round($saldo / $totalSaldoGeneral * 100, 1) : 0,
+            ];
+        })->filter(fn($r) => $r['total_creditos'] > 0)->values();
+
+        // Sin deductora
+        $sinDeductora = Credit::whereIn('status', $statuses)
+            ->whereNull('deductora_id')
+            ->select(
+                DB::raw('COUNT(*) as total_creditos'),
+                DB::raw('SUM(monto_credito) as monto_total'),
+                DB::raw('SUM(saldo) as saldo_total'),
+                DB::raw('SUM(cuota) as cuota_total')
+            )->first();
+
+        if ($sinDeductora && $sinDeductora->total_creditos > 0) {
+            $saldo = (float) $sinDeductora->saldo_total;
+            $rows->push([
+                'deductora_id'  => null,
+                'deductora'     => 'Sin deductora',
+                'total_creditos'=> (int) $sinDeductora->total_creditos,
+                'monto_total'   => round((float) $sinDeductora->monto_total, 2),
+                'saldo_total'   => round($saldo, 2),
+                'cuota_total'   => round((float) $sinDeductora->cuota_total, 2),
+                'porcentaje'    => $totalSaldoGeneral > 0 ? round($saldo / $totalSaldoGeneral * 100, 1) : 0,
+            ]);
+        }
+
+        return response()->json([
+            'data'    => $rows,
+            'totales' => [
+                'creditos'    => $rows->sum('total_creditos'),
+                'monto_total' => round($rows->sum('monto_total'), 2),
+                'saldo_total' => round($totalSaldoGeneral, 2),
+                'cuota_total' => round($rows->sum('cuota_total'), 2),
+            ],
+        ]);
+    }
+
+    public function carteraDeductoraExcel(Request $request)
+    {
+        $data = $this->carteraDeductora($request)->getData(true);
+        $rows = $data['data'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Por Deductora');
+
+        $headers = ['Deductora', '# Créditos', 'Monto Desembolsado', 'Saldo Total', 'Cuota Total', '% Portfolio'];
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue(chr(65 + $col) . '1', $header);
+        }
+        $sheet->getStyle('A1:F1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:F1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D1FAE5');
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $sheet->setCellValue("A{$row}", $r['deductora']);
+            $sheet->setCellValue("B{$row}", $r['total_creditos']);
+            $sheet->setCellValue("C{$row}", $r['monto_total']);
+            $sheet->setCellValue("D{$row}", $r['saldo_total']);
+            $sheet->setCellValue("E{$row}", $r['cuota_total']);
+            $sheet->setCellValue("F{$row}", $r['porcentaje'] . '%');
+            $row++;
+        }
+
+        foreach (['C', 'D', 'E'] as $col) {
+            $sheet->getStyle("{$col}2:{$col}{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        }
+        foreach (range('A', 'F') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return $this->downloadExcel($spreadsheet, 'cartera_por_deductora.xlsx');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  4. NOVEDADES DE PLANILLA
+    // ─────────────────────────────────────────────────────────────
+
+    public function novedadesPlanilla(Request $request)
+    {
+        $deductoraId = $request->input('deductora_id');
+        $desde       = $request->input('desde', Carbon::now()->startOfMonth()->toDateString());
+        $hasta       = $request->input('hasta', Carbon::now()->toDateString());
+
+        if (!$deductoraId) {
+            return response()->json(['error' => 'El campo deductora_id es requerido.'], 422);
+        }
+
+        // ── Inclusiones: créditos activados/formalizados en el período ──
+        $inclusiones = Credit::with(['lead:id,name,cedula'])
+            ->where('deductora_id', $deductoraId)
+            ->whereIn('status', ['Activo', 'Formalizado', 'En Mora'])
+            ->where(function ($q) use ($desde, $hasta) {
+                $q->whereBetween('opened_at', [$desde, $hasta])
+                  ->orWhereBetween('formalized_at', [$desde, $hasta]);
+            })
+            ->get(['id', 'reference', 'lead_id', 'cuota', 'opened_at', 'formalized_at', 'status'])
+            ->map(fn($c) => [
+                'tipo'        => 'inclusion',
+                'id'          => $c->id,
+                'referencia'  => $c->reference,
+                'cliente'     => $c->lead?->name ?? '—',
+                'cedula'      => $c->lead?->cedula ?? '—',
+                'cuota'       => (float) $c->cuota,
+                'fecha'       => $c->formalized_at?->toDateString() ?? $c->opened_at?->toDateString(),
+                'detalle'     => 'Incluir en planilla — cuota: ₡' . number_format((float) $c->cuota, 2),
+            ])->values();
+
+        // ── Exclusiones: créditos cerrados en el período ──
+        $exclusiones = Credit::with(['lead:id,name,cedula'])
+            ->where('deductora_id', $deductoraId)
+            ->whereIn('status', ['Cerrado', 'Legal'])
+            ->whereBetween('updated_at', [$desde . ' 00:00:00', $hasta . ' 23:59:59'])
+            ->get(['id', 'reference', 'lead_id', 'cuota', 'cierre_motivo', 'updated_at', 'status'])
+            ->map(fn($c) => [
+                'tipo'        => 'exclusion',
+                'id'          => $c->id,
+                'referencia'  => $c->reference,
+                'cliente'     => $c->lead?->name ?? '—',
+                'cedula'      => $c->lead?->cedula ?? '—',
+                'motivo'      => $c->cierre_motivo ?? $c->status,
+                'fecha'       => $c->updated_at->toDateString(),
+                'detalle'     => 'Excluir de planilla — motivo: ' . ($c->cierre_motivo ?? $c->status),
+            ])->values();
+
+        // ── Modificaciones de cuota: créditos con nuevo plan generado en el período ──
+        // Se detecta cuando plan_de_pagos tiene rows con numero_cuota=0 creadas en el período
+        $creditIdsConNuevoPlan = PlanDePago::where('numero_cuota', 0)
+            ->whereBetween('created_at', [$desde . ' 00:00:00', $hasta . ' 23:59:59'])
+            ->pluck('credit_id');
+
+        $modificaciones = collect();
+        if ($creditIdsConNuevoPlan->isNotEmpty()) {
+            $modificaciones = Credit::with(['lead:id,name,cedula'])
+                ->where('deductora_id', $deductoraId)
+                ->whereIn('id', $creditIdsConNuevoPlan)
+                ->whereNotIn('status', ['Cerrado', 'Legal', 'Aprobado', 'Por firmar'])
+                ->get(['id', 'reference', 'lead_id', 'cuota', 'status'])
+                ->map(function ($c) use ($desde) {
+                    // Cuota anterior: primer row del plan_de_pagos antes del período
+                    $cuotaAnterior = PlanDePago::where('credit_id', $c->id)
+                        ->where('numero_cuota', '>', 0)
+                        ->where('created_at', '<', $desde . ' 00:00:00')
+                        ->orderBy('numero_cuota', 'desc')
+                        ->value('cuota');
+
+                    $cuotaNueva = (float) $c->cuota;
+                    $cuotaAnt   = $cuotaAnterior ? (float) $cuotaAnterior : $cuotaNueva;
+
+                    return [
+                        'tipo'           => 'modificacion',
+                        'id'             => $c->id,
+                        'referencia'     => $c->reference,
+                        'cliente'        => $c->lead?->name ?? '—',
+                        'cedula'         => $c->lead?->cedula ?? '—',
+                        'cuota_anterior' => $cuotaAnt,
+                        'cuota_nueva'    => $cuotaNueva,
+                        'diferencia'     => round($cuotaNueva - $cuotaAnt, 2),
+                        'detalle'        => 'Modificar cuota: ₡' . number_format($cuotaAnt, 2) . ' → ₡' . number_format($cuotaNueva, 2),
+                    ];
+                })->filter(fn($r) => $r['cuota_anterior'] != $r['cuota_nueva'])->values();
+        }
+
+        return response()->json([
+            'inclusiones'   => $inclusiones,
+            'exclusiones'   => $exclusiones,
+            'modificaciones'=> $modificaciones,
+            'resumen'       => [
+                'inclusiones'    => $inclusiones->count(),
+                'exclusiones'    => $exclusiones->count(),
+                'modificaciones' => $modificaciones->count(),
+                'total'          => $inclusiones->count() + $exclusiones->count() + $modificaciones->count(),
+            ],
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  5. HISTORIAL DE COBROS
+    // ─────────────────────────────────────────────────────────────
+
+    public function cobros(Request $request)
+    {
+        $desde       = $request->input('desde', Carbon::now()->startOfMonth()->toDateString());
+        $hasta       = $request->input('hasta', Carbon::now()->toDateString());
+        $source      = $request->input('source');
+        $deductoraId = $request->input('deductora_id');
+
+        $payments = CreditPayment::with(['credit:id,reference,deductora_id', 'credit.lead:id,name,cedula', 'credit.deductora:id,nombre'])
+            ->whereNull('estado_reverso')
+            ->whereBetween('fecha_pago', [$desde, $hasta])
+            ->when($source, fn($q) => $q->where('source', $source))
+            ->when($deductoraId, fn($q) => $q->whereHas('credit', fn($cq) => $cq->where('deductora_id', $deductoraId)))
+            ->orderBy('fecha_pago', 'asc')
+            ->get();
+
+        $rows = $payments->map(fn($p) => [
+            'id'              => $p->id,
+            'fecha_pago'      => $p->fecha_pago instanceof \Carbon\Carbon ? $p->fecha_pago->toDateString() : $p->fecha_pago,
+            'referencia'      => $p->credit?->reference ?? '—',
+            'cliente'         => $p->credit?->lead?->name ?? '—',
+            'cedula'          => $p->credit?->lead?->cedula ?? '—',
+            'deductora'       => $p->credit?->deductora?->nombre ?? 'Sin deductora',
+            'numero_cuota'    => $p->numero_cuota,
+            'monto'           => (float) $p->monto,
+            'amortizacion'    => (float) $p->amortizacion,
+            'interes_corriente'=> (float) $p->interes_corriente,
+            'interes_moratorio'=> (float) ($p->interes_moratorio ?? 0),
+            'source'          => $p->source ?? '—',
+        ])->values();
+
+        // Cobros agrupados por fecha para gráfico
+        $porFecha = $payments->groupBy('fecha_pago')->map(fn($g) => round($g->sum('monto'), 2));
+
+        // Distribución por fuente
+        $porFuente = $payments->groupBy('source')->map(fn($g) => [
+            'count' => $g->count(),
+            'total' => round($g->sum('monto'), 2),
+        ]);
+
+        return response()->json([
+            'data'      => $rows,
+            'totales'   => [
+                'pagos'           => $payments->count(),
+                'monto_total'     => round($payments->sum('monto'), 2),
+                'amortizacion'    => round($payments->sum('amortizacion'), 2),
+                'interes_total'   => round($payments->sum('interes_corriente'), 2),
+                'interes_mora'    => round($payments->sum('interes_moratorio'), 2),
+            ],
+            'por_fecha' => $porFecha,
+            'por_fuente'=> $porFuente,
+        ]);
+    }
+
+    public function cobrosExcel(Request $request)
+    {
+        $data = $this->cobros($request)->getData(true);
+        $rows = $data['data'];
+        $totales = $data['totales'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Cobros');
+
+        $headers = ['Fecha', 'Referencia', 'Cliente', 'Cédula', 'Deductora', 'Cuota #', 'Monto Pagado', 'Amortización', 'Interés', 'Mora', 'Fuente'];
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue(chr(65 + $col) . '1', $header);
+        }
+        $sheet->getStyle('A1:K1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:K1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E0E7FF');
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $sheet->setCellValue("A{$row}", $r['fecha_pago']);
+            $sheet->setCellValue("B{$row}", $r['referencia']);
+            $sheet->setCellValue("C{$row}", $r['cliente']);
+            $sheet->setCellValue("D{$row}", $r['cedula']);
+            $sheet->setCellValue("E{$row}", $r['deductora']);
+            $sheet->setCellValue("F{$row}", $r['numero_cuota']);
+            $sheet->setCellValue("G{$row}", $r['monto']);
+            $sheet->setCellValue("H{$row}", $r['amortizacion']);
+            $sheet->setCellValue("I{$row}", $r['interes_corriente']);
+            $sheet->setCellValue("J{$row}", $r['interes_moratorio']);
+            $sheet->setCellValue("K{$row}", $r['source']);
+            $row++;
+        }
+
+        $sheet->setCellValue("B{$row}", 'TOTALES');
+        $sheet->setCellValue("G{$row}", $totales['monto_total']);
+        $sheet->setCellValue("H{$row}", $totales['amortizacion']);
+        $sheet->setCellValue("I{$row}", $totales['interes_total']);
+        $sheet->setCellValue("J{$row}", $totales['interes_mora']);
+        $sheet->getStyle("A{$row}:K{$row}")->getFont()->setBold(true);
+
+        foreach (['G', 'H', 'I', 'J'] as $col) {
+            $sheet->getStyle("{$col}2:{$col}{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        }
+        foreach (range('A', 'K') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return $this->downloadExcel($spreadsheet, 'historial_cobros.xlsx');
+    }
+
+    public function cobrosPdf(Request $request)
+    {
+        $data = $this->cobros($request)->getData(true);
+        $pdf = Pdf::loadHTML($this->buildCobrosPdfHtml($data['data'], $data['totales']))
+            ->setPaper('legal', 'landscape');
+        return $pdf->stream('historial_cobros.pdf');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  6. INVERSIONES
+    // ─────────────────────────────────────────────────────────────
+
+    public function inversiones(Request $request)
+    {
+        $desde = $request->input('desde', Carbon::now()->startOfMonth()->toDateString());
+        $hasta = $request->input('hasta', Carbon::now()->toDateString());
+
+        $coupons = InvestmentCoupon::with(['investment:id,numero_desembolso,investor_id,monto_capital,tasa_anual,fecha_vencimiento,moneda', 'investment.investor:id,name'])
+            ->whereBetween('fecha_cupon', [$desde, $hasta])
+            ->orderBy('fecha_cupon', 'asc')
+            ->get();
+
+        $rows = $coupons->map(fn($cp) => [
+            'id'                => $cp->id,
+            'fecha_cupon'       => $cp->fecha_cupon instanceof \Carbon\Carbon ? $cp->fecha_cupon->toDateString() : $cp->fecha_cupon,
+            'numero_desembolso' => $cp->investment?->numero_desembolso,
+            'inversionista'     => $cp->investment?->investor?->name ?? '—',
+            'capital'           => (float) ($cp->investment?->monto_capital ?? 0),
+            'tasa_anual'        => (float) ($cp->investment?->tasa_anual ?? 0),
+            'moneda'            => $cp->investment?->moneda ?? '—',
+            'interes_bruto'     => (float) $cp->interes_bruto,
+            'retencion'         => (float) $cp->retencion,
+            'interes_neto'      => (float) $cp->interes_neto,
+            'estado'            => $cp->estado,
+            'fecha_vencimiento' => $cp->investment?->fecha_vencimiento instanceof \Carbon\Carbon
+                ? $cp->investment->fecha_vencimiento->toDateString()
+                : $cp->investment?->fecha_vencimiento,
+        ])->values();
+
+        // Cupones por mes para gráfico
+        $porMes = $coupons->groupBy(fn($c) => substr($c->fecha_cupon instanceof \Carbon\Carbon ? $c->fecha_cupon->toDateString() : $c->fecha_cupon, 0, 7))
+            ->map(fn($g) => [
+                'interes_bruto' => round($g->sum('interes_bruto'), 2),
+                'retencion'     => round($g->sum('retencion'), 2),
+                'interes_neto'  => round($g->sum('interes_neto'), 2),
+            ]);
+
+        // Inversiones activas al corte
+        $activasCount = Investment::where('estado', 'Activa')->count();
+        $capitalActivo = Investment::where('estado', 'Activa')->sum('monto_capital');
+
+        return response()->json([
+            'data'         => $rows,
+            'totales'      => [
+                'cupones'       => $coupons->count(),
+                'interes_bruto' => round($coupons->sum('interes_bruto'), 2),
+                'retencion'     => round($coupons->sum('retencion'), 2),
+                'interes_neto'  => round($coupons->sum('interes_neto'), 2),
+                'capital_activo'=> round((float) $capitalActivo, 2),
+                'inversiones_activas' => $activasCount,
+            ],
+            'por_mes'      => $porMes,
+        ]);
+    }
+
+    public function inversionesExcel(Request $request)
+    {
+        $data = $this->inversiones($request)->getData(true);
+        $rows = $data['data'];
+        $totales = $data['totales'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Inversiones');
+
+        $headers = ['Fecha Cupón', 'Desembolso', 'Inversionista', 'Capital', 'Tasa', 'Moneda', 'Interés Bruto', 'Retención', 'Interés Neto', 'Estado'];
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue(chr(65 + $col) . '1', $header);
+        }
+        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:J1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FEF3C7');
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $sheet->setCellValue("A{$row}", $r['fecha_cupon']);
+            $sheet->setCellValue("B{$row}", $r['numero_desembolso']);
+            $sheet->setCellValue("C{$row}", $r['inversionista']);
+            $sheet->setCellValue("D{$row}", $r['capital']);
+            $sheet->setCellValue("E{$row}", ($r['tasa_anual'] * 100) . '%');
+            $sheet->setCellValue("F{$row}", $r['moneda']);
+            $sheet->setCellValue("G{$row}", $r['interes_bruto']);
+            $sheet->setCellValue("H{$row}", $r['retencion']);
+            $sheet->setCellValue("I{$row}", $r['interes_neto']);
+            $sheet->setCellValue("J{$row}", $r['estado']);
+            $row++;
+        }
+
+        $sheet->setCellValue("B{$row}", 'TOTALES');
+        $sheet->setCellValue("G{$row}", $totales['interes_bruto']);
+        $sheet->setCellValue("H{$row}", $totales['retencion']);
+        $sheet->setCellValue("I{$row}", $totales['interes_neto']);
+        $sheet->getStyle("A{$row}:J{$row}")->getFont()->setBold(true);
+
+        foreach (['D', 'G', 'H', 'I'] as $col) {
+            $sheet->getStyle("{$col}2:{$col}{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+        }
+        foreach (range('A', 'J') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return $this->downloadExcel($spreadsheet, 'inversiones.xlsx');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  HELPERS
+    // ─────────────────────────────────────────────────────────────
+
+    private function downloadExcel(Spreadsheet $spreadsheet, string $filename)
+    {
+        $writer = new Xlsx($spreadsheet);
+        $temp   = tempnam(sys_get_temp_dir(), 'rep');
+        $writer->save($temp);
+        return response()->download($temp, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    private function buildCarteraPdfHtml(array $rows, array $totales): string
+    {
+        $th = 'style="background:#DBEAFE;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
+        $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
+        $html = '<html><body style="font-family:Arial,sans-serif;">
+            <h2 style="color:#1e3a8a;">Cartera Activa</h2>
+            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo total: <b>₡' . number_format($totales['saldo_total'], 2) . '</b> | Cuota total: <b>₡' . number_format($totales['cuota_total'], 2) . '</b></p>
+            <table width="100%" cellspacing="0" cellpadding="0">
+            <tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Monto</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>C.Atrasadas</th><th ' . $th . '>Próx.Fecha</th><th ' . $th . '>Estado</th></tr>';
+        foreach ($rows as $r) {
+            $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right">₡' . number_format($r['monto_credito'], 2) . '</td><td ' . $td . ' align="right">₡' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right">₡' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['cuotas_atrasadas'] . '</td><td ' . $td . '>' . ($r['proxima_fecha'] ?? '—') . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
+        }
+        $html .= '</table></body></html>';
+        return $html;
+    }
+
+    private function buildMoraPdfHtml(array $rows, array $totales): string
+    {
+        $th = 'style="background:#FEE2E2;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
+        $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
+        $html = '<html><body style="font-family:Arial,sans-serif;">
+            <h2 style="color:#991b1b;">Cartera en Mora</h2>
+            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo en mora: <b>₡' . number_format($totales['saldo_mora'], 2) . '</b></p>
+            <table width="100%" cellspacing="0"><tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>Días Mora</th><th ' . $th . '>Rango</th><th ' . $th . '>Estado</th></tr>';
+        foreach ($rows as $r) {
+            $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right">₡' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right">₡' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['dias_mora'] . '</td><td ' . $td . '>' . $r['rango_mora'] . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
+        }
+        $html .= '</table></body></html>';
+        return $html;
+    }
+
+    private function buildCobrosPdfHtml(array $rows, array $totales): string
+    {
+        $th = 'style="background:#E0E7FF;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
+        $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
+        $html = '<html><body style="font-family:Arial,sans-serif;">
+            <h2 style="color:#3730a3;">Historial de Cobros</h2>
+            <p>Total pagos: <b>' . $totales['pagos'] . '</b> | Monto total: <b>₡' . number_format($totales['monto_total'], 2) . '</b> | Amortización: <b>₡' . number_format($totales['amortizacion'], 2) . '</b></p>
+            <table width="100%" cellspacing="0"><tr><th ' . $th . '>Fecha</th><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Cuota #</th><th ' . $th . '>Monto</th><th ' . $th . '>Amort.</th><th ' . $th . '>Interés</th><th ' . $th . '>Fuente</th></tr>';
+        foreach ($rows as $r) {
+            $html .= '<tr><td ' . $td . '>' . $r['fecha_pago'] . '</td><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="center">' . $r['numero_cuota'] . '</td><td ' . $td . ' align="right">₡' . number_format($r['monto'], 2) . '</td><td ' . $td . ' align="right">₡' . number_format($r['amortizacion'], 2) . '</td><td ' . $td . ' align="right">₡' . number_format($r['interes_corriente'], 2) . '</td><td ' . $td . '>' . $r['source'] . '</td></tr>';
+        }
+        $html .= '</table></body></html>';
+        return $html;
+    }
+}

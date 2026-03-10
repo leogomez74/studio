@@ -30,6 +30,7 @@
 | Inversiones | `/dashboard/inversiones` | ✅ |
 | Rewards | `/dashboard/rewards` | ✅ |
 | Tareas | `/dashboard/tareas` | ✅ |
+| Reportes | `/dashboard/reportes` | ✅ Mar 2026 (6 tabs) |
 
 ---
 
