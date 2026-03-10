@@ -421,8 +421,8 @@ export function AnalisisWizardModal({
   };
 
   const nextStep = () => {
-    // Validar plazo obligatorio en paso 1
-    if (currentStep === 1) {
+    // Validar plazo obligatorio en paso 2 (Información Básica)
+    if (currentStep === 2) {
       const plazoValue = parseInt(formData.plazo);
       if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
         return;
@@ -443,7 +443,7 @@ export function AnalisisWizardModal({
     // Validar plazo obligatorio
     const plazoValue = parseInt(formData.plazo);
     if (!formData.plazo || isNaN(plazoValue) || plazoValue < 1) {
-      setCurrentStep(1);
+      setCurrentStep(2);
       return;
     }
 
@@ -560,8 +560,312 @@ export function AnalisisWizardModal({
           ))}
         </div>
 
-        {/* Step 1: Información Básica */}
+        {/* Step 1: Historial Crediticio */}
         {currentStep === 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Historial Crediticio
+                {credidLoading && (
+                  <span className="flex items-center gap-1 text-xs font-normal text-blue-600">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Consultando Credid...
+                  </span>
+                )}
+                {credidLoaded && (
+                  <Badge variant="outline" className="text-xs font-normal text-green-700 border-green-300 bg-green-50">
+                    <Check className="h-3 w-3 mr-1" /> Pre-llenado con Credid
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Contadores */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div>
+                  <Label htmlFor="numero_manchas">Número de Manchas</Label>
+                  <Input
+                    id="numero_manchas"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={formData.numero_manchas}
+                    onChange={(e) => {
+                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
+                      updateFormData('numero_manchas', num);
+                      // Ajustar array de detalles
+                      const current = formData.manchas_detalle.length;
+                      if (num > current) {
+                        const newItems = Array(num - current).fill(null).map(() => ({
+                          fecha_inicio: '',
+                          descripcion: '',
+                          monto: 0
+                        }));
+                        updateFormData('manchas_detalle', [...formData.manchas_detalle, ...newItems]);
+                      } else if (num < current) {
+                        updateFormData('manchas_detalle', formData.manchas_detalle.slice(0, num));
+                      }
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="numero_juicios">Número de Juicios</Label>
+                  <Input
+                    id="numero_juicios"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={formData.numero_juicios}
+                    onChange={(e) => {
+                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
+                      updateFormData('numero_juicios', num);
+                      const current = formData.juicios_detalle.length;
+                      if (num > current) {
+                        const newItems = Array(num - current).fill(null).map(() => ({
+                          fecha_inicio: '',
+                          estado: 'En Trámite' as const,
+                          expediente: '',
+                          monto: 0
+                        }));
+                        updateFormData('juicios_detalle', [...formData.juicios_detalle, ...newItems]);
+                      } else if (num < current) {
+                        updateFormData('juicios_detalle', formData.juicios_detalle.slice(0, num));
+                      }
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="numero_embargos">Número de Embargos</Label>
+                  <Input
+                    id="numero_embargos"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={formData.numero_embargos}
+                    onChange={(e) => {
+                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
+                      updateFormData('numero_embargos', num);
+                      const current = formData.embargos_detalle.length;
+                      if (num > current) {
+                        const newItems = Array(num - current).fill(null).map(() => ({
+                          fecha_inicio: '',
+                          motivo: '',
+                          monto: 0
+                        }));
+                        updateFormData('embargos_detalle', [...formData.embargos_detalle, ...newItems]);
+                      } else if (num < current) {
+                        updateFormData('embargos_detalle', formData.embargos_detalle.slice(0, num));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Detalles de Manchas */}
+              {formData.numero_manchas > 0 && (
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-lg">Detalles de Manchas</h4>
+                  {formData.manchas_detalle.map((mancha, index) => (
+                    <div key={index} className="border rounded-lg p-4 space-y-3">
+                      <Badge variant="destructive">Mancha {index + 1}</Badge>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label htmlFor={`mancha_fecha_inicio_${index}`}>Fecha Inicio *</Label>
+                          <Input
+                            id={`mancha_fecha_inicio_${index}`}
+                            type="date"
+                            value={mancha.fecha_inicio}
+                            onChange={(e) => {
+                              const newManchas = [...formData.manchas_detalle];
+                              newManchas[index].fecha_inicio = e.target.value;
+                              updateFormData('manchas_detalle', newManchas);
+                            }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`mancha_monto_${index}`}>Monto</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                            <Input
+                              id={`mancha_monto_${index}`}
+                              type="text"
+                              inputMode="numeric"
+                              className="pl-7"
+                              value={formatNumber(mancha.monto)}
+                              onChange={(e) => {
+                                const newManchas = [...formData.manchas_detalle];
+                                newManchas[index].monto = parseFloat(parseNumber(e.target.value)) || 0;
+                                updateFormData('manchas_detalle', newManchas);
+                              }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor={`mancha_desc_${index}`}>Descripción</Label>
+                          <Input
+                            id={`mancha_desc_${index}`}
+                            value={mancha.descripcion}
+                            onChange={(e) => {
+                              const newManchas = [...formData.manchas_detalle];
+                              newManchas[index].descripcion = e.target.value;
+                              updateFormData('manchas_detalle', newManchas);
+                            }}
+                            placeholder="Descripción"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Detalles de Juicios */}
+              {formData.numero_juicios > 0 && (
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-lg">Detalles de Juicios</h4>
+                  {formData.juicios_detalle.map((juicio, index) => (
+                    <div key={index} className="border rounded-lg p-4 space-y-3">
+                      <Badge variant="destructive">Juicio {index + 1}</Badge>
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <Label htmlFor={`juicio_fecha_inicio_${index}`}>Fecha Inicio *</Label>
+                          <Input
+                            id={`juicio_fecha_inicio_${index}`}
+                            type="date"
+                            value={juicio.fecha_inicio}
+                            onChange={(e) => {
+                              const newJuicios = [...formData.juicios_detalle];
+                              newJuicios[index].fecha_inicio = e.target.value;
+                              updateFormData('juicios_detalle', newJuicios);
+                            }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`juicio_estado_${index}`}>Estado</Label>
+                          <Select
+                            value={juicio.estado}
+                            onValueChange={(value: 'En Trámite' | 'Finalizado') => {
+                              const newJuicios = [...formData.juicios_detalle];
+                              newJuicios[index].estado = value;
+                              updateFormData('juicios_detalle', newJuicios);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="En Trámite">En Trámite</SelectItem>
+                              <SelectItem value="Finalizado">Finalizado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor={`juicio_expediente_${index}`}>Expediente</Label>
+                          <Input
+                            id={`juicio_expediente_${index}`}
+                            value={juicio.expediente}
+                            onChange={(e) => {
+                              const newJuicios = [...formData.juicios_detalle];
+                              newJuicios[index].expediente = e.target.value;
+                              updateFormData('juicios_detalle', newJuicios);
+                            }}
+                            placeholder="EXP-2024-001"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`juicio_monto_${index}`}>Monto</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                            <Input
+                              id={`juicio_monto_${index}`}
+                              type="text"
+                              inputMode="numeric"
+                              className="pl-7"
+                              value={formatNumber(juicio.monto)}
+                              onChange={(e) => {
+                                const newJuicios = [...formData.juicios_detalle];
+                                newJuicios[index].monto = parseFloat(parseNumber(e.target.value)) || 0;
+                                updateFormData('juicios_detalle', newJuicios);
+                              }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Detalles de Embargos */}
+              {formData.numero_embargos > 0 && (
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-lg">Detalles de Embargos</h4>
+                  {formData.embargos_detalle.map((embargo, index) => (
+                    <div key={index} className="border rounded-lg p-4 space-y-3">
+                      <Badge variant="destructive">Embargo {index + 1}</Badge>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label htmlFor={`embargo_fecha_inicio_${index}`}>Fecha Inicio *</Label>
+                          <Input
+                            id={`embargo_fecha_inicio_${index}`}
+                            type="date"
+                            value={embargo.fecha_inicio}
+                            onChange={(e) => {
+                              const newEmbargos = [...formData.embargos_detalle];
+                              newEmbargos[index].fecha_inicio = e.target.value;
+                              updateFormData('embargos_detalle', newEmbargos);
+                            }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`embargo_monto_${index}`}>Monto</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                            <Input
+                              id={`embargo_monto_${index}`}
+                              type="text"
+                              inputMode="numeric"
+                              className="pl-7"
+                              value={formatNumber(embargo.monto)}
+                              onChange={(e) => {
+                                const newEmbargos = [...formData.embargos_detalle];
+                                newEmbargos[index].monto = parseFloat(parseNumber(e.target.value)) || 0;
+                                updateFormData('embargos_detalle', newEmbargos);
+                              }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor={`embargo_motivo_${index}`}>Motivo</Label>
+                          <Input
+                            id={`embargo_motivo_${index}`}
+                            value={embargo.motivo}
+                            onChange={(e) => {
+                              const newEmbargos = [...formData.embargos_detalle];
+                              newEmbargos[index].motivo = e.target.value;
+                              updateFormData('embargos_detalle', newEmbargos);
+                            }}
+                            placeholder="Motivo"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 2: Información Básica */}
+        {currentStep === 2 && (
           <Card>
             <CardHeader>
               <CardTitle>Información Básica</CardTitle>
@@ -694,8 +998,8 @@ export function AnalisisWizardModal({
           </Card>
         )}
 
-        {/* Step 2: Ingresos Mensuales */}
-        {currentStep === 2 && (() => {
+        {/* Step 3: Ingresos Mensuales */}
+        {currentStep === 3 && (() => {
           // Determinar meses según tipo de crédito
           const esMicroCredito = currentProducto?.toLowerCase().includes('micro') || false;
           const fixedMonths = esMicroCredito ? 3 : 6;
@@ -824,310 +1128,6 @@ export function AnalisisWizardModal({
           );
         })()}
 
-        {/* Step 3: Historial Crediticio */}
-        {currentStep === 3 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Historial Crediticio
-                {credidLoading && (
-                  <span className="flex items-center gap-1 text-xs font-normal text-blue-600">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Consultando Credid...
-                  </span>
-                )}
-                {credidLoaded && (
-                  <Badge variant="outline" className="text-xs font-normal text-green-700 border-green-300 bg-green-50">
-                    <Check className="h-3 w-3 mr-1" /> Pre-llenado con Credid
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Contadores */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div>
-                  <Label htmlFor="numero_manchas">Número de Manchas</Label>
-                  <Input
-                    id="numero_manchas"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={formData.numero_manchas}
-                    onChange={(e) => {
-                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
-                      updateFormData('numero_manchas', num);
-                      // Ajustar array de detalles
-                      const current = formData.manchas_detalle.length;
-                      if (num > current) {
-                        const newItems = Array(num - current).fill(null).map(() => ({
-                          fecha_inicio: '',
-                          descripcion: '',
-                          monto: 0
-                        }));
-                        updateFormData('manchas_detalle', [...formData.manchas_detalle, ...newItems]);
-                      } else if (num < current) {
-                        updateFormData('manchas_detalle', formData.manchas_detalle.slice(0, num));
-                      }
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="numero_juicios">Número de Juicios</Label>
-                  <Input
-                    id="numero_juicios"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={formData.numero_juicios}
-                    onChange={(e) => {
-                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
-                      updateFormData('numero_juicios', num);
-                      const current = formData.juicios_detalle.length;
-                      if (num > current) {
-                        const newItems = Array(num - current).fill(null).map(() => ({
-                          fecha_inicio: '',
-                          estado: 'activo' as const,
-                          expediente: '',
-                          monto: 0
-                        }));
-                        updateFormData('juicios_detalle', [...formData.juicios_detalle, ...newItems]);
-                      } else if (num < current) {
-                        updateFormData('juicios_detalle', formData.juicios_detalle.slice(0, num));
-                      }
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="numero_embargos">Número de Embargos</Label>
-                  <Input
-                    id="numero_embargos"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={formData.numero_embargos}
-                    onChange={(e) => {
-                      const num = parseInt(e.target.value.replace(/\D/g, '')) || 0;
-                      updateFormData('numero_embargos', num);
-                      const current = formData.embargos_detalle.length;
-                      if (num > current) {
-                        const newItems = Array(num - current).fill(null).map(() => ({
-                          fecha_inicio: '',
-                          motivo: '',
-                          monto: 0
-                        }));
-                        updateFormData('embargos_detalle', [...formData.embargos_detalle, ...newItems]);
-                      } else if (num < current) {
-                        updateFormData('embargos_detalle', formData.embargos_detalle.slice(0, num));
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Detalles de Manchas */}
-              {formData.numero_manchas > 0 && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-lg">Detalles de Manchas</h4>
-                  {formData.manchas_detalle.map((mancha, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-3">
-                      <Badge variant="destructive">Mancha {index + 1}</Badge>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <Label htmlFor={`mancha_fecha_inicio_${index}`}>Fecha Inicio *</Label>
-                          <Input
-                            id={`mancha_fecha_inicio_${index}`}
-                            type="date"
-                            value={mancha.fecha_inicio}
-                            onChange={(e) => {
-                              const newManchas = [...formData.manchas_detalle];
-                              newManchas[index].fecha_inicio = e.target.value;
-                              updateFormData('manchas_detalle', newManchas);
-                            }}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`mancha_monto_${index}`}>Monto</Label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                            <Input
-                              id={`mancha_monto_${index}`}
-                              type="text"
-                              inputMode="numeric"
-                              className="pl-7"
-                              value={formatNumber(mancha.monto)}
-                              onChange={(e) => {
-                                const newManchas = [...formData.manchas_detalle];
-                                newManchas[index].monto = parseFloat(parseNumber(e.target.value)) || 0;
-                                updateFormData('manchas_detalle', newManchas);
-                              }}
-                              placeholder="0"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor={`mancha_desc_${index}`}>Descripción</Label>
-                          <Input
-                            id={`mancha_desc_${index}`}
-                            value={mancha.descripcion}
-                            onChange={(e) => {
-                              const newManchas = [...formData.manchas_detalle];
-                              newManchas[index].descripcion = e.target.value;
-                              updateFormData('manchas_detalle', newManchas);
-                            }}
-                            placeholder="Descripción"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Detalles de Juicios */}
-              {formData.numero_juicios > 0 && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-lg">Detalles de Juicios</h4>
-                  {formData.juicios_detalle.map((juicio, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-3">
-                      <Badge variant="destructive">Juicio {index + 1}</Badge>
-                      <div className="grid grid-cols-4 gap-3">
-                        <div>
-                          <Label htmlFor={`juicio_fecha_inicio_${index}`}>Fecha Inicio *</Label>
-                          <Input
-                            id={`juicio_fecha_inicio_${index}`}
-                            type="date"
-                            value={juicio.fecha_inicio}
-                            onChange={(e) => {
-                              const newJuicios = [...formData.juicios_detalle];
-                              newJuicios[index].fecha_inicio = e.target.value;
-                              updateFormData('juicios_detalle', newJuicios);
-                            }}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`juicio_estado_${index}`}>Estado</Label>
-                          <Select
-                            value={juicio.estado}
-                            onValueChange={(value: 'activo' | 'cerrado') => {
-                              const newJuicios = [...formData.juicios_detalle];
-                              newJuicios[index].estado = value;
-                              updateFormData('juicios_detalle', newJuicios);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="activo">Activo</SelectItem>
-                              <SelectItem value="cerrado">Cerrado</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor={`juicio_expediente_${index}`}>Expediente</Label>
-                          <Input
-                            id={`juicio_expediente_${index}`}
-                            value={juicio.expediente}
-                            onChange={(e) => {
-                              const newJuicios = [...formData.juicios_detalle];
-                              newJuicios[index].expediente = e.target.value;
-                              updateFormData('juicios_detalle', newJuicios);
-                            }}
-                            placeholder="EXP-2024-001"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`juicio_monto_${index}`}>Monto</Label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                            <Input
-                              id={`juicio_monto_${index}`}
-                              type="text"
-                              inputMode="numeric"
-                              className="pl-7"
-                              value={formatNumber(juicio.monto)}
-                              onChange={(e) => {
-                                const newJuicios = [...formData.juicios_detalle];
-                                newJuicios[index].monto = parseFloat(parseNumber(e.target.value)) || 0;
-                                updateFormData('juicios_detalle', newJuicios);
-                              }}
-                              placeholder="0"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Detalles de Embargos */}
-              {formData.numero_embargos > 0 && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-lg">Detalles de Embargos</h4>
-                  {formData.embargos_detalle.map((embargo, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-3">
-                      <Badge variant="destructive">Embargo {index + 1}</Badge>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <Label htmlFor={`embargo_fecha_inicio_${index}`}>Fecha Inicio *</Label>
-                          <Input
-                            id={`embargo_fecha_inicio_${index}`}
-                            type="date"
-                            value={embargo.fecha_inicio}
-                            onChange={(e) => {
-                              const newEmbargos = [...formData.embargos_detalle];
-                              newEmbargos[index].fecha_inicio = e.target.value;
-                              updateFormData('embargos_detalle', newEmbargos);
-                            }}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`embargo_monto_${index}`}>Monto</Label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                            <Input
-                              id={`embargo_monto_${index}`}
-                              type="text"
-                              inputMode="numeric"
-                              className="pl-7"
-                              value={formatNumber(embargo.monto)}
-                              onChange={(e) => {
-                                const newEmbargos = [...formData.embargos_detalle];
-                                newEmbargos[index].monto = parseFloat(parseNumber(e.target.value)) || 0;
-                                updateFormData('embargos_detalle', newEmbargos);
-                              }}
-                              placeholder="0"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor={`embargo_motivo_${index}`}>Motivo</Label>
-                          <Input
-                            id={`embargo_motivo_${index}`}
-                            value={embargo.motivo}
-                            onChange={(e) => {
-                              const newEmbargos = [...formData.embargos_detalle];
-                              newEmbargos[index].motivo = e.target.value;
-                              updateFormData('embargos_detalle', newEmbargos);
-                            }}
-                            placeholder="Motivo"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Step 4: Documentos Específicos */}
         {currentStep === 4 && (
           <Card>
@@ -1205,7 +1205,7 @@ export function AnalisisWizardModal({
           {currentStep < 4 ? (
             <Button
               onClick={nextStep}
-              disabled={currentStep === 1 && montoError !== ''}
+              disabled={currentStep === 2 && montoError !== ''}
             >
               Siguiente
               <ChevronRight className="w-4 h-4 ml-2" />

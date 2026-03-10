@@ -177,7 +177,7 @@ class CredidService
 
             $resultado[] = [
                 'fecha_inicio' => $this->parseFechaCredid($juicio['FechaEntrada'] ?? null),
-                'estado' => $estaActivo ? 'activo' : 'cerrado',
+                'estado' => $estaActivo ? 'En Trámite' : 'Finalizado',
                 'expediente' => $juicio['Expediente'] ?? '',
                 'monto' => (float) ($juicio['Cuantia'] ?? 0),
             ];

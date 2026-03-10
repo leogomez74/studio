@@ -1022,7 +1022,7 @@ export default function AnalisisDetailPage() {
                         <div key={idx} className="p-3 bg-white rounded border border-red-100 text-sm space-y-1">
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-gray-700">Expediente: {juicio.expediente || '-'}</p>
-                            <Badge variant={juicio.estado === 'activo' ? 'destructive' : 'secondary'}>
+                            <Badge variant={juicio.estado === 'En Trámite' ? 'destructive' : 'secondary'}>
                               {juicio.estado}
                             </Badge>
                           </div>
@@ -1898,7 +1898,7 @@ export default function AnalisisDetailPage() {
                     {credidData.juicios_detalle.map((j: any, i: number) => (
                       <div key={i} className="text-xs p-2 bg-gray-50 rounded border">
                         <span className="font-medium">{j.expediente}</span>
-                        <Badge variant={j.estado === 'activo' ? 'destructive' : 'secondary'} className="ml-2 text-[10px]">{j.estado}</Badge>
+                        <Badge variant={j.estado === 'En Trámite' ? 'destructive' : 'secondary'} className="ml-2 text-[10px]">{j.estado}</Badge>
                         {j.monto > 0 && <span className="ml-2">₡{Number(j.monto).toLocaleString()}</span>}
                       </div>
                     ))}
