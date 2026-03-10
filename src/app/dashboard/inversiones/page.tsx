@@ -35,8 +35,7 @@ import { toastSuccess, toastError } from '@/hooks/use-toast';
 import type { Investor, Investment, InvestmentPayment, User } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
 import { InvestorFormDialog } from '@/components/investor-form-dialog';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
+import { downloadExport } from '@/lib/download-export';
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
@@ -78,7 +77,7 @@ const InvestorTableRow = React.memo(function InvestorTableRow({ investor, onDele
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
             <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/inversionista/${investor.id}`}>Ver Inversiones</Link></DropdownMenuItem>
             <DropdownMenuItem onClick={() => onEdit(investor)}>Editar</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => downloadExport(`/api/investors/${investor.id}/export/pdf`, `inversionista-${investor.id}.pdf`)}>Exportar PDF</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(investor.id)}>Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -120,7 +119,7 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
                 </Link>
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${investment.id}/export/pdf`, `inversion-${investment.numero_desembolso ?? investment.id}.pdf`)}>Exportar PDF</DropdownMenuItem>
             {isActive && (
               <DropdownMenuItem asChild className="text-destructive">
                 <Link href={`/dashboard/inversiones/${investment.id}?action=cancel`}>
@@ -1008,8 +1007,8 @@ export default function InversionesPage() {
         const usersRes = await api.get('/api/users?all=true');
         setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.data ?? []);
       } catch { /* usuario sin acceso admin — lista de usuarios vacía */ }
-    } catch (err) {
-      console.error('Error fetching data:', err);
+    } catch {
+      toastError('Error al cargar los datos de inversiones. Recarga la página.');
     } finally {
       setLoading(false);
     }
@@ -1019,8 +1018,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/tabla-general');
       setTablaGeneral(res.data);
-    } catch (err) {
-      console.error('Error fetching tabla general:', err);
+    } catch {
+      toastError('Error al cargar la tabla general de inversiones.');
     }
   }, []);
 
@@ -1028,8 +1027,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/pagos-proximos');
       setPagosProximos(res.data);
-    } catch (err) {
-      console.error('Error fetching pagos proximos:', err);
+    } catch {
+      toastError('Error al cargar los pagos próximos.');
     }
   }, []);
 
@@ -1037,8 +1036,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/reservas');
       setReservas(res.data);
-    } catch (err) {
-      console.error('Error fetching reservas:', err);
+    } catch {
+      toastError('Error al cargar las reservas de capital.');
     }
   }, []);
 
@@ -1046,8 +1045,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/vencimientos');
       setVencimientos(res.data);
-    } catch (err) {
-      console.error('Error fetching vencimientos:', err);
+    } catch {
+      // No toast — se carga en background al inicio
     }
   }, []);
 
@@ -1056,8 +1055,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/investments/pagadas');
       setPagadas(res.data);
-    } catch (err) {
-      console.error('Error fetching pagadas:', err);
+    } catch {
+      toastError('Error al cargar las inversiones pagadas.');
     } finally {
       setPagadasLoading(false);
     }
@@ -1067,8 +1066,8 @@ export default function InversionesPage() {
     try {
       const res = await api.get('/api/exchange-rates/current');
       setTipoCambio(res.data);
-    } catch (err) {
-      console.error('Error fetching tipo de cambio:', err);
+    } catch {
+      // No toast — tipo de cambio es opcional
     }
   }, []);
 
@@ -1319,10 +1318,10 @@ export default function InversionesPage() {
                   <CardDescription>Gestiona todas las inversiones de capital.</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-pdf`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-pdf', 'tabla-general.pdf')}>
                     <FileText className="h-4 w-4 mr-1" /> PDF
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-excel`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-excel', 'tabla-general.xlsx')}>
                     <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
                   </Button>
                 </div>
@@ -1393,10 +1392,10 @@ export default function InversionesPage() {
                   <CardDescription>Resumen agrupado por moneda con totales.</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-pdf`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-pdf', 'tabla-general.pdf')}>
                     <FileText className="h-4 w-4 mr-1" /> PDF
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/tabla-general-excel`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/tabla-general-excel', 'tabla-general.xlsx')}>
                     <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
                   </Button>
                 </div>
@@ -1544,10 +1543,10 @@ export default function InversionesPage() {
                   <CardDescription>Retenciones aplicadas a los cupones de intereses.</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/retenciones-pdf`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/retenciones-pdf', 'retenciones.pdf')}>
                     <FileText className="h-4 w-4 mr-1" /> PDF
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/export/retenciones-excel`, '_blank')}>
+                  <Button variant="outline" size="sm" onClick={() => downloadExport('/api/investments/export/retenciones-excel', 'retenciones.xlsx')}>
                     <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
                   </Button>
                 </div>
@@ -1658,8 +1657,8 @@ export default function InversionesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${inv.id}`}>Ver Detalle</Link></DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/estado-cuenta?lang=es`, '_blank')}>Estado de Cuenta (ES)</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/estado-cuenta?lang=en`, '_blank')}>Account Statement (EN)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${inv.id}/export/estado-cuenta?lang=es`, `estado-cuenta-${inv.numero_desembolso ?? inv.id}-es.pdf`)}>Estado de Cuenta (ES)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${inv.id}/export/estado-cuenta?lang=en`, `estado-cuenta-${inv.numero_desembolso ?? inv.id}-en.pdf`)}>Account Statement (EN)</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

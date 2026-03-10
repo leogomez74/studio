@@ -63,13 +63,17 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 - **O9**: `InvestmentService@renewInvestment` valida que la inversión sea Activa/Finalizada y que no tenga cupones Pendientes antes de renovar. Aborta con 422 si falla. `InvestmentService.php`
 - **O10**: Mensaje en `cancelacionTotal()` corregido de "Solo se pueden finalizar..." a "Solo se pueden realizar abonos totales...". `InvestmentController.php`
 
+### ✅ Implementado en Fase 3 — Seguridad y Calidad (Mar 2026)
+- **S1**: Rutas export movidas a grupo `auth:sanctum` en `api.php`. Helper `downloadExport()` en `src/lib/download-export.ts` reemplaza todos los `window.open()` de exports de inversiones.
+- **S3**: `markPaid` verifica estado=Activa antes de pagar. `markBulkPaid` filtra con `whereHas(investment, estado=Activa)`. `InvestmentCouponController.php`
+- **S4**: `unique:investors,cedula` en store; `unique:investors,cedula,{id}` en update. `InvestorController.php`
+- **S5**: Ya estaba correcto — `registered_by => required|exists:users,id` ya existía.
+- **S6**: `liquidateEarly()` aborta 422 si no está Activa. `InvestmentService.php`
+- **S7**: `console.error` silenciosos reemplazados por `toastError()` en fetch functions de los 3 archivos. Cargas opcionales de fondo (vencimientos, tipoCambio) permanecen silenciosas.
+
 ### 🔲 Pendiente (del plan de auditoría)
 - **O1**: Capitalización — el negocio confirmó que capitalizar por interés neto está correcto. Sin cambio.
-- **S1**: Proteger rutas de exportación (mover a auth:sanctum + cambiar frontend de window.open a axios blob)
-- **S3**: Validar estado inversión en `markPaid/markBulkPaid`
-- **S4**: Unicidad de cédula en inversionistas
-- **S7**: Reemplazar catch silenciosos con toasts en frontend
-- **S10**: Índice en `numero_desembolso`
+- **S10**: Índice en `numero_desembolso` — nueva migration (baja prioridad)
 
 ## Estadísticas del proyecto
 - Backend PHP: 163 archivos

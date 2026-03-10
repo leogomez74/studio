@@ -12,11 +12,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ProtectedPage } from '@/components/ProtectedPage';
 import api from '@/lib/axios';
+import { toastError } from '@/hooks/use-toast';
 import type { Investor, Investment, InvestmentPayment } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
+import { downloadExport } from '@/lib/download-export';
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
@@ -39,8 +39,8 @@ export default function InvestorDetailPage() {
       ]);
       setInvestor(res.data);
       setAllInvestors(invRes.data);
-    } catch (err) {
-      console.error('Error fetching investor:', err);
+    } catch {
+      toastError('Error al cargar los datos del inversionista.');
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function InvestorDetailPage() {
     try {
       await api.delete(`/api/investments/${id}`);
       fetchInvestor();
-    } catch (err) { console.error(err); }
+    } catch (err: any) { toastError(err?.response?.data?.message || 'Error al eliminar la inversión.'); }
   };
 
   if (loading) {
@@ -99,10 +99,10 @@ export default function InvestorDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/pdf`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investors/${investor.id}/export/pdf`, `inversionista-${investor.name}.pdf`)}>
             <FileText className="h-4 w-4 mr-1" /> PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investors/${investor.id}/export/excel`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investors/${investor.id}/export/excel`, `inversionista-${investor.name}.xlsx`)}>
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
           </Button>
           <Button size="sm" className="gap-1" onClick={() => setShowForm(true)}>
@@ -307,7 +307,7 @@ function InvestmentsTable({ investments, onDelete }: { investments: Investment[]
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                   <DropdownMenuItem asChild><Link href={`/dashboard/inversiones/${inv.id}`}>Ver Detalles</Link></DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${inv.id}/export/pdf`, '_blank')}>Exportar PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${inv.id}/export/pdf`, `inversion-${inv.numero_desembolso ?? inv.id}.pdf`)}>Exportar PDF</DropdownMenuItem>
                   <DropdownMenuItem className="text-destructive" onClick={() => onDelete(inv.id)}>Eliminar</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

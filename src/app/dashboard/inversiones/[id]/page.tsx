@@ -29,6 +29,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import api from '@/lib/axios';
 import type { Investment, InvestmentCoupon } from '@/lib/data';
+import { downloadExport } from '@/lib/download-export';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 
@@ -229,7 +230,7 @@ export default function InvestmentDetailPage() {
     try {
       await api.post(`/api/investments/${investment.id}/liquidate`);
       fetchInvestment();
-    } catch (err) { console.error(err); }
+    } catch (err: any) { toastError(err?.response?.data?.message || 'Error al liquidar la inversión.'); }
   };
 
   const handleCancel = async () => {
@@ -337,10 +338,10 @@ export default function InvestmentDetailPage() {
           </Badge>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/pdf`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investments/${investment.id}/export/pdf`, `inversion-${investment.numero_desembolso}.pdf`)}>
             <FileText className="h-4 w-4 mr-1" /> PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/excel`, '_blank')}>
+          <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investments/${investment.id}/export/excel`, `inversion-${investment.numero_desembolso}.xlsx`)}>
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
           </Button>
           <DropdownMenu>
@@ -350,10 +351,10 @@ export default function InvestmentDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=es`, '_blank')}>
+              <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=es`, `estado-cuenta-${investment.numero_desembolso}-es.pdf`)}>
                 Descargar en Español
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=en`, '_blank')}>
+              <DropdownMenuItem onClick={() => downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=en`, `estado-cuenta-${investment.numero_desembolso}-en.pdf`)}>
                 Download in English
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1006,10 +1007,10 @@ export default function InvestmentDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => { window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=es`, '_blank'); setShowEstadoCuentaPrompt(false); }}>
+                <DropdownMenuItem onClick={() => { downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=es`, `estado-cuenta-${investment.numero_desembolso}-es.pdf`); setShowEstadoCuentaPrompt(false); }}>
                   Descargar en Español
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { window.open(`${API_BASE}/api/investments/${investment.id}/export/estado-cuenta?lang=en`, '_blank'); setShowEstadoCuentaPrompt(false); }}>
+                <DropdownMenuItem onClick={() => { downloadExport(`/api/investments/${investment.id}/export/estado-cuenta?lang=en`, `estado-cuenta-${investment.numero_desembolso}-en.pdf`); setShowEstadoCuentaPrompt(false); }}>
                   Download in English
                 </DropdownMenuItem>
               </DropdownMenuContent>

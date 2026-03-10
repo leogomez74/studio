@@ -52,16 +52,7 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10
 Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
 Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
 
-// --- Exports de Inversiones (se abren en nueva pestaña del navegador, sin auth header) ---
-Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
-Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
-Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
-Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
-Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
-Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
-Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
-Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
-Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
+// (exports de inversiones movidos a grupo auth:sanctum — ver abajo)
 
 // --- Registro público de leads (formulario compartido en redes) ---
 Route::post('/leads', [LeadController::class, 'store']);
@@ -294,6 +285,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('investments', InvestmentController::class);
     Route::apiResource('investment-payments', InvestmentPaymentController::class)->only(['index', 'store', 'destroy']);
     Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
+
+    // --- Exports de Inversiones (protegidos con auth) ---
+    Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
+    Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
+    Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
+    Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
+    Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
+    Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
+    Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
+    Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
+    Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
 
     // --- Embargo ---
     Route::get('/embargo/personas', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'buscarPersonas']);

@@ -24,7 +24,11 @@ class InvestmentCouponController extends Controller
 
     public function markPaid(Request $request, int $id)
     {
-        $coupon = InvestmentCoupon::findOrFail($id);
+        $coupon = InvestmentCoupon::with('investment')->findOrFail($id);
+
+        if ($coupon->investment->estado !== 'Activa') {
+            return response()->json(['message' => 'Solo se pueden pagar cupones de inversiones activas.'], 422);
+        }
 
         $validated = $request->validate([
             'fecha_pago' => 'nullable|date',
@@ -76,6 +80,7 @@ class InvestmentCouponController extends Controller
         $coupons = InvestmentCoupon::with('investment')
             ->whereIn('id', $validated['coupon_ids'])
             ->where('estado', '!=', 'Pagado')
+            ->whereHas('investment', fn ($q) => $q->where('estado', 'Activa'))
             ->get();
 
         $updated = $coupons->count();

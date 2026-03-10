@@ -261,6 +261,10 @@ class InvestmentService
 
     public function liquidateEarly(Investment $investment): Investment
     {
+        if ($investment->estado !== 'Activa') {
+            abort(422, 'Solo se pueden liquidar inversiones activas.');
+        }
+
         DB::transaction(function () use ($investment) {
             // Mark remaining coupons as paid (Pendiente y Reservado)
             $investment->coupons()
