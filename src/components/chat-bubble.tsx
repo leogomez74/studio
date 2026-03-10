@@ -81,6 +81,7 @@ const ENTITY_TARGETS = [
   { key: 'credit',      label: 'Crédito' },
   { key: 'opportunity', label: 'Oportunidad' },
   { key: 'lead',        label: 'Lead' },
+  { key: 'client',      label: 'Cliente' },
   { key: 'analisis',    label: 'Análisis' },
 ];
 
@@ -330,7 +331,7 @@ export function ChatBubble() {
     setEntitySearchLoading(true);
     try {
       const endpoints: Record<string, string> = {
-        credit: '/api/credits', opportunity: '/api/opportunities', lead: '/api/leads', analisis: '/api/analisis',
+        credit: '/api/credits', opportunity: '/api/opportunities', lead: '/api/leads', client: '/api/clients', analisis: '/api/analisis',
       };
       const res = await api.get(endpoints[type] || '/api/credits', { params: { search: query, per_page: 8 } });
       setEntityResults(Array.isArray(res.data) ? res.data : res.data.data ?? []);
@@ -342,6 +343,7 @@ export function ChatBubble() {
       credit:      (e) => e.reference || `#${e.id}`,
       opportunity: (e) => e.id || `#${e.id}`,
       lead:        (e) => e.cedula || e.name || `#${e.id}`,
+      client:      (e) => e.cedula || e.name || `#${e.id}`,
       analisis:    (e) => e.reference || `#${e.id}`,
     };
     const ref = (refLabel[pickerType] || ((e: any) => `#${e.id}`))(entity);
