@@ -41,11 +41,13 @@ class CredidService
 
             $data = $response->json();
 
-            // Si json() retorna string en vez de array, intentar decodificar manualmente
+            // Si json() retorna string en vez de array (ej: mensaje de error de Credid)
             if (is_string($data)) {
-                $data = json_decode($data, true);
-                if (!is_array($data)) {
-                    Log::warning('Credid: respuesta no es JSON válido', ['cedula' => $cleanCedula]);
+                Log::warning('Credid: respuesta es string', ['message' => $data, 'cedula' => $cleanCedula]);
+                $decoded = json_decode($data, true);
+                if (is_array($decoded)) {
+                    $data = $decoded;
+                } else {
                     return null;
                 }
             }
