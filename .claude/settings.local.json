@@ -12,7 +12,9 @@
       "mcp__laravel-boost__tinker",
       "Bash(php -l c:/laragon/www/studio/backend/app/Services/AbonoService.php)",
       "Bash(php -l c:/laragon/www/studio/backend/app/Services/ReversalService.php)",
-      "Bash(php -l c:/laragon/www/studio/backend/app/Http/Controllers/Api/ReporteController.php)"
+      "Bash(php -l c:/laragon/www/studio/backend/app/Http/Controllers/Api/ReporteController.php)",
+      "mcp__laravel-boost__list-routes",
+      "mcp__laravel-boost__last-error"
     ]
   },
   "enableAllProjectMcpServers": true,
