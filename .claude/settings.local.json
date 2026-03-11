@@ -7,7 +7,8 @@
       "Bash(php artisan migrate)",
       "Bash(php artisan tinker --execute=\"echo \\\\Illuminate\\\\Support\\\\Facades\\\\Schema::getColumnType\\(''comments'', ''commentable_id''\\);\")",
       "Bash(php artisan tinker --execute=\"echo App\\\\Models\\\\Deductora::count\\(\\);\")",
-      "Bash(npx tsc --noEmit)"
+      "Bash(npx tsc --noEmit)",
+      "Bash(php -l app/Http/Controllers/Api/ReporteController.php)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -433,42 +433,47 @@ class ReporteController extends Controller
                 'detalle'     => 'Excluir de planilla — motivo: ' . ($c->cierre_motivo ?? $c->status),
             ])->values();
 
-        // ── Modificaciones de cuota: créditos con nuevo plan generado en el período ──
-        // Se detecta cuando plan_de_pagos tiene rows con numero_cuota=0 creadas en el período
-        $creditIdsConNuevoPlan = PlanDePago::where('numero_cuota', 0)
-            ->whereBetween('created_at', [$desde . ' 00:00:00', $hasta . ' 23:59:59'])
-            ->pluck('credit_id');
+        // ── Modificaciones de cuota: detectadas por abonos extraordinarios con strategy reduce_amount ──
+        // AbonoService registra el original_cuota en reversal_snapshot del CreditPayment
+        $abonosEnPeriodo = CreditPayment::where('source', 'Extraordinario')
+            ->whereBetween('fecha_pago', [$desde, $hasta])
+            ->whereNotNull('reversal_snapshot')
+            ->whereHas('credit', fn($q) => $q->where('deductora_id', $deductoraId)
+                ->whereNotIn('status', ['Cerrado', 'Legal', 'Aprobado', 'Por firmar']))
+            ->with(['credit:id,reference,lead_id,cuota,status', 'credit.lead:id,name,cedula'])
+            ->get();
 
         $modificaciones = collect();
-        if ($creditIdsConNuevoPlan->isNotEmpty()) {
-            $modificaciones = Credit::with(['lead:id,name,cedula'])
-                ->where('deductora_id', $deductoraId)
-                ->whereIn('id', $creditIdsConNuevoPlan)
-                ->whereNotIn('status', ['Cerrado', 'Legal', 'Aprobado', 'Por firmar'])
-                ->get(['id', 'reference', 'lead_id', 'cuota', 'status'])
-                ->map(function ($c) use ($desde) {
-                    // Cuota anterior: primer row del plan_de_pagos antes del período
-                    $cuotaAnterior = PlanDePago::where('credit_id', $c->id)
-                        ->where('numero_cuota', '>', 0)
-                        ->where('created_at', '<', $desde . ' 00:00:00')
-                        ->orderBy('numero_cuota', 'desc')
-                        ->value('cuota');
+        if ($abonosEnPeriodo->isNotEmpty()) {
+            // Agrupar por crédito (puede haber múltiples abonos en el período; tomar el más antiguo para cuota original)
+            $byCredit = $abonosEnPeriodo->sortBy('fecha_pago')->groupBy('credit_id');
 
-                    $cuotaNueva = (float) $c->cuota;
-                    $cuotaAnt   = $cuotaAnterior ? (float) $cuotaAnterior : $cuotaNueva;
+            $modificaciones = $byCredit->map(function ($pagos) {
+                $primerAbono = $pagos->first();
+                $snapshot    = is_string($primerAbono->reversal_snapshot)
+                    ? json_decode($primerAbono->reversal_snapshot, true)
+                    : (array) $primerAbono->reversal_snapshot;
 
-                    return [
-                        'tipo'           => 'modificacion',
-                        'id'             => $c->id,
-                        'referencia'     => $c->reference,
-                        'cliente'        => $c->lead?->name ?? '—',
-                        'cedula'         => $c->lead?->cedula ?? '—',
-                        'cuota_anterior' => $cuotaAnt,
-                        'cuota_nueva'    => $cuotaNueva,
-                        'diferencia'     => round($cuotaNueva - $cuotaAnt, 2),
-                        'detalle'        => 'Modificar cuota: ₡' . number_format($cuotaAnt, 2) . ' → ₡' . number_format($cuotaNueva, 2),
-                    ];
-                })->filter(fn($r) => $r['cuota_anterior'] != $r['cuota_nueva'])->values();
+                $cuotaAnterior = isset($snapshot['original_cuota']) ? (float) $snapshot['original_cuota'] : null;
+                $credit        = $primerAbono->credit;
+                $cuotaNueva    = (float) $credit->cuota;
+
+                if ($cuotaAnterior === null || $cuotaAnterior == $cuotaNueva) {
+                    return null; // Sin cambio de cuota (strategy reduce_term)
+                }
+
+                return [
+                    'tipo'           => 'modificacion',
+                    'id'             => $credit->id,
+                    'referencia'     => $credit->reference,
+                    'cliente'        => $credit->lead?->name ?? '—',
+                    'cedula'         => $credit->lead?->cedula ?? '—',
+                    'cuota_anterior' => $cuotaAnterior,
+                    'cuota_nueva'    => $cuotaNueva,
+                    'diferencia'     => round($cuotaNueva - $cuotaAnterior, 2),
+                    'detalle'        => 'Modificar cuota: ₡' . number_format($cuotaAnterior, 2) . ' → ₡' . number_format($cuotaNueva, 2),
+                ];
+            })->filter()->values();
         }
 
         return response()->json([
