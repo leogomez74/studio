@@ -16,6 +16,7 @@ import PolizaTab from '@/components/configuracion/PolizaTab';
 import PatronosTab from '@/components/configuracion/PatronosTab';
 import DeductorasTab from '@/components/configuracion/DeductorasTab';
 import TareasAutomationTab from '@/components/configuracion/TareasAutomationTab';
+import IntegracionesTab from '@/components/configuracion/IntegracionesTab';
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<string>('prestamos');
@@ -37,6 +38,7 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="poliza">Póliza</TabsTrigger>
           <TabsTrigger value="embargo">Embargo</TabsTrigger>
           <TabsTrigger value="tareas">Tareas</TabsTrigger>
+          <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
         </TabsList>
 
         <TabsContent value="prestamos">
@@ -89,6 +91,10 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="tareas">
           <TareasAutomationTab />
+        </TabsContent>
+
+        <TabsContent value="integraciones">
+          <IntegracionesTab />
         </TabsContent>
       </Tabs>
     </ProtectedPage>

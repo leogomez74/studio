@@ -54,4 +54,9 @@ return [
         'token' => env('CREDID_API_TOKEN', ''),
     ],
 
+    'dsf' => [
+        'url' => env('DSF_API_URL', ''),
+        'token' => env('DSF_API_TOKEN', ''),
+    ],
+
 ];

@@ -149,6 +149,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
     Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
 
+    // --- Integraciones Externas ---
+    Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');
+    Route::post('/external-integrations/{id}/test', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'test'])->middleware('admin');
+    Route::get('/external-routes', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'routes']);
+    Route::get('/external-routes/{id}', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'integrationRoutes']);
+
     // --- Deductoras ---
     Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show', 'update']);
 

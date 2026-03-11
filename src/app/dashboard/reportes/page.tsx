@@ -71,11 +71,6 @@ interface CobroRow {
   interes_corriente: number; interes_moratorio: number; source: string;
 }
 
-interface CuponRow {
-  id: number; fecha_cupon: string; numero_desembolso: string; inversionista: string;
-  capital: number; tasa_anual: number; moneda: string;
-  interes_bruto: number; retencion: number; interes_neto: number; estado: string;
-}
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
@@ -101,7 +96,6 @@ export default function ReportesPage() {
             <TabsTrigger value="deductora">Por Deductora</TabsTrigger>
             <TabsTrigger value="novedades">Novedades de Planilla</TabsTrigger>
             <TabsTrigger value="cobros">Cobros</TabsTrigger>
-            <TabsTrigger value="inversiones">Inversiones</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cartera">
@@ -118,9 +112,6 @@ export default function ReportesPage() {
           </TabsContent>
           <TabsContent value="cobros">
             <CobrosTab deductoras={deductoras} />
-          </TabsContent>
-          <TabsContent value="inversiones">
-            <InversionesTab />
           </TabsContent>
         </Tabs>
       </div>
@@ -959,147 +950,3 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
   );
 }
 
-// ─── TAB 6: Inversiones ───────────────────────────────────────────────────────
-
-function InversionesTab() {
-  const [desde, setDesde] = useState(FIRST_OF_MONTH);
-  const [hasta, setHasta] = useState(TODAY);
-  const [data, setData] = useState<{ data: CuponRow[]; totales: Record<string, number>; por_mes: Record<string, { interes_bruto: number; retencion: number; interes_neto: number }> } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [loadingXls, setLoadingXls] = useState(false);
-
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const r = await api.get(`/api/reportes/inversiones?desde=${desde}&hasta=${hasta}`);
-      setData(r.data);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al cargar inversiones.');
-    } finally { setLoading(false); }
-  }, [desde, hasta]);
-
-  useEffect(() => { fetch(); }, [fetch]);
-
-  const barData = data ? Object.entries(data.por_mes).map(([mes, v]) => ({ mes, ...v })) : [];
-  const barConfig = {
-    interes_neto: { label: 'Interés neto', color: 'hsl(var(--chart-1))' },
-    retencion:    { label: 'Retención',    color: 'hsl(var(--chart-2))' },
-  };
-
-  const doExcel = async () => {
-    setLoadingXls(true);
-    await downloadExport(`/api/reportes/inversiones/excel?desde=${desde}&hasta=${hasta}`, 'inversiones.xlsx');
-    setLoadingXls(false);
-  };
-
-  return (
-    <div className="space-y-4 mt-2">
-      <FilterRow>
-        <FilterField label="Desde">
-          <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-[145px]" />
-        </FilterField>
-        <FilterField label="Hasta">
-          <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-[145px]" />
-        </FilterField>
-        <Button variant="outline" size="sm" onClick={fetch} disabled={loading}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Actualizar
-        </Button>
-        <div className="ml-auto">
-          <Button variant="outline" size="sm" onClick={doExcel} disabled={loadingXls}>
-            <FileSpreadsheet className="h-4 w-4 mr-1" />{loadingXls ? 'Generando…' : 'Excel'}
-          </Button>
-        </div>
-      </FilterRow>
-
-      {loading && !data && (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin mr-2" /> Cargando inversiones…
-        </div>
-      )}
-      {error && (
-        <div className="flex items-center gap-2 text-destructive p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-          <AlertTriangle className="h-4 w-4 shrink-0" />{error}
-        </div>
-      )}
-
-      {data && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <SummaryCard label="Inversiones activas" value={String(data.totales.inversiones_activas)} />
-            <SummaryCard label="Capital activo" value={fmt(data.totales.capital_activo)} />
-            <SummaryCard label="Interés neto período" value={fmt(data.totales.interes_neto)} sub={`Bruto: ${fmt(data.totales.interes_bruto)}`} />
-            <SummaryCard label="Retenciones período" value={fmt(data.totales.retencion)} />
-          </div>
-
-          {barData.length > 1 && (
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Cupones por Mes</CardTitle></CardHeader>
-              <CardContent>
-                <ChartContainer config={barConfig} className="h-[200px]">
-                  <BarChart data={barData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={v => '₡' + (v / 1e6).toFixed(1) + 'M'} tick={{ fontSize: 10 }} />
-                    <ChartTooltip content={<ChartTooltipContent formatter={(v) => fmt(Number(v))} />} />
-                    <Bar dataKey="interes_neto" fill="var(--color-interes_neto)" radius={[4, 4, 0, 0]} stackId="a" />
-                    <Bar dataKey="retencion"    fill="var(--color-retencion)"    radius={[4, 4, 0, 0]} stackId="a" />
-                  </BarChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Cupones del Período — {data.data.length} registros</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <ScrollableTableContainer>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Desembolso</TableHead>
-                      <TableHead>Inversionista</TableHead>
-                      <TableHead className="text-right">Capital</TableHead>
-                      <TableHead className="text-center">Tasa</TableHead>
-                      <TableHead>Moneda</TableHead>
-                      <TableHead className="text-right">Int. Bruto</TableHead>
-                      <TableHead className="text-right">Retención</TableHead>
-                      <TableHead className="text-right">Int. Neto</TableHead>
-                      <TableHead>Estado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Cargando…</TableCell></TableRow>
-                    ) : data.data.length === 0 ? (
-                      <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Sin cupones en el período</TableCell></TableRow>
-                    ) : data.data.map(r => (
-                      <TableRow key={r.id}>
-                        <TableCell className="text-xs">{r.fecha_cupon}</TableCell>
-                        <TableCell className="font-mono text-xs">{r.numero_desembolso}</TableCell>
-                        <TableCell className="text-sm">{r.inversionista}</TableCell>
-                        <TableCell className="text-right text-xs">{fmt(r.capital)}</TableCell>
-                        <TableCell className="text-center text-xs">{(r.tasa_anual * 100).toFixed(1)}%</TableCell>
-                        <TableCell className="text-xs">{r.moneda}</TableCell>
-                        <TableCell className="text-right text-xs">{fmt(r.interes_bruto)}</TableCell>
-                        <TableCell className="text-right text-xs text-red-600">{fmt(r.retencion)}</TableCell>
-                        <TableCell className="text-right text-xs font-medium">{fmt(r.interes_neto)}</TableCell>
-                        <TableCell>
-                          <Badge variant={r.estado === 'Pagado' ? 'default' : r.estado === 'Reservado' ? 'secondary' : 'outline'}>
-                            {r.estado}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollableTableContainer>
-            </CardContent>
-          </Card>
-        </>
-      )}
-    </div>
-  );
-}
