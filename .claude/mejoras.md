@@ -88,9 +88,22 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 - **S6**: `liquidateEarly()` aborta 422 si no está Activa. `InvestmentService.php`
 - **S7**: `console.error` silenciosos reemplazados por `toastError()` en fetch functions de los 3 archivos. Cargas opcionales de fondo (vencimientos, tipoCambio) permanecen silenciosas.
 
+### ✅ Fixes Rewards (11 Mar 2026)
+- LogsActivity añadido a CatalogController, ChallengeController, GamificationConfigController
+- Fallback inseguro `User::firstOrFail()` → `abort(401)` en 6 controllers Rewards
+- División por cero en ChallengeService (`target=0` → progress=0 en vez de 1)
+- Notificaciones habilitadas en listener BadgeEarned + BadgeEarnedNotification + migración notifications
+- Magic numbers → constantes y config en StreakService, LeaderboardService, CatalogService, RedemptionService
+- `settings.local.json` removido de git tracking
+- `.claude/` excepciones en .gitignore para archivos de memoria
+- **S10**: Índice en `numero_desembolso` — migración creada
+
 ### 🔲 Pendiente (del plan de auditoría)
 - **O1**: Capitalización — el negocio confirmó que capitalizar por interés neto está correcto. Sin cambio.
-- **S10**: Índice en `numero_desembolso` — nueva migration (baja prioridad)
+
+### 🔲 Pendiente Rewards (baja prioridad)
+- Custom exceptions en vez de `\Exception` genérico
+- Tests del módulo
 
 ## Estadísticas del proyecto
 - Backend PHP: 163 archivos
