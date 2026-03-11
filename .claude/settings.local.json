@@ -7,5 +7,10 @@
       "Bash(php artisan migrate)",
       "Bash(php artisan tinker --execute=\"echo \\\\Illuminate\\\\Support\\\\Facades\\\\Schema::getColumnType\\(''comments'', ''commentable_id''\\);\")"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "laravel-boost",
+    "next-devtools"
+  ],
+  "enableAllProjectMcpServers": true
 }
