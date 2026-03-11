@@ -44,6 +44,26 @@ use App\Http\Controllers\Api\RutaDiariaController;
 |
 */
 
+// --- Health check: verificar variables de entorno críticas ---
+Route::get('/health/env', function () {
+    $checks = [
+        'DB_DATABASE'   => !empty(env('DB_DATABASE')),
+        'ERP_API_URL'   => !empty(config('services.erp.url')),
+        'CREDID_API_URL' => !empty(config('services.credid.url')),
+        'CREDID_API_TOKEN' => !empty(config('services.credid.token')),
+        'DSF_API_URL'   => !empty(config('services.dsf.url')),
+        'DSF_API_TOKEN' => !empty(config('services.dsf.token')),
+    ];
+
+    $allOk = !in_array(false, $checks, true);
+
+    return response()->json([
+        'status' => $allOk ? 'ok' : 'missing',
+        'checks' => $checks,
+        'timestamp' => now()->toIso8601String(),
+    ], $allOk ? 200 : 503);
+});
+
 // --- Autenticación (públicas, con rate limiting) ---
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
