@@ -172,8 +172,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Integraciones Externas ---
     Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');
     Route::post('/external-integrations/{id}/test', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'test'])->middleware('admin');
-    Route::get('/external-routes', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'routes']);
-    Route::get('/external-routes/{id}', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'integrationRoutes']);
+    Route::get('/external-routes', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'routes'])->middleware('admin');
+    Route::get('/external-routes/{id}', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'integrationRoutes'])->middleware('admin');
 
     // --- Deductoras ---
     Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show', 'update']);

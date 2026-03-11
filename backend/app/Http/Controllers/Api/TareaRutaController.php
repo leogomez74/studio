@@ -117,7 +117,13 @@ class TareaRutaController extends Controller
 
     public function completar(Request $request, string $id)
     {
+        $user = Auth::user();
         $tarea = TareaRuta::findOrFail($id);
+
+        // Only the assigned mensajero or admin can complete a task
+        if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
 
         if (!in_array($tarea->status, ['asignada', 'en_transito'])) {
             return response()->json(['message' => 'La tarea debe estar asignada o en tránsito para completarla.'], 422);
@@ -145,7 +151,13 @@ class TareaRutaController extends Controller
 
     public function fallar(Request $request, string $id)
     {
+        $user = Auth::user();
         $tarea = TareaRuta::findOrFail($id);
+
+        // Only the assigned mensajero or admin can report failure
+        if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
 
         if (!in_array($tarea->status, ['asignada', 'en_transito'])) {
             return response()->json(['message' => 'La tarea debe estar asignada o en tránsito para reportar fallo.'], 422);

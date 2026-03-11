@@ -16,8 +16,14 @@ class RutaDiariaController extends Controller
 
     public function index(Request $request)
     {
+        $user = Auth::user();
         $query = RutaDiaria::with(['mensajero:id,name', 'confirmadaPor:id,name'])
             ->withCount(['tareas', 'tareas as completadas_count' => fn($q) => $q->where('status', 'completada')]);
+
+        // Non-admin users only see their own routes
+        if (!$user->role?->full_access) {
+            $query->where('mensajero_id', $user->id);
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -28,7 +34,7 @@ class RutaDiariaController extends Controller
         if ($request->filled('fecha_hasta')) {
             $query->whereDate('fecha', '<=', $request->fecha_hasta);
         }
-        if ($request->filled('mensajero_id')) {
+        if ($request->filled('mensajero_id') && $user->role?->full_access) {
             $query->where('mensajero_id', $request->mensajero_id);
         }
 
@@ -37,11 +43,17 @@ class RutaDiariaController extends Controller
 
     public function show(string $id)
     {
+        $user = Auth::user();
         $ruta = RutaDiaria::with([
             'mensajero:id,name',
             'confirmadaPor:id,name',
             'tareas' => fn($q) => $q->orderBy('posicion')->with(['solicitante:id,name']),
         ])->findOrFail($id);
+
+        // Non-admin users can only view their own routes
+        if (!$user->role?->full_access && $ruta->mensajero_id !== $user->id) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
 
         return response()->json($ruta);
     }
@@ -125,7 +137,13 @@ class RutaDiariaController extends Controller
 
     public function iniciar(string $id)
     {
+        $user = Auth::user();
         $ruta = RutaDiaria::findOrFail($id);
+
+        // Only admin or the assigned mensajero can start a route
+        if (!$user->role?->full_access && $ruta->mensajero_id !== $user->id) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
 
         if ($ruta->status !== 'confirmada') {
             return response()->json(['message' => 'Solo se pueden iniciar rutas confirmadas.'], 422);

@@ -122,13 +122,28 @@ class MiController extends Controller {
 
 ---
 
+## Auditoría Seguridad — Módulo Rutas (Mar 2026)
+
+### ✅ Fase 1 — Crítico (completado 2026-03-11)
+- `auth_token`/`auth_password` cifrados con `encrypted` cast en `ExternalIntegration` + migración para datos existentes
+- Ownership checks (IDOR) en `RutaDiariaController`: `index()` scoped por usuario, `show()` + `iniciar()` verifican mensajero o admin
+- Ownership checks en `TareaRutaController`: `completar()` + `fallar()` verifican `asignado_a` o admin
+- `external-routes` endpoints protegidos con middleware `admin`
+- SSRF: validación de dominio con whitelist configurable (`ALLOWED_INTEGRATION_DOMAINS` en .env) + bloqueo de IPs privadas
+
+### 🔲 Fase 2 — Alto (pendiente)
+- Rate limiting, `$request->only()`, `lockForUpdate()` en transiciones
+
+### 🔲 Fase 3 — Medio (pendiente)
+- API Resources, sanitización errores, max length, HttpOnly cookies
+
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta
 - (sin pendientes críticos)
 
 ### 🟡 Media
-- ~~`CreditPaymentController` con 2,847 líneas~~ ✅ Resuelto — extraído en 7 Services (406 líneas el controller)
+- Fase 2+3 auditoría seguridad rutas
 
 ### 🟢 Baja
 - 149 `as any` en TypeScript (bajó de 292)

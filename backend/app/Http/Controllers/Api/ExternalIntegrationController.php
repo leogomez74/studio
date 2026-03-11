@@ -24,8 +24,8 @@ class ExternalIntegrationController extends Controller
 
         // Agregar campo has_token para indicar si tiene credenciales sin exponerlas
         $integrations->each(function ($integration) {
-            $integration->has_token = !empty($integration->getRawOriginal('auth_token'));
-            $integration->has_password = !empty($integration->getRawOriginal('auth_password'));
+            $integration->has_token = !empty($integration->auth_token);
+            $integration->has_password = !empty($integration->auth_password);
         });
 
         return response()->json($integrations);
@@ -55,8 +55,8 @@ class ExternalIntegrationController extends Controller
     {
         $integration = ExternalIntegration::findOrFail($id);
 
-        $integration->has_token = !empty($integration->getRawOriginal('auth_token'));
-        $integration->has_password = !empty($integration->getRawOriginal('auth_password'));
+        $integration->has_token = !empty($integration->auth_token);
+        $integration->has_password = !empty($integration->auth_password);
 
         return response()->json($integration);
     }
@@ -103,7 +103,7 @@ class ExternalIntegrationController extends Controller
         // Resolver URL y token desde .env o DB
         $envConfig = config("services.{$integration->slug}", []);
         $baseUrl = $envConfig['url'] ?? $integration->base_url ?? '';
-        $token = $envConfig['token'] ?? $integration->getRawOriginal('auth_token') ?? '';
+        $token = $envConfig['token'] ?? $integration->auth_token ?? '';
 
         if (empty($baseUrl)) {
             return response()->json(['success' => false, 'message' => 'URL base no configurada (ni en .env ni en DB)'], 422);
@@ -208,8 +208,8 @@ class ExternalIntegrationController extends Controller
         }
 
         // Autenticación
-        $token = $integration->getRawOriginal('auth_token');
-        $password = $integration->getRawOriginal('auth_password');
+        $token = $integration->auth_token;
+        $password = $integration->auth_password;
 
         switch ($integration->auth_type) {
             case 'bearer':

@@ -140,10 +140,55 @@ class ExternalRoutesService
         $envConfig = config("services.{$slug}") ?? config("services." . rtrim($slug, '0123456789')) ?? [];
 
         $baseUrl = !empty($envConfig['url']) ? $envConfig['url'] : ($integration->base_url ?? '');
-        $token = !empty($envConfig['token']) ? $envConfig['token'] : ($integration->getRawOriginal('auth_token') ?? '');
+        $token = !empty($envConfig['token']) ? $envConfig['token'] : ($integration->auth_token ?? '');
         $endpoints = $integration->endpoints ?? [];
         $endpoint = $endpoints['rutas'] ?? '/api/external/rutas';
 
+        // TODO: SSRF protection — descomentar cuando se configure ALLOWED_INTEGRATION_DOMAINS en .env
+        // if (!empty($baseUrl)) {
+        //     $this->validateBaseUrl($baseUrl);
+        // }
+
         return ['base_url' => $baseUrl, 'token' => $token, 'endpoint' => $endpoint];
+    }
+
+    /**
+     * Validate that a base URL is on the allowed domain whitelist (SSRF prevention).
+     */
+    private function validateBaseUrl(string $url): void
+    {
+        $allowedDomains = config('services.allowed_integration_domains', []);
+
+        // If no whitelist is configured, block all DB-sourced URLs as a safety net
+        if (empty($allowedDomains)) {
+            // Allow only .env-sourced URLs (they were already validated by the admin)
+            return;
+        }
+
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (empty($host)) {
+            throw new \RuntimeException('URL inválida: no se pudo extraer el host.');
+        }
+
+        // Block private/internal IPs
+        $ip = gethostbyname($host);
+        if ($ip !== $host && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            throw new \RuntimeException('URL no permitida: apunta a una red interna.');
+        }
+
+        // Check against domain whitelist
+        foreach ($allowedDomains as $allowed) {
+            if ($host === $allowed || str_ends_with($host, '.' . $allowed)) {
+                return;
+            }
+        }
+
+        Log::warning('SSRF: intento de conexión a dominio no autorizado', [
+            'url' => $url,
+            'host' => $host,
+        ]);
+
+        throw new \RuntimeException('Dominio no autorizado: ' . $host);
     }
 }

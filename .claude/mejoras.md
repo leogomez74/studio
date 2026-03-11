@@ -42,28 +42,26 @@
 | Mar 2026 | Auth "Recordarme": cookie 30 días (persistent) vs session cookie. Auto-redirect a `/dashboard` si ya logueado |
 | Mar 2026 | Integración DSF: config en `.env` con fallback a BD, health check `/api/health/env`, Artisan `route-token:manage` en DSF3 |
 | Mar 2026 | `rutas/page.tsx` refactorizado: 1,672 → ~100 líneas orquestador + 7 archivos en `src/components/rutas/`. Tabs filtrados por rol (admin vs mensajero) |
+| 2026-03-11 | **Auditoría Seguridad Rutas — Fase 1 completa**: tokens cifrados con `encrypted` cast, ownership checks (IDOR) en RutaDiariaController y TareaRutaController, middleware admin en external-routes, validación SSRF de dominio con whitelist |
 
 ## Pendiente — Media prioridad
 
-### ~~3. configuracion/page.tsx con 4,035 líneas~~ ✅ Resuelto (Mar 2026)
-Dividido en 12 componentes en `src/components/configuracion/`. page.tsx ahora es orquestador de 96 líneas.
+### Auditoría Seguridad Rutas — Fase 2 (pendiente)
+- Rate limiting `throttle:60,1` en endpoints de mutación (completar, fallar, iniciar)
+- Proteger `$fillable` con `$request->only()` en TareaRutaController::update
+- `lockForUpdate()` en transiciones de estado (iniciar, completar)
 
-### ~~4. Controllers sin LogsActivity~~ ✅ Resuelto (Mar 2026)
-31 controllers con LogsActivity. Solo quedan sin él los de solo lectura (ver `auditoria.md`).
-
-### ~~5. empresas-mock.ts con datos hardcodeados~~ ✅ No aplica
-Funciona como respaldo intencional si falla la lista de empresas desde BD.
-
-### ~~6. CreditPaymentController con 2,847 líneas~~ ✅ Resuelto (Mar 2026)
-Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingService, PlanillaService, AbonoService, CancelacionService, ReversalService. Controller ahora es orquestador de 406 líneas.
+### Auditoría Seguridad Rutas — Fase 3 (pendiente)
+- API Resources para controlar respuestas JSON
+- Sanitizar mensajes de error externos
+- `max:1000` en campos de texto sin límite
+- Migrar auth a HttpOnly cookies
 
 ## Pendiente — Baja prioridad
 
-### ~~7. 149 usos de `as any` en TypeScript~~ ✅ Resuelto (Mar 2026)
-0 `as any` en todo `src/`. Errores TS pre-existentes quedan en: analisis (3), inversiones (2), oportunidades/[id] (3 — bug tuple), use-toast (3), exceljs (2 — módulo no instalado).
-
-### ~~8. Log de errores en backend~~ ✅ Resuelto (Mar 2026)
-9 logs sin contexto corregidos. Todos los `Log::error/warning/critical` ahora incluyen IDs relevantes, `getMessage()` y `getTraceAsString()`.
+### 🔲 Pendiente Rewards (baja prioridad)
+- Custom exceptions en vez de `\Exception` genérico
+- Tests del módulo
 
 ## Auditoría Módulo Inversiones (Mar 2026)
 
@@ -100,10 +98,6 @@ Extraído en 7 Services: PaymentHelperService, MoraService, PaymentProcessingSer
 
 ### 🔲 Pendiente (del plan de auditoría)
 - **O1**: Capitalización — el negocio confirmó que capitalizar por interés neto está correcto. Sin cambio.
-
-### 🔲 Pendiente Rewards (baja prioridad)
-- Custom exceptions en vez de `\Exception` genérico
-- Tests del módulo
 
 ## Estadísticas del proyecto
 - Backend PHP: 163 archivos
