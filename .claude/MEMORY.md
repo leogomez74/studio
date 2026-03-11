@@ -31,6 +31,7 @@
 | Rewards | `/dashboard/rewards` | ✅ |
 | Tareas | `/dashboard/tareas` | ✅ |
 | Reportes | `/dashboard/reportes` | ✅ Mar 2026 (5 tabs — Inversiones removido, tiene su propia sección) |
+| Rutas | `/dashboard/rutas` | ✅ Mar 2026 (refactorizado: 1,672 → ~100 líneas orquestador + 5 tabs + types + utils) |
 
 ---
 
@@ -100,6 +101,24 @@ class MiController extends Controller {
 - **Novedades automáticas**: se cargan automáticamente al seleccionar cooperativa (sin botón "Consultar")
 - **PDF Planilla de Cobro**: incluye nombre asociado, cédula, No. crédito, cuota a rebajar, saldo, estado + totales + espacio firmas
 - **Status filter default**: incluye `['Activo', 'En Mora', 'Formalizado', 'Legal', 'En Progreso', 'Aprobado', 'Por firmar']` (excluye solo 'Cerrado')
+
+---
+
+## Módulo Rutas — Refactorización (Mar 2026)
+- `page.tsx` monolítico de 1,672 líneas → orquestador de ~100 líneas
+- 7 archivos extraídos en `src/components/rutas/`:
+  - `types.ts` — interfaces compartidas (TareaRuta, RutaDiaria, ExternalRoute, etc.)
+  - `utils.tsx` — constantes (statusColors, tipoIcons, prioridadLabels, etc.)
+  - `TareasPendientesTab.tsx` — CRUD tareas pendientes con filtros
+  - `GenerarRutaTab.tsx` — selección + generación de ruta + referencia externa
+  - `RutasActivasTab.tsx` — gestión rutas activas con sidebar + detalle
+  - `HistorialTab.tsx` — historial PEP + rutas externas con sidebar
+  - `MiRutaTab.tsx` — vista mensajero con PEP tasks + DSF stops + completar/fallar
+- **Tabs filtrados por rol**: admin ve [Panel, Generar Ruta, Rutas Activas, Historial]; no-admin ve [Mi Ruta, Historial]
+- Detección de rol: `user?.role?.full_access === true` vía `useAuth()`
+- Integración DSF: config en `.env` (`DSF_API_URL`, `DSF_API_TOKEN`) con fallback a BD
+- `ExternalRoutesService` resuelve config con slug fallback: `dsf3` → `dsf`
+- Health check: `GET /api/health/env` verifica variables críticas del `.env`
 
 ---
 
