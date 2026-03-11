@@ -9,11 +9,13 @@ use App\Models\User;
 use App\Models\Rewards\RewardCatalogItem;
 use App\Services\Rewards\RewardService;
 use App\Services\Rewards\CatalogService;
+use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CatalogController extends Controller
 {
+    use LogsActivity;
     public function __construct(
         protected RewardService $rewardService,
         protected CatalogService $catalogService
@@ -106,6 +108,12 @@ class CatalogController extends Controller
                 $deliveryInfo['delivery_info'] ?? null,
                 $deliveryInfo['notes'] ?? null
             );
+
+            $this->logActivity('create', 'Rewards - Canje', $redemption, $item->name, [
+                ['field' => 'item', 'old_value' => null, 'new_value' => $item->name],
+                ['field' => 'points_spent', 'old_value' => null, 'new_value' => $redemption->points_spent],
+                ['field' => 'new_balance', 'old_value' => null, 'new_value' => $rewardUser->fresh()->total_points],
+            ], $request);
 
             return response()->json([
                 'success' => true,
