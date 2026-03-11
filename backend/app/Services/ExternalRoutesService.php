@@ -5,15 +5,31 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\ExternalIntegration;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ExternalRoutesService
 {
+    private const CACHE_TTL = 120; // 2 minutos
+
     /**
      * Obtener rutas de todas las integraciones activas de tipo "rutas".
      */
-    public function fetchAllRoutes(array $filters = []): array
+    public function fetchAllRoutes(array $filters = [], bool $forceRefresh = false): array
+    {
+        $cacheKey = 'external_routes_' . md5(json_encode($filters));
+
+        if ($forceRefresh) {
+            Cache::forget($cacheKey);
+        }
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($filters) {
+            return $this->doFetchAllRoutes($filters);
+        });
+    }
+
+    private function doFetchAllRoutes(array $filters): array
     {
         $integrations = ExternalIntegration::where('type', 'rutas')
             ->where('is_active', true)
