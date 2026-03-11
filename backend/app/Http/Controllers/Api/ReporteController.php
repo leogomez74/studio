@@ -472,6 +472,7 @@ class ReporteController extends Controller
                     'cuota_anterior' => $cuotaAnterior,
                     'cuota_nueva'    => $cuotaNueva,
                     'diferencia'     => round($cuotaNueva - $cuotaAnterior, 2),
+                    'fecha'          => $primerAbono->fecha_pago,
                     'detalle'        => 'Modificar cuota: ₡' . number_format($cuotaAnterior, 2) . ' → ₡' . number_format($cuotaNueva, 2),
                 ];
             })->filter()->values();
