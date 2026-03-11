@@ -1,7 +1,33 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { LoginLogo } from "@/components/login-logo";
+import { getAuthToken, getAuthUser } from "@/lib/auth";
 
 export default function Home() {
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    const user = getAuthUser();
+    if (token && user) {
+      router.replace("/dashboard");
+    } else {
+      setChecking(false);
+    }
+  }, [router]);
+
+  if (checking) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       <div className="flex min-h-screen flex-col justify-center px-6 py-12 sm:px-8 lg:px-12">
