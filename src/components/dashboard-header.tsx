@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2, MessageSquare, CheckCheck, ClipboardCheck } from 'lucide-react';
+import { Bell, Home, ChevronRight, AlertTriangle, Users, Briefcase, Loader2, MessageSquare, CheckCheck, ClipboardCheck, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -698,6 +698,7 @@ export function DashboardHeader() {
                       </div>
                     )}
                     {commentNotifications.map((notif) => {
+                      const isNovedad = notif.type === 'novedad_planilla';
                       const entityType = notif.data?.commentable_type || '';
                       const entityLabel = ENTITY_LABELS[entityType] || 'Entidad';
                       const senderName = notif.data?.sender_name || 'Alguien';
@@ -711,8 +712,15 @@ export function DashboardHeader() {
                           <div className="p-3">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2">
-                                <MessageSquare className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                                <span className="text-xs font-semibold text-foreground">
+                                {isNovedad ? (
+                                  <FileText className="h-4 w-4 flex-shrink-0 text-orange-500" />
+                                ) : (
+                                  <MessageSquare className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                                )}
+                                <span className={cn(
+                                  'text-xs font-semibold',
+                                  isNovedad ? 'text-orange-600' : 'text-foreground'
+                                )}>
                                   {senderName}
                                 </span>
                               </div>
@@ -729,13 +737,20 @@ export function DashboardHeader() {
                             </p>
 
                             {notif.data?.commentable_id && (
-                              <div className="mt-1.5">
+                              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                                 <span className={cn(
                                   'text-[10px] font-medium px-1.5 py-0.5 rounded',
-                                  ENTITY_COLORS[entityType] || 'bg-gray-100 text-gray-700'
+                                  isNovedad
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : ENTITY_COLORS[entityType] || 'bg-gray-100 text-gray-700'
                                 )}>
                                   {entityLabel}: {notif.data.entity_reference || `#${notif.data.commentable_id}`}
                                 </span>
+                                {isNovedad && (notif.data as any).deductora && (
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                                    {(notif.data as any).deductora}
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>

@@ -8,7 +8,9 @@
       "Bash(php artisan tinker --execute=\"echo \\\\Illuminate\\\\Support\\\\Facades\\\\Schema::getColumnType\\(''comments'', ''commentable_id''\\);\")",
       "Bash(php artisan tinker --execute=\"echo App\\\\Models\\\\Deductora::count\\(\\);\")",
       "Bash(npx tsc --noEmit)",
-      "Bash(php -l app/Http/Controllers/Api/ReporteController.php)"
+      "Bash(php -l app/Http/Controllers/Api/ReporteController.php)",
+      "mcp__laravel-boost__tinker",
+      "Bash(php -l c:/laragon/www/studio/backend/app/Services/AbonoService.php)"
     ]
   },
   "enableAllProjectMcpServers": true,

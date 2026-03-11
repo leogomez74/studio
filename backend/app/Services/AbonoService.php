@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Credit;
 use App\Models\CreditPayment;
+use App\Models\Notification;
 use App\Models\PlanDePago;
+use App\Models\User;
 use App\Traits\AccountingTrigger;
 
 class AbonoService
@@ -163,6 +165,41 @@ class AbonoService
                 $numeroCuotaInicio,
                 $siguienteCuota->fecha_corte
             );
+
+            // Notificar si la cuota cambió (estrategia reduce_amount)
+            if ($strategy === 'reduce_amount') {
+                $cuotaNueva   = (float) $credit->cuota; // regenerarProyeccion actualiza $credit->cuota en memoria
+                $cuotaOriginal = $reversalSnapshot['original_cuota'];
+
+                if (abs($cuotaNueva - $cuotaOriginal) > 0.01) {
+                    $clienteNombre   = $credit->lead->name ?? 'Cliente';
+                    $deductoranombre = $credit->deductora?->nombre ?? null;
+                    $titulo          = "Cambio de cuota — Novedad Planilla";
+                    $cuerpo          = "La cuota de {$clienteNombre} ({$credit->reference}) cambió "
+                        . "de ₡" . number_format($cuotaOriginal, 2) . " a ₡" . number_format($cuotaNueva, 2)
+                        . " por abono extraordinario."
+                        . ($deductoranombre ? " Deductora: {$deductoranombre}." : "");
+
+                    $adminUsers = User::whereHas('role', fn ($q) => $q->where('full_access', true))->get();
+                    foreach ($adminUsers as $adminUser) {
+                        Notification::create([
+                            'user_id' => $adminUser->id,
+                            'type'    => 'novedad_planilla',
+                            'title'   => $titulo,
+                            'body'    => $cuerpo,
+                            'data'    => [
+                                'commentable_type' => 'credit',
+                                'commentable_id'   => $credit->id,
+                                'entity_reference' => $credit->reference,
+                                'sender_name'      => 'Planillas',
+                                'cuota_anterior'   => $cuotaOriginal,
+                                'cuota_nueva'      => $cuotaNueva,
+                                'deductora'        => $deductoranombre,
+                            ],
+                        ]);
+                    }
+                }
+            }
         } else {
             // Crédito finalizado
             PlanDePago::where('credit_id', $credit->id)
