@@ -10,11 +10,13 @@ use App\Models\Rewards\RewardChallenge;
 use App\Models\Rewards\RewardChallengeParticipation;
 use App\Services\Rewards\RewardService;
 use App\Services\Rewards\ChallengeService;
+use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ChallengeController extends Controller
 {
+    use LogsActivity;
     public function __construct(
         protected RewardService $rewardService,
         protected ChallengeService $challengeService
@@ -25,7 +27,7 @@ class ChallengeController extends Controller
      */
     protected function getUser(Request $request): User
     {
-        return $request->user() ?? User::firstOrFail();
+        return $request->user() ?? abort(401, 'No autenticado');
     }
 
     /**
@@ -95,6 +97,11 @@ class ChallengeController extends Controller
 
         try {
             $participation = $this->challengeService->joinChallenge($rewardUser, $challenge);
+
+            $this->logActivity('create', 'Rewards - Desafío', $challenge, $challenge->name, [
+                ['field' => 'accion', 'old_value' => null, 'new_value' => 'Unirse al desafío'],
+                ['field' => 'challenge_id', 'old_value' => null, 'new_value' => $challenge->id],
+            ], $request);
 
             return response()->json([
                 'success' => true,

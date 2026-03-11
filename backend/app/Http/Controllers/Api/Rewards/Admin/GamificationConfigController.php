@@ -9,11 +9,13 @@ use App\Models\Rewards\RewardBadge;
 use App\Models\Rewards\RewardBadgeCategory;
 use App\Models\Rewards\RewardChallenge;
 use App\Models\Rewards\RewardCatalogItem;
+use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class GamificationConfigController extends Controller
 {
+    use LogsActivity;
     /**
      * Obtiene la configuración general de gamificación.
      */
@@ -59,6 +61,10 @@ class GamificationConfigController extends Controller
 
         // Aquí se guardaría la configuración (en archivo o base de datos)
         // Por ahora solo retornamos éxito
+
+        $this->logActivity('update', 'Rewards - Configuración', null, 'Gamificación', [
+            ['field' => 'config', 'old_value' => null, 'new_value' => $validated],
+        ], $request);
 
         return response()->json([
             'success' => true,

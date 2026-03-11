@@ -23,7 +23,7 @@ class RewardController extends Controller
      */
     protected function getUser(Request $request): User
     {
-        return $request->user() ?? User::firstOrFail();
+        return $request->user() ?? abort(401, 'No autenticado');
     }
 
     /**
