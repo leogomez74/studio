@@ -100,21 +100,24 @@ class ExternalIntegrationController extends Controller
     {
         $integration = ExternalIntegration::findOrFail($id);
 
-        if (empty($integration->base_url)) {
-            return response()->json(['success' => false, 'message' => 'URL base no configurada'], 422);
+        // Resolver URL y token desde .env o DB
+        $envConfig = config("services.{$integration->slug}", []);
+        $baseUrl = $envConfig['url'] ?? $integration->base_url ?? '';
+        $token = $envConfig['token'] ?? $integration->getRawOriginal('auth_token') ?? '';
+
+        if (empty($baseUrl)) {
+            return response()->json(['success' => false, 'message' => 'URL base no configurada (ni en .env ni en DB)'], 422);
         }
 
         try {
-            $httpClient = $this->buildHttpClient($integration);
-            $testUrl = rtrim($integration->base_url, '/');
-
-            // Si hay un endpoint de rutas configurado, usarlo para probar
-            $endpoints = $integration->endpoints ?? [];
-            if (!empty($endpoints['test'])) {
-                $testUrl .= '/' . ltrim($endpoints['test'], '/');
-            } elseif (!empty($endpoints['rutas'])) {
-                $testUrl .= '/' . ltrim($endpoints['rutas'], '/');
+            $httpClient = Http::acceptJson();
+            if ($token) {
+                $httpClient = $httpClient->withToken($token);
             }
+
+            $endpoints = $integration->endpoints ?? [];
+            $testEndpoint = $endpoints['test'] ?? $endpoints['rutas'] ?? '/api/external/rutas';
+            $testUrl = rtrim($baseUrl, '/') . '/' . ltrim($testEndpoint, '/');
 
             $response = $httpClient->timeout(15)->get($testUrl);
 

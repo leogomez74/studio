@@ -70,13 +70,22 @@ class ExternalRoutesService
      */
     public function fetchRoutesFromIntegration(ExternalIntegration $integration, array $filters = []): array
     {
-        $client = $this->buildHttpClient($integration);
-        $endpoints = $integration->endpoints ?? [];
-        $rutasEndpoint = $endpoints['rutas'] ?? '/api/rutas';
+        $resolved = $this->resolveConfig($integration);
+        $baseUrl = $resolved['base_url'];
+        $token = $resolved['token'];
+        $rutasEndpoint = $resolved['endpoint'];
 
-        $url = rtrim($integration->base_url, '/') . '/' . ltrim($rutasEndpoint, '/');
+        if (empty($baseUrl)) {
+            throw new \RuntimeException('URL base no configurada para ' . $integration->name);
+        }
 
-        // Pasar filtros como query params
+        $url = rtrim($baseUrl, '/') . '/' . ltrim($rutasEndpoint, '/');
+
+        $client = Http::acceptJson();
+        if ($token) {
+            $client = $client->withToken($token);
+        }
+
         $queryParams = [];
         if (!empty($filters['status'])) {
             $queryParams['status'] = $filters['status'];
@@ -93,7 +102,6 @@ class ExternalRoutesService
 
         $data = $response->json();
 
-        // Manejar formatos de respuesta: { data: [...] } o directamente [...]
         if (isset($data['data']) && is_array($data['data'])) {
             return $data['data'];
         }
@@ -106,37 +114,18 @@ class ExternalRoutesService
     }
 
     /**
-     * Construir cliente HTTP con autenticación configurada.
+     * Resolver configuración: prioriza .env (config/services) sobre campos de la DB.
      */
-    private function buildHttpClient(ExternalIntegration $integration)
+    private function resolveConfig(ExternalIntegration $integration): array
     {
-        $client = Http::acceptJson();
+        $slug = $integration->slug;
+        $envConfig = config("services.{$slug}", []);
 
-        if (!empty($integration->headers)) {
-            $client = $client->withHeaders($integration->headers);
-        }
+        $baseUrl = $envConfig['url'] ?? $integration->base_url ?? '';
+        $token = $envConfig['token'] ?? $integration->getRawOriginal('auth_token') ?? '';
+        $endpoints = $integration->endpoints ?? [];
+        $endpoint = $endpoints['rutas'] ?? '/api/external/rutas';
 
-        $token = $integration->getRawOriginal('auth_token');
-        $password = $integration->getRawOriginal('auth_password');
-
-        switch ($integration->auth_type) {
-            case 'bearer':
-                if ($token) {
-                    $client = $client->withToken($token);
-                }
-                break;
-            case 'basic':
-                if ($integration->auth_user && $password) {
-                    $client = $client->withBasicAuth($integration->auth_user, $password);
-                }
-                break;
-            case 'api_key':
-                if ($token) {
-                    $client = $client->withHeaders(['X-API-Key' => $token]);
-                }
-                break;
-        }
-
-        return $client;
+        return compact('baseUrl', 'token', 'endpoint');
     }
 }
