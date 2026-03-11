@@ -438,6 +438,7 @@ class ReporteController extends Controller
         $abonosEnPeriodo = CreditPayment::where('source', 'Extraordinario')
             ->whereBetween('fecha_pago', [$desde, $hasta])
             ->whereNotNull('reversal_snapshot')
+            ->where('estado_reverso', 'Vigente')
             ->whereHas('credit', fn($q) => $q->where('deductora_id', $deductoraId)
                 ->whereNotIn('status', ['Cerrado', 'Legal', 'Aprobado', 'Por firmar']))
             ->with(['credit:id,reference,lead_id,cuota,status', 'credit.lead:id,name,cedula'])
