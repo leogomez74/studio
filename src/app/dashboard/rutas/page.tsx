@@ -29,7 +29,7 @@ export default function RutasPage() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  // Asegurar tab válido al cambiar de rol (edge case)
+  // Asegurar tab válido para no-admin (no puede ver tabs de admin)
   useEffect(() => {
     if (!isAdmin && (activeTab === "pendientes" || activeTab === "generar" || activeTab === "activas")) {
       setActiveTab("mi-ruta");
@@ -64,12 +64,10 @@ export default function RutasPage() {
                 </TabsTrigger>
               </>
             )}
-            {!isAdmin && (
-              <TabsTrigger value="mi-ruta">
-                <Navigation className="h-4 w-4 mr-1" />
-                Mi Ruta
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="mi-ruta">
+              <Navigation className="h-4 w-4 mr-1" />
+              Mi Ruta
+            </TabsTrigger>
             <TabsTrigger value="historial">
               <CalendarIcon className="h-4 w-4 mr-1" />
               Historial
@@ -89,11 +87,9 @@ export default function RutasPage() {
               </TabsContent>
             </>
           )}
-          {!isAdmin && (
-            <TabsContent value="mi-ruta">
-              <MiRutaTab />
-            </TabsContent>
-          )}
+          <TabsContent value="mi-ruta">
+            <MiRutaTab />
+          </TabsContent>
           <TabsContent value="historial">
             <HistorialTab />
           </TabsContent>

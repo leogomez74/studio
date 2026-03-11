@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Truck, Loader2, CheckCircle2, XCircle, Building2, Navigation, Phone } from 'lucide-react';
+import { Truck, Loader2, CheckCircle2, XCircle, Building2, Navigation, Phone, MapPin, PackageCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,23 +17,29 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
-import type { RutaDiaria } from './types';
-import { tipoIcons, statusColors, statusLabels, rutaStatusColors, rutaStatusLabels } from './utils';
+import type { RutaDiaria, ExternalRoute, ExternalIntegrationResult } from './types';
+import { tipoIcons, statusColors, statusLabels, rutaStatusColors, rutaStatusLabels, extStatusColors } from './utils';
 
 export default function RutasActivasTab() {
   const { toast } = useToast();
   const [rutas, setRutas] = useState<RutaDiaria[]>([]);
+  const [extResults, setExtResults] = useState<ExternalIntegrationResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRuta, setSelectedRuta] = useState<RutaDiaria | null>(null);
+  const [selectedExtRoute, setSelectedExtRoute] = useState<{ route: ExternalRoute; source: string } | null>(null);
   const [showCancelarDialog, setShowCancelarDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchRutas = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/rutas-diarias');
-      const activas = (res.data as RutaDiaria[]).filter((r) => r.status !== 'completada');
+      const [rutasRes, extRes] = await Promise.all([
+        api.get('/api/rutas-diarias'),
+        api.get('/api/external-routes'),
+      ]);
+      const activas = (rutasRes.data as RutaDiaria[]).filter((r) => r.status !== 'completada');
       setRutas(activas);
+      setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
     } catch {
       toast({ title: 'Error', description: 'No se pudieron cargar las rutas.', variant: 'destructive' });
     } finally {
@@ -44,12 +50,18 @@ export default function RutasActivasTab() {
   useEffect(() => { fetchRutas(); }, [fetchRutas]);
 
   const fetchRutaDetail = async (id: number) => {
+    setSelectedExtRoute(null);
     try {
       const res = await api.get(`/api/rutas-diarias/${id}`);
       setSelectedRuta(res.data);
     } catch {
       toast({ title: 'Error', description: 'No se pudo cargar la ruta.', variant: 'destructive' });
     }
+  };
+
+  const selectExtRoute = (route: ExternalRoute, source: string) => {
+    setSelectedRuta(null);
+    setSelectedExtRoute({ route, source });
   };
 
   const handleConfirmar = async (id: number) => {
@@ -79,6 +91,18 @@ export default function RutasActivasTab() {
     }
   };
 
+  // Rutas externas activas (Planificada o En Progreso)
+  const extRoutesActivas: { route: ExternalRoute; source: string }[] = [];
+  extResults.forEach(r => {
+    if (r.success) {
+      r.routes
+        .filter(route => route.status !== 'Completada')
+        .forEach(route => extRoutesActivas.push({ route, source: r.integration_name }));
+    }
+  });
+
+  const hasNoRoutes = rutas.length === 0 && extRoutesActivas.length === 0;
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       {/* Left: Route list */}
@@ -86,19 +110,19 @@ export default function RutasActivasTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
-            Rutas
+            Rutas Activas
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-          ) : rutas.length === 0 ? (
+          ) : hasNoRoutes ? (
             <p className="text-center py-8 text-muted-foreground">No hay rutas activas.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               {rutas.map((r) => (
                 <div
-                  key={r.id}
+                  key={`pep-${r.id}`}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedRuta?.id === r.id ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/30' : 'hover:bg-muted/50'}`}
                   onClick={() => fetchRutaDetail(r.id)}
                 >
@@ -117,6 +141,41 @@ export default function RutasActivasTab() {
                   </div>
                 </div>
               ))}
+
+              {extRoutesActivas.length > 0 && rutas.length > 0 && (
+                <div className="border-t pt-2 mt-2" />
+              )}
+
+              {extRoutesActivas.map(({ route, source }) => {
+                const completedStops = route.stops?.filter(s => s.status === 'Completada').length || 0;
+                const totalStops = route.stops?.length || 0;
+                return (
+                  <div
+                    key={`ext-${source}-${route.id}`}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedExtRoute?.route.id === route.id && selectedExtRoute?.source === source ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/30' : 'hover:bg-muted/50'}`}
+                    onClick={() => selectExtRoute(route, source)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{route.name}</span>
+                        <Badge variant="outline" className="text-xs">{source}</Badge>
+                      </div>
+                      <Badge className={extStatusColors[route.status] || 'bg-gray-100 text-gray-700'}>{route.status}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {route.courier?.name || 'Sin mensajero'} — {completedStops}/{totalStops} paradas
+                    </div>
+                    {totalStops > 0 && (
+                      <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full transition-all"
+                          style={{ width: `${(completedStops / totalStops) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -128,9 +187,9 @@ export default function RutasActivasTab() {
           <CardTitle>Detalle de Ruta</CardTitle>
         </CardHeader>
         <CardContent>
-          {!selectedRuta ? (
+          {!selectedRuta && !selectedExtRoute ? (
             <p className="text-center py-12 text-muted-foreground">Selecciona una ruta para ver sus tareas.</p>
-          ) : (
+          ) : selectedRuta ? (
             <div className="space-y-4">
               {/* Actions */}
               <div className="flex items-center gap-2">
@@ -208,7 +267,68 @@ export default function RutasActivasTab() {
                 ))}
               </div>
             </div>
-          )}
+          ) : selectedExtRoute ? (
+            <div className="space-y-4">
+              {/* External route header */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Truck className="h-4 w-4" />
+                {selectedExtRoute.route.courier?.name}
+                {selectedExtRoute.route.courier?.vehicle_type && ` (${selectedExtRoute.route.courier.vehicle_type})`}
+                {selectedExtRoute.route.courier?.phone && (
+                  <a href={`tel:${selectedExtRoute.route.courier.phone}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                    <Phone className="h-3 w-3" />
+                    {selectedExtRoute.route.courier.phone}
+                  </a>
+                )}
+              </div>
+
+              {/* Stops list */}
+              <div className="space-y-2">
+                {selectedExtRoute.route.stops?.sort((a, b) => a.sequence - b.sequence).map((stop) => (
+                  <div key={stop.id} className={`p-3 rounded-lg border ${stop.status === 'Completada' ? 'opacity-60 bg-green-50/50 dark:bg-green-950/10' : ''}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex items-center justify-center w-7 h-7 rounded-full bg-muted text-xs font-bold shrink-0">
+                        {stop.sequence}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          <span className="font-medium text-sm">{stop.branch_name}</span>
+                        </div>
+                        {stop.address && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.address)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline"
+                          >
+                            <Navigation className="h-3 w-3" />
+                            {stop.address}
+                          </a>
+                        )}
+                        {stop.pickups && stop.pickups.length > 0 && (
+                          <div className="mt-1.5 space-y-1">
+                            {stop.pickups.map(p => (
+                              <div key={p.id} className="flex items-center gap-2 text-xs bg-muted/40 rounded px-2 py-1">
+                                <PackageCheck className="h-3 w-3 text-muted-foreground" />
+                                <span className="font-medium">{p.reference}</span>
+                                <span className="text-muted-foreground">—</span>
+                                <span className="truncate">{p.client_name}</span>
+                                {p.document_count && (
+                                  <Badge variant="outline" className="text-xs ml-auto">{p.document_count} doc{p.document_count !== 1 ? 's' : ''}</Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Badge className={extStatusColors[stop.status] || 'bg-gray-100 text-gray-700'}>{stop.status}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
