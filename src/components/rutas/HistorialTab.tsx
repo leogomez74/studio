@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar as CalendarIcon, Truck, Loader2, MapPin, PackageCheck } from 'lucide-react';
+import { Calendar as CalendarIcon, Truck, Loader2, MapPin, PackageCheck, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
@@ -16,13 +17,14 @@ export default function HistorialTab() {
   const [loading, setLoading] = useState(true);
   const [selectedRuta, setSelectedRuta] = useState<RutaDiaria | null>(null);
   const [selectedExtRoute, setSelectedExtRoute] = useState<{ route: ExternalRoute; source: string } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchHistorial = useCallback(async () => {
-    setLoading(true);
+  const fetchHistorial = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true); else setLoading(true);
     try {
       const [rutasRes, extRes] = await Promise.all([
         api.get('/api/rutas-diarias'),
-        api.get('/api/external-routes'),
+        api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
       ]);
       setRutas(rutasRes.data);
       setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
@@ -30,6 +32,7 @@ export default function HistorialTab() {
       toast({ title: 'Error', variant: 'destructive' });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [toast]);
 
@@ -60,9 +63,14 @@ export default function HistorialTab() {
     <div className="grid gap-4 lg:grid-cols-3">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5" />
-            Historial de Rutas
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Historial de Rutas
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fetchHistorial(true)} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>

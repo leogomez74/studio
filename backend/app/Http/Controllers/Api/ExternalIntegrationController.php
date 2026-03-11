@@ -160,7 +160,8 @@ class ExternalIntegrationController extends Controller
         $service = app(ExternalRoutesService::class);
 
         $filters = $request->only(['status', 'fecha']);
-        $results = $service->fetchAllRoutes($filters);
+        $forceRefresh = $request->boolean('refresh');
+        $results = $service->fetchAllRoutes($filters, $forceRefresh);
 
         return response()->json($results);
     }

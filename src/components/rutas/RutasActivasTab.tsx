@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Truck, Loader2, CheckCircle2, XCircle, Building2, Navigation, Phone, MapPin, PackageCheck } from 'lucide-react';
+import { Truck, Loader2, CheckCircle2, XCircle, Building2, Navigation, Phone, MapPin, PackageCheck, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,13 +29,14 @@ export default function RutasActivasTab() {
   const [selectedExtRoute, setSelectedExtRoute] = useState<{ route: ExternalRoute; source: string } | null>(null);
   const [showCancelarDialog, setShowCancelarDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchRutas = useCallback(async () => {
-    setLoading(true);
+  const fetchRutas = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true); else setLoading(true);
     try {
       const [rutasRes, extRes] = await Promise.all([
         api.get('/api/rutas-diarias'),
-        api.get('/api/external-routes'),
+        api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
       ]);
       const activas = (rutasRes.data as RutaDiaria[]).filter((r) => r.status !== 'completada');
       setRutas(activas);
@@ -44,6 +45,7 @@ export default function RutasActivasTab() {
       toast({ title: 'Error', description: 'No se pudieron cargar las rutas.', variant: 'destructive' });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [toast]);
 
@@ -108,9 +110,14 @@ export default function RutasActivasTab() {
       {/* Left: Route list */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Truck className="h-5 w-5" />
-            Rutas Activas
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Rutas Activas
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fetchRutas(true)} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>

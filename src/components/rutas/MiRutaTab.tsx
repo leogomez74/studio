@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   PackageCheck, Loader2, CheckCircle2, XCircle, AlertTriangle,
-  Play, Navigation, Phone, Building2,
+  Play, Navigation, Phone, Building2, RefreshCw,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,13 +39,14 @@ export default function MiRutaTab() {
   const [notasCompletado, setNotasCompletado] = useState('');
   const [motivoFallo, setMotivoFallo] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchMiRuta = useCallback(async () => {
-    setLoading(true);
+  const fetchMiRuta = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true); else setLoading(true);
     try {
       const [rutaRes, extRes] = await Promise.all([
         api.get('/api/rutas-diarias/mi-ruta'),
-        api.get('/api/external-routes'),
+        api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
       ]);
       if (rutaRes.data.ruta === null) {
         setNoHayRuta(true);
@@ -59,6 +60,7 @@ export default function MiRutaTab() {
       toast({ title: 'Error', description: 'No se pudo cargar tu ruta.', variant: 'destructive' });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [toast]);
 
@@ -143,6 +145,14 @@ export default function MiRutaTab() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
+      {/* Refresh button */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => fetchMiRuta(true)} disabled={refreshing}>
+          <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+          Actualizar
+        </Button>
+      </div>
+
       {/* Header card — ruta PEP */}
       {ruta && (
         <Card>

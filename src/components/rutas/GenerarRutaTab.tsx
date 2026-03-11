@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { PackageCheck, Truck, Loader2, AlertTriangle, Clock, Building2, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { PackageCheck, Truck, Loader2, AlertTriangle, Clock, Building2, ArrowUp, ArrowDown, GripVertical, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,13 +28,14 @@ export default function GenerarRutaTab({ users, onGenerated }: Props) {
   const [mensajeroId, setMensajeroId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchPendientes = useCallback(async () => {
-    setLoading(true);
+  const fetchPendientes = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true); else setLoading(true);
     try {
       const [tareasRes, extRes] = await Promise.all([
         api.get('/api/tareas-ruta', { params: { status: 'pendiente' } }),
-        api.get('/api/external-routes'),
+        api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
       ]);
       setTareasPendientes(tareasRes.data);
       setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
@@ -42,6 +43,7 @@ export default function GenerarRutaTab({ users, onGenerated }: Props) {
       toast({ title: 'Error', description: 'No se pudieron cargar las tareas.', variant: 'destructive' });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [toast]);
 
@@ -87,7 +89,12 @@ export default function GenerarRutaTab({ users, onGenerated }: Props) {
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5" />Tareas Disponibles</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2"><PackageCheck className="h-5 w-5" />Tareas Disponibles</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fetchPendientes(true)} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+          </CardTitle>
           <CardDescription>Selecciona las tareas para incluir en la ruta. Orden FIFO por prioridad.</CardDescription>
         </CardHeader>
         <CardContent>
