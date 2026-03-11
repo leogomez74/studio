@@ -237,23 +237,25 @@ export default function OpportunityDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [opportunityRes, productsRes, usersRes, automationsRes] = await Promise.all([
+        const [opportunityRes, productsRes, usersRes, loanConfigsRes, automationsRes] = await Promise.all([
           api.get(`/api/opportunities/${id}`),
           api.get('/api/products?all=true'),
           api.get('/api/agents?all=true'),
+          api.get('/api/loan-configurations/activas'),
           api.get('/api/task-automations').catch(() => ({ data: [] })),
         ]);
 
         const opportunityData = opportunityRes.data.data || opportunityRes.data;
         const productsData = productsRes.data as Product[];
-        const automationsData = Array.isArray(automationsRes.data) ? automationsRes.data : [];
-        const analisisAuto = automationsData.find((a: any) => a.event_type === 'analisis_created');
-        setDefaultAnalisisAssignee(analisisAuto?.assigned_to ? String(analisisAuto.assigned_to) : null);
 
         setOpportunity(opportunityData);
         setProducts(productsData);
         setLoanConfigs(Array.isArray(loanConfigsRes.data) ? loanConfigsRes.data : []);
         setUsers(usersRes.data);
+
+        const automationsData = Array.isArray(automationsRes.data) ? automationsRes.data : [];
+        const analisisAuto = automationsData.find((a: any) => a.event_type === 'analisis_created');
+        setDefaultAnalisisAssignee(analisisAuto?.assigned_to ? String(analisisAuto.assigned_to) : null);
 
         // Cargar archivos y verificar análisis existente
         fetchFiles();

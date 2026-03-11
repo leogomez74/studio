@@ -579,6 +579,7 @@ function TareasPendientesTab({ users, toast }: { users: UserOption[]; toast: Ret
 
 function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; toast: ReturnType<typeof useToast>["toast"]; onGenerated: () => void }) {
   const [tareasPendientes, setTareasPendientes] = useState<TareaRuta[]>([]);
+  const [extResults, setExtResults] = useState<ExternalIntegrationResult[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [mensajeroId, setMensajeroId] = useState<string>("");
@@ -588,8 +589,12 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
   const fetchPendientes = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/tareas-ruta", { params: { status: "pendiente" } });
-      setTareasPendientes(res.data);
+      const [tareasRes, extRes] = await Promise.all([
+        api.get("/api/tareas-ruta", { params: { status: "pendiente" } }),
+        api.get("/api/external-routes"),
+      ]);
+      setTareasPendientes(tareasRes.data);
+      setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
     } catch {
       toast({ title: "Error", description: "No se pudieron cargar las tareas.", variant: "destructive" });
     } finally {
@@ -771,6 +776,27 @@ function GenerarRutaTab({ users, toast, onGenerated }: { users: UserOption[]; to
             {generating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
             Generar Ruta ({selectedIds.length} tareas)
           </Button>
+
+          {/* Rutas externas como referencia para el admin */}
+          {extResults.some(r => r.success && r.count > 0) && (
+            <div className="border-t pt-4 mt-4">
+              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                Rutas Externas del Día
+              </h4>
+              <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                {extResults.filter(r => r.success).flatMap(r =>
+                  r.routes.map(route => (
+                    <div key={`ext-${r.integration_slug}-${route.id}`} className="flex items-center gap-2 p-2 rounded border text-sm">
+                      <Badge variant="outline" className="text-xs shrink-0">{r.integration_name}</Badge>
+                      <span className="flex-1 truncate">{route.name}</span>
+                      <Badge className={`${extStatusColors[route.status] || 'bg-gray-100 text-gray-700'} text-xs`}>{route.status}</Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1001,17 +1027,63 @@ function RutasActivasTab({ toast }: { toast: ReturnType<typeof useToast>["toast"
 // TAB 4: HISTORIAL
 // ==============================
 
+// --- External route types ---
+
+interface ExternalStop {
+  id: number;
+  sequence: number;
+  branch_name: string;
+  address?: string;
+  status: string;
+  pickups?: { id: number; reference: string; client_name: string; document_count?: number; status: string }[];
+}
+
+interface ExternalRoute {
+  id: number;
+  reference: string;
+  name: string;
+  status: string;
+  scheduled_date?: string;
+  started_at?: string;
+  completed_at?: string;
+  courier?: { id: number; name: string; phone?: string; vehicle_type?: string };
+  stops?: ExternalStop[];
+}
+
+interface ExternalIntegrationResult {
+  integration_id: number;
+  integration_name: string;
+  integration_slug: string;
+  success: boolean;
+  error?: string;
+  routes: ExternalRoute[];
+  count: number;
+}
+
+const extStatusColors: Record<string, string> = {
+  'Planificada': 'bg-blue-100 text-blue-800',
+  'En Progreso': 'bg-purple-100 text-purple-800',
+  'Completada': 'bg-green-100 text-green-800',
+  'Pendiente': 'bg-slate-100 text-slate-700',
+};
+
 function HistorialTab() {
   const { toast } = useToast();
   const [rutas, setRutas] = useState<RutaDiaria[]>([]);
+  const [extResults, setExtResults] = useState<ExternalIntegrationResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRuta, setSelectedRuta] = useState<RutaDiaria | null>(null);
+  const [selectedExtRoute, setSelectedExtRoute] = useState<{ route: ExternalRoute; source: string } | null>(null);
 
   const fetchHistorial = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/rutas-diarias");
-      setRutas(res.data);
+      const [rutasRes, extRes] = await Promise.all([
+        api.get("/api/rutas-diarias"),
+        api.get("/api/external-routes"),
+      ]);
+      setRutas(rutasRes.data);
+      setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
     } catch {
       toast({ title: "Error", variant: "destructive" });
     } finally {
@@ -1022,11 +1094,25 @@ function HistorialTab() {
   useEffect(() => { fetchHistorial(); }, [fetchHistorial]);
 
   const fetchDetail = async (id: number) => {
+    setSelectedExtRoute(null);
     try {
       const res = await api.get(`/api/rutas-diarias/${id}`);
       setSelectedRuta(res.data);
     } catch { /* ignore */ }
   };
+
+  const selectExtRoute = (route: ExternalRoute, source: string) => {
+    setSelectedRuta(null);
+    setSelectedExtRoute({ route, source });
+  };
+
+  // Flatten external routes for the sidebar
+  const extRoutes: { route: ExternalRoute; source: string }[] = [];
+  extResults.forEach(r => {
+    if (r.success) {
+      r.routes.forEach(route => extRoutes.push({ route, source: r.integration_name }));
+    }
+  });
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -1040,13 +1126,13 @@ function HistorialTab() {
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-          ) : rutas.length === 0 ? (
+          ) : (rutas.length === 0 && extRoutes.length === 0) ? (
             <p className="text-center py-8 text-muted-foreground">No hay rutas registradas.</p>
           ) : (
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               {rutas.map((r) => (
                 <div
-                  key={r.id}
+                  key={`pep-${r.id}`}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedRuta?.id === r.id ? "bg-blue-50 border-blue-200 dark:bg-blue-950/30" : "hover:bg-muted/50"}`}
                   onClick={() => fetchDetail(r.id)}
                 >
@@ -1061,6 +1147,34 @@ function HistorialTab() {
                   </div>
                 </div>
               ))}
+
+              {extRoutes.length > 0 && rutas.length > 0 && (
+                <div className="border-t pt-2 mt-2" />
+              )}
+
+              {extRoutes.map(({ route, source }) => {
+                const completedStops = route.stops?.filter(s => s.status === 'Completada').length || 0;
+                const totalStops = route.stops?.length || 0;
+                return (
+                  <div
+                    key={`ext-${source}-${route.id}`}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedExtRoute?.route.id === route.id && selectedExtRoute?.source === source ? "bg-blue-50 border-blue-200 dark:bg-blue-950/30" : "hover:bg-muted/50"}`}
+                    onClick={() => selectExtRoute(route, source)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{route.name}</span>
+                        <Badge variant="outline" className="text-xs">{source}</Badge>
+                      </div>
+                      <Badge className={extStatusColors[route.status] || 'bg-gray-100 text-gray-700'}>{route.status}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {route.courier?.name || 'Sin mensajero'} — {completedStops}/{totalStops} paradas
+                      {route.scheduled_date && ` — ${new Date(route.scheduled_date).toLocaleDateString("es-CR", { day: "numeric", month: "short" })}`}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -1071,9 +1185,9 @@ function HistorialTab() {
           <CardTitle>Detalle</CardTitle>
         </CardHeader>
         <CardContent>
-          {!selectedRuta ? (
+          {!selectedRuta && !selectedExtRoute ? (
             <p className="text-center py-12 text-muted-foreground">Selecciona una ruta.</p>
-          ) : (
+          ) : selectedRuta ? (
             <div className="space-y-2">
               {selectedRuta.tareas?.map((t) => (
                 <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg border">
@@ -1096,7 +1210,45 @@ function HistorialTab() {
                 </div>
               ))}
             </div>
-          )}
+          ) : selectedExtRoute ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+                <Truck className="h-4 w-4" />
+                {selectedExtRoute.route.courier?.name}
+                {selectedExtRoute.route.courier?.vehicle_type && ` (${selectedExtRoute.route.courier.vehicle_type})`}
+              </div>
+              {selectedExtRoute.route.stops?.sort((a, b) => a.sequence - b.sequence).map((stop) => (
+                <div key={stop.id} className="flex items-start gap-3 p-3 rounded-lg border">
+                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-muted text-xs font-bold shrink-0">
+                    {stop.sequence}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      <span className="font-medium text-sm">{stop.branch_name}</span>
+                    </div>
+                    {stop.address && <div className="text-xs text-muted-foreground">{stop.address}</div>}
+                    {stop.pickups && stop.pickups.length > 0 && (
+                      <div className="mt-1.5 space-y-1">
+                        {stop.pickups.map(p => (
+                          <div key={p.id} className="flex items-center gap-2 text-xs bg-muted/40 rounded px-2 py-1">
+                            <PackageCheck className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-medium">{p.reference}</span>
+                            <span className="text-muted-foreground">—</span>
+                            <span className="truncate">{p.client_name}</span>
+                            {p.document_count && (
+                              <Badge variant="outline" className="text-xs ml-auto">{p.document_count} doc{p.document_count !== 1 ? 's' : ''}</Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Badge className={extStatusColors[stop.status] || 'bg-gray-100 text-gray-700'}>{stop.status}</Badge>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
@@ -1110,6 +1262,7 @@ function HistorialTab() {
 function MiRutaTab() {
   const { toast } = useToast();
   const [ruta, setRuta] = useState<RutaDiaria | null>(null);
+  const [extResults, setExtResults] = useState<ExternalIntegrationResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [noHayRuta, setNoHayRuta] = useState(false);
 
@@ -1124,14 +1277,18 @@ function MiRutaTab() {
   const fetchMiRuta = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/rutas-diarias/mi-ruta");
-      if (res.data.ruta === null) {
+      const [rutaRes, extRes] = await Promise.all([
+        api.get("/api/rutas-diarias/mi-ruta"),
+        api.get("/api/external-routes"),
+      ]);
+      if (rutaRes.data.ruta === null) {
         setNoHayRuta(true);
         setRuta(null);
       } else {
-        setRuta(res.data);
+        setRuta(rutaRes.data);
         setNoHayRuta(false);
       }
+      setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
     } catch {
       toast({ title: "Error", description: "No se pudo cargar tu ruta.", variant: "destructive" });
     } finally {
@@ -1184,11 +1341,23 @@ function MiRutaTab() {
     }
   };
 
+  // Rutas externas confirmadas o en progreso (las que el mensajero debe ejecutar)
+  const extRoutesActivas: { route: ExternalRoute; source: string }[] = [];
+  extResults.forEach(r => {
+    if (r.success) {
+      r.routes
+        .filter(route => route.status === 'Planificada' || route.status === 'En Progreso')
+        .forEach(route => extRoutesActivas.push({ route, source: r.integration_name }));
+    }
+  });
+
   if (loading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
-  if (noHayRuta || !ruta) {
+  const hasExtRoutes = extRoutesActivas.length > 0;
+
+  if ((noHayRuta || !ruta) && !hasExtRoutes) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-20 text-center">
@@ -1200,169 +1369,258 @@ function MiRutaTab() {
     );
   }
 
-  const tareas = ruta.tareas || [];
+  const tareas = ruta?.tareas || [];
   const completadas = tareas.filter((t) => t.status === "completada").length;
   const total = tareas.length;
   const progreso = total > 0 ? Math.round((completadas / total) * 100) : 0;
-  const todasResueltas = tareas.every((t) => t.status === "completada" || t.status === "fallida" || t.status === "cancelada");
+  const todasResueltas = tareas.length > 0 && tareas.every((t) => t.status === "completada" || t.status === "fallida" || t.status === "cancelada");
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {/* Header card */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-lg font-bold">Mi Ruta de Hoy</h2>
-              <p className="text-sm text-muted-foreground">
-                {new Date(ruta.fecha).toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long" })}
-              </p>
+      {/* Header card — ruta PEP */}
+      {ruta && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-lg font-bold">Mi Ruta de Hoy</h2>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(ruta.fecha).toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long" })}
+                </p>
+              </div>
+              <Badge className={`${rutaStatusColors[ruta.status]} text-sm px-3 py-1`}>
+                {rutaStatusLabels[ruta.status]}
+              </Badge>
             </div>
-            <Badge className={`${rutaStatusColors[ruta.status]} text-sm px-3 py-1`}>
-              {rutaStatusLabels[ruta.status]}
-            </Badge>
-          </div>
 
-          {/* Progress bar */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Progreso</span>
-              <span className="font-medium">{completadas}/{total} completadas ({progreso}%)</span>
+            {/* Progress bar */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Progreso</span>
+                <span className="font-medium">{completadas}/{total} completadas ({progreso}%)</span>
+              </div>
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-500 rounded-full transition-all duration-500"
+                  style={{ width: `${progreso}%` }}
+                />
+              </div>
             </div>
-            <div className="h-3 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 rounded-full transition-all duration-500"
-                style={{ width: `${progreso}%` }}
-              />
-            </div>
-          </div>
 
-          {/* Start route button */}
-          {ruta.status === "confirmada" && (
-            <Button className="w-full mt-4" size="lg" onClick={handleIniciar}>
-              <Play className="h-5 w-5 mr-2" />
-              Iniciar Ruta
-            </Button>
-          )}
+            {/* Start route button */}
+            {ruta.status === "confirmada" && (
+              <Button className="w-full mt-4" size="lg" onClick={handleIniciar}>
+                <Play className="h-5 w-5 mr-2" />
+                Iniciar Ruta
+              </Button>
+            )}
 
-          {/* Route completed message */}
-          {todasResueltas && ruta.status === "en_progreso" && (
-            <div className="mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-center dark:bg-green-950/20 dark:border-green-800">
-              <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto mb-1" />
-              <p className="font-medium text-green-800 dark:text-green-400">Ruta completada</p>
-              <p className="text-xs text-green-600 dark:text-green-500">Todas las tareas han sido resueltas.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {/* Route completed message */}
+            {todasResueltas && ruta.status === "en_progreso" && (
+              <div className="mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-center dark:bg-green-950/20 dark:border-green-800">
+                <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto mb-1" />
+                <p className="font-medium text-green-800 dark:text-green-400">Ruta completada</p>
+                <p className="text-xs text-green-600 dark:text-green-500">Todas las tareas han sido resueltas.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Task cards */}
-      <div className="space-y-3">
-        {tareas.map((t) => {
-          const isActive = t.status === "asignada" || t.status === "en_transito";
-          const isDone = t.status === "completada";
+      {/* Tareas PEP */}
+      {tareas.length > 0 && (
+        <div className="space-y-3">
+          {tareas.map((t) => {
+            const isActive = t.status === "asignada" || t.status === "en_transito";
+            const isDone = t.status === "completada";
 
-          return (
-            <Card key={t.id} className={isDone ? "opacity-60" : ""}>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-start gap-3">
-                  {/* Position number */}
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full shrink-0 text-sm font-bold ${isDone ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
-                    {isDone ? <CheckCircle2 className="h-5 w-5" /> : t.posicion}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Title row */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold">{t.titulo}</span>
-                      <Badge className={`${prioridadColors[t.prioridad]} text-xs`}>
-                        {t.prioridad_override && <AlertTriangle className="h-3 w-3 mr-0.5" />}
-                        {prioridadLabels[t.prioridad]}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {tipoIcons[t.tipo]}
-                        <span className="ml-1">{tipoLabels[t.tipo]}</span>
-                      </Badge>
+            return (
+              <Card key={t.id} className={isDone ? "opacity-60" : ""}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-full shrink-0 text-sm font-bold ${isDone ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
+                      {isDone ? <CheckCircle2 className="h-5 w-5" /> : t.posicion}
                     </div>
 
-                    {t.descripcion && (
-                      <p className="text-sm text-muted-foreground mt-1">{t.descripcion}</p>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold">{t.titulo}</span>
+                        <Badge className={`${prioridadColors[t.prioridad]} text-xs`}>
+                          {t.prioridad_override && <AlertTriangle className="h-3 w-3 mr-0.5" />}
+                          {prioridadLabels[t.prioridad]}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {tipoIcons[t.tipo]}
+                          <span className="ml-1">{tipoLabels[t.tipo]}</span>
+                        </Badge>
+                      </div>
 
-                    {/* Destination info */}
-                    <div className="mt-2 space-y-1">
-                      {t.empresa_destino && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="font-medium">{t.empresa_destino}</span>
+                      {t.descripcion && (
+                        <p className="text-sm text-muted-foreground mt-1">{t.descripcion}</p>
+                      )}
+
+                      <div className="mt-2 space-y-1">
+                        {t.empresa_destino && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="font-medium">{t.empresa_destino}</span>
+                          </div>
+                        )}
+                        {t.direccion_destino && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.direccion_destino)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                          >
+                            <Navigation className="h-4 w-4 shrink-0" />
+                            {t.direccion_destino}
+                          </a>
+                        )}
+                        {t.contacto_nombre && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-muted-foreground">{t.contacto_nombre}</span>
+                            {t.contacto_telefono && (
+                              <a href={`tel:${t.contacto_telefono}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                                <Phone className="h-3.5 w-3.5" />
+                                {t.contacto_telefono}
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {t.notas_completado && (
+                        <div className="mt-2 p-2 rounded bg-green-50 text-xs text-green-700 dark:bg-green-950/20 dark:text-green-400">
+                          {t.notas_completado}
                         </div>
                       )}
-                      {t.direccion_destino && (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.direccion_destino)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                        >
-                          <Navigation className="h-4 w-4 shrink-0" />
-                          {t.direccion_destino}
-                        </a>
+                      {t.motivo_fallo && (
+                        <div className="mt-2 p-2 rounded bg-red-50 text-xs text-red-700 dark:bg-red-950/20 dark:text-red-400">
+                          Fallo: {t.motivo_fallo}
+                        </div>
                       )}
-                      {t.contacto_nombre && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-muted-foreground">{t.contacto_nombre}</span>
-                          {t.contacto_telefono && (
-                            <a href={`tel:${t.contacto_telefono}`} className="flex items-center gap-1 text-blue-600 hover:underline">
-                              <Phone className="h-3.5 w-3.5" />
-                              {t.contacto_telefono}
-                            </a>
-                          )}
+
+                      {isActive && (
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700"
+                            onClick={() => { setSelectedTarea(t); setNotasCompletado(""); setShowCompletarDialog(true); }}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            Completar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1"
+                            onClick={() => { setSelectedTarea(t); setMotivoFallo(""); setShowFallarDialog(true); }}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            No Completada
+                          </Button>
                         </div>
                       )}
                     </div>
-
-                    {/* Completion notes */}
-                    {t.notas_completado && (
-                      <div className="mt-2 p-2 rounded bg-green-50 text-xs text-green-700 dark:bg-green-950/20 dark:text-green-400">
-                        {t.notas_completado}
-                      </div>
-                    )}
-                    {t.motivo_fallo && (
-                      <div className="mt-2 p-2 rounded bg-red-50 text-xs text-red-700 dark:bg-red-950/20 dark:text-red-400">
-                        Fallo: {t.motivo_fallo}
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    {isActive && (
-                      <div className="flex gap-2 mt-3">
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-green-600 hover:bg-green-700"
-                          onClick={() => { setSelectedTarea(t); setNotasCompletado(""); setShowCompletarDialog(true); }}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          Completar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1"
-                          onClick={() => { setSelectedTarea(t); setMotivoFallo(""); setShowFallarDialog(true); }}
-                        >
-                          <XCircle className="h-4 w-4 mr-1" />
-                          No Completada
-                        </Button>
-                      </div>
-                    )}
                   </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Rutas externas — integradas como cards del mismo flujo */}
+      {extRoutesActivas.map(({ route, source }) => {
+        const stopsCount = route.stops?.length || 0;
+        const completedStops = route.stops?.filter(s => s.status === 'Completada').length || 0;
+        const extProgreso = stopsCount > 0 ? Math.round((completedStops / stopsCount) * 100) : 0;
+
+        return (
+          <Card key={`ext-${source}-${route.id}`}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold">{route.name}</h2>
+                    <Badge variant="outline" className="text-xs">{source}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {route.courier?.name && <>{route.courier.name} — </>}
+                    {route.scheduled_date && new Date(route.scheduled_date).toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long" })}
+                  </p>
                 </div>
+                <Badge className={`${extStatusColors[route.status] || 'bg-gray-100 text-gray-700'} text-sm px-3 py-1`}>
+                  {route.status}
+                </Badge>
+              </div>
+
+              {/* Progress bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Paradas</span>
+                  <span className="font-medium">{completedStops}/{stopsCount} completadas ({extProgreso}%)</span>
+                </div>
+                <div className="h-3 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 rounded-full transition-all duration-500"
+                    style={{ width: `${extProgreso}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+
+            {/* Stops como task cards */}
+            {route.stops && route.stops.length > 0 && (
+              <CardContent className="pt-0 space-y-2">
+                {route.stops.sort((a, b) => a.sequence - b.sequence).map((stop) => {
+                  const isDone = stop.status === 'Completada';
+                  return (
+                    <div key={stop.id} className={`flex items-start gap-3 p-3 rounded-lg border ${isDone ? 'opacity-60' : ''}`}>
+                      <div className={`flex items-center justify-center w-10 h-10 rounded-full shrink-0 text-sm font-bold ${isDone ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
+                        {isDone ? <CheckCircle2 className="h-5 w-5" /> : stop.sequence}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm">{stop.branch_name}</span>
+                          <Badge className={`${extStatusColors[stop.status] || 'bg-gray-100 text-gray-700'} text-xs`}>{stop.status}</Badge>
+                        </div>
+                        {stop.address && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.address)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-0.5"
+                          >
+                            <Navigation className="h-3 w-3" />
+                            {stop.address}
+                          </a>
+                        )}
+                        {stop.pickups && stop.pickups.length > 0 && (
+                          <div className="mt-1.5 space-y-1">
+                            {stop.pickups.map(p => (
+                              <div key={p.id} className="flex items-center gap-2 text-xs bg-muted/40 rounded px-2 py-1">
+                                <PackageCheck className="h-3 w-3 text-muted-foreground" />
+                                <span className="font-medium">{p.reference}</span>
+                                <span className="text-muted-foreground">—</span>
+                                <span className="truncate">{p.client_name}</span>
+                                {p.document_count && (
+                                  <Badge variant="outline" className="text-xs ml-auto">{p.document_count} doc{p.document_count !== 1 ? 's' : ''}</Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+            )}
+          </Card>
+        );
+      })}
 
       {/* Completar dialog */}
       <AlertDialog open={showCompletarDialog} onOpenChange={setShowCompletarDialog}>
