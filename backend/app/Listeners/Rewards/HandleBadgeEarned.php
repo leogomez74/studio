@@ -78,8 +78,7 @@ class HandleBadgeEarned implements ShouldQueue
             $user = $event->rewardUser->user;
             
             if ($user) {
-                // Aquí se enviaría la notificación
-                // $user->notify(new BadgeEarnedNotification($event->badge));
+                $user->notify(new BadgeEarnedNotification($event->badge));
             }
         } catch (\Throwable $e) {
             \Log::warning('Failed to send badge notification', [
