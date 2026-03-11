@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Rewards;
 
+use App\Models\Rewards\RewardCatalogItem;
 use App\Models\Rewards\RewardUser;
 use App\Models\Rewards\RewardRedemption;
 use Illuminate\Support\Facades\DB;
@@ -114,7 +115,7 @@ class RedemptionService
 
             // Devolver stock si aplica
             $item = $redemption->catalogItem;
-            if ($item->stock !== -1) {
+            if ($item->stock !== RewardCatalogItem::UNLIMITED_STOCK) {
                 $item->increment('stock');
             }
 
@@ -162,7 +163,7 @@ class RedemptionService
 
             // Devolver stock si aplica
             $item = $redemption->catalogItem;
-            if ($item->stock !== -1) {
+            if ($item->stock !== RewardCatalogItem::UNLIMITED_STOCK) {
                 $item->increment('stock');
             }
 

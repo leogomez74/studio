@@ -33,7 +33,7 @@ class CatalogService
                     ->orWhere('available_until', '>=', now());
             })
             ->where(function ($q) {
-                $q->where('stock', '=', -1)  // Ilimitado
+                $q->where('stock', '=', RewardCatalogItem::UNLIMITED_STOCK)
                     ->orWhere('stock', '>', 0);
             });
 
@@ -81,7 +81,7 @@ class CatalogService
         }
 
         // Verificar stock
-        if ($item->stock !== -1 && $item->stock <= 0) {
+        if ($item->stock !== RewardCatalogItem::UNLIMITED_STOCK && $item->stock <= 0) {
             return ['can_redeem' => false, 'reason' => 'Este item está agotado.'];
         }
 
@@ -128,7 +128,7 @@ class CatalogService
             ]);
 
             // Reducir stock si no es ilimitado
-            if ($item->stock !== -1) {
+            if ($item->stock !== RewardCatalogItem::UNLIMITED_STOCK) {
                 $item->decrement('stock');
             }
 

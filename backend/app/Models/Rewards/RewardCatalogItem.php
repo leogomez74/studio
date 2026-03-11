@@ -12,6 +12,8 @@ class RewardCatalogItem extends Model
 {
     use HasFactory;
 
+    public const UNLIMITED_STOCK = -1;
+
     protected $table = 'reward_catalog_items';
 
     protected $fillable = [
