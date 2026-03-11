@@ -957,6 +957,41 @@ function VencimientosSection({ data }: { data: any }) {
   );
 }
 
+// --- Pagination Controls ---
+function PaginationControls({ current, total, totalItems, label, onPageChange }: { current: number; total: number; totalItems: number; label: string; onPageChange: (p: number) => void }) {
+  const start = (current - 1) * 10 + 1;
+  const end = Math.min(current * 10, totalItems);
+  return (
+    <div className="flex items-center justify-between px-2 py-4 border-t mt-2">
+      <div className="text-sm text-muted-foreground">
+        Mostrando {start} a {end} de <strong>{totalItems}</strong> {label}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => onPageChange(1)} disabled={current === 1}>Primera</Button>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onPageChange(current - 1)} disabled={current === 1}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex items-center gap-1">
+          {Array.from({ length: Math.min(5, total) }, (_, i) => {
+            let pageNum: number;
+            if (total <= 5) pageNum = i + 1;
+            else if (current <= 3) pageNum = i + 1;
+            else if (current >= total - 2) pageNum = total - 4 + i;
+            else pageNum = current - 2 + i;
+            return (
+              <Button key={pageNum} variant={current === pageNum ? 'default' : 'outline'} size="sm" onClick={() => onPageChange(pageNum)} className="w-9">{pageNum}</Button>
+            );
+          })}
+        </div>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onPageChange(current + 1)} disabled={current === total}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onPageChange(total)} disabled={current === total}>Última</Button>
+      </div>
+    </div>
+  );
+}
+
 // --- Main Page ---
 export default function InversionesPage() {
   const searchParams = useSearchParams();
@@ -990,6 +1025,13 @@ export default function InversionesPage() {
   const [pagadasMoneda, setPagadasMoneda] = useState('');
   const [tipoCambio, setTipoCambio] = useState<{ compra: number | null; venta: number | null; fecha: string | null; fuente: string } | null>(null);
   const [refreshingTC, setRefreshingTC] = useState(false);
+
+  // Pagination
+  const ITEMS_PER_PAGE = 10;
+  const [investorsPage, setInvestorsPage] = useState(1);
+  const [investmentsPage, setInvestmentsPage] = useState(1);
+  const [pagosPage, setPagosPage] = useState(1);
+  const [retencionesPage, setRetencionesPage] = useState(1);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1153,6 +1195,9 @@ export default function InversionesPage() {
   const filteredInvestors = investors.filter(inv =>
     !investorSearch || inv.name.toLowerCase().includes(investorSearch.toLowerCase()) || inv.cedula?.toLowerCase().includes(investorSearch.toLowerCase())
   );
+  const investorsTotalPages = Math.max(1, Math.ceil(filteredInvestors.length / ITEMS_PER_PAGE));
+  const safeInvestorsPage = Math.min(investorsPage, investorsTotalPages);
+  const paginatedInvestors = filteredInvestors.slice((safeInvestorsPage - 1) * ITEMS_PER_PAGE, safeInvestorsPage * ITEMS_PER_PAGE);
 
   const filteredPayments = payments.filter(p => {
     if (pagosSearch && !(p.investor?.name ?? '').toLowerCase().includes(pagosSearch.toLowerCase()) && !(p.investment?.numero_desembolso ?? '').toLowerCase().includes(pagosSearch.toLowerCase())) return false;
@@ -1160,12 +1205,18 @@ export default function InversionesPage() {
     if (pagosTipo && p.tipo !== pagosTipo) return false;
     return true;
   });
+  const pagosTotalPages = Math.max(1, Math.ceil(filteredPayments.length / ITEMS_PER_PAGE));
+  const safePagosPage = Math.min(pagosPage, pagosTotalPages);
+  const paginatedPayments = filteredPayments.slice((safePagosPage - 1) * ITEMS_PER_PAGE, safePagosPage * ITEMS_PER_PAGE);
 
   const filteredRetenciones = investments.filter(inv => {
     if (inv.estado !== 'Activa') return false;
     if (retencionesMoneda && inv.moneda !== retencionesMoneda) return false;
     return true;
   });
+  const retencionesTotalPages = Math.max(1, Math.ceil(filteredRetenciones.length / ITEMS_PER_PAGE));
+  const safeRetencionesPage = Math.min(retencionesPage, retencionesTotalPages);
+  const paginatedRetenciones = filteredRetenciones.slice((safeRetencionesPage - 1) * ITEMS_PER_PAGE, safeRetencionesPage * ITEMS_PER_PAGE);
 
   const filteredInvestments = investments.filter(inv => {
     if (filters.investor_id && inv.investor_id !== Number(filters.investor_id)) return false;
@@ -1173,6 +1224,9 @@ export default function InversionesPage() {
     if (filters.estado && inv.estado !== filters.estado) return false;
     return true;
   });
+  const investmentsTotalPages = Math.max(1, Math.ceil(filteredInvestments.length / ITEMS_PER_PAGE));
+  const safeInvestmentsPage = Math.min(investmentsPage, investmentsTotalPages);
+  const paginatedInvestments = filteredInvestments.slice((safeInvestmentsPage - 1) * ITEMS_PER_PAGE, safeInvestmentsPage * ITEMS_PER_PAGE);
 
   if (loading) {
     return (
@@ -1279,7 +1333,7 @@ export default function InversionesPage() {
                 </div>
                 <div className="relative w-64">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Buscar por nombre o cédula..." value={investorSearch} onChange={e => setInvestorSearch(e.target.value)} className="pl-8 h-9" />
+                  <Input placeholder="Buscar por nombre o cédula..." value={investorSearch} onChange={e => { setInvestorSearch(e.target.value); setInvestorsPage(1); }} className="pl-8 h-9" />
                 </div>
               </div>
             </CardHeader>
@@ -1298,12 +1352,15 @@ export default function InversionesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredInvestors.map(investor => (
+                  {paginatedInvestors.map(investor => (
                     <InvestorTableRow key={investor.id} investor={investor} onDelete={handleDeleteInvestor} onEdit={(inv) => { setEditingInvestor(inv); setShowInvestorForm(true); }} />
                   ))}
                 </TableBody>
               </Table>
               </div>
+              {investorsTotalPages > 1 && (
+                <PaginationControls current={safeInvestorsPage} total={investorsTotalPages} totalItems={filteredInvestors.length} label="inversionistas" onPageChange={setInvestorsPage} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1327,14 +1384,14 @@ export default function InversionesPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3 pt-2">
-                <Select value={filters.investor_id} onValueChange={v => setFilters(f => ({ ...f, investor_id: v === 'all' ? '' : v }))}>
+                <Select value={filters.investor_id} onValueChange={v => { setFilters(f => ({ ...f, investor_id: v === 'all' ? '' : v })); setInvestmentsPage(1); }}>
                   <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Inversionista" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
                     {investors.map(inv => <SelectItem key={inv.id} value={String(inv.id)}>{inv.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Select value={filters.moneda} onValueChange={v => setFilters(f => ({ ...f, moneda: v === 'all' ? '' : v }))}>
+                <Select value={filters.moneda} onValueChange={v => { setFilters(f => ({ ...f, moneda: v === 'all' ? '' : v })); setInvestmentsPage(1); }}>
                   <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
@@ -1342,7 +1399,7 @@ export default function InversionesPage() {
                     <SelectItem value="USD">USD</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filters.estado} onValueChange={v => setFilters(f => ({ ...f, estado: v === 'all' ? '' : v }))}>
+                <Select value={filters.estado} onValueChange={v => { setFilters(f => ({ ...f, estado: v === 'all' ? '' : v })); setInvestmentsPage(1); }}>
                   <SelectTrigger className="w-[150px] h-9"><SelectValue placeholder="Estado" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
@@ -1372,12 +1429,15 @@ export default function InversionesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredInvestments.map(investment => (
+                  {paginatedInvestments.map(investment => (
                     <InvestmentTableRow key={investment.id} investment={investment} onDelete={handleDeleteInvestment} />
                   ))}
                 </TableBody>
               </Table>
               </div>
+              {investmentsTotalPages > 1 && (
+                <PaginationControls current={safeInvestmentsPage} total={investmentsTotalPages} totalItems={filteredInvestments.length} label="inversiones" onPageChange={setInvestmentsPage} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1423,9 +1483,9 @@ export default function InversionesPage() {
               <div className="flex flex-wrap gap-3 pt-2">
                 <div className="relative w-64">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Buscar inversionista o inversión..." value={pagosSearch} onChange={e => setPagosSearch(e.target.value)} className="pl-8 h-9" />
+                  <Input placeholder="Buscar inversionista o inversión..." value={pagosSearch} onChange={e => { setPagosSearch(e.target.value); setPagosPage(1); }} className="pl-8 h-9" />
                 </div>
-                <Select value={pagosMoneda} onValueChange={v => setPagosMoneda(v === 'all' ? '' : v)}>
+                <Select value={pagosMoneda} onValueChange={v => { setPagosMoneda(v === 'all' ? '' : v); setPagosPage(1); }}>
                   <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
@@ -1433,7 +1493,7 @@ export default function InversionesPage() {
                     <SelectItem value="USD">USD</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={pagosTipo} onValueChange={v => setPagosTipo(v === 'all' ? '' : v)}>
+                <Select value={pagosTipo} onValueChange={v => { setPagosTipo(v === 'all' ? '' : v); setPagosPage(1); }}>
                   <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Tipo" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
@@ -1459,7 +1519,7 @@ export default function InversionesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPayments.map(p => (
+                  {paginatedPayments.map(p => (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">
                         {p.investment_id ? (
@@ -1490,6 +1550,9 @@ export default function InversionesPage() {
                 </TableBody>
               </Table>
               </div>
+              {pagosTotalPages > 1 && (
+                <PaginationControls current={safePagosPage} total={pagosTotalPages} totalItems={filteredPayments.length} label="pagos" onPageChange={setPagosPage} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1552,7 +1615,7 @@ export default function InversionesPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3 pt-2">
-                <Select value={retencionesMoneda} onValueChange={v => setRetencionesMoneda(v === 'all' ? '' : v)}>
+                <Select value={retencionesMoneda} onValueChange={v => { setRetencionesMoneda(v === 'all' ? '' : v); setRetencionesPage(1); }}>
                   <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Moneda" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
@@ -1577,7 +1640,7 @@ export default function InversionesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRetenciones.map(inv => (
+                  {paginatedRetenciones.map(inv => (
                     <TableRow key={inv.id}>
                       <TableCell>
                         <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
@@ -1593,6 +1656,9 @@ export default function InversionesPage() {
                 </TableBody>
               </Table>
               </div>
+              {retencionesTotalPages > 1 && (
+                <PaginationControls current={safeRetencionesPage} total={retencionesTotalPages} totalItems={filteredRetenciones.length} label="retenciones" onPageChange={setRetencionesPage} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
