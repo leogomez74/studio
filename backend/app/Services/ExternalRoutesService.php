@@ -119,13 +119,15 @@ class ExternalRoutesService
     private function resolveConfig(ExternalIntegration $integration): array
     {
         $slug = $integration->slug;
-        $envConfig = config("services.{$slug}", []);
 
-        $baseUrl = $envConfig['url'] ?? $integration->base_url ?? '';
-        $token = $envConfig['token'] ?? $integration->getRawOriginal('auth_token') ?? '';
+        // Buscar config: slug exacto (dsf3) o sin dígitos finales (dsf)
+        $envConfig = config("services.{$slug}") ?? config("services." . rtrim($slug, '0123456789')) ?? [];
+
+        $baseUrl = !empty($envConfig['url']) ? $envConfig['url'] : ($integration->base_url ?? '');
+        $token = !empty($envConfig['token']) ? $envConfig['token'] : ($integration->getRawOriginal('auth_token') ?? '');
         $endpoints = $integration->endpoints ?? [];
         $endpoint = $endpoints['rutas'] ?? '/api/external/rutas';
 
-        return compact('baseUrl', 'token', 'endpoint');
+        return ['base_url' => $baseUrl, 'token' => $token, 'endpoint' => $endpoint];
     }
 }
