@@ -232,6 +232,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('cartera-deductora',         [\App\Http\Controllers\Api\ReporteController::class, 'carteraDeductora']);
         Route::get('cartera-deductora/excel',   [\App\Http\Controllers\Api\ReporteController::class, 'carteraDeductoraExcel']);
         Route::get('novedades-planilla',        [\App\Http\Controllers\Api\ReporteController::class, 'novedadesPlanilla']);
+        Route::get('novedades-planilla/pdf',    [\App\Http\Controllers\Api\ReporteController::class, 'novedadesPlanillaPdf']);
+        Route::get('planilla-cobro/{id}',       [\App\Http\Controllers\Api\ReporteController::class, 'planillaCobro']);
+        Route::get('planilla-cobro/{id}/pdf',   [\App\Http\Controllers\Api\ReporteController::class, 'planillaCobroPdf']);
         Route::get('cobros',                    [\App\Http\Controllers\Api\ReporteController::class, 'cobros']);
         Route::get('cobros/excel',              [\App\Http\Controllers\Api\ReporteController::class, 'cobrosExcel']);
         Route::get('cobros/pdf',                [\App\Http\Controllers\Api\ReporteController::class, 'cobrosPdf']);

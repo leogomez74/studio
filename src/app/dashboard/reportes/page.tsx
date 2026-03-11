@@ -511,6 +511,7 @@ function DeductoraTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loadingXls, setLoadingXls] = useState(false);
+  const [loadingPdfId, setLoadingPdfId] = useState<number | null>(null);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -537,6 +538,15 @@ function DeductoraTab() {
     setLoadingXls(false);
   };
 
+  const doPlanillaPdf = async (deductoraId: number, nombre: string) => {
+    setLoadingPdfId(deductoraId);
+    await downloadExport(
+      `/api/reportes/planilla-cobro/${deductoraId}/pdf`,
+      `planilla_cobro_${nombre.replace(/\s+/g, '_')}.pdf`
+    );
+    setLoadingPdfId(null);
+  };
+
   return (
     <div className="space-y-4 mt-2">
       <FilterRow>
@@ -556,7 +566,7 @@ function DeductoraTab() {
         </Button>
         <div className="ml-auto">
           <Button variant="outline" size="sm" onClick={doExcel} disabled={loadingXls}>
-            <FileSpreadsheet className="h-4 w-4 mr-1" />{loadingXls ? 'Generando…' : 'Excel'}
+            <FileSpreadsheet className="h-4 w-4 mr-1" />{loadingXls ? 'Generando…' : 'Excel resumen'}
           </Button>
         </div>
       </FilterRow>
@@ -595,16 +605,16 @@ function DeductoraTab() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle className="text-sm">Detalle por Deductora</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Planillas de Cobro por Cooperativa</CardTitle></CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Deductora</TableHead>
                       <TableHead className="text-center"># Créd.</TableHead>
-                      <TableHead className="text-right">Saldo</TableHead>
-                      <TableHead className="text-right">Cuota</TableHead>
+                      <TableHead className="text-right">Cuota / mes</TableHead>
                       <TableHead className="text-right">%</TableHead>
+                      <TableHead className="text-center">Planilla</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -613,14 +623,29 @@ function DeductoraTab() {
                     ) : (data.data.map((r, i) => (
                       <TableRow key={r.deductora_id ?? 'null'}>
                         <TableCell className="flex items-center gap-2 text-sm">
-                          <span className="w-3 h-3 rounded-full inline-block" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                          <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                           {r.deductora}
                         </TableCell>
                         <TableCell className="text-center">{r.total_creditos}</TableCell>
-                        <TableCell className="text-right text-xs font-medium">{fmt(r.saldo_total)}</TableCell>
-                        <TableCell className="text-right text-xs">{fmt(r.cuota_total)}</TableCell>
+                        <TableCell className="text-right text-xs font-medium">{fmt(r.cuota_total)}</TableCell>
                         <TableCell className="text-right">
                           <Badge variant="outline">{r.porcentaje}%</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {r.deductora_id ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => doPlanillaPdf(r.deductora_id!, r.deductora)}
+                              disabled={loadingPdfId === r.deductora_id}
+                            >
+                              {loadingPdfId === r.deductora_id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <FileText className="h-3 w-3" />}
+                              PDF
+                            </Button>
+                          ) : '—'}
                         </TableCell>
                       </TableRow>
                     )))}
@@ -638,32 +663,57 @@ function DeductoraTab() {
 // ─── TAB 4: Novedades de Planilla ─────────────────────────────────────────────
 
 function NovedadesTab({ deductoras }: { deductoras: Deductora[] }) {
-  const [deductoraId, setDeductoraId] = useState('all');
+  const [deductoraId, setDeductoraId] = useState('');
   const [desde, setDesde] = useState(FIRST_OF_MONTH);
   const [hasta, setHasta] = useState(TODAY);
   const [data, setData] = useState<{ inclusiones: NovItem[]; exclusiones: NovItem[]; modificaciones: NovItem[]; resumen: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [loadingPdf, setLoadingPdf] = useState(false);
 
-  const fetch = useCallback(async () => {
-    if (deductoraId === 'all') { setError('Selecciona una deductora para ver las novedades.'); return; }
+  // Auto-fetch cuando cambia deductora o fechas — sin botón manual
+  const doFetch = useCallback(async (did: string, d: string, h: string) => {
+    if (!did) return;
     setError('');
     setLoading(true);
+    setData(null);
     try {
-      const p = new URLSearchParams({ deductora_id: deductoraId, desde, hasta });
+      const p = new URLSearchParams({ deductora_id: did, desde: d, hasta: h });
       const r = await api.get('/api/reportes/novedades-planilla?' + p.toString());
       setData(r.data);
     } catch {
       setError('Error al cargar las novedades.');
     } finally { setLoading(false); }
-  }, [deductoraId, desde, hasta]);
+  }, []);
+
+  useEffect(() => {
+    doFetch(deductoraId, desde, hasta);
+  }, [deductoraId, desde, hasta, doFetch]);
+
+  // Auto-seleccionar la primera deductora disponible
+  useEffect(() => {
+    if (deductoras.length > 0 && !deductoraId) {
+      setDeductoraId(String(deductoras[0].id));
+    }
+  }, [deductoras, deductoraId]);
 
   const deductoraName = deductoras.find(d => String(d.id) === deductoraId)?.nombre ?? '';
+
+  const doPdf = async () => {
+    if (!deductoraId) return;
+    setLoadingPdf(true);
+    const p = new URLSearchParams({ deductora_id: deductoraId, desde, hasta });
+    await downloadExport(
+      '/api/reportes/novedades-planilla/pdf?' + p.toString(),
+      `novedades_${deductoraName.replace(/\s+/g, '_')}.pdf`
+    );
+    setLoadingPdf(false);
+  };
 
   return (
     <div className="space-y-4 mt-2">
       <FilterRow>
-        <FilterField label="Deductora *">
+        <FilterField label="Cooperativa">
           <Select value={deductoraId} onValueChange={setDeductoraId}>
             <SelectTrigger className="w-[200px]"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
             <SelectContent>
@@ -677,15 +727,23 @@ function NovedadesTab({ deductoras }: { deductoras: Deductora[] }) {
         <FilterField label="Hasta">
           <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-[145px]" />
         </FilterField>
-        <Button onClick={fetch} disabled={loading || deductoraId === 'all'}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Consultar
-        </Button>
+        {loading && <Loader2 className="h-4 w-4 animate-spin self-end mb-2 text-muted-foreground" />}
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={doPdf} disabled={loadingPdf || !data || !deductoraId}>
+            {loadingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
+            PDF Novedades
+          </Button>
+        </div>
       </FilterRow>
 
       {error && (
-        <div className="flex items-center gap-2 text-muted-foreground p-4 border rounded-lg">
+        <div className="flex items-center gap-2 text-destructive p-4 border border-destructive/30 rounded-lg bg-destructive/5">
           <AlertTriangle className="h-4 w-4" />{error}
         </div>
+      )}
+
+      {!deductoraId && (
+        <p className="text-center text-muted-foreground py-8">Selecciona una cooperativa para ver las novedades.</p>
       )}
 
       {data && (

@@ -30,7 +30,7 @@
 | Inversiones | `/dashboard/inversiones` | ✅ |
 | Rewards | `/dashboard/rewards` | ✅ |
 | Tareas | `/dashboard/tareas` | ✅ |
-| Reportes | `/dashboard/reportes` | ✅ Mar 2026 (6 tabs) |
+| Reportes | `/dashboard/reportes` | ✅ Mar 2026 (5 tabs — Inversiones removido, tiene su propia sección) |
 
 ---
 
@@ -85,6 +85,21 @@ class MiController extends Controller {
 - **Wizard reordenado (Mar 2026):** Paso 1=Historial Crediticio, Paso 2=Info Básica, Paso 3=Ingresos, Paso 4=Documentos
 - **Estados juicios normalizados:** `En Trámite` / `Finalizado` (backend, frontend, validación, tipos)
 - **Fix producción:** `$response->json()` puede retornar string en vez de array → se agregó `json_decode` fallback en `CredidService`
+
+---
+
+## Módulo Reportes — detalles (Mar 2026)
+
+### Tabs activos: Cartera Activa | Cartera en Mora | Por Deductora | Novedades de Planilla | Cobros
+- **Inversiones eliminado** del módulo Reportes — tiene su propia sección en `/dashboard/inversiones`
+- **Breadcrumb fix**: segmento `dashboard` omitido en todos los breadcrumbs (`dashboard-header.tsx`). El ícono Home ya enlaza a `/dashboard`.
+- **Backend ReporteController**: nuevos endpoints Mar 2026:
+  - `GET /api/reportes/planilla-cobro/{id}` → JSON créditos activos de una deductora
+  - `GET /api/reportes/planilla-cobro/{id}/pdf` → PDF planilla de cobro (Carlos → cooperativas)
+  - `GET /api/reportes/novedades-planilla/pdf` → PDF de novedades (inclusiones/exclusiones/cambios cuota)
+- **Novedades automáticas**: se cargan automáticamente al seleccionar cooperativa (sin botón "Consultar")
+- **PDF Planilla de Cobro**: incluye nombre asociado, cédula, No. crédito, cuota a rebajar, saldo, estado + totales + espacio firmas
+- **Status filter default**: incluye `['Activo', 'En Mora', 'Formalizado', 'Legal', 'En Progreso', 'Aprobado', 'Por firmar']` (excluye solo 'Cerrado')
 
 ---
 
