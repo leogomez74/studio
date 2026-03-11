@@ -20,7 +20,7 @@ export function persistAuth(
     Cookies.set(TOKEN_KEY, token, { expires: 30 }); // 30 days
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   } else {
-    Cookies.set(TOKEN_KEY, token, { expires: 1 }); // 1 day
+    Cookies.set(TOKEN_KEY, token); // session cookie — se borra al cerrar el navegador
     sessionStorage.setItem(USER_KEY, JSON.stringify(user));
   }
 }
