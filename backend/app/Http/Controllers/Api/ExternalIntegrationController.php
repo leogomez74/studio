@@ -100,8 +100,9 @@ class ExternalIntegrationController extends Controller
     {
         $integration = ExternalIntegration::findOrFail($id);
 
-        // Resolver URL y token desde .env o DB
-        $envConfig = config("services.{$integration->slug}", []);
+        // Resolver URL y token desde .env o DB (slug exacto o sin dígitos finales: dsf3 → dsf)
+        $slug = $integration->slug;
+        $envConfig = config("services.{$slug}") ?? config("services." . rtrim($slug, '0123456789')) ?? [];
         $baseUrl = $envConfig['url'] ?? $integration->base_url ?? '';
         $token = $envConfig['token'] ?? $integration->auth_token ?? '';
 
