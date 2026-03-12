@@ -95,7 +95,7 @@ class RutaDiariaController extends Controller
             $posicion = 1;
             foreach ($validated['tarea_ids'] as $tareaId) {
                 TareaRuta::where('id', $tareaId)
-                    ->where('status', 'pendiente')
+                    ->whereIn('status', ['pendiente', 'fallida'])
                     ->update([
                         'status' => 'asignada',
                         'asignado_a' => $validated['mensajero_id'],
@@ -195,6 +195,16 @@ class RutaDiariaController extends Controller
             'orden' => 'required|array|min:1',
             'orden.*' => 'integer|exists:tareas_ruta,id',
         ]);
+
+        // Verificar que TODAS las tareas pertenezcan a esta ruta
+        $rutaTareaIds = $ruta->tareas()->pluck('id')->toArray();
+        $idsNoPertenecen = array_diff($validated['orden'], $rutaTareaIds);
+        if (!empty($idsNoPertenecen)) {
+            return response()->json([
+                'message' => 'Algunas tareas no pertenecen a esta ruta.',
+                'ids_invalidos' => array_values($idsNoPertenecen),
+            ], 422);
+        }
 
         DB::transaction(function () use ($ruta, $validated) {
             $posicion = 1;

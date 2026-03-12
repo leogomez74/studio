@@ -33,11 +33,12 @@ export default function GenerarRutaTab({ users, onGenerated }: Props) {
   const fetchPendientes = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const [tareasRes, extRes] = await Promise.all([
+      const [pendientesRes, fallidasRes, extRes] = await Promise.all([
         api.get('/api/tareas-ruta', { params: { status: 'pendiente' } }),
+        api.get('/api/tareas-ruta', { params: { status: 'fallida' } }),
         api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
       ]);
-      setTareasPendientes(tareasRes.data);
+      setTareasPendientes([...pendientesRes.data, ...fallidasRes.data]);
       setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
     } catch {
       toast({ title: 'Error', description: 'No se pudieron cargar las tareas.', variant: 'destructive' });

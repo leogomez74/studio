@@ -176,11 +176,11 @@ class TareaRutaController extends Controller
                 return response()->json(['message' => 'La tarea debe estar asignada o en tránsito para reportar fallo.'], 422);
             }
 
-            // Desasociar de la ruta y volver a pendiente
+            // Marcar como fallida, desasociar de la ruta
             $rutaId = $tarea->ruta_diaria_id;
 
             $tarea->update([
-                'status' => 'pendiente',
+                'status' => 'fallida',
                 'motivo_fallo' => $validated['motivo_fallo'],
                 'ruta_diaria_id' => null,
                 'fecha_asignada' => null,

@@ -152,10 +152,9 @@ class ExternalRoutesService
         $endpoints = $integration->endpoints ?? [];
         $endpoint = $endpoints['rutas'] ?? '/api/external/rutas';
 
-        // TODO: SSRF protection — descomentar cuando se configure ALLOWED_INTEGRATION_DOMAINS en .env
-        // if (!empty($baseUrl)) {
-        //     $this->validateBaseUrl($baseUrl);
-        // }
+        if (!empty($baseUrl)) {
+            $this->validateBaseUrl($baseUrl);
+        }
 
         return ['base_url' => $baseUrl, 'token' => $token, 'endpoint' => $endpoint];
     }

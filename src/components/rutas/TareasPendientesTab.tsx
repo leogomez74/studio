@@ -5,6 +5,7 @@ import { PlusCircle, Loader2, XCircle, ArrowUp, AlertTriangle, Filter, Clock, Bu
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +31,7 @@ export default function TareasPendientesTab({ users }: Props) {
   const [filterTipo, setFilterTipo] = useState<string>('todos');
   const [filterPrioridad, setFilterPrioridad] = useState<string>('todos');
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     titulo: '', descripcion: '', tipo: 'entrega' as TareaTipo, prioridad: 'normal' as TareaPrioridad,
@@ -40,7 +42,11 @@ export default function TareasPendientesTab({ users }: Props) {
   const fetchTareas = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/tareas-ruta', { params: { status: 'pendiente' } });
+      const [pendientes, fallidas] = await Promise.all([
+        api.get('/api/tareas-ruta', { params: { status: 'pendiente' } }),
+        api.get('/api/tareas-ruta', { params: { status: 'fallida' } }),
+      ]);
+      const res = { data: [...pendientes.data, ...fallidas.data] };
       setTareas(res.data);
     } catch {
       toast({ title: 'Error', description: 'No se pudieron cargar las tareas.', variant: 'destructive' });
@@ -101,10 +107,12 @@ export default function TareasPendientesTab({ users }: Props) {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async () => {
+    if (!deleteId) return;
     try {
-      await api.delete(`/api/tareas-ruta/${id}`);
+      await api.delete(`/api/tareas-ruta/${deleteId}`);
       toast({ title: 'Tarea eliminada' });
+      setDeleteId(null);
       fetchTareas();
     } catch {
       toast({ title: 'Error', description: 'No se pudo eliminar.', variant: 'destructive' });
@@ -174,8 +182,12 @@ export default function TareasPendientesTab({ users }: Props) {
                 <TableRow key={t.id}>
                   <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell>
-                    <div className="font-medium">{t.titulo}</div>
-                    {t.descripcion && <div className="text-xs text-muted-foreground line-clamp-1">{t.descripcion}</div>}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{t.titulo}</span>
+                      {t.status === 'fallida' && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Fallida</Badge>}
+                    </div>
+                    {t.motivo_fallo && <div className="text-xs text-red-500 line-clamp-1">Motivo: {t.motivo_fallo}</div>}
+                    {t.descripcion && !t.motivo_fallo && <div className="text-xs text-muted-foreground line-clamp-1">{t.descripcion}</div>}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
@@ -202,7 +214,7 @@ export default function TareasPendientesTab({ users }: Props) {
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
                         <ArrowUp className="h-3 w-3" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(t.id)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(t.id)}>
                         <XCircle className="h-3 w-3" />
                       </Button>
                     </div>
@@ -295,6 +307,23 @@ export default function TareasPendientesTab({ users }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar tarea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. La tarea será eliminada permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
