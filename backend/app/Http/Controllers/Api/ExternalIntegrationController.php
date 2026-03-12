@@ -73,7 +73,8 @@ class ExternalIntegrationController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $integration->update($validated);
+        // Only update explicitly allowed fields (defense-in-depth)
+        $integration->update($request->only(['name', 'slug', 'type', 'is_active']));
 
         $changes = $this->getChanges($oldData, $integration->fresh()->toArray());
         $this->logActivity('update', 'Integraciones', $integration, $integration->name, $changes, $request);

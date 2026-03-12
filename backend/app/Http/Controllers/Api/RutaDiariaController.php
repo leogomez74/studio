@@ -118,45 +118,49 @@ class RutaDiariaController extends Controller
 
     public function confirmar(Request $request, string $id)
     {
-        $ruta = RutaDiaria::findOrFail($id);
+        return DB::transaction(function () use ($id) {
+            $ruta = RutaDiaria::lockForUpdate()->findOrFail($id);
 
-        if ($ruta->status !== 'borrador') {
-            return response()->json(['message' => 'Solo se pueden confirmar rutas en borrador.'], 422);
-        }
+            if ($ruta->status !== 'borrador') {
+                return response()->json(['message' => 'Solo se pueden confirmar rutas en borrador.'], 422);
+            }
 
-        $ruta->update([
-            'status' => 'confirmada',
-            'confirmada_por' => Auth::id(),
-            'confirmada_at' => now(),
-        ]);
+            $ruta->update([
+                'status' => 'confirmada',
+                'confirmada_por' => Auth::id(),
+                'confirmada_at' => now(),
+            ]);
 
-        $this->logActivity('update', 'Rutas', $ruta, "Ruta confirmada: {$ruta->fecha->format('Y-m-d')}");
+            $this->logActivity('update', 'Rutas', $ruta, "Ruta confirmada: {$ruta->fecha->format('Y-m-d')}");
 
-        return response()->json($ruta);
+            return response()->json($ruta);
+        });
     }
 
     public function iniciar(string $id)
     {
-        $user = Auth::user();
-        $ruta = RutaDiaria::findOrFail($id);
+        return DB::transaction(function () use ($id) {
+            $user = Auth::user();
+            $ruta = RutaDiaria::lockForUpdate()->findOrFail($id);
 
-        // Only admin or the assigned mensajero can start a route
-        if (!$user->role?->full_access && $ruta->mensajero_id !== $user->id) {
-            return response()->json(['message' => 'No autorizado.'], 403);
-        }
+            // Only admin or the assigned mensajero can start a route
+            if (!$user->role?->full_access && $ruta->mensajero_id !== $user->id) {
+                return response()->json(['message' => 'No autorizado.'], 403);
+            }
 
-        if ($ruta->status !== 'confirmada') {
-            return response()->json(['message' => 'Solo se pueden iniciar rutas confirmadas.'], 422);
-        }
+            if ($ruta->status !== 'confirmada') {
+                return response()->json(['message' => 'Solo se pueden iniciar rutas confirmadas.'], 422);
+            }
 
-        $ruta->update(['status' => 'en_progreso']);
+            $ruta->update(['status' => 'en_progreso']);
 
-        // Marcar tareas como en_transito
-        $ruta->tareas()->where('status', 'asignada')->update(['status' => 'en_transito']);
+            // Marcar tareas como en_transito
+            $ruta->tareas()->where('status', 'asignada')->update(['status' => 'en_transito']);
 
-        $this->logActivity('update', 'Rutas', $ruta, "Ruta iniciada: {$ruta->fecha->format('Y-m-d')}");
+            $this->logActivity('update', 'Rutas', $ruta, "Ruta iniciada: {$ruta->fecha->format('Y-m-d')}");
 
-        return response()->json($ruta);
+            return response()->json($ruta);
+        });
     }
 
     /**

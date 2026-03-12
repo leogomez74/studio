@@ -7,6 +7,7 @@ use App\Models\TareaRuta;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TareaRutaController extends Controller
 {
@@ -44,11 +45,11 @@ class TareaRutaController extends Controller
     {
         $validated = $request->validate([
             'titulo' => 'required|string|max:255',
-            'descripcion' => 'nullable|string',
+            'descripcion' => 'nullable|string|max:1000',
             'tipo' => 'required|in:entrega,recoleccion,tramite,deposito,otro',
             'prioridad' => 'nullable|in:normal,urgente,critica',
             'empresa_destino' => 'nullable|string|max:255',
-            'direccion_destino' => 'nullable|string',
+            'direccion_destino' => 'nullable|string|max:500',
             'provincia' => 'nullable|string|max:100',
             'canton' => 'nullable|string|max:100',
             'contacto_nombre' => 'nullable|string|max:255',
@@ -82,11 +83,11 @@ class TareaRutaController extends Controller
 
         $validated = $request->validate([
             'titulo' => 'sometimes|required|string|max:255',
-            'descripcion' => 'nullable|string',
+            'descripcion' => 'nullable|string|max:1000',
             'tipo' => 'sometimes|in:entrega,recoleccion,tramite,deposito,otro',
             'prioridad' => 'sometimes|in:normal,urgente,critica',
             'empresa_destino' => 'nullable|string|max:255',
-            'direccion_destino' => 'nullable|string',
+            'direccion_destino' => 'nullable|string|max:500',
             'provincia' => 'nullable|string|max:100',
             'canton' => 'nullable|string|max:100',
             'contacto_nombre' => 'nullable|string|max:255',
@@ -94,7 +95,12 @@ class TareaRutaController extends Controller
             'fecha_limite' => 'nullable|date',
         ]);
 
-        $tarea->update($validated);
+        // Only update explicitly allowed fields (defense-in-depth vs broad $fillable)
+        $tarea->update($request->only([
+            'titulo', 'descripcion', 'tipo', 'prioridad',
+            'empresa_destino', 'direccion_destino', 'provincia', 'canton',
+            'contacto_nombre', 'contacto_telefono', 'fecha_limite',
+        ]));
 
         $this->logActivity('update', 'Rutas', $tarea, $tarea->titulo, [], $request);
 
@@ -117,75 +123,79 @@ class TareaRutaController extends Controller
 
     public function completar(Request $request, string $id)
     {
-        $user = Auth::user();
-        $tarea = TareaRuta::findOrFail($id);
-
-        // Only the assigned mensajero or admin can complete a task
-        if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
-            return response()->json(['message' => 'No autorizado.'], 403);
-        }
-
-        if (!in_array($tarea->status, ['asignada', 'en_transito'])) {
-            return response()->json(['message' => 'La tarea debe estar asignada o en tránsito para completarla.'], 422);
-        }
-
         $validated = $request->validate([
-            'notas_completado' => 'nullable|string',
+            'notas_completado' => 'nullable|string|max:1000',
         ]);
 
-        $tarea->update([
-            'status' => 'completada',
-            'completada_at' => now(),
-            'notas_completado' => $validated['notas_completado'] ?? null,
-        ]);
+        return DB::transaction(function () use ($id, $validated, $request) {
+            $user = Auth::user();
+            $tarea = TareaRuta::lockForUpdate()->findOrFail($id);
 
-        // Recalcular conteo de la ruta
-        if ($tarea->ruta_diaria_id) {
-            $tarea->rutaDiaria->recalcularConteo();
-        }
+            // Only the assigned mensajero or admin can complete a task
+            if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
+                return response()->json(['message' => 'No autorizado.'], 403);
+            }
 
-        $this->logActivity('update', 'Rutas', $tarea, "Completada: {$tarea->titulo}", [], $request);
+            if (!in_array($tarea->status, ['asignada', 'en_transito'])) {
+                return response()->json(['message' => 'La tarea debe estar asignada o en tránsito para completarla.'], 422);
+            }
 
-        return response()->json($tarea);
+            $tarea->update([
+                'status' => 'completada',
+                'completada_at' => now(),
+                'notas_completado' => $validated['notas_completado'] ?? null,
+            ]);
+
+            // Recalcular conteo de la ruta
+            if ($tarea->ruta_diaria_id) {
+                $tarea->rutaDiaria->recalcularConteo();
+            }
+
+            $this->logActivity('update', 'Rutas', $tarea, "Completada: {$tarea->titulo}", [], $request);
+
+            return response()->json($tarea);
+        });
     }
 
     public function fallar(Request $request, string $id)
     {
-        $user = Auth::user();
-        $tarea = TareaRuta::findOrFail($id);
-
-        // Only the assigned mensajero or admin can report failure
-        if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
-            return response()->json(['message' => 'No autorizado.'], 403);
-        }
-
-        if (!in_array($tarea->status, ['asignada', 'en_transito'])) {
-            return response()->json(['message' => 'La tarea debe estar asignada o en tránsito para reportar fallo.'], 422);
-        }
-
         $validated = $request->validate([
             'motivo_fallo' => 'required|string|max:500',
         ]);
 
-        // Desasociar de la ruta y volver a pendiente
-        $rutaId = $tarea->ruta_diaria_id;
+        return DB::transaction(function () use ($id, $validated, $request) {
+            $user = Auth::user();
+            $tarea = TareaRuta::lockForUpdate()->findOrFail($id);
 
-        $tarea->update([
-            'status' => 'pendiente',
-            'motivo_fallo' => $validated['motivo_fallo'],
-            'ruta_diaria_id' => null,
-            'fecha_asignada' => null,
-            'posicion' => null,
-            'asignado_a' => null,
-        ]);
+            // Only the assigned mensajero or admin can report failure
+            if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
+                return response()->json(['message' => 'No autorizado.'], 403);
+            }
 
-        if ($rutaId) {
-            $tarea->rutaDiaria()->getRelated()->find($rutaId)?->recalcularConteo();
-        }
+            if (!in_array($tarea->status, ['asignada', 'en_transito'])) {
+                return response()->json(['message' => 'La tarea debe estar asignada o en tránsito para reportar fallo.'], 422);
+            }
 
-        $this->logActivity('update', 'Rutas', $tarea, "Fallida: {$tarea->titulo}", [], $request);
+            // Desasociar de la ruta y volver a pendiente
+            $rutaId = $tarea->ruta_diaria_id;
 
-        return response()->json($tarea);
+            $tarea->update([
+                'status' => 'pendiente',
+                'motivo_fallo' => $validated['motivo_fallo'],
+                'ruta_diaria_id' => null,
+                'fecha_asignada' => null,
+                'posicion' => null,
+                'asignado_a' => null,
+            ]);
+
+            if ($rutaId) {
+                $tarea->rutaDiaria()->getRelated()->find($rutaId)?->recalcularConteo();
+            }
+
+            $this->logActivity('update', 'Rutas', $tarea, "Fallida: {$tarea->titulo}", [], $request);
+
+            return response()->json($tarea);
+        });
     }
 
     public function overridePrioridad(Request $request, string $id)

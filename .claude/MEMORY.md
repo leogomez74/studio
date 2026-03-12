@@ -131,11 +131,14 @@ class MiController extends Controller {
 - `external-routes` endpoints protegidos con middleware `admin`
 - SSRF: validación de dominio con whitelist configurable (`ALLOWED_INTEGRATION_DOMAINS` en .env) + bloqueo de IPs privadas
 
-### 🔲 Fase 2 — Alto (pendiente)
-- Rate limiting, `$request->only()`, `lockForUpdate()` en transiciones
+### ✅ Fase 2 — Alto (completado 2026-03-12)
+- Rate limiting `throttle:60,1` en endpoints de mutación (completar, fallar, iniciar, generar, confirmar, reordenar, cancelar); `throttle:30,1` en operaciones destructivas; `throttle:10,1` en test de integraciones
+- `lockForUpdate()` en transiciones de estado: `confirmar()`, `iniciar()` en RutaDiariaController; `completar()`, `fallar()` en TareaRutaController
+- `$request->only()` defense-in-depth en `TareaRutaController::update()` y `ExternalIntegrationController::update()`
+- `max` en campos de texto sin límite: `descripcion:1000`, `direccion_destino:500`, `notas_completado:1000`
 
 ### 🔲 Fase 3 — Medio (pendiente)
-- API Resources, sanitización errores, max length, HttpOnly cookies
+- API Resources, sanitización errores, HttpOnly cookies
 
 ## Deuda técnica pendiente (ver mejoras.md)
 

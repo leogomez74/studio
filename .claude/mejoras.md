@@ -43,18 +43,13 @@
 | Mar 2026 | Integración DSF: config en `.env` con fallback a BD, health check `/api/health/env`, Artisan `route-token:manage` en DSF3 |
 | Mar 2026 | `rutas/page.tsx` refactorizado: 1,672 → ~100 líneas orquestador + 7 archivos en `src/components/rutas/`. Tabs filtrados por rol (admin vs mensajero) |
 | 2026-03-11 | **Auditoría Seguridad Rutas — Fase 1 completa**: tokens cifrados con `encrypted` cast, ownership checks (IDOR) en RutaDiariaController y TareaRutaController, middleware admin en external-routes, validación SSRF de dominio con whitelist |
+| 2026-03-12 | **Auditoría Seguridad Rutas — Fase 2 completa**: rate limiting `throttle:60,1` en mutations (completar, fallar, iniciar, generar, confirmar, reordenar, cancelar, test), `lockForUpdate()` en transiciones de estado (confirmar, iniciar, completar, fallar), `$request->only()` defense-in-depth en TareaRutaController::update y ExternalIntegrationController::update, `max` en campos de texto sin límite (descripcion:1000, direccion:500, notas_completado:1000) |
 
 ## Pendiente — Media prioridad
-
-### Auditoría Seguridad Rutas — Fase 2 (pendiente)
-- Rate limiting `throttle:60,1` en endpoints de mutación (completar, fallar, iniciar)
-- Proteger `$fillable` con `$request->only()` en TareaRutaController::update
-- `lockForUpdate()` en transiciones de estado (iniciar, completar)
 
 ### Auditoría Seguridad Rutas — Fase 3 (pendiente)
 - API Resources para controlar respuestas JSON
 - Sanitizar mensajes de error externos
-- `max:1000` en campos de texto sin límite
 - Migrar auth a HttpOnly cookies
 
 ## Pendiente — Baja prioridad
