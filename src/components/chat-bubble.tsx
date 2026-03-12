@@ -606,14 +606,14 @@ export function ChatBubble() {
         ref={panelRef}
         className={cn(
           'fixed bottom-6 right-6 z-50 w-[500px]',
-          'rounded-2xl border bg-card shadow-2xl flex flex-col overflow-hidden',
+          'rounded-2xl border bg-card shadow-2xl flex flex-col',
           'transition-all duration-300 ease-out origin-bottom-right',
           isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-2 pointer-events-none'
         )}
         style={{ height: '680px', maxHeight: 'calc(100vh - 48px)' }}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
+        <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0 rounded-t-2xl overflow-hidden">
           {directMode ? (
             <>
               <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg shrink-0"
@@ -946,7 +946,7 @@ export function ChatBubble() {
         </div>
 
         {/* Compose new comment — hidden in archived view */}
-        {!showArchived && <div className="border-t bg-muted/20 p-3 space-y-2 shrink-0">
+        {!showArchived && <div className="border-t bg-muted/20 p-3 space-y-2 shrink-0 rounded-b-2xl overflow-visible relative">
           {directMode ? (
             /* Direct message compose */
             <Compose
