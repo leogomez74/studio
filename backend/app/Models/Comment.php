@@ -69,6 +69,7 @@ class Comment extends Model
             $entity instanceof Lead,
             $entity instanceof Client      => $entity->cedula ?? $entity->name ?? "#{$entity->id}",
             $entity instanceof Analisis    => $entity->reference ?? "#{$entity->id}",
+            $entity instanceof User        => $entity->name ?? "Usuario #{$entity->id}",
             default                        => "#{$this->commentable_id}",
         };
     }

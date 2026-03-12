@@ -45,6 +45,11 @@
 | 2026-03-11 | **Auditoría Seguridad Rutas — Fase 1 completa**: tokens cifrados con `encrypted` cast, ownership checks (IDOR) en RutaDiariaController y TareaRutaController, middleware admin en external-routes, validación SSRF de dominio con whitelist |
 | 2026-03-12 | **Auditoría Seguridad Rutas — Fase 2 completa**: rate limiting `throttle:60,1` en mutations, `lockForUpdate()` en transiciones de estado, `$request->only()` defense-in-depth, `max` en campos de texto sin límite |
 | 2026-03-12 | **Auditoría Seguridad Rutas — Fase 3 completa**: `$hidden` en ExternalIntegration (auth_token/user/password excluidos de JSON), sanitización mensajes de error (genéricos al cliente, detalles en Log::warning), truncado last_sync_message a 200 chars |
+| 2026-03-12 | **Comentarios internos — Mensajes directos**: tipo `direct` (commentable_type=User) permite conversaciones entre usuarios sin vincular a entidad. Backend: typeMap + notificación automática. Frontend: botón "Mensaje directo" en comunicaciones con selector de usuario |
+| 2026-03-12 | **Comentarios internos — Emojis y GIFs**: `@emoji-mart/react` para picker de emojis, `gif-picker-react` (Tenor API) para GIFs. Integrado en comments-panel.tsx y comunicaciones/page.tsx (compose, reply, direct) |
+| 2026-03-12 | **Notificaciones → Comunicaciones**: click en notificación de comentario ahora navega a `/dashboard/comunicaciones?comment_id=X` y abre el thread automáticamente, en vez de ir directo a la entidad |
+| 2026-03-12 | **Comentarios — Fix GIF/Direct**: GIFs como imagen en thread, "GIF" en preview lista. Directos agrupados por usuario en bandeja. `previewBody()` para listas |
+| 2026-03-12 | **Fix Estado de Cuenta inversiones — cancelación sin intereses**: `cancelacionTotal('sin_intereses')` ya no zerear `monto_capital`/`interes_mensual`. PDF reconstruye capital original como safety net. Nueva columna "Intereses Pendientes". Nuevo estado `Capital Devuelto` cuando se devuelve capital pero quedan intereses pendientes — auto-finaliza al pagar todos los cupones. Migración ENUM + corrección datos existentes. Frontend: badge, filtros y selects actualizados. Archivos: `InvestmentService.php`, `InvestmentExportController.php`, `estado_cuenta_inversion.blade.php`, `InvestmentCouponController.php`, `InvestmentController.php`, páginas frontend inversiones |
 
 ## Pendiente — Media prioridad
 

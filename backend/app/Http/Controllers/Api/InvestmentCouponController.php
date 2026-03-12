@@ -26,8 +26,8 @@ class InvestmentCouponController extends Controller
     {
         $coupon = InvestmentCoupon::with('investment')->findOrFail($id);
 
-        if ($coupon->investment->estado !== 'Activa') {
-            return response()->json(['message' => 'Solo se pueden pagar cupones de inversiones activas.'], 422);
+        if (! in_array($coupon->investment->estado, ['Activa', 'Capital Devuelto'])) {
+            return response()->json(['message' => 'Solo se pueden pagar cupones de inversiones activas o con capital devuelto.'], 422);
         }
 
         $validated = $request->validate([
@@ -80,7 +80,7 @@ class InvestmentCouponController extends Controller
         $coupons = InvestmentCoupon::with('investment')
             ->whereIn('id', $validated['coupon_ids'])
             ->where('estado', '!=', 'Pagado')
-            ->whereHas('investment', fn ($q) => $q->where('estado', 'Activa'))
+            ->whereHas('investment', fn ($q) => $q->whereIn('estado', ['Activa', 'Capital Devuelto']))
             ->get();
 
         $updated = $coupons->count();
@@ -101,6 +101,18 @@ class InvestmentCouponController extends Controller
             ])->toArray();
 
             InvestmentPayment::insert($payments);
+
+            // Auto-finalizar inversiones 'Capital Devuelto' sin cupones pendientes
+            $investmentIds = $coupons->pluck('investment_id')->unique();
+            Investment::whereIn('id', $investmentIds)
+                ->where('estado', 'Capital Devuelto')
+                ->get()
+                ->each(function (Investment $inv) {
+                    $hasPending = $inv->coupons()->whereIn('estado', ['Pendiente', 'Reservado'])->exists();
+                    if (! $hasPending) {
+                        $inv->update(['estado' => 'Finalizada']);
+                    }
+                });
         }
 
         $this->logActivity('bulk_mark_paid', 'Cupones Inversión', null, 'Bulk: ' . $updated, [], $request);
@@ -129,7 +141,7 @@ class InvestmentCouponController extends Controller
         $registeredBy = $validated['registered_by'] ?? null;
 
         $investments = Investment::whereIn('numero_desembolso', $validated['desembolsos'])
-            ->where('estado', 'Activa')
+            ->whereIn('estado', ['Activa', 'Capital Devuelto'])
             ->get();
 
         if ($investments->isEmpty()) {
@@ -163,6 +175,14 @@ class InvestmentCouponController extends Controller
         ])->toArray();
 
         InvestmentPayment::insert($payments);
+
+        // Auto-finalizar inversiones 'Capital Devuelto' sin cupones pendientes
+        $investments->where('estado', 'Capital Devuelto')->each(function (Investment $inv) {
+            $hasPending = $inv->coupons()->whereIn('estado', ['Pendiente', 'Reservado'])->exists();
+            if (! $hasPending) {
+                $inv->update(['estado' => 'Finalizada']);
+            }
+        });
 
         $this->logActivity('bulk_pay_by_desembolso', 'Cupones Inversión', null,
             'Desembolsos: ' . implode(', ', $validated['desembolsos']) . ' | Cupones: ' . $coupons->count(), [], $request);

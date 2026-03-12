@@ -104,7 +104,7 @@ const InvestmentTableRow = React.memo(function InvestmentTableRow({ investment, 
       <TableCell className="text-right font-mono">{fmt(investment.interes_del_cupon ?? 0, investment.moneda)}</TableCell>
       <TableCell className="text-right font-mono text-destructive">- {fmt(investment.retencion_del_cupon ?? 0, investment.moneda)}</TableCell>
       <TableCell className="text-right font-mono font-semibold text-primary">{fmt(investment.interes_neto_del_cupon ?? 0, investment.moneda)}</TableCell>
-      <TableCell><Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Cancelada' ? 'destructive' : 'secondary'}>{investment.estado}</Badge></TableCell>
+      <TableCell><Badge variant={investment.estado === 'Activa' ? 'default' : investment.estado === 'Cancelada' ? 'destructive' : investment.estado === 'Capital Devuelto' ? 'outline' : 'secondary'}>{investment.estado}</Badge></TableCell>
       <TableCell>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1411,6 +1411,7 @@ export default function InversionesPage() {
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="Activa">Activa</SelectItem>
                     <SelectItem value="Finalizada">Finalizada</SelectItem>
+                    <SelectItem value="Capital Devuelto">Capital Devuelto</SelectItem>
                     <SelectItem value="Liquidada">Liquidada</SelectItem>
                     <SelectItem value="Cancelada">Cancelada</SelectItem>
                     <SelectItem value="Renovada">Renovada</SelectItem>

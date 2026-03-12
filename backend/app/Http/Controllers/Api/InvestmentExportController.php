@@ -218,12 +218,18 @@ class InvestmentExportController extends Controller
 
         $payments = $investment->payments->filter(fn($p) => in_array($p->tipo, ['Interés', 'Capital', 'Adelanto', 'Liquidación']));
 
-        $capitalInicial = (float) $investment->monto_capital;
+        // Reconstruir capital original: monto_capital actual + suma de pagos de capital realizados
+        // Esto es necesario porque cancelacionTotal('sin_intereses') pone monto_capital = 0
+        $capitalDevuelto = $payments
+            ->filter(fn($p) => in_array($p->tipo, ['Capital', 'Liquidación']))
+            ->sum(fn($p) => (float) $p->monto);
+        $capitalInicial = (float) $investment->monto_capital + $capitalDevuelto;
         $tasaAnual = (float) $investment->tasa_anual;
         $balance = $capitalInicial;
 
         $rows = [];
         $fechaAnterior = Carbon::parse($investment->fecha_inicio);
+        $interesPendienteAcum = 0; // Acumulado de intereses devengados no pagados
 
         // Group payments by date and sum them
         $paymentsByDate = $payments->groupBy(fn($p) => Carbon::parse($p->fecha_pago)->format('Y-m-d'));
@@ -255,6 +261,9 @@ class InvestmentExportController extends Controller
             }
             $balance = round($balance - $capitalPayment, 2);
 
+            // Acumular intereses devengados y restar lo que se pagó
+            $interesPendienteAcum = round($interesPendienteAcum + $interes - $interestPayment, 2);
+
             $rows[] = [
                 'date' => $fechaPago->format($lang === 'en' ? 'F d,Y' : 'd/m/Y'),
                 'days' => $dias,
@@ -263,6 +272,7 @@ class InvestmentExportController extends Controller
                 'interest_payment' => round($interestPayment, 2),
                 'capital_payment' => round($capitalPayment, 2),
                 'balance' => $balance,
+                'pending_interest' => $interesPendienteAcum,
             ];
 
             $fechaAnterior = $fechaPago;
@@ -275,15 +285,17 @@ class InvestmentExportController extends Controller
         }
         $diasPendientes = $fechaAnterior->diffInDays($fechaCorte);
         if ($diasPendientes > 0 && $balance > 0) {
-            $interesPendiente = $balance * $tasaAnual * $diasPendientes / 365;
+            $interesPeriodo = $balance * $tasaAnual * $diasPendientes / 365;
+            $interesPendienteAcum = round($interesPendienteAcum + $interesPeriodo, 2);
             $rows[] = [
                 'date' => $fechaCorte->format($lang === 'en' ? 'F d,Y' : 'd/m/Y'),
                 'days' => $diasPendientes,
-                'interest' => round($interesPendiente, 2),
+                'interest' => round($interesPeriodo, 2),
                 'payment' => 0,
                 'interest_payment' => 0,
                 'capital_payment' => 0,
                 'balance' => round($balance, 2),
+                'pending_interest' => $interesPendienteAcum,
             ];
         }
 
@@ -297,9 +309,13 @@ class InvestmentExportController extends Controller
         $logoPath = public_path('logopepwebcolor.png');
         $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
 
+        // Interés mensual inicial basado en capital original
+        $initialMonthlyInterest = $capitalInicial * $tasaAnual / 12;
+
         $pdf = Pdf::loadView('pdf.estado_cuenta_inversion', compact(
             'investment', 'rows', 'lang', 'fechaDesde', 'fechaHasta',
-            'periodLabel', 'currentMonthlyInterest', 'logoBase64'
+            'periodLabel', 'currentMonthlyInterest', 'logoBase64',
+            'capitalInicial', 'initialMonthlyInterest'
         ))->setPaper('letter', 'landscape');
 
         $filename = $lang === 'en' ? 'account_statement' : 'estado_cuenta';

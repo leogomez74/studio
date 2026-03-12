@@ -17,7 +17,13 @@ import {
   MessageSquare,
   AtSign,
   Hash,
+  Smile,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
+import GifPicker, { TenorImage } from 'gif-picker-react';
 
 import api from '@/lib/axios';
 import { useAuth } from '@/components/auth-guard';
@@ -106,6 +112,8 @@ const ENTITY_ROUTES: Record<string, string> = {
   client: '/dashboard/leads',
 };
 
+const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+
 const DROPDOWN_KIND_TO_MENTION_TYPE: Record<DropdownKind, Mention['type']> = {
   user: 'user',
   oportunidad: 'opportunity',
@@ -163,32 +171,40 @@ function relativeTime(dateStr: string): string {
  *
  * Returns an array of segments that are either plain text or mentions.
  */
+type BodySegment =
+  | { kind: 'text'; value: string }
+  | { kind: 'mention'; mention: Mention }
+  | { kind: 'gif'; url: string };
+
 function parseBody(
   body: string,
   mentions: Mention[]
-): Array<{ kind: 'text'; value: string } | { kind: 'mention'; mention: Mention }> {
-  const mentionPattern = /(@|#)\[([^\]]+)\]\((\w+):(\d+)\)/g;
-  const segments: Array<
-    { kind: 'text'; value: string } | { kind: 'mention'; mention: Mention }
-  > = [];
+): BodySegment[] {
+  // Combined pattern: mentions OR GIF links
+  const combinedPattern = /(@|#)\[([^\]]+)\]\((\w+):(\d+)\)|\[GIF\]\(([^)]+)\)/g;
+  const segments: BodySegment[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = mentionPattern.exec(body)) !== null) {
+  while ((match = combinedPattern.exec(body)) !== null) {
     if (match.index > lastIndex) {
       segments.push({ kind: 'text', value: body.slice(lastIndex, match.index) });
     }
 
-    const type = match[3] as Mention['type'];
-    const id = parseInt(match[4], 10);
-    const label = match[2];
-
-    // Try to find a richer mention from the mentions array
-    const richMention = mentions.find((m) => m.type === type && m.id === id);
-    segments.push({
-      kind: 'mention',
-      mention: richMention ?? { type, id, label },
-    });
+    if (match[5]) {
+      // GIF match
+      segments.push({ kind: 'gif', url: match[5] });
+    } else {
+      // Mention match
+      const type = match[3] as Mention['type'];
+      const id = parseInt(match[4], 10);
+      const label = match[2];
+      const richMention = mentions.find((m) => m.type === type && m.id === id);
+      segments.push({
+        kind: 'mention',
+        mention: richMention ?? { type, id, label },
+      });
+    }
 
     lastIndex = match.index + match[0].length;
   }
@@ -288,6 +304,14 @@ function CommentBubble({
           {segments.map((seg, i) =>
             seg.kind === 'text' ? (
               <span key={i}>{seg.value}</span>
+            ) : seg.kind === 'gif' ? (
+              <img
+                key={i}
+                src={seg.url}
+                alt="GIF"
+                className="rounded-lg max-w-[200px] max-h-[150px] object-cover mt-1"
+                loading="lazy"
+              />
             ) : (
               <MentionLink
                 key={i}
@@ -377,6 +401,12 @@ export function CommentsPanel({
   const [body, setBody] = useState('');
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [isSending, setIsSending] = useState(false);
+
+  // ---- State: emoji & gif ----
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const emojiRef = useRef<HTMLDivElement>(null);
+  const gifRef = useRef<HTMLDivElement>(null);
 
   // ---- State: dropdown ----
   const [dropdownKind, setDropdownKind] = useState<DropdownKind | null>(null);
@@ -471,6 +501,63 @@ export function CommentsPanel({
     },
     [toast]
   );
+
+  // ---- Emoji selection ----
+  const handleEmojiSelect = useCallback((emoji: any) => {
+    const native = emoji.native;
+    if (!native) return;
+    const textarea = textareaRef.current;
+    const pos = textarea?.selectionStart ?? body.length;
+    const newBody = body.slice(0, pos) + native + body.slice(pos);
+    setBody(newBody);
+    setShowEmojiPicker(false);
+    requestAnimationFrame(() => {
+      const newPos = pos + native.length;
+      textarea?.focus();
+      textarea?.setSelectionRange(newPos, newPos);
+    });
+  }, [body]);
+
+  // ---- GIF selection ----
+  const handleGifSelect = useCallback(async (gif: TenorImage) => {
+    const gifUrl = gif.url;
+    if (!gifUrl) return;
+    // Send GIF as a comment with the GIF URL
+    setIsSending(true);
+    try {
+      await api.post('/api/comments', {
+        commentable_type: commentableType,
+        commentable_id: commentableId,
+        body: `[GIF](${gifUrl})`,
+        mentions: [],
+      });
+      await fetchComments();
+    } catch (err) {
+      console.error('Error sending GIF:', err);
+      toast({
+        title: 'Error',
+        description: 'No se pudo enviar el GIF.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
+      setShowGifPicker(false);
+    }
+  }, [commentableType, commentableId, fetchComments, toast]);
+
+  // ---- Close emoji/gif picker on outside click ----
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+      if (gifRef.current && !gifRef.current.contains(e.target as Node)) {
+        setShowGifPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // ---- Mention click navigation ----
   const handleMentionClick = useCallback(
@@ -835,7 +922,35 @@ export function CommentsPanel({
           </div>
         )}
 
-        {/* Textarea + Send */}
+        {/* Emoji Picker */}
+        {showEmojiPicker && (
+          <div ref={emojiRef} className="absolute bottom-full right-3 mb-1 z-50">
+            <Picker
+              data={data}
+              onEmojiSelect={handleEmojiSelect}
+              theme="light"
+              locale="es"
+              previewPosition="none"
+              skinTonePosition="none"
+              maxFrequentRows={2}
+            />
+          </div>
+        )}
+
+        {/* GIF Picker */}
+        {showGifPicker && (
+          <div ref={gifRef} className="absolute bottom-full right-3 mb-1 z-50">
+            <GifPicker
+              tenorApiKey={TENOR_API_KEY}
+              onGifClick={handleGifSelect}
+              locale="es"
+              width={320}
+              height={400}
+            />
+          </div>
+        )}
+
+        {/* Textarea + Actions + Send */}
         <div className="flex items-end gap-2">
           <div className="relative flex-1">
             <textarea
@@ -856,38 +971,73 @@ export function CommentsPanel({
               )}
             />
           </div>
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  className="h-10 w-10 shrink-0 rounded-lg"
-                  onClick={handleSend}
-                  disabled={!body.trim() || isSending}
-                >
-                  {isSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Enviar <kbd className="ml-1 text-xs opacity-60">Enter</kbd>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn('h-9 w-9 rounded-lg', showEmojiPicker && 'bg-accent')}
+                    onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); }}
+                    disabled={isSending}
+                  >
+                    <Smile className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Emojis</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn('h-9 w-9 rounded-lg', showGifPicker && 'bg-accent')}
+                    onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}
+                    disabled={isSending}
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">GIFs</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    className="h-10 w-10 rounded-lg"
+                    onClick={handleSend}
+                    disabled={!body.trim() || isSending}
+                  >
+                    {isSending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Enviar <kbd className="ml-1 text-xs opacity-60">Enter</kbd>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
 
         {/* Help text */}
         <p className="mt-1.5 text-[11px] text-muted-foreground/70 leading-tight">
           <kbd className="font-mono text-[10px] border rounded px-1 py-0.5 bg-muted">@</kbd>{' '}
-          mencionar usuario{' '}
+          mencionar{' '}
           <span className="mx-1 text-muted-foreground/40">|</span>
-          <kbd className="font-mono text-[10px] border rounded px-1 py-0.5 bg-muted">#credito</kbd>{' '}
-          <kbd className="font-mono text-[10px] border rounded px-1 py-0.5 bg-muted">#oportunidad</kbd>{' '}
-          <kbd className="font-mono text-[10px] border rounded px-1 py-0.5 bg-muted">#lead</kbd>{' '}
-          enlazar entidades
+          <kbd className="font-mono text-[10px] border rounded px-1 py-0.5 bg-muted">#</kbd>{' '}
+          enlazar entidad{' '}
+          <span className="mx-1 text-muted-foreground/40">|</span>
+          <Smile className="inline h-3 w-3" /> emojis{' '}
+          <ImageIcon className="inline h-3 w-3 ml-1" /> GIFs
         </p>
       </div>
     </div>
