@@ -14,6 +14,9 @@ import {
   Archive,
   ArchiveRestore,
   Inbox,
+  Users,
+  Search,
+  ArrowLeft,
 } from 'lucide-react';
 
 import api from '@/lib/axios';
@@ -75,6 +78,7 @@ const ENTITY_TYPE_MAP: Record<string, { label: string; route: string; color: str
   'App\\Models\\Lead':        { label: 'Lead',        route: '/dashboard/leads',         color: 'bg-violet-100 text-violet-700', apiType: 'lead' },
   'App\\Models\\Client':      { label: 'Cliente',     route: '/dashboard/clientes',      color: 'bg-amber-100 text-amber-700',   apiType: 'client' },
   'App\\Models\\Analisis':    { label: 'Análisis',    route: '/dashboard/analisis',      color: 'bg-cyan-100 text-cyan-700',     apiType: 'analisis' },
+  'App\\Models\\User':        { label: 'Directo',     route: '/dashboard/comunicaciones', color: 'bg-orange-100 text-orange-700', apiType: 'direct' },
 };
 
 const ENTITY_TARGETS = [
@@ -272,6 +276,14 @@ export function ChatBubble() {
 
   const [userList, setUserList] = useState<any[]>([]);
 
+  // Direct message state
+  const [directMode, setDirectMode] = useState(false);
+  const [directUserId, setDirectUserId] = useState<number | null>(null);
+  const [directUserName, setDirectUserName] = useState('');
+  const [directSearch, setDirectSearch] = useState('');
+  const [directComments, setDirectComments] = useState<Comment[]>([]);
+  const [isLoadingDirect, setIsLoadingDirect] = useState(false);
+
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const clickInsideRef = useRef(false);
@@ -399,8 +411,50 @@ export function ChatBubble() {
     fetchComments(showArchived);
   };
 
+  // ---- Direct message: fetch thread ----
+  const fetchDirectThread = useCallback(async (userId: number) => {
+    setIsLoadingDirect(true);
+    try {
+      const res = await api.get('/api/comments', {
+        params: { commentable_type: 'direct', commentable_id: userId },
+      });
+      const data: Comment[] = Array.isArray(res.data) ? res.data : res.data.data ?? [];
+      setDirectComments(data);
+    } catch { setDirectComments([]); }
+    finally { setIsLoadingDirect(false); }
+  }, []);
+
+  useEffect(() => {
+    if (directMode && directUserId) fetchDirectThread(directUserId);
+  }, [directMode, directUserId, fetchDirectThread]);
+
+  // ---- Send direct message ----
+  const handleSendDirect = async (body: string, mentions: Mention[]) => {
+    if (!directUserId) return;
+    try {
+      await api.post('/api/comments', {
+        commentable_type: 'direct',
+        commentable_id: directUserId,
+        body,
+        mentions,
+      });
+      fetchDirectThread(directUserId);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al enviar mensaje';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      throw err;
+    }
+  };
+
   const handleCommentClick = useCallback((comment: Comment) => {
     const info = getEntityInfo(comment.commentable_type);
+    if (info.apiType === 'direct') {
+      // Open direct message thread
+      setDirectMode(true);
+      setDirectUserId(comment.commentable_id);
+      setDirectUserName(comment.entity_reference || `Usuario #${comment.commentable_id}`);
+      return;
+    }
     router.push(`${info.route}/${comment.commentable_id}`);
     setIsOpen(false);
   }, [router]);
@@ -443,30 +497,97 @@ export function ChatBubble() {
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 shrink-0">
-              <MessageCircle className="h-4 w-4 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold leading-tight">
-                {showArchived ? 'Archivados' : 'Comentarios'}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">Actividad interna del equipo</p>
-            </div>
-          </div>
-          <Button
-            variant={showArchived ? 'secondary' : 'ghost'}
-            size="icon"
-            className="h-8 w-8 rounded-lg shrink-0"
-            title={showArchived ? 'Ver activos' : 'Ver archivados'}
-            onClick={() => setShowArchived((p) => !p)}
-          >
-            {showArchived ? <Inbox className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-          </Button>
+          {directMode ? (
+            <>
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg shrink-0"
+                onClick={() => { setDirectMode(false); setDirectUserId(null); setDirectUserName(''); setDirectComments([]); setDirectSearch(''); }}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold leading-tight truncate">
+                  {directUserId ? `Mensaje a ${directUserName}` : 'Mensaje directo'}
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {directUserId ? 'Conversación privada' : 'Selecciona un usuario'}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 shrink-0">
+                  <MessageCircle className="h-4 w-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold leading-tight">
+                    {showArchived ? 'Archivados' : 'Comentarios'}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Actividad interna del equipo</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg shrink-0"
+                title="Mensaje directo"
+                onClick={() => { setDirectMode(true); setDirectUserId(null); setDirectUserName(''); }}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={showArchived ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8 rounded-lg shrink-0"
+                title={showArchived ? 'Ver activos' : 'Ver archivados'}
+                onClick={() => setShowArchived((p) => !p)}
+              >
+                {showArchived ? <Inbox className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => setIsOpen(false)}>
             <X className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Direct mode: user picker */}
+        {directMode && !directUserId && (
+          <div className="border-b shrink-0">
+            <div className="px-3 py-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={directSearch}
+                  onChange={(e) => setDirectSearch(e.target.value)}
+                  placeholder="Buscar usuario..."
+                  className="w-full rounded-md border border-input bg-background pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {userList
+                .filter((u) => u.id !== user?.id && u.name?.toLowerCase().includes(directSearch.toLowerCase()))
+                .map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
+                    onClick={() => { setDirectUserId(u.id); setDirectUserName(u.name); setDirectSearch(''); }}
+                  >
+                    <Avatar className="h-7 w-7 shrink-0">
+                      <AvatarFallback className={cn('text-xs font-semibold text-white', getAvatarColor(u.id))}>
+                        {getInitials(u.name || 'U')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium truncate">{u.name}</span>
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+        )}
 
         {/* Comments list */}
         <div
@@ -484,7 +605,60 @@ export function ChatBubble() {
             document.addEventListener('mouseup', onUp);
           }}
         >
-          {isLoading ? (
+          {/* Direct mode: user picker placeholder or thread */}
+          {directMode && !directUserId ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 px-8">
+              <div className="rounded-full bg-muted p-4">
+                <Users className="h-7 w-7 text-muted-foreground/50" />
+              </div>
+              <p className="text-sm font-medium">Mensaje directo</p>
+              <p className="text-xs text-muted-foreground text-center">Selecciona un usuario para iniciar una conversación.</p>
+            </div>
+          ) : directMode && directUserId ? (
+            isLoadingDirect ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Cargando...</span>
+              </div>
+            ) : directComments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3 px-8">
+                <div className="rounded-full bg-muted p-4">
+                  <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
+                </div>
+                <p className="text-sm font-medium">Sin mensajes aún</p>
+                <p className="text-xs text-muted-foreground text-center">Envía el primer mensaje a {directUserName}.</p>
+              </div>
+            ) : (
+              <div className="py-1">
+                {directComments.map((comment, idx) => (
+                  <div key={comment.id}>
+                    {idx > 0 && <Separator className="mx-4" />}
+                    <div className="px-4 py-3">
+                      <div className="flex items-start gap-2.5">
+                        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                          <AvatarFallback className={cn('text-[10px] font-semibold text-white', getAvatarColor(comment.user.id))}>
+                            {getInitials(comment.user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold">{comment.user.name}</span>
+                            <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
+                          </div>
+                          <p className="text-[13px] text-foreground/80 leading-snug mt-0.5"
+                            dangerouslySetInnerHTML={{ __html: renderBody(comment.body.startsWith('[GIF]') ? '🎞 GIF' : comment.body) }}
+                          />
+                          {comment.body.match(/^\[GIF\]\(([^)]+)\)$/) && (
+                            <img src={comment.body.match(/^\[GIF\]\(([^)]+)\)$/)?.[1]} alt="GIF" className="rounded-lg max-w-[180px] max-h-[130px] object-cover mt-1" loading="lazy" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : isLoading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Cargando...</span>
@@ -619,94 +793,106 @@ export function ChatBubble() {
 
         {/* Compose new comment — hidden in archived view */}
         {!showArchived && <div className="border-t bg-muted/20 p-3 space-y-2 shrink-0">
-          {/* Entity selector */}
-          <div className="flex items-center gap-2">
-            {selectedEntity ? (
-              <Badge variant="secondary" className="text-xs gap-1 pr-1">
-                <Hash className="h-3 w-3" />
-                {selectedEntity.label}
-                <button onClick={() => setSelectedEntity(null)} className="ml-1 hover:text-destructive">
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ) : (
-              <div className="relative">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1"
-                  onClick={() => { setShowEntityPicker(!showEntityPicker); setPickerStep('type'); }}
-                >
-                  <Hash className="h-3 w-3" /> Seleccionar entidad
-                </Button>
+          {directMode ? (
+            /* Direct message compose */
+            <Compose
+              placeholder={directUserId ? `Mensaje a ${directUserName}...` : 'Selecciona un usuario...'}
+              disabled={!directUserId}
+              onSend={handleSendDirect}
+              userList={userList}
+            />
+          ) : (
+            <>
+              {/* Entity selector */}
+              <div className="flex items-center gap-2">
+                {selectedEntity ? (
+                  <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                    <Hash className="h-3 w-3" />
+                    {selectedEntity.label}
+                    <button onClick={() => setSelectedEntity(null)} className="ml-1 hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ) : (
+                  <div className="relative">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => { setShowEntityPicker(!showEntityPicker); setPickerStep('type'); }}
+                    >
+                      <Hash className="h-3 w-3" /> Seleccionar entidad
+                    </Button>
 
-                {showEntityPicker && (
-                  <div
-                    className="absolute bottom-full left-0 mb-1 w-60 bg-popover border rounded-lg shadow-lg z-50 overflow-hidden"
-                  >
-                    {pickerStep === 'type' ? (
-                      <div className="p-1">
-                        <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Tipo</p>
-                        {ENTITY_TARGETS.map((t) => (
-                          <button key={t.key}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
-                            onClick={() => { setPickerType(t.key); setPickerStep('search'); setEntitySearch(''); setEntityResults([]); }}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="p-2 border-b">
-                          <input autoFocus
-                            placeholder={`Buscar ${ENTITY_TARGETS.find((t) => t.key === pickerType)?.label}...`}
-                            className="w-full text-sm px-2 py-1.5 border rounded bg-background outline-none focus:ring-1 focus:ring-primary"
-                            value={entitySearch}
-                            onChange={(e) => { setEntitySearch(e.target.value); if (e.target.value.length >= 1) searchEntities(pickerType, e.target.value); }}
-                          />
-                        </div>
-                        <div className="max-h-40 overflow-auto p-1">
-                          {entitySearchLoading ? (
-                            <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
-                          ) : entityResults.length === 0 ? (
-                            <p className="text-xs text-muted-foreground text-center py-3">{entitySearch ? 'Sin resultados' : 'Escribe para buscar'}</p>
-                          ) : (
-                            entityResults.map((e: any) => {
-                              const display = e.reference || e.id || e.cedula || e.name || `#${e.id}`;
-                              const sub = e.lead?.name || (e.name && e.apellido1 ? `${e.name} ${e.apellido1}` : '');
-                              return (
-                                <button key={e.id}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
-                                  onClick={() => selectEntityTarget(e)}
-                                >
-                                  <span className="font-medium">{display}</span>
-                                  {sub && <span className="text-muted-foreground ml-1.5 text-xs">{sub}</span>}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                        <div className="border-t p-1">
-                          <button className="w-full text-xs text-muted-foreground px-3 py-1.5 hover:bg-muted rounded"
-                            onClick={() => setPickerStep('type')}>
-                            ← Cambiar tipo
-                          </button>
-                        </div>
+                    {showEntityPicker && (
+                      <div
+                        className="absolute bottom-full left-0 mb-1 w-60 bg-popover border rounded-lg shadow-lg z-50 overflow-hidden"
+                      >
+                        {pickerStep === 'type' ? (
+                          <div className="p-1">
+                            <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Tipo</p>
+                            {ENTITY_TARGETS.map((t) => (
+                              <button key={t.key}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
+                                onClick={() => { setPickerType(t.key); setPickerStep('search'); setEntitySearch(''); setEntityResults([]); }}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="p-2 border-b">
+                              <input autoFocus
+                                placeholder={`Buscar ${ENTITY_TARGETS.find((t) => t.key === pickerType)?.label}...`}
+                                className="w-full text-sm px-2 py-1.5 border rounded bg-background outline-none focus:ring-1 focus:ring-primary"
+                                value={entitySearch}
+                                onChange={(e) => { setEntitySearch(e.target.value); if (e.target.value.length >= 1) searchEntities(pickerType, e.target.value); }}
+                              />
+                            </div>
+                            <div className="max-h-40 overflow-auto p-1">
+                              {entitySearchLoading ? (
+                                <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                              ) : entityResults.length === 0 ? (
+                                <p className="text-xs text-muted-foreground text-center py-3">{entitySearch ? 'Sin resultados' : 'Escribe para buscar'}</p>
+                              ) : (
+                                entityResults.map((e: any) => {
+                                  const display = e.reference || e.id || e.cedula || e.name || `#${e.id}`;
+                                  const sub = e.lead?.name || (e.name && e.apellido1 ? `${e.name} ${e.apellido1}` : '');
+                                  return (
+                                    <button key={e.id}
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
+                                      onClick={() => selectEntityTarget(e)}
+                                    >
+                                      <span className="font-medium">{display}</span>
+                                      {sub && <span className="text-muted-foreground ml-1.5 text-xs">{sub}</span>}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                            <div className="border-t p-1">
+                              <button className="w-full text-xs text-muted-foreground px-3 py-1.5 hover:bg-muted rounded"
+                                onClick={() => setPickerStep('type')}>
+                                ← Cambiar tipo
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <Compose
-            placeholder={selectedEntity ? 'Escribe tu comentario... Usa @ para mencionar' : 'Selecciona una entidad primero…'}
-            disabled={!selectedEntity}
-            onSend={handleSend}
-            userList={userList}
-          />
+              <Compose
+                placeholder={selectedEntity ? 'Escribe tu comentario... Usa @ para mencionar' : 'Selecciona una entidad primero…'}
+                disabled={!selectedEntity}
+                onSend={handleSend}
+                userList={userList}
+              />
+            </>
+          )}
         </div>}
       </div>
     </>
