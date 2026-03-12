@@ -96,6 +96,7 @@ class InvestmentCouponController extends Controller
                 'monto' => $coupon->interes_neto,
                 'tipo' => 'Interés',
                 'moneda' => $coupon->investment->moneda,
+                'periodo' => $coupon->fecha_cupon,
                 'created_at' => now(),
                 'updated_at' => now(),
             ])->toArray();
@@ -151,6 +152,7 @@ class InvestmentCouponController extends Controller
         $coupons = InvestmentCoupon::with('investment')
             ->whereIn('investment_id', $investments->pluck('id'))
             ->where('estado', 'Pendiente')
+            ->where('fecha_cupon', '<=', $fechaPago)
             ->get();
 
         if ($coupons->isEmpty()) {
@@ -169,6 +171,7 @@ class InvestmentCouponController extends Controller
             'moneda' => $moneda,
             'comentarios' => $comentarios,
             'comprobante_url' => $comprobanteUrl,
+            'periodo' => $coupon->fecha_cupon,
             'registered_by' => $registeredBy,
             'created_at' => now(),
             'updated_at' => now(),

@@ -1018,6 +1018,7 @@ export default function InversionesPage() {
   const [pagosSearch, setPagosSearch] = useState('');
   const [pagosMoneda, setPagosMoneda] = useState('');
   const [pagosTipo, setPagosTipo] = useState('');
+  const [pagosPeriodo, setPagosPeriodo] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ investor_id: '', investment_id: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
@@ -1209,9 +1210,10 @@ export default function InversionesPage() {
     if (pagosSearch && !(p.investor?.name ?? '').toLowerCase().includes(pagosSearch.toLowerCase()) && !(p.investment?.numero_desembolso ?? '').toLowerCase().includes(pagosSearch.toLowerCase())) return false;
     if (pagosMoneda && p.moneda !== pagosMoneda) return false;
     if (pagosTipo && p.tipo !== pagosTipo) return false;
+    if (pagosPeriodo && p.periodo !== pagosPeriodo) return false;
     return true;
   }).sort((a, b) => {
-    const da = new Date(b.fecha_pago).getTime() - new Date(a.fecha_pago).getTime();
+    const da = new Date(b.periodo ?? b.fecha_pago).getTime() - new Date(a.periodo ?? a.fecha_pago).getTime();
     if (da !== 0) return da;
     return (b.id ?? 0) - (a.id ?? 0);
   });
@@ -1511,6 +1513,19 @@ export default function InversionesPage() {
                     {[...new Set(payments.map(p => p.tipo).filter(Boolean))].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Select value={pagosPeriodo} onValueChange={v => { setPagosPeriodo(v === 'all' ? '' : v); setPagosPage(1); }}>
+                  <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Período" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {[...new Set(payments.map(p => p.periodo).filter(Boolean) as string[])]
+                      .sort((a, b) => b.localeCompare(a))
+                      .map(p => (
+                        <SelectItem key={p} value={p}>
+                          {new Date(p).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' })}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent>
@@ -1520,6 +1535,7 @@ export default function InversionesPage() {
                   <TableRow>
                     <TableHead>Inversión</TableHead>
                     <TableHead>Inversionista</TableHead>
+                    <TableHead>Período</TableHead>
                     <TableHead>Fecha de Pago</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
@@ -1541,6 +1557,9 @@ export default function InversionesPage() {
                         {p.investment_id ? (
                           <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investor?.name ?? '—'}</Link>
                         ) : (p.investor?.name ?? '—')}
+                      </TableCell>
+                      <TableCell className="text-sm font-mono">
+                        {p.periodo ? new Date(p.periodo).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' }) : '—'}
                       </TableCell>
                       <TableCell>{new Date(p.fecha_pago).toLocaleDateString('es-CR')}</TableCell>
                       <TableCell><Badge variant="outline">{p.tipo}</Badge></TableCell>
@@ -1565,7 +1584,7 @@ export default function InversionesPage() {
                     </TableRow>
                   ))}
                   {filteredPayments.length === 0 && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Sin pagos registrados</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Sin pagos registrados</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

@@ -18,12 +18,14 @@ class InvestmentPayment extends Model
         'moneda',
         'comentarios',
         'comprobante_url',
+        'periodo',
         'registered_by',
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
         'fecha_pago' => 'date',
+        'periodo' => 'date',
     ];
 
     public function investor()

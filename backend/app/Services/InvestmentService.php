@@ -144,6 +144,7 @@ class InvestmentService
             'monto' => $coupon->interes_neto,
             'tipo' => 'Interés',
             'moneda' => $investment->moneda,
+            'periodo' => $coupon->fecha_cupon,
         ]);
 
         // Si el capital ya fue devuelto y no quedan cupones pendientes → Finalizada

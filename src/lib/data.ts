@@ -412,6 +412,7 @@ export type InvestmentPayment = {
   moneda: 'CRC' | 'USD';
   comentarios?: string;
   comprobante_url?: string;
+  periodo?: string;
   registered_by?: number;
   investor?: Investor;
   investment?: Investment;
