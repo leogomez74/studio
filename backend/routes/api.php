@@ -44,6 +44,26 @@ use App\Http\Controllers\Api\RutaDiariaController;
 |
 */
 
+// --- Health check: verificar variables de entorno críticas ---
+Route::get('/health/env', function () {
+    $checks = [
+        'DB_DATABASE'   => !empty(env('DB_DATABASE')),
+        'ERP_API_URL'   => !empty(config('services.erp.url')),
+        'CREDID_API_URL' => !empty(config('services.credid.url')),
+        'CREDID_API_TOKEN' => !empty(config('services.credid.token')),
+        'DSF_API_URL'   => !empty(config('services.dsf.url')),
+        'DSF_API_TOKEN' => !empty(config('services.dsf.token')),
+    ];
+
+    $allOk = !in_array(false, $checks, true);
+
+    return response()->json([
+        'status' => $allOk ? 'ok' : 'missing',
+        'checks' => $checks,
+        'timestamp' => now()->toIso8601String(),
+    ], $allOk ? 200 : 503);
+});
+
 // --- Autenticación (públicas, con rate limiting) ---
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
@@ -137,18 +157,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // --- Rutas (Mensajería / Logística) ---
     Route::apiResource('tareas-ruta', TareaRutaController::class);
-    Route::patch('/tareas-ruta/{id}/completar', [TareaRutaController::class, 'completar']);
-    Route::patch('/tareas-ruta/{id}/fallar', [TareaRutaController::class, 'fallar']);
-    Route::patch('/tareas-ruta/{id}/prioridad', [TareaRutaController::class, 'overridePrioridad'])->middleware('admin');
+    Route::patch('/tareas-ruta/{id}/completar', [TareaRutaController::class, 'completar'])->middleware('throttle:60,1');
+    Route::patch('/tareas-ruta/{id}/fallar', [TareaRutaController::class, 'fallar'])->middleware('throttle:60,1');
+    Route::patch('/tareas-ruta/{id}/prioridad', [TareaRutaController::class, 'overridePrioridad'])->middleware(['admin', 'throttle:30,1']);
 
     Route::get('/rutas-diarias', [RutaDiariaController::class, 'index']);
     Route::get('/rutas-diarias/mi-ruta', [RutaDiariaController::class, 'miRuta']);
     Route::get('/rutas-diarias/{id}', [RutaDiariaController::class, 'show']);
-    Route::post('/rutas-diarias/generar', [RutaDiariaController::class, 'generar'])->middleware('admin');
-    Route::patch('/rutas-diarias/{id}/confirmar', [RutaDiariaController::class, 'confirmar'])->middleware('admin');
-    Route::patch('/rutas-diarias/{id}/iniciar', [RutaDiariaController::class, 'iniciar']);
-    Route::patch('/rutas-diarias/{id}/reordenar', [RutaDiariaController::class, 'reordenar'])->middleware('admin');
-    Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware('admin');
+    Route::post('/rutas-diarias/generar', [RutaDiariaController::class, 'generar'])->middleware(['admin', 'throttle:30,1']);
+    Route::patch('/rutas-diarias/{id}/confirmar', [RutaDiariaController::class, 'confirmar'])->middleware(['admin', 'throttle:60,1']);
+    Route::patch('/rutas-diarias/{id}/iniciar', [RutaDiariaController::class, 'iniciar'])->middleware('throttle:60,1');
+    Route::patch('/rutas-diarias/{id}/reordenar', [RutaDiariaController::class, 'reordenar'])->middleware(['admin', 'throttle:60,1']);
+    Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware(['admin', 'throttle:30,1']);
 
     // --- Automatización de Tareas ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
@@ -156,9 +176,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // --- Integraciones Externas ---
     Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');
-    Route::post('/external-integrations/{id}/test', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'test'])->middleware('admin');
-    Route::get('/external-routes', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'routes']);
-    Route::get('/external-routes/{id}', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'integrationRoutes']);
+    Route::post('/external-integrations/{id}/test', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'test'])->middleware(['admin', 'throttle:10,1']);
+    Route::get('/external-routes', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'routes'])->middleware('admin');
+    Route::get('/external-routes/{id}', [\App\Http\Controllers\Api\ExternalIntegrationController::class, 'integrationRoutes'])->middleware('admin');
 
     // --- Deductoras ---
     Route::apiResource('deductoras', \App\Http\Controllers\Api\DeductoraController::class)->only(['index', 'show', 'update']);

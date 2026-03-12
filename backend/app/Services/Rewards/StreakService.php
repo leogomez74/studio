@@ -84,13 +84,20 @@ class StreakService
     }
 
     /**
-     * Calcula el bonus por racha.
+     * Calcula el bonus por racha usando la configuración de gamificación.
      */
     public function calculateStreakBonus(int $streakDays): int
     {
-        // Bonus progresivo: 10% extra por cada 7 días de racha, máximo 50%
-        $bonusMultiplier = min(50, floor($streakDays / 7) * 10);
-        return (int) $bonusMultiplier;
+        $bonuses = config('gamification.streaks.bonuses', []);
+        $bonus = 0;
+
+        foreach ($bonuses as $days => $multiplier) {
+            if ($streakDays >= $days) {
+                $bonus = (int) ($multiplier * 100);
+            }
+        }
+
+        return $bonus;
     }
 
     /**

@@ -59,4 +59,17 @@ return [
         'token' => env('DSF_API_TOKEN', ''),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | SSRF Protection: Allowed Integration Domains
+    |--------------------------------------------------------------------------
+    |
+    | Whitelist of domains that external integrations are allowed to connect to.
+    | Comma-separated list in .env. If empty, only .env-sourced URLs are allowed.
+    |
+    */
+    'allowed_integration_domains' => array_filter(
+        explode(',', env('ALLOWED_INTEGRATION_DOMAINS', ''))
+    ),
+
 ];

@@ -13,8 +13,8 @@ use Carbon\Carbon;
 
 class LeaderboardService
 {
-    private const CACHE_TTL_RANKINGS = 300;      // 5 minutos
-    private const CACHE_TTL_USER_POSITION = 60;  // 1 minuto
+    private const SNAPSHOT_LIMIT = 100;
+    private const DEFAULT_NEARBY_RANGE = 2;
 
     protected CacheService $cacheService;
 
@@ -30,7 +30,9 @@ class LeaderboardService
     {
         $cacheKey = "rewards:leaderboard:{$metric}:{$period}:{$limit}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL_RANKINGS, function () use ($metric, $period, $limit) {
+        $ttl = config('gamification.cache.ttl_rankings', 300);
+
+        return Cache::remember($cacheKey, $ttl, function () use ($metric, $period, $limit) {
             return $this->calculateRanking($metric, $period, $limit);
         });
     }
@@ -112,7 +114,9 @@ class LeaderboardService
     {
         $cacheKey = "rewards:leaderboard:position:{$userId}:{$metric}:{$period}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL_USER_POSITION, function () use ($userId, $metric, $period) {
+        $ttl = config('gamification.cache.ttl_user_data', 60);
+
+        return Cache::remember($cacheKey, $ttl, function () use ($userId, $metric, $period) {
             return $this->calculateUserPosition($userId, $metric, $period);
         });
     }
@@ -166,7 +170,7 @@ class LeaderboardService
     /**
      * Obtiene los usuarios cercanos en el ranking.
      */
-    public function getNearbyUsers(int $userId, string $metric, string $period, int $range = 2): array
+    public function getNearbyUsers(int $userId, string $metric, string $period, int $range = self::DEFAULT_NEARBY_RANGE): array
     {
         $position = $this->getUserPosition($userId, $metric, $period);
 
@@ -202,7 +206,7 @@ class LeaderboardService
      */
     protected function updateLeaderboardSnapshot(RewardLeaderboard $leaderboard): void
     {
-        $ranking = $this->calculateRanking($leaderboard->metric, $leaderboard->period, 100);
+        $ranking = $this->calculateRanking($leaderboard->metric, $leaderboard->period, self::SNAPSHOT_LIMIT);
         $periodDates = $this->getPeriodDates($leaderboard->period);
 
         foreach ($ranking['entries'] as $entry) {

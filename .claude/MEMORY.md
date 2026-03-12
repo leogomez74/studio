@@ -31,6 +31,7 @@
 | Rewards | `/dashboard/rewards` | ✅ |
 | Tareas | `/dashboard/tareas` | ✅ |
 | Reportes | `/dashboard/reportes` | ✅ Mar 2026 (5 tabs — Inversiones removido, tiene su propia sección) |
+| Rutas | `/dashboard/rutas` | ✅ Mar 2026 (refactorizado: 1,672 → ~100 líneas orquestador + 5 tabs + types + utils) |
 
 ---
 
@@ -103,13 +104,51 @@ class MiController extends Controller {
 
 ---
 
+## Módulo Rutas — Refactorización (Mar 2026)
+- `page.tsx` monolítico de 1,672 líneas → orquestador de ~100 líneas
+- 7 archivos extraídos en `src/components/rutas/`:
+  - `types.ts` — interfaces compartidas (TareaRuta, RutaDiaria, ExternalRoute, etc.)
+  - `utils.tsx` — constantes (statusColors, tipoIcons, prioridadLabels, etc.)
+  - `TareasPendientesTab.tsx` — CRUD tareas pendientes con filtros
+  - `GenerarRutaTab.tsx` — selección + generación de ruta + referencia externa
+  - `RutasActivasTab.tsx` — gestión rutas activas con sidebar + detalle
+  - `HistorialTab.tsx` — historial PEP + rutas externas con sidebar
+  - `MiRutaTab.tsx` — vista mensajero con PEP tasks + DSF stops + completar/fallar
+- **Tabs filtrados por rol**: admin ve [Panel, Generar Ruta, Rutas Activas, Historial]; no-admin ve [Mi Ruta, Historial]
+- Detección de rol: `user?.role?.full_access === true` vía `useAuth()`
+- Integración DSF: config en `.env` (`DSF_API_URL`, `DSF_API_TOKEN`) con fallback a BD
+- `ExternalRoutesService` resuelve config con slug fallback: `dsf3` → `dsf`
+- Health check: `GET /api/health/env` verifica variables críticas del `.env`
+
+---
+
+## Auditoría Seguridad — Módulo Rutas (Mar 2026)
+
+### ✅ Fase 1 — Crítico (completado 2026-03-11)
+- `auth_token`/`auth_password` cifrados con `encrypted` cast en `ExternalIntegration` + migración para datos existentes
+- Ownership checks (IDOR) en `RutaDiariaController`: `index()` scoped por usuario, `show()` + `iniciar()` verifican mensajero o admin
+- Ownership checks en `TareaRutaController`: `completar()` + `fallar()` verifican `asignado_a` o admin
+- `external-routes` endpoints protegidos con middleware `admin`
+- SSRF: validación de dominio con whitelist configurable (`ALLOWED_INTEGRATION_DOMAINS` en .env) + bloqueo de IPs privadas
+
+### ✅ Fase 2 — Alto (completado 2026-03-12)
+- Rate limiting `throttle:60,1` en endpoints de mutación (completar, fallar, iniciar, generar, confirmar, reordenar, cancelar); `throttle:30,1` en operaciones destructivas; `throttle:10,1` en test de integraciones
+- `lockForUpdate()` en transiciones de estado: `confirmar()`, `iniciar()` en RutaDiariaController; `completar()`, `fallar()` en TareaRutaController
+- `$request->only()` defense-in-depth en `TareaRutaController::update()` y `ExternalIntegrationController::update()`
+- `max` en campos de texto sin límite: `descripcion:1000`, `direccion_destino:500`, `notas_completado:1000`
+
+### ✅ Fase 3 — Medio (completado 2026-03-12)
+- `$hidden` en ExternalIntegration: auth_token, auth_user, auth_password excluidos de JSON
+- Sanitización errores: mensajes genéricos al cliente, detalles solo en Log::warning
+- HttpOnly cookies: diferido — requiere migración completa auth, bajo riesgo actual
+
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta
 - (sin pendientes críticos)
 
 ### 🟡 Media
-- ~~`CreditPaymentController` con 2,847 líneas~~ ✅ Resuelto — extraído en 7 Services (406 líneas el controller)
+- HttpOnly cookies para auth (diferido, bajo riesgo actual)
 
 ### 🟢 Baja
 - 149 `as any` en TypeScript (bajó de 292)

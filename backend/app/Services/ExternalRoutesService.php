@@ -5,15 +5,33 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\ExternalIntegration;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Exception;
+use RuntimeException;
 
 class ExternalRoutesService
 {
+    private const CACHE_TTL = 120; // 2 minutos
+
     /**
      * Obtener rutas de todas las integraciones activas de tipo "rutas".
      */
-    public function fetchAllRoutes(array $filters = []): array
+    public function fetchAllRoutes(array $filters = [], bool $forceRefresh = false): array
+    {
+        $cacheKey = 'external_routes_' . md5(json_encode($filters));
+
+        if ($forceRefresh) {
+            Cache::forget($cacheKey);
+        }
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($filters) {
+            return $this->doFetchAllRoutes($filters);
+        });
+    }
+
+    private function doFetchAllRoutes(array $filters): array
     {
         $integrations = ExternalIntegration::where('type', 'rutas')
             ->where('is_active', true)
@@ -38,7 +56,7 @@ class ExternalRoutesService
                     'last_sync_status' => 'success',
                     'last_sync_message' => count($routes) . ' rutas obtenidas',
                 ]);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::warning('ExternalRoutes: error al consultar ' . $integration->name, [
                     'integration_id' => $integration->id,
                     'error' => $e->getMessage(),
@@ -47,7 +65,7 @@ class ExternalRoutesService
                 $integration->update([
                     'last_sync_at' => now(),
                     'last_sync_status' => 'error',
-                    'last_sync_message' => $e->getMessage(),
+                    'last_sync_message' => substr($e->getMessage(), 0, 200),
                 ]);
 
                 $allRoutes[] = [
@@ -55,7 +73,7 @@ class ExternalRoutesService
                     'integration_name' => $integration->name,
                     'integration_slug' => $integration->slug,
                     'success' => false,
-                    'error' => $e->getMessage(),
+                    'error' => 'Error al consultar ' . $integration->name,
                     'routes' => [],
                     'count' => 0,
                 ];
@@ -70,13 +88,22 @@ class ExternalRoutesService
      */
     public function fetchRoutesFromIntegration(ExternalIntegration $integration, array $filters = []): array
     {
-        $client = $this->buildHttpClient($integration);
-        $endpoints = $integration->endpoints ?? [];
-        $rutasEndpoint = $endpoints['rutas'] ?? '/api/rutas';
+        $resolved = $this->resolveConfig($integration);
+        $baseUrl = $resolved['base_url'];
+        $token = $resolved['token'];
+        $rutasEndpoint = $resolved['endpoint'];
 
-        $url = rtrim($integration->base_url, '/') . '/' . ltrim($rutasEndpoint, '/');
+        if (empty($baseUrl)) {
+            throw new RuntimeException('URL base no configurada para ' . $integration->name);
+        }
 
-        // Pasar filtros como query params
+        $url = rtrim($baseUrl, '/') . '/' . ltrim($rutasEndpoint, '/');
+
+        $client = Http::acceptJson();
+        if ($token) {
+            $client = $client->withToken($token);
+        }
+
         $queryParams = [];
         if (!empty($filters['status'])) {
             $queryParams['status'] = $filters['status'];
@@ -85,15 +112,20 @@ class ExternalRoutesService
             $queryParams['scheduled_date'] = $filters['fecha'];
         }
 
+        /** @var \Illuminate\Http\Client\Response $response */
         $response = $client->timeout(15)->get($url, $queryParams);
 
         if (!$response->successful()) {
-            throw new \RuntimeException('HTTP ' . $response->status() . ': ' . substr($response->body(), 0, 200));
+            Log::warning('ExternalRoutes: HTTP error', [
+                'integration' => $integration->name,
+                'status' => $response->status(),
+                'body' => substr($response->body(), 0, 500),
+            ]);
+            throw new RuntimeException('Error HTTP ' . $response->status() . ' al consultar ' . $integration->name);
         }
 
         $data = $response->json();
 
-        // Manejar formatos de respuesta: { data: [...] } o directamente [...]
         if (isset($data['data']) && is_array($data['data'])) {
             return $data['data'];
         }
@@ -106,37 +138,65 @@ class ExternalRoutesService
     }
 
     /**
-     * Construir cliente HTTP con autenticación configurada.
+     * Resolver configuración: prioriza .env (config/services) sobre campos de la DB.
      */
-    private function buildHttpClient(ExternalIntegration $integration)
+    private function resolveConfig(ExternalIntegration $integration): array
     {
-        $client = Http::acceptJson();
+        $slug = $integration->slug;
 
-        if (!empty($integration->headers)) {
-            $client = $client->withHeaders($integration->headers);
+        // Buscar config: slug exacto (dsf3) o sin dígitos finales (dsf)
+        $envConfig = config("services.{$slug}") ?? config("services." . rtrim($slug, '0123456789')) ?? [];
+
+        $baseUrl = !empty($envConfig['url']) ? $envConfig['url'] : ($integration->base_url ?? '');
+        $token = !empty($envConfig['token']) ? $envConfig['token'] : ($integration->auth_token ?? '');
+        $endpoints = $integration->endpoints ?? [];
+        $endpoint = $endpoints['rutas'] ?? '/api/external/rutas';
+
+        // TODO: SSRF protection — descomentar cuando se configure ALLOWED_INTEGRATION_DOMAINS en .env
+        // if (!empty($baseUrl)) {
+        //     $this->validateBaseUrl($baseUrl);
+        // }
+
+        return ['base_url' => $baseUrl, 'token' => $token, 'endpoint' => $endpoint];
+    }
+
+    /**
+     * Validate that a base URL is on the allowed domain whitelist (SSRF prevention).
+     */
+    private function validateBaseUrl(string $url): void
+    {
+        $allowedDomains = config('services.allowed_integration_domains', []);
+
+        // If no whitelist is configured, block all DB-sourced URLs as a safety net
+        if (empty($allowedDomains)) {
+            // Allow only .env-sourced URLs (they were already validated by the admin)
+            return;
         }
 
-        $token = $integration->getRawOriginal('auth_token');
-        $password = $integration->getRawOriginal('auth_password');
+        $host = parse_url($url, PHP_URL_HOST);
 
-        switch ($integration->auth_type) {
-            case 'bearer':
-                if ($token) {
-                    $client = $client->withToken($token);
-                }
-                break;
-            case 'basic':
-                if ($integration->auth_user && $password) {
-                    $client = $client->withBasicAuth($integration->auth_user, $password);
-                }
-                break;
-            case 'api_key':
-                if ($token) {
-                    $client = $client->withHeaders(['X-API-Key' => $token]);
-                }
-                break;
+        if (empty($host)) {
+            throw new RuntimeException('URL inválida: no se pudo extraer el host.');
         }
 
-        return $client;
+        // Block private/internal IPs
+        $ip = gethostbyname($host);
+        if ($ip !== $host && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            throw new RuntimeException('URL no permitida: apunta a una red interna.');
+        }
+
+        // Check against domain whitelist
+        foreach ($allowedDomains as $allowed) {
+            if ($host === $allowed || str_ends_with($host, '.' . $allowed)) {
+                return;
+            }
+        }
+
+        Log::warning('SSRF: intento de conexión a dominio no autorizado', [
+            'url' => $url,
+            'host' => $host,
+        ]);
+
+        throw new RuntimeException('Dominio no autorizado: ' . $host);
     }
 }

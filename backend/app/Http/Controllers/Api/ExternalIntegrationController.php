@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Exception;
 
 class ExternalIntegrationController extends Controller
 {
@@ -24,8 +25,8 @@ class ExternalIntegrationController extends Controller
 
         // Agregar campo has_token para indicar si tiene credenciales sin exponerlas
         $integrations->each(function ($integration) {
-            $integration->has_token = !empty($integration->getRawOriginal('auth_token'));
-            $integration->has_password = !empty($integration->getRawOriginal('auth_password'));
+            $integration->has_token = !empty($integration->auth_token);
+            $integration->has_password = !empty($integration->auth_password);
         });
 
         return response()->json($integrations);
@@ -55,8 +56,8 @@ class ExternalIntegrationController extends Controller
     {
         $integration = ExternalIntegration::findOrFail($id);
 
-        $integration->has_token = !empty($integration->getRawOriginal('auth_token'));
-        $integration->has_password = !empty($integration->getRawOriginal('auth_password'));
+        $integration->has_token = !empty($integration->auth_token);
+        $integration->has_password = !empty($integration->auth_password);
 
         return response()->json($integration);
     }
@@ -73,7 +74,8 @@ class ExternalIntegrationController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $integration->update($validated);
+        // Only update explicitly allowed fields (defense-in-depth)
+        $integration->update($request->only(['name', 'slug', 'type', 'is_active']));
 
         $changes = $this->getChanges($oldData, $integration->fresh()->toArray());
         $this->logActivity('update', 'Integraciones', $integration, $integration->name, $changes, $request);
@@ -100,22 +102,27 @@ class ExternalIntegrationController extends Controller
     {
         $integration = ExternalIntegration::findOrFail($id);
 
-        if (empty($integration->base_url)) {
-            return response()->json(['success' => false, 'message' => 'URL base no configurada'], 422);
+        // Resolver URL y token desde .env o DB (slug exacto o sin dígitos finales: dsf3 → dsf)
+        $slug = $integration->slug;
+        $envConfig = config("services.{$slug}") ?? config("services." . rtrim($slug, '0123456789')) ?? [];
+        $baseUrl = $envConfig['url'] ?? $integration->base_url ?? '';
+        $token = $envConfig['token'] ?? $integration->auth_token ?? '';
+
+        if (empty($baseUrl)) {
+            return response()->json(['success' => false, 'message' => 'URL base no configurada (ni en .env ni en DB)'], 422);
         }
 
         try {
-            $httpClient = $this->buildHttpClient($integration);
-            $testUrl = rtrim($integration->base_url, '/');
-
-            // Si hay un endpoint de rutas configurado, usarlo para probar
-            $endpoints = $integration->endpoints ?? [];
-            if (!empty($endpoints['test'])) {
-                $testUrl .= '/' . ltrim($endpoints['test'], '/');
-            } elseif (!empty($endpoints['rutas'])) {
-                $testUrl .= '/' . ltrim($endpoints['rutas'], '/');
+            $httpClient = Http::acceptJson();
+            if ($token) {
+                $httpClient = $httpClient->withToken($token);
             }
 
+            $endpoints = $integration->endpoints ?? [];
+            $testEndpoint = $endpoints['test'] ?? $endpoints['rutas'] ?? '/api/external/rutas';
+            $testUrl = rtrim($baseUrl, '/') . '/' . ltrim($testEndpoint, '/');
+
+            /** @var \Illuminate\Http\Client\Response $response */
             $response = $httpClient->timeout(15)->get($testUrl);
 
             $integration->update([
@@ -134,16 +141,21 @@ class ExternalIntegrationController extends Controller
                     : 'Error: HTTP ' . $response->status(),
                 'body_preview' => substr($response->body(), 0, 500),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::warning('ExternalIntegration test failed', [
+                'integration_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
             $integration->update([
                 'last_sync_at' => now(),
                 'last_sync_status' => 'error',
-                'last_sync_message' => $e->getMessage(),
+                'last_sync_message' => substr($e->getMessage(), 0, 200),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error de conexión: ' . $e->getMessage(),
+                'message' => 'Error de conexión con el servicio externo.',
             ], 500);
         }
     }
@@ -157,7 +169,8 @@ class ExternalIntegrationController extends Controller
         $service = app(ExternalRoutesService::class);
 
         $filters = $request->only(['status', 'fecha']);
-        $results = $service->fetchAllRoutes($filters);
+        $forceRefresh = $request->boolean('refresh');
+        $results = $service->fetchAllRoutes($filters, $forceRefresh);
 
         return response()->json($results);
     }
@@ -183,10 +196,15 @@ class ExternalIntegrationController extends Controller
                 'routes' => $routes,
                 'count' => count($routes),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::warning('ExternalIntegration routes fetch failed', [
+                'integration_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Error al consultar rutas del servicio externo.',
             ], 500);
         }
     }
@@ -204,8 +222,8 @@ class ExternalIntegrationController extends Controller
         }
 
         // Autenticación
-        $token = $integration->getRawOriginal('auth_token');
-        $password = $integration->getRawOriginal('auth_password');
+        $token = $integration->auth_token;
+        $password = $integration->auth_password;
 
         switch ($integration->auth_type) {
             case 'bearer':

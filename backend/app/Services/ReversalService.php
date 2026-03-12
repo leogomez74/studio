@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\Credit;
 use App\Models\CreditPayment;
+use App\Models\Notification;
 use App\Models\PlanDePago;
 use App\Models\SaldoPendiente;
+use App\Models\User;
 use App\Traits\AccountingTrigger;
 use Illuminate\Support\Facades\Auth;
 
@@ -214,6 +216,37 @@ class ReversalService
 
         // 4. Marcar pago como anulado
         $this->helper->markPaymentAsAnulado($payment, $motivo);
+
+        // 5. Notificar si la cuota volvió a su valor original
+        $cuotaOriginal  = (float) $snapshot['original_cuota'];
+        $cuotaAnterior  = isset($snapshot['original_cuota']) ? $cuotaOriginal : null;
+        $cuotaRestaurada = (float) $credit->cuota;
+
+        if ($cuotaAnterior !== null) {
+            $clienteNombre   = $credit->lead->name ?? 'Cliente';
+            $deductoranombre = $credit->deductora?->nombre ?? null;
+            $cuerpo          = "Se anuló un abono extraordinario de {$clienteNombre} ({$credit->reference}). "
+                . "La cuota fue restaurada a ₡" . number_format($cuotaRestaurada, 2) . "."
+                . ($deductoranombre ? " Deductora: {$deductoranombre}." : "");
+
+            $adminUsers = User::whereHas('role', fn ($q) => $q->where('full_access', true))->get();
+            foreach ($adminUsers as $adminUser) {
+                Notification::create([
+                    'user_id' => $adminUser->id,
+                    'type'    => 'novedad_planilla',
+                    'title'   => 'Anulación abono extraordinario — Novedad Planilla',
+                    'body'    => $cuerpo,
+                    'data'    => [
+                        'commentable_type' => 'credit',
+                        'commentable_id'   => $credit->id,
+                        'entity_reference' => $credit->reference,
+                        'sender_name'      => 'Planillas',
+                        'cuota_restaurada' => $cuotaRestaurada,
+                        'deductora'        => $deductoranombre,
+                    ],
+                ]);
+            }
+        }
 
         // ACCOUNTING_API_TRIGGER: Reverso de Abono Extraordinario
         $this->triggerAccountingEntry(

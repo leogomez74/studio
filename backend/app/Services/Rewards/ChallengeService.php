@@ -219,7 +219,7 @@ class ChallengeService
                 $completedObjectives++;
             }
 
-            $objectiveProgress = $target > 0 ? min(1, $current / $target) : 1;
+            $objectiveProgress = $target > 0 ? min(1, $current / $target) : 0;
             $overallProgress += $objectiveProgress;
 
             $objectiveDetails[$key] = [

@@ -28,10 +28,13 @@ class ExternalIntegration extends Model
         'headers' => 'array',
         'is_active' => 'boolean',
         'last_sync_at' => 'datetime',
+        'auth_token' => 'encrypted',
+        'auth_password' => 'encrypted',
     ];
 
     protected $hidden = [
         'auth_token',
+        'auth_user',
         'auth_password',
     ];
 }

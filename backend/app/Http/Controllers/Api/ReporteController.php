@@ -438,6 +438,7 @@ class ReporteController extends Controller
         $abonosEnPeriodo = CreditPayment::where('source', 'Extraordinario')
             ->whereBetween('fecha_pago', [$desde, $hasta])
             ->whereNotNull('reversal_snapshot')
+            ->where('estado_reverso', 'Vigente')
             ->whereHas('credit', fn($q) => $q->where('deductora_id', $deductoraId)
                 ->whereNotIn('status', ['Cerrado', 'Legal', 'Aprobado', 'Por firmar']))
             ->with(['credit:id,reference,lead_id,cuota,status', 'credit.lead:id,name,cedula'])
@@ -471,6 +472,7 @@ class ReporteController extends Controller
                     'cuota_anterior' => $cuotaAnterior,
                     'cuota_nueva'    => $cuotaNueva,
                     'diferencia'     => round($cuotaNueva - $cuotaAnterior, 2),
+                    'fecha'          => $primerAbono->fecha_pago,
                     'detalle'        => 'Modificar cuota: ₡' . number_format($cuotaAnterior, 2) . ' → ₡' . number_format($cuotaNueva, 2),
                 ];
             })->filter()->values();
@@ -501,7 +503,7 @@ class ReporteController extends Controller
         $deductoraId = $request->input('deductora_id');
 
         $payments = CreditPayment::with(['credit:id,reference,deductora_id', 'credit.lead:id,name,cedula', 'credit.deductora:id,nombre'])
-            ->whereNull('estado_reverso')
+            ->where(fn($q) => $q->whereNull('estado_reverso')->orWhere('estado_reverso', 'Vigente'))
             ->whereBetween('fecha_pago', [$desde, $hasta])
             ->when($source, fn($q) => $q->where('source', $source))
             ->when($deductoraId, fn($q) => $q->whereHas('credit', fn($cq) => $cq->where('deductora_id', $deductoraId)))
@@ -524,7 +526,9 @@ class ReporteController extends Controller
         ])->values();
 
         // Cobros agrupados por fecha para gráfico
-        $porFecha = $payments->groupBy('fecha_pago')->map(fn($g) => round($g->sum('monto'), 2));
+        $porFecha = $payments->groupBy(fn($p) =>
+            $p->fecha_pago instanceof \Carbon\Carbon ? $p->fecha_pago->toDateString() : (string) $p->fecha_pago
+        )->map(fn($g) => round($g->sum('monto'), 2));
 
         // Distribución por fuente
         $porFuente = $payments->groupBy('source')->map(fn($g) => [

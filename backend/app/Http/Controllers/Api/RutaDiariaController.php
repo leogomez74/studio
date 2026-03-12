@@ -16,8 +16,14 @@ class RutaDiariaController extends Controller
 
     public function index(Request $request)
     {
+        $user = Auth::user();
         $query = RutaDiaria::with(['mensajero:id,name', 'confirmadaPor:id,name'])
             ->withCount(['tareas', 'tareas as completadas_count' => fn($q) => $q->where('status', 'completada')]);
+
+        // Non-admin users only see their own routes
+        if (!$user->role?->full_access) {
+            $query->where('mensajero_id', $user->id);
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -28,7 +34,7 @@ class RutaDiariaController extends Controller
         if ($request->filled('fecha_hasta')) {
             $query->whereDate('fecha', '<=', $request->fecha_hasta);
         }
-        if ($request->filled('mensajero_id')) {
+        if ($request->filled('mensajero_id') && $user->role?->full_access) {
             $query->where('mensajero_id', $request->mensajero_id);
         }
 
@@ -37,11 +43,17 @@ class RutaDiariaController extends Controller
 
     public function show(string $id)
     {
+        $user = Auth::user();
         $ruta = RutaDiaria::with([
             'mensajero:id,name',
             'confirmadaPor:id,name',
             'tareas' => fn($q) => $q->orderBy('posicion')->with(['solicitante:id,name']),
         ])->findOrFail($id);
+
+        // Non-admin users can only view their own routes
+        if (!$user->role?->full_access && $ruta->mensajero_id !== $user->id) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
 
         return response()->json($ruta);
     }
@@ -106,39 +118,49 @@ class RutaDiariaController extends Controller
 
     public function confirmar(Request $request, string $id)
     {
-        $ruta = RutaDiaria::findOrFail($id);
+        return DB::transaction(function () use ($id) {
+            $ruta = RutaDiaria::lockForUpdate()->findOrFail($id);
 
-        if ($ruta->status !== 'borrador') {
-            return response()->json(['message' => 'Solo se pueden confirmar rutas en borrador.'], 422);
-        }
+            if ($ruta->status !== 'borrador') {
+                return response()->json(['message' => 'Solo se pueden confirmar rutas en borrador.'], 422);
+            }
 
-        $ruta->update([
-            'status' => 'confirmada',
-            'confirmada_por' => Auth::id(),
-            'confirmada_at' => now(),
-        ]);
+            $ruta->update([
+                'status' => 'confirmada',
+                'confirmada_por' => Auth::id(),
+                'confirmada_at' => now(),
+            ]);
 
-        $this->logActivity('update', 'Rutas', $ruta, "Ruta confirmada: {$ruta->fecha->format('Y-m-d')}");
+            $this->logActivity('update', 'Rutas', $ruta, "Ruta confirmada: {$ruta->fecha->format('Y-m-d')}");
 
-        return response()->json($ruta);
+            return response()->json($ruta);
+        });
     }
 
     public function iniciar(string $id)
     {
-        $ruta = RutaDiaria::findOrFail($id);
+        return DB::transaction(function () use ($id) {
+            $user = Auth::user();
+            $ruta = RutaDiaria::lockForUpdate()->findOrFail($id);
 
-        if ($ruta->status !== 'confirmada') {
-            return response()->json(['message' => 'Solo se pueden iniciar rutas confirmadas.'], 422);
-        }
+            // Only admin or the assigned mensajero can start a route
+            if (!$user->role?->full_access && $ruta->mensajero_id !== $user->id) {
+                return response()->json(['message' => 'No autorizado.'], 403);
+            }
 
-        $ruta->update(['status' => 'en_progreso']);
+            if ($ruta->status !== 'confirmada') {
+                return response()->json(['message' => 'Solo se pueden iniciar rutas confirmadas.'], 422);
+            }
 
-        // Marcar tareas como en_transito
-        $ruta->tareas()->where('status', 'asignada')->update(['status' => 'en_transito']);
+            $ruta->update(['status' => 'en_progreso']);
 
-        $this->logActivity('update', 'Rutas', $ruta, "Ruta iniciada: {$ruta->fecha->format('Y-m-d')}");
+            // Marcar tareas como en_transito
+            $ruta->tareas()->where('status', 'asignada')->update(['status' => 'en_transito']);
 
-        return response()->json($ruta);
+            $this->logActivity('update', 'Rutas', $ruta, "Ruta iniciada: {$ruta->fecha->format('Y-m-d')}");
+
+            return response()->json($ruta);
+        });
     }
 
     /**
