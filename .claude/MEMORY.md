@@ -165,6 +165,7 @@ class MiController extends Controller {
 
 ### 🟡 Media
 - HttpOnly cookies para auth (diferido, bajo riesgo actual)
+- Verificar account codes en `erp_accounting_accounts` vs plan contable del ERP real (códigos como `1102-01-01` no fueron reconocidos por el ERP)
 
 ### 🟢 Baja
 - 149 `as any` en TypeScript (bajó de 292)

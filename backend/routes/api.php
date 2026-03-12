@@ -48,7 +48,8 @@ use App\Http\Controllers\Api\RutaDiariaController;
 Route::get('/health/env', function () {
     $checks = [
         'DB_DATABASE'   => !empty(env('DB_DATABASE')),
-        'ERP_API_URL'   => !empty(config('services.erp.url')),
+        'ERP_SERVICE_URL' => !empty(config('services.erp.service_url')),
+        'ERP_SERVICE_TOKEN' => !empty(config('services.erp.service_token')),
         'CREDID_API_URL' => !empty(config('services.credid.url')),
         'CREDID_API_TOKEN' => !empty(config('services.credid.token')),
         'DSF_API_URL'   => !empty(config('services.dsf.url')),

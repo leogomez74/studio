@@ -60,6 +60,13 @@
 
 ## Pendiente — Media prioridad
 
+### Migrar ERP de email/password a Service Token HMAC — COMPLETADO (2026-03-12)
+- **Implementado**: `ErpAccountingService` usa Service Token con HMAC (X-Service-Token, X-Timestamp, X-Nonce, X-Signature)
+- **Eliminado**: todo código legacy (authenticate, getToken, clearToken, sendWithRetry, cache de Bearer token, reintento 401)
+- **Archivos modificados**: `.env` (solo ERP_SERVICE_URL/TOKEN/SECRET), `config/services.php` (limpiado refs legacy), `ErpAccountingService.php` (código legacy eliminado), `routes/api.php` (health check actualizado)
+- **Test exitoso**: conexión OK, auth HMAC funcional, 422 por account codes = validación de negocio (auth pasó correctamente)
+- **Pendiente**: verificar que los account codes en `erp_accounting_accounts` coincidan con el plan contable del ERP real
+
 ### HttpOnly cookies (diferido)
 - Migrar auth de Sanctum token en header a HttpOnly cookies
 - Bajo riesgo actual: API interna, requiere cambio completo frontend+backend
