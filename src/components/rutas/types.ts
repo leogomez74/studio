@@ -33,6 +33,21 @@ export interface TareaRuta {
   referencia_tipo: string | null;
   referencia_id: number | null;
   created_at: string;
+  evidencias?: TareaRutaEvidencia[];
+  evidencias_count?: number;
+}
+
+export interface TareaRutaEvidencia {
+  id: number;
+  tarea_ruta_id: number;
+  uploaded_by: number;
+  uploader?: { id: number; name: string } | null;
+  name: string;
+  path: string;
+  mime_type: string;
+  size: number;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface RutaDiaria {

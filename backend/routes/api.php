@@ -161,6 +161,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/tareas-ruta/{id}/completar', [TareaRutaController::class, 'completar'])->middleware('throttle:60,1');
     Route::patch('/tareas-ruta/{id}/fallar', [TareaRutaController::class, 'fallar'])->middleware('throttle:60,1');
     Route::patch('/tareas-ruta/{id}/prioridad', [TareaRutaController::class, 'overridePrioridad'])->middleware(['admin', 'throttle:30,1']);
+    Route::get('/tareas-ruta/{id}/evidencias', [TareaRutaController::class, 'evidencias']);
+    Route::post('/tareas-ruta/{id}/evidencias', [TareaRutaController::class, 'uploadEvidencia'])->middleware('throttle:30,1');
+    Route::delete('/tareas-ruta/{tareaId}/evidencias/{evidenciaId}', [TareaRutaController::class, 'deleteEvidencia'])->middleware('throttle:30,1');
 
     Route::get('/rutas-diarias', [RutaDiariaController::class, 'index']);
     Route::get('/rutas-diarias/mi-ruta', [RutaDiariaController::class, 'miRuta']);

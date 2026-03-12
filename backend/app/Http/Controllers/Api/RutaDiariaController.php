@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Notification;
 use App\Models\RutaDiaria;
 use App\Models\TareaRuta;
 use App\Traits\LogsActivity;
@@ -49,7 +50,7 @@ class RutaDiariaController extends Controller
         $ruta = RutaDiaria::with([
             'mensajero:id,name',
             'confirmadaPor:id,name',
-            'tareas' => fn($q) => $q->orderBy('posicion')->with(['solicitante:id,name']),
+            'tareas' => fn($q) => $q->orderBy('posicion')->withCount('evidencias')->with(['solicitante:id,name']),
         ])->findOrFail($id);
 
         // Non-admin users can only view their own routes
@@ -135,6 +136,20 @@ class RutaDiariaController extends Controller
 
             $this->logActivity('update', 'Rutas', $ruta, "Ruta confirmada: {$ruta->fecha->format('Y-m-d')}");
 
+            // Notificar al mensajero
+            Notification::create([
+                'user_id' => $ruta->mensajero_id,
+                'type' => 'ruta_confirmada',
+                'title' => 'Ruta confirmada',
+                'body' => "Tu ruta del {$ruta->fecha->format('d/m/Y')} ha sido confirmada con {$ruta->total_tareas} tarea(s).",
+                'data' => [
+                    'ruta_id' => $ruta->id,
+                    'fecha' => $ruta->fecha->format('Y-m-d'),
+                    'total_tareas' => $ruta->total_tareas,
+                    'confirmada_por' => Auth::user()->name ?? 'Admin',
+                ],
+            ]);
+
             return response()->json($ruta);
         });
     }
@@ -170,7 +185,7 @@ class RutaDiariaController extends Controller
      */
     public function miRuta()
     {
-        $ruta = RutaDiaria::with(['tareas' => fn($q) => $q->orderBy('posicion')->with('solicitante:id,name')])
+        $ruta = RutaDiaria::with(['tareas' => fn($q) => $q->orderBy('posicion')->withCount('evidencias')->with('solicitante:id,name')])
             ->where('mensajero_id', Auth::id())
             ->whereDate('fecha', today())
             ->first();

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   PackageCheck, Loader2, CheckCircle2, XCircle, AlertTriangle,
-  Play, Navigation, Phone, Building2, RefreshCw,
+  Play, Navigation, Phone, Building2, RefreshCw, Camera, Image, Trash2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 import api from '@/lib/axios';
 import type { TareaRuta, RutaDiaria, ExternalRoute, ExternalIntegrationResult } from './types';
 import { tipoIcons, tipoLabels, prioridadColors, prioridadLabels, rutaStatusColors, rutaStatusLabels, extStatusColors } from './utils';
@@ -40,6 +41,8 @@ export default function MiRutaTab() {
   const [motivoFallo, setMotivoFallo] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [evidenciaFiles, setEvidenciaFiles] = useState<File[]>([]);
+  const [uploadingEvidencia, setUploadingEvidencia] = useState(false);
 
   const fetchMiRuta = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -82,14 +85,29 @@ export default function MiRutaTab() {
     setActionLoading(true);
     try {
       await api.patch(`/api/tareas-ruta/${selectedTarea.id}/completar`, { notas_completado: notasCompletado || null });
-      toast({ title: 'Tarea completada' });
+
+      // Subir evidencias si hay archivos seleccionados
+      if (evidenciaFiles.length > 0) {
+        setUploadingEvidencia(true);
+        for (const file of evidenciaFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          await api.post(`/api/tareas-ruta/${selectedTarea.id}/evidencias`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        }
+      }
+
+      toast({ title: 'Tarea completada', description: evidenciaFiles.length > 0 ? `${evidenciaFiles.length} evidencia(s) subida(s)` : undefined });
       setShowCompletarDialog(false);
       setNotasCompletado('');
+      setEvidenciaFiles([]);
       fetchMiRuta();
     } catch {
       toast({ title: 'Error', variant: 'destructive' });
     } finally {
       setActionLoading(false);
+      setUploadingEvidencia(false);
     }
   };
 
@@ -271,6 +289,12 @@ export default function MiRutaTab() {
                           {t.notas_completado}
                         </div>
                       )}
+                      {(t.evidencias_count ?? 0) > 0 && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Camera className="h-3 w-3" />
+                          {t.evidencias_count} evidencia{(t.evidencias_count ?? 0) !== 1 ? 's' : ''}
+                        </div>
+                      )}
                       {t.motivo_fallo && (
                         <div className="mt-2 p-2 rounded bg-red-50 text-xs text-red-700 dark:bg-red-950/20 dark:text-red-400">
                           Fallo: {t.motivo_fallo}
@@ -407,15 +431,47 @@ export default function MiRutaTab() {
               Marca &quot;{selectedTarea?.titulo}&quot; como completada.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div>
-            <Label>Notas (opcional)</Label>
-            <Textarea value={notasCompletado} onChange={(e) => setNotasCompletado(e.target.value)} placeholder="Ej: Entregado en recepción a Juan Pérez" rows={3} />
+          <div className="space-y-3">
+            <div>
+              <Label>Notas (opcional)</Label>
+              <Textarea value={notasCompletado} onChange={(e) => setNotasCompletado(e.target.value)} placeholder="Ej: Entregado en recepción a Juan Pérez" rows={3} />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1.5 mb-1.5">
+                <Camera className="h-4 w-4" />
+                Evidencia fotográfica (opcional)
+              </Label>
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  setEvidenciaFiles(prev => [...prev, ...files]);
+                  e.target.value = '';
+                }}
+              />
+              {evidenciaFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {evidenciaFiles.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs bg-muted/50 rounded px-2 py-1.5">
+                      <Image className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="truncate flex-1">{f.name}</span>
+                      <span className="text-muted-foreground shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => setEvidenciaFiles(prev => prev.filter((_, j) => j !== i))}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setEvidenciaFiles([]); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleCompletarTarea} disabled={actionLoading}>
               {actionLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Completar
+              {uploadingEvidencia ? 'Subiendo...' : 'Completar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

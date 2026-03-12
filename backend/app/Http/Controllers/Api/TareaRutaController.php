@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\TareaRuta;
+use App\Models\TareaRutaEvidencia;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class TareaRutaController extends Controller
 {
@@ -215,5 +217,68 @@ class TareaRutaController extends Controller
         $this->logActivity('update', 'Rutas', $tarea, "Prioridad override: {$tarea->titulo} → {$validated['prioridad']}", [], $request);
 
         return response()->json($tarea);
+    }
+
+    // ================================================================
+    // EVIDENCIAS (fotos/archivos)
+    // ================================================================
+
+    public function evidencias(string $id)
+    {
+        $tarea = TareaRuta::findOrFail($id);
+
+        return response()->json(
+            $tarea->evidencias()->with('uploader:id,name')->orderBy('created_at', 'desc')->get()
+        );
+    }
+
+    public function uploadEvidencia(Request $request, string $id)
+    {
+        $tarea = TareaRuta::findOrFail($id);
+        $user = Auth::user();
+
+        // Solo el mensajero asignado o admin pueden subir evidencia
+        if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
+
+        $request->validate([
+            'file' => 'required|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store("ruta-evidencias/{$tarea->id}", 'public');
+
+        $evidencia = TareaRutaEvidencia::create([
+            'tarea_ruta_id' => $tarea->id,
+            'uploaded_by' => $user->id,
+            'name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'mime_type' => $file->getMimeType(),
+            'size' => $file->getSize(),
+            'notes' => $request->input('notes'),
+        ]);
+
+        $this->logActivity('create', 'Rutas', $tarea, "Evidencia subida: {$tarea->titulo}", [], $request);
+
+        return response()->json($evidencia->load('uploader:id,name'), 201);
+    }
+
+    public function deleteEvidencia(string $tareaId, string $evidenciaId)
+    {
+        $tarea = TareaRuta::findOrFail($tareaId);
+        $user = Auth::user();
+
+        if (!$user->role?->full_access && $tarea->asignado_a !== $user->id) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
+
+        $evidencia = TareaRutaEvidencia::where('tarea_ruta_id', $tarea->id)->findOrFail($evidenciaId);
+
+        Storage::disk('public')->delete($evidencia->path);
+        $evidencia->delete();
+
+        return response()->json(['message' => 'Evidencia eliminada.']);
     }
 }
