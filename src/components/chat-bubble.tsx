@@ -125,13 +125,24 @@ function getEntityInfo(type: string) {
   );
   return entry?.[1] ?? { label: 'Entidad', route: '/dashboard', color: 'bg-gray-100 text-gray-700', apiType: '' };
 }
+function isGifMessage(body: string) {
+  return /^\[GIF\]\([^)]+\)$/.test(body.trim());
+}
 function renderBody(body: string) {
+  // GIF messages → just show label
+  if (isGifMessage(body)) return '🎞 GIF';
   // Replace @[Name](user:id) and #[Label](type:id) with styled spans
   return body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, label) => `<span class="font-semibold text-primary">${'@' + label}</span>`);
 }
 function truncateBody(body: string, max = 80) {
+  // GIF messages → just show label
+  if (isGifMessage(body)) return '🎞 GIF';
   const clean = body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, l) => l);
   return clean.length <= max ? clean : clean.slice(0, max).trimEnd() + '…';
+}
+function extractGifUrl(body: string): string | null {
+  const m = body.trim().match(/^\[GIF\]\(([^)]+)\)$/);
+  return m ? m[1] : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -737,33 +748,33 @@ export function ChatBubble() {
                 <p className="text-xs text-muted-foreground text-center">Envía el primer mensaje a {directUserName}.</p>
               </div>
             ) : (
-              <div className="py-1">
-                {directComments.map((comment, idx) => (
-                  <div key={comment.id}>
-                    {idx > 0 && <Separator className="mx-4" />}
-                    <div className="px-4 py-3">
-                      <div className="flex items-start gap-2.5">
-                        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                          <AvatarFallback className={cn('text-[10px] font-semibold text-white', getAvatarColor(comment.user.id))}>
-                            {getInitials(comment.user.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold">{comment.user.name}</span>
-                            <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
-                          </div>
-                          <p className="text-[13px] text-foreground/80 leading-snug mt-0.5"
-                            dangerouslySetInnerHTML={{ __html: renderBody(comment.body.startsWith('[GIF]') ? '🎞 GIF' : comment.body) }}
-                          />
-                          {comment.body.match(/^\[GIF\]\(([^)]+)\)$/) && (
-                            <img src={comment.body.match(/^\[GIF\]\(([^)]+)\)$/)?.[1]} alt="GIF" className="rounded-lg max-w-[180px] max-h-[130px] object-cover mt-1" loading="lazy" />
-                          )}
-                        </div>
+              <div className="flex flex-col gap-1 px-3 py-2">
+                {directComments.map((comment) => {
+                  const isMe = comment.user_id === user?.id;
+                  const gifUrl = extractGifUrl(comment.body);
+                  return (
+                    <div key={comment.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
+                      <div className={cn(
+                        'max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-snug',
+                        isMe
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted rounded-bl-md'
+                      )}>
+                        {!isMe && (
+                          <p className="text-[10px] font-semibold mb-0.5 opacity-70">{comment.user.name}</p>
+                        )}
+                        {gifUrl ? (
+                          <img src={gifUrl} alt="GIF" className="rounded-lg max-w-[200px] max-h-[150px] object-cover" loading="lazy" />
+                        ) : (
+                          <p dangerouslySetInnerHTML={{ __html: renderBody(comment.body) }} />
+                        )}
+                        <p className={cn('text-[10px] mt-1', isMe ? 'text-primary-foreground/60 text-right' : 'text-muted-foreground')}>
+                          {relativeTime(comment.created_at)}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )
           ) : isLoading ? (
@@ -781,7 +792,7 @@ export function ChatBubble() {
             </div>
           ) : (
             <div className="py-1">
-              {comments.map((comment, idx) => {
+              {comments.filter((c) => getEntityInfo(c.commentable_type).apiType !== 'direct').map((comment, idx) => {
                 const info = getEntityInfo(comment.commentable_type);
                 const isReplying = replyingTo === comment.id;
                 const isMe = comment.user_id === user?.id;
