@@ -405,7 +405,8 @@ export function ChatBubble() {
 
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const clickInsideRef = useRef(false);
+  // No longer needed — replaced by panelRef.contains() check
+  // const clickInsideRef = useRef(false);
 
   // ---- Fetch ----
   const fetchComments = useCallback(async (archived = false) => {
@@ -439,17 +440,22 @@ export function ChatBubble() {
     return () => clearInterval(iv);
   }, [isOpen, user?.id]);
 
-  // Outside click / Escape
+  // Outside click / Escape — use contains() instead of ref flag to avoid portal issues
   useEffect(() => {
     if (!isOpen) return;
-    const click = () => {
-      if (clickInsideRef.current) { clickInsideRef.current = false; return; }
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // Click inside the panel or floating button → ignore
+      if (panelRef.current?.contains(target)) return;
+      if (buttonRef.current?.contains(target)) return;
+      // Click inside emoji-mart / GIF picker portals → ignore
+      if ((target as HTMLElement).closest?.('em-emoji-picker, .EmojiPickerReact, [class*="gif-picker"]')) return;
       setIsOpen(false);
     };
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false); };
-    document.addEventListener('mousedown', click);
+    document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', esc); };
+    return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', esc); };
   }, [isOpen]);
 
   // Fetch users when panel opens
@@ -605,7 +611,6 @@ export function ChatBubble() {
       {/* Panel */}
       <div
         ref={panelRef}
-        onMouseDown={() => { clickInsideRef.current = true; }}
         className={cn(
           'fixed bottom-6 right-6 z-50 w-[500px]',
           'rounded-2xl border bg-card shadow-2xl flex flex-col overflow-hidden',
