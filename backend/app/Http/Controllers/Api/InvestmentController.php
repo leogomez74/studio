@@ -145,7 +145,7 @@ class InvestmentController extends Controller
         $coupons = InvestmentCoupon::with(['investment.investor:id,name'])
             ->where('estado', 'Pendiente')
             ->where('fecha_cupon', '<=', $limit)
-            ->orderBy('fecha_cupon')
+            ->orderByDesc('fecha_cupon')
             ->get();
 
         $grouped = $coupons->groupBy(fn ($c) => Carbon::parse($c->fecha_cupon)->format('Y-m'));
