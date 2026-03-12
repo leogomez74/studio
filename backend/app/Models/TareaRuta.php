@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class TareaRuta extends Model
@@ -69,6 +70,11 @@ class TareaRuta extends Model
     public function referencia(): MorphTo
     {
         return $this->morphTo('referencia', 'referencia_tipo', 'referencia_id');
+    }
+
+    public function evidencias(): HasMany
+    {
+        return $this->hasMany(TareaRutaEvidencia::class);
     }
 
     // --- Scopes ---
