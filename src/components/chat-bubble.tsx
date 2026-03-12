@@ -244,7 +244,7 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
   };
 
   return (
-    <div className="relative space-y-1.5">
+    <div className="relative space-y-1">
       {/* Emoji Picker */}
       {showEmoji && (
         <div ref={emojiRef} className="absolute bottom-full right-0 mb-1 z-50">
@@ -272,6 +272,7 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
         </div>
       )}
 
+      {/* Textarea + Send */}
       <div className="flex items-end gap-1.5">
         <div className="flex-1 relative">
           <textarea
@@ -310,34 +311,46 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
             </div>
           )}
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn('h-8 w-8 rounded-lg', showEmoji && 'bg-accent')}
-            onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }}
-            disabled={disabled || sending}
-          >
-            <Smile className="h-3.5 w-3.5" />
+        {onCancel && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground" onClick={onCancel}>
+            <X className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn('h-8 w-8 rounded-lg', showGif && 'bg-accent')}
-            onClick={() => { setShowGif(!showGif); setShowEmoji(false); }}
-            disabled={disabled || sending}
-          >
-            <ImageIcon className="h-3.5 w-3.5" />
-          </Button>
-          {onCancel && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground" onClick={onCancel}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
+        )}
+        <Button size="icon" className="h-8 w-8 shrink-0 rounded-lg" disabled={!text.trim() || sending} onClick={submit}>
+          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+        </Button>
+      </div>
+
+      {/* Emoji / GIF toolbar */}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className={cn(
+            'flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground transition-colors',
+            'hover:bg-muted hover:text-foreground',
+            showEmoji && 'bg-accent text-accent-foreground',
+            (disabled || sending) && 'opacity-40 pointer-events-none'
           )}
-          <Button size="icon" className="h-8 w-8 shrink-0 rounded-lg" disabled={!text.trim() || sending} onClick={submit}>
-            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-          </Button>
-        </div>
+          onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }}
+          disabled={disabled || sending}
+        >
+          <Smile className="h-3.5 w-3.5" />
+          <span>Emoji</span>
+        </button>
+        <button
+          type="button"
+          className={cn(
+            'flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground transition-colors',
+            'hover:bg-muted hover:text-foreground',
+            showGif && 'bg-accent text-accent-foreground',
+            (disabled || sending) && 'opacity-40 pointer-events-none'
+          )}
+          onClick={() => { setShowGif(!showGif); setShowEmoji(false); }}
+          disabled={disabled || sending}
+        >
+          <ImageIcon className="h-3.5 w-3.5" />
+          <span>GIF</span>
+        </button>
       </div>
     </div>
   );
@@ -583,12 +596,12 @@ export function ChatBubble() {
         ref={panelRef}
         onMouseDown={() => { clickInsideRef.current = true; }}
         className={cn(
-          'fixed bottom-6 right-6 z-50 w-[420px]',
+          'fixed bottom-6 right-6 z-50 w-[500px]',
           'rounded-2xl border bg-card shadow-2xl flex flex-col overflow-hidden',
           'transition-all duration-300 ease-out origin-bottom-right',
           isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-2 pointer-events-none'
         )}
-        style={{ maxHeight: '540px' }}
+        style={{ maxHeight: '680px' }}
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
