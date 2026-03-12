@@ -9,6 +9,7 @@ use App\Models\Deductora;
 use App\Models\Investment;
 use App\Models\InvestmentCoupon;
 use App\Models\PlanDePago;
+use App\Traits\LogsActivity;
 use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -19,6 +20,7 @@ use Carbon\Carbon;
 
 class ReporteController extends Controller
 {
+    use LogsActivity;
     // ─────────────────────────────────────────────────────────────
     //  1. CARTERA ACTIVA
     // ─────────────────────────────────────────────────────────────
@@ -91,6 +93,7 @@ class ReporteController extends Controller
 
     public function carteraExcel(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Cartera Activa - Excel', [], $request);
         $data = $this->cartera($request)->getData(true);
         $rows = $data['data'];
         $totales = $data['totales'];
@@ -140,6 +143,7 @@ class ReporteController extends Controller
 
     public function carteraPdf(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Cartera Activa - PDF', [], $request);
         $data = $this->cartera($request)->getData(true);
         $pdf = Pdf::loadHTML($this->buildCarteraPdfHtml($data['data'], $data['totales']))
             ->setPaper('legal', 'landscape');
@@ -219,6 +223,7 @@ class ReporteController extends Controller
 
     public function carteraMoraExcel(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Cartera en Mora - Excel', [], $request);
         $data = $this->carteraMora($request)->getData(true);
         $rows = $data['data'];
 
@@ -260,6 +265,7 @@ class ReporteController extends Controller
 
     public function carteraMoraPdf(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Cartera en Mora - PDF', [], $request);
         $data = $this->carteraMora($request)->getData(true);
         $pdf = Pdf::loadHTML($this->buildMoraPdfHtml($data['data'], $data['totales']))
             ->setPaper('legal', 'landscape');
@@ -347,6 +353,7 @@ class ReporteController extends Controller
 
     public function carteraDeductoraExcel(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Por Deductora - Excel', [], $request);
         $data = $this->carteraDeductora($request)->getData(true);
         $rows = $data['data'];
 
@@ -552,6 +559,7 @@ class ReporteController extends Controller
 
     public function cobrosExcel(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Cobros - Excel', [], $request);
         $data = $this->cobros($request)->getData(true);
         $rows = $data['data'];
         $totales = $data['totales'];
@@ -602,6 +610,7 @@ class ReporteController extends Controller
 
     public function cobrosPdf(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Cobros - PDF', [], $request);
         $data = $this->cobros($request)->getData(true);
         $pdf = Pdf::loadHTML($this->buildCobrosPdfHtml($data['data'], $data['totales']))
             ->setPaper('legal', 'landscape');
@@ -656,6 +665,7 @@ class ReporteController extends Controller
 
     public function planillaCobroPdf(int $deductoraId)
     {
+        $this->logActivity('export', 'Reportes', null, 'Planilla Cobro - PDF (deductora: ' . $deductoraId . ')', [], request());
         $data = $this->planillaCobro($deductoraId)->getData(true);
         $pdf = Pdf::loadHTML($this->buildPlanillaCobroPdfHtml($data))
             ->setPaper('letter', 'portrait');
@@ -664,6 +674,7 @@ class ReporteController extends Controller
 
     public function novedadesPlanillaPdf(Request $request)
     {
+        $this->logActivity('export', 'Reportes', null, 'Novedades de Planilla - PDF', [], $request);
         $data = $this->novedadesPlanilla($request)->getData(true);
         $deductoraId = $request->input('deductora_id');
         $deductora   = Deductora::find($deductoraId);
