@@ -326,7 +326,8 @@ export default function CommunicationsPage() {
 
       for (const c of data) {
         if (c.commentable_type === 'App\\Models\\User') {
-          const key = c.commentable_id;
+          // Use the contact's ID as key (not commentable_id alone, which equals myId when they send to me)
+          const key = c.user_id === user?.id ? c.commentable_id : c.user_id;
           const existing = directGroups.get(key);
           if (!existing || new Date(c.created_at) > new Date(existing.created_at)) {
             // Count replies from all messages to this user
