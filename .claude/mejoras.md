@@ -44,6 +44,7 @@
 | Mar 2026 | `rutas/page.tsx` refactorizado: 1,672 → ~100 líneas orquestador + 7 archivos en `src/components/rutas/`. Tabs filtrados por rol (admin vs mensajero) |
 | Mar 2026 | Paginación en reportes: componente `TablePagination` (25 filas/pág) en Cartera Activa y Cobros. Reset automático al cambiar filtros |
 | Mar 2026 | Búsqueda client-side en reportes: input de búsqueda por cliente/cédula/referencia en CarteraTab, MoraTab y CobrosTab. Integrado con paginación (reset a página 1 al buscar) |
+| Mar 2026 | R4 — Gráfico de fuentes de cobro: PieChart + tabla con monto y conteo por fuente (Ventanilla, Planilla, SINPE, etc.) en tab Cobros |
 | 2026-03-11 | **Auditoría Seguridad Rutas — Fase 1 completa**: tokens cifrados con `encrypted` cast, ownership checks (IDOR) en RutaDiariaController y TareaRutaController, middleware admin en external-routes, validación SSRF de dominio con whitelist |
 | 2026-03-12 | **Auditoría Seguridad Rutas — Fase 2 completa**: rate limiting `throttle:60,1` en mutations, `lockForUpdate()` en transiciones de estado, `$request->only()` defense-in-depth, `max` en campos de texto sin límite |
 | 2026-03-12 | **Auditoría Seguridad Rutas — Fase 3 completa**: `$hidden` en ExternalIntegration (auth_token/user/password excluidos de JSON), sanitización mensajes de error (genéricos al cliente, detalles en Log::warning), truncado last_sync_message a 200 chars |

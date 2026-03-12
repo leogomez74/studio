@@ -1040,6 +1040,43 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
             </Card>
           )}
 
+          {data.por_fuente && Object.keys(data.por_fuente).length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Distribución por Fuente de Cobro</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-4 items-center">
+                  <div className="flex justify-center">
+                    <PieChart width={260} height={200}>
+                      <Pie
+                        data={Object.entries(data.por_fuente).map(([name, v]) => ({ name, value: v.total, count: v.count }))}
+                        dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine fontSize={10}
+                      >
+                        {Object.keys(data.por_fuente).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => fmt(Number(v))} />
+                    </PieChart>
+                  </div>
+                  <div className="space-y-2">
+                    {Object.entries(data.por_fuente).map(([name, v], i) => (
+                      <div key={name} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                          <span>{name}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-medium text-xs">{fmt(v.total)}</span>
+                          <span className="text-muted-foreground text-xs ml-2">({v.count} pagos)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">
