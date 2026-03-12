@@ -1018,6 +1018,7 @@ export default function InversionesPage() {
   const [pagosSearch, setPagosSearch] = useState('');
   const [pagosMoneda, setPagosMoneda] = useState('');
   const [pagosTipo, setPagosTipo] = useState('');
+  const [pagosPeriodo, setPagosPeriodo] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ investor_id: '', investment_id: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
@@ -1209,6 +1210,7 @@ export default function InversionesPage() {
     if (pagosSearch && !(p.investor?.name ?? '').toLowerCase().includes(pagosSearch.toLowerCase()) && !(p.investment?.numero_desembolso ?? '').toLowerCase().includes(pagosSearch.toLowerCase())) return false;
     if (pagosMoneda && p.moneda !== pagosMoneda) return false;
     if (pagosTipo && p.tipo !== pagosTipo) return false;
+    if (pagosPeriodo && p.periodo !== pagosPeriodo) return false;
     return true;
   }).sort((a, b) => {
     const da = new Date(b.periodo ?? b.fecha_pago).getTime() - new Date(a.periodo ?? a.fecha_pago).getTime();
@@ -1509,6 +1511,19 @@ export default function InversionesPage() {
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
                     {[...new Set(payments.map(p => p.tipo).filter(Boolean))].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={pagosPeriodo} onValueChange={v => { setPagosPeriodo(v === 'all' ? '' : v); setPagosPage(1); }}>
+                  <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Período" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {[...new Set(payments.map(p => p.periodo).filter(Boolean) as string[])]
+                      .sort((a, b) => b.localeCompare(a))
+                      .map(p => (
+                        <SelectItem key={p} value={p}>
+                          {new Date(p).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' })}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
