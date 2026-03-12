@@ -149,10 +149,13 @@ class InvestmentCouponController extends Controller
             return response()->json(['message' => 'No se encontraron inversiones activas con esos desembolsos.'], 404);
         }
 
+        $periodo = \Carbon\Carbon::parse($fechaPago);
+
         $coupons = InvestmentCoupon::with('investment')
             ->whereIn('investment_id', $investments->pluck('id'))
             ->where('estado', 'Pendiente')
-            ->where('fecha_cupon', '<=', $fechaPago)
+            ->whereYear('fecha_cupon', $periodo->year)
+            ->whereMonth('fecha_cupon', $periodo->month)
             ->get();
 
         if ($coupons->isEmpty()) {
