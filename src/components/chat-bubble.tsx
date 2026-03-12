@@ -792,12 +792,49 @@ export function ChatBubble() {
             </div>
           ) : (
             <div className="py-1">
-              {comments.filter((c) => getEntityInfo(c.commentable_type).apiType !== 'direct').map((comment, idx) => {
+              {comments.map((comment, idx) => {
                 const info = getEntityInfo(comment.commentable_type);
+                const isDirect = info.apiType === 'direct';
                 const isReplying = replyingTo === comment.id;
                 const isMe = comment.user_id === user?.id;
                 const ref = comment.entity_reference || `#${comment.commentable_id}`;
 
+                // ---- Direct message: WhatsApp-style contact row ----
+                if (isDirect) {
+                  const contactName = comment.entity_reference || `Usuario #${comment.commentable_id}`;
+                  const contactId = comment.commentable_id;
+                  return (
+                    <div key={comment.id}>
+                      {idx > 0 && <Separator className="mx-4" />}
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent/40 transition-colors"
+                        onClick={() => {
+                          setDirectMode(true);
+                          setDirectUserId(contactId);
+                          setDirectUserName(contactName);
+                        }}
+                      >
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className={cn('text-xs font-semibold text-white', getAvatarColor(contactId))}>
+                            {getInitials(contactName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold truncate">{contactName}</span>
+                            <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
+                          </div>
+                          <p className="text-[12px] text-muted-foreground truncate mt-0.5">
+                            {isMe ? 'Tú: ' : ''}{truncateBody(comment.body, 60)}
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  );
+                }
+
+                // ---- Entity comment: normal rendering ----
                 return (
                   <div key={comment.id}>
                     {idx > 0 && <Separator className="mx-4" />}
