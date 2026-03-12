@@ -411,6 +411,7 @@ export type InvestmentPayment = {
   tipo: 'Interés' | 'Capital' | 'Adelanto' | 'Liquidación';
   moneda: 'CRC' | 'USD';
   comentarios?: string;
+  comprobante_url?: string;
   registered_by?: number;
   investor?: Investor;
   investment?: Investment;

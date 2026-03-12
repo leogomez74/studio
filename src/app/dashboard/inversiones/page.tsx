@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, AlertTriangle, Landmark, Search, Clock, RefreshCw, XCircle, Eye, CheckCircle2, Trash2, DollarSign } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, FileText, FileSpreadsheet, Loader2, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, AlertTriangle, Landmark, Search, Clock, RefreshCw, XCircle, Eye, CheckCircle2, Trash2, DollarSign, ExternalLink } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -394,7 +395,8 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
 
   const handleBulkPay = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`¿Marcar ${selected.size} cupón(es) como pagado(s)?`)) return;
+    const { isConfirmed } = await Swal.fire({ title: '¿Estás seguro?', text: `¿Marcar ${selected.size} cupón(es) como pagado(s)?`, icon: 'question', showCancelButton: true, confirmButtonColor: '#1e40af', cancelButtonColor: '#6b7280', confirmButtonText: 'Aceptar', cancelButtonText: 'Cancelar' });
+    if (!isConfirmed) return;
     setPaying(true);
     try {
       await api.patch('/api/investment-coupons/bulk-pay', { coupon_ids: Array.from(selected) });
@@ -410,7 +412,8 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
 
   const handlePayMonth = async (cupones: any[]) => {
     const ids = cupones.map((c: any) => c.id);
-    if (!confirm(`¿Marcar los ${ids.length} cupón(es) de este mes como pagado(s)?`)) return;
+    const { isConfirmed } = await Swal.fire({ title: '¿Estás seguro?', text: `¿Marcar los ${ids.length} cupón(es) de este mes como pagado(s)?`, icon: 'question', showCancelButton: true, confirmButtonColor: '#1e40af', cancelButtonColor: '#6b7280', confirmButtonText: 'Aceptar', cancelButtonText: 'Cancelar' });
+    if (!isConfirmed) return;
     setPaying(true);
     try {
       await api.patch('/api/investment-coupons/bulk-pay', { coupon_ids: ids });
@@ -1129,7 +1132,8 @@ export default function InversionesPage() {
   useEffect(() => { fetchData(); fetchTipoCambio(); fetchVencimientos(); }, [fetchData, fetchTipoCambio, fetchVencimientos]);
 
   const handleDeleteInvestor = async (id: number) => {
-    if (!confirm('¿Eliminar este inversionista y todas sus inversiones?')) return;
+    const { isConfirmed } = await Swal.fire({ title: '¿Estás seguro?', text: '¿Eliminar este inversionista y todas sus inversiones?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280', confirmButtonText: 'Eliminar', cancelButtonText: 'Cancelar' });
+    if (!isConfirmed) return;
     try {
       await api.delete(`/api/investors/${id}`);
       toastSuccess('Inversionista eliminado correctamente.');
@@ -1141,7 +1145,8 @@ export default function InversionesPage() {
   };
 
   const handleDeleteInvestment = async (id: number) => {
-    if (!confirm('¿Eliminar esta inversión?')) return;
+    const { isConfirmed } = await Swal.fire({ title: '¿Estás seguro?', text: '¿Eliminar esta inversión?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280', confirmButtonText: 'Eliminar', cancelButtonText: 'Cancelar' });
+    if (!isConfirmed) return;
     try {
       await api.delete(`/api/investments/${id}`);
       toastSuccess('Inversión eliminada correctamente.');
@@ -1178,7 +1183,8 @@ export default function InversionesPage() {
   };
 
   const handleDeletePayment = async (id: number) => {
-    if (!confirm('¿Eliminar este pago?')) return;
+    const { isConfirmed } = await Swal.fire({ title: '¿Estás seguro?', text: '¿Eliminar este pago?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280', confirmButtonText: 'Eliminar', cancelButtonText: 'Cancelar' });
+    if (!isConfirmed) return;
     try {
       await api.delete(`/api/investment-payments/${id}`);
       toastSuccess('Pago eliminado.');
@@ -1538,9 +1544,18 @@ export default function InversionesPage() {
                       <TableCell>{p.registered_by_user?.name ?? '—'}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{p.comentarios}</TableCell>
                       <TableCell>
-                        <Button size="icon" variant="ghost" className="text-destructive h-8 w-8" onClick={() => handleDeletePayment(p.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          {p.comprobante_url && (
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600" asChild>
+                              <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" className="text-destructive h-8 w-8" onClick={() => handleDeletePayment(p.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

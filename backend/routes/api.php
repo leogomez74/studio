@@ -72,6 +72,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    // --- API Tokens ---
+    Route::get('/api-tokens', [\App\Http\Controllers\Api\ApiTokenController::class, 'index']);
+    Route::post('/api-tokens', [\App\Http\Controllers\Api\ApiTokenController::class, 'store']);
+    Route::delete('/api-tokens/{id}', [\App\Http\Controllers\Api\ApiTokenController::class, 'destroy']);
+
     // --- Usuarios y Roles (admin) ---
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class)->middleware('admin');
     Route::post('/users/{id}/set-default-lead-assignee', [\App\Http\Controllers\Api\UserController::class, 'setDefaultLeadAssignee'])->middleware('admin');
@@ -314,6 +319,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('investments/{id}/cancel', [InvestmentController::class, 'cancel']);
     Route::post('investments/{id}/cancelacion-total', [InvestmentController::class, 'cancelacionTotal']);
     Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);
+    Route::post('investment-coupons/bulk-pay-by-desembolso', [InvestmentCouponController::class, 'bulkPayByDesembolso']);
     Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid']);
     Route::patch('investment-coupons/{id}/correct', [InvestmentCouponController::class, 'correct']);
     Route::apiResource('investors', InvestorController::class);

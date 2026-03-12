@@ -17,6 +17,7 @@ class InvestmentPayment extends Model
         'tipo',
         'moneda',
         'comentarios',
+        'comprobante_url',
         'registered_by',
     ];
 

@@ -17,6 +17,7 @@ import PatronosTab from '@/components/configuracion/PatronosTab';
 import DeductorasTab from '@/components/configuracion/DeductorasTab';
 import TareasAutomationTab from '@/components/configuracion/TareasAutomationTab';
 import IntegracionesTab from '@/components/configuracion/IntegracionesTab';
+import ApiTokensTab from '@/components/configuracion/ApiTokensTab';
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<string>('prestamos');
@@ -39,6 +40,7 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="embargo">Embargo</TabsTrigger>
           <TabsTrigger value="tareas">Tareas</TabsTrigger>
           <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
+          <TabsTrigger value="api-tokens">API Tokens</TabsTrigger>
         </TabsList>
 
         <TabsContent value="prestamos">
@@ -95,6 +97,10 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="integraciones">
           <IntegracionesTab />
+        </TabsContent>
+
+        <TabsContent value="api-tokens">
+          <ApiTokensTab />
         </TabsContent>
       </Tabs>
     </ProtectedPage>

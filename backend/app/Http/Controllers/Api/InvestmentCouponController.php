@@ -107,4 +107,73 @@ class InvestmentCouponController extends Controller
 
         return response()->json(['message' => 'Cupones marcados como pagados', 'count' => $updated]);
     }
+
+    public function bulkPayByDesembolso(Request $request)
+    {
+        $validated = $request->validate([
+            'desembolsos' => 'required|array|min:1',
+            'desembolsos.*' => 'string',
+            'fecha_pago' => 'required|date',
+            'monto' => 'required|numeric|min:0.01',
+            'moneda' => 'required|in:CRC,USD',
+            'comentarios' => 'nullable|string|max:500',
+            'comprobante_url' => 'nullable|url|max:2048',
+            'registered_by' => 'nullable|exists:users,id',
+        ]);
+
+        $fechaPago = $validated['fecha_pago'];
+        $monto = (float) $validated['monto'];
+        $moneda = $validated['moneda'];
+        $comentarios = $validated['comentarios'] ?? 'Pago de interés';
+        $comprobanteUrl = $validated['comprobante_url'] ?? null;
+        $registeredBy = $validated['registered_by'] ?? null;
+
+        $investments = Investment::whereIn('numero_desembolso', $validated['desembolsos'])
+            ->where('estado', 'Activa')
+            ->get();
+
+        if ($investments->isEmpty()) {
+            return response()->json(['message' => 'No se encontraron inversiones activas con esos desembolsos.'], 404);
+        }
+
+        $coupons = InvestmentCoupon::with('investment')
+            ->whereIn('investment_id', $investments->pluck('id'))
+            ->where('estado', 'Pendiente')
+            ->get();
+
+        if ($coupons->isEmpty()) {
+            return response()->json(['message' => 'No hay cupones pendientes para estas inversiones.'], 422);
+        }
+
+        InvestmentCoupon::whereIn('id', $coupons->pluck('id'))
+            ->update(['estado' => 'Pagado', 'fecha_pago' => $fechaPago]);
+
+        $payments = $coupons->map(fn (InvestmentCoupon $coupon) => [
+            'investor_id' => $coupon->investment->investor_id,
+            'investment_id' => $coupon->investment_id,
+            'fecha_pago' => $fechaPago,
+            'monto' => $monto > 0 ? $monto : $coupon->interes_neto,
+            'tipo' => 'Interés',
+            'moneda' => $moneda,
+            'comentarios' => $comentarios,
+            'comprobante_url' => $comprobanteUrl,
+            'registered_by' => $registeredBy,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->toArray();
+
+        InvestmentPayment::insert($payments);
+
+        $this->logActivity('bulk_pay_by_desembolso', 'Cupones Inversión', null,
+            'Desembolsos: ' . implode(', ', $validated['desembolsos']) . ' | Cupones: ' . $coupons->count(), [], $request);
+
+        return response()->json([
+            'message' => 'Cupones marcados como pagados',
+            'count' => $coupons->count(),
+            'investments_affected' => $investments->count(),
+            'desembolsos_found' => $investments->pluck('numero_desembolso'),
+            'desembolsos_not_found' => collect($validated['desembolsos'])->diff($investments->pluck('numero_desembolso'))->values(),
+            'comprobante_url' => $comprobanteUrl,
+        ]);
+    }
 }
