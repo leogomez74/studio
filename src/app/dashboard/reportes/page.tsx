@@ -202,6 +202,8 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [minSaldo, setMinSaldo] = useState('');
+  const [maxSaldo, setMaxSaldo] = useState('');
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -214,6 +216,8 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
       setData(r.data);
       setPage(1);
       setSearch('');
+      setMinSaldo('');
+      setMaxSaldo('');
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al cargar la cartera.';
       setError(msg);
@@ -230,9 +234,12 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
 
   const chartConfig = { saldo: { label: 'Saldo', color: 'hsl(var(--chart-1))' } };
 
-  const filteredCartera = data ? data.data.filter(r =>
-    !search || [r.cliente, r.cedula, r.referencia].join(' ').toLowerCase().includes(search.toLowerCase())
-  ) : [];
+  const filteredCartera = data ? data.data.filter(r => {
+    if (search && ![r.cliente, r.cedula, r.referencia].join(' ').toLowerCase().includes(search.toLowerCase())) return false;
+    if (minSaldo !== '' && r.saldo < parseFloat(minSaldo)) return false;
+    if (maxSaldo !== '' && r.saldo > parseFloat(maxSaldo)) return false;
+    return true;
+  }) : [];
 
   const doExcel = async () => {
     setLoadingXls(true);
@@ -297,6 +304,22 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
             />
           </div>
         </FilterField>
+        <FilterField label="Saldo mín.">
+          <Input
+            type="number" min={0} placeholder="0"
+            value={minSaldo}
+            onChange={e => { setMinSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
+        </FilterField>
+        <FilterField label="Saldo máx.">
+          <Input
+            type="number" min={0} placeholder="Sin límite"
+            value={maxSaldo}
+            onChange={e => { setMaxSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
+        </FilterField>
         <ExportButtons onExcel={doExcel} onPdf={doPdf} loadingExcel={loadingXls} loadingPdf={loadingPdf} />
       </FilterRow>
 
@@ -339,7 +362,7 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
           )}
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">Detalle — {filteredCartera.length}{search ? ` de ${data.data.length}` : ''} créditos</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Detalle — {filteredCartera.length}{(search || minSaldo || maxSaldo) ? ` de ${data.data.length}` : ''} créditos</CardTitle></CardHeader>
             <CardContent className="p-0">
               <ScrollableTableContainer>
                 <Table>
@@ -385,7 +408,7 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
                   </TableBody>
                 </Table>
               </ScrollableTableContainer>
-              <TablePagination page={page} total={data.data.length} onChange={setPage} />
+              <TablePagination page={page} total={filteredCartera.length} onChange={setPage} />
             </CardContent>
           </Card>
         </>
@@ -407,12 +430,16 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [minSaldo, setMinSaldo] = useState('');
+  const [maxSaldo, setMaxSaldo] = useState('');
 
   const fetch = useCallback(async () => {
     setLoading(true);
     setError('');
     setSearch('');
     setPage(1);
+    setMinSaldo('');
+    setMaxSaldo('');
     try {
       const p = new URLSearchParams();
       if (deductoraId !== 'all') p.set('deductora_id', deductoraId);
@@ -425,9 +452,12 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  const filteredMora = data ? data.data.filter(r =>
-    !search || [r.cliente, r.cedula, r.referencia].join(' ').toLowerCase().includes(search.toLowerCase())
-  ) : [];
+  const filteredMora = data ? data.data.filter(r => {
+    if (search && ![r.cliente, r.cedula, r.referencia].join(' ').toLowerCase().includes(search.toLowerCase())) return false;
+    if (minSaldo !== '' && r.saldo < parseFloat(minSaldo)) return false;
+    if (maxSaldo !== '' && r.saldo > parseFloat(maxSaldo)) return false;
+    return true;
+  }) : [];
 
   const chartData = RANGOS.map(r => ({
     rango: r.replace(' días', ''), saldo: data?.por_rango?.[r]?.saldo ?? 0, count: data?.por_rango?.[r]?.count ?? 0,
@@ -473,6 +503,22 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
             />
           </div>
         </FilterField>
+        <FilterField label="Saldo mín.">
+          <Input
+            type="number" min={0} placeholder="0"
+            value={minSaldo}
+            onChange={e => { setMinSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
+        </FilterField>
+        <FilterField label="Saldo máx.">
+          <Input
+            type="number" min={0} placeholder="Sin límite"
+            value={maxSaldo}
+            onChange={e => { setMaxSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
+        </FilterField>
         <Button variant="outline" size="sm" onClick={fetch} disabled={loading}>
           <RefreshCw className="h-4 w-4 mr-1" /> Actualizar
         </Button>
@@ -516,7 +562,7 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">
-                Detalle — {search ? `${filteredMora.length} de ${data.data.length}` : data.data.length} créditos en mora
+                Detalle — {(search || minSaldo || maxSaldo) ? `${filteredMora.length} de ${data.data.length}` : data.data.length} créditos en mora
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
