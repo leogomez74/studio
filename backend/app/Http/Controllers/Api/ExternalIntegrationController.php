@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Exception;
 
 class ExternalIntegrationController extends Controller
 {
@@ -121,6 +122,7 @@ class ExternalIntegrationController extends Controller
             $testEndpoint = $endpoints['test'] ?? $endpoints['rutas'] ?? '/api/external/rutas';
             $testUrl = rtrim($baseUrl, '/') . '/' . ltrim($testEndpoint, '/');
 
+            /** @var \Illuminate\Http\Client\Response $response */
             $response = $httpClient->timeout(15)->get($testUrl);
 
             $integration->update([
@@ -139,16 +141,21 @@ class ExternalIntegrationController extends Controller
                     : 'Error: HTTP ' . $response->status(),
                 'body_preview' => substr($response->body(), 0, 500),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::warning('ExternalIntegration test failed', [
+                'integration_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
             $integration->update([
                 'last_sync_at' => now(),
                 'last_sync_status' => 'error',
-                'last_sync_message' => $e->getMessage(),
+                'last_sync_message' => substr($e->getMessage(), 0, 200),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error de conexión: ' . $e->getMessage(),
+                'message' => 'Error de conexión con el servicio externo.',
             ], 500);
         }
     }
@@ -189,10 +196,15 @@ class ExternalIntegrationController extends Controller
                 'routes' => $routes,
                 'count' => count($routes),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
+            Log::warning('ExternalIntegration routes fetch failed', [
+                'integration_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Error al consultar rutas del servicio externo.',
             ], 500);
         }
     }

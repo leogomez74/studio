@@ -34,6 +34,7 @@ class ExternalIntegration extends Model
 
     protected $hidden = [
         'auth_token',
+        'auth_user',
         'auth_password',
     ];
 }

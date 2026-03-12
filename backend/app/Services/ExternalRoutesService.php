@@ -8,6 +8,8 @@ use App\Models\ExternalIntegration;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Exception;
+use RuntimeException;
 
 class ExternalRoutesService
 {
@@ -54,7 +56,7 @@ class ExternalRoutesService
                     'last_sync_status' => 'success',
                     'last_sync_message' => count($routes) . ' rutas obtenidas',
                 ]);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::warning('ExternalRoutes: error al consultar ' . $integration->name, [
                     'integration_id' => $integration->id,
                     'error' => $e->getMessage(),
@@ -63,7 +65,7 @@ class ExternalRoutesService
                 $integration->update([
                     'last_sync_at' => now(),
                     'last_sync_status' => 'error',
-                    'last_sync_message' => $e->getMessage(),
+                    'last_sync_message' => substr($e->getMessage(), 0, 200),
                 ]);
 
                 $allRoutes[] = [
@@ -71,7 +73,7 @@ class ExternalRoutesService
                     'integration_name' => $integration->name,
                     'integration_slug' => $integration->slug,
                     'success' => false,
-                    'error' => $e->getMessage(),
+                    'error' => 'Error al consultar ' . $integration->name,
                     'routes' => [],
                     'count' => 0,
                 ];
@@ -92,7 +94,7 @@ class ExternalRoutesService
         $rutasEndpoint = $resolved['endpoint'];
 
         if (empty($baseUrl)) {
-            throw new \RuntimeException('URL base no configurada para ' . $integration->name);
+            throw new RuntimeException('URL base no configurada para ' . $integration->name);
         }
 
         $url = rtrim($baseUrl, '/') . '/' . ltrim($rutasEndpoint, '/');
@@ -110,10 +112,16 @@ class ExternalRoutesService
             $queryParams['scheduled_date'] = $filters['fecha'];
         }
 
+        /** @var \Illuminate\Http\Client\Response $response */
         $response = $client->timeout(15)->get($url, $queryParams);
 
         if (!$response->successful()) {
-            throw new \RuntimeException('HTTP ' . $response->status() . ': ' . substr($response->body(), 0, 200));
+            Log::warning('ExternalRoutes: HTTP error', [
+                'integration' => $integration->name,
+                'status' => $response->status(),
+                'body' => substr($response->body(), 0, 500),
+            ]);
+            throw new RuntimeException('Error HTTP ' . $response->status() . ' al consultar ' . $integration->name);
         }
 
         $data = $response->json();
@@ -168,13 +176,13 @@ class ExternalRoutesService
         $host = parse_url($url, PHP_URL_HOST);
 
         if (empty($host)) {
-            throw new \RuntimeException('URL inválida: no se pudo extraer el host.');
+            throw new RuntimeException('URL inválida: no se pudo extraer el host.');
         }
 
         // Block private/internal IPs
         $ip = gethostbyname($host);
         if ($ip !== $host && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            throw new \RuntimeException('URL no permitida: apunta a una red interna.');
+            throw new RuntimeException('URL no permitida: apunta a una red interna.');
         }
 
         // Check against domain whitelist
@@ -189,6 +197,6 @@ class ExternalRoutesService
             'host' => $host,
         ]);
 
-        throw new \RuntimeException('Dominio no autorizado: ' . $host);
+        throw new RuntimeException('Dominio no autorizado: ' . $host);
     }
 }

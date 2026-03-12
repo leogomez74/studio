@@ -137,8 +137,10 @@ class MiController extends Controller {
 - `$request->only()` defense-in-depth en `TareaRutaController::update()` y `ExternalIntegrationController::update()`
 - `max` en campos de texto sin límite: `descripcion:1000`, `direccion_destino:500`, `notas_completado:1000`
 
-### 🔲 Fase 3 — Medio (pendiente)
-- API Resources, sanitización errores, HttpOnly cookies
+### ✅ Fase 3 — Medio (completado 2026-03-12)
+- `$hidden` en ExternalIntegration: auth_token, auth_user, auth_password excluidos de JSON
+- Sanitización errores: mensajes genéricos al cliente, detalles solo en Log::warning
+- HttpOnly cookies: diferido — requiere migración completa auth, bajo riesgo actual
 
 ## Deuda técnica pendiente (ver mejoras.md)
 
@@ -146,7 +148,7 @@ class MiController extends Controller {
 - (sin pendientes críticos)
 
 ### 🟡 Media
-- Fase 2+3 auditoría seguridad rutas
+- HttpOnly cookies para auth (diferido, bajo riesgo actual)
 
 ### 🟢 Baja
 - 149 `as any` en TypeScript (bajó de 292)
