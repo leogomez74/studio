@@ -1211,7 +1211,7 @@ export default function InversionesPage() {
     if (pagosTipo && p.tipo !== pagosTipo) return false;
     return true;
   }).sort((a, b) => {
-    const da = new Date(b.fecha_pago).getTime() - new Date(a.fecha_pago).getTime();
+    const da = new Date(b.periodo ?? b.fecha_pago).getTime() - new Date(a.periodo ?? a.fecha_pago).getTime();
     if (da !== 0) return da;
     return (b.id ?? 0) - (a.id ?? 0);
   });
@@ -1520,6 +1520,7 @@ export default function InversionesPage() {
                   <TableRow>
                     <TableHead>Inversión</TableHead>
                     <TableHead>Inversionista</TableHead>
+                    <TableHead>Período</TableHead>
                     <TableHead>Fecha de Pago</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
@@ -1541,6 +1542,9 @@ export default function InversionesPage() {
                         {p.investment_id ? (
                           <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investor?.name ?? '—'}</Link>
                         ) : (p.investor?.name ?? '—')}
+                      </TableCell>
+                      <TableCell className="text-sm font-mono">
+                        {p.periodo ? new Date(p.periodo).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' }) : '—'}
                       </TableCell>
                       <TableCell>{new Date(p.fecha_pago).toLocaleDateString('es-CR')}</TableCell>
                       <TableCell><Badge variant="outline">{p.tipo}</Badge></TableCell>
@@ -1565,7 +1569,7 @@ export default function InversionesPage() {
                     </TableRow>
                   ))}
                   {filteredPayments.length === 0 && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Sin pagos registrados</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Sin pagos registrados</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
