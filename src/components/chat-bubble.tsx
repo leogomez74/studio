@@ -145,6 +145,31 @@ function extractGifUrl(body: string): string | null {
   return m ? m[1] : null;
 }
 
+/** Group direct messages by contact — keeps only the latest message per conversation partner */
+function groupDirectsByContact(comments: Comment[], myId: number | undefined): Comment[] {
+  const map = new Map<number, Comment>();
+  for (const c of comments) {
+    const info = getEntityInfo(c.commentable_type);
+    if (info.apiType !== 'direct') continue;
+    // The "contact" is the other user: if I sent it, it's commentable_id; if they sent it, it's user_id
+    const contactId = c.user_id === myId ? c.commentable_id : c.user_id;
+    if (!map.has(contactId)) map.set(contactId, c);
+  }
+  return Array.from(map.values());
+}
+
+/** Group entity comments by entity — keeps only the latest comment per entity */
+function groupByEntity(comments: Comment[]): Comment[] {
+  const map = new Map<string, Comment>();
+  for (const c of comments) {
+    const info = getEntityInfo(c.commentable_type);
+    if (info.apiType === 'direct') continue;
+    const key = `${c.commentable_type}:${c.commentable_id}`;
+    if (!map.has(key)) map.set(key, c);
+  }
+  return Array.from(map.values());
+}
+
 // ---------------------------------------------------------------------------
 // Sub-component: inline compose (new comment or reply)
 // ---------------------------------------------------------------------------
@@ -383,6 +408,7 @@ export function ChatBubble() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [activeTab, setActiveTab] = useState<'directos' | 'comentarios'>('directos');
 
   // Entity selector state
   const [selectedEntity, setSelectedEntity] = useState<{ type: string; id: number; label: string } | null>(null);
@@ -446,9 +472,9 @@ export function ChatBubble() {
     return () => document.removeEventListener('keydown', esc);
   }, [isOpen]);
 
-  // Fetch users when panel opens
+  // Fetch users when panel opens (uses /api/agents — accessible to all authenticated users)
   useEffect(() => {
-    if (isOpen) api.get('/api/users').then((r) => setUserList(Array.isArray(r.data) ? r.data : r.data.data ?? [])).catch(() => {});
+    if (isOpen) api.get('/api/agents').then((r) => setUserList(Array.isArray(r.data) ? r.data : r.data.data ?? [])).catch(() => {});
   }, [isOpen]);
 
   // ---- Entity search ----
@@ -636,21 +662,10 @@ export function ChatBubble() {
                   <MessageCircle className="h-4 w-4 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold leading-tight">
-                    {showArchived ? 'Archivados' : 'Comentarios'}
-                  </h3>
+                  <h3 className="text-sm font-semibold leading-tight">Comunicaciones</h3>
                   <p className="text-[11px] text-muted-foreground">Actividad interna del equipo</p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-lg shrink-0"
-                title="Mensaje directo"
-                onClick={() => { setDirectMode(true); setDirectUserId(null); setDirectUserName(''); }}
-              >
-                <Users className="h-4 w-4" />
-              </Button>
               <Button
                 variant={showArchived ? 'secondary' : 'ghost'}
                 size="icon"
@@ -666,6 +681,44 @@ export function ChatBubble() {
             <X className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Tabs — only visible in main feed (not inside a thread) */}
+        {!directMode && (
+          <div className="flex border-b shrink-0">
+            <button
+              type="button"
+              className={cn(
+                'flex-1 py-2 text-xs font-semibold text-center transition-colors relative',
+                activeTab === 'directos'
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setActiveTab('directos')}
+            >
+              <div className="flex items-center justify-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                Directos
+              </div>
+              {activeTab === 'directos' && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full" />}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'flex-1 py-2 text-xs font-semibold text-center transition-colors relative',
+                activeTab === 'comentarios'
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setActiveTab('comentarios')}
+            >
+              <div className="flex items-center justify-center gap-1.5">
+                <Hash className="h-3.5 w-3.5" />
+                Comentarios
+              </div>
+              {activeTab === 'comentarios' && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full" />}
+            </button>
+          </div>
+        )}
 
         {/* Direct mode: user picker */}
         {directMode && !directUserId && (
@@ -780,173 +833,214 @@ export function ChatBubble() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Cargando...</span>
             </div>
-          ) : comments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3 px-8">
-              <div className="rounded-full bg-muted p-4">
-                <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
-              </div>
-              <p className="text-sm font-medium">No hay comentarios aún</p>
-              <p className="text-xs text-muted-foreground text-center">Selecciona una entidad abajo y escribe el primer comentario.</p>
-            </div>
-          ) : (
-            <div className="py-1">
-              {comments.map((comment, idx) => {
-                const info = getEntityInfo(comment.commentable_type);
-                const isDirect = info.apiType === 'direct';
-                const isReplying = replyingTo === comment.id;
-                const isMe = comment.user_id === user?.id;
-                const ref = comment.entity_reference || `#${comment.commentable_id}`;
-
-                // ---- Direct message: WhatsApp-style contact row ----
-                if (isDirect) {
-                  const contactName = comment.entity_reference || `Usuario #${comment.commentable_id}`;
-                  const contactId = comment.commentable_id;
-                  return (
-                    <div key={comment.id}>
-                      {idx > 0 && <Separator className="mx-4" />}
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent/40 transition-colors"
-                        onClick={() => {
-                          setDirectMode(true);
-                          setDirectUserId(contactId);
-                          setDirectUserName(contactName);
-                        }}
-                      >
-                        <Avatar className="h-9 w-9 shrink-0">
-                          <AvatarFallback className={cn('text-xs font-semibold text-white', getAvatarColor(contactId))}>
-                            {getInitials(contactName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold truncate">{contactName}</span>
-                            <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
-                          </div>
-                          <p className="text-[12px] text-muted-foreground truncate mt-0.5">
-                            {isMe ? 'Tú: ' : ''}{truncateBody(comment.body, 60)}
-                          </p>
-                        </div>
-                      </button>
-                    </div>
-                  );
-                }
-
-                // ---- Entity comment: normal rendering ----
-                return (
-                  <div key={comment.id}>
-                    {idx > 0 && <Separator className="mx-4" />}
-                    <div className="px-4 py-3 space-y-1.5">
-                      {/* Header row */}
-                      <div className="flex items-start gap-2.5">
-                        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                          <AvatarFallback className={cn('text-[10px] font-semibold text-white', getAvatarColor(comment.user.id))}>
-                            {getInitials(comment.user.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-semibold">{comment.user.name}</span>
-                            {/* Entity badge with real reference */}
-                            <button
-                              type="button"
-                              onClick={() => handleCommentClick(comment)}
-                              className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
-                            >
-                              <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-[17px] rounded border-0 cursor-pointer', info.color)}>
-                                {info.label}: {ref}
-                              </Badge>
-                              <ExternalLink className="h-3 w-3 text-muted-foreground/60" />
-                            </button>
-                            <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
-                          </div>
-                          {/* Body */}
-                          <p
-                            className="text-[13px] text-foreground/80 leading-snug mt-0.5"
-                            dangerouslySetInnerHTML={{ __html: renderBody(truncateBody(comment.body)) }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Replies */}
-                      {comment.replies && comment.replies.length > 0 && (
-                        <div className="ml-9 space-y-1.5 border-l-2 border-muted pl-3">
-                          {comment.replies.map((reply) => (
-                            <div key={reply.id} className="flex items-start gap-2">
-                              <Avatar className="h-5 w-5 shrink-0 mt-0.5">
-                                <AvatarFallback className={cn('text-[8px] text-white', getAvatarColor(reply.user.id))}>
-                                  {getInitials(reply.user.name)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <span className="text-xs font-semibold">{reply.user.name} </span>
-                                <span className="text-[11px] text-muted-foreground">{relativeTime(reply.created_at)}</span>
-                                <p
-                                  className="text-[12px] text-foreground/80 leading-snug"
-                                  dangerouslySetInnerHTML={{ __html: renderBody(reply.body) }}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Reply input */}
-                      {isReplying && (
-                        <div className="ml-9">
-                          <Compose
-                            placeholder="Responder... Usa @ para mencionar"
-                            onSend={(body, mentions) => handleReply(comment.id, body, mentions)}
-                            userList={userList}
-                            autoFocus
-                            onCancel={() => setReplyingTo(null)}
-                          />
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      <div className="ml-9 flex items-center gap-1">
-                        {!isReplying && (
-                          <button
-                            type="button"
-                            onClick={() => setReplyingTo(comment.id)}
-                            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
-                          >
-                            <CornerDownLeft className="h-3 w-3" />
-                            Responder
-                          </button>
-                        )}
-                        {isMe && !showArchived && (
-                          <button
-                            type="button"
-                            onClick={() => handleArchive(comment.id)}
-                            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
-                          >
-                            <Archive className="h-3 w-3" />
-                            Archivar
-                          </button>
-                        )}
-                        {showArchived && (
-                          <button
-                            type="button"
-                            onClick={() => handleUnarchive(comment.id)}
-                            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
-                          >
-                            <ArchiveRestore className="h-3 w-3" />
-                            Desarchivar
-                          </button>
-                        )}
-                      </div>
-                    </div>
+          ) : activeTab === 'directos' ? (
+            /* ========== TAB: DIRECTOS (WhatsApp-style contact list) ========== */
+            (() => {
+              const grouped = groupDirectsByContact(comments, user?.id);
+              return grouped.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 px-8">
+                  <div className="rounded-full bg-muted p-4">
+                    <Users className="h-7 w-7 text-muted-foreground/50" />
                   </div>
-                );
-              })}
-            </div>
+                  <p className="text-sm font-medium">Sin conversaciones</p>
+                  <p className="text-xs text-muted-foreground text-center">Inicia un mensaje directo con el botón de abajo.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs gap-1.5 mt-1"
+                    onClick={() => { setDirectMode(true); setDirectUserId(null); setDirectUserName(''); }}
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Nuevo mensaje
+                  </Button>
+                </div>
+              ) : (
+                <div className="py-1">
+                  {/* New message button */}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-accent/40 transition-colors"
+                    onClick={() => { setDirectMode(true); setDirectUserId(null); setDirectUserName(''); }}
+                  >
+                    <div className="flex items-center justify-center h-9 w-9 rounded-full bg-primary/10 shrink-0">
+                      <Users className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-medium text-primary">Nuevo mensaje</span>
+                  </button>
+                  <Separator className="mx-4" />
+                  {grouped.map((comment, idx) => {
+                    const isMe = comment.user_id === user?.id;
+                    const contactId = isMe ? comment.commentable_id : comment.user_id;
+                    const contactName = isMe
+                      ? (comment.entity_reference || userList.find((u) => u.id === contactId)?.name || `Usuario #${contactId}`)
+                      : comment.user.name;
+                    return (
+                      <div key={comment.id}>
+                        {idx > 0 && <Separator className="mx-4" />}
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent/40 transition-colors"
+                          onClick={() => {
+                            setDirectMode(true);
+                            setDirectUserId(contactId);
+                            setDirectUserName(contactName);
+                          }}
+                        >
+                          <Avatar className="h-10 w-10 shrink-0">
+                            <AvatarFallback className={cn('text-xs font-semibold text-white', getAvatarColor(contactId))}>
+                              {getInitials(contactName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-semibold truncate">{contactName}</span>
+                              <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
+                            </div>
+                            <p className="text-[12px] text-muted-foreground truncate mt-0.5">
+                              {isMe ? 'Tú: ' : ''}{truncateBody(comment.body, 55)}
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
+          ) : (
+            /* ========== TAB: COMENTARIOS (grouped by entity) ========== */
+            (() => {
+              const grouped = groupByEntity(comments);
+              return grouped.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 px-8">
+                  <div className="rounded-full bg-muted p-4">
+                    <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
+                  </div>
+                  <p className="text-sm font-medium">No hay comentarios aún</p>
+                  <p className="text-xs text-muted-foreground text-center">Selecciona una entidad abajo y escribe el primer comentario.</p>
+                </div>
+              ) : (
+                <div className="py-1">
+                  {grouped.map((comment, idx) => {
+                    const info = getEntityInfo(comment.commentable_type);
+                    const isReplying = replyingTo === comment.id;
+                    const isMe = comment.user_id === user?.id;
+                    const ref = comment.entity_reference || `#${comment.commentable_id}`;
+
+                    return (
+                      <div key={comment.id}>
+                        {idx > 0 && <Separator className="mx-4" />}
+                        <div className="px-4 py-3 space-y-1.5">
+                          {/* Header row */}
+                          <div className="flex items-start gap-2.5">
+                            <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                              <AvatarFallback className={cn('text-[10px] font-semibold text-white', getAvatarColor(comment.user.id))}>
+                                {getInitials(comment.user.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-sm font-semibold">{comment.user.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCommentClick(comment)}
+                                  className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
+                                >
+                                  <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-[17px] rounded border-0 cursor-pointer', info.color)}>
+                                    {info.label}: {ref}
+                                  </Badge>
+                                  <ExternalLink className="h-3 w-3 text-muted-foreground/60" />
+                                </button>
+                                <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
+                              </div>
+                              <p
+                                className="text-[13px] text-foreground/80 leading-snug mt-0.5"
+                                dangerouslySetInnerHTML={{ __html: renderBody(truncateBody(comment.body)) }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Replies */}
+                          {comment.replies && comment.replies.length > 0 && (
+                            <div className="ml-9 space-y-1.5 border-l-2 border-muted pl-3">
+                              {comment.replies.map((reply) => (
+                                <div key={reply.id} className="flex items-start gap-2">
+                                  <Avatar className="h-5 w-5 shrink-0 mt-0.5">
+                                    <AvatarFallback className={cn('text-[8px] text-white', getAvatarColor(reply.user.id))}>
+                                      {getInitials(reply.user.name)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-semibold">{reply.user.name} </span>
+                                    <span className="text-[11px] text-muted-foreground">{relativeTime(reply.created_at)}</span>
+                                    <p
+                                      className="text-[12px] text-foreground/80 leading-snug"
+                                      dangerouslySetInnerHTML={{ __html: renderBody(reply.body) }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Reply input */}
+                          {isReplying && (
+                            <div className="ml-9">
+                              <Compose
+                                placeholder="Responder... Usa @ para mencionar"
+                                onSend={(body, mentions) => handleReply(comment.id, body, mentions)}
+                                userList={userList}
+                                autoFocus
+                                onCancel={() => setReplyingTo(null)}
+                              />
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <div className="ml-9 flex items-center gap-1">
+                            {!isReplying && (
+                              <button
+                                type="button"
+                                onClick={() => setReplyingTo(comment.id)}
+                                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+                              >
+                                <CornerDownLeft className="h-3 w-3" />
+                                Responder
+                              </button>
+                            )}
+                            {isMe && !showArchived && (
+                              <button
+                                type="button"
+                                onClick={() => handleArchive(comment.id)}
+                                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+                              >
+                                <Archive className="h-3 w-3" />
+                                Archivar
+                              </button>
+                            )}
+                            {showArchived && (
+                              <button
+                                type="button"
+                                onClick={() => handleUnarchive(comment.id)}
+                                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+                              >
+                                <ArchiveRestore className="h-3 w-3" />
+                                Desarchivar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
           )}
         </div>
 
-        {/* Compose new comment — hidden in archived view */}
-        {!showArchived && <div className="border-t bg-muted/20 p-3 space-y-2 shrink-0 rounded-b-2xl overflow-visible relative">
+        {/* Compose new comment — hidden in archived view and directos tab (when not in thread) */}
+        {!showArchived && (directMode || activeTab === 'comentarios') && <div className="border-t bg-muted/20 p-3 space-y-2 shrink-0 rounded-b-2xl overflow-visible relative">
           {directMode ? (
             /* Direct message compose */
             <Compose

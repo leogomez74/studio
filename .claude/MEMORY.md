@@ -43,6 +43,7 @@
 - **Flujo de permisos**: `/me` retorna `user` + `permissions` → `PermissionsContext` usa `/me` (NO `/users/{id}` ni `/roles/{id}` que requieren middleware admin)
 - **Bug resuelto Mar 2026**: usuarios no-admin veían sidebar vacío porque PermissionsContext llamaba endpoints con middleware `admin` → fix: usar `/me`
 - **Patrón crítico**: NUNCA mezclar `/api/users` (middleware admin) en `Promise.all` con otros endpoints — si falla uno, fallan todos. Siempre separar con try/catch propio.
+- **Alternativa para listar usuarios sin admin**: usar `/api/agents` (retorna `id`, `name` de todos los usuarios, sin middleware admin). Usado en `chat-bubble.tsx`.
 
 ---
 
@@ -152,7 +153,8 @@ class MiController extends Controller {
 - **GIF formato**: `[GIF](url)` en body del comentario, parseado en frontend
 - **Notificaciones**: click navega a `/dashboard/comunicaciones?comment_id=X` para abrir thread
 - **Mensaje directo desde burbuja**: CommentsPanel tiene botón Users en header → picker de usuarios → thread directo. Usa `activeType`/`activeId` para alternar entre modo entidad y directo
-- **Archivos clave**: `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`
+- **Burbuja chat** (`chat-bubble.tsx`): dos tabs "Directos" y "Comentarios". DMs agrupados por contacto, comentarios agrupados por entidad. Usa `/api/agents` (no `/api/users`).
+- **Archivos clave**: `chat-bubble.tsx`, `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`
 
 ---
 
