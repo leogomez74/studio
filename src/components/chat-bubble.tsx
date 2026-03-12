@@ -405,8 +405,6 @@ export function ChatBubble() {
 
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  // No longer needed — replaced by panelRef.contains() check
-  // const clickInsideRef = useRef(false);
 
   // ---- Fetch ----
   const fetchComments = useCallback(async (archived = false) => {
@@ -440,22 +438,12 @@ export function ChatBubble() {
     return () => clearInterval(iv);
   }, [isOpen, user?.id]);
 
-  // Outside click / Escape — use contains() instead of ref flag to avoid portal issues
+  // Escape to close
   useEffect(() => {
     if (!isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      // Click inside the panel or floating button → ignore
-      if (panelRef.current?.contains(target)) return;
-      if (buttonRef.current?.contains(target)) return;
-      // Click inside emoji-mart / GIF picker portals → ignore
-      if ((target as HTMLElement).closest?.('em-emoji-picker, .EmojiPickerReact, [class*="gif-picker"]')) return;
-      setIsOpen(false);
-    };
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false); };
-    document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', esc); };
+    return () => document.removeEventListener('keydown', esc);
   }, [isOpen]);
 
   // Fetch users when panel opens
@@ -608,6 +596,11 @@ export function ChatBubble() {
         )}
       </button>
 
+      {/* Backdrop — closes panel on click outside */}
+      {isOpen && (
+        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+      )}
+
       {/* Panel */}
       <div
         ref={panelRef}
@@ -617,7 +610,7 @@ export function ChatBubble() {
           'transition-all duration-300 ease-out origin-bottom-right',
           isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-2 pointer-events-none'
         )}
-        style={{ maxHeight: '680px' }}
+        style={{ height: '680px', maxHeight: 'calc(100vh - 48px)' }}
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
