@@ -56,6 +56,8 @@
 ## Convenciones importantes
 - Axios: siempre `/api/` prefix (ej: `api.get('/api/credits')`)
 - PDF estado de cuenta: filtrar SOLO cuotas `'Pagado'` o `'Pagada'`
+- PDF estado de cuenta inversiones: reconstruye capital original desde payments (safety net). Columna "Intereses Pendientes" muestra acumulado de intereses no pagados.
+- `cancelacionTotal('sin_intereses')` NO debe zerear `monto_capital` ni `interes_mensual` — el estado `Finalizada` es suficiente para marcar la devolución de capital
 - Tasa de interés: leer de `/api/loan-configurations/activas`, NO hardcodear
 - `LogsActivity` trait: usar en controllers CRUD sensibles
 
@@ -141,6 +143,18 @@ class MiController extends Controller {
 - `$hidden` en ExternalIntegration: auth_token, auth_user, auth_password excluidos de JSON
 - Sanitización errores: mensajes genéricos al cliente, detalles solo en Log::warning
 - HttpOnly cookies: diferido — requiere migración completa auth, bajo riesgo actual
+
+## Módulo Comentarios Internos (Mar 2026)
+- **Polimórfico**: comentarios en Credit, Opportunity, Lead, Client, Analisis, User (direct)
+- **Mensajes directos**: `commentable_type = 'direct'` → `App\Models\User`, `commentable_id` = user destinatario
+- **Emojis**: `@emoji-mart/react` + `@emoji-mart/data`
+- **GIFs**: `gif-picker-react` (Tenor API, key en `NEXT_PUBLIC_TENOR_API_KEY`)
+- **GIF formato**: `[GIF](url)` en body del comentario, parseado en frontend
+- **Notificaciones**: click navega a `/dashboard/comunicaciones?comment_id=X` para abrir thread
+- **Mensaje directo desde burbuja**: CommentsPanel tiene botón Users en header → picker de usuarios → thread directo. Usa `activeType`/`activeId` para alternar entre modo entidad y directo
+- **Archivos clave**: `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`
+
+---
 
 ## Deuda técnica pendiente (ver mejoras.md)
 

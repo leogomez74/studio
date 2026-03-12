@@ -19,6 +19,7 @@ class CommentController extends Controller
         'lead'        => 'App\\Models\\Lead',
         'client'      => 'App\\Models\\Client',
         'analisis'    => 'App\\Models\\Analisis',
+        'direct'      => 'App\\Models\\User',
     ];
 
     // GET /api/comments?commentable_type=credit&commentable_id=177
@@ -95,6 +96,26 @@ class CommentController extends Controller
                         ],
                     ]);
                 }
+            }
+        }
+
+        // Auto-notify recipient of direct messages
+        if ($request->commentable_type === 'direct') {
+            $recipientId = (int) $request->commentable_id;
+            if ($recipientId !== $request->user()->id) {
+                $truncatedBody = \Illuminate\Support\Str::limit($request->body, 120);
+                Notification::create([
+                    'user_id' => $recipientId,
+                    'type'    => 'direct_message',
+                    'title'   => 'Nuevo mensaje directo',
+                    'body'    => $request->user()->name . ': ' . $truncatedBody,
+                    'data'    => [
+                        'comment_id'   => $comment->id,
+                        'sender_id'    => $request->user()->id,
+                        'sender_name'  => $request->user()->name,
+                        'comment_body' => $truncatedBody,
+                    ],
+                ]);
             }
         }
 

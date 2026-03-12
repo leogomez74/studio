@@ -52,7 +52,7 @@ class InvestmentController extends Controller
             'moneda' => 'required|in:CRC,USD',
             'forma_pago' => 'required|in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
             'es_capitalizable' => 'boolean',
-            'estado' => 'in:Activa,Finalizada,Liquidada,Cancelada,Renovada',
+            'estado' => 'in:Activa,Finalizada,Liquidada,Cancelada,Renovada,Capital Devuelto',
             'notas' => 'nullable|string',
         ]);
 
@@ -94,7 +94,7 @@ class InvestmentController extends Controller
             'moneda' => 'in:CRC,USD',
             'forma_pago' => 'in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
             'es_capitalizable' => 'boolean',
-            'estado' => 'in:Activa,Finalizada,Liquidada,Cancelada,Renovada',
+            'estado' => 'in:Activa,Finalizada,Liquidada,Cancelada,Renovada,Capital Devuelto',
             'notas' => 'nullable|string',
         ]);
 
@@ -268,7 +268,7 @@ class InvestmentController extends Controller
     public function pagadas(Request $request)
     {
         $query = Investment::with('investor:id,name,cedula')
-            ->where('estado', 'Finalizada')
+            ->whereIn('estado', ['Finalizada', 'Capital Devuelto'])
             ->whereNotNull('fecha_pago_total');
 
         if ($request->has('moneda')) {

@@ -90,7 +90,7 @@
             <div class="summary-date">{{ $fechaDesde }}</div>
             <div class="summary-detail">
                 {{ $isEn ? 'Initial amount:' : 'Monto inicial:' }}
-                {{ $sym }}{{ number_format($investment->monto_capital, 2) }}
+                {{ $sym }}{{ number_format($capitalInicial, 2) }}
             </div>
         </div>
         <div class="summary-row">
@@ -98,7 +98,7 @@
             <div class="summary-date">{{ $fechaHasta }}</div>
             <div class="summary-detail">
                 {{ $isEn ? 'Initial monthly interest amount:' : 'Intereses mensuales iniciales:' }}
-                {{ $sym }}{{ number_format($investment->interes_mensual, 2) }}
+                {{ $sym }}{{ number_format($initialMonthlyInterest, 2) }}
             </div>
         </div>
         <div class="current-interest">
@@ -118,6 +118,7 @@
                 <th class="text-right">{{ $isEn ? 'Interest Payment' : 'Pago Intereses' }}</th>
                 <th class="text-right">{{ $isEn ? 'Capital Payment' : 'Pago Capital' }}</th>
                 <th class="text-right">{{ $isEn ? 'Balance' : 'Balance' }}</th>
+                <th class="text-right">{{ $isEn ? 'Pending Interest' : 'Intereses Pendientes' }}</th>
             </tr>
         </thead>
         <tbody>
@@ -130,6 +131,7 @@
                 <td class="text-right mono">{{ $row['interest_payment'] > 0 ? $sym . ' ' . number_format($row['interest_payment'], 2) : ($row['interest_payment'] == 0 && $i > 0 ? '0' : '') }}</td>
                 <td class="text-right mono">{{ $row['capital_payment'] > 0 ? $sym . ' ' . number_format($row['capital_payment'], 2) : ($row['capital_payment'] == 0 && $i > 0 ? '0' : '') }}</td>
                 <td class="text-right mono">{{ $sym . ' ' . number_format($row['balance'], 2) }}</td>
+                <td class="text-right mono">{{ $row['pending_interest'] > 0 ? $sym . ' ' . number_format($row['pending_interest'], 2) : '' }}</td>
             </tr>
             @endforeach
         </tbody>

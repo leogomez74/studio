@@ -432,6 +432,7 @@ export default function InvestmentDetailPage() {
               <SelectContent>
                 <SelectItem value="Activa">Activa</SelectItem>
                 <SelectItem value="Finalizada">Finalizada</SelectItem>
+                <SelectItem value="Capital Devuelto">Capital Devuelto</SelectItem>
                 <SelectItem value="Liquidada">Liquidada</SelectItem>
                 <SelectItem value="Cancelada">Cancelada</SelectItem>
                 <SelectItem value="Renovada">Renovada</SelectItem>
@@ -917,7 +918,7 @@ export default function InvestmentDetailPage() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Abono de Inversión</DialogTitle>
-            <DialogDescription>Se devolverá el capital completo al inversionista y la inversión pasará a estado Finalizada.</DialogDescription>
+            <DialogDescription>Se devolverá el capital completo al inversionista y la inversión pasará a estado Finalizada (o Capital Devuelto si quedan intereses pendientes).</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">

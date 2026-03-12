@@ -14,7 +14,19 @@
       "Bash(php -l c:/laragon/www/studio/backend/app/Services/ReversalService.php)",
       "Bash(php -l c:/laragon/www/studio/backend/app/Http/Controllers/Api/ReporteController.php)",
       "mcp__laravel-boost__list-routes",
-      "mcp__laravel-boost__last-error"
+      "mcp__laravel-boost__last-error",
+      "mcp__laravel-boost__database-query",
+      "Bash(find /c/laragon/www/studio -type d -name *comment* -o -type d -name *Comment*)",
+      "mcp__laravel-boost__database-schema",
+      "Bash(grep -n \"CommentsPanel\\\\|comentario\" /c/laragon/www/studio/src/app/dashboard/oportunidades/[id]/page.tsx)",
+      "Bash(grep -B 2 -A 2 \"morphMany\\\\|comments\\(\\)\" /c/laragon/www/studio/backend/app/Models/*.php)",
+      "Bash(xargs grep:*)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "mcp__laravel-boost__application-info",
+      "Bash(npx tsc:*)",
+      "Bash(php artisan:*)",
+      "Bash(node -e 'var body = \"\"[GIF]\\(https://media.tenor.com/8dGugqxC4sAAAAC/shocked-surprised.gif\\)\"\"; var pattern = /\\(@|#\\)\\\\[\\([^\\\\]]+\\)\\\\]\\\\\\(\\(\\\\w+\\):\\(\\\\d+\\)\\\\\\)|\\\\[GIF\\\\]\\\\\\(\\([^\\)]+\\)\\\\\\)/g; var m = pattern.exec\\(body\\); console.log\\(\"\"Match:\"\", m ? m[0] : \"\"none\"\"\\); console.log\\(\"\"URL:\"\", m ? m[5] : \"\"none\"\"\\);')"
     ]
   },
   "enableAllProjectMcpServers": true,

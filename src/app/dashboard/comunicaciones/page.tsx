@@ -2,7 +2,7 @@
 // 'use client' indica que es un Componente de Cliente, lo que permite usar estado y efectos.
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PermissionButton } from "@/components/PermissionButton";
@@ -32,7 +32,12 @@ import {
   Loader2,
   ArrowLeft,
   X,
+  UserPlus,
+  Image as ImageIcon,
 } from "lucide-react";
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
+import GifPicker, { TenorImage } from 'gif-picker-react';
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -59,19 +64,33 @@ interface InternalComment {
   created_at: string; archived_at?: string | null;
 }
 
+const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+
 const COMMENT_ENTITY_MAP: Record<string, { label: string; route: string; color: string; apiType: string }> = {
   'App\\Models\\Credit':      { label: 'Crédito',     route: '/dashboard/creditos',      color: 'bg-emerald-100 text-emerald-700', apiType: 'credit' },
   'App\\Models\\Opportunity': { label: 'Oportunidad', route: '/dashboard/oportunidades', color: 'bg-blue-100 text-blue-700',       apiType: 'opportunity' },
   'App\\Models\\Lead':        { label: 'Lead',        route: '/dashboard/leads',          color: 'bg-violet-100 text-violet-700',  apiType: 'lead' },
   'App\\Models\\Client':      { label: 'Cliente',     route: '/dashboard/leads',          color: 'bg-amber-100 text-amber-700',    apiType: 'client' },
   'App\\Models\\Analisis':    { label: 'Análisis',    route: '/dashboard/analizados',     color: 'bg-cyan-100 text-cyan-700',      apiType: 'analisis' },
+  'App\\Models\\User':        { label: 'Directo',     route: '',                          color: 'bg-orange-100 text-orange-700',  apiType: 'direct' },
 };
 const AVATAR_COLORS = ['bg-blue-500','bg-emerald-500','bg-violet-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-indigo-500','bg-teal-500'];
 function getInitials(n: string) { return n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
 function getAvatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
 function relativeTime(d: string) { const diff=Date.now()-new Date(d).getTime(); const m=Math.floor(diff/60000); const h=Math.floor(m/60); const dy=Math.floor(h/24); if(m<1)return'ahora'; if(m<60)return`${m}m`; if(h<24)return`${h}h`; if(dy===1)return'ayer'; return`${dy}d`; }
 function getEntityInfo(t: string) { return COMMENT_ENTITY_MAP[t] ?? { label:'Entidad', route:'/dashboard', color:'bg-gray-100 text-gray-700', apiType:'' }; }
-function renderBody(body: string) { return body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_,l)=>`<span class="font-semibold text-primary">${l}</span>`); }
+function renderBody(body: string) {
+  return body
+    .replace(/\[GIF\]\(([^)]+)\)/g, (_, url: string) => `<img src="${url}" alt="GIF" class="rounded-lg max-w-[220px] max-h-[160px] object-cover mt-1 block" loading="lazy" />`)
+    .replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, l: string) => `<span class="font-semibold text-primary">${l}</span>`);
+}
+
+/** Clean body for preview: strip mentions, show "GIF" instead of link */
+function previewBody(body: string): string {
+  return body
+    .replace(/\[GIF\]\([^)]+\)/g, '🎞 GIF')
+    .replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, l: string) => l);
+}
 
 const NEW_ENTITY_TARGETS = [
   { key: 'credit',      label: 'Crédito' },
@@ -99,6 +118,7 @@ type Conversation = {
 export default function CommunicationsPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
 
   // --- Inbox view toggle ---
@@ -145,6 +165,23 @@ export default function CommunicationsPage() {
   const [userFilter, setUserFilter] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
   const newTextRef = useRef<HTMLTextAreaElement>(null);
+
+  // --- Mensaje directo ---
+  const [composingDirect, setComposingDirect] = useState(false);
+  const [directRecipient, setDirectRecipient] = useState<any>(null);
+  const [directSearch, setDirectSearch] = useState('');
+  const [directText, setDirectText] = useState('');
+  const [sendingDirect, setSendingDirect] = useState(false);
+
+  // --- Emoji & GIF pickers ---
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [replyShowEmoji, setReplyShowEmoji] = useState(false);
+  const [replyShowGif, setReplyShowGif] = useState(false);
+  const [directShowEmoji, setDirectShowEmoji] = useState(false);
+  const [directShowGif, setDirectShowGif] = useState(false);
+  const emojiContainerRef = useRef<HTMLDivElement>(null);
+  const gifContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get('/api/users').then((r) => setUserList(Array.isArray(r.data) ? r.data : r.data.data ?? [])).catch(() => {});
@@ -214,6 +251,65 @@ export default function CommunicationsPage() {
     } catch { /* silent */ } finally { setSendingNew(false); }
   };
 
+  // --- Send direct message ---
+  const handleSendDirect = async () => {
+    if (!directText.trim() || !directRecipient) return;
+    setSendingDirect(true);
+    try {
+      await api.post('/api/comments', {
+        commentable_type: 'direct',
+        commentable_id: directRecipient.id,
+        body: directText,
+        mentions: [{ type: 'user', id: directRecipient.id, label: directRecipient.name }],
+      });
+      setDirectText('');
+      setDirectRecipient(null);
+      setComposingDirect(false);
+      fetchAllComments(commentsView === 'archived');
+    } catch { /* silent */ } finally { setSendingDirect(false); }
+  };
+
+  // --- Send GIF in context ---
+  const handleSendGif = async (gif: TenorImage, context: 'new' | 'reply' | 'direct') => {
+    const gifUrl = gif.url;
+    if (!gifUrl) return;
+    try {
+      if (context === 'new' && newEntity) {
+        await api.post('/api/comments', {
+          commentable_type: newEntity.type,
+          commentable_id: newEntity.id,
+          body: `[GIF](${gifUrl})`,
+          mentions: [],
+        });
+        fetchAllComments(commentsView === 'archived');
+      } else if (context === 'reply' && selectedThread) {
+        const info = getEntityInfo(selectedThread.commentable_type);
+        await api.post('/api/comments', {
+          commentable_type: info.apiType || selectedThread.commentable_type,
+          commentable_id: selectedThread.commentable_id,
+          body: `[GIF](${gifUrl})`,
+        });
+        fetchThreadComments(selectedThread);
+        fetchAllComments(commentsView === 'archived');
+      } else if (context === 'direct' && directRecipient) {
+        await api.post('/api/comments', {
+          commentable_type: 'direct',
+          commentable_id: directRecipient.id,
+          body: `[GIF](${gifUrl})`,
+          mentions: [{ type: 'user', id: directRecipient.id, label: directRecipient.name }],
+        });
+        fetchAllComments(commentsView === 'archived');
+      }
+    } catch { /* silent */ }
+    setShowGifPicker(false);
+    setReplyShowGif(false);
+    setDirectShowGif(false);
+  };
+
+  const filteredDirectUsers = userList.filter((u: any) =>
+    (u.name?.toLowerCase().includes(directSearch.toLowerCase()) || u.email?.toLowerCase().includes(directSearch.toLowerCase())) && u.id !== user?.id
+  ).slice(0, 8);
+
   const filteredMentionUsers = userList.filter((u: any) =>
     u.name?.toLowerCase().includes(userFilter) || u.email?.toLowerCase().includes(userFilter)
   ).slice(0, 6);
@@ -223,7 +319,34 @@ export default function CommunicationsPage() {
     try {
       const res = await api.get('/api/comments/recent', { params: { limit: 50, archived } });
       const data: InternalComment[] = Array.isArray(res.data) ? res.data : res.data.data ?? [];
-      setAllComments(data);
+
+      // Group direct messages by recipient (commentable_id) — show only the most recent one per user
+      const directGroups = new Map<number, InternalComment>();
+      const nonDirect: InternalComment[] = [];
+
+      for (const c of data) {
+        if (c.commentable_type === 'App\\Models\\User') {
+          const key = c.commentable_id;
+          const existing = directGroups.get(key);
+          if (!existing || new Date(c.created_at) > new Date(existing.created_at)) {
+            // Count replies from all messages to this user
+            const totalReplies = (existing?.replies?.length ?? 0) + (c.replies?.length ?? 0);
+            const grouped = { ...c };
+            if (totalReplies > 0) {
+              grouped.replies = Array(totalReplies).fill(null) as any; // placeholder for count
+            }
+            directGroups.set(key, grouped);
+          }
+        } else {
+          nonDirect.push(c);
+        }
+      }
+
+      // Merge: direct groups + non-direct, sorted by created_at desc
+      const merged = [...nonDirect, ...directGroups.values()]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setAllComments(merged);
     } catch { /* silent */ } finally { setLoadingComments(false); }
   }, []);
 
@@ -243,6 +366,41 @@ export default function CommunicationsPage() {
   useEffect(() => {
     if (activeInbox === 'comments') fetchAllComments(commentsView === 'archived');
   }, [activeInbox, commentsView, fetchAllComments]);
+
+  // Auto-open thread from URL params (notification click)
+  useEffect(() => {
+    const commentId = searchParams.get('comment_id');
+    const type = searchParams.get('type');
+    const entityId = searchParams.get('entity_id');
+    if (commentId && type && entityId) {
+      setActiveInbox('comments');
+      // Fetch the specific thread
+      const fakeComment: InternalComment = {
+        id: Number(commentId),
+        body: '',
+        user: { id: 0, name: '' },
+        user_id: 0,
+        commentable_type: COMMENT_ENTITY_MAP[type]
+          ? Object.keys(COMMENT_ENTITY_MAP).find(k => COMMENT_ENTITY_MAP[k].apiType === type) || type
+          : type,
+        commentable_id: Number(entityId),
+        created_at: '',
+      };
+      // Map simple type to full class name for fetching
+      const typeToClass: Record<string, string> = {
+        credit: 'App\\Models\\Credit',
+        opportunity: 'App\\Models\\Opportunity',
+        lead: 'App\\Models\\Lead',
+        client: 'App\\Models\\Client',
+        analisis: 'App\\Models\\Analisis',
+        direct: 'App\\Models\\User',
+      };
+      fakeComment.commentable_type = typeToClass[type] || type;
+      fetchThreadComments(fakeComment);
+      // Clean URL params
+      router.replace('/dashboard/comunicaciones', { scroll: false });
+    }
+  }, [searchParams]);
 
   const handleSendReply = async () => {
     if (!replyText.trim() || !selectedThread) return;
@@ -481,14 +639,25 @@ export default function CommunicationsPage() {
                 </button>
               </div>
               {commentsView === 'active' && (
-                <Button
-                  size="sm"
-                  className="w-full gap-2"
-                  onClick={() => { setComposingNew(true); setSelectedThread(null); }}
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Nuevo comentario
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-2"
+                    onClick={() => { setComposingNew(true); setComposingDirect(false); setSelectedThread(null); }}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Nuevo comentario
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={() => { setComposingDirect(true); setComposingNew(false); setSelectedThread(null); }}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Mensaje directo
+                  </Button>
+                </div>
               )}
             </div>
           )}
@@ -507,6 +676,7 @@ export default function CommunicationsPage() {
                   .filter((c) => !commentSearch || c.body.toLowerCase().includes(commentSearch.toLowerCase()) || (c.entity_reference || '').toLowerCase().includes(commentSearch.toLowerCase()))
                   .map((comment) => {
                     const info = getEntityInfo(comment.commentable_type);
+                    const isDirect = comment.commentable_type === 'App\\Models\\User';
                     const ref = comment.entity_reference || `#${comment.commentable_id}`;
                     const isSelected = selectedThread?.id === comment.id;
                     return (
@@ -519,22 +689,24 @@ export default function CommunicationsPage() {
                         )}
                       >
                         <Avatar className="h-9 w-9 shrink-0">
-                          <AvatarFallback className={cn('text-[11px] text-white', getAvatarColor(comment.user.id))}>
-                            {getInitials(comment.user.name)}
+                          <AvatarFallback className={cn('text-[11px] text-white', getAvatarColor(isDirect ? comment.commentable_id : comment.user.id))}>
+                            {isDirect ? getInitials(ref) : getInitials(comment.user.name)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 justify-between">
-                            <span className="text-sm font-semibold truncate">{comment.user.name}</span>
+                            <span className="text-sm font-semibold truncate">
+                              {isDirect ? ref : comment.user.name}
+                            </span>
                             <span className="text-[11px] text-muted-foreground shrink-0">{relativeTime(comment.created_at)}</span>
                           </div>
                           <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-[16px] rounded border-0 mt-0.5', info.color)}>
-                            {info.label}: {ref}
+                            {isDirect ? 'Mensaje directo' : `${info.label}: ${ref}`}
                           </Badge>
                           <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            {comment.body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, l) => l)}
+                            {isDirect ? `${comment.user.name}: ` : ''}{previewBody(comment.body)}
                           </p>
-                          {(comment.replies?.length ?? 0) > 0 && (
+                          {!isDirect && (comment.replies?.length ?? 0) > 0 && (
                             <span className="text-[10px] text-muted-foreground">{comment.replies!.length} respuesta{comment.replies!.length > 1 ? 's' : ''}</span>
                           )}
                         </div>
@@ -588,7 +760,142 @@ export default function CommunicationsPage() {
 
         {/* ----- COMMENTS THREAD PANEL ----- */}
         {activeInbox === 'comments' ? (
-          composingNew ? (
+          composingDirect ? (
+            /* ---- DIRECT MESSAGE COMPOSE PANEL ---- */
+            <div className="flex flex-col h-full">
+              <div className="p-4 border-b flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-orange-500" />
+                    Mensaje directo
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Envía un mensaje a otro usuario</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setComposingDirect(false); setDirectRecipient(null); setDirectText(''); setDirectSearch(''); }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+                {/* Recipient selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Destinatario</label>
+                  {directRecipient ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-sm gap-1.5 px-2 py-1 bg-orange-100 text-orange-700">
+                        <UserPlus className="h-3.5 w-3.5" />
+                        {directRecipient.name}
+                      </Badge>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => { setDirectRecipient(null); setDirectSearch(''); }}>
+                        Cambiar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <input
+                          autoFocus
+                          placeholder="Buscar usuario..."
+                          className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border bg-background outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                          value={directSearch}
+                          onChange={(e) => setDirectSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="border rounded-lg max-h-48 overflow-auto">
+                        {filteredDirectUsers.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center py-4">
+                            {directSearch ? 'No se encontraron usuarios' : 'Escribe para buscar'}
+                          </p>
+                        ) : (
+                          filteredDirectUsers.map((u: any) => (
+                            <button
+                              key={u.id}
+                              className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2.5 border-b last:border-0"
+                              onClick={() => { setDirectRecipient(u); setDirectSearch(''); }}
+                            >
+                              <Avatar className="h-7 w-7">
+                                <AvatarFallback className={cn('text-[10px] text-white', getAvatarColor(u.id))}>
+                                  {getInitials(u.name || 'U')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <span className="font-medium">{u.name}</span>
+                                {u.email && <span className="text-xs text-muted-foreground ml-2">{u.email}</span>}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Message textarea */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mensaje</label>
+                  <div className="relative">
+                    <textarea
+                      disabled={!directRecipient}
+                      placeholder={directRecipient ? 'Escribe tu mensaje...' : 'Selecciona un destinatario primero'}
+                      className={cn(
+                        'w-full resize-none rounded-lg border bg-background px-3 py-3 text-sm',
+                        'outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary',
+                        'min-h-[120px] disabled:opacity-50 disabled:cursor-not-allowed'
+                      )}
+                      rows={5}
+                      value={directText}
+                      onChange={(e) => setDirectText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSendDirect(); }
+                      }}
+                    />
+                    {/* Emoji/GIF buttons */}
+                    {directRecipient && (
+                      <div className="absolute bottom-2 right-2 flex gap-1">
+                        <div className="relative">
+                          <Button variant="ghost" size="icon" className={cn("h-7 w-7", directShowEmoji && "bg-accent")}
+                            onClick={() => { setDirectShowEmoji(!directShowEmoji); setDirectShowGif(false); }}>
+                            <Smile className="h-3.5 w-3.5" />
+                          </Button>
+                          {directShowEmoji && (
+                            <div className="absolute bottom-full right-0 mb-1 z-50">
+                              <Picker data={data} onEmojiSelect={(emoji: any) => {
+                                if (emoji.native) setDirectText(prev => prev + emoji.native);
+                                setDirectShowEmoji(false);
+                              }} theme="light" locale="es" previewPosition="none" skinTonePosition="none" maxFrequentRows={2} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Button variant="ghost" size="icon" className={cn("h-7 w-7", directShowGif && "bg-accent")}
+                            onClick={() => { setDirectShowGif(!directShowGif); setDirectShowEmoji(false); }}>
+                            <ImageIcon className="h-3.5 w-3.5" />
+                          </Button>
+                          {directShowGif && (
+                            <div className="absolute bottom-full right-0 mb-1 z-50">
+                              <GifPicker tenorApiKey={TENOR_API_KEY} onGifClick={(gif: TenorImage) => handleSendGif(gif, 'direct')} locale="es" width={320} height={400} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Ctrl+Enter para enviar</p>
+                </div>
+              </div>
+
+              <div className="p-4 border-t bg-background shrink-0 flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => { setComposingDirect(false); setDirectRecipient(null); setDirectText(''); }}>
+                  Cancelar
+                </Button>
+                <Button disabled={!directText.trim() || !directRecipient || sendingDirect} onClick={handleSendDirect} className="gap-2">
+                  {sendingDirect ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Enviar mensaje
+                </Button>
+              </div>
+            </div>
+          ) : composingNew ? (
             /* ---- NEW COMMENT COMPOSE PANEL ---- */
             <div className="flex flex-col h-full">
               <div className="p-4 border-b flex items-center justify-between shrink-0">
@@ -718,8 +1025,45 @@ export default function CommunicationsPage() {
                         ))}
                       </div>
                     )}
+                    {/* Emoji/GIF for new comment */}
+                    {newEntity && (
+                      <div className="absolute bottom-2 right-2 flex gap-1">
+                        <div className="relative">
+                          <Button variant="ghost" size="icon" className={cn("h-7 w-7", showEmojiPicker && "bg-accent")}
+                            onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); }}>
+                            <Smile className="h-3.5 w-3.5" />
+                          </Button>
+                          {showEmojiPicker && (
+                            <div className="absolute bottom-full right-0 mb-1 z-50">
+                              <Picker data={data} onEmojiSelect={(emoji: any) => {
+                                if (emoji.native) setNewText(prev => prev + emoji.native);
+                                setShowEmojiPicker(false);
+                              }} theme="light" locale="es" previewPosition="none" skinTonePosition="none" maxFrequentRows={2} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Button variant="ghost" size="icon" className={cn("h-7 w-7", showGifPicker && "bg-accent")}
+                            onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}>
+                            <ImageIcon className="h-3.5 w-3.5" />
+                          </Button>
+                          {showGifPicker && (
+                            <div className="absolute bottom-full right-0 mb-1 z-50">
+                              <GifPicker tenorApiKey={TENOR_API_KEY} onGifClick={(gif: TenorImage) => handleSendGif(gif, 'new')} locale="es" width={320} height={400} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Usa @ para mencionar · Ctrl+Enter para enviar</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    <kbd className="font-mono text-[10px] border rounded px-1 py-0.5 bg-muted">@</kbd> mencionar
+                    <span className="mx-1 text-muted-foreground/40">|</span>
+                    <Smile className="inline h-3 w-3" /> emojis
+                    <ImageIcon className="inline h-3 w-3 ml-1" /> GIFs
+                    <span className="mx-1 text-muted-foreground/40">|</span>
+                    Ctrl+Enter para enviar
+                  </p>
                 </div>
 
                 {/* Mentions preview */}
@@ -752,9 +1096,14 @@ export default function CommunicationsPage() {
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground gap-3">
               <MessageCircle className="h-10 w-10 opacity-20" />
               <p>Selecciona un comentario o crea uno nuevo</p>
-              <Button size="sm" variant="outline" className="gap-2 mt-1" onClick={() => setComposingNew(true)}>
-                <PlusCircle className="h-4 w-4" /> Nuevo comentario
-              </Button>
+              <div className="flex gap-2 mt-1">
+                <Button size="sm" variant="outline" className="gap-2" onClick={() => { setComposingNew(true); setComposingDirect(false); }}>
+                  <PlusCircle className="h-4 w-4" /> Comentario
+                </Button>
+                <Button size="sm" variant="outline" className="gap-2" onClick={() => { setComposingDirect(true); setComposingNew(false); }}>
+                  <UserPlus className="h-4 w-4" /> Mensaje directo
+                </Button>
+              </div>
             </div>
           ) : (
             <>
@@ -763,23 +1112,32 @@ export default function CommunicationsPage() {
                 <div className="flex items-center gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className={cn('text-xs border-0', getEntityInfo(selectedThread.commentable_type).color)}>
-                        {getEntityInfo(selectedThread.commentable_type).label}: {selectedThread.entity_reference || `#${selectedThread.commentable_id}`}
-                      </Badge>
+                      {selectedThread.commentable_type === 'App\\Models\\User' ? (
+                        <Badge variant="secondary" className="text-xs border-0 bg-orange-100 text-orange-700 gap-1">
+                          <UserPlus className="h-3 w-3" />
+                          Mensaje directo: {selectedThread.entity_reference || `Usuario #${selectedThread.commentable_id}`}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className={cn('text-xs border-0', getEntityInfo(selectedThread.commentable_type).color)}>
+                          {getEntityInfo(selectedThread.commentable_type).label}: {selectedThread.entity_reference || `#${selectedThread.commentable_id}`}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {(threadComments.length || 1)} comentario{(threadComments.length || 1) !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" className="gap-1 text-xs"
-                  onClick={() => {
-                    const info = getEntityInfo(selectedThread.commentable_type);
-                    router.push(`${info.route}/${selectedThread.commentable_id}`);
-                  }}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> Ver entidad
-                </Button>
+                {selectedThread.commentable_type !== 'App\\Models\\User' && (
+                  <Button variant="ghost" size="sm" className="gap-1 text-xs"
+                    onClick={() => {
+                      const info = getEntityInfo(selectedThread.commentable_type);
+                      router.push(`${info.route}/${selectedThread.commentable_id}`);
+                    }}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Ver entidad
+                  </Button>
+                )}
               </div>
 
               {/* Thread messages */}
@@ -829,7 +1187,22 @@ export default function CommunicationsPage() {
               </div>
 
               {/* Reply compose */}
-              <div className="p-3 border-t bg-background shrink-0">
+              <div className="p-3 border-t bg-background shrink-0 relative">
+                {/* Reply emoji picker */}
+                {replyShowEmoji && (
+                  <div className="absolute bottom-full right-12 mb-1 z-50">
+                    <Picker data={data} onEmojiSelect={(emoji: any) => {
+                      if (emoji.native) setReplyText(prev => prev + emoji.native);
+                      setReplyShowEmoji(false);
+                    }} theme="light" locale="es" previewPosition="none" skinTonePosition="none" maxFrequentRows={2} />
+                  </div>
+                )}
+                {/* Reply GIF picker */}
+                {replyShowGif && (
+                  <div className="absolute bottom-full right-12 mb-1 z-50">
+                    <GifPicker tenorApiKey={TENOR_API_KEY} onGifClick={(gif: TenorImage) => handleSendGif(gif, 'reply')} locale="es" width={320} height={400} />
+                  </div>
+                )}
                 <div className="flex items-end gap-2">
                   <textarea
                     placeholder="Escribe un comentario..."
@@ -839,12 +1212,22 @@ export default function CommunicationsPage() {
                     onChange={(e) => setReplyText(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
                   />
-                  <Button size="icon" className="h-9 w-9 rounded-lg shrink-0"
-                    disabled={!replyText.trim() || sendingReply}
-                    onClick={handleSendReply}
-                  >
-                    {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-lg", replyShowEmoji && "bg-accent")}
+                      onClick={() => { setReplyShowEmoji(!replyShowEmoji); setReplyShowGif(false); }}>
+                      <Smile className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-lg", replyShowGif && "bg-accent")}
+                      onClick={() => { setReplyShowGif(!replyShowGif); setReplyShowEmoji(false); }}>
+                      <ImageIcon className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="icon" className="h-9 w-9 rounded-lg"
+                      disabled={!replyText.trim() || sendingReply}
+                      onClick={handleSendReply}
+                    >
+                      {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>

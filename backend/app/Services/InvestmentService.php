@@ -146,6 +146,17 @@ class InvestmentService
             'moneda' => $investment->moneda,
         ]);
 
+        // Si el capital ya fue devuelto y no quedan cupones pendientes → Finalizada
+        if ($investment->estado === 'Capital Devuelto') {
+            $pendingCoupons = $investment->coupons()
+                ->whereIn('estado', ['Pendiente', 'Reservado'])
+                ->exists();
+
+            if (! $pendingCoupons) {
+                $investment->update(['estado' => 'Finalizada']);
+            }
+        }
+
         return $coupon;
     }
 
@@ -539,15 +550,16 @@ class InvestmentService
             ]);
 
             $updateData = [
-                'estado' => 'Finalizada',
                 'fecha_pago_total' => now(),
                 'tipo_cancelacion_total' => $tipo,
             ];
 
-            // When only capital is returned, zero out capital and monthly interest
-            if ($tipo === 'sin_intereses') {
-                $updateData['monto_capital'] = 0;
-                $updateData['interes_mensual'] = 0;
+            if ($tipo === 'con_intereses') {
+                // Capital + intereses pagados → inversión completamente finalizada
+                $updateData['estado'] = 'Finalizada';
+            } else {
+                // Solo capital devuelto, intereses pendientes → estado intermedio
+                $updateData['estado'] = 'Capital Devuelto';
             }
 
             $investment->update($updateData);

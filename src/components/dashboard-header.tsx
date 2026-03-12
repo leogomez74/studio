@@ -61,11 +61,13 @@ const ENTITY_ROUTES: Record<string, string> = {
   'App\\Models\\Lead': '/dashboard/leads',
   'App\\Models\\Client': '/dashboard/clientes',
   'App\\Models\\Analisis': '/dashboard/analisis',
+  'App\\Models\\User': '/dashboard/comunicaciones',
   'credit': '/dashboard/creditos',
   'opportunity': '/dashboard/oportunidades',
   'lead': '/dashboard/leads',
   'client': '/dashboard/clientes',
   'analisis': '/dashboard/analisis',
+  'direct': '/dashboard/comunicaciones',
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -347,10 +349,14 @@ export function DashboardHeader() {
   }, [toast]);
 
   const handleNotificationClick = useCallback((notification: CommentNotification) => {
+    const commentId = notification.data?.comment_id;
     const commentableType = notification.data?.commentable_type;
     const commentableId = notification.data?.commentable_id;
 
-    if (commentableType && commentableId) {
+    // Navigate to comunicaciones page with the comment thread open
+    if (commentId) {
+      router.push(`/dashboard/comunicaciones?comment_id=${commentId}&type=${commentableType}&entity_id=${commentableId}`);
+    } else if (commentableType && commentableId) {
       const route = ENTITY_ROUTES[commentableType] || '/dashboard';
       router.push(`${route}/${commentableId}`);
     }

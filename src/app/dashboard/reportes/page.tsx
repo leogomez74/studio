@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { FileSpreadsheet, FileText, RefreshCw, AlertTriangle, CheckCircle, XCircle, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, FileText, RefreshCw, AlertTriangle, CheckCircle, XCircle, ArrowLeftRight, Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ const FIRST_OF_MONTH = new Date(new Date().getFullYear(), new Date().getMonth(),
   .toISOString().split('T')[0];
 
 const CHART_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+const ROWS_PER_PAGE = 25;
 const PIE_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -170,6 +171,25 @@ function ExportButtons({ onExcel, onPdf, loadingExcel, loadingPdf, noPdf }: {
   );
 }
 
+function TablePagination({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
+  const totalPages = Math.ceil(total / ROWS_PER_PAGE);
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-4 py-2 border-t text-sm text-muted-foreground">
+      <span>{(page - 1) * ROWS_PER_PAGE + 1}–{Math.min(page * ROWS_PER_PAGE, total)} de {total}</span>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="sm" onClick={() => onChange(page - 1)} disabled={page === 1}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="px-2">Página {page} de {totalPages}</span>
+        <Button variant="ghost" size="sm" onClick={() => onChange(page + 1)} disabled={page === totalPages}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── TAB 1: Cartera Activa ────────────────────────────────────────────────────
 
 function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
@@ -180,6 +200,10 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
   const [error, setError] = useState('');
   const [loadingXls, setLoadingXls] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [minSaldo, setMinSaldo] = useState('');
+  const [maxSaldo, setMaxSaldo] = useState('');
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -190,6 +214,10 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
       if (estado !== 'all') p.set('estado', estado);
       const r = await api.get('/api/reportes/cartera?' + p.toString());
       setData(r.data);
+      setPage(1);
+      setSearch('');
+      setMinSaldo('');
+      setMaxSaldo('');
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al cargar la cartera.';
       setError(msg);
@@ -205,6 +233,13 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
   })) : [];
 
   const chartConfig = { saldo: { label: 'Saldo', color: 'hsl(var(--chart-1))' } };
+
+  const filteredCartera = data ? data.data.filter(r => {
+    if (search && ![r.cliente, r.cedula, r.referencia].join(' ').toLowerCase().includes(search.toLowerCase())) return false;
+    if (minSaldo !== '' && r.saldo < parseFloat(minSaldo)) return false;
+    if (maxSaldo !== '' && r.saldo > parseFloat(maxSaldo)) return false;
+    return true;
+  }) : [];
 
   const doExcel = async () => {
     setLoadingXls(true);
@@ -258,6 +293,33 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
         <Button variant="outline" size="sm" onClick={fetch} disabled={loading}>
           <RefreshCw className="h-4 w-4 mr-1" /> Actualizar
         </Button>
+        <FilterField label="Buscar">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Cliente, cédula, referencia…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="pl-7 w-[220px]"
+            />
+          </div>
+        </FilterField>
+        <FilterField label="Saldo mín.">
+          <Input
+            type="number" min={0} placeholder="0"
+            value={minSaldo}
+            onChange={e => { setMinSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
+        </FilterField>
+        <FilterField label="Saldo máx.">
+          <Input
+            type="number" min={0} placeholder="Sin límite"
+            value={maxSaldo}
+            onChange={e => { setMaxSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
+        </FilterField>
         <ExportButtons onExcel={doExcel} onPdf={doPdf} loadingExcel={loadingXls} loadingPdf={loadingPdf} />
       </FilterRow>
 
@@ -300,7 +362,7 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
           )}
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">Detalle — {data.data.length} créditos</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Detalle — {filteredCartera.length}{(search || minSaldo || maxSaldo) ? ` de ${data.data.length}` : ''} créditos</CardTitle></CardHeader>
             <CardContent className="p-0">
               <ScrollableTableContainer>
                 <Table>
@@ -321,9 +383,9 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
                   <TableBody>
                     {loading ? (
                       <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Cargando…</TableCell></TableRow>
-                    ) : data.data.length === 0 ? (
-                      <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Sin resultados</TableCell></TableRow>
-                    ) : data.data.map(r => (
+                    ) : filteredCartera.length === 0 ? (
+                      <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">{search ? 'Sin resultados para la búsqueda' : 'Sin resultados'}</TableCell></TableRow>
+                    ) : filteredCartera.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE).map(r => (
                       <TableRow key={r.id}>
                         <TableCell className="font-mono text-xs">{r.referencia}</TableCell>
                         <TableCell>{r.cliente}</TableCell>
@@ -346,6 +408,7 @@ function CarteraTab({ deductoras }: { deductoras: Deductora[] }) {
                   </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePagination page={page} total={filteredCartera.length} onChange={setPage} />
             </CardContent>
           </Card>
         </>
@@ -365,10 +428,18 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
   const [error, setError] = useState('');
   const [loadingXls, setLoadingXls] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [minSaldo, setMinSaldo] = useState('');
+  const [maxSaldo, setMaxSaldo] = useState('');
 
   const fetch = useCallback(async () => {
     setLoading(true);
     setError('');
+    setSearch('');
+    setPage(1);
+    setMinSaldo('');
+    setMaxSaldo('');
     try {
       const p = new URLSearchParams();
       if (deductoraId !== 'all') p.set('deductora_id', deductoraId);
@@ -380,6 +451,13 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
   }, [deductoraId]);
 
   useEffect(() => { fetch(); }, [fetch]);
+
+  const filteredMora = data ? data.data.filter(r => {
+    if (search && ![r.cliente, r.cedula, r.referencia].join(' ').toLowerCase().includes(search.toLowerCase())) return false;
+    if (minSaldo !== '' && r.saldo < parseFloat(minSaldo)) return false;
+    if (maxSaldo !== '' && r.saldo > parseFloat(maxSaldo)) return false;
+    return true;
+  }) : [];
 
   const chartData = RANGOS.map(r => ({
     rango: r.replace(' días', ''), saldo: data?.por_rango?.[r]?.saldo ?? 0, count: data?.por_rango?.[r]?.count ?? 0,
@@ -413,6 +491,33 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
               {deductoras.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.nombre}</SelectItem>)}
             </SelectContent>
           </Select>
+        </FilterField>
+        <FilterField label="Buscar">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Cliente, cédula, ref…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="pl-7 w-[200px] h-8 text-sm"
+            />
+          </div>
+        </FilterField>
+        <FilterField label="Saldo mín.">
+          <Input
+            type="number" min={0} placeholder="0"
+            value={minSaldo}
+            onChange={e => { setMinSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
+        </FilterField>
+        <FilterField label="Saldo máx.">
+          <Input
+            type="number" min={0} placeholder="Sin límite"
+            value={maxSaldo}
+            onChange={e => { setMaxSaldo(e.target.value); setPage(1); }}
+            className="w-[110px] h-8 text-sm"
+          />
         </FilterField>
         <Button variant="outline" size="sm" onClick={fetch} disabled={loading}>
           <RefreshCw className="h-4 w-4 mr-1" /> Actualizar
@@ -455,7 +560,11 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">Detalle — {data.data.length} créditos en mora</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-sm">
+                Detalle — {(search || minSaldo || maxSaldo) ? `${filteredMora.length} de ${data.data.length}` : data.data.length} créditos en mora
+              </CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <ScrollableTableContainer>
                 <Table>
@@ -476,9 +585,9 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
                   <TableBody>
                     {loading ? (
                       <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Cargando…</TableCell></TableRow>
-                    ) : data.data.length === 0 ? (
-                      <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Sin créditos en mora</TableCell></TableRow>
-                    ) : data.data.map(r => (
+                    ) : filteredMora.length === 0 ? (
+                      <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">{search ? 'Sin resultados para la búsqueda' : 'Sin créditos en mora'}</TableCell></TableRow>
+                    ) : filteredMora.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE).map(r => (
                       <TableRow key={r.id}>
                         <TableCell className="font-mono text-xs">{r.referencia}</TableCell>
                         <TableCell>{r.cliente}</TableCell>
@@ -495,6 +604,7 @@ function MoraTab({ deductoras }: { deductoras: Deductora[] }) {
                   </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePagination page={page} total={filteredMora.length} onChange={setPage} />
             </CardContent>
           </Card>
         </>
@@ -857,10 +967,14 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
   const [error, setError] = useState('');
   const [loadingXls, setLoadingXls] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
 
   const fetch = useCallback(async () => {
     setLoading(true);
     setError('');
+    setSearch('');
+    setPage(1);
     try {
       const p = new URLSearchParams({ desde, hasta });
       if (source !== 'all') p.set('source', source);
@@ -873,6 +987,10 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
   }, [desde, hasta, source, deductoraId]);
 
   useEffect(() => { fetch(); }, [fetch]);
+
+  const filteredCobros = data ? data.data.filter(r =>
+    !search || [r.cliente, r.cedula, r.referencia].join(' ').toLowerCase().includes(search.toLowerCase())
+  ) : [];
 
   const areaData = data ? Object.entries(data.por_fecha).map(([fecha, monto]) => ({ fecha: fecha.substring(5), monto })) : [];
   const areaConfig = { monto: { label: 'Cobrado', color: 'hsl(var(--chart-1))' } };
@@ -913,6 +1031,17 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
               {deductoras.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.nombre}</SelectItem>)}
             </SelectContent>
           </Select>
+        </FilterField>
+        <FilterField label="Buscar">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Cliente, cédula, ref…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="pl-7 w-[200px] h-8 text-sm"
+            />
+          </div>
         </FilterField>
         <Button variant="outline" size="sm" onClick={fetch} disabled={loading}>
           <RefreshCw className="h-4 w-4 mr-1" /> Actualizar
@@ -957,8 +1086,49 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
             </Card>
           )}
 
+          {data.por_fuente && Object.keys(data.por_fuente).length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Distribución por Fuente de Cobro</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-4 items-center">
+                  <div className="flex justify-center">
+                    <PieChart width={260} height={200}>
+                      <Pie
+                        data={Object.entries(data.por_fuente).map(([name, v]) => ({ name, value: v.total, count: v.count }))}
+                        dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine fontSize={10}
+                      >
+                        {Object.keys(data.por_fuente).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => fmt(Number(v))} />
+                    </PieChart>
+                  </div>
+                  <div className="space-y-2">
+                    {Object.entries(data.por_fuente).map(([name, v], i) => (
+                      <div key={name} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                          <span>{name}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-medium text-xs">{fmt(v.total)}</span>
+                          <span className="text-muted-foreground text-xs ml-2">({v.count} pagos)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
-            <CardHeader><CardTitle className="text-sm">Detalle — {data.data.length} pagos</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-sm">
+                Detalle — {search ? `${filteredCobros.length} de ${data.data.length}` : data.data.length} pagos
+              </CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <ScrollableTableContainer>
                 <Table>
@@ -980,9 +1150,9 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
                   <TableBody>
                     {loading ? (
                       <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Cargando…</TableCell></TableRow>
-                    ) : data.data.length === 0 ? (
-                      <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Sin cobros en el período</TableCell></TableRow>
-                    ) : data.data.map(r => (
+                    ) : filteredCobros.length === 0 ? (
+                      <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">{search ? 'Sin resultados para la búsqueda' : 'Sin cobros en el período'}</TableCell></TableRow>
+                    ) : filteredCobros.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE).map(r => (
                       <TableRow key={r.id}>
                         <TableCell className="text-xs">{r.fecha_pago}</TableCell>
                         <TableCell className="font-mono text-xs">{r.referencia}</TableCell>
@@ -1000,6 +1170,7 @@ function CobrosTab({ deductoras }: { deductoras: Deductora[] }) {
                   </TableBody>
                 </Table>
               </ScrollableTableContainer>
+              <TablePagination page={page} total={filteredCobros.length} onChange={setPage} />
             </CardContent>
           </Card>
         </>

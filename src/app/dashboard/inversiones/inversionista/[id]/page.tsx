@@ -297,7 +297,7 @@ function InvestmentsTable({ investments, onDelete }: { investments: Investment[]
             <TableCell className="text-right font-mono text-destructive">- {fmt(inv.retencion_del_cupon ?? 0, inv.moneda)}</TableCell>
             <TableCell className="text-right font-mono font-semibold text-primary">{fmt(inv.interes_neto_del_cupon ?? 0, inv.moneda)}</TableCell>
             <TableCell>
-              <Badge variant={inv.estado === 'Activa' ? 'default' : inv.estado === 'Finalizada' ? 'secondary' : 'outline'}>{inv.estado}</Badge>
+              <Badge variant={inv.estado === 'Activa' ? 'default' : inv.estado === 'Finalizada' ? 'secondary' : inv.estado === 'Capital Devuelto' ? 'destructive' : 'outline'}>{inv.estado}</Badge>
             </TableCell>
             <TableCell>
               <DropdownMenu>

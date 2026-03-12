@@ -14,7 +14,15 @@ import {
   Archive,
   ArchiveRestore,
   Inbox,
+  Users,
+  Search,
+  ArrowLeft,
+  Smile,
+  Image as ImageIcon,
 } from 'lucide-react';
+import emojiData from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
+import GifPicker, { TenorImage } from 'gif-picker-react';
 
 import api from '@/lib/axios';
 import { useAuth } from '@/components/auth-guard';
@@ -75,6 +83,7 @@ const ENTITY_TYPE_MAP: Record<string, { label: string; route: string; color: str
   'App\\Models\\Lead':        { label: 'Lead',        route: '/dashboard/leads',         color: 'bg-violet-100 text-violet-700', apiType: 'lead' },
   'App\\Models\\Client':      { label: 'Cliente',     route: '/dashboard/clientes',      color: 'bg-amber-100 text-amber-700',   apiType: 'client' },
   'App\\Models\\Analisis':    { label: 'Análisis',    route: '/dashboard/analisis',      color: 'bg-cyan-100 text-cyan-700',     apiType: 'analisis' },
+  'App\\Models\\User':        { label: 'Directo',     route: '/dashboard/comunicaciones', color: 'bg-orange-100 text-orange-700', apiType: 'direct' },
 };
 
 const ENTITY_TARGETS = [
@@ -116,18 +125,31 @@ function getEntityInfo(type: string) {
   );
   return entry?.[1] ?? { label: 'Entidad', route: '/dashboard', color: 'bg-gray-100 text-gray-700', apiType: '' };
 }
+function isGifMessage(body: string) {
+  return /^\[GIF\]\([^)]+\)$/.test(body.trim());
+}
 function renderBody(body: string) {
+  // GIF messages → just show label
+  if (isGifMessage(body)) return '🎞 GIF';
   // Replace @[Name](user:id) and #[Label](type:id) with styled spans
   return body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, label) => `<span class="font-semibold text-primary">${'@' + label}</span>`);
 }
 function truncateBody(body: string, max = 80) {
+  // GIF messages → just show label
+  if (isGifMessage(body)) return '🎞 GIF';
   const clean = body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, l) => l);
   return clean.length <= max ? clean : clean.slice(0, max).trimEnd() + '…';
+}
+function extractGifUrl(body: string): string | null {
+  const m = body.trim().match(/^\[GIF\]\(([^)]+)\)$/);
+  return m ? m[1] : null;
 }
 
 // ---------------------------------------------------------------------------
 // Sub-component: inline compose (new comment or reply)
 // ---------------------------------------------------------------------------
+
+const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
 
 interface ComposeProps {
   placeholder: string;
@@ -145,7 +167,21 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
   const [showUsers, setShowUsers] = useState(false);
   const [userFilter, setUserFilter] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showGif, setShowGif] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
+  const gifRef = useRef<HTMLDivElement>(null);
+
+  // Close pickers on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
+      if (gifRef.current && !gifRef.current.contains(e.target as Node)) setShowGif(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
 
@@ -188,58 +224,145 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
     }
   };
 
+  const handleEmojiSelect = (emoji: any) => {
+    const native = emoji.native;
+    if (!native) return;
+    const pos = ref.current?.selectionStart ?? text.length;
+    const newText = text.slice(0, pos) + native + text.slice(pos);
+    setText(newText);
+    setShowEmoji(false);
+    requestAnimationFrame(() => {
+      const newPos = pos + native.length;
+      ref.current?.focus();
+      ref.current?.setSelectionRange(newPos, newPos);
+    });
+  };
+
+  const handleGifSelect = async (gif: TenorImage) => {
+    const gifUrl = gif.url;
+    if (!gifUrl) return;
+    setSending(true);
+    try {
+      await onSend(`[GIF](${gifUrl})`, []);
+      setText('');
+    } catch { /* handled by caller */ }
+    finally { setSending(false); setShowGif(false); }
+  };
+
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
     if (e.key === 'Escape' && onCancel) onCancel();
   };
 
   return (
-    <div className="relative flex items-end gap-1.5">
-      <div className="flex-1 relative">
-        <textarea
-          ref={ref}
-          disabled={disabled}
-          placeholder={placeholder}
-          className={cn(
-            'w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm',
-            'outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary',
-            'min-h-[36px] max-h-[80px] disabled:opacity-40 disabled:cursor-not-allowed leading-snug'
-          )}
-          rows={1}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={onKey}
-        />
-        {showUsers && filteredUsers.length > 0 && (
-          <div
-            className="absolute bottom-full left-0 mb-1 w-52 bg-popover border rounded-lg shadow-lg z-50 p-1 max-h-48 overflow-y-auto"
-          >
-            <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-              <AtSign className="h-3 w-3" /> Mencionar
-            </p>
-            {filteredUsers.map((u: any) => (
-              <button key={u.id} onMouseDown={() => selectUser(u)}
-                className="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded flex items-center gap-2"
-              >
-                <Avatar className="h-5 w-5">
-                  <AvatarFallback className={cn('text-[9px] text-white', getAvatarColor(u.id))}>
-                    {getInitials(u.name || 'U')}
-                  </AvatarFallback>
-                </Avatar>
-                <span>{u.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      {onCancel && (
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground" onClick={onCancel}>
-          <X className="h-3.5 w-3.5" />
-        </Button>
+    <div className="relative space-y-1">
+      {/* Emoji Picker */}
+      {showEmoji && (
+        <div ref={emojiRef} className="absolute bottom-full right-0 mb-1 z-50">
+          <Picker
+            data={emojiData}
+            onEmojiSelect={handleEmojiSelect}
+            theme="light"
+            locale="es"
+            previewPosition="none"
+            skinTonePosition="none"
+            maxFrequentRows={2}
+          />
+        </div>
       )}
-      <Button size="icon" className="h-8 w-8 shrink-0 rounded-lg" disabled={!text.trim() || sending} onClick={submit}>
-        {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-      </Button>
+      {/* GIF Picker */}
+      {showGif && (
+        <div ref={gifRef} className="absolute bottom-full right-0 mb-1 z-50">
+          <GifPicker
+            tenorApiKey={TENOR_API_KEY}
+            onGifClick={handleGifSelect}
+            locale="es"
+            width={300}
+            height={360}
+          />
+        </div>
+      )}
+
+      {/* Textarea + Send */}
+      <div className="flex items-end gap-1.5">
+        <div className="flex-1 relative">
+          <textarea
+            ref={ref}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={cn(
+              'w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm',
+              'outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary',
+              'min-h-[36px] max-h-[80px] disabled:opacity-40 disabled:cursor-not-allowed leading-snug'
+            )}
+            rows={1}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={onKey}
+          />
+          {showUsers && filteredUsers.length > 0 && (
+            <div
+              className="absolute bottom-full left-0 mb-1 w-52 bg-popover border rounded-lg shadow-lg z-50 p-1 max-h-48 overflow-y-auto"
+            >
+              <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                <AtSign className="h-3 w-3" /> Mencionar
+              </p>
+              {filteredUsers.map((u: any) => (
+                <button key={u.id} onMouseDown={() => selectUser(u)}
+                  className="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded flex items-center gap-2"
+                >
+                  <Avatar className="h-5 w-5">
+                    <AvatarFallback className={cn('text-[9px] text-white', getAvatarColor(u.id))}>
+                      {getInitials(u.name || 'U')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{u.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {onCancel && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground" onClick={onCancel}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <Button size="icon" className="h-8 w-8 shrink-0 rounded-lg" disabled={!text.trim() || sending} onClick={submit}>
+          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+        </Button>
+      </div>
+
+      {/* Emoji / GIF toolbar */}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className={cn(
+            'flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground transition-colors',
+            'hover:bg-muted hover:text-foreground',
+            showEmoji && 'bg-accent text-accent-foreground',
+            (disabled || sending) && 'opacity-40 pointer-events-none'
+          )}
+          onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }}
+          disabled={disabled || sending}
+        >
+          <Smile className="h-3.5 w-3.5" />
+          <span>Emoji</span>
+        </button>
+        <button
+          type="button"
+          className={cn(
+            'flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground transition-colors',
+            'hover:bg-muted hover:text-foreground',
+            showGif && 'bg-accent text-accent-foreground',
+            (disabled || sending) && 'opacity-40 pointer-events-none'
+          )}
+          onClick={() => { setShowGif(!showGif); setShowEmoji(false); }}
+          disabled={disabled || sending}
+        >
+          <ImageIcon className="h-3.5 w-3.5" />
+          <span>GIF</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -271,6 +394,14 @@ export function ChatBubble() {
   const [pickerType, setPickerType] = useState('');
 
   const [userList, setUserList] = useState<any[]>([]);
+
+  // Direct message state
+  const [directMode, setDirectMode] = useState(false);
+  const [directUserId, setDirectUserId] = useState<number | null>(null);
+  const [directUserName, setDirectUserName] = useState('');
+  const [directSearch, setDirectSearch] = useState('');
+  const [directComments, setDirectComments] = useState<Comment[]>([]);
+  const [isLoadingDirect, setIsLoadingDirect] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -399,8 +530,50 @@ export function ChatBubble() {
     fetchComments(showArchived);
   };
 
+  // ---- Direct message: fetch thread ----
+  const fetchDirectThread = useCallback(async (userId: number) => {
+    setIsLoadingDirect(true);
+    try {
+      const res = await api.get('/api/comments', {
+        params: { commentable_type: 'direct', commentable_id: userId },
+      });
+      const data: Comment[] = Array.isArray(res.data) ? res.data : res.data.data ?? [];
+      setDirectComments(data);
+    } catch { setDirectComments([]); }
+    finally { setIsLoadingDirect(false); }
+  }, []);
+
+  useEffect(() => {
+    if (directMode && directUserId) fetchDirectThread(directUserId);
+  }, [directMode, directUserId, fetchDirectThread]);
+
+  // ---- Send direct message ----
+  const handleSendDirect = async (body: string, mentions: Mention[]) => {
+    if (!directUserId) return;
+    try {
+      await api.post('/api/comments', {
+        commentable_type: 'direct',
+        commentable_id: directUserId,
+        body,
+        mentions,
+      });
+      fetchDirectThread(directUserId);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al enviar mensaje';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      throw err;
+    }
+  };
+
   const handleCommentClick = useCallback((comment: Comment) => {
     const info = getEntityInfo(comment.commentable_type);
+    if (info.apiType === 'direct') {
+      // Open direct message thread
+      setDirectMode(true);
+      setDirectUserId(comment.commentable_id);
+      setDirectUserName(comment.entity_reference || `Usuario #${comment.commentable_id}`);
+      return;
+    }
     router.push(`${info.route}/${comment.commentable_id}`);
     setIsOpen(false);
   }, [router]);
@@ -434,39 +607,106 @@ export function ChatBubble() {
         ref={panelRef}
         onMouseDown={() => { clickInsideRef.current = true; }}
         className={cn(
-          'fixed bottom-6 right-6 z-50 w-[420px]',
+          'fixed bottom-6 right-6 z-50 w-[500px]',
           'rounded-2xl border bg-card shadow-2xl flex flex-col overflow-hidden',
           'transition-all duration-300 ease-out origin-bottom-right',
           isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-2 pointer-events-none'
         )}
-        style={{ maxHeight: '540px' }}
+        style={{ maxHeight: '680px' }}
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 shrink-0">
-              <MessageCircle className="h-4 w-4 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold leading-tight">
-                {showArchived ? 'Archivados' : 'Comentarios'}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">Actividad interna del equipo</p>
-            </div>
-          </div>
-          <Button
-            variant={showArchived ? 'secondary' : 'ghost'}
-            size="icon"
-            className="h-8 w-8 rounded-lg shrink-0"
-            title={showArchived ? 'Ver activos' : 'Ver archivados'}
-            onClick={() => setShowArchived((p) => !p)}
-          >
-            {showArchived ? <Inbox className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-          </Button>
+          {directMode ? (
+            <>
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg shrink-0"
+                onClick={() => { setDirectMode(false); setDirectUserId(null); setDirectUserName(''); setDirectComments([]); setDirectSearch(''); }}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold leading-tight truncate">
+                  {directUserId ? `Mensaje a ${directUserName}` : 'Mensaje directo'}
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {directUserId ? 'Conversación privada' : 'Selecciona un usuario'}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 shrink-0">
+                  <MessageCircle className="h-4 w-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold leading-tight">
+                    {showArchived ? 'Archivados' : 'Comentarios'}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Actividad interna del equipo</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg shrink-0"
+                title="Mensaje directo"
+                onClick={() => { setDirectMode(true); setDirectUserId(null); setDirectUserName(''); }}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={showArchived ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8 rounded-lg shrink-0"
+                title={showArchived ? 'Ver activos' : 'Ver archivados'}
+                onClick={() => setShowArchived((p) => !p)}
+              >
+                {showArchived ? <Inbox className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => setIsOpen(false)}>
             <X className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Direct mode: user picker */}
+        {directMode && !directUserId && (
+          <div className="border-b shrink-0">
+            <div className="px-3 py-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={directSearch}
+                  onChange={(e) => setDirectSearch(e.target.value)}
+                  placeholder="Buscar usuario..."
+                  className="w-full rounded-md border border-input bg-background pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {userList
+                .filter((u) => u.id !== user?.id && u.name?.toLowerCase().includes(directSearch.toLowerCase()))
+                .map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
+                    onClick={() => { setDirectUserId(u.id); setDirectUserName(u.name); setDirectSearch(''); }}
+                  >
+                    <Avatar className="h-7 w-7 shrink-0">
+                      <AvatarFallback className={cn('text-xs font-semibold text-white', getAvatarColor(u.id))}>
+                        {getInitials(u.name || 'U')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium truncate">{u.name}</span>
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+        )}
 
         {/* Comments list */}
         <div
@@ -484,7 +724,60 @@ export function ChatBubble() {
             document.addEventListener('mouseup', onUp);
           }}
         >
-          {isLoading ? (
+          {/* Direct mode: user picker placeholder or thread */}
+          {directMode && !directUserId ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 px-8">
+              <div className="rounded-full bg-muted p-4">
+                <Users className="h-7 w-7 text-muted-foreground/50" />
+              </div>
+              <p className="text-sm font-medium">Mensaje directo</p>
+              <p className="text-xs text-muted-foreground text-center">Selecciona un usuario para iniciar una conversación.</p>
+            </div>
+          ) : directMode && directUserId ? (
+            isLoadingDirect ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Cargando...</span>
+              </div>
+            ) : directComments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3 px-8">
+                <div className="rounded-full bg-muted p-4">
+                  <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
+                </div>
+                <p className="text-sm font-medium">Sin mensajes aún</p>
+                <p className="text-xs text-muted-foreground text-center">Envía el primer mensaje a {directUserName}.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1 px-3 py-2">
+                {directComments.map((comment) => {
+                  const isMe = comment.user_id === user?.id;
+                  const gifUrl = extractGifUrl(comment.body);
+                  return (
+                    <div key={comment.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
+                      <div className={cn(
+                        'max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-snug',
+                        isMe
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted rounded-bl-md'
+                      )}>
+                        {!isMe && (
+                          <p className="text-[10px] font-semibold mb-0.5 opacity-70">{comment.user.name}</p>
+                        )}
+                        {gifUrl ? (
+                          <img src={gifUrl} alt="GIF" className="rounded-lg max-w-[200px] max-h-[150px] object-cover" loading="lazy" />
+                        ) : (
+                          <p dangerouslySetInnerHTML={{ __html: renderBody(comment.body) }} />
+                        )}
+                        <p className={cn('text-[10px] mt-1', isMe ? 'text-primary-foreground/60 text-right' : 'text-muted-foreground')}>
+                          {relativeTime(comment.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : isLoading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Cargando...</span>
@@ -501,10 +794,47 @@ export function ChatBubble() {
             <div className="py-1">
               {comments.map((comment, idx) => {
                 const info = getEntityInfo(comment.commentable_type);
+                const isDirect = info.apiType === 'direct';
                 const isReplying = replyingTo === comment.id;
                 const isMe = comment.user_id === user?.id;
                 const ref = comment.entity_reference || `#${comment.commentable_id}`;
 
+                // ---- Direct message: WhatsApp-style contact row ----
+                if (isDirect) {
+                  const contactName = comment.entity_reference || `Usuario #${comment.commentable_id}`;
+                  const contactId = comment.commentable_id;
+                  return (
+                    <div key={comment.id}>
+                      {idx > 0 && <Separator className="mx-4" />}
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent/40 transition-colors"
+                        onClick={() => {
+                          setDirectMode(true);
+                          setDirectUserId(contactId);
+                          setDirectUserName(contactName);
+                        }}
+                      >
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className={cn('text-xs font-semibold text-white', getAvatarColor(contactId))}>
+                            {getInitials(contactName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold truncate">{contactName}</span>
+                            <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{relativeTime(comment.created_at)}</span>
+                          </div>
+                          <p className="text-[12px] text-muted-foreground truncate mt-0.5">
+                            {isMe ? 'Tú: ' : ''}{truncateBody(comment.body, 60)}
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  );
+                }
+
+                // ---- Entity comment: normal rendering ----
                 return (
                   <div key={comment.id}>
                     {idx > 0 && <Separator className="mx-4" />}
@@ -619,94 +949,106 @@ export function ChatBubble() {
 
         {/* Compose new comment — hidden in archived view */}
         {!showArchived && <div className="border-t bg-muted/20 p-3 space-y-2 shrink-0">
-          {/* Entity selector */}
-          <div className="flex items-center gap-2">
-            {selectedEntity ? (
-              <Badge variant="secondary" className="text-xs gap-1 pr-1">
-                <Hash className="h-3 w-3" />
-                {selectedEntity.label}
-                <button onClick={() => setSelectedEntity(null)} className="ml-1 hover:text-destructive">
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ) : (
-              <div className="relative">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1"
-                  onClick={() => { setShowEntityPicker(!showEntityPicker); setPickerStep('type'); }}
-                >
-                  <Hash className="h-3 w-3" /> Seleccionar entidad
-                </Button>
+          {directMode ? (
+            /* Direct message compose */
+            <Compose
+              placeholder={directUserId ? `Mensaje a ${directUserName}...` : 'Selecciona un usuario...'}
+              disabled={!directUserId}
+              onSend={handleSendDirect}
+              userList={userList}
+            />
+          ) : (
+            <>
+              {/* Entity selector */}
+              <div className="flex items-center gap-2">
+                {selectedEntity ? (
+                  <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                    <Hash className="h-3 w-3" />
+                    {selectedEntity.label}
+                    <button onClick={() => setSelectedEntity(null)} className="ml-1 hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ) : (
+                  <div className="relative">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => { setShowEntityPicker(!showEntityPicker); setPickerStep('type'); }}
+                    >
+                      <Hash className="h-3 w-3" /> Seleccionar entidad
+                    </Button>
 
-                {showEntityPicker && (
-                  <div
-                    className="absolute bottom-full left-0 mb-1 w-60 bg-popover border rounded-lg shadow-lg z-50 overflow-hidden"
-                  >
-                    {pickerStep === 'type' ? (
-                      <div className="p-1">
-                        <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Tipo</p>
-                        {ENTITY_TARGETS.map((t) => (
-                          <button key={t.key}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
-                            onClick={() => { setPickerType(t.key); setPickerStep('search'); setEntitySearch(''); setEntityResults([]); }}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="p-2 border-b">
-                          <input autoFocus
-                            placeholder={`Buscar ${ENTITY_TARGETS.find((t) => t.key === pickerType)?.label}...`}
-                            className="w-full text-sm px-2 py-1.5 border rounded bg-background outline-none focus:ring-1 focus:ring-primary"
-                            value={entitySearch}
-                            onChange={(e) => { setEntitySearch(e.target.value); if (e.target.value.length >= 1) searchEntities(pickerType, e.target.value); }}
-                          />
-                        </div>
-                        <div className="max-h-40 overflow-auto p-1">
-                          {entitySearchLoading ? (
-                            <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
-                          ) : entityResults.length === 0 ? (
-                            <p className="text-xs text-muted-foreground text-center py-3">{entitySearch ? 'Sin resultados' : 'Escribe para buscar'}</p>
-                          ) : (
-                            entityResults.map((e: any) => {
-                              const display = e.reference || e.id || e.cedula || e.name || `#${e.id}`;
-                              const sub = e.lead?.name || (e.name && e.apellido1 ? `${e.name} ${e.apellido1}` : '');
-                              return (
-                                <button key={e.id}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
-                                  onClick={() => selectEntityTarget(e)}
-                                >
-                                  <span className="font-medium">{display}</span>
-                                  {sub && <span className="text-muted-foreground ml-1.5 text-xs">{sub}</span>}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                        <div className="border-t p-1">
-                          <button className="w-full text-xs text-muted-foreground px-3 py-1.5 hover:bg-muted rounded"
-                            onClick={() => setPickerStep('type')}>
-                            ← Cambiar tipo
-                          </button>
-                        </div>
+                    {showEntityPicker && (
+                      <div
+                        className="absolute bottom-full left-0 mb-1 w-60 bg-popover border rounded-lg shadow-lg z-50 overflow-hidden"
+                      >
+                        {pickerStep === 'type' ? (
+                          <div className="p-1">
+                            <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Tipo</p>
+                            {ENTITY_TARGETS.map((t) => (
+                              <button key={t.key}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
+                                onClick={() => { setPickerType(t.key); setPickerStep('search'); setEntitySearch(''); setEntityResults([]); }}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="p-2 border-b">
+                              <input autoFocus
+                                placeholder={`Buscar ${ENTITY_TARGETS.find((t) => t.key === pickerType)?.label}...`}
+                                className="w-full text-sm px-2 py-1.5 border rounded bg-background outline-none focus:ring-1 focus:ring-primary"
+                                value={entitySearch}
+                                onChange={(e) => { setEntitySearch(e.target.value); if (e.target.value.length >= 1) searchEntities(pickerType, e.target.value); }}
+                              />
+                            </div>
+                            <div className="max-h-40 overflow-auto p-1">
+                              {entitySearchLoading ? (
+                                <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                              ) : entityResults.length === 0 ? (
+                                <p className="text-xs text-muted-foreground text-center py-3">{entitySearch ? 'Sin resultados' : 'Escribe para buscar'}</p>
+                              ) : (
+                                entityResults.map((e: any) => {
+                                  const display = e.reference || e.id || e.cedula || e.name || `#${e.id}`;
+                                  const sub = e.lead?.name || (e.name && e.apellido1 ? `${e.name} ${e.apellido1}` : '');
+                                  return (
+                                    <button key={e.id}
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded transition-colors"
+                                      onClick={() => selectEntityTarget(e)}
+                                    >
+                                      <span className="font-medium">{display}</span>
+                                      {sub && <span className="text-muted-foreground ml-1.5 text-xs">{sub}</span>}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                            <div className="border-t p-1">
+                              <button className="w-full text-xs text-muted-foreground px-3 py-1.5 hover:bg-muted rounded"
+                                onClick={() => setPickerStep('type')}>
+                                ← Cambiar tipo
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <Compose
-            placeholder={selectedEntity ? 'Escribe tu comentario... Usa @ para mencionar' : 'Selecciona una entidad primero…'}
-            disabled={!selectedEntity}
-            onSend={handleSend}
-            userList={userList}
-          />
+              <Compose
+                placeholder={selectedEntity ? 'Escribe tu comentario... Usa @ para mencionar' : 'Selecciona una entidad primero…'}
+                disabled={!selectedEntity}
+                onSend={handleSend}
+                userList={userList}
+              />
+            </>
+          )}
         </div>}
       </div>
     </>
