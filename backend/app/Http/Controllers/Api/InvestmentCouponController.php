@@ -151,6 +151,7 @@ class InvestmentCouponController extends Controller
         $coupons = InvestmentCoupon::with('investment')
             ->whereIn('investment_id', $investments->pluck('id'))
             ->where('estado', 'Pendiente')
+            ->where('fecha_cupon', '<=', $fechaPago)
             ->get();
 
         if ($coupons->isEmpty()) {
