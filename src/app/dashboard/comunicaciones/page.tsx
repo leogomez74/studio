@@ -1012,6 +1012,7 @@ export default function CommunicationsPage() {
                         <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
                           <AtSign className="h-3 w-3" /> Mencionar usuario
                         </p>
+                        <div className="max-h-48 overflow-y-auto">
                         {filteredMentionUsers.map((u: any) => (
                           <button key={u.id} onMouseDown={() => selectMentionUser(u)}
                             className="w-full text-left px-2 py-2 text-sm hover:bg-muted rounded flex items-center gap-2.5"
@@ -1024,6 +1025,7 @@ export default function CommunicationsPage() {
                             <span>{u.name}</span>
                           </button>
                         ))}
+                        </div>
                       </div>
                     )}
                     {/* Emoji/GIF for new comment */}
