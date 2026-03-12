@@ -20,6 +20,9 @@ import {
   Smile,
   Image as ImageIcon,
   X,
+  Users,
+  ArrowLeft,
+  Search,
 } from 'lucide-react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -402,6 +405,14 @@ export function CommentsPanel({
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [isSending, setIsSending] = useState(false);
 
+  // ---- State: direct message mode ----
+  const [directMode, setDirectMode] = useState(false);
+  const [directUserId, setDirectUserId] = useState<number | null>(null);
+  const [directUserName, setDirectUserName] = useState('');
+  const [directSearch, setDirectSearch] = useState('');
+  const [directUsers, setDirectUsers] = useState<UserOption[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
   // ---- State: emoji & gif ----
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -425,12 +436,20 @@ export function CommentsPanel({
   const scrollEndRef = useRef<HTMLDivElement>(null);
 
   // ---- Fetch comments ----
+  const activeType = directMode && directUserId ? 'direct' : commentableType;
+  const activeId = directMode && directUserId ? directUserId : commentableId;
+
   const fetchComments = useCallback(async () => {
+    if (directMode && !directUserId) {
+      setComments([]);
+      setIsLoading(false);
+      return;
+    }
     try {
       const res = await api.get('/api/comments', {
         params: {
-          commentable_type: commentableType,
-          commentable_id: commentableId,
+          commentable_type: activeType,
+          commentable_id: activeId,
         },
       });
       const data: Comment[] = Array.isArray(res.data)
@@ -442,11 +461,31 @@ export function CommentsPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [commentableType, commentableId]);
+  }, [activeType, activeId, directMode, directUserId]);
 
   useEffect(() => {
     fetchComments();
   }, [fetchComments]);
+
+  // ---- Fetch users for direct message picker ----
+  useEffect(() => {
+    if (!directMode || directUserId) return;
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        const res = await api.get('/api/users');
+        const users: UserOption[] = Array.isArray(res.data)
+          ? res.data
+          : res.data.data ?? [];
+        setDirectUsers(users.filter((u) => u.id !== user?.id));
+      } catch {
+        setDirectUsers([]);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+    fetchUsers();
+  }, [directMode, directUserId, user?.id]);
 
   // Auto-scroll to bottom when new comments arrive
   useEffect(() => {
@@ -461,8 +500,8 @@ export function CommentsPanel({
     setIsSending(true);
     try {
       await api.post('/api/comments', {
-        commentable_type: commentableType,
-        commentable_id: commentableId,
+        commentable_type: activeType,
+        commentable_id: activeId,
         body: trimmed,
         mentions,
       });
@@ -479,7 +518,7 @@ export function CommentsPanel({
     } finally {
       setIsSending(false);
     }
-  }, [body, mentions, commentableType, commentableId, isSending, fetchComments, toast]);
+  }, [body, mentions, activeType, activeId, isSending, fetchComments, toast]);
 
   // ---- Delete comment ----
   const handleDelete = useCallback(
@@ -526,8 +565,8 @@ export function CommentsPanel({
     setIsSending(true);
     try {
       await api.post('/api/comments', {
-        commentable_type: commentableType,
-        commentable_id: commentableId,
+        commentable_type: activeType,
+        commentable_id: activeId,
         body: `[GIF](${gifUrl})`,
         mentions: [],
       });
@@ -543,7 +582,7 @@ export function CommentsPanel({
       setIsSending(false);
       setShowGifPicker(false);
     }
-  }, [commentableType, commentableId, fetchComments, toast]);
+  }, [activeType, activeId, fetchComments, toast]);
 
   // ---- Close emoji/gif picker on outside click ----
   useEffect(() => {
@@ -816,19 +855,120 @@ export function CommentsPanel({
     <div className="flex flex-col h-full rounded-xl border bg-card shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
-        <MessageSquare className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">Comentarios</h3>
-        {!isLoading && (
+        {directMode && directUserId ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            onClick={() => { setDirectUserId(null); setDirectUserName(''); setComments([]); }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        ) : directMode ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            onClick={() => { setDirectMode(false); setDirectUserId(null); setDirectUserName(''); setIsLoading(true); }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        ) : (
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+        )}
+        <h3 className="text-sm font-semibold text-foreground truncate">
+          {directMode
+            ? directUserId
+              ? `Mensaje a ${directUserName}`
+              : 'Mensaje directo'
+            : 'Comentarios'}
+        </h3>
+        {!directMode && !isLoading && (
           <span className="ml-auto text-xs text-muted-foreground tabular-nums">
             {comments.length}
           </span>
         )}
+        {!directMode && (
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 ml-auto"
+                  onClick={() => { setDirectMode(true); setDirectUserId(null); setDirectUserName(''); setComments([]); setIsLoading(false); }}
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Mensaje directo</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
+
+      {/* User picker for direct messages */}
+      {directMode && !directUserId && (
+        <div className="border-b">
+          <div className="px-3 py-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={directSearch}
+                onChange={(e) => setDirectSearch(e.target.value)}
+                placeholder="Buscar usuario..."
+                className="w-full rounded-md border border-input bg-background pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+          <ScrollArea className="max-h-60">
+            {isLoadingUsers ? (
+              <div className="flex items-center justify-center py-6 gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Cargando usuarios...</span>
+              </div>
+            ) : (
+              directUsers
+                .filter((u) => u.name.toLowerCase().includes(directSearch.toLowerCase()))
+                .map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
+                    onClick={() => {
+                      setDirectUserId(u.id);
+                      setDirectUserName(u.name);
+                      setDirectSearch('');
+                      setIsLoading(true);
+                    }}
+                  >
+                    <Avatar className="h-7 w-7 shrink-0">
+                      <AvatarFallback className={cn('text-xs font-semibold text-white', getAvatarColor(u.id))}>
+                        {getInitials(u.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium truncate">{u.name}</span>
+                  </button>
+                ))
+            )}
+          </ScrollArea>
+        </div>
+      )}
 
       {/* Comments list */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="py-2">
-          {isLoading ? (
+          {directMode && !directUserId ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 px-4">
+              <div className="rounded-full bg-muted p-3">
+                <Users className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                Selecciona un usuario para enviar un mensaje directo.
+              </p>
+            </div>
+          ) : isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
@@ -842,10 +982,10 @@ export function CommentsPanel({
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium text-foreground">
-                  No hay comentarios aun.
+                  {directMode ? 'No hay mensajes aun.' : 'No hay comentarios aun.'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Se el primero en comentar.
+                  {directMode ? 'Envia el primer mensaje.' : 'Se el primero en comentar.'}
                 </p>
               </div>
             </div>
@@ -958,8 +1098,8 @@ export function CommentsPanel({
               value={body}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Escribe un comentario... Usa @ para mencionar o # para enlazar"
-              disabled={isSending}
+              placeholder={directMode ? (directUserId ? `Mensaje a ${directUserName}...` : 'Selecciona un usuario...') : 'Escribe un comentario... Usa @ para mencionar o # para enlazar'}
+              disabled={isSending || (directMode && !directUserId)}
               rows={1}
               className={cn(
                 'flex w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm',
@@ -980,7 +1120,7 @@ export function CommentsPanel({
                     size="icon"
                     className={cn('h-9 w-9 rounded-lg', showEmojiPicker && 'bg-accent')}
                     onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); }}
-                    disabled={isSending}
+                    disabled={isSending || (directMode && !directUserId)}
                   >
                     <Smile className="h-4 w-4" />
                   </Button>
@@ -996,7 +1136,7 @@ export function CommentsPanel({
                     size="icon"
                     className={cn('h-9 w-9 rounded-lg', showGifPicker && 'bg-accent')}
                     onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}
-                    disabled={isSending}
+                    disabled={isSending || (directMode && !directUserId)}
                   >
                     <ImageIcon className="h-4 w-4" />
                   </Button>
@@ -1011,7 +1151,7 @@ export function CommentsPanel({
                     size="icon"
                     className="h-10 w-10 rounded-lg"
                     onClick={handleSend}
-                    disabled={!body.trim() || isSending}
+                    disabled={!body.trim() || isSending || (directMode && !directUserId)}
                   >
                     {isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

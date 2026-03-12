@@ -151,6 +151,7 @@ class MiController extends Controller {
 - **GIFs**: `gif-picker-react` (Tenor API, key en `NEXT_PUBLIC_TENOR_API_KEY`)
 - **GIF formato**: `[GIF](url)` en body del comentario, parseado en frontend
 - **Notificaciones**: click navega a `/dashboard/comunicaciones?comment_id=X` para abrir thread
+- **Mensaje directo desde burbuja**: CommentsPanel tiene botón Users en header → picker de usuarios → thread directo. Usa `activeType`/`activeId` para alternar entre modo entidad y directo
 - **Archivos clave**: `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`
 
 ---
