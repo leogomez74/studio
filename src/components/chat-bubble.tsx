@@ -17,7 +17,12 @@ import {
   Users,
   Search,
   ArrowLeft,
+  Smile,
+  Image as ImageIcon,
 } from 'lucide-react';
+import emojiData from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
+import GifPicker, { TenorImage } from 'gif-picker-react';
 
 import api from '@/lib/axios';
 import { useAuth } from '@/components/auth-guard';
@@ -133,6 +138,8 @@ function truncateBody(body: string, max = 80) {
 // Sub-component: inline compose (new comment or reply)
 // ---------------------------------------------------------------------------
 
+const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+
 interface ComposeProps {
   placeholder: string;
   disabled?: boolean;
@@ -149,7 +156,21 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
   const [showUsers, setShowUsers] = useState(false);
   const [userFilter, setUserFilter] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showGif, setShowGif] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
+  const gifRef = useRef<HTMLDivElement>(null);
+
+  // Close pickers on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
+      if (gifRef.current && !gifRef.current.contains(e.target as Node)) setShowGif(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
 
@@ -192,58 +213,132 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
     }
   };
 
+  const handleEmojiSelect = (emoji: any) => {
+    const native = emoji.native;
+    if (!native) return;
+    const pos = ref.current?.selectionStart ?? text.length;
+    const newText = text.slice(0, pos) + native + text.slice(pos);
+    setText(newText);
+    setShowEmoji(false);
+    requestAnimationFrame(() => {
+      const newPos = pos + native.length;
+      ref.current?.focus();
+      ref.current?.setSelectionRange(newPos, newPos);
+    });
+  };
+
+  const handleGifSelect = async (gif: TenorImage) => {
+    const gifUrl = gif.url;
+    if (!gifUrl) return;
+    setSending(true);
+    try {
+      await onSend(`[GIF](${gifUrl})`, []);
+      setText('');
+    } catch { /* handled by caller */ }
+    finally { setSending(false); setShowGif(false); }
+  };
+
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
     if (e.key === 'Escape' && onCancel) onCancel();
   };
 
   return (
-    <div className="relative flex items-end gap-1.5">
-      <div className="flex-1 relative">
-        <textarea
-          ref={ref}
-          disabled={disabled}
-          placeholder={placeholder}
-          className={cn(
-            'w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm',
-            'outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary',
-            'min-h-[36px] max-h-[80px] disabled:opacity-40 disabled:cursor-not-allowed leading-snug'
-          )}
-          rows={1}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={onKey}
-        />
-        {showUsers && filteredUsers.length > 0 && (
-          <div
-            className="absolute bottom-full left-0 mb-1 w-52 bg-popover border rounded-lg shadow-lg z-50 p-1 max-h-48 overflow-y-auto"
-          >
-            <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-              <AtSign className="h-3 w-3" /> Mencionar
-            </p>
-            {filteredUsers.map((u: any) => (
-              <button key={u.id} onMouseDown={() => selectUser(u)}
-                className="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded flex items-center gap-2"
-              >
-                <Avatar className="h-5 w-5">
-                  <AvatarFallback className={cn('text-[9px] text-white', getAvatarColor(u.id))}>
-                    {getInitials(u.name || 'U')}
-                  </AvatarFallback>
-                </Avatar>
-                <span>{u.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      {onCancel && (
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground" onClick={onCancel}>
-          <X className="h-3.5 w-3.5" />
-        </Button>
+    <div className="relative space-y-1.5">
+      {/* Emoji Picker */}
+      {showEmoji && (
+        <div ref={emojiRef} className="absolute bottom-full right-0 mb-1 z-50">
+          <Picker
+            data={emojiData}
+            onEmojiSelect={handleEmojiSelect}
+            theme="light"
+            locale="es"
+            previewPosition="none"
+            skinTonePosition="none"
+            maxFrequentRows={2}
+          />
+        </div>
       )}
-      <Button size="icon" className="h-8 w-8 shrink-0 rounded-lg" disabled={!text.trim() || sending} onClick={submit}>
-        {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-      </Button>
+      {/* GIF Picker */}
+      {showGif && (
+        <div ref={gifRef} className="absolute bottom-full right-0 mb-1 z-50">
+          <GifPicker
+            tenorApiKey={TENOR_API_KEY}
+            onGifClick={handleGifSelect}
+            locale="es"
+            width={300}
+            height={360}
+          />
+        </div>
+      )}
+
+      <div className="flex items-end gap-1.5">
+        <div className="flex-1 relative">
+          <textarea
+            ref={ref}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={cn(
+              'w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm',
+              'outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary',
+              'min-h-[36px] max-h-[80px] disabled:opacity-40 disabled:cursor-not-allowed leading-snug'
+            )}
+            rows={1}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={onKey}
+          />
+          {showUsers && filteredUsers.length > 0 && (
+            <div
+              className="absolute bottom-full left-0 mb-1 w-52 bg-popover border rounded-lg shadow-lg z-50 p-1 max-h-48 overflow-y-auto"
+            >
+              <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                <AtSign className="h-3 w-3" /> Mencionar
+              </p>
+              {filteredUsers.map((u: any) => (
+                <button key={u.id} onMouseDown={() => selectUser(u)}
+                  className="w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded flex items-center gap-2"
+                >
+                  <Avatar className="h-5 w-5">
+                    <AvatarFallback className={cn('text-[9px] text-white', getAvatarColor(u.id))}>
+                      {getInitials(u.name || 'U')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{u.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8 rounded-lg', showEmoji && 'bg-accent')}
+            onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }}
+            disabled={disabled || sending}
+          >
+            <Smile className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8 rounded-lg', showGif && 'bg-accent')}
+            onClick={() => { setShowGif(!showGif); setShowEmoji(false); }}
+            disabled={disabled || sending}
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+          </Button>
+          {onCancel && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground" onClick={onCancel}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button size="icon" className="h-8 w-8 shrink-0 rounded-lg" disabled={!text.trim() || sending} onClick={submit}>
+            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
