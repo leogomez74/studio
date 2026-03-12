@@ -158,7 +158,32 @@ class InvestmentCouponController extends Controller
             ->whereMonth('fecha_cupon', $periodo->month)
             ->get();
 
+        // Si no hay pendientes, verificar si ya están pagados para ese período (actualizar comprobante)
         if ($coupons->isEmpty()) {
+            if ($comprobanteUrl) {
+                $alreadyPaid = InvestmentCoupon::with('investment')
+                    ->whereIn('investment_id', $investments->pluck('id'))
+                    ->where('estado', 'Pagado')
+                    ->whereYear('fecha_cupon', $periodo->year)
+                    ->whereMonth('fecha_cupon', $periodo->month)
+                    ->get();
+
+                if ($alreadyPaid->isNotEmpty()) {
+                    // Actualizar comprobante_url en los pagos existentes de ese período
+                    $updated = InvestmentPayment::whereIn('investment_id', $alreadyPaid->pluck('investment_id'))
+                        ->whereYear('periodo', $periodo->year)
+                        ->whereMonth('periodo', $periodo->month)
+                        ->update(['comprobante_url' => $comprobanteUrl, 'updated_at' => now()]);
+
+                    return response()->json([
+                        'message' => 'Cupones ya pagados — comprobante actualizado',
+                        'count' => $updated,
+                        'investments_affected' => $alreadyPaid->pluck('investment_id')->unique()->count(),
+                        'comprobante_url' => $comprobanteUrl,
+                    ]);
+                }
+            }
+
             return response()->json(['message' => 'No hay cupones pendientes para estas inversiones.'], 422);
         }
 
