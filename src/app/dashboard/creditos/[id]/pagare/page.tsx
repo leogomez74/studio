@@ -109,6 +109,7 @@ export default function PagarePage() {
   const pagareRef = useRef<HTMLDivElement>(null);
   const paginaDosRef = useRef<HTMLDivElement>(null);
   const autorizacionRef = useRef<HTMLDivElement>(null);
+  const ayaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -172,12 +173,18 @@ export default function PagarePage() {
   // Mostrar autorización si hay deductora asignada al crédito o al cliente
   const showAutorizacion = !!deductoraId;
 
+  // Mostrar formulario AYA solo para COOPESANGABRIEL
+  const showAyaForm = !!deductoraId && deductoraNombre.toLowerCase().includes('gabriel');
+
   // Variables de fecha
   const now = new Date();
   const dia = now.getDate();
   const mes = now.toLocaleDateString('es-CR', { month: 'long' });
   const anio = now.getFullYear();
   const today = `${dia} ${mes}, ${anio}`;
+
+  // Fecha para formulario AYA: "29 de setiembre del 2025"
+  const ayaDate = `${dia} de ${mes} del ${anio}`;
 
   // Fecha con día de la semana para autorización
   // Fecha con día de la semana para autorización (ej: "lunes, 9 de febrero de 2026")
@@ -255,6 +262,18 @@ export default function PagarePage() {
         const finalHeight3 = canvas3.height * ratio3;
         const x3 = (pdfWidth - finalWidth3) / 2;
         pdf.addImage(imgData3, 'JPEG', x3, 0, finalWidth3, finalHeight3);
+      }
+
+      // Página 4: Formulario AYA (solo COOPESANGABRIEL)
+      if (showAyaForm && ayaRef.current) {
+        pdf.addPage();
+        const canvas4 = await captureElement(ayaRef.current);
+        const imgData4 = canvas4.toDataURL('image/jpeg', 0.85);
+        const ratio4 = Math.min(pdfWidth / canvas4.width, pdfHeight / canvas4.height);
+        const finalWidth4 = canvas4.width * ratio4;
+        const finalHeight4 = canvas4.height * ratio4;
+        const x4 = (pdfWidth - finalWidth4) / 2;
+        pdf.addImage(imgData4, 'JPEG', x4, 0, finalWidth4, finalHeight4);
       }
 
       // Abrir PDF en nueva ventana para imprimir
@@ -541,6 +560,121 @@ export default function PagarePage() {
           }}>
             <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
               FIRMA
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Página 4: Formulario AYA — solo para COOPESANGABRIEL */}
+      {showAyaForm && (
+        <div
+          ref={ayaRef}
+          className="bg-white mx-auto shadow-lg mb-8"
+          style={{
+            width: '216mm',
+            minHeight: '279mm',
+            padding: '20mm 20mm',
+            fontFamily: 'Arial, Helvetica, sans-serif',
+            fontSize: '10pt',
+            lineHeight: '1.6'
+          }}
+        >
+          {/* Encabezado institucional */}
+          <div style={{ textAlign: 'center', marginBottom: '6mm' }}>
+            <p style={{ fontWeight: 'bold', fontSize: '11pt', marginBottom: '1mm' }}>
+              INSTITUTO COSTARRICENSE DE ACUEDUCTOS Y ALCANTARILLADOS
+            </p>
+            <p style={{ fontWeight: 'bold', fontSize: '10pt', marginBottom: '1mm' }}>
+              Dirección Gestión Capital Humano
+            </p>
+            <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>
+              Proceso de Remuneraciones
+            </p>
+          </div>
+
+          {/* Título del formulario */}
+          <p style={{ fontWeight: 'bold', marginBottom: '5mm', fontSize: '10pt' }}>
+            FORMULARIO PARA AUTORIZACION DE APLICACIÓN DE DEDUCCIONES POR MEDIO DE PLANILLA:
+          </p>
+
+          {/* Texto de autorización */}
+          <p style={{ marginBottom: '6mm', fontSize: '10pt' }}>
+            Yo: <strong>{nombre}</strong>, portador (a) de la cédula, <strong>{cedula}</strong>:
+            autorizo al AYA para que se me aplique la siguiente deducción:
+          </p>
+
+          {/* Código y detalle */}
+          <div style={{ marginBottom: '6mm', fontSize: '10pt' }}>
+            <strong>Código:</strong>
+            {'   '}
+            <span style={{
+              borderBottom: '1px solid #000',
+              display: 'inline-block',
+              minWidth: '30mm',
+              textAlign: 'center',
+              paddingBottom: '1mm'
+            }}>655</span>
+            {'          '}
+            <strong>Detalle del código:</strong>{' '}
+            <span style={{ textDecoration: 'underline' }}>COOPE SAN GABRIEL R.L.</span>
+          </div>
+
+          {/* Monto */}
+          <p style={{ fontWeight: 'bold', marginBottom: '20mm', fontSize: '10pt' }}>
+            Monto de la deducción: {formatCurrency(cuotaMensual)} mensuales
+          </p>
+
+          {/* Firma */}
+          <div style={{ marginBottom: '6mm' }}>
+            <p style={{ fontSize: '10pt', marginBottom: '1mm' }}>
+              <strong>Firma de autorización:</strong>
+              {'          '}
+              <span style={{
+                borderBottom: '1px solid #000',
+                display: 'inline-block',
+                width: '70mm'
+              }}>&nbsp;</span>
+            </p>
+          </div>
+
+          {/* Cédula */}
+          <div style={{ marginBottom: '6mm' }}>
+            <p style={{ fontSize: '10pt', marginBottom: '1mm' }}>
+              <strong>Cédula:</strong>
+              {'          '}
+              <span style={{
+                borderBottom: '1px solid #000',
+                display: 'inline-block',
+                width: '70mm'
+              }}>&nbsp;</span>
+            </p>
+          </div>
+
+          {/* Fecha */}
+          <div style={{ marginBottom: '12mm' }}>
+            <p style={{ fontSize: '10pt' }}>
+              <strong>Fecha:</strong>
+              {'          '}
+              <strong>{ayaDate}</strong>
+            </p>
+          </div>
+
+          {/* Separador */}
+          <div style={{
+            borderTop: '1px dotted #000',
+            borderBottom: '1px dotted #000',
+            padding: '3mm 0',
+            marginBottom: '3mm',
+            fontSize: '9.5pt'
+          }}>
+            <p style={{ marginBottom: '2mm' }}>
+              <strong>Observaciones:</strong> La pensión alimentaria y el embargo judicial son de carácter obligatorio.
+            </p>
+            <p style={{ marginBottom: '2mm' }}>
+              Se les recuerda que las deducciones que se autoricen no deben atentar contra el salario mínimo inembargable.
+            </p>
+            <p>
+              Debe tomar en cuenta que para recibir el salario mínimo inembargable puede que su anticipo de salario se vea afectado, ya sea disminuido o suprimido del todo.
             </p>
           </div>
         </div>
