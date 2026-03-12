@@ -1210,6 +1210,10 @@ export default function InversionesPage() {
     if (pagosMoneda && p.moneda !== pagosMoneda) return false;
     if (pagosTipo && p.tipo !== pagosTipo) return false;
     return true;
+  }).sort((a, b) => {
+    const da = new Date(b.fecha_pago).getTime() - new Date(a.fecha_pago).getTime();
+    if (da !== 0) return da;
+    return (b.id ?? 0) - (a.id ?? 0);
   });
   const pagosTotalPages = Math.max(1, Math.ceil(filteredPayments.length / ITEMS_PER_PAGE));
   const safePagosPage = Math.min(pagosPage, pagosTotalPages);
@@ -1309,8 +1313,8 @@ export default function InversionesPage() {
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
             <TabsTrigger value="inversiones">Inversiones</TabsTrigger>
             <TabsTrigger value="tabla-general">Tabla General</TabsTrigger>
-            <TabsTrigger value="pagos">Pagos</TabsTrigger>
             <TabsTrigger value="pagos-proximos">Pagos Próximos</TabsTrigger>
+            <TabsTrigger value="pagos">Pagos</TabsTrigger>
             <TabsTrigger value="reservas">Reservas</TabsTrigger>
             <TabsTrigger value="vencimientos">Vencimientos</TabsTrigger>
             <TabsTrigger value="retenciones">Retenciones</TabsTrigger>
