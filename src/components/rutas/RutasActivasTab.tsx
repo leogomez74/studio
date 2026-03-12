@@ -38,7 +38,8 @@ export default function RutasActivasTab() {
         api.get('/api/rutas-diarias'),
         api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
       ]);
-      const activas = (rutasRes.data as RutaDiaria[]).filter((r) => r.status !== 'completada');
+      const rutasData = rutasRes.data?.data ?? rutasRes.data;
+      const activas = (rutasData as RutaDiaria[]).filter((r) => r.status !== 'completada');
       setRutas(activas);
       setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
     } catch {

@@ -111,8 +111,8 @@ class TareaRutaController extends Controller
     {
         $tarea = TareaRuta::findOrFail($id);
 
-        if (!in_array($tarea->status, ['pendiente', 'cancelada'])) {
-            return response()->json(['message' => 'Solo se pueden eliminar tareas pendientes o canceladas.'], 422);
+        if (!in_array($tarea->status, ['pendiente', 'cancelada', 'fallida'])) {
+            return response()->json(['message' => 'Solo se pueden eliminar tareas pendientes, fallidas o canceladas.'], 422);
         }
 
         $this->logActivity('delete', 'Rutas', $tarea, $tarea->titulo);

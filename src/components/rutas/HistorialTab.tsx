@@ -26,7 +26,8 @@ export default function HistorialTab() {
         api.get('/api/rutas-diarias'),
         api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
       ]);
-      setRutas(rutasRes.data);
+      const rutasData = rutasRes.data?.data ?? rutasRes.data;
+      setRutas(rutasData);
       setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
     } catch {
       toast({ title: 'Error', variant: 'destructive' });

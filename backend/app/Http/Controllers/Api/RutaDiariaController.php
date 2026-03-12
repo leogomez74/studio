@@ -38,7 +38,9 @@ class RutaDiariaController extends Controller
             $query->where('mensajero_id', $request->mensajero_id);
         }
 
-        return response()->json($query->orderBy('fecha', 'desc')->get());
+        $perPage = min((int) $request->input('per_page', 50), 100);
+
+        return response()->json($query->orderBy('fecha', 'desc')->paginate($perPage));
     }
 
     public function show(string $id)
@@ -64,7 +66,7 @@ class RutaDiariaController extends Controller
     public function generar(Request $request)
     {
         $validated = $request->validate([
-            'fecha' => 'required|date',
+            'fecha' => 'required|date|after_or_equal:today',
             'mensajero_id' => 'required|exists:users,id',
             'tarea_ids' => 'required|array|min:1',
             'tarea_ids.*' => 'integer|exists:tareas_ruta,id',
@@ -234,9 +236,11 @@ class RutaDiariaController extends Controller
         }
 
         return DB::transaction(function () use ($ruta) {
-            // Devolver tareas no completadas a pendiente
-            $ruta->tareas()
-                ->whereNotIn('status', ['completada'])
+            $completadas = $ruta->tareas()->where('status', 'completada')->count();
+
+            // Devolver tareas no completadas/fallidas a pendiente
+            $liberadas = $ruta->tareas()
+                ->whereNotIn('status', ['completada', 'fallida'])
                 ->update([
                     'status' => 'pendiente',
                     'ruta_diaria_id' => null,
@@ -245,13 +249,23 @@ class RutaDiariaController extends Controller
                     'asignado_a' => null,
                 ]);
 
+            // Desvincular tareas completadas de la ruta (preservar su status)
+            $ruta->tareas()->where('status', 'completada')->update([
+                'ruta_diaria_id' => null,
+                'posicion' => null,
+            ]);
+
             $fecha = $ruta->fecha->format('Y-m-d');
 
-            $this->logActivity('delete', 'Rutas', $ruta, "Ruta cancelada: {$fecha}");
+            $this->logActivity('delete', 'Rutas', $ruta, "Ruta cancelada: {$fecha} ({$completadas} completadas, {$liberadas} liberadas)");
 
             $ruta->delete();
 
-            return response()->json(['message' => 'Ruta cancelada. Las tareas pendientes fueron liberadas.']);
+            return response()->json([
+                'message' => 'Ruta cancelada. Las tareas pendientes fueron liberadas.',
+                'completadas_preservadas' => $completadas,
+                'tareas_liberadas' => $liberadas,
+            ]);
         });
     }
 }

@@ -41,11 +41,22 @@ class RutaDiaria extends Model
         return $this->hasMany(TareaRuta::class)->orderBy('posicion');
     }
 
+    /**
+     * Recalcular contadores y auto-completar ruta si todas las tareas están resueltas.
+     */
     public function recalcularConteo(): void
     {
         $this->total_tareas = $this->tareas()->count();
         $this->completadas = $this->tareas()->where('status', 'completada')->count();
         $this->save();
+
+        // Auto-completar ruta si todas las tareas están completadas o fallidas (ninguna en tránsito/asignada)
+        if ($this->status === 'en_progreso' && $this->total_tareas > 0) {
+            $pendientes = $this->tareas()->whereIn('status', ['asignada', 'en_transito'])->count();
+            if ($pendientes === 0) {
+                $this->update(['status' => 'completada']);
+            }
+        }
     }
 
     public function scopeDelMensajero($query, int $userId)
