@@ -1559,7 +1559,7 @@ export default function InversionesPage() {
                         ) : (p.investor?.name ?? '—')}
                       </TableCell>
                       <TableCell className="text-sm font-mono">
-                        {p.periodo ? new Date(p.periodo).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' }) : '—'}
+                        {p.periodo ? (() => { const [y, m] = p.periodo.split('-'); return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' }); })() : '—'}
                       </TableCell>
                       <TableCell>{new Date(p.fecha_pago).toLocaleDateString('es-CR')}</TableCell>
                       <TableCell><Badge variant="outline">{p.tipo}</Badge></TableCell>
