@@ -69,9 +69,22 @@ class RutaDiariaController extends Controller
         $validated = $request->validate([
             'fecha' => 'required|date|after_or_equal:today',
             'mensajero_id' => 'required|exists:users,id',
-            'tarea_ids' => 'required|array|min:1',
+            'tarea_ids' => 'nullable|array',
             'tarea_ids.*' => 'integer|exists:tareas_ruta,id',
+            'external_stops' => 'nullable|array',
+            'external_stops.*.branch_name' => 'required_with:external_stops|string|max:255',
+            'external_stops.*.address' => 'nullable|string|max:500',
+            'external_stops.*.integration_name' => 'nullable|string|max:100',
+            'external_stops.*.external_ref' => 'nullable|string|max:100',
+            'external_stops.*.pickups_summary' => 'nullable|string|max:1000',
         ]);
+
+        $tareaIds = $validated['tarea_ids'] ?? [];
+        $externalStops = $validated['external_stops'] ?? [];
+
+        if (count($tareaIds) === 0 && count($externalStops) === 0) {
+            return response()->json(['message' => 'Selecciona al menos una tarea o parada externa.'], 422);
+        }
 
         // Verificar que no exista ruta para esa fecha y mensajero
         $existe = RutaDiaria::where('fecha', $validated['fecha'])
@@ -85,18 +98,18 @@ class RutaDiariaController extends Controller
             ], 422);
         }
 
-        return DB::transaction(function () use ($validated) {
+        return DB::transaction(function () use ($validated, $tareaIds, $externalStops) {
             $ruta = RutaDiaria::create([
                 'fecha' => $validated['fecha'],
                 'mensajero_id' => $validated['mensajero_id'],
                 'status' => 'borrador',
-                'total_tareas' => count($validated['tarea_ids']),
+                'total_tareas' => count($tareaIds) + count($externalStops),
                 'completadas' => 0,
             ]);
 
-            // Asignar tareas en el orden recibido (el frontend envía ya ordenado FIFO)
+            // Asignar tareas PEP existentes en el orden recibido
             $posicion = 1;
-            foreach ($validated['tarea_ids'] as $tareaId) {
+            foreach ($tareaIds as $tareaId) {
                 TareaRuta::where('id', $tareaId)
                     ->whereIn('status', ['pendiente', 'fallida'])
                     ->update([
@@ -108,9 +121,35 @@ class RutaDiariaController extends Controller
                     ]);
             }
 
+            // Crear tareas desde paradas externas
+            foreach ($externalStops as $stop) {
+                $descripcion = $stop['pickups_summary'] ?? null;
+                $source = $stop['integration_name'] ?? 'Externa';
+
+                TareaRuta::create([
+                    'titulo' => "[$source] {$stop['branch_name']}",
+                    'descripcion' => $descripcion,
+                    'tipo' => 'recoleccion',
+                    'prioridad' => 'normal',
+                    'status' => 'asignada',
+                    'solicitado_por' => Auth::id(),
+                    'asignado_a' => $validated['mensajero_id'],
+                    'ruta_diaria_id' => $ruta->id,
+                    'fecha_asignada' => $validated['fecha'],
+                    'posicion' => $posicion++,
+                    'empresa_destino' => $stop['branch_name'],
+                    'direccion_destino' => $stop['address'] ?? null,
+                    'referencia_tipo' => 'ExternalStop',
+                    'referencia_id' => null,
+                ]);
+            }
+
             $ruta->recalcularConteo();
 
-            $this->logActivity('create', 'Rutas', $ruta, "Ruta generada: {$validated['fecha']}");
+            $extCount = count($externalStops);
+            $pepCount = count($tareaIds);
+            $detail = "Ruta generada: {$validated['fecha']} ({$pepCount} PEP" . ($extCount ? ", {$extCount} externas" : '') . ')';
+            $this->logActivity('create', 'Rutas', $ruta, $detail);
 
             return response()->json(
                 $ruta->load(['mensajero:id,name', 'tareas' => fn($q) => $q->orderBy('posicion')]),
