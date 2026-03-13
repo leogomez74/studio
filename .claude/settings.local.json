@@ -32,7 +32,10 @@
       "Bash(grep -n \"cierre_motivo\\\\|tasa_interes\\\\|deductora\" /c/laragon/www/studio/backend/database/migrations/*.php)",
       "Bash(done)",
       "Read(//c/laragon/www/studio/**)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(php -r \":*)",
+      "Bash(php -r \"if \\(function_exists\\(''opcache_reset''\\)\\) { opcache_reset\\(\\); echo ''OPcache reset OK''; } else { echo ''OPcache not enabled''; }\")",
+      "Bash(tasklist)"
     ]
   },
   "enableAllProjectMcpServers": true,
