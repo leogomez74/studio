@@ -9,6 +9,8 @@ use App\Models\Deductora;
 use App\Models\Investment;
 use App\Models\InvestmentCoupon;
 use App\Models\PlanDePago;
+use App\Models\DeductoraChange;
+use App\Models\PlanillaReport;
 use App\Traits\LogsActivity;
 use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -403,45 +405,106 @@ class ReporteController extends Controller
             return response()->json(['error' => 'El campo deductora_id es requerido.'], 422);
         }
 
-        // ── Inclusiones: créditos activados/formalizados en el período ──
-        $inclusiones = Credit::with(['lead:id,name,cedula'])
+        // ── Obtener cambios registrados en deductora_changes ──
+        $cambios = DeductoraChange::where(function ($q) use ($deductoraId) {
+                $q->where('deductora_anterior_id', $deductoraId)
+                  ->orWhere('deductora_nueva_id', $deductoraId);
+            })
+            ->whereBetween('fecha_movimiento', [$desde, $hasta])
+            ->orderBy('fecha_movimiento', 'desc')
+            ->get();
+
+        $inclusiones    = collect();
+        $exclusiones    = collect();
+        $traslados      = collect();
+        $refundiciones  = collect();
+
+        foreach ($cambios as $c) {
+            $row = [
+                'id'                 => $c->credit_id,
+                'referencia'         => $c->reference,
+                'cliente'            => $c->cliente ?? '—',
+                'cedula'             => $c->cedula ?? '—',
+                'cuota'              => (float) $c->cuota,
+                'saldo'              => (float) $c->saldo,
+                'tasa_anual'         => (float) $c->tasa_anual,
+                'plazo'              => (int) $c->plazo,
+                'fecha_formalizacion'=> $c->fecha_formalizacion?->toDateString() ?? '—',
+                'motivo'             => $c->motivo,
+                'fecha'              => $c->fecha_movimiento->toDateString(),
+                'tipo_movimiento'    => $c->tipo_movimiento,
+                'deductora_anterior' => $c->deductora_anterior_nombre,
+                'deductora_nueva'    => $c->deductora_nueva_nombre,
+            ];
+
+            match ($c->tipo_movimiento) {
+                'inclusion'   => $inclusiones->push($row),
+                'exclusion'   => $exclusiones->push($row),
+                'traslado'    => $traslados->push($row),
+                'refundicion' => $refundiciones->push($row),
+                default       => null,
+            };
+        }
+
+        // ── Fallback: también incluir créditos formalizados/cerrados que no estén en deductora_changes ──
+        $cambiosCreditIds = $cambios->pluck('credit_id')->unique()->toArray();
+
+        // Inclusiones por formalización directa (no registrada aún en deductora_changes)
+        $inclusionesFallback = Credit::with(['lead:id,name,cedula'])
             ->where('deductora_id', $deductoraId)
             ->whereIn('status', ['Activo', 'Formalizado', 'En Mora'])
             ->where(function ($q) use ($desde, $hasta) {
                 $q->whereBetween('opened_at', [$desde, $hasta])
                   ->orWhereBetween('formalized_at', [$desde, $hasta]);
             })
-            ->get(['id', 'reference', 'lead_id', 'cuota', 'opened_at', 'formalized_at', 'status'])
+            ->whereNotIn('id', $cambiosCreditIds)
+            ->get(['id', 'reference', 'lead_id', 'cuota', 'saldo', 'tasa_anual', 'plazo',
+                   'opened_at', 'formalized_at', 'status'])
             ->map(fn($c) => [
-                'tipo'        => 'inclusion',
-                'id'          => $c->id,
-                'referencia'  => $c->reference,
-                'cliente'     => $c->lead?->name ?? '—',
-                'cedula'      => $c->lead?->cedula ?? '—',
-                'cuota'       => (float) $c->cuota,
-                'fecha'       => $c->formalized_at?->toDateString() ?? $c->opened_at?->toDateString(),
-                'detalle'     => 'Incluir en planilla — cuota: ₡' . number_format((float) $c->cuota, 2),
-            ])->values();
+                'id'                 => $c->id,
+                'referencia'         => $c->reference,
+                'cliente'            => $c->lead?->name ?? '—',
+                'cedula'             => $c->lead?->cedula ?? '—',
+                'cuota'              => (float) $c->cuota,
+                'saldo'              => (float) $c->saldo,
+                'tasa_anual'         => (float) ($c->tasa_anual ?? 0),
+                'plazo'              => (int) ($c->plazo ?? 0),
+                'fecha_formalizacion'=> $c->formalized_at?->toDateString() ?? '—',
+                'motivo'             => 'Crédito nuevo formalizado',
+                'fecha'              => $c->formalized_at?->toDateString() ?? $c->opened_at?->toDateString(),
+                'tipo_movimiento'    => 'inclusion',
+                'deductora_anterior' => null,
+                'deductora_nueva'    => null,
+            ]);
+        $inclusiones = $inclusiones->merge($inclusionesFallback)->values();
 
-        // ── Exclusiones: créditos cerrados en el período ──
-        $exclusiones = Credit::with(['lead:id,name,cedula'])
+        // Exclusiones por cierre directo (no registradas en deductora_changes)
+        $exclusionesFallback = Credit::with(['lead:id,name,cedula'])
             ->where('deductora_id', $deductoraId)
             ->whereIn('status', ['Cerrado', 'Legal'])
             ->whereBetween('updated_at', [$desde . ' 00:00:00', $hasta . ' 23:59:59'])
-            ->get(['id', 'reference', 'lead_id', 'cuota', 'cierre_motivo', 'updated_at', 'status'])
+            ->whereNotIn('id', $cambiosCreditIds)
+            ->get(['id', 'reference', 'lead_id', 'cuota', 'saldo', 'tasa_anual', 'plazo',
+                   'cierre_motivo', 'updated_at', 'formalized_at', 'status'])
             ->map(fn($c) => [
-                'tipo'        => 'exclusion',
-                'id'          => $c->id,
-                'referencia'  => $c->reference,
-                'cliente'     => $c->lead?->name ?? '—',
-                'cedula'      => $c->lead?->cedula ?? '—',
-                'motivo'      => $c->cierre_motivo ?? $c->status,
-                'fecha'       => $c->updated_at->toDateString(),
-                'detalle'     => 'Excluir de planilla — motivo: ' . ($c->cierre_motivo ?? $c->status),
-            ])->values();
+                'id'                 => $c->id,
+                'referencia'         => $c->reference,
+                'cliente'            => $c->lead?->name ?? '—',
+                'cedula'             => $c->lead?->cedula ?? '—',
+                'cuota'              => (float) $c->cuota,
+                'saldo'              => (float) $c->saldo,
+                'tasa_anual'         => (float) ($c->tasa_anual ?? 0),
+                'plazo'              => (int) ($c->plazo ?? 0),
+                'fecha_formalizacion'=> $c->formalized_at?->toDateString() ?? '—',
+                'motivo'             => $c->cierre_motivo ?? $c->status,
+                'fecha'              => $c->updated_at->toDateString(),
+                'tipo_movimiento'    => 'exclusion',
+                'deductora_anterior' => null,
+                'deductora_nueva'    => null,
+            ]);
+        $exclusiones = $exclusiones->merge($exclusionesFallback)->values();
 
-        // ── Modificaciones de cuota: detectadas por abonos extraordinarios con strategy reduce_amount ──
-        // AbonoService registra el original_cuota en reversal_snapshot del CreditPayment
+        // ── Modificaciones de cuota (mantener lógica existente) ──
         $abonosEnPeriodo = CreditPayment::where('source', 'Extraordinario')
             ->whereBetween('fecha_pago', [$desde, $hasta])
             ->whereNotNull('reversal_snapshot')
@@ -453,7 +516,6 @@ class ReporteController extends Controller
 
         $modificaciones = collect();
         if ($abonosEnPeriodo->isNotEmpty()) {
-            // Agrupar por crédito (puede haber múltiples abonos en el período; tomar el más antiguo para cuota original)
             $byCredit = $abonosEnPeriodo->sortBy('fecha_pago')->groupBy('credit_id');
 
             $modificaciones = $byCredit->map(function ($pagos) {
@@ -467,7 +529,7 @@ class ReporteController extends Controller
                 $cuotaNueva    = (float) $credit->cuota;
 
                 if ($cuotaAnterior === null || $cuotaAnterior == $cuotaNueva) {
-                    return null; // Sin cambio de cuota (strategy reduce_term)
+                    return null;
                 }
 
                 return [
@@ -488,12 +550,16 @@ class ReporteController extends Controller
         return response()->json([
             'inclusiones'   => $inclusiones,
             'exclusiones'   => $exclusiones,
+            'traslados'     => $traslados->values(),
+            'refundiciones' => $refundiciones->values(),
             'modificaciones'=> $modificaciones,
             'resumen'       => [
                 'inclusiones'    => $inclusiones->count(),
                 'exclusiones'    => $exclusiones->count(),
+                'traslados'      => $traslados->count(),
+                'refundiciones'  => $refundiciones->count(),
                 'modificaciones' => $modificaciones->count(),
-                'total'          => $inclusiones->count() + $exclusiones->count() + $modificaciones->count(),
+                'total'          => $inclusiones->count() + $exclusiones->count() + $traslados->count() + $refundiciones->count() + $modificaciones->count(),
             ],
         ]);
     }
@@ -636,7 +702,8 @@ class ReporteController extends Controller
             ->whereIn('status', $activeStatuses)
             ->orderBy('id')
             ->get(['id', 'reference', 'lead_id', 'monto_credito', 'saldo', 'cuota',
-                   'cuotas_atrasadas', 'status', 'opened_at', 'formalized_at']);
+                   'cuotas_atrasadas', 'status', 'opened_at', 'formalized_at',
+                   'tasa_anual', 'plazo']);
 
         $rows = $credits->map(fn($c) => [
             'id'              => $c->id,
@@ -648,6 +715,9 @@ class ReporteController extends Controller
             'cuota'           => (float) $c->cuota,
             'cuotas_atrasadas'=> (int) $c->cuotas_atrasadas,
             'status'          => $c->status,
+            'formalized_at'   => $c->formalized_at?->toDateString() ?? '—',
+            'tasa_anual'      => (float) ($c->tasa_anual ?? 0),
+            'plazo'           => (int) ($c->plazo ?? 0),
         ])->values();
 
         return response()->json([
@@ -665,11 +735,34 @@ class ReporteController extends Controller
 
     public function planillaCobroPdf(int $deductoraId)
     {
-        $this->logActivity('export', 'Reportes', null, 'Planilla Cobro - PDF (deductora: ' . $deductoraId . ')', [], request());
+        $periodo = Carbon::now()->format('Y-m');
+
+        // Verificar si ya se generó este mes (informativo, permite regenerar)
+        $reporteExistente = PlanillaReport::where('deductora_id', $deductoraId)
+            ->where('periodo', $periodo)
+            ->where('tipo', 'planilla_cobro')
+            ->first();
+
+        $this->logActivity('export', 'Reportes', null, 'Planilla Cobro - PDF (deductora: ' . $deductoraId . ', periodo: ' . $periodo . ')', [], request());
         $data = $this->planillaCobro($deductoraId)->getData(true);
+        $data['periodo'] = $periodo;
+        $data['generado_previamente'] = $reporteExistente ? $reporteExistente->created_at->toDateTimeString() : null;
+
+        $nombreArchivo = 'planilla_cobro_' . $deductoraId . '_' . $periodo . '.pdf';
         $pdf = Pdf::loadHTML($this->buildPlanillaCobroPdfHtml($data))
-            ->setPaper('letter', 'portrait');
-        return $pdf->stream('planilla_cobro_' . $deductoraId . '.pdf');
+            ->setPaper('letter', 'landscape');
+
+        // Guardar PDF en storage
+        $rutaArchivo = 'planillas/' . $periodo . '/' . $nombreArchivo;
+        \Illuminate\Support\Facades\Storage::put($rutaArchivo, $pdf->output());
+
+        // Registrar o actualizar el reporte mensual
+        PlanillaReport::updateOrCreate(
+            ['deductora_id' => $deductoraId, 'periodo' => $periodo, 'tipo' => 'planilla_cobro'],
+            ['nombre_archivo' => $nombreArchivo, 'ruta_archivo' => $rutaArchivo, 'user_id' => request()->user()?->id]
+        );
+
+        return $pdf->stream($nombreArchivo);
     }
 
     public function novedadesPlanillaPdf(Request $request)
@@ -682,8 +775,43 @@ class ReporteController extends Controller
         $hasta       = $request->input('hasta');
 
         $pdf = Pdf::loadHTML($this->buildNovedadesPdfHtml($data, $deductora?->nombre ?? '—', $desde, $hasta))
-            ->setPaper('letter', 'portrait');
+            ->setPaper('letter', 'landscape');
         return $pdf->stream('novedades_planilla.pdf');
+    }
+
+    /**
+     * Estado de reportes de planilla generados por mes
+     */
+    public function planillaReportsStatus(Request $request)
+    {
+        $periodo = $request->input('periodo', Carbon::now()->format('Y-m'));
+
+        $reports = PlanillaReport::with('deductora:id,nombre')
+            ->where('periodo', $periodo)
+            ->get()
+            ->map(fn($r) => [
+                'id'             => $r->id,
+                'deductora_id'   => $r->deductora_id,
+                'deductora'      => $r->deductora?->nombre ?? '—',
+                'tipo'           => $r->tipo,
+                'periodo'        => $r->periodo,
+                'generado_en'    => $r->created_at->toDateTimeString(),
+                'actualizado_en' => $r->updated_at->toDateTimeString(),
+            ]);
+
+        $deductoras = Deductora::all(['id', 'nombre']);
+        $pendientes = $deductoras->filter(fn($d) =>
+            !$reports->contains('deductora_id', $d->id)
+        )->values()->map(fn($d) => [
+            'deductora_id' => $d->id,
+            'deductora'    => $d->nombre,
+        ]);
+
+        return response()->json([
+            'periodo'    => $periodo,
+            'generados'  => $reports,
+            'pendientes' => $pendientes,
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -809,7 +937,7 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#DBEAFE;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><body style="font-family:Arial,sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;">
             <h2 style="color:#1e3a8a;">Cartera Activa</h2>
             <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo total: <b>₡' . number_format($totales['saldo_total'], 2) . '</b> | Cuota total: <b>₡' . number_format($totales['cuota_total'], 2) . '</b></p>
             <table width="100%" cellspacing="0" cellpadding="0">
@@ -825,7 +953,7 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#FEE2E2;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><body style="font-family:Arial,sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;">
             <h2 style="color:#991b1b;">Cartera en Mora</h2>
             <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo en mora: <b>₡' . number_format($totales['saldo_mora'], 2) . '</b></p>
             <table width="100%" cellspacing="0"><tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>Días Mora</th><th ' . $th . '>Rango</th><th ' . $th . '>Estado</th></tr>';
@@ -843,64 +971,78 @@ class ReporteController extends Controller
         $totales   = $data['totales'];
         $rows      = $data['data'];
 
-        $th = 'style="background:#1e3a8a;color:#fff;font-weight:bold;padding:7px 8px;border:1px solid #1e3a8a;font-size:10px;text-align:left;"';
-        $td = 'style="padding:6px 8px;border:1px solid #e5e7eb;font-size:10px;"';
-        $tdf = 'style="padding:6px 8px;border:1px solid #ddd;font-size:10px;font-weight:bold;background:#f0f9ff;"';
+        $th = 'style="background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;text-align:left;"';
+        $td = 'style="padding:4px 6px;border:1px solid #e5e7eb;font-size:8px;"';
+        $tdf = 'style="padding:4px 6px;border:1px solid #ddd;font-size:8px;font-weight:bold;background:#f0f9ff;"';
 
-        $html = '<html><body style="font-family:Arial,sans-serif;margin:30px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;margin:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
                 <div>
-                    <h1 style="color:#1e3a8a;margin:0;font-size:18px;">Planilla de Cobro</h1>
-                    <h2 style="color:#374151;margin:4px 0 0;font-size:14px;font-weight:normal;">' . $deductora . '</h2>
+                    <h1 style="color:#1e3a8a;margin:0;font-size:16px;">Planilla de Cobro</h1>
+                    <h2 style="color:#374151;margin:4px 0 0;font-size:12px;font-weight:normal;">' . $deductora . '</h2>
                 </div>
-                <div style="text-align:right;font-size:10px;color:#6b7280;">
+                <div style="text-align:right;font-size:9px;color:#6b7280;">
                     <div>Generado: ' . $fecha . '</div>
-                    <div style="margin-top:4px;font-size:11px;color:#1e3a8a;font-weight:bold;">CR Studio</div>
+                    <div style="margin-top:4px;font-size:10px;color:#1e3a8a;font-weight:bold;">CR Studio</div>
                 </div>
             </div>
 
-            <div style="display:flex;gap:20px;margin-bottom:18px;">
-                <div style="background:#dbeafe;padding:10px 16px;border-radius:6px;text-align:center;">
-                    <div style="font-size:9px;color:#1e40af;">Créditos activos</div>
-                    <div style="font-size:20px;font-weight:bold;color:#1e3a8a;">' . $totales['creditos'] . '</div>
+            <div style="display:flex;gap:16px;margin-bottom:14px;">
+                <div style="background:#dbeafe;padding:8px 14px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#1e40af;">Créditos activos</div>
+                    <div style="font-size:18px;font-weight:bold;color:#1e3a8a;">' . $totales['creditos'] . '</div>
                 </div>
-                <div style="background:#d1fae5;padding:10px 16px;border-radius:6px;text-align:center;">
-                    <div style="font-size:9px;color:#065f46;">Total cuotas / mes</div>
-                    <div style="font-size:20px;font-weight:bold;color:#065f46;">₡' . number_format($totales['cuota_total'], 2) . '</div>
+                <div style="background:#d1fae5;padding:8px 14px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#065f46;">Total cuotas / mes</div>
+                    <div style="font-size:18px;font-weight:bold;color:#065f46;">₡' . number_format($totales['cuota_total'], 2) . '</div>
                 </div>
-                <div style="background:#f3f4f6;padding:10px 16px;border-radius:6px;text-align:center;">
-                    <div style="font-size:9px;color:#374151;">Saldo total cartera</div>
-                    <div style="font-size:20px;font-weight:bold;color:#374151;">₡' . number_format($totales['saldo_total'], 2) . '</div>
+                <div style="background:#f3f4f6;padding:8px 14px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#374151;">Saldo total cartera</div>
+                    <div style="font-size:18px;font-weight:bold;color:#374151;">₡' . number_format($totales['saldo_total'], 2) . '</div>
                 </div>
             </div>
 
             <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
                 <tr>
-                    <th ' . $th . ' style="background:#1e3a8a;color:#fff;font-weight:bold;padding:7px 8px;border:1px solid #1e3a8a;font-size:10px;width:25px;">#</th>
+                    <th ' . $th . ' style="background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;width:20px;">#</th>
                     <th ' . $th . '>Nombre del Asociado</th>
                     <th ' . $th . '>Cédula</th>
                     <th ' . $th . '>No. Crédito</th>
-                    <th ' . $th . ' style="text-align:right;">Cuota a Rebajar</th>
-                    <th ' . $th . ' style="text-align:right;">Saldo</th>
-                    <th ' . $th . ' style="text-align:center;">Estado</th>
+                    <th ' . $th . ' style="text-align:center;">F. Formalización</th>
+                    <th ' . $th . ' style="text-align:center;">Tasa %</th>
+                    <th ' . $th . ' style="text-align:center;">Plazo</th>
+                    <th ' . $th . ' style="text-align:right;background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;">Cuota a Rebajar</th>
+                    <th ' . $th . ' style="text-align:right;background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;">Saldo</th>
+                    <th ' . $th . ' style="text-align:center;background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;">Tipo Movimiento</th>
                 </tr>';
 
         foreach ($rows as $i => $r) {
             $bg = ($i % 2 === 0) ? '' : 'style="background:#f9fafb;"';
             $moraStyle = $r['cuotas_atrasadas'] > 0 ? 'color:#dc2626;font-weight:bold;' : '';
+
+            // Tipo de movimiento basado en el estado del crédito
+            $tipoMov = match(true) {
+                $r['status'] === 'Formalizado' => 'Inclusión',
+                $r['status'] === 'En Mora' => 'En Mora',
+                default => 'Vigente',
+            };
+
             $html .= '<tr ' . $bg . '>
                 <td ' . $td . ' align="center">' . ($i + 1) . '</td>
                 <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
                 <td ' . $td . '>' . $r['cedula'] . '</td>
-                <td ' . $td . ' style="font-family:monospace;font-size:9px;">' . htmlspecialchars($r['referencia']) . '</td>
+                <td ' . $td . ' style="font-family:monospace;font-size:7px;">' . htmlspecialchars($r['referencia']) . '</td>
+                <td ' . $td . ' align="center">' . $r['formalized_at'] . '</td>
+                <td ' . $td . ' align="center">' . number_format($r['tasa_anual'], 2) . '%</td>
+                <td ' . $td . ' align="center">' . $r['plazo'] . ' m</td>
                 <td ' . $td . ' align="right" style="font-weight:bold;">₡' . number_format($r['cuota'], 2) . '</td>
                 <td ' . $td . ' align="right">₡' . number_format($r['saldo'], 2) . '</td>
-                <td ' . $td . ' align="center" style="' . $moraStyle . '">' . $r['status'] . ($r['cuotas_atrasadas'] > 0 ? ' (' . $r['cuotas_atrasadas'] . ')' : '') . '</td>
+                <td ' . $td . ' align="center" style="' . $moraStyle . '">' . $tipoMov . ($r['cuotas_atrasadas'] > 0 ? ' (' . $r['cuotas_atrasadas'] . ')' : '') . '</td>
             </tr>';
         }
 
         $html .= '<tr>
-                <td ' . $tdf . ' colspan="4" align="right">TOTAL</td>
+                <td ' . $tdf . ' colspan="7" align="right">TOTAL</td>
                 <td ' . $tdf . ' align="right">₡' . number_format($totales['cuota_total'], 2) . '</td>
                 <td ' . $tdf . ' align="right">₡' . number_format($totales['saldo_total'], 2) . '</td>
                 <td ' . $tdf . '></td>
@@ -922,71 +1064,155 @@ class ReporteController extends Controller
 
     private function buildNovedadesPdfHtml(array $data, string $deductora, string $desde, string $hasta): string
     {
-        $thV = 'style="font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:10px;"';
-        $td  = 'style="padding:5px 8px;border:1px solid #e5e7eb;font-size:10px;"';
+        $thV = 'style="font-weight:bold;padding:5px 6px;border:1px solid #ccc;font-size:8px;"';
+        $td  = 'style="padding:4px 6px;border:1px solid #e5e7eb;font-size:8px;"';
 
-        $html = '<html><body style="font-family:Arial,sans-serif;margin:30px;">
-            <h1 style="color:#1e3a8a;margin:0 0 4px;">Novedades de Planilla</h1>
-            <h2 style="color:#374151;font-size:13px;font-weight:normal;margin:0 0 4px;">' . htmlspecialchars($deductora) . '</h2>
-            <p style="font-size:10px;color:#6b7280;margin:0 0 16px;">Período: ' . $desde . ' al ' . $hasta . ' &nbsp;|&nbsp; Generado: ' . Carbon::now()->toDateString() . '</p>
+        $resumen = $data['resumen'];
 
-            <div style="display:flex;gap:16px;margin-bottom:20px;">
-                <div style="background:#d1fae5;padding:8px 14px;border-radius:6px;text-align:center;">
-                    <div style="font-size:9px;color:#065f46;">Inclusiones</div>
-                    <div style="font-size:22px;font-weight:bold;color:#065f46;">' . $data['resumen']['inclusiones'] . '</div>
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;margin:20px;">
+            <h1 style="color:#1e3a8a;margin:0 0 4px;font-size:16px;">Novedades de Planilla</h1>
+            <h2 style="color:#374151;font-size:12px;font-weight:normal;margin:0 0 4px;">' . htmlspecialchars($deductora) . '</h2>
+            <p style="font-size:9px;color:#6b7280;margin:0 0 14px;">Período: ' . $desde . ' al ' . $hasta . ' &nbsp;|&nbsp; Generado: ' . Carbon::now()->toDateString() . '</p>
+
+            <div style="display:flex;gap:12px;margin-bottom:16px;">
+                <div style="background:#d1fae5;padding:6px 12px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#065f46;">Inclusiones</div>
+                    <div style="font-size:18px;font-weight:bold;color:#065f46;">' . $resumen['inclusiones'] . '</div>
                 </div>
-                <div style="background:#fee2e2;padding:8px 14px;border-radius:6px;text-align:center;">
-                    <div style="font-size:9px;color:#991b1b;">Exclusiones</div>
-                    <div style="font-size:22px;font-weight:bold;color:#991b1b;">' . $data['resumen']['exclusiones'] . '</div>
+                <div style="background:#fee2e2;padding:6px 12px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#991b1b;">Exclusiones</div>
+                    <div style="font-size:18px;font-weight:bold;color:#991b1b;">' . $resumen['exclusiones'] . '</div>
                 </div>
-                <div style="background:#fef3c7;padding:8px 14px;border-radius:6px;text-align:center;">
-                    <div style="font-size:9px;color:#92400e;">Cambios de cuota</div>
-                    <div style="font-size:22px;font-weight:bold;color:#92400e;">' . $data['resumen']['modificaciones'] . '</div>
+                <div style="background:#dbeafe;padding:6px 12px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#1e40af;">Traslados</div>
+                    <div style="font-size:18px;font-weight:bold;color:#1e40af;">' . ($resumen['traslados'] ?? 0) . '</div>
+                </div>
+                <div style="background:#ede9fe;padding:6px 12px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#5b21b6;">Refundiciones</div>
+                    <div style="font-size:18px;font-weight:bold;color:#5b21b6;">' . ($resumen['refundiciones'] ?? 0) . '</div>
+                </div>
+                <div style="background:#fef3c7;padding:6px 12px;border-radius:6px;text-align:center;">
+                    <div style="font-size:8px;color:#92400e;">Cambios cuota</div>
+                    <div style="font-size:18px;font-weight:bold;color:#92400e;">' . $resumen['modificaciones'] . '</div>
                 </div>
             </div>';
 
-        // Inclusiones
+        // ── Inclusiones ──
         if (!empty($data['inclusiones'])) {
-            $html .= '<h3 style="color:#065f46;font-size:12px;margin:16px 0 6px;">✓ INCLUIR EN PLANILLA (' . count($data['inclusiones']) . ')</h3>
-            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:16px;">
+            $html .= '<h3 style="color:#065f46;font-size:11px;margin:14px 0 4px;">INCLUIR EN PLANILLA (' . count($data['inclusiones']) . ')</h3>
+            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px;">
                 <tr style="background:#d1fae5;">
-                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th><th ' . $thV . ' align="right">Cuota</th><th ' . $thV . '>Fecha</th>
+                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th>
+                    <th ' . $thV . '>F. Formalización</th><th ' . $thV . '>Tasa %</th><th ' . $thV . '>Plazo</th>
+                    <th ' . $thV . ' align="right">Cuota</th><th ' . $thV . ' align="right">Saldo</th><th ' . $thV . '>Fecha</th>
                 </tr>';
             foreach ($data['inclusiones'] as $r) {
-                $html .= '<tr><td ' . $td . ' style="font-family:monospace;font-size:9px;">' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . ' align="right">₡' . number_format($r['cuota'], 2) . '</td><td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td></tr>';
+                $html .= '<tr>
+                    <td ' . $td . ' style="font-family:monospace;font-size:7px;">' . htmlspecialchars($r['referencia']) . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
+                    <td ' . $td . '>' . $r['cedula'] . '</td>
+                    <td ' . $td . '>' . ($r['fecha_formalizacion'] ?? '—') . '</td>
+                    <td ' . $td . ' align="center">' . number_format($r['tasa_anual'] ?? 0, 2) . '%</td>
+                    <td ' . $td . ' align="center">' . ($r['plazo'] ?? 0) . ' m</td>
+                    <td ' . $td . ' align="right">₡' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . ' align="right">₡' . number_format($r['saldo'] ?? 0, 2) . '</td>
+                    <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
+                </tr>';
             }
             $html .= '</table>';
         }
 
-        // Exclusiones
+        // ── Exclusiones ──
         if (!empty($data['exclusiones'])) {
-            $html .= '<h3 style="color:#991b1b;font-size:12px;margin:16px 0 6px;">✗ EXCLUIR DE PLANILLA (' . count($data['exclusiones']) . ')</h3>
-            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:16px;">
+            $html .= '<h3 style="color:#991b1b;font-size:11px;margin:14px 0 4px;">EXCLUIR DE PLANILLA (' . count($data['exclusiones']) . ')</h3>
+            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px;">
                 <tr style="background:#fee2e2;">
-                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th><th ' . $thV . '>Motivo</th><th ' . $thV . '>Fecha</th>
+                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th>
+                    <th ' . $thV . '>Motivo</th><th ' . $thV . ' align="right">Cuota</th><th ' . $thV . '>Fecha</th>
                 </tr>';
             foreach ($data['exclusiones'] as $r) {
-                $html .= '<tr><td ' . $td . ' style="font-family:monospace;font-size:9px;">' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['motivo'] ?? '—') . '</td><td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td></tr>';
+                $html .= '<tr>
+                    <td ' . $td . ' style="font-family:monospace;font-size:7px;">' . htmlspecialchars($r['referencia']) . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
+                    <td ' . $td . '>' . $r['cedula'] . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['motivo'] ?? '—') . '</td>
+                    <td ' . $td . ' align="right">₡' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
+                </tr>';
             }
             $html .= '</table>';
         }
 
-        // Modificaciones
+        // ── Traslados ──
+        if (!empty($data['traslados'])) {
+            $html .= '<h3 style="color:#1e40af;font-size:11px;margin:14px 0 4px;">TRASLADOS DE COOPERATIVA (' . count($data['traslados']) . ')</h3>
+            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px;">
+                <tr style="background:#dbeafe;">
+                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th>
+                    <th ' . $thV . '>De Cooperativa</th><th ' . $thV . '>A Cooperativa</th>
+                    <th ' . $thV . ' align="right">Cuota</th><th ' . $thV . '>Fecha</th>
+                </tr>';
+            foreach ($data['traslados'] as $r) {
+                $html .= '<tr>
+                    <td ' . $td . ' style="font-family:monospace;font-size:7px;">' . htmlspecialchars($r['referencia']) . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
+                    <td ' . $td . '>' . $r['cedula'] . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['deductora_anterior'] ?? '—') . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['deductora_nueva'] ?? '—') . '</td>
+                    <td ' . $td . ' align="right">₡' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
+                </tr>';
+            }
+            $html .= '</table>';
+        }
+
+        // ── Refundiciones ──
+        if (!empty($data['refundiciones'])) {
+            $html .= '<h3 style="color:#5b21b6;font-size:11px;margin:14px 0 4px;">REFUNDICIONES (' . count($data['refundiciones']) . ')</h3>
+            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px;">
+                <tr style="background:#ede9fe;">
+                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th>
+                    <th ' . $thV . '>Detalle</th><th ' . $thV . ' align="right">Cuota</th>
+                    <th ' . $thV . ' align="right">Saldo</th><th ' . $thV . '>Fecha</th>
+                </tr>';
+            foreach ($data['refundiciones'] as $r) {
+                $html .= '<tr>
+                    <td ' . $td . ' style="font-family:monospace;font-size:7px;">' . htmlspecialchars($r['referencia']) . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
+                    <td ' . $td . '>' . $r['cedula'] . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['motivo'] ?? '—') . '</td>
+                    <td ' . $td . ' align="right">₡' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . ' align="right">₡' . number_format($r['saldo'] ?? 0, 2) . '</td>
+                    <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
+                </tr>';
+            }
+            $html .= '</table>';
+        }
+
+        // ── Modificaciones de cuota ──
         if (!empty($data['modificaciones'])) {
-            $html .= '<h3 style="color:#92400e;font-size:12px;margin:16px 0 6px;">↔ MODIFICAR CUOTA (' . count($data['modificaciones']) . ')</h3>
-            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:16px;">
+            $html .= '<h3 style="color:#92400e;font-size:11px;margin:14px 0 4px;">MODIFICAR CUOTA (' . count($data['modificaciones']) . ')</h3>
+            <table width="100%" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px;">
                 <tr style="background:#fef3c7;">
-                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th><th ' . $thV . ' align="right">Cuota anterior</th><th ' . $thV . ' align="right">Cuota nueva</th><th ' . $thV . ' align="right">Diferencia</th>
+                    <th ' . $thV . '>Referencia</th><th ' . $thV . '>Nombre</th><th ' . $thV . '>Cédula</th>
+                    <th ' . $thV . ' align="right">Cuota anterior</th><th ' . $thV . ' align="right">Cuota nueva</th><th ' . $thV . ' align="right">Diferencia</th>
                 </tr>';
             foreach ($data['modificaciones'] as $r) {
                 $dif = $r['diferencia'];
                 $difStyle = $dif < 0 ? 'color:#059669;' : 'color:#dc2626;';
-                $html .= '<tr><td ' . $td . ' style="font-family:monospace;font-size:9px;">' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . ' align="right">₡' . number_format($r['cuota_anterior'], 2) . '</td><td ' . $td . ' align="right" style="font-weight:bold;">₡' . number_format($r['cuota_nueva'], 2) . '</td><td ' . $td . ' align="right" style="' . $difStyle . 'font-weight:bold;">' . ($dif > 0 ? '+' : '') . '₡' . number_format($dif, 2) . '</td></tr>';
+                $html .= '<tr>
+                    <td ' . $td . ' style="font-family:monospace;font-size:7px;">' . htmlspecialchars($r['referencia']) . '</td>
+                    <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
+                    <td ' . $td . '>' . $r['cedula'] . '</td>
+                    <td ' . $td . ' align="right">₡' . number_format($r['cuota_anterior'], 2) . '</td>
+                    <td ' . $td . ' align="right" style="font-weight:bold;">₡' . number_format($r['cuota_nueva'], 2) . '</td>
+                    <td ' . $td . ' align="right" style="' . $difStyle . 'font-weight:bold;">' . ($dif > 0 ? '+' : '') . '₡' . number_format($dif, 2) . '</td>
+                </tr>';
             }
             $html .= '</table>';
         }
 
-        if ($data['resumen']['total'] === 0) {
+        if ($resumen['total'] === 0) {
             $html .= '<p style="text-align:center;color:#6b7280;padding:30px;">No hay novedades para el período seleccionado.</p>';
         }
 
@@ -998,7 +1224,7 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#E0E7FF;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><body style="font-family:Arial,sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;">
             <h2 style="color:#3730a3;">Historial de Cobros</h2>
             <p>Total pagos: <b>' . $totales['pagos'] . '</b> | Monto total: <b>₡' . number_format($totales['monto_total'], 2) . '</b> | Amortización: <b>₡' . number_format($totales['amortizacion'], 2) . '</b></p>
             <table width="100%" cellspacing="0"><tr><th ' . $th . '>Fecha</th><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Cuota #</th><th ' . $th . '>Monto</th><th ' . $th . '>Amort.</th><th ' . $th . '>Interés</th><th ' . $th . '>Fuente</th></tr>';
