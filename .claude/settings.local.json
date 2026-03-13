@@ -48,7 +48,12 @@
       "Bash(cat /c/laragon/bin/php/php-8.3.*/php.ini)",
       "Read(//c/laragon/bin/apache//**)",
       "Read(//c/laragon/bin/apache/httpd-2.4.54-win64-VS17/conf/**)",
-      "Bash(composer dump-autoload:*)"
+      "Bash(composer dump-autoload:*)",
+      "Read(//c/laragon/etc/apache2/sites-enabled//**)",
+      "Read(//c/laragon/etc/apache2//**)",
+      "Read(//c/laragon/etc//**)",
+      "Bash(wmic process:*)",
+      "Bash(tasklist /FI \"IMAGENAME eq php.exe\" /V)"
     ]
   },
   "enableAllProjectMcpServers": true,
