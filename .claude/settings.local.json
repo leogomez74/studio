@@ -26,7 +26,13 @@
       "mcp__laravel-boost__application-info",
       "Bash(npx tsc:*)",
       "Bash(php artisan:*)",
-      "Bash(node -e 'var body = \"\"[GIF]\\(https://media.tenor.com/8dGugqxC4sAAAAC/shocked-surprised.gif\\)\"\"; var pattern = /\\(@|#\\)\\\\[\\([^\\\\]]+\\)\\\\]\\\\\\(\\(\\\\w+\\):\\(\\\\d+\\)\\\\\\)|\\\\[GIF\\\\]\\\\\\(\\([^\\)]+\\)\\\\\\)/g; var m = pattern.exec\\(body\\); console.log\\(\"\"Match:\"\", m ? m[0] : \"\"none\"\"\\); console.log\\(\"\"URL:\"\", m ? m[5] : \"\"none\"\"\\);')"
+      "Bash(node -e 'var body = \"\"[GIF]\\(https://media.tenor.com/8dGugqxC4sAAAAC/shocked-surprised.gif\\)\"\"; var pattern = /\\(@|#\\)\\\\[\\([^\\\\]]+\\)\\\\]\\\\\\(\\(\\\\w+\\):\\(\\\\d+\\)\\\\\\)|\\\\[GIF\\\\]\\\\\\(\\([^\\)]+\\)\\\\\\)/g; var m = pattern.exec\\(body\\); console.log\\(\"\"Match:\"\", m ? m[0] : \"\"none\"\"\\); console.log\\(\"\"URL:\"\", m ? m[5] : \"\"none\"\"\\);')",
+      "Bash(find /c/laragon/www/studio -name *planilla* -o -name *Planilla*)",
+      "Bash(grep -r \"planilla\\\\|Planilla\" /c/laragon/www/studio/src --include=*.ts --include=*.tsx -l)",
+      "Bash(grep -n \"cierre_motivo\\\\|tasa_interes\\\\|deductora\" /c/laragon/www/studio/backend/database/migrations/*.php)",
+      "Bash(done)",
+      "Read(//c/laragon/www/studio/**)",
+      "Bash(git checkout:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

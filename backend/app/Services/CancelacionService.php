@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Credit;
 use App\Models\CreditPayment;
+use App\Models\DeductoraChange;
 use App\Models\Task;
 use App\Traits\AccountingTrigger;
 use Carbon\Carbon;
@@ -159,7 +160,14 @@ class CancelacionService
         // Cerrar el crédito
         $credit->saldo = 0;
         $credit->status = 'Cerrado';
+        $credit->cierre_motivo = 'Cancelación anticipada';
         $credit->save();
+
+        // ── Registrar exclusión de planilla ──
+        if ($credit->deductora_id) {
+            $credit->load(['lead', 'deductora']);
+            DeductoraChange::registrarExclusion($credit, 'Cancelación anticipada', Auth::id());
+        }
 
         // Crear tarea para adjuntar pagaré firmado
         if ($credit->assigned_to) {

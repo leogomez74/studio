@@ -12,6 +12,7 @@ use App\Models\Task;
 use App\Models\Analisis;
 use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
+use App\Models\DeductoraChange;
 use App\Helpers\NumberToWords;
 use App\Traits\AccountingTrigger;
 use App\Traits\LogsActivity;
@@ -605,7 +606,17 @@ class CreditController extends Controller
             }
         }
 
+        // Capturar deductora anterior para detectar traslados
+        $oldDeductoraId     = $credit->deductora_id;
+        $oldDeductoraNombre = $credit->deductora?->nombre;
+
         $credit->update($validated);
+
+        // ── Registrar traslado de deductora si cambió ──
+        if (isset($validated['deductora_id']) && $oldDeductoraId && $oldDeductoraId != $credit->deductora_id) {
+            $credit->load(['lead', 'deductora']);
+            DeductoraChange::registrarTraslado($credit, $oldDeductoraId, $oldDeductoraNombre ?? '—', $request->user()?->id);
+        }
 
         // Recalcular saldo SOLO si se cambió el monto Y el crédito NO está formalizado
         // monto_credito ya viene con cargos descontados, no restar de nuevo
@@ -679,6 +690,12 @@ class CreditController extends Controller
                     ],
                 ]
             );
+
+            // ── Registrar inclusión en planilla al formalizar ──
+            if ($credit->deductora_id) {
+                $credit->load(['lead', 'deductora']);
+                DeductoraChange::registrarInclusion($credit, $request->user()?->id);
+            }
         }
 
         $this->logActivity('update', 'Créditos', $credit, $credit->reference, $this->getChanges($oldData, $credit->fresh()->toArray()), $request);
@@ -1192,6 +1209,14 @@ class CreditController extends Controller
                     ],
                 ]
             );
+
+            // ── Registrar movimientos de planilla: exclusión del viejo + refundición del nuevo ──
+            $oldCredit->load(['lead', 'deductora']);
+            $newCredit->load(['lead', 'deductora']);
+            if ($oldCredit->deductora_id) {
+                DeductoraChange::registrarExclusion($oldCredit, 'Refundición — crédito reemplazado por ' . $newCredit->reference, $request->user()?->id);
+            }
+            DeductoraChange::registrarRefundicion($oldCredit, $newCredit, $request->user()?->id);
 
             return [
                 'old_credit' => $oldCredit->fresh()->load('planDePagos'),

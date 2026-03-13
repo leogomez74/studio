@@ -102,8 +102,11 @@ class MiController extends Controller {
   - `GET /api/reportes/planilla-cobro/{id}/pdf` → PDF planilla de cobro (Carlos → cooperativas)
   - `GET /api/reportes/novedades-planilla/pdf` → PDF de novedades (inclusiones/exclusiones/cambios cuota)
 - **Novedades automáticas**: se cargan automáticamente al seleccionar cooperativa (sin botón "Consultar")
-- **PDF Planilla de Cobro**: incluye nombre asociado, cédula, No. crédito, cuota a rebajar, saldo, estado + totales + espacio firmas
+- **PDF Planilla de Cobro**: landscape, incluye nombre, cédula, No. crédito, F. Formalización, Tasa %, Plazo, cuota, saldo, Tipo Movimiento + totales + firmas. Fuente: DejaVu Sans (soporta ₡)
 - **Status filter default**: incluye `['Activo', 'En Mora', 'Formalizado', 'Legal', 'En Progreso', 'Aprobado', 'Por firmar']` (excluye solo 'Cerrado')
+- **Historial de cambios**: tabla `deductora_changes` registra inclusiones, exclusiones, traslados y refundiciones automáticamente. Modelo `DeductoraChange` con helpers estáticos
+- **Control mensual PDF**: tabla `planilla_reports` registra generación por deductora/periodo/tipo. Endpoint `GET /api/reportes/planilla-reports-status?periodo=YYYY-MM`
+- **Novedades expandidas**: 5 secciones (inclusiones con F.Formalización/Tasa/Plazo/Saldo, exclusiones, traslados de cooperativa, refundiciones, cambios de cuota)
 
 ---
 

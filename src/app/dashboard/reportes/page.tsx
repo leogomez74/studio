@@ -61,9 +61,11 @@ interface DeductoraRow {
 }
 
 interface NovItem {
-  tipo: string; id: number; referencia: string; cliente: string; cedula: string; detalle: string;
-  cuota?: number; fecha?: string; motivo?: string;
+  tipo: string; id: number; referencia: string; cliente: string; cedula: string; detalle?: string;
+  cuota?: number; saldo?: number; fecha?: string; motivo?: string;
+  tasa_anual?: number; plazo?: number; fecha_formalizacion?: string;
   cuota_anterior?: number; cuota_nueva?: number; diferencia?: number;
+  tipo_movimiento?: string; deductora_anterior?: string; deductora_nueva?: string;
 }
 
 interface CobroRow {
@@ -776,7 +778,7 @@ function NovedadesTab({ deductoras }: { deductoras: Deductora[] }) {
   const [deductoraId, setDeductoraId] = useState('');
   const [desde, setDesde] = useState(FIRST_OF_MONTH);
   const [hasta, setHasta] = useState(TODAY);
-  const [data, setData] = useState<{ inclusiones: NovItem[]; exclusiones: NovItem[]; modificaciones: NovItem[]; resumen: Record<string, number> } | null>(null);
+  const [data, setData] = useState<{ inclusiones: NovItem[]; exclusiones: NovItem[]; traslados: NovItem[]; refundiciones: NovItem[]; modificaciones: NovItem[]; resumen: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -858,7 +860,7 @@ function NovedadesTab({ deductoras }: { deductoras: Deductora[] }) {
 
       {data && (
         <>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Card className="border-green-200 bg-green-50">
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2">
@@ -877,6 +879,28 @@ function NovedadesTab({ deductoras }: { deductoras: Deductora[] }) {
                   <div>
                     <p className="text-xs text-red-700">Exclusiones</p>
                     <p className="text-2xl font-bold text-red-800">{data.resumen.exclusiones}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2">
+                  <ArrowLeftRight className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-xs text-blue-700">Traslados</p>
+                    <p className="text-2xl font-bold text-blue-800">{data.resumen.traslados ?? 0}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-purple-200 bg-purple-50">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5 text-purple-600" />
+                  <div>
+                    <p className="text-xs text-purple-700">Refundiciones</p>
+                    <p className="text-2xl font-bold text-purple-800">{data.resumen.refundiciones ?? 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -901,13 +925,19 @@ function NovedadesTab({ deductoras }: { deductoras: Deductora[] }) {
           )}
 
           {data.inclusiones.length > 0 && (
-            <NovedadSection title="Inclusiones — Nuevos en planilla" items={data.inclusiones} color="green" />
+            <NovedadSection title="Inclusiones — Nuevos en planilla" items={data.inclusiones} color="green" tipo="inclusion" />
           )}
           {data.exclusiones.length > 0 && (
-            <NovedadSection title="Exclusiones — Retirar de planilla" items={data.exclusiones} color="red" />
+            <NovedadSection title="Exclusiones — Retirar de planilla" items={data.exclusiones} color="red" tipo="exclusion" />
+          )}
+          {(data.traslados?.length ?? 0) > 0 && (
+            <NovedadSection title="Traslados de cooperativa" items={data.traslados} color="blue" tipo="traslado" />
+          )}
+          {(data.refundiciones?.length ?? 0) > 0 && (
+            <NovedadSection title="Refundiciones" items={data.refundiciones} color="purple" tipo="refundicion" />
           )}
           {data.modificaciones.length > 0 && (
-            <NovedadSection title="Modificaciones de cuota" items={data.modificaciones} color="yellow" />
+            <NovedadSection title="Modificaciones de cuota" items={data.modificaciones} color="yellow" tipo="modificacion" />
           )}
         </>
       )}
@@ -915,39 +945,83 @@ function NovedadesTab({ deductoras }: { deductoras: Deductora[] }) {
   );
 }
 
-function NovedadSection({ title, items, color }: { title: string; items: NovItem[]; color: 'green' | 'red' | 'yellow' }) {
-  const borderColor = { green: 'border-green-200', red: 'border-red-200', yellow: 'border-yellow-200' }[color];
-  const bgColor = { green: 'bg-green-50', red: 'bg-red-50', yellow: 'bg-yellow-50' }[color];
-  const textColor = { green: 'text-green-800', red: 'text-red-800', yellow: 'text-yellow-800' }[color];
+function NovedadSection({ title, items, color, tipo }: { title: string; items: NovItem[]; color: 'green' | 'red' | 'yellow' | 'blue' | 'purple'; tipo: string }) {
+  const borderColor: Record<string, string> = { green: 'border-green-200', red: 'border-red-200', yellow: 'border-yellow-200', blue: 'border-blue-200', purple: 'border-purple-200' };
+  const bgColor: Record<string, string> = { green: 'bg-green-50', red: 'bg-red-50', yellow: 'bg-yellow-50', blue: 'bg-blue-50', purple: 'bg-purple-50' };
+  const textColor: Record<string, string> = { green: 'text-green-800', red: 'text-red-800', yellow: 'text-yellow-800', blue: 'text-blue-800', purple: 'text-purple-800' };
+
+  const isTraslado = tipo === 'traslado';
+  const isModificacion = tipo === 'modificacion';
+  const isInclusion = tipo === 'inclusion';
 
   return (
-    <Card className={`${borderColor}`}>
+    <Card className={borderColor[color]}>
       <CardHeader className="pb-2">
-        <CardTitle className={`text-sm ${textColor}`}>{title} ({items.length})</CardTitle>
+        <CardTitle className={`text-sm ${textColor[color]}`}>{title} ({items.length})</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className={bgColor}>
-              <TableHead>Referencia</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Cédula</TableHead>
-              <TableHead>Detalle</TableHead>
-              <TableHead>Fecha</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map(item => (
-              <TableRow key={`${item.tipo}-${item.id}`}>
-                <TableCell className="font-mono text-xs">{item.referencia}</TableCell>
-                <TableCell className="text-sm">{item.cliente}</TableCell>
-                <TableCell className="text-xs">{item.cedula}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{item.detalle}</TableCell>
-                <TableCell className="text-xs">{item.fecha ?? '—'}</TableCell>
+        <ScrollableTableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow className={bgColor[color]}>
+                <TableHead>Referencia</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Cédula</TableHead>
+                {isInclusion && <>
+                  <TableHead>F. Formalización</TableHead>
+                  <TableHead className="text-center">Tasa %</TableHead>
+                  <TableHead className="text-center">Plazo</TableHead>
+                  <TableHead className="text-right">Cuota</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
+                </>}
+                {isTraslado && <>
+                  <TableHead>De Cooperativa</TableHead>
+                  <TableHead>A Cooperativa</TableHead>
+                  <TableHead className="text-right">Cuota</TableHead>
+                </>}
+                {isModificacion && <>
+                  <TableHead className="text-right">Cuota anterior</TableHead>
+                  <TableHead className="text-right">Cuota nueva</TableHead>
+                  <TableHead className="text-right">Diferencia</TableHead>
+                </>}
+                {!isInclusion && !isTraslado && !isModificacion && <TableHead>Motivo</TableHead>}
+                <TableHead>Fecha</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {items.map(item => (
+                <TableRow key={`${tipo}-${item.id}-${item.fecha}`}>
+                  <TableCell className="font-mono text-xs">{item.referencia}</TableCell>
+                  <TableCell className="text-sm">{item.cliente}</TableCell>
+                  <TableCell className="text-xs">{item.cedula}</TableCell>
+                  {isInclusion && <>
+                    <TableCell className="text-xs">{item.fecha_formalizacion ?? '—'}</TableCell>
+                    <TableCell className="text-xs text-center">{(item.tasa_anual ?? 0).toFixed(2)}%</TableCell>
+                    <TableCell className="text-xs text-center">{item.plazo ?? 0} m</TableCell>
+                    <TableCell className="text-xs text-right font-medium">{fmt(item.cuota ?? 0)}</TableCell>
+                    <TableCell className="text-xs text-right">{fmt(item.saldo ?? 0)}</TableCell>
+                  </>}
+                  {isTraslado && <>
+                    <TableCell className="text-xs">{item.deductora_anterior ?? '—'}</TableCell>
+                    <TableCell className="text-xs font-medium">{item.deductora_nueva ?? '—'}</TableCell>
+                    <TableCell className="text-xs text-right">{fmt(item.cuota ?? 0)}</TableCell>
+                  </>}
+                  {isModificacion && <>
+                    <TableCell className="text-xs text-right">{fmt(item.cuota_anterior ?? 0)}</TableCell>
+                    <TableCell className="text-xs text-right font-bold">{fmt(item.cuota_nueva ?? 0)}</TableCell>
+                    <TableCell className={`text-xs text-right font-bold ${(item.diferencia ?? 0) < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(item.diferencia ?? 0) > 0 ? '+' : ''}{fmt(item.diferencia ?? 0)}
+                    </TableCell>
+                  </>}
+                  {!isInclusion && !isTraslado && !isModificacion && (
+                    <TableCell className="text-xs text-muted-foreground">{item.motivo ?? item.detalle ?? '—'}</TableCell>
+                  )}
+                  <TableCell className="text-xs">{item.fecha ?? '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </ScrollableTableContainer>
       </CardContent>
     </Card>
   );
