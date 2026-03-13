@@ -6,11 +6,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\CredidService;
+use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CredidController extends Controller
 {
+    use LogsActivity;
+
     private CredidService $credidService;
 
     public function __construct(CredidService $credidService)
@@ -19,38 +22,16 @@ class CredidController extends Controller
     }
 
     /**
-     * Verificar configuración y probar consulta de Credid.
-     * GET /api/credid/status?cedula=123456789
+     * Verificar configuración de Credid (solo admins).
+     * GET /api/credid/status
+     *
+     * No expone valores de configuración, solo estado booleano.
      */
     public function status(Request $request): JsonResponse
     {
-        $url = config('services.credid.url', '');
-        $token = config('services.credid.token', '');
+        $result = $this->credidService->verificarConfiguracion();
 
-        $result = [
-            'url_configured' => !empty($url),
-            'url_value' => $url,
-            'token_configured' => !empty($token),
-            'token_length' => strlen($token),
-        ];
-
-        // Si se pasa cédula, hacer consulta de diagnóstico
-        if ($cedula = $request->input('cedula')) {
-            try {
-                $response = \Illuminate\Support\Facades\Http::timeout(30)->get($url, [
-                    'token' => $token,
-                    'cedula' => preg_replace('/[^0-9]/', '', $cedula),
-                ]);
-                $result['http_status'] = $response->status();
-                $result['content_type'] = $response->header('Content-Type');
-                $body = $response->body();
-                $result['body_length'] = strlen($body);
-                $result['body_type'] = gettype($response->json());
-                $result['body_preview'] = substr($body, 0, 300);
-            } catch (\Exception $e) {
-                $result['error'] = $e->getMessage();
-            }
-        }
+        $this->logActivity('view', 'Credid', null, 'credid/status', [], $request);
 
         return response()->json($result);
     }
@@ -62,7 +43,9 @@ class CredidController extends Controller
     public function reporte(Request $request): JsonResponse
     {
         $request->validate([
-            'cedula' => 'required|string|min:5|max:20',
+            'cedula' => ['required', 'string', 'regex:/^\d{9,12}$/'],
+        ], [
+            'cedula.regex' => 'La cédula debe contener entre 9 y 12 dígitos numéricos.',
         ]);
 
         $cedula = $request->input('cedula');
@@ -76,6 +59,8 @@ class CredidController extends Controller
         }
 
         $datosAnalisis = $this->credidService->extraerDatosAnalisis($reporte);
+
+        $this->logActivity('view', 'Credid', null, 'credid/reporte', [], $request);
 
         return response()->json([
             'success' => true,

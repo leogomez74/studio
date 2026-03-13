@@ -17,14 +17,39 @@ class CredidService
     }
 
     /**
+     * Verificar estado de configuración de Credid (sin exponer valores sensibles).
+     */
+    public function verificarConfiguracion(): array
+    {
+        return [
+            'url_configured' => !empty($this->baseUrl),
+            'token_configured' => !empty($this->token),
+            'service_ready' => !empty($this->baseUrl) && !empty($this->token),
+        ];
+    }
+
+    /**
+     * Enmascarar cédula para logging seguro: muestra solo los últimos 4 dígitos.
+     */
+    private function maskCedula(string $cedula): string
+    {
+        $len = strlen($cedula);
+        if ($len <= 4) {
+            return str_repeat('*', $len);
+        }
+        return str_repeat('*', $len - 4) . substr($cedula, -4);
+    }
+
+    /**
      * Consultar reporte completo de una persona por cédula.
      */
     public function consultarReporte(string $cedula): ?array
     {
         $cleanCedula = preg_replace('/[^0-9]/', '', $cedula);
+        $maskedCedula = $this->maskCedula($cleanCedula);
 
         if (empty($cleanCedula) || empty($this->token)) {
-            Log::warning('Credid: cédula o token vacío', ['cedula' => $cedula]);
+            Log::warning('Credid: cédula o token vacío', ['cedula' => $maskedCedula]);
             return null;
         }
 
@@ -35,7 +60,7 @@ class CredidService
             ]);
 
             if (!$response->successful()) {
-                Log::warning('Credid: HTTP error', ['status' => $response->status(), 'cedula' => $cleanCedula]);
+                Log::warning('Credid: HTTP error', ['status' => $response->status(), 'cedula' => $maskedCedula]);
                 return null;
             }
 
@@ -43,7 +68,7 @@ class CredidService
 
             // Si json() retorna string en vez de array (ej: mensaje de error de Credid)
             if (is_string($data)) {
-                Log::warning('Credid: respuesta es string', ['message' => $data, 'cedula' => $cleanCedula]);
+                Log::warning('Credid: respuesta es string', ['message' => $data, 'cedula' => $maskedCedula]);
                 $decoded = json_decode($data, true);
                 if (is_array($decoded)) {
                     $data = $decoded;
@@ -53,19 +78,19 @@ class CredidService
             }
 
             if (!is_array($data)) {
-                Log::warning('Credid: respuesta inesperada', ['type' => gettype($data), 'cedula' => $cleanCedula]);
+                Log::warning('Credid: respuesta inesperada', ['type' => gettype($data), 'cedula' => $maskedCedula]);
                 return null;
             }
 
             if (isset($data['Message'])) {
-                Log::warning('Credid: API error', ['message' => $data['Message'], 'cedula' => $cleanCedula]);
+                Log::warning('Credid: API error', ['message' => $data['Message'], 'cedula' => $maskedCedula]);
                 return null;
             }
 
             return $data;
         } catch (\Exception $e) {
             Log::error('Credid: Error al consultar reporte', [
-                'cedula' => $cleanCedula,
+                'cedula' => $maskedCedula,
                 'error' => $e->getMessage(),
             ]);
             return null;

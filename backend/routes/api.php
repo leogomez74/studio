@@ -376,8 +376,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/lead-alerts/{id}/read', [LeadAlertController::class, 'markAsRead']);
 
     // --- Credid (consulta externa) ---
-    Route::get('credid/status', [\App\Http\Controllers\Api\CredidController::class, 'status']);
-    Route::get('credid/reporte', [\App\Http\Controllers\Api\CredidController::class, 'reporte']);
+    Route::get('credid/status', [\App\Http\Controllers\Api\CredidController::class, 'status'])->middleware(['admin', 'throttle:10,1']);
+    Route::get('credid/reporte', [\App\Http\Controllers\Api\CredidController::class, 'reporte'])->middleware('throttle:10,1');
 
     // --- Analisis ---
     Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
