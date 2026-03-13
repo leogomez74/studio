@@ -458,6 +458,7 @@ export default function AnalisisPage() {
                   <th className="px-6 py-3 bg-blue-50 text-blue-800">Profesión</th>
                   <th className="px-6 py-3 bg-blue-50 text-blue-800">Puesto</th>
                   <th className="px-6 py-3 bg-blue-50 text-blue-800">Nombramiento</th>
+                  <th className="px-6 py-3 text-center">Riesgo</th>
                   <th className="px-6 py-3">Monto</th>
                   <th className="px-6 py-3">Estado PEP</th>
                   <th className="px-6 py-3">Estado Cliente</th>
@@ -515,6 +516,21 @@ export default function AnalisisPage() {
                         </span>
                       );
                     })()}
+                  </td>
+
+                  {/* Score Riesgo */}
+                  <td className="px-6 py-4 text-center">
+                    {item.score_riesgo !== undefined && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
+                        item.score_riesgo_color === 'green' ? 'bg-green-100 text-green-700' :
+                        item.score_riesgo_color === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
+                        item.score_riesgo_color === 'orange' ? 'bg-orange-100 text-orange-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {item.score_riesgo}
+                        <span className="font-normal text-[10px]">/ 100</span>
+                      </span>
+                    )}
                   </td>
 
                   {/* Monto (Formateado) */}

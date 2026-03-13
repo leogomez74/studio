@@ -970,6 +970,39 @@ export default function AnalisisDetailPage() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Score Interno de Riesgo */}
+              {analisis.score_riesgo !== undefined && (
+                <div className={`flex items-center justify-between p-3 rounded-lg border ${
+                  analisis.score_riesgo_color === 'green' ? 'bg-green-50 border-green-200' :
+                  analisis.score_riesgo_color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                  analisis.score_riesgo_color === 'orange' ? 'bg-orange-50 border-orange-200' :
+                  'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Score Riesgo</span>
+                    <Badge variant={
+                      analisis.score_riesgo_color === 'green' ? 'default' :
+                      analisis.score_riesgo_color === 'red' ? 'destructive' :
+                      'secondary'
+                    } className={`text-sm font-bold ${
+                      analisis.score_riesgo_color === 'yellow' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                      analisis.score_riesgo_color === 'orange' ? 'bg-orange-500 text-white hover:bg-orange-600' :
+                      ''
+                    }`}>
+                      {analisis.score_riesgo}/100
+                    </Badge>
+                  </div>
+                  <span className={`text-sm font-semibold ${
+                    analisis.score_riesgo_color === 'green' ? 'text-green-700' :
+                    analisis.score_riesgo_color === 'yellow' ? 'text-yellow-700' :
+                    analisis.score_riesgo_color === 'orange' ? 'text-orange-700' :
+                    'text-red-700'
+                  }`}>
+                    {analisis.score_riesgo_label}
+                  </span>
+                </div>
+              )}
+
               {/* Manchas */}
               <Collapsible open={manchasOpen} onOpenChange={setManchasOpen}>
                 <CollapsibleTrigger asChild>

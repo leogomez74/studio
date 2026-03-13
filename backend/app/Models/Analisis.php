@@ -91,6 +91,9 @@ class Analisis extends Model
         'credit_id',
         'credit_status',
         'monto_credito',
+        'score_riesgo',
+        'score_riesgo_color',
+        'score_riesgo_label',
     ];
 
     protected static function booted()
@@ -182,5 +185,55 @@ class Analisis extends Model
     public function comments()
     {
         return $this->morphMany(Comment::class, 'commentable');
+    }
+
+    // ── Score Interno de Riesgo (computado) ──────────────────────────
+
+    /**
+     * Score de riesgo interno (0-100). Mayor = menor riesgo.
+     * Calculado a partir de manchas, juicios y embargos.
+     */
+    public function getScoreRiesgoAttribute(): int
+    {
+        $score = 100;
+
+        // Manchas: -12 pts c/u (máx -48)
+        $score -= min(($this->numero_manchas ?? 0) * 12, 48);
+
+        // Juicios: -15 pts c/u (máx -45)
+        $score -= min(($this->numero_juicios ?? 0) * 15, 45);
+
+        // Embargos: -20 pts c/u (máx -40)
+        $score -= min(($this->numero_embargos ?? 0) * 20, 40);
+
+        return max($score, 0);
+    }
+
+    /**
+     * Color del semáforo de riesgo.
+     */
+    public function getScoreRiesgoColorAttribute(): string
+    {
+        $score = $this->score_riesgo;
+
+        if ($score >= 80) return 'green';
+        if ($score >= 60) return 'yellow';
+        if ($score >= 40) return 'orange';
+
+        return 'red';
+    }
+
+    /**
+     * Etiqueta legible del nivel de riesgo.
+     */
+    public function getScoreRiesgoLabelAttribute(): string
+    {
+        $score = $this->score_riesgo;
+
+        if ($score >= 80) return 'Bajo';
+        if ($score >= 60) return 'Moderado';
+        if ($score >= 40) return 'Alto';
+
+        return 'Muy Alto';
     }
 }

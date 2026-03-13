@@ -116,6 +116,9 @@ export interface AnalisisItem {
   credit_status?: string;
   category?: string;
   divisa?: string;
+  score_riesgo?: number;
+  score_riesgo_color?: 'green' | 'yellow' | 'orange' | 'red';
+  score_riesgo_label?: string;
 }
 
 export interface AnalisisFile {

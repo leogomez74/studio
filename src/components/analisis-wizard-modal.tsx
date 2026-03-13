@@ -108,6 +108,7 @@ export function AnalisisWizardModal({
   const [leadData, setLeadData] = useState<{ profesion?: string; puesto?: string; estado_puesto?: string; cedula?: string } | null>(null);
   const [credidLoading, setCredidLoading] = useState(false);
   const [credidLoaded, setCredidLoaded] = useState(false);
+  const [score, setScore] = useState<number | null>(null);
   const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number; tasa_anual: string }>>({});
   const [montoError, setMontoError] = useState<string>('');
 
@@ -175,6 +176,7 @@ export function AnalisisWizardModal({
                     puesto: d.cargo || prev.puesto,
                     estado_puesto: d.nombramiento || prev.estado_puesto
                   } : prev);
+                  setScore(d.score);
                   setCredidLoaded(true);
                 }
               } catch (err) {
@@ -576,9 +578,52 @@ export function AnalisisWizardModal({
                     <Check className="h-3 w-3 mr-1" /> Pre-llenado con Credid
                   </Badge>
                 )}
+                {score && (
+                  <Badge variant="outline" className="text-xs font-normal text-blue-700 border-blue-300 bg-blue-50">
+                    Score: {score}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Score Interno de Riesgo */}
+              {(() => {
+                const s = Math.max(0, 100 - Math.min(formData.numero_manchas * 12, 48) - Math.min(formData.numero_juicios * 15, 45) - Math.min(formData.numero_embargos * 20, 40));
+                const color = s >= 80 ? 'green' : s >= 60 ? 'yellow' : s >= 40 ? 'orange' : 'red';
+                const label = s >= 80 ? 'Bajo' : s >= 60 ? 'Moderado' : s >= 40 ? 'Alto' : 'Muy Alto';
+                return (
+                  <div className={`flex items-center justify-between p-3 rounded-lg border ${
+                    color === 'green' ? 'bg-green-50 border-green-200' :
+                    color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                    color === 'orange' ? 'bg-orange-50 border-orange-200' :
+                    'bg-red-50 border-red-200'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Score Riesgo</span>
+                      <Badge variant={
+                        color === 'green' ? 'default' :
+                        color === 'red' ? 'destructive' :
+                        'secondary'
+                      } className={`text-sm font-bold ${
+                        color === 'yellow' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                        color === 'orange' ? 'bg-orange-500 text-white hover:bg-orange-600' :
+                        ''
+                      }`}>
+                        {s}/100
+                      </Badge>
+                    </div>
+                    <span className={`text-sm font-semibold ${
+                      color === 'green' ? 'text-green-700' :
+                      color === 'yellow' ? 'text-yellow-700' :
+                      color === 'orange' ? 'text-orange-700' :
+                      'text-red-700'
+                    }`}>
+                      {label}
+                    </span>
+                  </div>
+                );
+              })()}
+
               {/* Contadores */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div>
