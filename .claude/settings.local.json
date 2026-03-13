@@ -35,7 +35,20 @@
       "Bash(git checkout:*)",
       "Bash(php -r \":*)",
       "Bash(php -r \"if \\(function_exists\\(''opcache_reset''\\)\\) { opcache_reset\\(\\); echo ''OPcache reset OK''; } else { echo ''OPcache not enabled''; }\")",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(php -i)",
+      "Bash(C:/laragon/bin/php/php-8.2.*/php.exe)",
+      "Bash(-i)",
+      "Read(//c/laragon/bin/php/**)",
+      "Bash(C:/laragon/bin/php/php8.3/php.exe -i)",
+      "Bash(C:/laragon/bin/php/php8.3/php.exe -m)",
+      "Bash(C:/laragon/bin/php/php8.3/php.exe -v)",
+      "Bash(php -r \"echo php_ini_loaded_file\\(\\);\")",
+      "Bash(cat /c/laragon/bin/php/php-8.2.*/php.ini)",
+      "Bash(cat /c/laragon/bin/php/php-8.3.*/php.ini)",
+      "Read(//c/laragon/bin/apache//**)",
+      "Read(//c/laragon/bin/apache/httpd-2.4.54-win64-VS17/conf/**)",
+      "Bash(composer dump-autoload:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

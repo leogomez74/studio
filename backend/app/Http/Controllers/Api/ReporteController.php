@@ -978,7 +978,7 @@ class ReporteController extends Controller
         $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;margin:20px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
                 <div>
-                    <h1 style="color:#1e3a8a;margin:0;font-size:16px;">Planilla de Cobro</h1>
+                    <h1 style="color:#1e3a8a;margin:0;font-size:16px;">Planilla de Cobro (v2)</h1>
                     <h2 style="color:#374151;margin:4px 0 0;font-size:12px;font-weight:normal;">' . $deductora . '</h2>
                 </div>
                 <div style="text-align:right;font-size:9px;color:#6b7280;">
