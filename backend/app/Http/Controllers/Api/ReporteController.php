@@ -937,7 +937,7 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#DBEAFE;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: &apos;DejaVu Sans&apos;, sans-serif;">
             <h2 style="color:#1e3a8a;">Cartera Activa</h2>
             <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo total: <b>₡' . number_format($totales['saldo_total'], 2) . '</b> | Cuota total: <b>₡' . number_format($totales['cuota_total'], 2) . '</b></p>
             <table width="100%" cellspacing="0" cellpadding="0">
@@ -953,7 +953,7 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#FEE2E2;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: &apos;DejaVu Sans&apos;, sans-serif;">
             <h2 style="color:#991b1b;">Cartera en Mora</h2>
             <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo en mora: <b>₡' . number_format($totales['saldo_mora'], 2) . '</b></p>
             <table width="100%" cellspacing="0"><tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>Días Mora</th><th ' . $th . '>Rango</th><th ' . $th . '>Estado</th></tr>';
@@ -975,7 +975,7 @@ class ReporteController extends Controller
         $td = 'style="padding:4px 6px;border:1px solid #e5e7eb;font-size:8px;"';
         $tdf = 'style="padding:4px 6px;border:1px solid #ddd;font-size:8px;font-weight:bold;background:#f0f9ff;"';
 
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;margin:20px;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: &apos;DejaVu Sans&apos;, sans-serif;margin:20px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
                 <div>
                     <h1 style="color:#1e3a8a;margin:0;font-size:16px;">Planilla de Cobro</h1>
@@ -1069,7 +1069,7 @@ class ReporteController extends Controller
 
         $resumen = $data['resumen'];
 
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;margin:20px;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: &apos;DejaVu Sans&apos;, sans-serif;margin:20px;">
             <h1 style="color:#1e3a8a;margin:0 0 4px;font-size:16px;">Novedades de Planilla</h1>
             <h2 style="color:#374151;font-size:12px;font-weight:normal;margin:0 0 4px;">' . htmlspecialchars($deductora) . '</h2>
             <p style="font-size:9px;color:#6b7280;margin:0 0 14px;">Período: ' . $desde . ' al ' . $hasta . ' &nbsp;|&nbsp; Generado: ' . Carbon::now()->toDateString() . '</p>
@@ -1224,7 +1224,7 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#E0E7FF;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family:DejaVu Sans,sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: &apos;DejaVu Sans&apos;, sans-serif;">
             <h2 style="color:#3730a3;">Historial de Cobros</h2>
             <p>Total pagos: <b>' . $totales['pagos'] . '</b> | Monto total: <b>₡' . number_format($totales['monto_total'], 2) . '</b> | Amortización: <b>₡' . number_format($totales['amortizacion'], 2) . '</b></p>
             <table width="100%" cellspacing="0"><tr><th ' . $th . '>Fecha</th><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Cuota #</th><th ' . $th . '>Monto</th><th ' . $th . '>Amort.</th><th ' . $th . '>Interés</th><th ' . $th . '>Fuente</th></tr>';

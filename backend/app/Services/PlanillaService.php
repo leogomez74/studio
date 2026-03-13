@@ -480,7 +480,7 @@ class PlanillaService
             <meta charset="utf-8">
             <title>Resumen de Planilla</title>
             <style>
-                body { font-family: DejaVu Sans, sans-serif; font-size: 10px; }
+                body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; }
                 h1 { text-align: center; color: #333; font-size: 16px; margin-bottom: 10px; }
                 .info { text-align: center; margin-bottom: 15px; font-size: 9px; }
                 .totales { margin-bottom: 15px; padding: 10px; background: #f5f5f5; }
