@@ -542,7 +542,7 @@ class ReporteController extends Controller
                     'cuota_nueva'    => $cuotaNueva,
                     'diferencia'     => round($cuotaNueva - $cuotaAnterior, 2),
                     'fecha'          => $primerAbono->fecha_pago,
-                    'detalle'        => 'Modificar cuota: &#8353;' . number_format($cuotaAnterior, 2) . ' → &#8353;' . number_format($cuotaNueva, 2),
+                    'detalle'        => 'Modificar cuota: ₡' . number_format($cuotaAnterior, 2) . ' → ₡' . number_format($cuotaNueva, 2),
                 ];
             })->filter()->values();
         }
@@ -937,13 +937,13 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#DBEAFE;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: Helvetica, Arial, sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;">
             <h2 style="color:#1e3a8a;">Cartera Activa</h2>
-            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo total: <b>&#8353;' . number_format($totales['saldo_total'], 2) . '</b> | Cuota total: <b>&#8353;' . number_format($totales['cuota_total'], 2) . '</b></p>
+            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo total: <b><span class="c">₡</span>' . number_format($totales['saldo_total'], 2) . '</b> | Cuota total: <b><span class="c">₡</span>' . number_format($totales['cuota_total'], 2) . '</b></p>
             <table width="100%" cellspacing="0" cellpadding="0">
             <tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Monto</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>C.Atrasadas</th><th ' . $th . '>Próx.Fecha</th><th ' . $th . '>Estado</th></tr>';
         foreach ($rows as $r) {
-            $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['monto_credito'], 2) . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['cuotas_atrasadas'] . '</td><td ' . $td . '>' . ($r['proxima_fecha'] ?? '—') . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
+            $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['monto_credito'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['cuotas_atrasadas'] . '</td><td ' . $td . '>' . ($r['proxima_fecha'] ?? '—') . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
         }
         $html .= '</table></body></html>';
         return $html;
@@ -953,12 +953,12 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#FEE2E2;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: Helvetica, Arial, sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;">
             <h2 style="color:#991b1b;">Cartera en Mora</h2>
-            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo en mora: <b>&#8353;' . number_format($totales['saldo_mora'], 2) . '</b></p>
+            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo en mora: <b><span class="c">₡</span>' . number_format($totales['saldo_mora'], 2) . '</b></p>
             <table width="100%" cellspacing="0"><tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>Días Mora</th><th ' . $th . '>Rango</th><th ' . $th . '>Estado</th></tr>';
         foreach ($rows as $r) {
-            $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['dias_mora'] . '</td><td ' . $td . '>' . $r['rango_mora'] . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
+            $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['dias_mora'] . '</td><td ' . $td . '>' . $r['rango_mora'] . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
         }
         $html .= '</table></body></html>';
         return $html;
@@ -975,7 +975,7 @@ class ReporteController extends Controller
         $td = 'style="padding:4px 6px;border:1px solid #e5e7eb;font-size:8px;"';
         $tdf = 'style="padding:4px 6px;border:1px solid #ddd;font-size:8px;font-weight:bold;background:#f0f9ff;"';
 
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: Helvetica, Arial, sans-serif;margin:20px;">
+        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;margin:20px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
                 <div>
                     <h1 style="color:#1e3a8a;margin:0;font-size:16px;">Planilla de Cobro</h1>
@@ -994,11 +994,11 @@ class ReporteController extends Controller
                 </div>
                 <div style="background:#d1fae5;padding:8px 14px;border-radius:6px;text-align:center;">
                     <div style="font-size:8px;color:#065f46;">Total cuotas / mes</div>
-                    <div style="font-size:18px;font-weight:bold;color:#065f46;">&#8353;' . number_format($totales['cuota_total'], 2) . '</div>
+                    <div style="font-size:18px;font-weight:bold;color:#065f46;"><span class="c">₡</span>' . number_format($totales['cuota_total'], 2) . '</div>
                 </div>
                 <div style="background:#f3f4f6;padding:8px 14px;border-radius:6px;text-align:center;">
                     <div style="font-size:8px;color:#374151;">Saldo total cartera</div>
-                    <div style="font-size:18px;font-weight:bold;color:#374151;">&#8353;' . number_format($totales['saldo_total'], 2) . '</div>
+                    <div style="font-size:18px;font-weight:bold;color:#374151;"><span class="c">₡</span>' . number_format($totales['saldo_total'], 2) . '</div>
                 </div>
             </div>
 
@@ -1035,16 +1035,16 @@ class ReporteController extends Controller
                 <td ' . $td . ' align="center">' . $r['formalized_at'] . '</td>
                 <td ' . $td . ' align="center">' . number_format($r['tasa_anual'], 2) . '%</td>
                 <td ' . $td . ' align="center">' . $r['plazo'] . ' m</td>
-                <td ' . $td . ' align="right" style="font-weight:bold;">&#8353;' . number_format($r['cuota'], 2) . '</td>
-                <td ' . $td . ' align="right">&#8353;' . number_format($r['saldo'], 2) . '</td>
+                <td ' . $td . ' align="right" style="font-weight:bold;"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td>
+                <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['saldo'], 2) . '</td>
                 <td ' . $td . ' align="center" style="' . $moraStyle . '">' . $tipoMov . ($r['cuotas_atrasadas'] > 0 ? ' (' . $r['cuotas_atrasadas'] . ')' : '') . '</td>
             </tr>';
         }
 
         $html .= '<tr>
                 <td ' . $tdf . ' colspan="7" align="right">TOTAL</td>
-                <td ' . $tdf . ' align="right">&#8353;' . number_format($totales['cuota_total'], 2) . '</td>
-                <td ' . $tdf . ' align="right">&#8353;' . number_format($totales['saldo_total'], 2) . '</td>
+                <td ' . $tdf . ' align="right"><span class="c">₡</span>' . number_format($totales['cuota_total'], 2) . '</td>
+                <td ' . $tdf . ' align="right"><span class="c">₡</span>' . number_format($totales['saldo_total'], 2) . '</td>
                 <td ' . $tdf . '></td>
             </tr>
             </table>
@@ -1069,7 +1069,7 @@ class ReporteController extends Controller
 
         $resumen = $data['resumen'];
 
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: Helvetica, Arial, sans-serif;margin:20px;">
+        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;margin:20px;">
             <h1 style="color:#1e3a8a;margin:0 0 4px;font-size:16px;">Novedades de Planilla</h1>
             <h2 style="color:#374151;font-size:12px;font-weight:normal;margin:0 0 4px;">' . htmlspecialchars($deductora) . '</h2>
             <p style="font-size:9px;color:#6b7280;margin:0 0 14px;">Período: ' . $desde . ' al ' . $hasta . ' &nbsp;|&nbsp; Generado: ' . Carbon::now()->toDateString() . '</p>
@@ -1114,8 +1114,8 @@ class ReporteController extends Controller
                     <td ' . $td . '>' . ($r['fecha_formalizacion'] ?? '—') . '</td>
                     <td ' . $td . ' align="center">' . number_format($r['tasa_anual'] ?? 0, 2) . '%</td>
                     <td ' . $td . ' align="center">' . ($r['plazo'] ?? 0) . ' m</td>
-                    <td ' . $td . ' align="right">&#8353;' . number_format($r['cuota'], 2) . '</td>
-                    <td ' . $td . ' align="right">&#8353;' . number_format($r['saldo'] ?? 0, 2) . '</td>
+                    <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['saldo'] ?? 0, 2) . '</td>
                     <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
                 </tr>';
             }
@@ -1136,7 +1136,7 @@ class ReporteController extends Controller
                     <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
                     <td ' . $td . '>' . $r['cedula'] . '</td>
                     <td ' . $td . '>' . htmlspecialchars($r['motivo'] ?? '—') . '</td>
-                    <td ' . $td . ' align="right">&#8353;' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td>
                     <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
                 </tr>';
             }
@@ -1159,7 +1159,7 @@ class ReporteController extends Controller
                     <td ' . $td . '>' . $r['cedula'] . '</td>
                     <td ' . $td . '>' . htmlspecialchars($r['deductora_anterior'] ?? '—') . '</td>
                     <td ' . $td . '>' . htmlspecialchars($r['deductora_nueva'] ?? '—') . '</td>
-                    <td ' . $td . ' align="right">&#8353;' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td>
                     <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
                 </tr>';
             }
@@ -1181,8 +1181,8 @@ class ReporteController extends Controller
                     <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
                     <td ' . $td . '>' . $r['cedula'] . '</td>
                     <td ' . $td . '>' . htmlspecialchars($r['motivo'] ?? '—') . '</td>
-                    <td ' . $td . ' align="right">&#8353;' . number_format($r['cuota'], 2) . '</td>
-                    <td ' . $td . ' align="right">&#8353;' . number_format($r['saldo'] ?? 0, 2) . '</td>
+                    <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td>
+                    <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['saldo'] ?? 0, 2) . '</td>
                     <td ' . $td . '>' . ($r['fecha'] ?? '—') . '</td>
                 </tr>';
             }
@@ -1204,9 +1204,9 @@ class ReporteController extends Controller
                     <td ' . $td . ' style="font-family:monospace;font-size:7px;">' . htmlspecialchars($r['referencia']) . '</td>
                     <td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td>
                     <td ' . $td . '>' . $r['cedula'] . '</td>
-                    <td ' . $td . ' align="right">&#8353;' . number_format($r['cuota_anterior'], 2) . '</td>
-                    <td ' . $td . ' align="right" style="font-weight:bold;">&#8353;' . number_format($r['cuota_nueva'], 2) . '</td>
-                    <td ' . $td . ' align="right" style="' . $difStyle . 'font-weight:bold;">' . ($dif > 0 ? '+' : '') . '&#8353;' . number_format($dif, 2) . '</td>
+                    <td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota_anterior'], 2) . '</td>
+                    <td ' . $td . ' align="right" style="font-weight:bold;"><span class="c">₡</span>' . number_format($r['cuota_nueva'], 2) . '</td>
+                    <td ' . $td . ' align="right" style="' . $difStyle . 'font-weight:bold;">' . ($dif > 0 ? '+' : '') . '<span class="c">₡</span>' . number_format($dif, 2) . '</td>
                 </tr>';
             }
             $html .= '</table>';
@@ -1224,12 +1224,12 @@ class ReporteController extends Controller
     {
         $th = 'style="background:#E0E7FF;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
         $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"></head><body style="font-family: Helvetica, Arial, sans-serif;">
+        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;">
             <h2 style="color:#3730a3;">Historial de Cobros</h2>
-            <p>Total pagos: <b>' . $totales['pagos'] . '</b> | Monto total: <b>&#8353;' . number_format($totales['monto_total'], 2) . '</b> | Amortización: <b>&#8353;' . number_format($totales['amortizacion'], 2) . '</b></p>
+            <p>Total pagos: <b>' . $totales['pagos'] . '</b> | Monto total: <b><span class="c">₡</span>' . number_format($totales['monto_total'], 2) . '</b> | Amortización: <b><span class="c">₡</span>' . number_format($totales['amortizacion'], 2) . '</b></p>
             <table width="100%" cellspacing="0"><tr><th ' . $th . '>Fecha</th><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Cuota #</th><th ' . $th . '>Monto</th><th ' . $th . '>Amort.</th><th ' . $th . '>Interés</th><th ' . $th . '>Fuente</th></tr>';
         foreach ($rows as $r) {
-            $html .= '<tr><td ' . $td . '>' . $r['fecha_pago'] . '</td><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="center">' . $r['numero_cuota'] . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['monto'], 2) . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['amortizacion'], 2) . '</td><td ' . $td . ' align="right">&#8353;' . number_format($r['interes_corriente'], 2) . '</td><td ' . $td . '>' . $r['source'] . '</td></tr>';
+            $html .= '<tr><td ' . $td . '>' . $r['fecha_pago'] . '</td><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="center">' . $r['numero_cuota'] . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['monto'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['amortizacion'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['interes_corriente'], 2) . '</td><td ' . $td . '>' . $r['source'] . '</td></tr>';
         }
         $html .= '</table></body></html>';
         return $html;
