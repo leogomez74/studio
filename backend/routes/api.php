@@ -172,6 +172,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/rutas-diarias/{id}/confirmar', [RutaDiariaController::class, 'confirmar'])->middleware(['admin', 'throttle:60,1']);
     Route::patch('/rutas-diarias/{id}/iniciar', [RutaDiariaController::class, 'iniciar'])->middleware('throttle:60,1');
     Route::patch('/rutas-diarias/{id}/reordenar', [RutaDiariaController::class, 'reordenar'])->middleware(['admin', 'throttle:60,1']);
+    Route::patch('/rutas-diarias/{id}/replanificar', [RutaDiariaController::class, 'replanificar'])->middleware(['admin', 'throttle:60,1']);
     Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware(['admin', 'throttle:30,1']);
 
     // --- Automatización de Tareas ---

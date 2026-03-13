@@ -23,15 +23,25 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import api from '@/lib/axios';
-import type { TareaRuta, RutaDiaria, ExternalRoute, ExternalIntegrationResult } from './types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/components/auth-guard';
+import type { TareaRuta, RutaDiaria, ExternalRoute, ExternalIntegrationResult, UserOption } from './types';
 import { tipoIcons, tipoLabels, prioridadColors, prioridadLabels, rutaStatusColors, rutaStatusLabels, extStatusColors } from './utils';
 
-export default function MiRutaTab() {
+interface MiRutaTabProps {
+  users?: UserOption[];
+}
+
+export default function MiRutaTab({ users = [] }: MiRutaTabProps) {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+  const isAdmin = currentUser?.role?.full_access === true;
+
   const [ruta, setRuta] = useState<RutaDiaria | null>(null);
   const [extResults, setExtResults] = useState<ExternalIntegrationResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [noHayRuta, setNoHayRuta] = useState(false);
+  const [selectedMensajero, setSelectedMensajero] = useState<string>('');
 
   // Action states
   const [showCompletarDialog, setShowCompletarDialog] = useState(false);
@@ -44,28 +54,56 @@ export default function MiRutaTab() {
   const [evidenciaFiles, setEvidenciaFiles] = useState<File[]>([]);
   const [uploadingEvidencia, setUploadingEvidencia] = useState(false);
 
+  // Admin debe seleccionar mensajero antes de ver algo
+  const viewingOwnRoute = !isAdmin || !selectedMensajero;
+
   const fetchMiRuta = useCallback(async (refresh = false) => {
+    // Admin sin mensajero seleccionado: no fetch, mostrar prompt
+    if (isAdmin && !selectedMensajero) {
+      setRuta(null);
+      setNoHayRuta(true);
+      setExtResults([]);
+      setLoading(false);
+      return;
+    }
+
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const [rutaRes, extRes] = await Promise.all([
-        api.get('/api/rutas-diarias/mi-ruta'),
-        api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }),
-      ]);
+      const rutaParams: Record<string, string | number> = {};
+      if (isAdmin && selectedMensajero) rutaParams.mensajero_id = selectedMensajero;
+
+      const requests: Promise<unknown>[] = [
+        api.get('/api/rutas-diarias/mi-ruta', { params: rutaParams }),
+      ];
+      // Solo cargar rutas externas para la vista propia del mensajero (no cuando admin ve otro usuario)
+      if (viewingOwnRoute) {
+        requests.push(api.get('/api/external-routes', { params: refresh ? { refresh: 1 } : {} }));
+      }
+
+      const results = await Promise.all(requests);
+      const rutaRes = results[0] as { data: RutaDiaria & { ruta?: null } };
+
       if (rutaRes.data.ruta === null) {
         setNoHayRuta(true);
         setRuta(null);
       } else {
-        setRuta(rutaRes.data);
+        setRuta(rutaRes.data as RutaDiaria);
         setNoHayRuta(false);
       }
-      setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
+
+      if (viewingOwnRoute && results[1]) {
+        const extRes = results[1] as { data: ExternalIntegrationResult[] };
+        setExtResults(Array.isArray(extRes.data) ? extRes.data : []);
+      } else {
+        setExtResults([]);
+      }
     } catch {
-      toast({ title: 'Error', description: 'No se pudo cargar tu ruta.', variant: 'destructive' });
+      toast({ title: 'Error', description: 'No se pudo cargar la ruta.', variant: 'destructive' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [toast]);
+  }, [toast, isAdmin, selectedMensajero, viewingOwnRoute]);
 
   useEffect(() => { fetchMiRuta(); }, [fetchMiRuta]);
 
@@ -143,17 +181,7 @@ export default function MiRutaTab() {
 
   const hasExtRoutes = extRoutesActivas.length > 0;
 
-  if ((noHayRuta || !ruta) && !hasExtRoutes) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-          <Navigation className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">Sin ruta para hoy</h3>
-          <p className="text-muted-foreground mt-1">No tienes una ruta asignada para el día de hoy.</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const noData = (noHayRuta || !ruta) && !hasExtRoutes;
 
   const tareas = ruta?.tareas || [];
   const completadas = tareas.filter((t) => t.status === 'completada').length;
@@ -163,23 +191,60 @@ export default function MiRutaTab() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {/* Refresh button */}
-      <div className="flex justify-end">
+      {/* Admin: selector de mensajero + refresh */}
+      <div className="flex items-center justify-between gap-3">
+        {isAdmin && users.length > 0 ? (
+          <Select value={selectedMensajero} onValueChange={setSelectedMensajero}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Seleccionar mensajero..." />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map(u => (
+                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : <div />}
         <Button variant="outline" size="sm" onClick={() => fetchMiRuta(true)} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
           Actualizar
         </Button>
       </div>
 
+      {/* Empty state */}
+      {noData && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+            <Navigation className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold">
+              {isAdmin && selectedMensajero ? 'Sin rutas para este mensajero' : 'Sin rutas asignadas'}
+            </h3>
+            <p className="text-muted-foreground mt-1">
+              {isAdmin && !selectedMensajero ? 'Selecciona un mensajero para ver su ruta.' : 'No hay rutas confirmadas pendientes.'}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header card — ruta PEP */}
-      {ruta && (
+      {ruta && (() => {
+        const rutaDate = new Date(String(ruta.fecha).split('T')[0] + 'T00:00:00');
+        const today = new Date(); today.setHours(0,0,0,0);
+        const isToday = rutaDate.getTime() === today.getTime();
+        const fechaLabel = rutaDate.toLocaleDateString('es-CR', { weekday: 'long', day: 'numeric', month: 'long' });
+        const mensajeroName = isAdmin && selectedMensajero ? users.find(u => String(u.id) === selectedMensajero)?.name : null;
+        const titulo = mensajeroName
+          ? `Ruta de ${mensajeroName}`
+          : isToday ? 'Mi Ruta de Hoy' : 'Mi Próxima Ruta';
+        return (
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-lg font-bold">Mi Ruta de Hoy</h2>
+                <h2 className="text-lg font-bold">{titulo}</h2>
                 <p className="text-sm text-muted-foreground">
-                  {new Date(ruta.fecha).toLocaleDateString('es-CR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {!isToday && <span className="font-medium text-blue-600">Planificada: </span>}
+                  {fechaLabel}
                 </p>
               </div>
               <Badge className={`${rutaStatusColors[ruta.status]} text-sm px-3 py-1`}>
@@ -219,7 +284,8 @@ export default function MiRutaTab() {
             )}
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       {/* Tareas PEP */}
       {tareas.length > 0 && (

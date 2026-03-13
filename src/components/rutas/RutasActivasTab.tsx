@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Truck, Loader2, CheckCircle2, XCircle, Building2, Navigation, Phone, MapPin, PackageCheck, RefreshCw } from 'lucide-react';
+import { Truck, Loader2, CheckCircle2, XCircle, Building2, Navigation, Phone, MapPin, PackageCheck, RefreshCw, CalendarClock, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,9 +16,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import api from '@/lib/axios';
 import type { RutaDiaria, ExternalRoute, ExternalIntegrationResult } from './types';
 import { tipoIcons, statusColors, statusLabels, rutaStatusColors, rutaStatusLabels, extStatusColors } from './utils';
+
+function isVencida(ruta: RutaDiaria): boolean {
+  const fechaStr = String(ruta.fecha).split('T')[0];
+  const rutaDate = new Date(fechaStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  return rutaDate < today && ruta.status !== 'completada';
+}
 
 export default function RutasActivasTab() {
   const { toast } = useToast();
@@ -28,6 +37,8 @@ export default function RutasActivasTab() {
   const [selectedRuta, setSelectedRuta] = useState<RutaDiaria | null>(null);
   const [selectedExtRoute, setSelectedExtRoute] = useState<{ route: ExternalRoute; source: string } | null>(null);
   const [showCancelarDialog, setShowCancelarDialog] = useState(false);
+  const [showReplanificarDialog, setShowReplanificarDialog] = useState(false);
+  const [nuevaFecha, setNuevaFecha] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -94,6 +105,23 @@ export default function RutasActivasTab() {
     }
   };
 
+  const handleReplanificar = async () => {
+    if (!selectedRuta || !nuevaFecha) return;
+    setActionLoading(true);
+    try {
+      await api.patch(`/api/rutas-diarias/${selectedRuta.id}/replanificar`, { fecha: nuevaFecha });
+      toast({ title: 'Ruta replanificada', description: `Nueva fecha: ${nuevaFecha}` });
+      setShowReplanificarDialog(false);
+      setNuevaFecha('');
+      fetchRutas();
+      fetchRutaDetail(selectedRuta.id);
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo replanificar la ruta.', variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Rutas externas activas (Planificada o En Progreso)
   const extRoutesActivas: { route: ExternalRoute; source: string }[] = [];
   extResults.forEach(r => {
@@ -136,7 +164,15 @@ export default function RutasActivasTab() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm">{new Date(r.fecha).toLocaleDateString('es-CR', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-                    <Badge className={rutaStatusColors[r.status]}>{rutaStatusLabels[r.status]}</Badge>
+                    <div className="flex items-center gap-1">
+                      {isVencida(r) && (
+                        <Badge className="bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400" variant="outline">
+                          <AlertTriangle className="h-3 w-3 mr-0.5" />
+                          Vencida
+                        </Badge>
+                      )}
+                      <Badge className={rutaStatusColors[r.status]}>{rutaStatusLabels[r.status]}</Badge>
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {r.mensajero?.name || 'Sin asignar'} — {r.completadas_count ?? r.completadas}/{r.tareas_count ?? r.total_tareas} tareas
@@ -199,19 +235,36 @@ export default function RutasActivasTab() {
             <p className="text-center py-12 text-muted-foreground">Selecciona una ruta para ver sus tareas.</p>
           ) : selectedRuta ? (
             <div className="space-y-4">
+              {/* Vencida warning */}
+              {isVencida(selectedRuta) && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800">
+                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800 dark:text-red-400">Ruta vencida</p>
+                    <p className="text-xs text-red-600 dark:text-red-500">Esta ruta tiene fecha pasada. Replanifícala o cancélala para liberar las tareas.</p>
+                  </div>
+                </div>
+              )}
+
               {/* Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {selectedRuta.status === 'borrador' && (
                   <Button size="sm" onClick={() => handleConfirmar(selectedRuta.id)}>
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     Confirmar Ruta
                   </Button>
                 )}
+                {isVencida(selectedRuta) && (
+                  <Button size="sm" variant="outline" onClick={() => { setNuevaFecha(''); setShowReplanificarDialog(true); }}>
+                    <CalendarClock className="h-4 w-4 mr-1" />
+                    Replanificar
+                  </Button>
+                )}
                 <div className="ml-auto flex items-center gap-3">
                   <span className="text-sm text-muted-foreground">
                     {selectedRuta.tareas?.filter((t) => t.status === 'completada').length || 0} / {selectedRuta.tareas?.length || 0} completadas
                   </span>
-                  {selectedRuta.status === 'borrador' && (
+                  {(selectedRuta.status === 'borrador' || isVencida(selectedRuta)) && (
                     <Button size="sm" variant="destructive" onClick={() => setShowCancelarDialog(true)}>
                       <XCircle className="h-4 w-4 mr-1" />
                       Cancelar Ruta
@@ -354,6 +407,34 @@ export default function RutasActivasTab() {
             <AlertDialogAction onClick={handleCancelarRuta} disabled={actionLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {actionLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Cancelar Ruta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Replanificar ruta dialog */}
+      <AlertDialog open={showReplanificarDialog} onOpenChange={setShowReplanificarDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replanificar ruta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se cambiará la fecha de la ruta y las tareas en tránsito volverán a estado asignada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div>
+            <Label>Nueva fecha</Label>
+            <Input
+              type="date"
+              value={nuevaFecha}
+              onChange={(e) => setNuevaFecha(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReplanificar} disabled={actionLoading || !nuevaFecha}>
+              {actionLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Replanificar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

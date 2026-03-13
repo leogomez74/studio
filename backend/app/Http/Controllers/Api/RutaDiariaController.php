@@ -181,17 +181,50 @@ class RutaDiariaController extends Controller
     }
 
     /**
-     * Mi ruta de hoy (para el mensajero autenticado).
+     * Mi ruta actual (para el mensajero autenticado).
+     * Admin puede ver la ruta de cualquier mensajero con ?mensajero_id=X.
+     * Prioridad: en_progreso hoy > confirmada hoy > próxima confirmada futura.
      */
-    public function miRuta()
+    public function miRuta(Request $request)
     {
-        $ruta = RutaDiaria::with(['tareas' => fn($q) => $q->orderBy('posicion')->withCount('evidencias')->with('solicitante:id,name')])
-            ->where('mensajero_id', Auth::id())
-            ->whereDate('fecha', today())
+        $user = Auth::user();
+        $userId = $user->id;
+
+        // Admin puede consultar la ruta de otro mensajero
+        if ($request->filled('mensajero_id') && $user->role?->full_access) {
+            $userId = (int) $request->query('mensajero_id');
+        }
+
+        $eagerLoad = ['tareas' => fn($q) => $q->orderBy('posicion')->withCount('evidencias')->with('solicitante:id,name')];
+
+        // 1. Ruta en progreso (sin importar fecha — una ruta activa siempre se muestra)
+        $ruta = RutaDiaria::with($eagerLoad)
+            ->where('mensajero_id', $userId)
+            ->where('status', 'en_progreso')
+            ->orderByRaw("ABS(DATEDIFF(fecha, CURDATE()))")
             ->first();
 
+        // 2. Ruta confirmada de hoy
         if (!$ruta) {
-            return response()->json(['message' => 'No tienes ruta asignada para hoy.', 'ruta' => null]);
+            $ruta = RutaDiaria::with($eagerLoad)
+                ->where('mensajero_id', $userId)
+                ->whereDate('fecha', today())
+                ->where('status', 'confirmada')
+                ->first();
+        }
+
+        // 3. Próxima ruta confirmada (hoy o futura)
+        if (!$ruta) {
+            $ruta = RutaDiaria::with($eagerLoad)
+                ->where('mensajero_id', $userId)
+                ->where('status', 'confirmada')
+                ->whereDate('fecha', '>=', today())
+                ->orderBy('fecha')
+                ->first();
+        }
+
+        if (!$ruta) {
+            return response()->json(['message' => 'No tienes rutas asignadas.', 'ruta' => null]);
         }
 
         return response()->json($ruta);
@@ -237,6 +270,45 @@ class RutaDiariaController extends Controller
         return response()->json(
             $ruta->load(['tareas' => fn($q) => $q->orderBy('posicion')])
         );
+    }
+
+    /**
+     * Replanificar una ruta: cambiar la fecha y resetear a confirmada.
+     */
+    public function replanificar(Request $request, string $id)
+    {
+        $ruta = RutaDiaria::findOrFail($id);
+
+        if ($ruta->status === 'completada') {
+            return response()->json(['message' => 'No se puede replanificar una ruta completada.'], 422);
+        }
+
+        $validated = $request->validate([
+            'fecha' => 'required|date|after_or_equal:today',
+        ]);
+
+        return DB::transaction(function () use ($ruta, $validated) {
+            $fechaAnterior = $ruta->fecha->format('Y-m-d');
+
+            $ruta->update([
+                'fecha' => $validated['fecha'],
+                'status' => 'confirmada',
+            ]);
+
+            // Resetear tareas en_transito a asignada (si la ruta estaba en progreso)
+            $ruta->tareas()
+                ->where('status', 'en_transito')
+                ->update(['status' => 'asignada', 'fecha_asignada' => $validated['fecha']]);
+
+            // Actualizar fecha_asignada de las demás tareas activas
+            $ruta->tareas()
+                ->where('status', 'asignada')
+                ->update(['fecha_asignada' => $validated['fecha']]);
+
+            $this->logActivity('update', 'Rutas', $ruta, "Ruta replanificada: {$fechaAnterior} → {$validated['fecha']}");
+
+            return response()->json($ruta->load(['tareas' => fn($q) => $q->orderBy('posicion')]));
+        });
     }
 
     /**

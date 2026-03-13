@@ -88,7 +88,7 @@ export default function RutasPage() {
             </>
           )}
           <TabsContent value="mi-ruta">
-            <MiRutaTab />
+            <MiRutaTab users={users} />
           </TabsContent>
           <TabsContent value="historial">
             <HistorialTab />
