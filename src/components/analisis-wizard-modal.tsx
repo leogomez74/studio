@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -109,8 +109,7 @@ export function AnalisisWizardModal({
   const [credidLoading, setCredidLoading] = useState(false);
   const [credidLoaded, setCredidLoaded] = useState(false);
   const [score, setScore] = useState<number | null>(null);
-  const [scorePreview, setScorePreview] = useState<{ score_riesgo: number; score_riesgo_color: string; score_riesgo_label: string } | null>(null);
-  const scoreDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const [scoreRiesgo, setScoreRiesgo] = useState<{ score_riesgo: number; score_riesgo_color: string; score_riesgo_label: string } | null>(null);
   const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number; tasa_anual: string }>>({});
   const [montoError, setMontoError] = useState<string>('');
 
@@ -127,19 +126,6 @@ export function AnalisisWizardModal({
       setCurrentProducto(producto);
     }
   }, [producto]);
-
-  // Score preview: calcular desde el backend con debounce
-  useEffect(() => {
-    if (scoreDebounceRef.current) clearTimeout(scoreDebounceRef.current);
-    scoreDebounceRef.current = setTimeout(() => {
-      api.post('/api/analisis/score-preview', {
-        numero_manchas: formData.numero_manchas,
-        numero_juicios: formData.numero_juicios,
-        numero_embargos: formData.numero_embargos,
-      }).then(res => setScorePreview(res.data)).catch(() => {});
-    }, 300);
-    return () => { if (scoreDebounceRef.current) clearTimeout(scoreDebounceRef.current); };
-  }, [formData.numero_manchas, formData.numero_juicios, formData.numero_embargos]);
 
   // Cargar usuarios y datos del lead al abrir el modal
   useEffect(() => {
@@ -192,6 +178,9 @@ export function AnalisisWizardModal({
                     estado_puesto: d.nombramiento || prev.estado_puesto
                   } : prev);
                   setScore(d.score);
+                  if (d.score_riesgo != null) {
+                    setScoreRiesgo({ score_riesgo: d.score_riesgo, score_riesgo_color: d.score_riesgo_color, score_riesgo_label: d.score_riesgo_label });
+                  }
                   setCredidLoaded(true);
                 }
               } catch (err) {
@@ -602,34 +591,34 @@ export function AnalisisWizardModal({
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Score Interno de Riesgo (calculado por el backend) */}
-              {scorePreview && (
+              {scoreRiesgo && (
                 <div className={`flex items-center justify-between p-3 rounded-lg border ${
-                  scorePreview.score_riesgo_color === 'green' ? 'bg-green-50 border-green-200' :
-                  scorePreview.score_riesgo_color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
-                  scorePreview.score_riesgo_color === 'orange' ? 'bg-orange-50 border-orange-200' :
+                  scoreRiesgo.score_riesgo_color === 'green' ? 'bg-green-50 border-green-200' :
+                  scoreRiesgo.score_riesgo_color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                  scoreRiesgo.score_riesgo_color === 'orange' ? 'bg-orange-50 border-orange-200' :
                   'bg-red-50 border-red-200'
                 }`}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-muted-foreground">Score Riesgo</span>
                     <Badge variant={
-                      scorePreview.score_riesgo_color === 'green' ? 'default' :
-                      scorePreview.score_riesgo_color === 'red' ? 'destructive' :
+                      scoreRiesgo.score_riesgo_color === 'green' ? 'default' :
+                      scoreRiesgo.score_riesgo_color === 'red' ? 'destructive' :
                       'secondary'
                     } className={`text-sm font-bold ${
-                      scorePreview.score_riesgo_color === 'yellow' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                      scorePreview.score_riesgo_color === 'orange' ? 'bg-orange-500 text-white hover:bg-orange-600' :
+                      scoreRiesgo.score_riesgo_color === 'yellow' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                      scoreRiesgo.score_riesgo_color === 'orange' ? 'bg-orange-500 text-white hover:bg-orange-600' :
                       ''
                     }`}>
-                      {scorePreview.score_riesgo}/100
+                      {scoreRiesgo.score_riesgo}/100
                     </Badge>
                   </div>
                   <span className={`text-sm font-semibold ${
-                    scorePreview.score_riesgo_color === 'green' ? 'text-green-700' :
-                    scorePreview.score_riesgo_color === 'yellow' ? 'text-yellow-700' :
-                    scorePreview.score_riesgo_color === 'orange' ? 'text-orange-700' :
+                    scoreRiesgo.score_riesgo_color === 'green' ? 'text-green-700' :
+                    scoreRiesgo.score_riesgo_color === 'yellow' ? 'text-yellow-700' :
+                    scoreRiesgo.score_riesgo_color === 'orange' ? 'text-orange-700' :
                     'text-red-700'
                   }`}>
-                    {scorePreview.score_riesgo_label}
+                    {scoreRiesgo.score_riesgo_label}
                   </span>
                 </div>
               )}

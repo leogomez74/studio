@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Analisis;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -120,6 +121,7 @@ class CredidService
             'score' => $reporte['Score']['ConfidenceResult'] ?? null,
             'score_color' => $reporte['Score']['Color'] ?? null,
             'listas_internacionales' => $reporte['ListasInternacionalesCoincidenciaExacta'] ?? 0,
+            ...$this->calcularScoreRiesgo($reporte),
         ];
     }
 
@@ -304,6 +306,24 @@ class CredidService
         }
 
         return $resultado;
+    }
+
+    /**
+     * Calcular score interno de riesgo usando los accessors del modelo Analisis.
+     */
+    private function calcularScoreRiesgo(array $reporte): array
+    {
+        $analisis = new Analisis([
+            'numero_manchas' => $this->contarManchas($reporte),
+            'numero_juicios' => count($reporte['Juicios'] ?? []),
+            'numero_embargos' => count($reporte['Embargos'] ?? []),
+        ]);
+
+        return [
+            'score_riesgo' => $analisis->score_riesgo,
+            'score_riesgo_color' => $analisis->score_riesgo_color,
+            'score_riesgo_label' => $analisis->score_riesgo_label,
+        ];
     }
 
     /**

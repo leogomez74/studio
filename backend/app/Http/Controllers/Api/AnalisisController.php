@@ -720,24 +720,4 @@ class AnalisisController extends Controller
         return $fileList;
     }
 
-    /**
-     * Calcular score de riesgo sin persistir — para preview en wizard.
-     * POST /api/analisis/score-preview
-     */
-    public function scorePreview(Request $request): \Illuminate\Http\JsonResponse
-    {
-        $validated = $request->validate([
-            'numero_manchas' => 'required|integer|min:0',
-            'numero_juicios' => 'required|integer|min:0',
-            'numero_embargos' => 'required|integer|min:0',
-        ]);
-
-        $analisis = new Analisis($validated);
-
-        return response()->json([
-            'score_riesgo' => $analisis->score_riesgo,
-            'score_riesgo_color' => $analisis->score_riesgo_color,
-            'score_riesgo_label' => $analisis->score_riesgo_label,
-        ]);
-    }
 }
