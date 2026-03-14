@@ -87,7 +87,7 @@ class MiController extends Controller {
 - **Datos auto-llenados:** cargo, nombramiento, manchas/juicios/embargos (conteo + detalles), PEP, refs comerciales
 - **No auto-llena:** montos, plazo, cuota, ingreso neto exacto, deducciones, propuesta
 - **Score Credid:** Requiere permiso adicional en contrato Credid — token actual NO lo tiene. `CredidService` ya lo extrae (`$reporte['Score']['ConfidenceResult']`), se activará automáticamente cuando Credid habilite el módulo
-- **Score Interno de Riesgo (Mar 2026):** Accessor computado en `Analisis` model, sin migración. Fórmula: 100 - (manchas×12, máx 48) - (juicios×15, máx 45) - (embargos×20, máx 40). Colores: green(80-100)/yellow(60-79)/orange(40-59)/red(0-39). Labels: Bajo/Moderado/Alto/Muy Alto. Visible en listado y detalle de análisis
+- **Score Interno de Riesgo (Mar 2026):** Accessor computado en `Analisis` model, sin migración. Fórmula: 100 - (manchas×12, máx 48) - (juicios×15, máx 45) - (embargos×20, máx 40). Colores: green(80-100)/yellow(60-79)/orange(40-59)/red(0-39). Labels: Bajo/Moderado/Alto/Muy Alto. Visible en listado y detalle de análisis. Endpoint `POST /api/analisis/score-preview` para calcular sin persistir (usado en wizard con debounce 300ms)
 - **Wizard reordenado (Mar 2026):** Paso 1=Historial Crediticio, Paso 2=Info Básica, Paso 3=Ingresos, Paso 4=Documentos
 - **Estados juicios normalizados:** `En Trámite` / `Finalizado` (backend, frontend, validación, tipos)
 - **Fix producción:** `$response->json()` puede retornar string en vez de array → se agregó `json_decode` fallback en `CredidService`

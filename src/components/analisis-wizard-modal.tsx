@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -109,6 +109,8 @@ export function AnalisisWizardModal({
   const [credidLoading, setCredidLoading] = useState(false);
   const [credidLoaded, setCredidLoaded] = useState(false);
   const [score, setScore] = useState<number | null>(null);
+  const [scorePreview, setScorePreview] = useState<{ score_riesgo: number; score_riesgo_color: string; score_riesgo_label: string } | null>(null);
+  const scoreDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [loanConfigs, setLoanConfigs] = useState<Record<string, { nombre: string; monto_minimo: number; monto_maximo: number; tasa_anual: string }>>({});
   const [montoError, setMontoError] = useState<string>('');
 
@@ -125,6 +127,19 @@ export function AnalisisWizardModal({
       setCurrentProducto(producto);
     }
   }, [producto]);
+
+  // Score preview: calcular desde el backend con debounce
+  useEffect(() => {
+    if (scoreDebounceRef.current) clearTimeout(scoreDebounceRef.current);
+    scoreDebounceRef.current = setTimeout(() => {
+      api.post('/api/analisis/score-preview', {
+        numero_manchas: formData.numero_manchas,
+        numero_juicios: formData.numero_juicios,
+        numero_embargos: formData.numero_embargos,
+      }).then(res => setScorePreview(res.data)).catch(() => {});
+    }, 300);
+    return () => { if (scoreDebounceRef.current) clearTimeout(scoreDebounceRef.current); };
+  }, [formData.numero_manchas, formData.numero_juicios, formData.numero_embargos]);
 
   // Cargar usuarios y datos del lead al abrir el modal
   useEffect(() => {
@@ -586,43 +601,38 @@ export function AnalisisWizardModal({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Score Interno de Riesgo */}
-              {(() => {
-                const s = Math.max(0, 100 - Math.min(formData.numero_manchas * 12, 48) - Math.min(formData.numero_juicios * 15, 45) - Math.min(formData.numero_embargos * 20, 40));
-                const color = s >= 80 ? 'green' : s >= 60 ? 'yellow' : s >= 40 ? 'orange' : 'red';
-                const label = s >= 80 ? 'Bajo' : s >= 60 ? 'Moderado' : s >= 40 ? 'Alto' : 'Muy Alto';
-                return (
-                  <div className={`flex items-center justify-between p-3 rounded-lg border ${
-                    color === 'green' ? 'bg-green-50 border-green-200' :
-                    color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
-                    color === 'orange' ? 'bg-orange-50 border-orange-200' :
-                    'bg-red-50 border-red-200'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Score Riesgo</span>
-                      <Badge variant={
-                        color === 'green' ? 'default' :
-                        color === 'red' ? 'destructive' :
-                        'secondary'
-                      } className={`text-sm font-bold ${
-                        color === 'yellow' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                        color === 'orange' ? 'bg-orange-500 text-white hover:bg-orange-600' :
-                        ''
-                      }`}>
-                        {s}/100
-                      </Badge>
-                    </div>
-                    <span className={`text-sm font-semibold ${
-                      color === 'green' ? 'text-green-700' :
-                      color === 'yellow' ? 'text-yellow-700' :
-                      color === 'orange' ? 'text-orange-700' :
-                      'text-red-700'
+              {/* Score Interno de Riesgo (calculado por el backend) */}
+              {scorePreview && (
+                <div className={`flex items-center justify-between p-3 rounded-lg border ${
+                  scorePreview.score_riesgo_color === 'green' ? 'bg-green-50 border-green-200' :
+                  scorePreview.score_riesgo_color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                  scorePreview.score_riesgo_color === 'orange' ? 'bg-orange-50 border-orange-200' :
+                  'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Score Riesgo</span>
+                    <Badge variant={
+                      scorePreview.score_riesgo_color === 'green' ? 'default' :
+                      scorePreview.score_riesgo_color === 'red' ? 'destructive' :
+                      'secondary'
+                    } className={`text-sm font-bold ${
+                      scorePreview.score_riesgo_color === 'yellow' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                      scorePreview.score_riesgo_color === 'orange' ? 'bg-orange-500 text-white hover:bg-orange-600' :
+                      ''
                     }`}>
-                      {label}
-                    </span>
+                      {scorePreview.score_riesgo}/100
+                    </Badge>
                   </div>
-                );
-              })()}
+                  <span className={`text-sm font-semibold ${
+                    scorePreview.score_riesgo_color === 'green' ? 'text-green-700' :
+                    scorePreview.score_riesgo_color === 'yellow' ? 'text-yellow-700' :
+                    scorePreview.score_riesgo_color === 'orange' ? 'text-orange-700' :
+                    'text-red-700'
+                  }`}>
+                    {scorePreview.score_riesgo_label}
+                  </span>
+                </div>
+              )}
 
               {/* Contadores */}
               <div className="grid grid-cols-3 gap-4 mb-6">
