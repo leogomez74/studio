@@ -92,6 +92,7 @@ class MiController extends Controller {
 - **Estados juicios normalizados:** `En Trámite` / `Finalizado` (backend, frontend, validación, tipos)
 - **Fix producción:** `$response->json()` puede retornar string en vez de array → se agregó `json_decode` fallback en `CredidService`
 - **Auditoría Seguridad Credid (Mar 2026):** 7 fixes aplicados: (1) `status()` protegido con middleware `admin` + no expone URL/token/body_preview, (2) `status()` refactorizado para usar `CredidService::verificarConfiguracion()`, (3) `throttle:10,1` en ambas rutas credid, (4) Token en query string es limitación de la API de Credid (documentado), (5) Validación cédula con regex `/^\d{9,12}$/`, (6) `LogsActivity` trait en `CredidController`, (7) Cédulas enmascaradas en logs (`*****6789`)
+- **Auditoría Seguridad Global (Mar 2026):** 5 fixes críticos: (C1) throttle en 40+ rutas financieras/mutación, (C2) `/health/env` ya no expone detalles de configuración de integraciones — solo status boolean, (C3) `CreditController::storeDocument` validación `mimes|max:10240`, (C4) `DB::transaction + lockForUpdate()` en InvestmentController (liquidate/renew/cancel/cancelacionTotal), InvestmentCouponController (markPaid/correct/markBulkPaid/bulkPayByDesembolso), ComisionController (aprobar/pagar/bulkAprobar/bulkPagar), (C5) DOMPurify sanitización en `dangerouslySetInnerHTML` de chat-bubble.tsx y comunicaciones/page.tsx
 
 ---
 

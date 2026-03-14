@@ -2,6 +2,7 @@
 // 'use client' indica que es un Componente de Cliente, lo que permite usar estado y efectos.
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import DOMPurify from 'dompurify';
 import { useRouter, useSearchParams } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -80,9 +81,10 @@ function getAvatarColor(id: number) { return AVATAR_COLORS[id % AVATAR_COLORS.le
 function relativeTime(d: string) { const diff=Date.now()-new Date(d).getTime(); const m=Math.floor(diff/60000); const h=Math.floor(m/60); const dy=Math.floor(h/24); if(m<1)return'ahora'; if(m<60)return`${m}m`; if(h<24)return`${h}h`; if(dy===1)return'ayer'; return`${dy}d`; }
 function getEntityInfo(t: string) { return COMMENT_ENTITY_MAP[t] ?? { label:'Entidad', route:'/dashboard', color:'bg-gray-100 text-gray-700', apiType:'' }; }
 function renderBody(body: string) {
-  return body
+  const html = body
     .replace(/\[GIF\]\(([^)]+)\)/g, (_, url: string) => `<img src="${url}" alt="GIF" class="rounded-lg max-w-[220px] max-h-[160px] object-cover mt-1 block" loading="lazy" />`)
     .replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, l: string) => `<span class="font-semibold text-primary">${l}</span>`);
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['span', 'img', 'b', 'i', 'em', 'strong', 'br'], ALLOWED_ATTR: ['class', 'src', 'alt', 'loading'] });
 }
 
 /** Clean body for preview: strip mentions, show "GIF" instead of link */
