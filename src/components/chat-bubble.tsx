@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { useRouter } from 'next/navigation';
 import {
   MessageCircle,
@@ -132,7 +133,8 @@ function renderBody(body: string) {
   // GIF messages → just show label
   if (isGifMessage(body)) return '🎞 GIF';
   // Replace @[Name](user:id) and #[Label](type:id) with styled spans
-  return body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, label) => `<span class="font-semibold text-primary">${'@' + label}</span>`);
+  const html = body.replace(/[@#]\[([^\]]+)\]\(\w+:\d+\)/g, (_, label) => `<span class="font-semibold text-primary">${'@' + label}</span>`);
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br'], ALLOWED_ATTR: ['class'] });
 }
 function truncateBody(body: string, max = 80) {
   // GIF messages → just show label

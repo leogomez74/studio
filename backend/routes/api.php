@@ -44,23 +44,18 @@ use App\Http\Controllers\Api\RutaDiariaController;
 |
 */
 
-// --- Health check: verificar variables de entorno críticas ---
+// --- Health check: solo status global (detalles requieren admin) ---
 Route::get('/health/env', function () {
-    $checks = [
-        'DB_DATABASE'   => !empty(env('DB_DATABASE')),
-        'ERP_SERVICE_URL' => !empty(config('services.erp.service_url')),
-        'ERP_SERVICE_TOKEN' => !empty(config('services.erp.service_token')),
-        'CREDID_API_URL' => !empty(config('services.credid.url')),
-        'CREDID_API_TOKEN' => !empty(config('services.credid.token')),
-        'DSF_API_URL'   => !empty(config('services.dsf.url')),
-        'DSF_API_TOKEN' => !empty(config('services.dsf.token')),
-    ];
-
-    $allOk = !in_array(false, $checks, true);
+    $allOk = !empty(env('DB_DATABASE'))
+        && !empty(config('services.erp.service_url'))
+        && !empty(config('services.erp.service_token'))
+        && !empty(config('services.credid.url'))
+        && !empty(config('services.credid.token'))
+        && !empty(config('services.dsf.url'))
+        && !empty(config('services.dsf.token'));
 
     return response()->json([
-        'status' => $allOk ? 'ok' : 'missing',
-        'checks' => $checks,
+        'status' => $allOk ? 'ok' : 'degraded',
         'timestamp' => now()->toIso8601String(),
     ], $allOk ? 200 : 503);
 });
@@ -131,7 +126,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Oportunidades ---
     Route::post('/opportunities/{id}/move-files', [OpportunityController::class, 'moveFiles']);
     Route::get('/opportunities/{id}/files', [OpportunityController::class, 'getFiles']);
-    Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadFile']);
+    Route::post('/opportunities/{id}/files', [OpportunityController::class, 'uploadFile'])->middleware('throttle:30,1');
     Route::delete('/opportunities/{id}/files/{filename}', [OpportunityController::class, 'deleteFile'])->middleware('permission:oportunidades,delete');
     Route::patch('/opportunities/update-status', [OpportunityController::class, 'updateStatus']);
     // Bulk action ANTES del apiResource
@@ -194,28 +189,28 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/activas', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'activas']);
         Route::get('/rangos', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'rangosParaFormulario']);
         Route::get('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'porTipo']);
-        Route::put('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'update']);
+        Route::put('/{tipo}', [\App\Http\Controllers\Api\LoanConfigurationController::class, 'update'])->middleware(['admin', 'throttle:30,1']);
     });
 
     // --- Configuración ERP Contabilidad ---
-    Route::prefix('erp-accounting')->group(function () {
+    Route::prefix('erp-accounting')->middleware('admin')->group(function () {
         Route::get('/accounts', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'index']);
-        Route::post('/accounts', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'store']);
-        Route::put('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'update']);
-        Route::delete('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'destroy']);
-        Route::post('/test-connection', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'testConnection']);
+        Route::post('/accounts', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'store'])->middleware('throttle:30,1');
+        Route::put('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'update'])->middleware('throttle:30,1');
+        Route::delete('/accounts/{id}', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'destroy'])->middleware('throttle:30,1');
+        Route::post('/test-connection', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'testConnection'])->middleware('throttle:10,1');
         Route::get('/accounts/validation-status', [\App\Http\Controllers\Api\ErpAccountingConfigController::class, 'validationStatus']);
     });
 
     // --- Configuración de Asientos Contables ---
-    Route::prefix('accounting-entry-configs')->group(function () {
+    Route::prefix('accounting-entry-configs')->middleware('admin')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'index']);
         Route::get('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'show']);
-        Route::post('/', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'store']);
-        Route::put('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'update']);
-        Route::delete('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'destroy']);
-        Route::post('/{id}/toggle', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'toggle']);
-        Route::post('/{id}/preview', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'preview']);
+        Route::post('/', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'store'])->middleware('throttle:30,1');
+        Route::put('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'update'])->middleware('throttle:30,1');
+        Route::delete('/{id}', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'destroy'])->middleware('throttle:30,1');
+        Route::post('/{id}/toggle', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'toggle'])->middleware('throttle:30,1');
+        Route::post('/{id}/preview', [\App\Http\Controllers\Api\AccountingEntryConfigController::class, 'preview'])->middleware('throttle:30,1');
     });
 
     // --- Log de Asientos Contables enviados al ERP ---
@@ -225,7 +220,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/alerts', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'alerts']);
         Route::get('/export', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'export']);
         Route::get('/{id}', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'show']);
-        Route::post('/{id}/retry', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'retry']);
+        Route::post('/{id}/retry', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'retry'])->middleware(['admin', 'throttle:10,1']);
     });
 
     // --- Bitácora de Auditoría General del Sistema ---
@@ -239,13 +234,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // --- Documentos de Personas (Leads/Clientes) ---
     Route::get('/person-documents', [PersonDocumentController::class, 'index']);
-    Route::post('/person-documents', [PersonDocumentController::class, 'store']);
+    Route::post('/person-documents', [PersonDocumentController::class, 'store'])->middleware('throttle:30,1');
     Route::delete('/person-documents/{id}', [PersonDocumentController::class, 'destroy']);
     Route::get('/person-documents/check-cedula-folder', [PersonDocumentController::class, 'checkCedulaFolder']);
     Route::post('/person-documents/sync-to-opportunity', [PersonDocumentController::class, 'syncToOpportunity']);
 
     // --- Cotizaciones ---
-    Route::post('quotes/send', [\App\Http\Controllers\Api\QuoteController::class, 'sendQuote']);
+    Route::post('quotes/send', [\App\Http\Controllers\Api\QuoteController::class, 'sendQuote'])->middleware('throttle:10,1');
 
     // --- Chat Messages ---
     Route::get('chat-messages', [\App\Http\Controllers\Api\ChatMessageController::class, 'index']);
@@ -327,8 +322,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Tipo de Cambio ---
     Route::get('exchange-rates/current', [\App\Http\Controllers\Api\ExchangeRateController::class, 'current']);
     Route::get('exchange-rates/history', [\App\Http\Controllers\Api\ExchangeRateController::class, 'history']);
-    Route::post('exchange-rates', [\App\Http\Controllers\Api\ExchangeRateController::class, 'store']);
-    Route::post('exchange-rates/refresh', [\App\Http\Controllers\Api\ExchangeRateController::class, 'refresh']);
+    Route::post('exchange-rates', [\App\Http\Controllers\Api\ExchangeRateController::class, 'store'])->middleware(['admin', 'throttle:30,1']);
+    Route::post('exchange-rates/refresh', [\App\Http\Controllers\Api\ExchangeRateController::class, 'refresh'])->middleware(['admin', 'throttle:10,1']);
 
     // --- Inversiones ---
     Route::get('investments/tabla-general', [InvestmentController::class, 'tablaGeneral']);
@@ -337,16 +332,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('investments/preview', [InvestmentController::class, 'preview']);
     Route::get('investments/vencimientos', [InvestmentController::class, 'vencimientos']);
     Route::get('investments/pagadas', [InvestmentController::class, 'pagadas']);
-    Route::post('investments/recalculate-all', [InvestmentController::class, 'recalculateAll']);
+    Route::post('investments/recalculate-all', [InvestmentController::class, 'recalculateAll'])->middleware(['admin', 'throttle:5,1']);
     Route::get('investments/{id}/reserva', [InvestmentController::class, 'reservaDetalle']);
-    Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate']);
-    Route::post('investments/{id}/renew', [InvestmentController::class, 'renew']);
-    Route::post('investments/{id}/cancel', [InvestmentController::class, 'cancel']);
-    Route::post('investments/{id}/cancelacion-total', [InvestmentController::class, 'cancelacionTotal']);
-    Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid']);
-    Route::post('investment-coupons/bulk-pay-by-desembolso', [InvestmentCouponController::class, 'bulkPayByDesembolso']);
-    Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid']);
-    Route::patch('investment-coupons/{id}/correct', [InvestmentCouponController::class, 'correct']);
+    Route::post('investments/{id}/liquidate', [InvestmentController::class, 'liquidate'])->middleware('throttle:30,1');
+    Route::post('investments/{id}/renew', [InvestmentController::class, 'renew'])->middleware('throttle:30,1');
+    Route::post('investments/{id}/cancel', [InvestmentController::class, 'cancel'])->middleware('throttle:30,1');
+    Route::post('investments/{id}/cancelacion-total', [InvestmentController::class, 'cancelacionTotal'])->middleware('throttle:30,1');
+    Route::patch('investment-coupons/bulk-pay', [InvestmentCouponController::class, 'markBulkPaid'])->middleware('throttle:30,1');
+    Route::post('investment-coupons/bulk-pay-by-desembolso', [InvestmentCouponController::class, 'bulkPayByDesembolso'])->middleware('throttle:30,1');
+    Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid'])->middleware('throttle:60,1');
+    Route::patch('investment-coupons/{id}/correct', [InvestmentCouponController::class, 'correct'])->middleware('throttle:30,1');
     Route::apiResource('investors', InvestorController::class);
     Route::apiResource('investments', InvestmentController::class);
     Route::apiResource('investment-payments', InvestmentPaymentController::class)->only(['index', 'store', 'destroy']);
@@ -365,10 +360,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // --- Embargo ---
     Route::get('/embargo/personas', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'buscarPersonas']);
-    Route::post('/calcular-embargo', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'calcular']);
+    Route::post('/calcular-embargo', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'calcular'])->middleware('throttle:30,1');
     Route::get('/embargo-configuracion', [\App\Http\Controllers\Api\EmbargoConfiguracionController::class, 'show']);
-    Route::put('/embargo-configuracion', [\App\Http\Controllers\Api\EmbargoConfiguracionController::class, 'update']);
-    Route::post('/embargo-configuracion/verificar-pdf', [\App\Http\Controllers\Api\EmbargoConfiguracionController::class, 'verificarPdf']);
+    Route::put('/embargo-configuracion', [\App\Http\Controllers\Api\EmbargoConfiguracionController::class, 'update'])->middleware(['admin', 'throttle:30,1']);
+    Route::post('/embargo-configuracion/verificar-pdf', [\App\Http\Controllers\Api\EmbargoConfiguracionController::class, 'verificarPdf'])->middleware('throttle:10,1');
 
     // --- Lead Alerts ---
     Route::get('/lead-alerts/count', [LeadAlertController::class, 'count']);
@@ -380,56 +375,56 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('credid/reporte', [\App\Http\Controllers\Api\CredidController::class, 'reporte'])->middleware('throttle:10,1');
 
     // --- Analisis ---
-    Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus']);
+    Route::patch('analisis/bulk-status', [\App\Http\Controllers\Api\AnalisisController::class, 'bulkStatus'])->middleware('throttle:30,1');
     Route::apiResource('analisis', \App\Http\Controllers\Api\AnalisisController::class);
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
-    Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile']);
+    Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile'])->middleware('throttle:30,1');
     Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile'])->middleware('permission:analizados,delete');
 
     // --- Propuestas de Análisis ---
     Route::get('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'index']);
-    Route::post('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'store']);
-    Route::put('propuestas/{id}', [\App\Http\Controllers\Api\PropuestaController::class, 'update']);
-    Route::delete('propuestas/{id}', [\App\Http\Controllers\Api\PropuestaController::class, 'destroy']);
-    Route::patch('propuestas/{id}/aceptar', [\App\Http\Controllers\Api\PropuestaController::class, 'aceptar']);
-    Route::patch('propuestas/{id}/denegar', [\App\Http\Controllers\Api\PropuestaController::class, 'denegar']);
+    Route::post('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'store'])->middleware('throttle:30,1');
+    Route::put('propuestas/{id}', [\App\Http\Controllers\Api\PropuestaController::class, 'update'])->middleware('throttle:30,1');
+    Route::delete('propuestas/{id}', [\App\Http\Controllers\Api\PropuestaController::class, 'destroy'])->middleware('throttle:30,1');
+    Route::patch('propuestas/{id}/aceptar', [\App\Http\Controllers\Api\PropuestaController::class, 'aceptar'])->middleware('throttle:30,1');
+    Route::patch('propuestas/{id}/denegar', [\App\Http\Controllers\Api\PropuestaController::class, 'denegar'])->middleware('throttle:30,1');
 
     // --- Créditos ---
     Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
     Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
     Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
-    Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos']);
+    Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos'])->middleware('throttle:30,1');
     Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
-    Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument']);
+    Route::post('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'storeDocument'])->middleware('throttle:30,1');
     Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument'])->middleware('permission:creditos,delete');
     Route::get('credits/{id}/refundicion-preview', [\App\Http\Controllers\Api\CreditController::class, 'refundicionPreview']);
-    Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion']);
+    Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion'])->middleware('throttle:10,1');
 
     // --- Pagos de Crédito ---
-    Route::post('credit-payments/carga-intereses', [CreditPaymentController::class, 'cargarInteresesSinDeductora']);
-    Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada']);
-    Route::post('credit-payments/cancelacion-anticipada', [CreditPaymentController::class, 'cancelacionAnticipada']);
-    Route::post('credit-payments/preview-planilla', [CreditPaymentController::class, 'previewPlanilla']);
+    Route::post('credit-payments/carga-intereses', [CreditPaymentController::class, 'cargarInteresesSinDeductora'])->middleware('throttle:30,1');
+    Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada'])->middleware('throttle:30,1');
+    Route::post('credit-payments/cancelacion-anticipada', [CreditPaymentController::class, 'cancelacionAnticipada'])->middleware('throttle:10,1');
+    Route::post('credit-payments/preview-planilla', [CreditPaymentController::class, 'previewPlanilla'])->middleware('throttle:30,1');
     Route::get('credit-payments/export-preview-excel/{hash}', [CreditPaymentController::class, 'exportPreviewExcel']);
     Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf']);
-    Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload']);
-    Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto']);
-    Route::post('credit-payments/abono-extraordinario/preview', [CreditPaymentController::class, 'previewAbonoExtraordinario']);
-    Route::post('credit-payments/{id}/reverse', [CreditPaymentController::class, 'reversePayment']);
+    Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload'])->middleware('throttle:10,1');
+    Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto'])->middleware('throttle:30,1');
+    Route::post('credit-payments/abono-extraordinario/preview', [CreditPaymentController::class, 'previewAbonoExtraordinario'])->middleware('throttle:30,1');
+    Route::post('credit-payments/{id}/reverse', [CreditPaymentController::class, 'reversePayment'])->middleware('throttle:10,1');
     Route::apiResource('credit-payments', CreditPaymentController::class);
 
     // --- Saldos Pendientes ---
     Route::get('saldos-pendientes', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'index']);
-    Route::post('saldos-pendientes/{id}/preview', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'previewAsignacion']);
-    Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar']);
-    Route::post('saldos-pendientes/{id}/reintegrar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'reintegrar']);
+    Route::post('saldos-pendientes/{id}/preview', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'previewAsignacion'])->middleware('throttle:30,1');
+    Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar'])->middleware('throttle:30,1');
+    Route::post('saldos-pendientes/{id}/reintegrar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'reintegrar'])->middleware('throttle:30,1');
 
     // --- Historial de Planillas ---
     Route::get('planilla-uploads', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'index']);
     Route::get('planilla-uploads/{id}', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'show']);
     Route::get('planilla-uploads/{id}/download', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'download']);
     Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen']);
-    Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular']);
+    Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular'])->middleware('throttle:10,1');
 
     // --- Tasas ---
     Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);
@@ -439,7 +434,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Comments ---
     Route::get('/comments', [CommentController::class, 'index']);
     Route::get('/comments/recent', [CommentController::class, 'recent']);
-    Route::post('/comments', [CommentController::class, 'store']);
+    Route::post('/comments', [CommentController::class, 'store'])->middleware('throttle:60,1');
     Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
     Route::patch('/comments/{id}/archive', [CommentController::class, 'archive']);
     Route::patch('/comments/{id}/unarchive', [CommentController::class, 'unarchive']);
@@ -460,16 +455,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // --- Ventas: Comisiones ---
     Route::get('comisiones/resumen', [ComisionController::class, 'resumen']);
-    Route::patch('comisiones/{id}/aprobar', [ComisionController::class, 'aprobar']);
-    Route::patch('comisiones/{id}/pagar', [ComisionController::class, 'pagar']);
-    Route::patch('comisiones/bulk-aprobar', [ComisionController::class, 'bulkAprobar']);
-    Route::patch('comisiones/bulk-pagar', [ComisionController::class, 'bulkPagar']);
+    Route::patch('comisiones/{id}/aprobar', [ComisionController::class, 'aprobar'])->middleware('throttle:30,1');
+    Route::patch('comisiones/{id}/pagar', [ComisionController::class, 'pagar'])->middleware('throttle:30,1');
+    Route::patch('comisiones/bulk-aprobar', [ComisionController::class, 'bulkAprobar'])->middleware('throttle:10,1');
+    Route::patch('comisiones/bulk-pagar', [ComisionController::class, 'bulkPagar'])->middleware('throttle:10,1');
     Route::apiResource('comisiones', ComisionController::class)->only(['index', 'store', 'destroy']);
     // Reglas de comisión
     Route::get('reglas-comision', [ComisionController::class, 'reglas']);
-    Route::post('reglas-comision', [ComisionController::class, 'storeRegla']);
-    Route::put('reglas-comision/{id}', [ComisionController::class, 'updateRegla']);
-    Route::delete('reglas-comision/{id}', [ComisionController::class, 'destroyRegla']);
+    Route::post('reglas-comision', [ComisionController::class, 'storeRegla'])->middleware(['admin', 'throttle:30,1']);
+    Route::put('reglas-comision/{id}', [ComisionController::class, 'updateRegla'])->middleware(['admin', 'throttle:30,1']);
+    Route::delete('reglas-comision/{id}', [ComisionController::class, 'destroyRegla'])->middleware(['admin', 'throttle:30,1']);
 
     // --- Admin (requiere full_access) ---
     Route::middleware('admin')->group(function () {

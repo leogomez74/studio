@@ -196,16 +196,16 @@ class InvestmentController extends Controller
 
     public function liquidate(int $id)
     {
-        $investment = Investment::findOrFail($id);
-        $result = $this->service->liquidateEarly($investment);
-        $this->logActivity('liquidate', 'Inversiones', $investment, $investment->numero_desembolso);
-        return response()->json($result);
+        return DB::transaction(function () use ($id) {
+            $investment = Investment::lockForUpdate()->findOrFail($id);
+            $result = $this->service->liquidateEarly($investment);
+            $this->logActivity('liquidate', 'Inversiones', $investment, $investment->numero_desembolso);
+            return response()->json($result);
+        });
     }
 
     public function renew(Request $request, int $id)
     {
-        $investment = Investment::findOrFail($id);
-
         $validated = $request->validate([
             'plazo_meses' => 'required|integer|min:1',
             'fecha_inicio' => 'required|date',
@@ -215,54 +215,61 @@ class InvestmentController extends Controller
             'forma_pago' => 'nullable|in:MENSUAL,TRIMESTRAL,SEMESTRAL,ANUAL,RESERVA',
         ]);
 
-        $newInvestment = $this->service->renewInvestment($investment, $validated);
-        $this->logActivity('renew', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
-        return response()->json($newInvestment->load('coupons'), 201);
+        return DB::transaction(function () use ($id, $validated, $request) {
+            $investment = Investment::lockForUpdate()->findOrFail($id);
+            $newInvestment = $this->service->renewInvestment($investment, $validated);
+            $this->logActivity('renew', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
+            return response()->json($newInvestment->load('coupons'), 201);
+        });
     }
 
     public function cancel(Request $request, int $id)
     {
-        $investment = Investment::findOrFail($id);
-
-        if ($investment->estado !== 'Activa') {
-            return response()->json(['message' => 'Solo se pueden cancelar inversiones activas.'], 422);
-        }
-
         $validated = $request->validate([
             'motivo' => 'required|string|max:500',
             'fecha_cancelacion' => 'nullable|date',
         ]);
 
-        $investment->update([
-            'estado' => 'Cancelada',
-            'cancelado_por' => auth()->user()?->name ?? 'Sistema',
-            'fecha_cancelacion' => $validated['fecha_cancelacion'] ?? now()->toDateString(),
-            'notas' => $investment->notas
-                ? $investment->notas . "\n\nMotivo cancelación: " . $validated['motivo']
-                : "Motivo cancelación: " . $validated['motivo'],
-        ]);
+        return DB::transaction(function () use ($id, $validated, $request) {
+            $investment = Investment::lockForUpdate()->findOrFail($id);
 
-        $this->logActivity('cancel', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
+            if ($investment->estado !== 'Activa') {
+                return response()->json(['message' => 'Solo se pueden cancelar inversiones activas.'], 422);
+            }
 
-        return response()->json($investment->fresh());
+            $investment->update([
+                'estado' => 'Cancelada',
+                'cancelado_por' => auth()->user()?->name ?? 'Sistema',
+                'fecha_cancelacion' => $validated['fecha_cancelacion'] ?? now()->toDateString(),
+                'notas' => $investment->notas
+                    ? $investment->notas . "\n\nMotivo cancelación: " . $validated['motivo']
+                    : "Motivo cancelación: " . $validated['motivo'],
+            ]);
+
+            $this->logActivity('cancel', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
+
+            return response()->json($investment->fresh());
+        });
     }
 
     public function cancelacionTotal(Request $request, int $id)
     {
-        $investment = Investment::findOrFail($id);
-
-        if ($investment->estado !== 'Activa') {
-            return response()->json(['message' => 'Solo se pueden realizar abonos totales en inversiones activas.'], 422);
-        }
-
         $validated = $request->validate([
             'tipo' => 'required|in:con_intereses,sin_intereses',
         ]);
 
-        $result = $this->service->cancelacionTotal($investment, $validated['tipo']);
-        $this->logActivity('cancelacion_total', 'Inversiones', $investment, $investment->numero_desembolso, ['tipo' => $validated['tipo']], $request);
+        return DB::transaction(function () use ($id, $validated, $request) {
+            $investment = Investment::lockForUpdate()->findOrFail($id);
 
-        return response()->json($result->load(['investor:id,name,cedula', 'coupons', 'payments']));
+            if ($investment->estado !== 'Activa') {
+                return response()->json(['message' => 'Solo se pueden realizar abonos totales en inversiones activas.'], 422);
+            }
+
+            $result = $this->service->cancelacionTotal($investment, $validated['tipo']);
+            $this->logActivity('cancelacion_total', 'Inversiones', $investment, $investment->numero_desembolso, ['tipo' => $validated['tipo']], $request);
+
+            return response()->json($result->load(['investor:id,name,cedula', 'coupons', 'payments']));
+        });
     }
 
     public function pagadas(Request $request)

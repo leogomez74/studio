@@ -9,6 +9,7 @@ use App\Models\Comision;
 use App\Models\ReglaComision;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Traits\LogsActivity;
 
 class ComisionController extends Controller
@@ -76,31 +77,35 @@ class ComisionController extends Controller
 
     public function aprobar(Request $request, int $id): JsonResponse
     {
-        $comision = Comision::where('estado', 'Pendiente')->findOrFail($id);
+        return DB::transaction(function () use ($id, $request) {
+            $comision = Comision::lockForUpdate()->where('estado', 'Pendiente')->findOrFail($id);
 
-        $comision->update([
-            'estado' => 'Aprobada',
-            'fecha_aprobacion' => now()->toDateString(),
-            'aprobada_por' => $request->user()->id,
-        ]);
+            $comision->update([
+                'estado' => 'Aprobada',
+                'fecha_aprobacion' => now()->toDateString(),
+                'aprobada_por' => $request->user()->id,
+            ]);
 
-        $this->logActivity('aprobar', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
+            $this->logActivity('aprobar', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
 
-        return response()->json($comision->load(['user:id,name', 'aprobadaPor:id,name']));
+            return response()->json($comision->load(['user:id,name', 'aprobadaPor:id,name']));
+        });
     }
 
     public function pagar(Request $request, int $id): JsonResponse
     {
-        $comision = Comision::where('estado', 'Aprobada')->findOrFail($id);
+        return DB::transaction(function () use ($id, $request) {
+            $comision = Comision::lockForUpdate()->where('estado', 'Aprobada')->findOrFail($id);
 
-        $comision->update([
-            'estado' => 'Pagada',
-            'fecha_pago' => now()->toDateString(),
-        ]);
+            $comision->update([
+                'estado' => 'Pagada',
+                'fecha_pago' => now()->toDateString(),
+            ]);
 
-        $this->logActivity('pagar', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
+            $this->logActivity('pagar', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
 
-        return response()->json($comision->load(['user:id,name', 'aprobadaPor:id,name']));
+            return response()->json($comision->load(['user:id,name', 'aprobadaPor:id,name']));
+        });
     }
 
     public function bulkAprobar(Request $request): JsonResponse
@@ -110,17 +115,19 @@ class ComisionController extends Controller
             'ids.*' => 'integer|exists:comisiones,id',
         ]);
 
-        $updated = Comision::whereIn('id', $validated['ids'])
-            ->where('estado', 'Pendiente')
-            ->update([
-                'estado' => 'Aprobada',
-                'fecha_aprobacion' => now()->toDateString(),
-                'aprobada_por' => $request->user()->id,
-            ]);
+        return DB::transaction(function () use ($validated, $request) {
+            $updated = Comision::lockForUpdate()->whereIn('id', $validated['ids'])
+                ->where('estado', 'Pendiente')
+                ->update([
+                    'estado' => 'Aprobada',
+                    'fecha_aprobacion' => now()->toDateString(),
+                    'aprobada_por' => $request->user()->id,
+                ]);
 
-        $this->logActivity('bulk_aprobar', 'Comisiones', null, $updated . ' comisiones aprobadas', [], $request);
+            $this->logActivity('bulk_aprobar', 'Comisiones', null, $updated . ' comisiones aprobadas', [], $request);
 
-        return response()->json(['updated' => $updated]);
+            return response()->json(['updated' => $updated]);
+        });
     }
 
     public function bulkPagar(Request $request): JsonResponse
@@ -130,16 +137,18 @@ class ComisionController extends Controller
             'ids.*' => 'integer|exists:comisiones,id',
         ]);
 
-        $updated = Comision::whereIn('id', $validated['ids'])
-            ->where('estado', 'Aprobada')
-            ->update([
-                'estado' => 'Pagada',
-                'fecha_pago' => now()->toDateString(),
-            ]);
+        return DB::transaction(function () use ($validated, $request) {
+            $updated = Comision::lockForUpdate()->whereIn('id', $validated['ids'])
+                ->where('estado', 'Aprobada')
+                ->update([
+                    'estado' => 'Pagada',
+                    'fecha_pago' => now()->toDateString(),
+                ]);
 
-        $this->logActivity('bulk_pagar', 'Comisiones', null, $updated . ' comisiones pagadas', [], $request);
+            $this->logActivity('bulk_pagar', 'Comisiones', null, $updated . ' comisiones pagadas', [], $request);
 
-        return response()->json(['updated' => $updated]);
+            return response()->json(['updated' => $updated]);
+        });
     }
 
     public function destroy(int $id): JsonResponse
