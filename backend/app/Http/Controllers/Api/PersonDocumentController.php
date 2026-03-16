@@ -232,6 +232,53 @@ class PersonDocumentController extends Controller
         return ['count' => count($synced), 'opportunities' => $synced];
     }
 
+    /**
+     * Marcar un documento de cédula como conteniendo ambas caras (frente + reverso).
+     * Crea un segundo registro PersonDocument con category=cedula_reverso apuntando al mismo archivo.
+     * POST /api/person-documents/{id}/mark-dual
+     */
+    public function markDual(int $id, Request $request)
+    {
+        $document = PersonDocument::findOrFail($id);
+
+        if ($document->category !== 'cedula') {
+            return response()->json(['message' => 'Solo se puede aplicar a documentos de tipo cédula.'], 422);
+        }
+
+        // Verificar que no exista ya un cedula_reverso para esta persona
+        $existing = PersonDocument::where('person_id', $document->person_id)
+            ->where('category', 'cedula_reverso')
+            ->first();
+
+        if ($existing) {
+            return response()->json(['message' => 'Ya existe un documento de cédula (reverso) para esta persona.'], 422);
+        }
+
+        // Crear segundo registro apuntando al mismo archivo
+        $reverso = PersonDocument::create([
+            'person_id' => $document->person_id,
+            'category' => 'cedula_reverso',
+            'name' => $document->name,
+            'path' => $document->path,
+            'url' => $document->getAttributes()['url'] ?? null,
+            'mime_type' => $document->mime_type,
+            'size' => $document->size,
+        ]);
+
+        // Sincronizar a oportunidades existentes
+        $person = Person::find($document->person_id);
+        if ($person && !empty($person->cedula)) {
+            $this->syncFileToOpportunities($person->cedula, $document->path, $document->name, 'cedula_reverso');
+        }
+
+        $this->logActivity('create', 'Documentos', $reverso, 'Ambas caras: ' . $reverso->name, [], $request);
+
+        return response()->json([
+            'document' => $reverso,
+            'message' => 'Documento marcado como ambas caras. Cédula reverso creada.',
+        ], 201);
+    }
+
     public function destroy($id)
     {
         $document = PersonDocument::findOrFail($id);

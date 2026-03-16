@@ -54,6 +54,7 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
   const [uploadingCedula, setUploadingCedula] = useState(false);
   const [uploadingCedulaReverso, setUploadingCedulaReverso] = useState(false);
   const [uploadingRecibo, setUploadingRecibo] = useState(false);
+  const [markingDual, setMarkingDual] = useState(false);
   const { toast } = useToast();
 
   // Lightbox state
@@ -220,6 +221,22 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
     } catch (error) {
       console.error('Error deleting document:', error);
       toast({ title: 'Error', description: 'No se pudo eliminar el documento.', variant: 'destructive' });
+    }
+  };
+
+  const handleMarkDual = async (docId: number) => {
+    setMarkingDual(true);
+    try {
+      const response = await api.post(`/api/person-documents/${docId}/mark-dual`);
+      const newDoc = response.data.document;
+      setDocuments((prev) => [newDoc, ...prev]);
+      toast({ title: 'Listo', description: 'Documento marcado como ambas caras de la cédula.' });
+      if (onDocumentChange) onDocumentChange();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'No se pudo marcar como ambas caras.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setMarkingDual(false);
     }
   };
 
@@ -394,6 +411,19 @@ export function DocumentManager({ personId, initialDocuments = [], readonly = fa
                           )}
                           <span className="text-xs text-muted-foreground">{formatDate(doc.created_at)}</span>
                         </div>
+                        {/* Botón "Ambas caras" para cédula cuando no hay reverso */}
+                        {!readonly && doc.category === 'cedula' && !hasCedulaReverso && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-1.5 h-7 text-xs gap-1"
+                            onClick={() => handleMarkDual(doc.id)}
+                            disabled={markingDual}
+                          >
+                            {markingDual ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                            Ambas caras en este archivo
+                          </Button>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {fullUrl && (

@@ -300,6 +300,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Documentos de Personas (Leads/Clientes) ---
     Route::get('/person-documents', [PersonDocumentController::class, 'index']);
     Route::post('/person-documents', [PersonDocumentController::class, 'store'])->middleware('throttle:30,1');
+    Route::post('/person-documents/{id}/mark-dual', [PersonDocumentController::class, 'markDual'])->middleware('throttle:30,1');
     Route::delete('/person-documents/{id}', [PersonDocumentController::class, 'destroy']);
     Route::get('/person-documents/check-cedula-folder', [PersonDocumentController::class, 'checkCedulaFolder']);
     Route::post('/person-documents/sync-to-opportunity', [PersonDocumentController::class, 'syncToOpportunity']);
