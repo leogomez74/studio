@@ -44,20 +44,83 @@ use App\Http\Controllers\Api\RutaDiariaController;
 |
 */
 
-// --- Health check: solo status global (detalles requieren admin) ---
-Route::get('/health/env', function () {
-    $allOk = !empty(env('DB_DATABASE'))
-        && !empty(config('services.erp.service_url'))
-        && !empty(config('services.erp.service_token'))
-        && !empty(config('services.credid.url'))
-        && !empty(config('services.credid.token'))
-        && !empty(config('services.dsf.url'))
-        && !empty(config('services.dsf.token'));
+// --- Health check ---
+Route::get('/health/env', function (Request $request) {
+    $groups = [
+        'app' => [
+            'APP_NAME', 'APP_ENV', 'APP_KEY', 'APP_URL',
+        ],
+        'database' => [
+            'DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME',
+        ],
+        'auth' => [
+            'SANCTUM_STATEFUL_DOMAINS', 'FRONTEND_URL',
+        ],
+        'erp' => [
+            'ERP_SERVICE_URL', 'ERP_SERVICE_TOKEN', 'ERP_SERVICE_SECRET',
+        ],
+        'credid' => [
+            'CREDID_API_URL', 'CREDID_API_TOKEN',
+        ],
+        'dsf' => [
+            'DSF_API_URL', 'DSF_API_TOKEN',
+        ],
+        'evolution' => [
+            'EVOLUTION_API_URL', 'EVOLUTION_API_KEY', 'EVOLUTION_INSTANCE',
+        ],
+        'tenor' => [
+            'TENOR_API_KEY',
+        ],
+        'mail' => [
+            'MAIL_MAILER', 'MAIL_HOST', 'MAIL_PORT',
+        ],
+        'cache' => [
+            'CACHE_STORE', 'QUEUE_CONNECTION', 'SESSION_DRIVER',
+        ],
+    ];
 
-    return response()->json([
+    $results = [];
+    $missing = [];
+    foreach ($groups as $group => $vars) {
+        $groupOk = true;
+        $details = [];
+        foreach ($vars as $var) {
+            $set = !empty(env($var));
+            $details[$var] = $set;
+            if (!$set) {
+                $groupOk = false;
+                $missing[] = $var;
+            }
+        }
+        $results[$group] = ['ok' => $groupOk, 'vars' => $details];
+    }
+
+    $allOk = empty($missing);
+
+    // Público: solo status global. Admin: detalle completo.
+    $isAdmin = $request->user()?->role?->full_access ?? false;
+
+    $response = [
         'status' => $allOk ? 'ok' : 'degraded',
         'timestamp' => now()->toIso8601String(),
-    ], $allOk ? 200 : 503);
+    ];
+
+    if ($isAdmin) {
+        $response['groups'] = $results;
+        $response['missing'] = $missing;
+        $response['total_checked'] = array_sum(array_map(fn($g) => count($g), $groups));
+        $response['total_missing'] = count($missing);
+    }
+
+    if ($isAdmin) {
+        // Variables que el frontend necesita (para referencia del admin)
+        $response['frontend_env'] = [
+            'NEXT_PUBLIC_BACKEND_URL' => '(verificar en .env.local del frontend)',
+            'NEXT_PUBLIC_TENOR_API_KEY' => '(verificar en .env.local del frontend)',
+        ];
+    }
+
+    return response()->json($response, $allOk ? 200 : 503);
 });
 
 // --- Autenticación (públicas, con rate limiting) ---
