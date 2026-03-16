@@ -61,6 +61,8 @@ interface Comment {
   archived_at?: string | null;
   replies?: Reply[];
   entity_reference?: string;
+  comment_type?: string;
+  metadata?: Record<string, any> | null;
 }
 
 interface Mention {
@@ -129,6 +131,100 @@ function getEntityInfo(type: string) {
 function isGifMessage(body: string) {
   return /^\[GIF\]\([^)]+\)$/.test(body.trim());
 }
+function VerificationCard({
+  metadata,
+  type,
+  onRefresh
+}: {
+  metadata: Record<string, any>;
+  type: 'request' | 'response';
+  onRefresh?: () => void;
+}) {
+  const [responding, setResponding] = useState(false);
+  const [notes, setNotes] = useState('');
+  const { toast } = useToast();
+
+  const handleRespond = async (status: 'approved' | 'rejected') => {
+    setResponding(true);
+    try {
+      await api.patch(`/api/payment-verifications/${metadata.verification_id}/respond`, {
+        status,
+        notes: notes || undefined,
+      });
+      toast({ 
+        title: status === 'approved' ? 'Verificado' : 'Rechazado', 
+        description: status === 'approved' ? 'Abono marcado como verificado.' : 'Abono marcado como no aplicado.' 
+      });
+      // No reload, just refresh state
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Error al responder.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  const isApproved = metadata.status === 'approved';
+  const isResponse = type === 'response';
+  const isPending = metadata.status === 'pending';
+
+  return (
+    <div className={cn(
+      "rounded-lg border p-4 text-sm w-full",
+      isResponse || !isPending
+        ? (isApproved || metadata.status === 'approved' ? 'bg-green-50 border-green-200 text-green-900' : 'bg-red-50 border-red-200 text-red-900')
+        : 'bg-card border-border text-foreground'
+    )}>
+      <p className="font-bold mb-2 flex items-center gap-2 text-lg">
+        {isResponse || !isPending 
+          ? (isApproved || metadata.status === 'approved' ? '✅ Verificado' : '❌ No Aplicado') 
+          : '🏦 Verificación'}
+      </p>
+      
+      <div className="space-y-1.5 opacity-90">
+        <p><span className="font-semibold text-xs opacity-70">Referencia:</span> {metadata.credit_reference}</p>
+        <p><span className="font-semibold text-xs opacity-70">Tipo:</span> {metadata.payment_type_label}</p>
+        <p className="font-black text-xl mt-2 border-y py-2 border-current/10">₡{Number(metadata.monto || 0).toLocaleString('es-CR')}</p>
+        {metadata.client_name && <p className="text-sm mt-2 font-medium italic opacity-80">Cliente: {metadata.client_name}</p>}
+        {metadata.notes && (
+          <div className="mt-3 bg-black/5 p-2 rounded text-xs italic">
+            <span className="font-semibold block mb-1 not-italic opacity-60 uppercase text-[10px]">Notas:</span>
+            {metadata.notes}
+          </div>
+        )}
+      </div>
+
+      {type === 'request' && isPending && (
+        <div className="mt-5 space-y-3 border-t pt-4 border-border/50">
+          <textarea
+            placeholder="Añadir notas de verificación..."
+            className="w-full bg-background border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 min-h-[70px] resize-none"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleRespond('approved')}
+              disabled={responding}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-md shadow-sm disabled:opacity-50 transition-all active:scale-95 text-base"
+            >
+              ✅ VERIFICAR
+            </button>
+            <button
+              onClick={() => handleRespond('rejected')}
+              disabled={responding}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black py-3 rounded-md shadow-sm disabled:opacity-50 transition-all active:scale-95 text-base"
+            >
+              ❌ RECHAZAR
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function renderBody(body: string) {
   // GIF messages → just show label
   if (isGifMessage(body)) return '🎞 GIF';
@@ -805,10 +901,13 @@ export function ChatBubble() {
                 {directComments.map((comment) => {
                   const isMe = comment.user_id === user?.id;
                   const gifUrl = extractGifUrl(comment.body);
+                  const isVerification = comment.comment_type?.startsWith('verification_');
+
                   return (
                     <div key={comment.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
                       <div className={cn(
-                        'max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-snug',
+                        'rounded-2xl px-3 py-2 text-[13px] leading-snug',
+                        isVerification ? 'max-w-[85%] w-full' : 'max-w-[75%]',
                         isMe
                           ? 'bg-primary text-primary-foreground rounded-br-md'
                           : 'bg-muted rounded-bl-md'
@@ -816,7 +915,19 @@ export function ChatBubble() {
                         {!isMe && (
                           <p className="text-[10px] font-semibold mb-0.5 opacity-70">{comment.user.name}</p>
                         )}
-                        {gifUrl ? (
+                        {comment.comment_type === 'verification_request' && comment.metadata ? (
+                          <VerificationCard 
+                            metadata={comment.metadata} 
+                            type="request" 
+                            onRefresh={() => fetchDirectThread(directUserId!)} 
+                          />
+                        ) : comment.comment_type === 'verification_response' && comment.metadata ? (
+                          <VerificationCard 
+                            metadata={comment.metadata} 
+                            type="response" 
+                            onRefresh={() => fetchDirectThread(directUserId!)} 
+                          />
+                        ) : gifUrl ? (
                           <img src={gifUrl} alt="GIF" className="rounded-lg max-w-[200px] max-h-[150px] object-cover" loading="lazy" />
                         ) : (
                           <p dangerouslySetInnerHTML={{ __html: renderBody(comment.body) }} />

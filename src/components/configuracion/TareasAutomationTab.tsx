@@ -35,6 +35,7 @@ const AUTOMATION_EVENTS = [
   { key: 'pep_aceptado', title: 'PEP Acepta Análisis', description: 'Al aceptar el análisis o aprobar una propuesta, se asigna tarea para informar al cliente la propuesta aceptada.', defaultTitle: 'Informar al cliente la propuesta aceptada' },
   { key: 'pep_rechazado', title: 'PEP Rechaza Análisis', description: 'Al marcar estado PEP como "Rechazado", se asigna tarea para informar al cliente que no califica para el crédito.', defaultTitle: 'Informar al cliente que no califica para el crédito' },
   { key: 'credit_created', title: 'Nuevo Crédito Creado', description: 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.', defaultTitle: 'Nuevo crédito creado' },
+  { key: 'payment_verification', title: 'Verificación de Abonos', description: 'Al solicitar un abono manual (ventanilla, adelanto, extraordinario, cancelación anticipada), se crea una tarea de verificación bancaria asignada al usuario seleccionado. Este debe confirmar el depósito antes de que se aplique el abono.', defaultTitle: 'Verificar depósito bancario' },
 ];
 
 const TareasAutomationTab: React.FC = () => {

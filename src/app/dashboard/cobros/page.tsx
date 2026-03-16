@@ -1043,6 +1043,11 @@ export default function CobrosPage() {
   const [extraordinaryPreview, setExtraordinaryPreview] = useState<any>(null);
   const [loadingExtraordinaryPreview, setLoadingExtraordinaryPreview] = useState(false);
   
+  // --- Verificación de abonos ---
+  const [verificationRequired, setVerificationRequired] = useState(false);
+  const [pendingVerifications, setPendingVerifications] = useState<any[]>([]);
+  const [applyingVerification, setApplyingVerification] = useState<number | null>(null);
+
   const [selectedLeadId, setSelectedLeadId] = useState<string>('');
   const [selectedCreditId, setSelectedCreditId] = useState<string>('');
 
@@ -1176,6 +1181,18 @@ export default function CobrosPage() {
         const creditsRes = await api.get('/api/credits?all=true');
         const creditsData = Array.isArray(creditsRes.data) ? creditsRes.data : creditsRes.data?.data || [];
         setCreditsList(creditsData);
+
+        // Cargar verificaciones pendientes
+        try {
+          const verifRes = await api.get('/api/payment-verifications');
+          const verifData = verifRes.data?.data || verifRes.data || [];
+          setPendingVerifications(Array.isArray(verifData) ? verifData : []);
+          setVerificationRequired(true);
+        } catch {
+          // Si falla (ej: no hay automatización), el flujo funciona sin verificación
+          setVerificationRequired(false);
+          setPendingVerifications([]);
+        }
       } catch (err) {
         console.error('Error fetching cobros data:', err);
         toast({ title: 'Error', description: 'No se pudieron cargar los datos de cobros.', variant: 'destructive' });
@@ -1366,49 +1383,95 @@ export default function CobrosPage() {
         return;
       }
 
-      // Cancelación Anticipada: usar endpoint específico
-      if (tipoCobro === 'cancelacion_anticipada') {
-        if (!cancelacionData) {
-          toast({ title: 'Error', description: 'Espere a que se calcule el monto de cancelación.', variant: 'destructive' });
-          return;
-        }
-        await api.post('/api/credit-payments/cancelacion-anticipada', {
-          credit_id: selectedCreditId,
-          fecha: fecha,
-          referencia: referencia || undefined,
-        });
-        toast({ title: 'Éxito', description: 'Cancelación anticipada procesada. El crédito ha sido cerrado.' });
-        setPlanRefreshKey(k => k + 1);
-        closeAbonoModal();
+      // Validaciones según tipo
+      if (tipoCobro === 'cancelacion_anticipada' && !cancelacionData) {
+        toast({ title: 'Error', description: 'Espere a que se calcule el monto de cancelación.', variant: 'destructive' });
         return;
       }
 
-      if (!monto) {
+      if (tipoCobro !== 'cancelacion_anticipada' && !monto) {
         toast({ title: 'Faltan datos', description: 'Ingrese el monto.', variant: 'destructive' });
         return;
       }
 
-      // Para adelanto de cobro, validar cuotas seleccionadas
       if (tipoCobro === 'adelanto' && cuotasSeleccionadas.length === 0) {
         toast({ title: 'Seleccione cuotas', description: 'Debe seleccionar al menos una cuota para adelanto.', variant: 'destructive' });
         return;
       }
 
-      await api.post('/api/credit-payments/adelanto', {
-        credit_id: selectedCreditId,
-        tipo: tipoCobro,
-        monto: parseFloat(monto),
-        fecha: fecha,
+      const paymentData: Record<string, any> = {
+        monto: tipoCobro === 'cancelacion_anticipada' ? cancelacionData?.monto_total : parseFloat(monto),
+        fecha,
         referencia: referencia || undefined,
-        extraordinary_strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : null,
+        strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : undefined,
         cuotas: tipoCobro === 'adelanto' ? cuotasSeleccionadas : undefined,
-      });
+      };
 
-      toast({ title: 'Éxito', description: `Abono registrado.` });
+      // Si verificación está habilitada → solicitar verificación
+      if (verificationRequired) {
+        await api.post('/api/payment-verifications', {
+          credit_id: selectedCreditId,
+          payment_type: tipoCobro,
+          payment_data: paymentData,
+        });
+        toast({ title: 'Solicitud enviada', description: 'Se envió la solicitud de verificación bancaria. Recibirás una notificación cuando sea verificada.' });
+        setPlanRefreshKey(k => k + 1);
+        closeAbonoModal();
+        return;
+      }
+
+      // Fallback: sin verificación (backward compatible)
+      if (tipoCobro === 'cancelacion_anticipada') {
+        await api.post('/api/credit-payments/cancelacion-anticipada', {
+          credit_id: selectedCreditId,
+          fecha,
+          referencia: referencia || undefined,
+        });
+        toast({ title: 'Éxito', description: 'Cancelación anticipada procesada. El crédito ha sido cerrado.' });
+      } else {
+        await api.post('/api/credit-payments/adelanto', {
+          credit_id: selectedCreditId,
+          tipo: tipoCobro,
+          monto: parseFloat(monto),
+          fecha,
+          referencia: referencia || undefined,
+          extraordinary_strategy: tipoCobro === 'extraordinario' ? extraordinaryStrategy : null,
+          cuotas: tipoCobro === 'adelanto' ? cuotasSeleccionadas : undefined,
+        });
+        toast({ title: 'Éxito', description: 'Abono registrado.' });
+      }
+
       setPlanRefreshKey(k => k + 1);
       closeAbonoModal();
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Error al registrar el abono.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    }
+  };
+
+  // Aplicar un abono previamente verificado
+  const handleApplyVerification = async (verificationId: number) => {
+    setApplyingVerification(verificationId);
+    try {
+      await api.post(`/api/payment-verifications/${verificationId}/apply`);
+      toast({ title: 'Éxito', description: 'Abono aplicado correctamente.' });
+      setPlanRefreshKey(k => k + 1);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al aplicar el abono.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setApplyingVerification(null);
+    }
+  };
+
+  // Cancelar una verificación pendiente o rechazada
+  const handleCancelVerification = async (verificationId: number) => {
+    try {
+      await api.post(`/api/payment-verifications/${verificationId}/cancel`);
+      toast({ title: 'Cancelada', description: 'Solicitud de verificación cancelada.' });
+      setPlanRefreshKey(k => k + 1);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al cancelar.';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   };
@@ -1748,8 +1811,56 @@ export default function CobrosPage() {
                   </PermissionButton>
 
                   <PermissionButton module="cobros" action="create" onClick={openAbonoModal}>
-                    <PlusCircle className="mr-2 h-4 w-4" />Registrar Abono
+                    <PlusCircle className="mr-2 h-4 w-4" />Ingresar Abono
                   </PermissionButton>
+
+                  {/* Verificaciones pendientes de aplicar */}
+                  {pendingVerifications.filter((v: any) => v.status === 'approved' && v.requested_by === undefined).length > 0 || pendingVerifications.some((v: any) => v.status === 'approved') ? (
+                    <div className="w-full mt-2">
+                      {pendingVerifications.filter((v: any) => v.status === 'approved').map((v: any) => (
+                        <div key={v.id} className="flex items-center justify-between gap-2 p-3 rounded-lg border border-green-200 bg-green-50 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-green-800">
+                              Abono verificado — {v.credit?.reference || 'Crédito'}
+                            </p>
+                            <p className="text-xs text-green-600">
+                              {({normal: 'Normal', adelanto: 'Adelanto', extraordinario: 'Extraordinario', cancelacion_anticipada: 'Cancelación Anticipada'} as Record<string, string>)[v.payment_type] || v.payment_type} — ₡{Number(v.payment_data?.monto || 0).toLocaleString('es-CR')}
+                            </p>
+                          </div>
+                          <div className="flex gap-1.5 shrink-0">
+                            <Button size="sm" onClick={() => handleApplyVerification(v.id)} disabled={applyingVerification === v.id}>
+                              {applyingVerification === v.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                              Aplicar Abono
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => handleCancelVerification(v.id)}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {/* Verificaciones pendientes de respuesta */}
+                  {pendingVerifications.filter((v: any) => v.status === 'pending').length > 0 && (
+                    <div className="w-full mt-2">
+                      {pendingVerifications.filter((v: any) => v.status === 'pending').map((v: any) => (
+                        <div key={v.id} className="flex items-center justify-between gap-2 p-3 rounded-lg border border-yellow-200 bg-yellow-50 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-yellow-800">
+                              Esperando verificación — {v.credit?.reference || 'Crédito'}
+                            </p>
+                            <p className="text-xs text-yellow-600">
+                              {({normal: 'Normal', adelanto: 'Adelanto', extraordinario: 'Extraordinario', cancelacion_anticipada: 'Cancelación Anticipada'} as Record<string, string>)[v.payment_type] || v.payment_type} — ₡{Number(v.payment_data?.monto || 0).toLocaleString('es-CR')} — Verificador: {v.verifier?.name || 'N/A'}
+                            </p>
+                          </div>
+                          <Button size="sm" variant="ghost" onClick={() => handleCancelVerification(v.id)}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Modal para Subir Planilla */}
                   <Dialog open={planillaModalOpen} onOpenChange={setPlanillaModalOpen}>
@@ -2063,7 +2174,7 @@ export default function CobrosPage() {
 
                   <Dialog open={abonoModalOpen} onOpenChange={setAbonoModalOpen}>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
-                      <DialogHeader><DialogTitle>Registrar Abono Manual</DialogTitle></DialogHeader>
+                      <DialogHeader><DialogTitle>{verificationRequired ? 'Solicitar Abono' : 'Registrar Abono Manual'}</DialogTitle></DialogHeader>
                       <form onSubmit={handleRegistrarAbono} className="space-y-4">
                         
                         <div className="relative">
@@ -2617,7 +2728,11 @@ export default function CobrosPage() {
                               (tipoCobro === 'cancelacion_anticipada' && (!cancelacionData || loadingCancelacion))
                             }
                           >
-                            {tipoCobro === 'cancelacion_anticipada' ? 'Confirmar Cancelación' : 'Aplicar Pago'}
+                            {verificationRequired
+                              ? 'Solicitar Abono'
+                              : tipoCobro === 'cancelacion_anticipada'
+                                ? 'Confirmar Cancelación'
+                                : 'Aplicar Pago'}
                           </Button>
                           <Button type="button" variant="outline" onClick={closeAbonoModal}>Cancelar</Button>
                         </DialogFooter>

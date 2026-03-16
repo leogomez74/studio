@@ -63,6 +63,100 @@ interface InternalComment {
   commentable_type: string; commentable_id: number;
   entity_reference?: string; replies?: CommentReply[];
   created_at: string; archived_at?: string | null;
+  comment_type?: string; metadata?: Record<string, any> | null;
+}
+
+function VerificationCard({
+  metadata,
+  type,
+  onRefresh
+}: {
+  metadata: Record<string, any>;
+  type: 'request' | 'response';
+  onRefresh?: () => void;
+}) {
+  const [responding, setResponding] = useState(false);
+  const [notes, setNotes] = useState('');
+  const { toast } = useToast();
+
+  const handleRespond = async (status: 'approved' | 'rejected') => {
+    setResponding(true);
+    try {
+      await api.patch(`/api/payment-verifications/${metadata.verification_id}/respond`, {
+        status,
+        notes: notes || undefined,
+      });
+      toast({ 
+        title: status === 'approved' ? 'Verificado' : 'Rechazado', 
+        description: status === 'approved' ? 'Abono marcado como verificado.' : 'Abono marcado como no aplicado.' 
+      });
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Error al responder.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  const isApproved = metadata.status === 'approved';
+  const isResponse = type === 'response';
+  const isPending = metadata.status === 'pending';
+
+  return (
+    <div className={cn(
+      "rounded-lg border p-4 text-sm w-full max-w-md",
+      isResponse || !isPending
+        ? (isApproved || metadata.status === 'approved' ? 'bg-green-50 border-green-200 text-green-900' : 'bg-red-50 border-red-200 text-red-900')
+        : 'bg-card border-border text-foreground'
+    )}>
+      <p className="font-bold mb-2 flex items-center gap-2 text-lg">
+        {isResponse || !isPending 
+          ? (isApproved || metadata.status === 'approved' ? '✅ Verificado' : '❌ No Aplicado') 
+          : '🏦 Verificación'}
+      </p>
+      
+      <div className="space-y-1.5 opacity-90">
+        <p><span className="font-semibold text-xs opacity-70">Referencia:</span> {metadata.credit_reference}</p>
+        <p><span className="font-semibold text-xs opacity-70">Tipo:</span> {metadata.payment_type_label}</p>
+        <p className="font-black text-xl mt-2 border-y py-2 border-current/10">₡{Number(metadata.monto || 0).toLocaleString('es-CR')}</p>
+        {metadata.client_name && <p className="text-sm mt-2 font-medium italic opacity-80">Cliente: {metadata.client_name}</p>}
+        {metadata.notes && (
+          <div className="mt-3 bg-black/5 p-2 rounded text-xs italic">
+            <span className="font-semibold block mb-1 not-italic opacity-60 uppercase text-[10px]">Notas:</span>
+            {metadata.notes}
+          </div>
+        )}
+      </div>
+
+      {type === 'request' && isPending && (
+        <div className="mt-5 space-y-3 border-t pt-4 border-border/50">
+          <textarea
+            placeholder="Añadir notas de verificación..."
+            className="w-full bg-background border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 min-h-[70px] resize-none"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleRespond('approved')}
+              disabled={responding}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-md shadow-sm disabled:opacity-50 transition-all active:scale-95 text-base"
+            >
+              ✅ VERIFICAR
+            </button>
+            <button
+              onClick={() => handleRespond('rejected')}
+              disabled={responding}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black py-3 rounded-md shadow-sm disabled:opacity-50 transition-all active:scale-95 text-base"
+            >
+              ❌ RECHAZAR
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY ?? '';
@@ -322,49 +416,61 @@ export default function CommunicationsPage() {
       const res = await api.get('/api/comments/recent', { params: { limit: 50, archived } });
       const data: InternalComment[] = Array.isArray(res.data) ? res.data : res.data.data ?? [];
 
-      // Group direct messages by recipient (commentable_id) — show only the most recent one per user
       const directGroups = new Map<number, InternalComment>();
-      const nonDirect: InternalComment[] = [];
+      const entityGroups = new Map<string, InternalComment>();
 
       for (const c of data) {
         if (c.commentable_type === 'App\\Models\\User') {
-          // Use the contact's ID as key (not commentable_id alone, which equals myId when they send to me)
-          const key = c.user_id === user?.id ? c.commentable_id : c.user_id;
-          const existing = directGroups.get(key);
+          // Determinar quién es la otra persona
+          const contactId = c.user_id === user?.id ? Number(c.commentable_id) : c.user_id;
+          if (contactId === user?.id) continue;
+
+          const existing = directGroups.get(contactId);
           if (!existing || new Date(c.created_at) > new Date(existing.created_at)) {
-            // Count replies from all messages to this user
             const totalReplies = (existing?.replies?.length ?? 0) + (c.replies?.length ?? 0);
             const grouped = { ...c };
-            if (totalReplies > 0) {
-              grouped.replies = Array(totalReplies).fill(null) as any; // placeholder for count
-            }
-            directGroups.set(key, grouped);
+            if (totalReplies > 0) grouped.replies = Array(totalReplies).fill(null) as any;
+            directGroups.set(contactId, grouped);
           }
         } else {
-          nonDirect.push(c);
+          // Agrupar también por entidad (Crédito, Lead, etc.)
+          const entityKey = `${c.commentable_type}:${c.commentable_id}`;
+          const existing = entityGroups.get(entityKey);
+          if (!existing || new Date(c.created_at) > new Date(existing.created_at)) {
+            entityGroups.set(entityKey, c);
+          }
         }
       }
 
-      // Merge: direct groups + non-direct, sorted by created_at desc
-      const merged = [...nonDirect, ...directGroups.values()]
+      const merged = [...entityGroups.values(), ...directGroups.values()]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAllComments(merged);
     } catch { /* silent */ } finally { setLoadingComments(false); }
-  }, []);
+  }, [user?.id]);
 
   const fetchThreadComments = useCallback(async (comment: InternalComment) => {
     setSelectedThread(comment);
     setLoadingThread(true);
     try {
       const info = getEntityInfo(comment.commentable_type);
+      let targetId = comment.commentable_id;
+
+      // FIX CRÍTICO: Si es directo, el targetId debe ser la OTRA persona, no necesariamente el commentable_id
+      if (info.apiType === 'direct') {
+        targetId = comment.user_id === user?.id ? Number(comment.commentable_id) : comment.user_id;
+      }
+
       const res = await api.get('/api/comments', {
-        params: { commentable_type: info.apiType || comment.commentable_type, commentable_id: comment.commentable_id }
+        params: { 
+          commentable_type: info.apiType || comment.commentable_type, 
+          commentable_id: targetId 
+        }
       });
       const data = Array.isArray(res.data) ? res.data : res.data.data ?? [];
       setThreadComments(data);
     } catch { /* silent */ } finally { setLoadingThread(false); }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (activeInbox === 'comments') fetchAllComments(commentsView === 'archived');
@@ -1164,7 +1270,31 @@ export default function CommunicationsPage() {
                             <span className="text-sm font-semibold">{c.user.name}</span>
                             <span className="text-[11px] text-muted-foreground">{relativeTime(c.created_at)}</span>
                           </div>
-                          <p className="text-sm mt-0.5" dangerouslySetInnerHTML={{ __html: renderBody(c.body) }} />
+                          {c.comment_type === 'verification_request' && c.metadata ? (
+                            <div className="mt-2">
+                              <VerificationCard 
+                                metadata={c.metadata} 
+                                type="request" 
+                                onRefresh={() => {
+                                  if (selectedThread) fetchThreadComments(selectedThread);
+                                  fetchAllComments(commentsView === 'archived');
+                                }} 
+                              />
+                            </div>
+                          ) : c.comment_type === 'verification_response' && c.metadata ? (
+                            <div className="mt-2">
+                              <VerificationCard 
+                                metadata={c.metadata} 
+                                type="response" 
+                                onRefresh={() => {
+                                  if (selectedThread) fetchThreadComments(selectedThread);
+                                  fetchAllComments(commentsView === 'archived');
+                                }} 
+                              />
+                            </div>
+                          ) : (
+                            <p className="text-sm mt-0.5" dangerouslySetInnerHTML={{ __html: renderBody(c.body) }} />
+                          )}
                         </div>
                       </div>
                       {/* Replies */}

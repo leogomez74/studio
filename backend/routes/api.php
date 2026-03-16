@@ -471,6 +471,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('credits/{id}/refundicion-preview', [\App\Http\Controllers\Api\CreditController::class, 'refundicionPreview']);
     Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion'])->middleware('throttle:10,1');
 
+    // --- Verificación de Abonos ---
+    Route::get('payment-verifications', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'index']);
+    Route::post('payment-verifications', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'store'])->middleware('throttle:30,1');
+    Route::patch('payment-verifications/{id}/respond', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'respond'])->middleware('throttle:30,1');
+    Route::post('payment-verifications/{id}/apply', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'apply'])->middleware('throttle:10,1');
+    Route::post('payment-verifications/{id}/cancel', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'cancel'])->middleware('throttle:30,1');
+
     // --- Pagos de Crédito ---
     Route::post('credit-payments/carga-intereses', [CreditPaymentController::class, 'cargarInteresesSinDeductora'])->middleware('throttle:30,1');
     Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada'])->middleware('throttle:30,1');

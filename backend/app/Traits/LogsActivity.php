@@ -24,7 +24,7 @@ trait LogsActivity
         string $module,
         ?Model $model = null,
         ?string $modelLabel = null,
-        array $changes = [],
+        ?array $changes = [],
         ?Request $request = null
     ): void {
         try {
