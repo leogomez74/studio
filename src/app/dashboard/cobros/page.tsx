@@ -1355,6 +1355,7 @@ export default function CobrosPage() {
     setSelectedCreditId('');
     setExtraordinaryStrategy('reduce_amount'); // Reset strategy
     setCancelacionData(null); // Reset cancelación anticipada
+    setCuotasSeleccionadas([]);
   }, []);
 
   const handleRegistrarAbono = async (e: React.FormEvent) => {
@@ -2190,6 +2191,8 @@ export default function CobrosPage() {
                                 <label className="block text-sm font-medium mb-1">Tipo de Cobro</label>
                                 <Select value={tipoCobro} onValueChange={val => {
                                   setTipoCobro(val);
+                                  setCuotasSeleccionadas([]);
+                                  setMonto('');
                                   // Si cambia a adelanto, cargar cuotas disponibles
                                   if (val === 'adelanto' && selectedCreditId) {
                                     api.get(`/api/credits/${selectedCreditId}`)
@@ -2242,10 +2245,13 @@ export default function CobrosPage() {
                                         checked={isChecked}
                                         disabled={!isEnabled}
                                         onChange={e => {
+                                          const cuotaAmt = parseFloat(cuota.cuota || '0');
                                           if (e.target.checked) {
                                             setCuotasSeleccionadas(prev => [...prev, cuota.id]);
+                                            setMonto(prev => String((parseFloat(prev || '0') + cuotaAmt).toFixed(2)));
                                           } else {
                                             setCuotasSeleccionadas(prev => prev.filter((id: number) => id !== cuota.id));
+                                            setMonto(prev => String(Math.max(0, parseFloat(prev || '0') - cuotaAmt).toFixed(2)));
                                           }
                                         }}
                                         className="h-4 w-4"
