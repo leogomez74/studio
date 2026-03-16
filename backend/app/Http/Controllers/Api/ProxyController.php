@@ -32,7 +32,7 @@ class ProxyController extends Controller
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'apikey' => $key,
-            ])->post("{$url}/chat/whatsappNumbers/" . urlencode($instance), [
+            ])->post("{$url}/chat/whatsappNumbers/" . rawurlencode($instance), [
                 'numbers' => $request->numbers,
             ]);
 
