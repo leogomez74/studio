@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, ChevronsUpDown, Check, FileSpreadsheet, DollarSign, TrendingUp, Activity, PieChart, Target, Eye } from "lucide-react";
+import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, ChevronsUpDown, Check, FileSpreadsheet, DollarSign, TrendingUp, Activity, PieChart, Target, Eye, Building2, Car, Home, Shield, Users, Search, RefreshCw } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -172,6 +172,12 @@ export default function ClientDetailPage() {
   const [profesionSearch, setProfesionSearch] = useState("");
   const [profesionOpen, setProfesionOpen] = useState(false);
 
+  // Datos Adicionales (Credid)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [datosAdicionales, setDatosAdicionales] = useState<any>(null);
+  const [credidConsultadoAt, setCredidConsultadoAt] = useState<string | null>(null);
+  const [consultandoCredid, setConsultandoCredid] = useState(false);
+
   // Credits and Payments state
   const [credits, setCredits] = useState<Credit[]>([]);
   const [payments, setPayments] = useState<CreditPayment[]>([]);
@@ -209,6 +215,10 @@ export default function ClientDetailPage() {
       const response = await api.get(`/api/clients/${id}`);
       setClient(response.data);
       setFormData(response.data);
+      if (response.data.datos_adicionales) {
+        setDatosAdicionales(response.data.datos_adicionales);
+        setCredidConsultadoAt(response.data.credid_consultado_at);
+      }
     } catch (error) {
       console.error("Error fetching client:", error);
       toast({ title: "Error", description: "No se pudo cargar el cliente.", variant: "destructive" });
@@ -216,6 +226,27 @@ export default function ClientDetailPage() {
       setLoading(false);
     }
   }, [id, toast]);
+
+  const handleConsultarCredid = async () => {
+    if (!client?.id) return;
+    setConsultandoCredid(true);
+    try {
+      const response = await api.post(`/api/clients/${client.id}/consultar-credid`);
+      setDatosAdicionales(response.data.datos_adicionales);
+      setCredidConsultadoAt(response.data.credid_consultado_at);
+      if (response.data.campos_actualizados?.length > 0) {
+        toast({ title: "Datos actualizados", description: `Campos auto-llenados: ${response.data.campos_actualizados.join(', ')}` });
+        fetchClient();
+      } else {
+        toast({ title: "Consulta exitosa", description: "Datos de Credid obtenidos correctamente." });
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: "Error", description: err.response?.data?.message || "No se pudo consultar Credid.", variant: "destructive" });
+    } finally {
+      setConsultandoCredid(false);
+    }
+  };
 
   useEffect(() => {
 
@@ -1515,6 +1546,298 @@ export default function ClientDetailPage() {
                 />
               </div>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Datos Adicionales (Credid) */}
+          <div>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Datos Adicionales
+                {credidConsultadoAt && (
+                  <Badge variant="outline" className="text-xs font-normal">
+                    Consultado: {new Date(credidConsultadoAt).toLocaleDateString('es-CR')}
+                  </Badge>
+                )}
+                {formData.es_pep && <Badge className="bg-red-100 text-red-700 border-red-300">PEP</Badge>}
+                {formData.en_listas_internacionales && <Badge className="bg-red-100 text-red-700 border-red-300">Listas Int.</Badge>}
+              </h3>
+              {datosAdicionales && (
+                <Button size="sm" variant="outline" onClick={handleConsultarCredid} disabled={consultandoCredid || !formData.cedula}>
+                  {consultandoCredid ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                  Actualizar
+                </Button>
+              )}
+            </div>
+
+            {!datosAdicionales && (
+              <div className="mt-3 p-4 bg-muted/30 rounded-lg text-center">
+                <p className="text-sm text-muted-foreground mb-2">No hay datos de Credid disponibles para este cliente.</p>
+                <Button size="sm" variant="outline" onClick={handleConsultarCredid} disabled={consultandoCredid || !formData.cedula}>
+                  {consultandoCredid ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                  Consultar Credid
+                </Button>
+              </div>
+            )}
+
+            {datosAdicionales && (
+              <div className="mt-4 space-y-6">
+                {/* Panel 1: Información Personal */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Información Personal
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {datosAdicionales.filiacion?.nacionalidad && (
+                      <div><Label className="text-muted-foreground text-xs">Nacionalidad</Label><p className="text-sm">{datosAdicionales.filiacion.nacionalidad}</p></div>
+                    )}
+                    {datosAdicionales.filiacion?.fecha_nacimiento && (
+                      <div><Label className="text-muted-foreground text-xs">Fecha de Nacimiento</Label><p className="text-sm">{datosAdicionales.filiacion.fecha_nacimiento} ({datosAdicionales.filiacion.edad} años)</p></div>
+                    )}
+                    {datosAdicionales.filiacion?.genero && (
+                      <div><Label className="text-muted-foreground text-xs">Género</Label><p className="text-sm">{datosAdicionales.filiacion.genero}</p></div>
+                    )}
+                    {datosAdicionales.filiacion?.lugar_nacimiento && (
+                      <div><Label className="text-muted-foreground text-xs">Lugar de Nacimiento</Label><p className="text-sm">{datosAdicionales.filiacion.lugar_nacimiento}</p></div>
+                    )}
+                    {datosAdicionales.filiacion?.vencimiento_cedula && (
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Vencimiento Cédula</Label>
+                        <p className={`text-sm ${new Date(datosAdicionales.filiacion.vencimiento_cedula) < new Date() ? 'text-red-600 font-semibold' : ''}`}>
+                          {datosAdicionales.filiacion.vencimiento_cedula}
+                          {new Date(datosAdicionales.filiacion.vencimiento_cedula) < new Date() && ' (VENCIDA)'}
+                        </p>
+                      </div>
+                    )}
+                    {datosAdicionales.filiacion?.indice_desarrollo_social != null && (
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Índice Desarrollo Social</Label>
+                        <p className="text-sm">
+                          {datosAdicionales.filiacion.indice_desarrollo_social}
+                          {datosAdicionales.filiacion.nivel_desarrollo_social && (
+                            <Badge variant="outline" className="ml-2 text-xs">{datosAdicionales.filiacion.nivel_desarrollo_social}</Badge>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                    {datosAdicionales.filiacion?.domicilio_electoral?.provincia && (
+                      <div><Label className="text-muted-foreground text-xs">Domicilio Electoral</Label><p className="text-sm">{datosAdicionales.filiacion.domicilio_electoral.distrito}, {datosAdicionales.filiacion.domicilio_electoral.canton}, {datosAdicionales.filiacion.domicilio_electoral.provincia}</p></div>
+                    )}
+                    {datosAdicionales.matrimonio_actual && (
+                      <div><Label className="text-muted-foreground text-xs">Estado Civil</Label><p className="text-sm">{datosAdicionales.matrimonio_actual.relacion} — {datosAdicionales.matrimonio_actual.nombre}</p></div>
+                    )}
+                    {datosAdicionales.total_hijos != null && (
+                      <div><Label className="text-muted-foreground text-xs">Total de Hijos</Label><p className="text-sm">{datosAdicionales.total_hijos}</p></div>
+                    )}
+                  </div>
+                  {datosAdicionales.filiacion?.profesiones?.length > 0 && (
+                    <div className="mt-2">
+                      <Label className="text-muted-foreground text-xs">Profesiones Registradas</Label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {datosAdicionales.filiacion.profesiones.map((p: string, i: number) => (
+                          <Badge key={i} variant="secondary" className="text-xs">{p}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {datosAdicionales.filiacion?.colegios_profesionales?.length > 0 && (
+                    <div className="mt-2">
+                      <Label className="text-muted-foreground text-xs">Colegios Profesionales</Label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {datosAdicionales.filiacion.colegios_profesionales.map((c: { colegio: string; estado: string }, i: number) => (
+                          <Badge key={i} variant={c.estado === 'Activo' ? 'default' : 'outline'} className="text-xs">{c.colegio} ({c.estado})</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {datosAdicionales.filiacion?.defuncion && (
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                      <p className="text-sm text-red-700 font-semibold">PERSONA FALLECIDA — Fecha: {datosAdicionales.filiacion.defuncion.Fecha}</p>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Panel 2: Patrimonio */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Patrimonio
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className="p-3 bg-muted/50 rounded-lg text-center">
+                      <Car className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                      <p className="text-lg font-semibold">{datosAdicionales.vehiculos?.length || 0}</p>
+                      <p className="text-xs text-muted-foreground">Vehículos</p>
+                      {(datosAdicionales.vehiculos?.length > 0) && (
+                        <p className="text-xs font-medium mt-1">₡{datosAdicionales.vehiculos.reduce((s: number, v: { valor_fiscal: number }) => s + v.valor_fiscal, 0).toLocaleString('es-CR')}</p>
+                      )}
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg text-center">
+                      <Home className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                      <p className="text-lg font-semibold">{datosAdicionales.propiedades?.length || 0}</p>
+                      <p className="text-xs text-muted-foreground">Propiedades</p>
+                      {(datosAdicionales.propiedades?.length > 0) && (
+                        <p className="text-xs font-medium mt-1">₡{datosAdicionales.propiedades.reduce((s: number, p: { valor_fiscal: number }) => s + p.valor_fiscal, 0).toLocaleString('es-CR')}</p>
+                      )}
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Hipotecas</p>
+                      <p className="text-lg font-semibold text-orange-600">
+                        ₡{(datosAdicionales.propiedades?.reduce((s: number, p: { valor_hipotecas: number }) => s + p.valor_hipotecas, 0) || 0).toLocaleString('es-CR')}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Prendas</p>
+                      <p className="text-lg font-semibold text-orange-600">
+                        ₡{(datosAdicionales.vehiculos?.reduce((s: number, v: { valor_prendas: number }) => s + v.valor_prendas, 0) || 0).toLocaleString('es-CR')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {datosAdicionales.vehiculos?.length > 0 && (
+                    <div className="mb-4">
+                      <Label className="text-muted-foreground text-xs mb-2 block">Vehículos Propios</Label>
+                      <div className="border rounded-md overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Tipo</th>
+                              <th className="text-left p-2 font-medium">Placa</th>
+                              <th className="text-left p-2 font-medium">Marca/Modelo</th>
+                              <th className="text-left p-2 font-medium">Año</th>
+                              <th className="text-right p-2 font-medium">Valor Fiscal</th>
+                              <th className="text-right p-2 font-medium">Prendas</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {datosAdicionales.vehiculos.map((v: { tipo: string; placa: string; marca: string; modelo: string; anio: string; valor_fiscal: number; valor_prendas: number; embargos: number }, i: number) => (
+                              <tr key={i} className="border-t">
+                                <td className="p-2">{v.tipo}</td>
+                                <td className="p-2 font-mono">{v.placa}</td>
+                                <td className="p-2">{v.marca} {v.modelo}</td>
+                                <td className="p-2">{v.anio}</td>
+                                <td className="p-2 text-right">₡{v.valor_fiscal.toLocaleString('es-CR')}</td>
+                                <td className="p-2 text-right">{v.valor_prendas > 0 ? `₡${v.valor_prendas.toLocaleString('es-CR')}` : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {datosAdicionales.propiedades?.length > 0 && (
+                    <div className="mb-4">
+                      <Label className="text-muted-foreground text-xs mb-2 block">Propiedades</Label>
+                      <div className="border rounded-md overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Finca</th>
+                              <th className="text-left p-2 font-medium">Ubicación</th>
+                              <th className="text-right p-2 font-medium">Medida m²</th>
+                              <th className="text-right p-2 font-medium">Valor Fiscal</th>
+                              <th className="text-right p-2 font-medium">Hipotecas</th>
+                              <th className="text-right p-2 font-medium">Embargos</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {datosAdicionales.propiedades.map((p: { numero: string; distrito: string; canton: string; provincia: string; medida: number; valor_fiscal: number; valor_hipotecas: number; embargos: number }, i: number) => (
+                              <tr key={i} className="border-t">
+                                <td className="p-2 font-mono">{p.numero}</td>
+                                <td className="p-2">{p.distrito}, {p.canton}, {p.provincia}</td>
+                                <td className="p-2 text-right">{p.medida?.toLocaleString('es-CR')}</td>
+                                <td className="p-2 text-right">₡{p.valor_fiscal.toLocaleString('es-CR')}</td>
+                                <td className="p-2 text-right">{p.valor_hipotecas > 0 ? `₡${p.valor_hipotecas.toLocaleString('es-CR')}` : '—'}</td>
+                                <td className="p-2 text-right">{p.embargos > 0 ? <Badge variant="destructive" className="text-xs">{p.embargos}</Badge> : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {datosAdicionales.representaciones?.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground text-xs mb-2 block">Representaciones en Sociedades</Label>
+                      <div className="border rounded-md overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Sociedad</th>
+                              <th className="text-left p-2 font-medium">Cédula Jurídica</th>
+                              <th className="text-left p-2 font-medium">Puesto</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {datosAdicionales.representaciones.map((r: { nombre: string; identificacion: string; puesto: string }, i: number) => (
+                              <tr key={i} className="border-t">
+                                <td className="p-2">{r.nombre}</td>
+                                <td className="p-2 font-mono">{r.identificacion}</td>
+                                <td className="p-2">{r.puesto}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Panel 3: Cumplimiento */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Cumplimiento
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className={`p-3 rounded-lg border ${datosAdicionales.pep ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                      <p className="text-xs text-muted-foreground">PEP</p>
+                      <p className={`text-sm font-semibold ${datosAdicionales.pep ? 'text-red-700' : 'text-green-700'}`}>
+                        {datosAdicionales.pep ? `Sí — ${datosAdicionales.pep.puesto} (${datosAdicionales.pep.institucion})` : 'No'}
+                      </p>
+                    </div>
+                    <div className={`p-3 rounded-lg border ${datosAdicionales.listas_internacionales?.total_exacto > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                      <p className="text-xs text-muted-foreground">Listas Internacionales</p>
+                      <p className={`text-sm font-semibold ${datosAdicionales.listas_internacionales?.total_exacto > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                        {datosAdicionales.listas_internacionales?.total_exacto > 0
+                          ? `${datosAdicionales.listas_internacionales.total_exacto} coincidencia(s)`
+                          : 'Sin coincidencias'}
+                      </p>
+                      {datosAdicionales.listas_internacionales?.fuentes?.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {datosAdicionales.listas_internacionales.fuentes.map((f: { fuente: string; total: number }, i: number) => (
+                            <Badge key={i} variant="destructive" className="text-xs">{f.fuente}: {f.total}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className={`p-3 rounded-lg border ${datosAdicionales.apnfd?.length > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+                      <p className="text-xs text-muted-foreground">APNFD</p>
+                      <p className={`text-sm font-semibold ${datosAdicionales.apnfd?.length > 0 ? 'text-yellow-700' : 'text-green-700'}`}>
+                        {datosAdicionales.apnfd?.length > 0
+                          ? datosAdicionales.apnfd.map((a: { actividad: string }) => a.actividad).join(', ')
+                          : 'No registrado'}
+                      </p>
+                    </div>
+                  </div>
+                  {datosAdicionales.ccss && (
+                    <div className="mt-3 p-3 bg-muted/50 rounded-lg">
+                      <Label className="text-muted-foreground text-xs">CCSS Patronal</Label>
+                      <p className="text-sm">Estado: {datosAdicionales.ccss.EstadoPatrono || 'N/A'} — Adeudado: {datosAdicionales.ccss.MontoAdeudado || '₡0'}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />

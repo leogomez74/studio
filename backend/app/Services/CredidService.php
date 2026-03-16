@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Analisis;
+use App\Models\Person;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -323,6 +324,207 @@ class CredidService
             'score_riesgo' => $analisis->score_riesgo,
             'score_riesgo_color' => $analisis->score_riesgo_color,
             'score_riesgo_label' => $analisis->score_riesgo_label,
+        ];
+    }
+
+    /**
+     * Extraer datos personales del reporte Credid para mostrar en "Datos Adicionales".
+     */
+    public function extraerDatosPersonales(array $reporte): array
+    {
+        $filiacion = $reporte['FiliacionFisica'] ?? $reporte['FiliacionExtranjero'] ?? [];
+
+        return [
+            'filiacion' => [
+                'nacionalidad' => $filiacion['Nacionalidad'] ?? null,
+                'fecha_nacimiento' => $this->parseFechaCredid($filiacion['FechaNacimiento'] ?? null),
+                'edad' => $filiacion['Edad'] ?? null,
+                'genero' => $filiacion['GeneroLiteral'] ?? ($filiacion['Genero'] ?? null),
+                'lugar_nacimiento' => $filiacion['LugarNacimiento'] ?? null,
+                'vencimiento_cedula' => $this->parseFechaCredid($filiacion['VencimientoCedula'] ?? null),
+                'indice_desarrollo_social' => $filiacion['IndiceDesarrolloSocial']['Indice'] ?? null,
+                'nivel_desarrollo_social' => $filiacion['IndiceDesarrolloSocial']['Nivel'] ?? null,
+                'profesiones' => array_map(fn($p) => $p['Descripcion'] ?? '', $filiacion['Profesion'] ?? []),
+                'colegios_profesionales' => array_map(fn($c) => [
+                    'colegio' => $c['Colegio'] ?? '',
+                    'carne' => $c['Carne'] ?? '',
+                    'estado' => $c['Estado'] ?? '',
+                ], $filiacion['ColegioProfesional'] ?? []),
+                'titulos_mep' => array_map(fn($t) => [
+                    'titulo' => $t['Titulo'] ?? '',
+                    'institucion' => $t['Institucion'] ?? '',
+                    'periodo' => $t['Periodo'] ?? '',
+                ], $filiacion['TitulosMep'] ?? []),
+                'domicilio_electoral' => [
+                    'provincia' => $filiacion['DomicilioElectoral']['Provincia'] ?? null,
+                    'canton' => $filiacion['DomicilioElectoral']['Canton'] ?? null,
+                    'distrito' => $filiacion['DomicilioElectoral']['Distrito'] ?? null,
+                ],
+                'defuncion' => !empty($filiacion['Defuncion']['Fecha']) ? $filiacion['Defuncion'] : null,
+            ],
+            'matrimonio_actual' => $this->extraerMatrimonioActual($reporte),
+            'total_hijos' => $reporte['ParientesTotalHijos'] ?? null,
+            'hijos_menores' => $reporte['HijosMenores'] ?? [],
+            'vehiculos' => array_map(fn($v) => [
+                'tipo' => $v['Tipo'] ?? '',
+                'placa' => $v['Placa'] ?? '',
+                'marca' => $v['Marca'] ?? '',
+                'modelo' => $v['Modelo'] ?? '',
+                'anio' => $v['Anio'] ?? '',
+                'valor_fiscal' => (float) ($v['ValorFiscal'] ?? 0),
+                'valor_prendas' => (float) ($v['ValorPrendas'] ?? 0),
+                'embargos' => (int) ($v['Embargos'] ?? 0),
+            ], $reporte['Vehiculos'] ?? []),
+            'vehiculos_vinculados' => array_map(fn($v) => [
+                'tipo' => $v['Tipo'] ?? '',
+                'placa' => $v['Placa'] ?? '',
+                'marca' => $v['Marca'] ?? '',
+                'modelo' => $v['Modelo'] ?? '',
+                'anio' => $v['Anio'] ?? '',
+                'valor_fiscal' => (float) ($v['ValorFiscal'] ?? 0),
+                'valor_prendas' => (float) ($v['ValorPrendas'] ?? 0),
+                'embargos' => (int) ($v['Embargos'] ?? 0),
+            ], $reporte['VehiculosVinculados'] ?? []),
+            'propiedades' => array_map(fn($p) => [
+                'numero' => $p['Numero'] ?? '',
+                'medida' => $p['Medida'] ?? 0,
+                'distrito' => $p['Distrito'] ?? '',
+                'canton' => $p['Canton'] ?? '',
+                'provincia' => $p['Provincia'] ?? '',
+                'valor_fiscal' => (float) ($p['ValorFiscal'] ?? 0),
+                'valor_hipotecas' => (float) ($p['ValorHipotecas'] ?? 0),
+                'embargos' => (int) ($p['CantidadEmbargos'] ?? 0),
+            ], $reporte['Propiedades'] ?? []),
+            'propiedades_vinculadas' => array_map(fn($p) => [
+                'numero' => $p['Numero'] ?? '',
+                'medida' => $p['Medida'] ?? 0,
+                'distrito' => $p['Distrito'] ?? '',
+                'canton' => $p['Canton'] ?? '',
+                'provincia' => $p['Provincia'] ?? '',
+                'valor_fiscal' => (float) ($p['ValorFiscal'] ?? 0),
+                'valor_hipotecas' => (float) ($p['ValorHipotecas'] ?? 0),
+                'embargos' => (int) ($p['CantidadEmbargos'] ?? 0),
+            ], $reporte['PropiedadesVinculadas'] ?? []),
+            'representaciones' => array_map(fn($r) => [
+                'nombre' => $r['Nombre'] ?? '',
+                'identificacion' => $r['IdentificacionSociedad'] ?? '',
+                'puesto' => $r['Descripcion'] ?? '',
+                'representacion' => $r['Representacion'] ?? '',
+            ], $reporte['Representaciones'] ?? []),
+            'localizacion' => array_map(fn($l) => [
+                'dato' => $l['Dato'] ?? '',
+                'tipo' => $l['Tipo'] ?? '',
+                'relacion' => $l['Relacion'] ?? '',
+                'fecha' => $l['Fecha'] ?? '',
+            ], $reporte['Localizacion'] ?? []),
+            'pep' => $this->extraerPepDetalle($reporte),
+            'apnfd' => array_map(fn($a) => [
+                'actividad' => $a['Actividad'] ?? '',
+                'clasificacion' => $a['Clasificacion'] ?? '',
+                'condicion' => $a['Condicion'] ?? '',
+            ], $reporte['APNFD'] ?? []),
+            'listas_internacionales' => $this->extraerListasInternacionales($reporte),
+            'ccss' => $reporte['CCSS'] ?? null,
+            'fotografia' => $reporte['Fotografia'] ?? null,
+            'consentimiento' => $reporte['Consentimiento'] ?? null,
+        ];
+    }
+
+    /**
+     * Sincronizar datos de Credid al Lead/Client.
+     * Regla de prioridad: Cuestionario > Manual > Credid (solo auto-llena si vacío).
+     */
+    public function sincronizarLead(Person $lead, array $reporte): array
+    {
+        $filiacion = $reporte['FiliacionFisica'] ?? $reporte['FiliacionExtranjero'] ?? [];
+        $camposActualizados = [];
+
+        // Campos auto-llenables (no vienen del cuestionario)
+        $autoFill = [
+            'fecha_nacimiento' => $this->parseFechaCredid($filiacion['FechaNacimiento'] ?? null),
+            'genero' => $filiacion['GeneroLiteral'] ?? null,
+            'nacionalidad' => $filiacion['Nacionalidad'] ?? null,
+            'cedula_vencimiento' => $this->parseFechaCredid($filiacion['VencimientoCedula'] ?? null),
+            'profesion' => ($filiacion['Profesion'][0]['Descripcion'] ?? null),
+            'province' => $filiacion['DomicilioElectoral']['Provincia'] ?? null,
+            'canton' => $filiacion['DomicilioElectoral']['Canton'] ?? null,
+            'distrito' => $filiacion['DomicilioElectoral']['Distrito'] ?? null,
+        ];
+
+        foreach ($autoFill as $campo => $valor) {
+            if (!empty($valor) && empty($lead->{$campo})) {
+                $lead->{$campo} = $valor;
+                $camposActualizados[] = $campo;
+            }
+        }
+
+        // Estado civil: solo si vacío (el cuestionario también lo llena)
+        $matrimonioActual = $this->extraerMatrimonioActual($reporte);
+        if (!empty($matrimonioActual) && empty($lead->estado_civil)) {
+            $lead->estado_civil = $matrimonioActual['relacion'];
+            $camposActualizados[] = 'estado_civil';
+        }
+
+        // Campos resumen queryables
+        $vehiculos = $reporte['Vehiculos'] ?? [];
+        $propiedades = $reporte['Propiedades'] ?? [];
+
+        $lead->credid_data = $reporte;
+        $lead->credid_consultado_at = now();
+        $lead->indice_desarrollo_social = $filiacion['IndiceDesarrolloSocial']['Indice'] ?? null;
+        $lead->nivel_desarrollo_social = $filiacion['IndiceDesarrolloSocial']['Nivel'] ?? null;
+        $lead->total_vehiculos = count($vehiculos);
+        $lead->total_propiedades = count($propiedades);
+        $lead->patrimonio_vehiculos = collect($vehiculos)->sum('ValorFiscal');
+        $lead->patrimonio_propiedades = collect($propiedades)->sum('ValorFiscal');
+        $lead->total_hipotecas = collect($propiedades)->sum('ValorHipotecas');
+        $lead->total_prendas = collect($vehiculos)->sum('ValorPrendas');
+        $lead->es_pep = !empty($reporte['PEP']);
+        $lead->en_listas_internacionales = !empty($reporte['ListasInternacionales']) &&
+            collect($reporte['ListasInternacionales'])->sum('TotalExacto') > 0;
+        $lead->total_hijos = $reporte['ParientesTotalHijos'] ?? null;
+
+        $lead->save();
+
+        return $camposActualizados;
+    }
+
+    private function extraerMatrimonioActual(array $reporte): ?array
+    {
+        $matrimonios = $reporte['Matrimonios'] ?? [];
+        foreach ($matrimonios as $m) {
+            if (!empty($m['Actual'])) {
+                return [
+                    'relacion' => $m['Relacion'] ?? '',
+                    'nombre' => trim(($m['Nombre'] ?? '') . ' ' . ($m['Apellido1'] ?? '') . ' ' . ($m['Apellido2'] ?? '')),
+                    'tiene_actividad_economica' => $m['TieneActividadEconomica'] ?? false,
+                ];
+            }
+        }
+        return null;
+    }
+
+    private function extraerListasInternacionales(array $reporte): array
+    {
+        $listas = $reporte['ListasInternacionales'] ?? [];
+        if (empty($listas)) {
+            return ['total_exacto' => 0, 'fuentes' => []];
+        }
+
+        $lista = $listas[0] ?? [];
+        $fuentes = [];
+        foreach ($lista['Datos'] ?? [] as $dato) {
+            if (($dato['Status'] ?? 0) > 0) {
+                $fuentes[] = [
+                    'fuente' => $dato['Fuente'] ?? '',
+                    'total' => $dato['Total'] ?? 0,
+                ];
+            }
+        }
+
+        return [
+            'total_exacto' => $lista['TotalExacto'] ?? 0,
+            'fuentes' => $fuentes,
         ];
     }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\CredidService;
 use App\Traits\LogsActivity;
 use App\Models\Client;
 use App\Models\Task;
@@ -141,7 +142,45 @@ class ClientController extends Controller
     public function show(string $id)
     {
         $client = Client::with(['assignedAgent', 'documents'])->findOrFail($id);
-        return response()->json($client, 200);
+        $response = $client->toArray();
+
+        if ($client->credid_data) {
+            $credidService = app(CredidService::class);
+            $response['datos_adicionales'] = $credidService->extraerDatosPersonales($client->credid_data);
+            $response['credid_consultado_at'] = $client->credid_consultado_at;
+        }
+
+        return response()->json($response, 200);
+    }
+
+    public function consultarCredid(Request $request, int $id)
+    {
+        $client = Client::findOrFail($id);
+
+        if (empty($client->cedula)) {
+            return response()->json(['message' => 'El cliente no tiene cédula registrada.'], 422);
+        }
+
+        $credidService = app(CredidService::class);
+        $reporte = $credidService->consultarReporte($client->cedula);
+
+        if (!$reporte) {
+            return response()->json(['message' => 'No se pudo obtener el reporte de Credid.'], 502);
+        }
+
+        $camposActualizados = $credidService->sincronizarLead($client, $reporte);
+        $datosPersonales = $credidService->extraerDatosPersonales($reporte);
+
+        $this->logActivity('update', 'Clientes', $client, "Consulta Credid: {$client->cedula}", [
+            'campos_actualizados' => $camposActualizados,
+        ], $request);
+
+        return response()->json([
+            'success' => true,
+            'datos_adicionales' => $datosPersonales,
+            'campos_actualizados' => $camposActualizados,
+            'credid_consultado_at' => $client->credid_consultado_at,
+        ]);
     }
 
     public function update(Request $request, string $id)

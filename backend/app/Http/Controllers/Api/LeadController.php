@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\CredidService;
 use App\Traits\LogsActivity;
 use App\Models\Lead;
 use App\Models\Person;
@@ -284,6 +285,21 @@ class LeadController extends Controller
             Log::error('Error creando tarea automática', ['lead_id' => $result['lead']->id ?? null, 'opportunity_id' => $result['opportunity']->id ?? null, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
         }
 
+        // Consultar Credid automáticamente si tiene cédula
+        if (!empty($validated['cedula'])) {
+            try {
+                $credidService = app(CredidService::class);
+                $reporte = $credidService->consultarReporte($validated['cedula']);
+                if ($reporte) {
+                    $credidService->sincronizarLead($result['lead'], $reporte);
+                    $result['lead']->refresh();
+                    Log::info('Credid consultado automáticamente al crear lead', ['lead_id' => $result['lead']->id]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error consultando Credid al crear lead', ['lead_id' => $result['lead']->id, 'error' => $e->getMessage()]);
+            }
+        }
+
         return response()->json([
             'lead' => $result['lead'],
             'opportunity' => $result['opportunity'],
@@ -294,7 +310,64 @@ class LeadController extends Controller
     {
         $lead = Lead::with(['assignedAgent', 'leadStatus', 'documents'])->find($id)
             ?? Person::with(['assignedAgent', 'leadStatus', 'documents'])->findOrFail($id);
-        return response()->json($lead);
+
+        $response = $lead->toArray();
+
+        // Incluir datos adicionales parseados si hay credid_data
+        if ($lead->credid_data) {
+            $credidService = app(CredidService::class);
+            $response['datos_adicionales'] = $credidService->extraerDatosPersonales($lead->credid_data);
+            $response['credid_consultado_at'] = $lead->credid_consultado_at;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Consultar Credid y sincronizar datos al Lead.
+     * POST /api/leads/{id}/consultar-credid
+     */
+    public function consultarCredid(Request $request, int $id)
+    {
+        $lead = Lead::findOrFail($id);
+
+        if (empty($lead->cedula)) {
+            return response()->json(['message' => 'El lead no tiene cédula registrada.'], 422);
+        }
+
+        $credidService = app(CredidService::class);
+        $reporte = $credidService->consultarReporte($lead->cedula);
+
+        if (!$reporte) {
+            return response()->json(['message' => 'No se pudo obtener el reporte de Credid.'], 502);
+        }
+
+        $camposActualizados = $credidService->sincronizarLead($lead, $reporte);
+        $datosPersonales = $credidService->extraerDatosPersonales($reporte);
+
+        $this->logActivity('update', 'Leads', $lead, "Consulta Credid: {$lead->cedula}", [
+            'campos_actualizados' => $camposActualizados,
+        ], $request);
+
+        return response()->json([
+            'success' => true,
+            'datos_adicionales' => $datosPersonales,
+            'campos_actualizados' => $camposActualizados,
+            'credid_consultado_at' => $lead->credid_consultado_at,
+            'resumen' => [
+                'indice_desarrollo_social' => $lead->indice_desarrollo_social,
+                'nivel_desarrollo_social' => $lead->nivel_desarrollo_social,
+                'total_vehiculos' => $lead->total_vehiculos,
+                'total_propiedades' => $lead->total_propiedades,
+                'patrimonio_vehiculos' => $lead->patrimonio_vehiculos,
+                'patrimonio_propiedades' => $lead->patrimonio_propiedades,
+                'total_hipotecas' => $lead->total_hipotecas,
+                'total_prendas' => $lead->total_prendas,
+                'es_pep' => $lead->es_pep,
+                'en_listas_internacionales' => $lead->en_listas_internacionales,
+                'total_hijos' => $lead->total_hijos,
+            ],
+        ]);
     }
 
     public function update(Request $request, $id)

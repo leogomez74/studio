@@ -2,9 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Client extends Person
 {
@@ -60,12 +59,32 @@ class Client extends Person
         'tipo_sociedad',
         'nombramientos',
         'estado_puesto',
+        // Campos Credid
+        'credid_data',
+        'credid_consultado_at',
+        'indice_desarrollo_social',
+        'nivel_desarrollo_social',
+        'total_vehiculos',
+        'total_propiedades',
+        'patrimonio_vehiculos',
+        'patrimonio_propiedades',
+        'total_hipotecas',
+        'total_prendas',
+        'es_pep',
+        'en_listas_internacionales',
+        'total_hijos',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'fecha_nacimiento' => 'date',
+        'credid_data' => 'array',
+        'credid_consultado_at' => 'datetime',
+        'es_pep' => 'boolean',
+        'en_listas_internacionales' => 'boolean',
     ];
+
+    protected $hidden = ['credid_data'];
 
     protected static function booted()
     {

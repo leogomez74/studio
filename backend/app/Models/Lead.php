@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use App\Models\Comment;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Lead extends Person
 {
@@ -63,6 +62,20 @@ class Lead extends Person
         'nombramientos',
         'estado_puesto',
         'assigned_to_id',
+        // Campos Credid
+        'credid_data',
+        'credid_consultado_at',
+        'indice_desarrollo_social',
+        'nivel_desarrollo_social',
+        'total_vehiculos',
+        'total_propiedades',
+        'patrimonio_vehiculos',
+        'patrimonio_propiedades',
+        'total_hipotecas',
+        'total_prendas',
+        'es_pep',
+        'en_listas_internacionales',
+        'total_hijos',
         // Campos del cuestionario
         'source',
         'interes',
@@ -86,8 +99,14 @@ class Lead extends Person
         'is_active' => 'boolean',
         'fecha_nacimiento' => 'date',
         'questionnaire_completed_at' => 'datetime',
-        'tramites' => 'array', // Cast JSON to array
+        'tramites' => 'array',
+        'credid_data' => 'array',
+        'credid_consultado_at' => 'datetime',
+        'es_pep' => 'boolean',
+        'en_listas_internacionales' => 'boolean',
     ];
+
+    protected $hidden = ['credid_data'];
 
     /**
      * El "Global Scope" para filtrar automáticamente

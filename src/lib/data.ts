@@ -94,6 +94,20 @@ export type Lead = {
   relacionado_a_2?: string;
   tipo_relacion_2?: string;
 
+  // Datos Adicionales (Credid)
+  credid_consultado_at?: string;
+  indice_desarrollo_social?: number;
+  nivel_desarrollo_social?: string;
+  total_vehiculos?: number;
+  total_propiedades?: number;
+  patrimonio_vehiculos?: number;
+  patrimonio_propiedades?: number;
+  total_hipotecas?: number;
+  total_prendas?: number;
+  es_pep?: boolean;
+  en_listas_internacionales?: boolean;
+  total_hijos?: number;
+
   // --- Campos Calculados / Relaciones (No fillable directo, pero retornados por API) ---
   lead_status?: { id: number; name: string; color?: string } | string;
   assigned_to_id?: number; // A veces se usa distinto a 'responsable'
@@ -101,6 +115,8 @@ export type Lead = {
   source?: string;
   opportunities?: Opportunity[];
   documents?: PersonDocument[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  datos_adicionales?: any;
 };
 
 export type PersonDocument = {
@@ -216,6 +232,22 @@ export type Client = {
       estado_puesto?: string;
       lead_id?: number;
       documents?: PersonDocument[];
+
+      // Datos Adicionales (Credid)
+      credid_consultado_at?: string;
+      indice_desarrollo_social?: number;
+      nivel_desarrollo_social?: string;
+      total_vehiculos?: number;
+      total_propiedades?: number;
+      patrimonio_vehiculos?: number;
+      patrimonio_propiedades?: number;
+      total_hipotecas?: number;
+      total_prendas?: number;
+      es_pep?: boolean;
+      en_listas_internacionales?: boolean;
+      total_hijos?: number;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      datos_adicionales?: any;
 };
 
 export type Investor = {
