@@ -846,7 +846,7 @@ export default function AnalisisDetailPage() {
                           poliza: false,
                           conCargosAdicionales: true,
                           deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
-                          opportunity_id: analisis.opportunity_id,
+                          opportunity_id: analisis.opportunity_id ? Number(analisis.opportunity_id) : undefined,
                         });
                         setIsCreditDialogOpen(true);
                       } catch (err) {
@@ -1806,7 +1806,7 @@ export default function AnalisisDetailPage() {
                         poliza: false,
                         conCargosAdicionales: true,
                         deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
-                        opportunity_id: analisis.opportunity_id,
+                        opportunity_id: analisis.opportunity_id ? Number(analisis.opportunity_id) : undefined,
                       });
                       setIsCreditDialogOpen(true);
                     } catch (err) {

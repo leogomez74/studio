@@ -59,6 +59,16 @@ return [
         'token' => env('DSF_API_TOKEN', ''),
     ],
 
+    'evolution' => [
+        'url' => env('EVOLUTION_API_URL', ''),
+        'key' => env('EVOLUTION_API_KEY', ''),
+        'instance' => env('EVOLUTION_INSTANCE', ''),
+    ],
+
+    'tenor' => [
+        'key' => env('TENOR_API_KEY', ''),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | SSRF Protection: Allowed Integration Domains

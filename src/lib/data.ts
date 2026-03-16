@@ -398,7 +398,7 @@ export type Investment = {
   moneda: 'CRC' | 'USD';
   forma_pago: 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | 'RESERVA';
   es_capitalizable: boolean;
-  estado: 'Activa' | 'Finalizada' | 'Liquidada' | 'Cancelada' | 'Renovada';
+  estado: 'Activa' | 'Finalizada' | 'Liquidada' | 'Cancelada' | 'Renovada' | 'Capital Devuelto';
   notas?: string;
   tipo_cambio?: number;
   investment_origen_id?: number;

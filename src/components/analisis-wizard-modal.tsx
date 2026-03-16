@@ -829,7 +829,7 @@ export function AnalisisWizardModal({
                               type="text"
                               inputMode="numeric"
                               className="pl-7"
-                              value={formatNumber(juicio.monto)}
+                              value={formatNumber(juicio.monto ?? 0)}
                               onChange={(e) => {
                                 const newJuicios = [...formData.juicios_detalle];
                                 newJuicios[index].monto = parseFloat(parseNumber(e.target.value)) || 0;
@@ -876,7 +876,7 @@ export function AnalisisWizardModal({
                               type="text"
                               inputMode="numeric"
                               className="pl-7"
-                              value={formatNumber(embargo.monto)}
+                              value={formatNumber(embargo.monto ?? 0)}
                               onChange={(e) => {
                                 const newEmbargos = [...formData.embargos_detalle];
                                 newEmbargos[index].monto = parseFloat(parseNumber(e.target.value)) || 0;

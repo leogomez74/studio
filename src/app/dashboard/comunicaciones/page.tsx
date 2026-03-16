@@ -65,7 +65,7 @@ interface InternalComment {
   created_at: string; archived_at?: string | null;
 }
 
-const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY ?? '';
 
 const COMMENT_ENTITY_MAP: Record<string, { label: string; route: string; color: string; apiType: string }> = {
   'App\\Models\\Credit':      { label: 'Crédito',     route: '/dashboard/creditos',      color: 'bg-emerald-100 text-emerald-700', apiType: 'credit' },

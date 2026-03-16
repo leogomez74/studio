@@ -13,11 +13,11 @@ import { ToastAction } from "@/components/ui/toast"
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 5000 // 5 seconds default
 
-type ToasterToast = ToastProps & {
+type ToasterToast = Omit<ToastProps, 'title'> & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
-  action?: ToastActionElement
+  action?: ToastActionElement | React.ReactElement
   duration?: number
 }
 

@@ -339,19 +339,7 @@ export default function ClientesPage() {
     setWhatsappError(null);
 
     try {
-      const EVOLUTION_API_URL = 'https://evolution.ssc.cr';
-      const EVOLUTION_API_KEY = '7E269F8C445B-4D63-B75B-BB59D7481AC7';
-      const EVOLUTION_INSTANCE = 'Informacion Pep';
-
-      const response = await fetch(`${EVOLUTION_API_URL}/chat/whatsappNumbers/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': EVOLUTION_API_KEY
-        },
-        body: JSON.stringify({ numbers: [fullNumber] })
-      });
-      const data = await response.json();
+      const { data } = await api.post('/api/proxy/whatsapp-check', { numbers: [fullNumber] });
 
       if (Array.isArray(data) && data.length > 0 && data[0].exists) {
         setWhatsappVerified(true);

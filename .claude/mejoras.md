@@ -84,8 +84,8 @@
 
 | # | Acción | Categoría |
 |---|--------|-----------|
-| 1 | Mover EVOLUTION_API_KEY y TENOR_API_KEY al backend (proxy) | Seguridad |
-| 2 | Quitar `ignoreBuildErrors: true` de next.config.ts y corregir errores TS | Calidad |
+| ~~1~~ | ~~Mover EVOLUTION_API_KEY y TENOR_API_KEY al backend (proxy)~~ ✅ `ProxyController` + .env backend | Seguridad |
+| ~~2~~ | ~~Quitar `ignoreBuildErrors: true` de next.config.ts y corregir 22 errores TS~~ ✅ Build limpio | Calidad |
 | 3 | Crear `middleware.ts` para auth/redirect server-side | Seguridad |
 | 4 | Agregar `error.tsx` y `loading.tsx` en `/app/dashboard/` | UX |
 | 5 | Implementar `dynamic()` imports: jsPDF, ExcelJS, emoji-mart, recharts | Performance |

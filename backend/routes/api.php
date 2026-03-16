@@ -497,6 +497,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('tasas/nombre/{nombre}', [\App\Http\Controllers\Api\TasaController::class, 'porNombre']);
     Route::patch('tasas/{id}/toggle-activo', [\App\Http\Controllers\Api\TasaController::class, 'toggleActivo']);
 
+    // --- Proxies (keys protegidas en backend) ---
+    Route::post('/proxy/whatsapp-check', [\App\Http\Controllers\Api\ProxyController::class, 'whatsappCheck'])->middleware('throttle:30,1');
+    Route::get('/proxy/tenor/search', [\App\Http\Controllers\Api\ProxyController::class, 'tenorSearch'])->middleware('throttle:60,1');
+
     // --- Comments ---
     Route::get('/comments', [CommentController::class, 'index']);
     Route::get('/comments/recent', [CommentController::class, 'recent']);

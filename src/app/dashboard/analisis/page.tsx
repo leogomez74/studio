@@ -71,6 +71,9 @@ type AnalisisItem = {
   propuesta?: string;
   cargo?: string;
   nombramiento?: string;
+  // Score de riesgo (calculado en backend)
+  score_riesgo?: number;
+  score_riesgo_color?: string;
   // Relaciones
   opportunity?: Opportunity;
   lead?: Lead;
@@ -689,7 +692,7 @@ export default function AnalisisPage() {
                                 plazo: item.plazo ? String(item.plazo) : '36',
                                 poliza: false,
                                 conCargosAdicionales: true,
-                                opportunity_id: item.opportunity_id,
+                                opportunity_id: item.opportunity_id ? Number(item.opportunity_id) : undefined,
                               });
                               setCurrentStep(1); // Resetear al abrir
                               setIsCreditDialogOpen(true);
