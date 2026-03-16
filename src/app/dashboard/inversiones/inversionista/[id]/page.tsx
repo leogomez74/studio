@@ -31,10 +31,11 @@ export default function InvestorDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [allInvestors, setAllInvestors] = useState<Investor[]>([]);
+  const [activeTab, setActiveTab] = useState('activas');
   const { toast } = useToast();
 
-  const fetchInvestor = useCallback(async () => {
-    setLoading(true);
+  const fetchInvestor = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [res, invRes] = await Promise.all([
         api.get(`/api/investors/${investorId}`),
@@ -45,7 +46,7 @@ export default function InvestorDetailPage() {
     } catch {
       toastError('Error al cargar los datos del inversionista.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [investorId]);
 
@@ -167,7 +168,7 @@ export default function InvestorDetailPage() {
         )}
       </div>
 
-      <Tabs defaultValue="activas">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="activas">Inversiones Activas ({activeInvestments.length})</TabsTrigger>
           {otherInvestments.length > 0 && (
@@ -237,7 +238,7 @@ export default function InvestorDetailPage() {
                 investorId={investor.id}
                 tipoPersona={investor.tipo_persona}
                 initialDocuments={documents}
-                onDocumentChange={fetchInvestor}
+                onDocumentChange={() => fetchInvestor(true)}
               />
             </CardContent>
           </Card>
