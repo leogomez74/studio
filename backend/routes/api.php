@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\OpportunityController;
 use App\Http\Controllers\Api\PersonDocumentController;
 use App\Http\Controllers\Api\CreditPaymentController;
 use App\Http\Controllers\Api\InvestorController;
+use App\Http\Controllers\Api\InvestorDocumentController;
 use App\Http\Controllers\Api\InvestmentController;
 use App\Http\Controllers\Api\InvestmentCouponController;
 use App\Http\Controllers\Api\InvestmentPaymentController;
@@ -410,6 +411,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid'])->middleware('throttle:60,1');
     Route::patch('investment-coupons/{id}/correct', [InvestmentCouponController::class, 'correct'])->middleware('throttle:30,1');
     Route::apiResource('investors', InvestorController::class);
+    Route::get('investor-documents', [InvestorDocumentController::class, 'index']);
+    Route::post('investor-documents', [InvestorDocumentController::class, 'store']);
+    Route::delete('investor-documents/{id}', [InvestorDocumentController::class, 'destroy']);
     Route::apiResource('investments', InvestmentController::class);
     Route::apiResource('investment-payments', InvestmentPaymentController::class)->only(['index', 'store', 'destroy']);
     Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);

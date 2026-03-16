@@ -58,7 +58,7 @@ class InvestorController extends Controller
     public function show(int $id)
     {
         $investor = Investor::withCount(['investments as active_investments_count' => fn ($q) => $q->where('estado', 'Activa')])
-            ->with(['investments.coupons', 'payments', 'capitalReserves'])
+            ->with(['investments.coupons', 'payments', 'capitalReserves', 'documents'])
             ->findOrFail($id);
         return response()->json($investor);
     }

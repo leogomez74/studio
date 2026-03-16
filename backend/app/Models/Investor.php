@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\PersonDocument;
 
 class Investor extends Model
 {
@@ -29,6 +30,11 @@ class Investor extends Model
     ];
 
     protected $appends = [];
+
+    public function documents()
+    {
+        return $this->hasMany(PersonDocument::class, 'investor_id');
+    }
 
     public function investments()
     {

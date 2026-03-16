@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +24,8 @@ type Props = {
 export function InvestorFormDialog({ open, onOpenChange, investor, onSuccess }: Props) {
   const isEditing = !!investor;
   const [loading, setLoading] = useState(false);
+  const [cedulaFile, setCedulaFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     name: '',
     cedula: '',
@@ -55,18 +57,36 @@ export function InvestorFormDialog({ open, onOpenChange, investor, onSuccess }: 
         tipo_persona: 'Persona Física', status: 'Activo',
         cuenta_bancaria: '', banco: '', notas: '',
       });
+      setCedulaFile(null);
     }
   }, [investor, open]);
+
+  const cedulaLabel = form.tipo_persona === 'Persona Jurídica' ? 'Cédula Jurídica' : 'Cédula / Pasaporte';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
+      let investorId: number;
       if (isEditing) {
         await api.patch(`/api/investors/${investor!.id}`, form);
+        investorId = investor!.id;
       } else {
-        await api.post('/api/investors', form);
+        const res = await api.post('/api/investors', form);
+        investorId = res.data.id;
       }
+
+      // Subir cédula/pasaporte si se adjuntó
+      if (!isEditing && cedulaFile) {
+        const formData = new FormData();
+        formData.append('file', cedulaFile);
+        formData.append('investor_id', String(investorId));
+        formData.append('category', 'cedula_pasaporte');
+        await api.post('/api/investor-documents', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
       onOpenChange(false);
       onSuccess();
     } catch (err) {
@@ -131,10 +151,43 @@ export function InvestorFormDialog({ open, onOpenChange, investor, onSuccess }: 
               <Label htmlFor="notas">Notas</Label>
               <Textarea id="notas" value={form.notas} onChange={e => setForm(p => ({ ...p, notas: e.target.value }))} rows={3} />
             </div>
+
+            {/* Campo de cédula/pasaporte — solo al crear */}
+            {!isEditing && (
+              <div className="grid gap-2">
+                <Label htmlFor="cedula-file" className="flex items-center gap-1">
+                  {cedulaLabel}
+                  <span className="text-red-500">*</span>
+                  <span className="text-xs text-muted-foreground font-normal ml-1">(requerido para crear inversiones)</span>
+                </Label>
+                <label
+                  htmlFor="cedula-file"
+                  className={`flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer text-sm transition-colors ${
+                    cedulaFile ? 'bg-green-50 border-green-300 text-green-700' : 'bg-background border-input hover:bg-muted'
+                  }`}
+                >
+                  {cedulaFile ? (
+                    <span className="truncate">{cedulaFile.name}</span>
+                  ) : (
+                    <span className="text-muted-foreground">Seleccionar archivo...</span>
+                  )}
+                </label>
+                <input
+                  ref={fileInputRef}
+                  id="cedula-file"
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf"
+                  onChange={e => setCedulaFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>{loading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Inversionista'}</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Inversionista'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

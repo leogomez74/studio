@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MoreHorizontal, FileText, FileSpreadsheet, Loader2, PlusCircle, DollarSign } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, FileText, FileSpreadsheet, Loader2, PlusCircle, DollarSign, Paperclip, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,8 @@ import type { Investor, Investment, InvestmentPayment } from '@/lib/data';
 import { InvestmentFormDialog } from '@/components/investment-form-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { downloadExport } from '@/lib/download-export';
+import InvestorDocumentManager from '@/components/investor-document-manager';
+import { useToast } from '@/hooks/use-toast';
 
 const fmt = (amount: number, currency: 'CRC' | 'USD') =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency }).format(amount);
@@ -29,6 +31,7 @@ export default function InvestorDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [allInvestors, setAllInvestors] = useState<Investor[]>([]);
+  const { toast } = useToast();
 
   const fetchInvestor = useCallback(async () => {
     setLoading(true);
@@ -75,6 +78,27 @@ export default function InvestorDetailPage() {
   const activeInvestments = (investor.investments ?? []).filter(i => i.estado === 'Activa');
   const otherInvestments = (investor.investments ?? []).filter(i => i.estado !== 'Activa');
 
+  const documents: any[] = (investor as any).documents ?? [];
+  const hasCedulaPasaporte = documents.some(d => d.category === 'cedula_pasaporte');
+  const hasContrato = documents.some(d => d.category === 'contrato_inversion');
+  const cedulaLabel = investor.tipo_persona === 'Persona Jurídica' ? 'Cédula Jurídica' : 'Cédula / Pasaporte';
+  const missingDocs = [
+    !hasCedulaPasaporte && cedulaLabel,
+    !hasContrato && 'Contrato de Inversionista',
+  ].filter(Boolean) as string[];
+
+  const handleNuevaInversion = () => {
+    if (missingDocs.length > 0) {
+      toast({
+        title: 'Documentos requeridos faltantes',
+        description: `Para crear una inversión se necesita: ${missingDocs.join(', ')}. Por favor súbalos en el tab "Archivos".`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    setShowForm(true);
+  };
+
   const totalCRC = activeInvestments.filter(i => i.moneda === 'CRC').reduce((s, i) => s + i.monto_capital, 0);
   const totalUSD = activeInvestments.filter(i => i.moneda === 'USD').reduce((s, i) => s + i.monto_capital, 0);
 
@@ -105,7 +129,7 @@ export default function InvestorDetailPage() {
           <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investors/${investor.id}/export/excel`, `inversionista-${investor.name}.xlsx`)}>
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
           </Button>
-          <Button size="sm" className="gap-1" onClick={() => setShowForm(true)}>
+          <Button size="sm" className="gap-1" onClick={handleNuevaInversion}>
             <PlusCircle className="h-4 w-4" /> Nueva Inversión
           </Button>
         </div>
@@ -153,6 +177,15 @@ export default function InvestorDetailPage() {
             <DollarSign className="h-4 w-4 mr-1" />
             Historial de Pagos ({(investor.payments ?? []).length})
           </TabsTrigger>
+          <TabsTrigger value="archivos" className="relative">
+            <Paperclip className="h-4 w-4 mr-1" />
+            Archivos
+            {missingDocs.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold w-4 h-4">
+                {missingDocs.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="activas">
@@ -183,6 +216,31 @@ export default function InvestorDetailPage() {
 
         <TabsContent value="pagos">
           <PaymentsTable payments={(investor.payments ?? []) as InvestmentPayment[]} />
+        </TabsContent>
+
+        <TabsContent value="archivos">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Paperclip className="h-5 w-5" />
+                Archivos del Inversionista
+              </CardTitle>
+              {missingDocs.length > 0 && (
+                <CardDescription className="flex items-center gap-1 text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  Documentos requeridos pendientes: {missingDocs.join(', ')}
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              <InvestorDocumentManager
+                investorId={investor.id}
+                tipoPersona={investor.tipo_persona}
+                initialDocuments={documents}
+                onDocumentChange={fetchInvestor}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
