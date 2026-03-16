@@ -115,7 +115,7 @@ const ENTITY_ROUTES: Record<string, string> = {
   client: '/dashboard/leads',
 };
 
-const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY ?? '';
 
 const DROPDOWN_KIND_TO_MENTION_TYPE: Record<DropdownKind, Mention['type']> = {
   user: 'user',

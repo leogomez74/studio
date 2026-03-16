@@ -177,8 +177,8 @@ class MiController extends Controller {
 - **82% client components** — convención moderna sugiere ~40%
 - **0 archivos `loading.tsx`/`error.tsx`/`not-found.tsx`** en toda la app
 - **No existe `middleware.ts`** — auth solo client-side
-- **`ignoreBuildErrors: true`** en next.config anula TypeScript strict
-- **API keys hardcodeadas**: EVOLUTION_API_KEY en clientes/page.tsx, TENOR_API_KEY fallback en comunicaciones y chat-bubble
+- ~~**`ignoreBuildErrors: true`** en next.config~~ → **RESUELTO Mar 2026**: eliminado, 22 errores TS corregidos, build limpio
+- ~~**API keys hardcodeadas**~~ → **RESUELTO Mar 2026**: EVOLUTION_API_KEY movida a proxy backend (`ProxyController`), TENOR_API_KEY fallback eliminado (usa .env)
 - **0 dynamic imports** — jsPDF, ExcelJS, emoji-mart, recharts en bundle global
 - **Páginas monolíticas**: cobros 3,115 líneas, créditos 2,803, clientes 2,534, oportunidades 2,088
 - **Sin React Query/SWR** — re-fetch en cada navegación, sin cache
@@ -202,8 +202,8 @@ class MiController extends Controller {
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta
-- Mover API keys hardcodeadas al backend (Evolution, Tenor)
-- Quitar `ignoreBuildErrors: true` de next.config y corregir errores TS
+- ~~Mover API keys hardcodeadas al backend (Evolution, Tenor)~~ ✅ Mar 2026
+- ~~Quitar `ignoreBuildErrors: true` de next.config y corregir errores TS~~ ✅ Mar 2026
 - Crear `middleware.ts` para auth server-side
 - Agregar `error.tsx` y `loading.tsx` en /dashboard
 

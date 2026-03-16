@@ -176,7 +176,7 @@ function groupByEntity(comments: Comment[]): Comment[] {
 // Sub-component: inline compose (new comment or reply)
 // ---------------------------------------------------------------------------
 
-const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY ?? '';
 
 interface ComposeProps {
   placeholder: string;

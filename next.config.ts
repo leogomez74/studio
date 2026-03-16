@@ -5,11 +5,6 @@ const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.
 const nextConfig: NextConfig = {
   /* Config options */
 
-  // Ignorar errores de compilación durante el build
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   // Permitir imágenes remotas de estas fuentes
   images: {
     remotePatterns: [

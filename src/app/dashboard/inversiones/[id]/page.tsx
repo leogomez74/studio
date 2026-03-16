@@ -635,7 +635,7 @@ export default function InvestmentDetailPage() {
                           <span className="flex items-center gap-1.5">
                             {new Date(coupon.fecha_cupon).toLocaleDateString('es-CR')}
                             {coupon.estado === 'Pendiente' && new Date(coupon.fecha_cupon) < new Date() && (
-                              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" title="Cupón atrasado" />
+                              <span title="Cupón atrasado"><AlertTriangle className="h-4 w-4 text-destructive shrink-0" /></span>
                             )}
                           </span>
                         </TableCell>
@@ -662,7 +662,7 @@ export default function InvestmentDetailPage() {
                             <Badge variant={coupon.estado === 'Pagado' ? 'default' : coupon.estado === 'Reservado' ? 'secondary' : 'outline'}>
                               {coupon.estado}
                             </Badge>
-                            {coupon.comprobante && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" title="Tiene comprobante" />}
+                            {coupon.comprobante && <span title="Tiene comprobante"><Paperclip className="h-3.5 w-3.5 text-muted-foreground" /></span>}
                           </span>
                         </TableCell>
                         <TableCell>{coupon.fecha_pago ? new Date(coupon.fecha_pago).toLocaleDateString('es-CR') : '—'}</TableCell>
