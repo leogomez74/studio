@@ -171,18 +171,55 @@ class MiController extends Controller {
 
 ---
 
+## Auditoría React/Next.js (Mar 2026) — Puntaje: 4.5/10
+
+### Hallazgos críticos
+- **82% client components** — convención moderna sugiere ~40%
+- **0 archivos `loading.tsx`/`error.tsx`/`not-found.tsx`** en toda la app
+- **No existe `middleware.ts`** — auth solo client-side
+- **`ignoreBuildErrors: true`** en next.config anula TypeScript strict
+- **API keys hardcodeadas**: EVOLUTION_API_KEY en clientes/page.tsx, TENOR_API_KEY fallback en comunicaciones y chat-bubble
+- **0 dynamic imports** — jsPDF, ExcelJS, emoji-mart, recharts en bundle global
+- **Páginas monolíticas**: cobros 3,115 líneas, créditos 2,803, clientes 2,534, oportunidades 2,088
+- **Sin React Query/SWR** — re-fetch en cada navegación, sin cache
+- **Sin `next/image`** — 10+ tags `<img>` plain
+- **Forms inconsistentes** — mix de react-hook-form+Zod y useState manual
+- **jsPDF boilerplate duplicado en 5 archivos**
+- **Tokens en cookies JS** (no httpOnly)
+
+### Lo que está bien
+- 100% componentes funcionales, hooks correctos
+- Tailwind + cn() + CVA excelente
+- CSRF bien configurado con Sanctum
+- DOMPurify en dangerouslySetInnerHTML
+- Promise.all para requests paralelos
+- Memoización (useMemo/useCallback) extensiva
+- next/link bien usado
+- Custom hooks reutilizables (use-bulk-selection, use-toast, use-debounce)
+
+---
+
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta
-- (sin pendientes críticos)
+- Mover API keys hardcodeadas al backend (Evolution, Tenor)
+- Quitar `ignoreBuildErrors: true` de next.config y corregir errores TS
+- Crear `middleware.ts` para auth server-side
+- Agregar `error.tsx` y `loading.tsx` en /dashboard
 
 ### 🟡 Media
 - HttpOnly cookies para auth (diferido, bajo riesgo actual)
-- Verificar account codes en `erp_accounting_accounts` vs plan contable del ERP real (códigos como `1102-01-01` no fueron reconocidos por el ERP)
+- Verificar account codes en `erp_accounting_accounts` vs plan contable del ERP real
+- Implementar dynamic imports para librerías pesadas
+- Romper páginas monolíticas (2000-3100 líneas) en sub-componentes
+- Estandarizar todos los forms a react-hook-form + Zod
+- Migrar `<img>` a `<Image>` de next/image
+- Evaluar React Query/SWR para caching
 
 ### 🟢 Baja
-- 149 `as any` en TypeScript (bajó de 292)
-- 64 `Log::` en backend (subió de 48)
+- 13 instancias `as unknown`/`as any` en frontend
+- 5 componentes en PascalCase (debería ser kebab-case)
+- Accesibilidad: ARIA en forms, focus trapping, skip links
 
 ---
 

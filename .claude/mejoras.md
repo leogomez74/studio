@@ -80,6 +80,28 @@
 - Migrar auth de Sanctum token en header a HttpOnly cookies
 - Bajo riesgo actual: API interna, requiere cambio completo frontend+backend
 
+## Pendiente — Alta prioridad (Auditoría React Mar 2026)
+
+| # | Acción | Categoría |
+|---|--------|-----------|
+| 1 | Mover EVOLUTION_API_KEY y TENOR_API_KEY al backend (proxy) | Seguridad |
+| 2 | Quitar `ignoreBuildErrors: true` de next.config.ts y corregir errores TS | Calidad |
+| 3 | Crear `middleware.ts` para auth/redirect server-side | Seguridad |
+| 4 | Agregar `error.tsx` y `loading.tsx` en `/app/dashboard/` | UX |
+| 5 | Implementar `dynamic()` imports: jsPDF, ExcelJS, emoji-mart, recharts | Performance |
+| 6 | Romper páginas gigantes en sub-componentes (cobros 3115, creditos 2803, clientes 2534, oportunidades 2088 líneas) | Mantenibilidad |
+
+## Pendiente — Media prioridad (Auditoría React Mar 2026)
+
+| # | Acción | Categoría |
+|---|--------|-----------|
+| 7 | Estandarizar forms a react-hook-form + Zod (eliminar useState manual) | Consistencia |
+| 8 | Migrar `<img>` a `<Image>` de next/image (10+ instancias) | Performance |
+| 9 | Evaluar React Query/SWR para caching de requests | Performance |
+| 10 | Extraer jsPDF boilerplate a `/lib/pdf-helpers.ts` (duplicado en 5 archivos) | DRY |
+| 11 | Metadata dinámica con `generateMetadata()` por página | SEO |
+| 12 | Mover tokens a httpOnly cookies server-set | Seguridad |
+
 ## Pendiente — Baja prioridad
 
 ### Pendiente Rewards (baja prioridad)
