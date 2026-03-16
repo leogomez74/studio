@@ -322,10 +322,10 @@ export default function CalculadoraEmbargo() {
               </div>
             </div>
 
-            {/* Pensiones alimenticias */}
+            {/* Pensiones alimentarias */}
             <div className="space-y-2">
               <Label htmlFor="pension">
-                Pensiones alimenticias{' '}
+                Pensiones alimentarias{' '}
                 <span className="font-normal text-muted-foreground">
                   (si aplica)
                 </span>
@@ -464,7 +464,7 @@ export default function CalculadoraEmbargo() {
 
                     {desglose.pension_alimenticia > 0 && (
                       <>
-                        <span className="text-muted-foreground">Pension alimentaria</span>
+                        <span className="text-muted-foreground">Pensión alimentaria</span>
                         <span className="text-right text-red-600">-₡{formatColones(desglose.pension_alimenticia)}</span>
                       </>
                     )}
