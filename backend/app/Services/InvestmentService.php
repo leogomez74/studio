@@ -517,10 +517,40 @@ class InvestmentService
         ];
     }
 
-    public function cancelacionTotal(Investment $investment, string $tipo): Investment
+    public function cancelacionTotal(Investment $investment, string $tipo, ?float $montoCapital = null, ?float $montoInteres = null): Investment
     {
-        return DB::transaction(function () use ($investment, $tipo) {
+        return DB::transaction(function () use ($investment, $tipo, $montoCapital, $montoInteres) {
             $now = now()->toDateString();
+
+            if ($tipo === 'mixto') {
+                // Abono parcial editable: registra capital e interés con los montos especificados
+                if (($montoInteres ?? 0) > 0) {
+                    InvestmentPayment::create([
+                        'investor_id'   => $investment->investor_id,
+                        'investment_id' => $investment->id,
+                        'fecha_pago'    => $now,
+                        'monto'         => $montoInteres,
+                        'monto_capital' => 0,
+                        'monto_interes' => $montoInteres,
+                        'tipo'          => 'Interés',
+                        'moneda'        => $investment->moneda,
+                        'comentarios'   => 'Abono mixto — interés',
+                    ]);
+                }
+                InvestmentPayment::create([
+                    'investor_id'   => $investment->investor_id,
+                    'investment_id' => $investment->id,
+                    'fecha_pago'    => $now,
+                    'monto'         => $montoCapital,
+                    'monto_capital' => $montoCapital,
+                    'monto_interes' => 0,
+                    'tipo'          => 'Capital',
+                    'moneda'        => $investment->moneda,
+                    'comentarios'   => 'Abono mixto — capital',
+                ]);
+                $investment->update(['estado' => 'Capital Devuelto', 'fecha_pago_total' => now(), 'tipo_cancelacion_total' => 'mixto']);
+                return $investment->fresh();
+            }
 
             if ($tipo === 'con_intereses') {
                 // Mark all pending/reserved coupons as paid

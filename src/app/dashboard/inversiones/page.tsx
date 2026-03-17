@@ -1168,8 +1168,8 @@ export default function InversionesPage() {
         investor_id: Number(paymentForm.investor_id),
         investment_id: paymentForm.investment_id ? Number(paymentForm.investment_id) : null,
         fecha_pago: paymentForm.fecha_pago,
-        monto_capital: Number(paymentForm.monto_capital) || 0,
-        monto_interes: Number(paymentForm.monto_interes) || 0,
+        monto_capital: 0,
+        monto_interes: Number(paymentForm.monto),
         monto: Number(paymentForm.monto),
         tipo: paymentForm.tipo,
         moneda: paymentForm.moneda,
@@ -1178,7 +1178,7 @@ export default function InversionesPage() {
       });
       toastSuccess('Pago registrado correctamente.');
       setShowPaymentForm(false);
-      setPaymentForm({ investor_id: '', investment_id: '', monto_capital: '', monto_interes: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
+      setPaymentForm({ investor_id: '', investment_id: '', monto_capital: '', monto_interes: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' }); // eslint-disable-line
       fetchData();
     } catch (err: any) {
       toastError(err?.response?.data?.message || 'Error al registrar el pago.');
@@ -1834,10 +1834,10 @@ export default function InversionesPage() {
               </div>
               <div className="grid gap-2">
                 <Label>Tipo *</Label>
-                <Select value={paymentForm.tipo} onValueChange={v => setPaymentForm(f => ({ ...f, tipo: v, monto_capital: '', monto_interes: '' }))}>
+                <Select value={paymentForm.tipo} onValueChange={v => setPaymentForm(f => ({ ...f, tipo: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Abono">Abono Mixto</SelectItem>
+                    <SelectItem value="Abono">Abono</SelectItem>
                     <SelectItem value="Interés">Interés</SelectItem>
                     <SelectItem value="Capital">Capital</SelectItem>
                     <SelectItem value="Adelanto">Adelanto</SelectItem>
@@ -1846,23 +1846,10 @@ export default function InversionesPage() {
                 </Select>
               </div>
             </div>
-            {paymentForm.tipo === "Abono" ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Capital *</Label>
-                  <Input type="number" step="0.01" value={paymentForm.monto_capital} onChange={e => setPaymentForm(f => ({ ...f, monto_capital: e.target.value, monto: String(Number(e.target.value) + Number(f.monto_interes)) }))} className="font-mono" placeholder="0.00" />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Interés *</Label>
-                  <Input type="number" step="0.01" value={paymentForm.monto_interes} onChange={e => setPaymentForm(f => ({ ...f, monto_interes: e.target.value, monto: String(Number(f.monto_capital) + Number(e.target.value)) }))} className="font-mono" placeholder="0.00" />
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <Label>Monto *</Label>
-                <Input type="number" step="0.01" value={paymentForm.monto} onChange={e => setPaymentForm(f => ({ ...f, monto: e.target.value }))} className="font-mono" placeholder="0.00" />
-              </div>
-            )}
+            <div className="grid gap-2">
+              <Label>Monto *</Label>
+              <Input type="number" step="0.01" value={paymentForm.monto} onChange={e => setPaymentForm(f => ({ ...f, monto: e.target.value }))} className="font-mono" placeholder="0.00" />
+            </div>
             <div className="grid gap-2">
               <Label>Moneda *</Label>
               <Select value={paymentForm.moneda} onValueChange={v => setPaymentForm(f => ({ ...f, moneda: v }))}>
