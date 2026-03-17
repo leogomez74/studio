@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth-guard";
+import { usePermissions } from "@/contexts/PermissionsContext";
 import api from "@/lib/axios";
 import Link from "next/link";
 
@@ -76,6 +77,8 @@ export function SaldosPorAsignar({
 }: SaldosPorAsignarProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
+  const canReintegrarDirecto = hasPermission('cobros', 'assign');
 
   // Determinar modo: compacto (para crédito) o completo (para cobros)
   const isCompact = !!cedula;
@@ -115,9 +118,15 @@ export function SaldosPorAsignar({
     monto?: number;
   } | null>(null);
 
-  // --- Modal de reintegro ---
+  // --- Modal de reintegro directo ---
   const [reintegroDialogOpen, setReintegroDialogOpen] = useState(false);
   const [saldoToReintegrar, setSaldoToReintegrar] = useState<any>(null);
+
+  // --- Modal de solicitud de reintegro (usuarios sin permiso) ---
+  const [requestReintegroDialogOpen, setRequestReintegroDialogOpen] = useState(false);
+  const [requestReintegroMotivo, setRequestReintegroMotivo] = useState('');
+  const [saldoToRequestReintegro, setSaldoToRequestReintegro] = useState<any>(null);
+  const [sendingReintegroRequest, setSendingReintegroRequest] = useState(false);
 
   // --- Fetch ---
   const fetchSaldosPendientes = useCallback(async () => {
@@ -283,16 +292,36 @@ export function SaldosPorAsignar({
   };
 
   const handleReintegrarSaldo = (saldo: any) => {
-    if (user?.role?.name !== "Administrador" && !user?.role?.full_access) {
-      toast({
-        title: "Acceso denegado",
-        description: "Solo administradores pueden reintegrar saldos",
-        variant: "destructive",
-      });
-      return;
+    if (canReintegrarDirecto) {
+      setSaldoToReintegrar(saldo);
+      setReintegroDialogOpen(true);
+    } else {
+      setSaldoToRequestReintegro(saldo);
+      setRequestReintegroMotivo('');
+      setRequestReintegroDialogOpen(true);
     }
-    setSaldoToReintegrar(saldo);
-    setReintegroDialogOpen(true);
+  };
+
+  const handleConfirmRequestReintegro = async () => {
+    if (!saldoToRequestReintegro || !requestReintegroMotivo.trim()) return;
+    try {
+      setSendingReintegroRequest(true);
+      await api.post(`/api/saldos-pendientes/${saldoToRequestReintegro.id}/request-reintegrar`, {
+        motivo: requestReintegroMotivo.trim(),
+      });
+      toast({ title: 'Solicitud enviada', description: 'Los usuarios autorizados han sido notificados.' });
+      setRequestReintegroDialogOpen(false);
+      setRequestReintegroMotivo('');
+      setSaldoToRequestReintegro(null);
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Error al enviar la solicitud.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingReintegroRequest(false);
+    }
   };
 
   const confirmarReintegro = async () => {
@@ -1196,6 +1225,62 @@ export function SaldosPorAsignar({
             </Button>
             <Button onClick={confirmarAsignacion}>
               Confirmar Aplicación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Solicitar Reintegro de Saldo (usuarios sin permiso directo) */}
+      <Dialog open={requestReintegroDialogOpen} onOpenChange={setRequestReintegroDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Solicitar Reintegro de Saldo</DialogTitle>
+            <DialogDescription>
+              No tienes permiso para reintegrar directamente. Se enviará una solicitud a los usuarios autorizados.
+            </DialogDescription>
+          </DialogHeader>
+          {saldoToRequestReintegro && (
+            <Alert>
+              <AlertDescription>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cliente:</span>
+                    <span className="font-medium">{saldoToRequestReintegro.lead_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Monto:</span>
+                    <span className="font-bold text-orange-600">
+                      ₡{Number(saldoToRequestReintegro.monto).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className="space-y-1">
+            <Label htmlFor="motivo-reintegro-solicitud">Motivo de la solicitud <span className="text-destructive">*</span></Label>
+            <textarea
+              id="motivo-reintegro-solicitud"
+              className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder="Explica por qué se debe reintegrar este saldo..."
+              value={requestReintegroMotivo}
+              onChange={(e) => setRequestReintegroMotivo(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={sendingReintegroRequest}
+              onClick={() => { setRequestReintegroDialogOpen(false); setRequestReintegroMotivo(''); }}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={sendingReintegroRequest || !requestReintegroMotivo.trim()}
+              onClick={handleConfirmRequestReintegro}
+            >
+              {sendingReintegroRequest ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>
+              ) : (
+                'Enviar Solicitud'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

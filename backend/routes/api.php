@@ -489,6 +489,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto'])->middleware('throttle:30,1');
     Route::post('credit-payments/abono-extraordinario/preview', [CreditPaymentController::class, 'previewAbonoExtraordinario'])->middleware('throttle:30,1');
     Route::post('credit-payments/{id}/reverse', [CreditPaymentController::class, 'reversePayment'])->middleware('throttle:10,1');
+    Route::post('credit-payments/{id}/request-reverse', [CreditPaymentController::class, 'requestReverse'])->middleware('throttle:10,1');
     Route::apiResource('credit-payments', CreditPaymentController::class);
 
     // --- Saldos Pendientes ---
@@ -496,6 +497,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('saldos-pendientes/{id}/preview', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'previewAsignacion'])->middleware('throttle:30,1');
     Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar'])->middleware('throttle:30,1');
     Route::post('saldos-pendientes/{id}/reintegrar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'reintegrar'])->middleware('throttle:30,1');
+    Route::post('saldos-pendientes/{id}/request-reintegrar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'requestReintegrar'])->middleware('throttle:10,1');
 
     // --- Historial de Planillas ---
     Route::get('planilla-uploads', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'index']);

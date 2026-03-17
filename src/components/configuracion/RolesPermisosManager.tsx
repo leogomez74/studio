@@ -70,8 +70,8 @@ const MODULES: Module[] = [
   { key: 'calculos', label: 'Cálculos', permissions: ['view'] },
   {
     key: 'cobros', label: 'Cobros',
-    permissions: ['view', 'create', 'edit', 'delete'],
-    customPermissionLabels: { create: 'Registrar Abono', edit: 'Cargar Planilla', delete: 'Exportar' }
+    permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign'],
+    customPermissionLabels: { create: 'Registrar Abono', edit: 'Cargar Planilla', delete: 'Exportar', archive: 'Anular Abono', assign: 'Reintegro de Saldo' }
   },
   { key: 'cobro_judicial', label: 'Cobro Judicial', permissions: ['view'] },
   { key: 'ventas', label: 'Ventas', permissions: ['view'] },

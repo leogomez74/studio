@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/components/auth-guard';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Card,
   CardContent,
@@ -1119,8 +1120,16 @@ export default function CobrosPage() {
   const [planillaToAnular, setPlanillaToAnular] = useState<any>(null);
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
 
-  // Usuario actual (para verificar permisos)
+  // Usuario actual y permisos
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
+  const canAnularDirecto = hasPermission('cobros', 'archive');
+
+  // Estado para solicitud de anulación (usuarios sin permiso directo)
+  const [requestReverseDialogOpen, setRequestReverseDialogOpen] = useState(false);
+  const [requestReverseMotivo, setRequestReverseMotivo] = useState('');
+  const [requestReversePayment, setRequestReversePayment] = useState<PaymentWithRelations | null>(null);
+  const [sendingReverseRequest, setSendingReverseRequest] = useState(false);
 
   // Búsqueda de clientes con debounce
   useEffect(() => {
@@ -1507,10 +1516,34 @@ export default function CobrosPage() {
   }, [planillas]);
 
   const openReverseDialog = useCallback((payment: PaymentWithRelations) => {
-    setReversePaymentState(payment);
-    setReverseMotivo('');
-    setReverseDialogOpen(true);
-  }, []);
+    if (canAnularDirecto) {
+      setReversePaymentState(payment);
+      setReverseMotivo('');
+      setReverseDialogOpen(true);
+    } else {
+      setRequestReversePayment(payment);
+      setRequestReverseMotivo('');
+      setRequestReverseDialogOpen(true);
+    }
+  }, [canAnularDirecto]);
+
+  const handleConfirmRequestReverse = async () => {
+    if (!requestReversePayment || !requestReverseMotivo.trim()) return;
+    try {
+      setSendingReverseRequest(true);
+      await api.post(`/api/credit-payments/${requestReversePayment.id}/request-reverse`, {
+        motivo: requestReverseMotivo.trim(),
+      });
+      toast({ title: 'Solicitud enviada', description: 'Los usuarios autorizados serán notificados para procesar la anulación.' });
+      setRequestReverseDialogOpen(false);
+      setRequestReverseMotivo('');
+      setRequestReversePayment(null);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Error al enviar la solicitud.', variant: 'destructive' });
+    } finally {
+      setSendingReverseRequest(false);
+    }
+  };
 
   const handleConfirmReverse = async () => {
     if (!reversePayment || !reverseMotivo.trim()) {
@@ -3157,6 +3190,51 @@ export default function CobrosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* AlertDialog para Solicitar Anulación (usuarios sin permiso directo) */}
+      <AlertDialog open={requestReverseDialogOpen} onOpenChange={setRequestReverseDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Solicitar Anulación de Abono</AlertDialogTitle>
+            <AlertDialogDescription>
+              {requestReversePayment && (
+                <>
+                  Estás solicitando anular el pago de{' '}
+                  <strong>₡{parseFloat(String(requestReversePayment.monto || 0)).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong>
+                  {requestReversePayment.credit?.numero_operacion && (
+                    <> (Operación: <strong>{requestReversePayment.credit.numero_operacion}</strong>)</>
+                  )}.
+                  <br /><br />
+                  No tienes permiso para anular directamente. Se enviará una notificación a los usuarios autorizados con tu solicitud.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Label htmlFor="motivo-solicitud-anulacion">Motivo de la solicitud <span className="text-destructive">*</span></Label>
+            <Textarea
+              id="motivo-solicitud-anulacion"
+              placeholder="Explica por qué necesita anularse este abono..."
+              value={requestReverseMotivo}
+              onChange={(e) => setRequestReverseMotivo(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendingReverseRequest} onClick={() => setRequestReverseMotivo('')}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmRequestReverse(); }}
+              disabled={sendingReverseRequest || !requestReverseMotivo.trim()}
+            >
+              {sendingReverseRequest ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>
+              ) : (
+                'Enviar Solicitud'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Dialog de advertencias: créditos ausentes que entraron en mora */}
       <Dialog open={advertenciasOpen} onOpenChange={setAdvertenciasOpen}>
         <DialogContent className="max-w-lg">
