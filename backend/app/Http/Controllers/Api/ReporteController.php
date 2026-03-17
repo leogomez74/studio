@@ -147,8 +147,10 @@ class ReporteController extends Controller
     {
         $this->logActivity('export', 'Reportes', null, 'Cartera Activa - PDF', [], $request);
         $data = $this->cartera($request)->getData(true);
-        $pdf = Pdf::loadHTML($this->buildCarteraPdfHtml($data['data'], $data['totales']))
-            ->setPaper('legal', 'landscape');
+        $bgPath = public_path('pdf_background.jpg');
+        $bgBase64 = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath));
+        $pdf = Pdf::loadHTML($this->buildCarteraPdfHtml($data['data'], $data['totales'], $bgBase64))
+            ->setPaper('letter', 'landscape');
         return $pdf->stream('cartera_activa.pdf');
     }
 
@@ -269,8 +271,10 @@ class ReporteController extends Controller
     {
         $this->logActivity('export', 'Reportes', null, 'Cartera en Mora - PDF', [], $request);
         $data = $this->carteraMora($request)->getData(true);
-        $pdf = Pdf::loadHTML($this->buildMoraPdfHtml($data['data'], $data['totales']))
-            ->setPaper('legal', 'landscape');
+        $bgPath = public_path('pdf_background.jpg');
+        $bgBase64 = file_exists($bgPath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath)) : '';
+        $pdf = Pdf::loadHTML($this->buildMoraPdfHtml($data['data'], $data['totales'], $bgBase64))
+            ->setPaper('letter', 'landscape');
         return $pdf->stream('cartera_mora.pdf');
     }
 
@@ -575,7 +579,7 @@ class ReporteController extends Controller
         $source      = $request->input('source');
         $deductoraId = $request->input('deductora_id');
 
-        $payments = CreditPayment::with(['credit:id,reference,deductora_id', 'credit.lead:id,name,cedula', 'credit.deductora:id,nombre'])
+        $payments = CreditPayment::with(['credit:id,reference,lead_id,deductora_id', 'credit.lead:id,name,cedula', 'credit.deductora:id,nombre'])
             ->where(fn($q) => $q->whereNull('estado_reverso')->orWhere('estado_reverso', 'Vigente'))
             ->whereBetween('fecha_pago', [$desde, $hasta])
             ->when($source, fn($q) => $q->where('source', $source))
@@ -678,8 +682,10 @@ class ReporteController extends Controller
     {
         $this->logActivity('export', 'Reportes', null, 'Cobros - PDF', [], $request);
         $data = $this->cobros($request)->getData(true);
-        $pdf = Pdf::loadHTML($this->buildCobrosPdfHtml($data['data'], $data['totales']))
-            ->setPaper('legal', 'landscape');
+        $bgPath = public_path('pdf_background.jpg');
+        $bgBase64 = file_exists($bgPath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath)) : '';
+        $pdf = Pdf::loadHTML($this->buildCobrosPdfHtml($data['data'], $data['totales'], $bgBase64))
+            ->setPaper('letter', 'landscape');
         return $pdf->stream('historial_cobros.pdf');
     }
 
@@ -749,7 +755,9 @@ class ReporteController extends Controller
         $data['generado_previamente'] = $reporteExistente ? $reporteExistente->created_at->toDateTimeString() : null;
 
         $nombreArchivo = 'planilla_cobro_' . $deductoraId . '_' . $periodo . '.pdf';
-        $pdf = Pdf::loadHTML($this->buildPlanillaCobroPdfHtml($data))
+        $bgPath = public_path('pdf_background.jpg');
+        $bgBase64 = file_exists($bgPath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath)) : '';
+        $pdf = Pdf::loadHTML($this->buildPlanillaCobroPdfHtml($data, $bgBase64))
             ->setPaper('letter', 'landscape');
 
         // Guardar PDF en storage
@@ -774,7 +782,9 @@ class ReporteController extends Controller
         $desde       = $request->input('desde');
         $hasta       = $request->input('hasta');
 
-        $pdf = Pdf::loadHTML($this->buildNovedadesPdfHtml($data, $deductora?->nombre ?? '—', $desde, $hasta))
+        $bgPath = public_path('pdf_background.jpg');
+        $bgBase64 = file_exists($bgPath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath)) : '';
+        $pdf = Pdf::loadHTML($this->buildNovedadesPdfHtml($data, $deductora?->nombre ?? '—', $desde, $hasta, $bgBase64))
             ->setPaper('letter', 'landscape');
         return $pdf->stream('novedades_planilla.pdf');
     }
@@ -933,87 +943,133 @@ class ReporteController extends Controller
         ])->deleteFileAfterSend(true);
     }
 
-    private function buildCarteraPdfHtml(array $rows, array $totales): string
+    private function buildCarteraPdfHtml(array $rows, array $totales, string $bgBase64 = ''): string
     {
-        $th = 'style="background:#DBEAFE;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
-        $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;">
-            <h2 style="color:#1e3a8a;">Cartera Activa</h2>
-            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo total: <b><span class="c">₡</span>' . number_format($totales['saldo_total'], 2) . '</b> | Cuota total: <b><span class="c">₡</span>' . number_format($totales['cuota_total'], 2) . '</b></p>
-            <table width="100%" cellspacing="0" cellpadding="0">
+        $th = 'style="background:#184b94;color:#ffffff;font-weight:bold;padding:7px 10px;border:none;font-size:11px;"';
+        $td = 'style="background:#ffffff;color:#000000;padding:6px 10px;border:1px solid #184b94;font-size:10px;"';
+        $bgImg = $bgBase64 ? '<img src="' . $bgBase64 . '" style="position:fixed;top:0;left:0;width:792pt;height:612pt;" />' : '';
+        $html = '<html><head><meta charset="UTF-8"><style>
+@page { margin: 0; }
+body { margin: 0; padding: 0; font-family: Helvetica, Arial, sans-serif; }
+.c { font-family: DejaVu Sans, sans-serif; }
+p { margin: 0 0 0.2px 0; }
+</style></head><body>
+            ' . $bgImg . '
+            <!-- Pill overlay matching dark pill in bg wave: x=24pt, y=48pt, w=199pt, h=29pt -->
+            <div style="position:absolute;top:48pt;left:0;width:223pt;height:26pt;background-color:rgba(255,255,255,0.8);border-radius:0 13pt 13pt 0;"></div>
+            <!-- Title text centered inside pill -->
+            <div style="position:absolute;top:52pt;left:47pt;">
+                <h2 style="color:#184b94;margin:0;font-size:14pt;">Cartera Activa</h2>
+            </div>
+            <!-- Content below pill -->
+            <div style="position:relative;margin-top:78pt;padding-left:47pt;padding-right:20pt;">
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Total créditos: ' . $totales['creditos'] . '</p>
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Saldo total: <span class="c">₡</span>' . number_format($totales['saldo_total'], 2) . '</p>
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Cuota total: <span class="c">₡</span>' . number_format($totales['cuota_total'], 2) . '</p>
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:30px;border-collapse:collapse;">
             <tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Monto</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>C.Atrasadas</th><th ' . $th . '>Próx.Fecha</th><th ' . $th . '>Estado</th></tr>';
         foreach ($rows as $r) {
             $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['monto_credito'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['cuotas_atrasadas'] . '</td><td ' . $td . '>' . ($r['proxima_fecha'] ?? '—') . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
         }
-        $html .= '</table></body></html>';
+        $html .= '</table></div></body></html>'; // closes content div
         return $html;
     }
 
-    private function buildMoraPdfHtml(array $rows, array $totales): string
+    private function buildMoraPdfHtml(array $rows, array $totales, string $bgBase64 = ''): string
     {
-        $th = 'style="background:#FEE2E2;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
-        $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;">
-            <h2 style="color:#991b1b;">Cartera en Mora</h2>
-            <p>Total créditos: <b>' . $totales['creditos'] . '</b> | Saldo en mora: <b><span class="c">₡</span>' . number_format($totales['saldo_mora'], 2) . '</b></p>
-            <table width="100%" cellspacing="0"><tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>Días Mora</th><th ' . $th . '>Rango</th><th ' . $th . '>Estado</th></tr>';
+        $th = 'style="background:#184b94;color:#ffffff;font-weight:bold;padding:7px 10px;border:none;font-size:11px;"';
+        $td = 'style="background:#ffffff;color:#000000;padding:6px 10px;border:1px solid #184b94;font-size:10px;"';
+        $bgImg = $bgBase64 ? '<img src="' . $bgBase64 . '" style="position:fixed;top:0;left:0;width:792pt;height:612pt;" />' : '';
+        $html = '<html><head><meta charset="UTF-8"><style>
+@page { margin: 0; }
+body { margin: 0; padding: 0; font-family: Helvetica, Arial, sans-serif; }
+.c { font-family: DejaVu Sans, sans-serif; }
+p { margin: 0 0 0.2px 0; }
+</style></head><body>
+            ' . $bgImg . '
+            <div style="position:absolute;top:48pt;left:0;width:223pt;height:26pt;background-color:rgba(255,255,255,0.8);border-radius:0 13pt 13pt 0;"></div>
+            <div style="position:absolute;top:52pt;left:47pt;">
+                <h2 style="color:#184b94;margin:0;font-size:14pt;">Cartera en Mora</h2>
+            </div>
+            <div style="position:relative;margin-top:78pt;padding-left:47pt;padding-right:20pt;">
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Total créditos: ' . $totales['creditos'] . '</p>
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Saldo en mora: <span class="c">₡</span>' . number_format($totales['saldo_mora'], 2) . '</p>
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:30px;border-collapse:collapse;">
+            <tr><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Saldo</th><th ' . $th . '>Cuota</th><th ' . $th . '>Días Mora</th><th ' . $th . '>Rango</th><th ' . $th . '>Estado</th></tr>';
         foreach ($rows as $r) {
             $html .= '<tr><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['saldo'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['cuota'], 2) . '</td><td ' . $td . ' align="center">' . $r['dias_mora'] . '</td><td ' . $td . '>' . $r['rango_mora'] . '</td><td ' . $td . '>' . $r['status'] . '</td></tr>';
         }
-        $html .= '</table></body></html>';
+        $html .= '</table></div></body></html>';
         return $html;
     }
 
-    private function buildPlanillaCobroPdfHtml(array $data): string
+    private function buildPlanillaCobroPdfHtml(array $data, string $bgBase64 = ''): string
     {
         $deductora = htmlspecialchars($data['deductora']);
         $fecha     = $data['fecha'];
         $totales   = $data['totales'];
         $rows      = $data['data'];
 
-        $th = 'style="background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;text-align:left;"';
-        $td = 'style="padding:4px 6px;border:1px solid #e5e7eb;font-size:8px;"';
-        $tdf = 'style="padding:4px 6px;border:1px solid #ddd;font-size:8px;font-weight:bold;background:#f0f9ff;"';
+        $th = 'style="background:#184b94;color:#ffffff;font-weight:bold;padding:7px 10px;border:none;font-size:9px;text-align:left;"';
+        $td = 'style="background:#ffffff;color:#000000;padding:6px 8px;border:1px solid #184b94;font-size:8px;"';
+        $tdf = 'style="background:#ffffff;color:#000000;padding:6px 8px;border:1px solid #184b94;font-size:8px;font-weight:bold;"';
+        $bgImg = $bgBase64 ? '<img src="' . $bgBase64 . '" style="position:fixed;top:0;left:0;width:792pt;height:612pt;" />' : '';
 
-        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;margin:20px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
-                <div>
-                    <h1 style="color:#1e3a8a;margin:0;font-size:16px;">Planilla de Cobro</h1>
-                    <h2 style="color:#374151;margin:4px 0 0;font-size:12px;font-weight:normal;">' . $deductora . '</h2>
-                </div>
-                <div style="text-align:right;font-size:9px;color:#6b7280;">
-                    <div>Generado: ' . $fecha . '</div>
-                    <div style="margin-top:4px;font-size:10px;color:#1e3a8a;font-weight:bold;">CR Studio</div>
-                </div>
+        $html = '<html><head><meta charset="UTF-8"><style>
+@page { margin: 0; }
+body { margin: 0; padding: 0; font-family: Helvetica, Arial, sans-serif; }
+.c { font-family: DejaVu Sans, sans-serif; }
+</style></head><body>
+            ' . $bgImg . '
+            <div style="position:absolute;top:48pt;left:0;width:223pt;height:26pt;background-color:rgba(255,255,255,0.8);border-radius:0 13pt 13pt 0;"></div>
+            <div style="position:absolute;top:52pt;left:47pt;">
+                <h2 style="color:#184b94;margin:0;font-size:14pt;">Planilla de Cobro</h2>
             </div>
-
-            <div style="display:flex;gap:16px;margin-bottom:14px;">
-                <div style="background:#dbeafe;padding:8px 14px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#1e40af;">Créditos activos</div>
-                    <div style="font-size:18px;font-weight:bold;color:#1e3a8a;">' . $totales['creditos'] . '</div>
-                </div>
-                <div style="background:#d1fae5;padding:8px 14px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#065f46;">Total cuotas / mes</div>
-                    <div style="font-size:18px;font-weight:bold;color:#065f46;"><span class="c">₡</span>' . number_format($totales['cuota_total'], 2) . '</div>
-                </div>
-                <div style="background:#f3f4f6;padding:8px 14px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#374151;">Saldo total cartera</div>
-                    <div style="font-size:18px;font-weight:bold;color:#374151;"><span class="c">₡</span>' . number_format($totales['saldo_total'], 2) . '</div>
-                </div>
-            </div>
-
-            <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+            <div style="position:relative;margin-top:78pt;padding-left:47pt;padding-right:20pt;">
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:10px;">
                 <tr>
-                    <th ' . $th . ' style="background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;width:20px;">#</th>
+                    <td><p style="color:#225399;font-size:12px;font-weight:bold;margin:0;">' . $deductora . '</p></td>
+                    <td style="text-align:right;font-size:8px;color:#6b7280;">
+                        <div>Generado: ' . $fecha . '</div>
+                        <div style="font-size:9px;color:#184b94;font-weight:bold;">CR Studio</div>
+                    </td>
+                </tr>
+            </table>
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:40px;border-collapse:collapse;">
+                <tr>
+                    <td style="background:#184b94;padding:8px 16px;text-align:center;">
+                        <div style="font-size:14px;color:#bfdbfe;">Créditos activos</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;">' . $totales['creditos'] . '</div>
+                    </td>
+                </tr>
+                <tr><td style="height:0;"></td></tr>
+                <tr>
+                    <td style="background:#16a34a;padding:8px 16px;text-align:center;">
+                        <div style="font-size:14px;color:#dcfce7;">Total cuotas / mes</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;"><span class="c">₡</span>' . number_format($totales['cuota_total'], 2) . '</div>
+                    </td>
+                </tr>
+                <tr><td style="height:0;"></td></tr>
+                <tr>
+                    <td style="background:#184b94;padding:8px 16px;text-align:center;opacity:0.85;">
+                        <div style="font-size:14px;color:#bfdbfe;">Saldo total cartera</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;"><span class="c">₡</span>' . number_format($totales['saldo_total'], 2) . '</div>
+                    </td>
+                </tr>
+            </table>
+
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:30px;border-collapse:collapse;">
+                <tr>
+                    <th ' . $th . ' style="width:20px;">#</th>
                     <th ' . $th . '>Nombre del Asociado</th>
                     <th ' . $th . '>Cédula</th>
                     <th ' . $th . '>No. Crédito</th>
                     <th ' . $th . ' style="text-align:center;">F. Formalización</th>
                     <th ' . $th . ' style="text-align:center;">Tasa %</th>
                     <th ' . $th . ' style="text-align:center;">Plazo</th>
-                    <th ' . $th . ' style="text-align:right;background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;">Cuota a Rebajar</th>
-                    <th ' . $th . ' style="text-align:right;background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;">Saldo</th>
-                    <th ' . $th . ' style="text-align:center;background:#1e3a8a;color:#fff;font-weight:bold;padding:5px 6px;border:1px solid #1e3a8a;font-size:8px;">Tipo Movimiento</th>
+                    <th ' . $th . ' style="text-align:right;">Cuota a Rebajar</th>
+                    <th ' . $th . ' style="text-align:right;">Saldo</th>
+                    <th ' . $th . ' style="text-align:center;">Tipo Movimiento</th>
                 </tr>';
 
         foreach ($rows as $i => $r) {
@@ -1057,45 +1113,74 @@ class ReporteController extends Controller
                     <div style="border-top:1px solid #374151;padding-top:6px;font-size:10px;color:#374151;">Recibido por — ' . $deductora . '</div>
                 </div>
             </div>
-        </body></html>';
+        </div></body></html>';
 
         return $html;
     }
 
-    private function buildNovedadesPdfHtml(array $data, string $deductora, string $desde, string $hasta): string
+    private function buildNovedadesPdfHtml(array $data, string $deductora, string $desde, string $hasta, string $bgBase64 = ''): string
     {
-        $thV = 'style="font-weight:bold;padding:5px 6px;border:1px solid #ccc;font-size:8px;"';
-        $td  = 'style="padding:4px 6px;border:1px solid #e5e7eb;font-size:8px;"';
+        $thV = 'style="background:#184b94;color:#ffffff;font-weight:bold;padding:7px 10px;border:none;font-size:8px;"';
+        $td  = 'style="background:#ffffff;color:#000000;padding:6px 8px;border:1px solid #184b94;font-size:8px;"';
+        $bgImg = $bgBase64 ? '<img src="' . $bgBase64 . '" style="position:fixed;top:0;left:0;width:792pt;height:612pt;" />' : '';
 
         $resumen = $data['resumen'];
 
-        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;margin:20px;">
-            <h1 style="color:#1e3a8a;margin:0 0 4px;font-size:16px;">Novedades de Planilla</h1>
-            <h2 style="color:#374151;font-size:12px;font-weight:normal;margin:0 0 4px;">' . htmlspecialchars($deductora) . '</h2>
-            <p style="font-size:9px;color:#6b7280;margin:0 0 14px;">Período: ' . $desde . ' al ' . $hasta . ' &nbsp;|&nbsp; Generado: ' . Carbon::now()->toDateString() . '</p>
-
-            <div style="display:flex;gap:12px;margin-bottom:16px;">
-                <div style="background:#d1fae5;padding:6px 12px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#065f46;">Inclusiones</div>
-                    <div style="font-size:18px;font-weight:bold;color:#065f46;">' . $resumen['inclusiones'] . '</div>
-                </div>
-                <div style="background:#fee2e2;padding:6px 12px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#991b1b;">Exclusiones</div>
-                    <div style="font-size:18px;font-weight:bold;color:#991b1b;">' . $resumen['exclusiones'] . '</div>
-                </div>
-                <div style="background:#dbeafe;padding:6px 12px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#1e40af;">Traslados</div>
-                    <div style="font-size:18px;font-weight:bold;color:#1e40af;">' . ($resumen['traslados'] ?? 0) . '</div>
-                </div>
-                <div style="background:#ede9fe;padding:6px 12px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#5b21b6;">Refundiciones</div>
-                    <div style="font-size:18px;font-weight:bold;color:#5b21b6;">' . ($resumen['refundiciones'] ?? 0) . '</div>
-                </div>
-                <div style="background:#fef3c7;padding:6px 12px;border-radius:6px;text-align:center;">
-                    <div style="font-size:8px;color:#92400e;">Cambios cuota</div>
-                    <div style="font-size:18px;font-weight:bold;color:#92400e;">' . $resumen['modificaciones'] . '</div>
-                </div>
-            </div>';
+        $html = '<html><head><meta charset="UTF-8"><style>
+@page { margin: 0; }
+body { margin: 0; padding: 0; font-family: Helvetica, Arial, sans-serif; }
+.c { font-family: DejaVu Sans, sans-serif; }
+</style></head><body>
+            ' . $bgImg . '
+            <div style="position:absolute;top:48pt;left:0;width:223pt;height:26pt;background-color:rgba(255,255,255,0.8);border-radius:0 13pt 13pt 0;"></div>
+            <div style="position:absolute;top:52pt;left:47pt;">
+                <h2 style="color:#184b94;margin:0;font-size:14pt;">Novedades de Planilla</h2>
+            </div>
+            <div style="position:relative;margin-top:78pt;padding-left:47pt;padding-right:20pt;">
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:10px;">
+                <tr>
+                    <td><p style="color:#225399;font-size:12px;font-weight:bold;margin:0;">' . htmlspecialchars($deductora) . '</p>
+                        <p style="font-size:9px;color:#6b7280;margin:2px 0 0;">Período: ' . $desde . ' al ' . $hasta . '</p>
+                    </td>
+                    <td style="text-align:right;font-size:8px;color:#6b7280;">
+                        <div>Generado: ' . Carbon::now()->toDateString() . '</div>
+                        <div style="font-size:9px;color:#184b94;font-weight:bold;">CR Studio</div>
+                    </td>
+                </tr>
+            </table>
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;border-collapse:collapse;">
+                <tr>
+                    <td style="background:#184b94;padding:8px 16px;text-align:center;">
+                        <div style="font-size:8px;color:#ffffff;">Inclusiones</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;">' . $resumen['inclusiones'] . '</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background:#98b83b;padding:8px 16px;text-align:center;">
+                        <div style="font-size:8px;color:#ffffff;">Exclusiones</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;">' . $resumen['exclusiones'] . '</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background:#184b94;padding:8px 16px;text-align:center;">
+                        <div style="font-size:8px;color:#ffffff;">Traslados</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;">' . ($resumen['traslados'] ?? 0) . '</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background:#98b83b;padding:8px 16px;text-align:center;">
+                        <div style="font-size:8px;color:#ffffff;">Refundiciones</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;">' . ($resumen['refundiciones'] ?? 0) . '</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background:#184b94;padding:8px 16px;text-align:center;">
+                        <div style="font-size:8px;color:#ffffff;">Cambios cuota</div>
+                        <div style="font-size:18px;font-weight:bold;color:#ffffff;">' . $resumen['modificaciones'] . '</div>
+                    </td>
+                </tr>
+            </table>
+            <div style="margin-top:20px;">';
 
         // ── Inclusiones ──
         if (!empty($data['inclusiones'])) {
@@ -1216,22 +1301,36 @@ class ReporteController extends Controller
             $html .= '<p style="text-align:center;color:#6b7280;padding:30px;">No hay novedades para el período seleccionado.</p>';
         }
 
-        $html .= '</body></html>';
+        $html .= '</div></div></body></html>';
         return $html;
     }
 
-    private function buildCobrosPdfHtml(array $rows, array $totales): string
+    private function buildCobrosPdfHtml(array $rows, array $totales, string $bgBase64 = ''): string
     {
-        $th = 'style="background:#E0E7FF;font-weight:bold;padding:6px 8px;border:1px solid #ccc;font-size:11px;"';
-        $td = 'style="padding:5px 8px;border:1px solid #ddd;font-size:10px;"';
-        $html = '<html><head><meta charset="UTF-8"><style>.c{font-family:DejaVu Sans,sans-serif;}</style></head><body style="font-family: Helvetica, Arial, sans-serif;">
-            <h2 style="color:#3730a3;">Historial de Cobros</h2>
-            <p>Total pagos: <b>' . $totales['pagos'] . '</b> | Monto total: <b><span class="c">₡</span>' . number_format($totales['monto_total'], 2) . '</b> | Amortización: <b><span class="c">₡</span>' . number_format($totales['amortizacion'], 2) . '</b></p>
-            <table width="100%" cellspacing="0"><tr><th ' . $th . '>Fecha</th><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Cuota #</th><th ' . $th . '>Monto</th><th ' . $th . '>Amort.</th><th ' . $th . '>Interés</th><th ' . $th . '>Fuente</th></tr>';
+        $th = 'style="background:#184b94;color:#ffffff;font-weight:bold;padding:7px 10px;border:none;font-size:11px;"';
+        $td = 'style="background:#ffffff;color:#000000;padding:6px 10px;border:1px solid #184b94;font-size:10px;"';
+        $bgImg = $bgBase64 ? '<img src="' . $bgBase64 . '" style="position:fixed;top:0;left:0;width:792pt;height:612pt;" />' : '';
+        $html = '<html><head><meta charset="UTF-8"><style>
+@page { margin: 0; }
+body { margin: 0; padding: 0; font-family: Helvetica, Arial, sans-serif; }
+.c { font-family: DejaVu Sans, sans-serif; }
+p { margin: 0 0 0.2px 0; }
+</style></head><body>
+            ' . $bgImg . '
+            <div style="position:absolute;top:48pt;left:0;width:223pt;height:26pt;background-color:rgba(255,255,255,0.8);border-radius:0 13pt 13pt 0;"></div>
+            <div style="position:absolute;top:52pt;left:47pt;">
+                <h2 style="color:#184b94;margin:0;font-size:14pt;">Historial de Cobros</h2>
+            </div>
+            <div style="position:relative;margin-top:78pt;padding-left:47pt;padding-right:20pt;">
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Total pagos: ' . $totales['pagos'] . '</p>
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Monto total: <span class="c">₡</span>' . number_format($totales['monto_total'], 2) . '</p>
+            <p style="color:#225399;font-size:14px;font-weight:bold;">Amortización: <span class="c">₡</span>' . number_format($totales['amortizacion'], 2) . '</p>
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:30px;border-collapse:collapse;">
+            <tr><th ' . $th . '>Fecha</th><th ' . $th . '>Referencia</th><th ' . $th . '>Cliente</th><th ' . $th . '>Cédula</th><th ' . $th . '>Deductora</th><th ' . $th . '>Cuota #</th><th ' . $th . '>Monto</th><th ' . $th . '>Amort.</th><th ' . $th . '>Interés</th><th ' . $th . '>Fuente</th></tr>';
         foreach ($rows as $r) {
             $html .= '<tr><td ' . $td . '>' . $r['fecha_pago'] . '</td><td ' . $td . '>' . htmlspecialchars($r['referencia']) . '</td><td ' . $td . '>' . htmlspecialchars($r['cliente']) . '</td><td ' . $td . '>' . $r['cedula'] . '</td><td ' . $td . '>' . htmlspecialchars($r['deductora']) . '</td><td ' . $td . ' align="center">' . $r['numero_cuota'] . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['monto'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['amortizacion'], 2) . '</td><td ' . $td . ' align="right"><span class="c">₡</span>' . number_format($r['interes_corriente'], 2) . '</td><td ' . $td . '>' . $r['source'] . '</td></tr>';
         }
-        $html .= '</table></body></html>';
+        $html .= '</table></div></body></html>';
         return $html;
     }
 }

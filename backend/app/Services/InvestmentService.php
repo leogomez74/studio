@@ -7,8 +7,11 @@ use App\Models\Investment;
 use App\Models\InvestmentCoupon;
 use App\Models\InvestmentPayment;
 use App\Models\Investor;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InvestmentService
 {
@@ -155,6 +158,7 @@ class InvestmentService
 
             if (! $pendingCoupons) {
                 $investment->update(['estado' => 'Finalizada']);
+                $this->triggerFinalizedAutomation($investment);
             }
         }
 
@@ -558,6 +562,7 @@ class InvestmentService
             if ($tipo === 'con_intereses') {
                 // Capital + intereses pagados → inversión completamente finalizada
                 $updateData['estado'] = 'Finalizada';
+                // La tarea de finalización se dispara después del update
             } else {
                 // Solo capital devuelto, intereses pendientes → estado intermedio
                 $updateData['estado'] = 'Capital Devuelto';
@@ -565,8 +570,42 @@ class InvestmentService
 
             $investment->update($updateData);
 
+            if ($tipo === 'con_intereses') {
+                $this->triggerFinalizedAutomation($investment);
+            }
+
             return $investment->fresh();
         });
+    }
+
+    /**
+     * Dispara la tarea automática cuando una inversión pasa a estado Finalizada.
+     */
+    private function triggerFinalizedAutomation(Investment $investment): void
+    {
+        try {
+            $automation = TaskAutomation::where('event_type', 'investment_finalized')
+                ->where('is_active', true)
+                ->first();
+
+            if ($automation) {
+                $investorName = $investment->investor?->name ?? 'N/A';
+                $monedaSymbol = $investment->moneda === 'USD' ? '$' : '₡';
+                $details = implode("\n", [
+                    "**Inversión:** {$investment->numero_desembolso}",
+                    "**Inversionista:** {$investorName}",
+                    "**Monto capital:** {$monedaSymbol}" . number_format((float) $investment->monto_capital, 2),
+                    "",
+                    "La inversión ha sido finalizada (capital e intereses completamente pagados). Archivar expediente, emitir constancia de cierre y notificar al inversionista.",
+                ]);
+                Task::createFromAutomation($automation, 'INV-' . $investment->id, $details);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error creando tarea para inversión finalizada', [
+                'investment_id' => $investment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function getTablaGeneral(): array
