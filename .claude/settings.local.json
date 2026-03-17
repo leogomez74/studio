@@ -53,7 +53,9 @@
       "Read(//c/laragon/etc/apache2//**)",
       "Read(//c/laragon/etc//**)",
       "Bash(wmic process:*)",
-      "Bash(tasklist /FI \"IMAGENAME eq php.exe\" /V)"
+      "Bash(tasklist /FI \"IMAGENAME eq php.exe\" /V)",
+      "Bash(grep -E \"\\\\.\\(php|sql\\)$\")",
+      "Read(//c/Users/danie/AppData/Local/Temp/claude/c--laragon-www-studio/tasks/**)"
     ]
   },
   "enableAllProjectMcpServers": true,

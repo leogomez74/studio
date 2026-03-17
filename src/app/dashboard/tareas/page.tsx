@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
@@ -9,9 +10,6 @@ import {
   Download,
   PlusCircle,
   Loader2,
-  Calendar as CalendarIcon,
-  Filter,
-  X,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -53,61 +51,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import api from "@/lib/axios";
 
-// --- Types ---
-
-type TaskStatus = "pendiente" | "en_progreso" | "completada" | "archivada" | "deleted";
-type TaskPriority = "alta" | "media" | "baja";
-
-interface TaskItem {
-  id: number;
-  project_code: string | null;
-  project_name: string | null;
-  title: string;
-  details: string | null;
-  status: TaskStatus;
-  priority: TaskPriority;
-  assigned_to: number | null;
-  assignee: {
-    id: number;
-    name: string;
-    email: string;
-  } | null;
-  start_date: string | null;
-  due_date: string | null;
-  archived_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-interface TaskTableFilters {
-  search: string;
-  status: "todos" | TaskStatus;
-  priority: "todas" | TaskPriority;
-  assignee: string;
-  dueFrom: string;
-  dueTo: string;
-}
-
-interface Opportunity {
-  id: number;
-  reference: string;
-  lead?: {
-    nombre_completo: string;
-  };
-  status: string;
-}
-
-interface Agent {
-  id: number;
-  name: string;
-  email: string;
-}
-
-type SortableColumn = "reference" | "title" | "status" | "priority" | "assignee" | "due_date" | "created_at";
+import { ViewToggle } from "@/components/tareas/ViewToggle";
+import { TaskFilters } from "@/components/tareas/TaskFilters";
+import { KanbanBoard } from "@/components/tareas/KanbanBoard";
+import { CalendarView } from "@/components/tareas/CalendarView";
+import { LabelBadge } from "@/components/tareas/LabelBadge";
+import type { TaskView, TaskItem, TaskWorkflow, TaskLabel, BoardData } from "@/types/tasks";
 
 // --- Constants & Helpers ---
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
+const STATUS_LABELS: Record<string, string> = {
   pendiente: "Pendiente",
   en_progreso: "En progreso",
   completada: "Completada",
@@ -115,7 +68,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   deleted: "Eliminada"
 };
 
-const STATUS_BADGE_VARIANT: Record<TaskStatus, "outline" | "default" | "secondary" | "destructive"> = {
+const STATUS_BADGE_VARIANT: Record<string, "outline" | "default" | "secondary" | "destructive"> = {
   pendiente: "outline",
   en_progreso: "default",
   completada: "secondary",
@@ -123,20 +76,16 @@ const STATUS_BADGE_VARIANT: Record<TaskStatus, "outline" | "default" | "secondar
   deleted: "destructive"
 };
 
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
+const PRIORITY_LABELS: Record<string, string> = {
   alta: "Alta",
   media: "Media",
   baja: "Baja"
 };
 
-const PRIORITY_BADGE_VARIANT: Record<TaskPriority, "destructive" | "default" | "secondary"> = {
+const PRIORITY_BADGE_VARIANT: Record<string, "destructive" | "default" | "secondary"> = {
   alta: "destructive",
   media: "default",
   baja: "secondary"
-};
-
-const formatTaskReference = (id: number): string => {
-  return `TA-${String(id).padStart(4, "0")}`;
 };
 
 const formatDate = (dateString?: string | null): string => {
@@ -151,12 +100,10 @@ const formatDate = (dateString?: string | null): string => {
 };
 
 const isTaskOverdue = (task: TaskItem): boolean => {
-  if (!task.due_date || task.status === "completada") return false;
-
+  if (!task.due_date || task.status === "completada" || task.completed_at) return false;
   const dueDate = new Date(task.due_date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   return dueDate < today;
 };
 
@@ -183,19 +130,26 @@ const getTodayDateString = (): string => {
   return `${year}-${month}-${day}`;
 };
 
+type SortableColumn = "reference" | "title" | "status" | "priority" | "assignee" | "due_date" | "created_at";
+
 // --- Main Component ---
 
 export default function TasksPage() {
   const { toast } = useToast();
+  const router = useRouter();
 
   // Data State
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<{ id: number; name: string }[]>([]);
+  const [workflows, setWorkflows] = useState<TaskWorkflow[]>([]);
+  const [labels, setLabels] = useState<TaskLabel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // View State
-  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  const [viewMode, setViewMode] = useState<TaskView>("list");
+  const [boardWorkflowId, setBoardWorkflowId] = useState<string>("");
+  const [boardData, setBoardData] = useState<BoardData | null>(null);
+  const [isBoardLoading, setIsBoardLoading] = useState(false);
 
   // Dialog States
   const [dialogState, setDialogState] = useState<"create" | "edit" | null>(null);
@@ -212,9 +166,10 @@ export default function TasksPage() {
     project_name: "sin_hito",
     title: "",
     details: "",
-    status: "pendiente" as TaskStatus,
-    priority: "media" as TaskPriority,
+    status: "pendiente",
+    priority: "media",
     assigned_to: "",
+    workflow_id: "",
     start_date: getTodayDateString(),
     due_date: getTodayDateString(),
   });
@@ -223,18 +178,16 @@ export default function TasksPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
 
-  // Filters & Sort
-  const [filters, setFilters] = useState<TaskTableFilters>({
-    search: "",
-    status: "todos",
-    priority: "todas",
-    assignee: "todos",
-    dueFrom: "",
-    dueTo: "",
-  });
+  // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 300);
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterPriority, setFilterPriority] = useState("");
+  const [filterAssignee, setFilterAssignee] = useState("");
+  const [filterWorkflow, setFilterWorkflow] = useState("");
+  const [filterLabel, setFilterLabel] = useState("");
 
+  // Sort
   const [sortConfig, setSortConfig] = useState<{ column: SortableColumn; direction: "asc" | "desc" }>({
     column: "created_at",
     direction: "desc"
@@ -248,46 +201,79 @@ export default function TasksPage() {
       const response = await api.get('/api/tareas');
       const data = response.data.data || response.data;
       setTasks(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching tasks:", error);
+    } catch {
       toast({ title: "Error", description: "No se pudieron cargar las tareas.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   }, [toast]);
 
-  const fetchOpportunities = useCallback(async () => {
-    try {
-      const response = await api.get('/api/opportunities?all=true');
-      const data = response.data.data || response.data;
-      setOpportunities(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching opportunities:", error);
+  const fetchMeta = useCallback(async () => {
+    const [agentsRes, workflowsRes, labelsRes] = await Promise.allSettled([
+      api.get('/api/agents'),
+      api.get('/api/task-workflows'),
+      api.get('/api/task-labels'),
+    ]);
+    if (agentsRes.status === "fulfilled") setAgents(Array.isArray(agentsRes.value.data) ? agentsRes.value.data : []);
+    if (workflowsRes.status === "fulfilled") {
+      const wfs = workflowsRes.value.data || [];
+      setWorkflows(wfs);
+      const defaultWf = wfs.find((w: TaskWorkflow) => w.is_default);
+      if (defaultWf) setBoardWorkflowId(String(defaultWf.id));
     }
-  }, []);
-
-  const fetchAgents = useCallback(async () => {
-    try {
-      const response = await api.get('/api/agents');
-      setAgents(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error("Error fetching agents:", error);
-    }
+    if (labelsRes.status === "fulfilled") setLabels(labelsRes.value.data || []);
   }, []);
 
   useEffect(() => {
     fetchTasks();
-    fetchOpportunities();
-    fetchAgents();
-  }, [fetchTasks, fetchOpportunities, fetchAgents]);
+    fetchMeta();
+  }, [fetchTasks, fetchMeta]);
+
+  // Board data
+  const fetchBoardData = useCallback(async (workflowId: string) => {
+    if (!workflowId) return;
+    setIsBoardLoading(true);
+    try {
+      const response = await api.get(`/api/tareas/board/${workflowId}`);
+      setBoardData(response.data);
+    } catch {
+      toast({ title: "Error", description: "No se pudo cargar el tablero.", variant: "destructive" });
+    } finally {
+      setIsBoardLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    setFilters(prev => ({ ...prev, search: debouncedSearch }));
-  }, [debouncedSearch]);
+    if (viewMode === "board" && boardWorkflowId) {
+      fetchBoardData(boardWorkflowId);
+    }
+  }, [viewMode, boardWorkflowId, fetchBoardData]);
+
+  // --- Board Transition ---
+
+  const handleBoardTransition = useCallback(async (taskId: number, toStatusId: number) => {
+    try {
+      const res = await api.post(`/api/tareas/${taskId}/transition`, {
+        to_status_id: toStatusId,
+      });
+      const reward = res.data.reward;
+      if (reward && (reward.points > 0 || reward.xp > 0)) {
+        toast({ title: `+${reward.points} pts / +${reward.xp} XP`, description: reward.transition_name || "Transición completada" });
+      } else {
+        toast({ title: "Estado actualizado" });
+      }
+      if (boardWorkflowId) fetchBoardData(boardWorkflowId);
+      fetchTasks();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: "Error", description: err.response?.data?.message || "No se pudo realizar la transición.", variant: "destructive" });
+    }
+  }, [boardWorkflowId, fetchBoardData, fetchTasks, toast]);
 
   // --- Form Logic ---
 
   const resetForm = useCallback(() => {
+    const defaultWf = workflows.find(w => w.is_default);
     setFormValues({
       project_code: "",
       project_name: "sin_hito",
@@ -296,10 +282,11 @@ export default function TasksPage() {
       status: "pendiente",
       priority: "media",
       assigned_to: "",
+      workflow_id: defaultWf ? String(defaultWf.id) : "",
       start_date: getTodayDateString(),
       due_date: getTodayDateString(),
     });
-  }, []);
+  }, [workflows]);
 
   const openCreateDialog = useCallback(() => {
     resetForm();
@@ -316,6 +303,7 @@ export default function TasksPage() {
       status: task.status,
       priority: task.priority,
       assigned_to: task.assigned_to ? String(task.assigned_to) : "",
+      workflow_id: task.workflow_id ? String(task.workflow_id) : "",
       start_date: task.start_date || "",
       due_date: task.due_date || "",
     });
@@ -355,6 +343,7 @@ export default function TasksPage() {
         status: formValues.status,
         priority: formValues.priority,
         assigned_to: formValues.assigned_to ? Number(formValues.assigned_to) : null,
+        workflow_id: formValues.workflow_id ? Number(formValues.workflow_id) : null,
         start_date: formValues.start_date || null,
         due_date: formValues.due_date || null,
       };
@@ -369,11 +358,12 @@ export default function TasksPage() {
 
       closeDialog();
       fetchTasks();
-    } catch (error: any) {
-      console.error("Error saving task:", error);
+      if (viewMode === "board" && boardWorkflowId) fetchBoardData(boardWorkflowId);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
       toast({
         title: "Error",
-        description: error.response?.data?.message || "No se pudo guardar la tarea.",
+        description: err.response?.data?.message || "No se pudo guardar la tarea.",
         variant: "destructive"
       });
     } finally {
@@ -401,7 +391,7 @@ export default function TasksPage() {
       toast({ title: "Eliminado", description: "Tarea eliminada (soft delete)." });
       closeDeleteDialog();
       fetchTasks();
-    } catch (error) {
+    } catch {
       toast({ title: "Error", description: "No se pudo eliminar la tarea.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
@@ -410,23 +400,13 @@ export default function TasksPage() {
 
   // --- Filter & Sort Logic ---
 
-  const handleFilterChange = useCallback(
-    <K extends keyof TaskTableFilters>(field: K, value: TaskTableFilters[K]) => {
-      setFilters(prev => ({ ...prev, [field]: value }));
-    },
-    []
-  );
-
-  const handleClearFilters = useCallback(() => {
-    setFilters({
-      search: "",
-      status: "todos",
-      priority: "todas",
-      assignee: "todos",
-      dueFrom: "",
-      dueTo: "",
-    });
+  const clearFilters = useCallback(() => {
     setSearchTerm("");
+    setFilterStatus("");
+    setFilterPriority("");
+    setFilterAssignee("");
+    setFilterWorkflow("");
+    setFilterLabel("");
   }, []);
 
   const handleSort = useCallback((column: SortableColumn) => {
@@ -442,7 +422,7 @@ export default function TasksPage() {
     switch (column) {
       case "reference": return task.id;
       case "title": return task.title.toLowerCase();
-      case "status": return task.status;
+      case "status": return task.workflow_status?.name || task.status;
       case "priority": return task.priority;
       case "assignee": return task.assignee?.name.toLowerCase() || "";
       case "due_date": return task.due_date ? new Date(task.due_date).getTime() : 0;
@@ -454,37 +434,37 @@ export default function TasksPage() {
   const visibleTasks = useMemo(() => {
     let filtered = [...tasks];
 
-    // Apply filters
-    if (filters.search.trim()) {
-      const searchLower = filters.search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const searchLower = debouncedSearch.toLowerCase();
       filtered = filtered.filter(task =>
         task.title.toLowerCase().includes(searchLower) ||
         task.project_code?.toLowerCase().includes(searchLower) ||
-        formatTaskReference(task.id).toLowerCase().includes(searchLower)
+        task.reference?.toLowerCase().includes(searchLower)
       );
     }
 
-    if (filters.status !== "todos") {
-      filtered = filtered.filter(task => task.status === filters.status);
+    if (filterStatus && filterStatus !== "all") {
+      filtered = filtered.filter(task => task.status === filterStatus);
     }
 
-    if (filters.priority !== "todas") {
-      filtered = filtered.filter(task => task.priority === filters.priority);
+    if (filterPriority && filterPriority !== "all") {
+      filtered = filtered.filter(task => task.priority === filterPriority);
     }
 
-    if (filters.assignee !== "todos") {
-      filtered = filtered.filter(task => String(task.assigned_to) === filters.assignee);
+    if (filterAssignee && filterAssignee !== "all") {
+      filtered = filtered.filter(task => String(task.assigned_to) === filterAssignee);
     }
 
-    if (filters.dueFrom) {
-      filtered = filtered.filter(task => task.due_date && task.due_date >= filters.dueFrom);
+    if (filterWorkflow && filterWorkflow !== "all") {
+      filtered = filtered.filter(task => String(task.workflow_id) === filterWorkflow);
     }
 
-    if (filters.dueTo) {
-      filtered = filtered.filter(task => task.due_date && task.due_date <= filters.dueTo);
+    if (filterLabel && filterLabel !== "all") {
+      filtered = filtered.filter(task =>
+        task.labels?.some(l => String(l.id) === filterLabel)
+      );
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       const aValue = getSortableValue(a, sortConfig.column);
       const bValue = getSortableValue(b, sortConfig.column);
@@ -497,12 +477,11 @@ export default function TasksPage() {
     });
 
     return filtered;
-  }, [tasks, filters, sortConfig, getSortableValue]);
+  }, [tasks, debouncedSearch, filterStatus, filterPriority, filterAssignee, filterWorkflow, filterLabel, sortConfig, getSortableValue]);
 
-  // Reset to page 1 whenever filters or sort change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, sortConfig]);
+  }, [debouncedSearch, filterStatus, filterPriority, filterAssignee, filterWorkflow, filterLabel, sortConfig]);
 
   const totalPages = Math.max(1, Math.ceil(visibleTasks.length / itemsPerPage));
 
@@ -510,17 +489,6 @@ export default function TasksPage() {
     const start = (currentPage - 1) * itemsPerPage;
     return visibleTasks.slice(start, start + itemsPerPage);
   }, [visibleTasks, currentPage, itemsPerPage]);
-
-  const hasActiveFilters = useMemo(() => {
-    return (
-      filters.search.trim().length > 0 ||
-      filters.status !== "todos" ||
-      filters.priority !== "todas" ||
-      filters.assignee !== "todos" ||
-      filters.dueFrom.length > 0 ||
-      filters.dueTo.length > 0
-    );
-  }, [filters]);
 
   const getAriaSort = useCallback(
     (column: SortableColumn): "ascending" | "descending" | "none" => {
@@ -552,15 +520,17 @@ export default function TasksPage() {
       return;
     }
 
-    const headers = ["Referencia", "Título", "Estado", "Prioridad", "Responsable", "Fecha inicio", "Fecha vencimiento"];
+    const headers = ["Referencia", "Título", "Estado", "Flujo", "Prioridad", "Responsable", "Fecha inicio", "Fecha vencimiento", "Etiquetas"];
     const rows = visibleTasks.map(task => [
-      formatTaskReference(task.id),
+      task.reference,
       task.title,
-      STATUS_LABELS[task.status],
-      PRIORITY_LABELS[task.priority],
+      task.workflow_status?.name || STATUS_LABELS[task.status] || task.status,
+      task.workflow?.name || "-",
+      PRIORITY_LABELS[task.priority] || task.priority,
       task.assignee?.name || "-",
       task.start_date || "",
       task.due_date || "",
+      task.labels?.map(l => l.name).join(", ") || "-",
     ]);
 
     const csvContent = [headers, ...rows]
@@ -591,10 +561,10 @@ export default function TasksPage() {
       startY: 22,
       head: [["Ref", "Título", "Estado", "Prioridad", "Responsable", "Inicio", "Vencimiento"]],
       body: visibleTasks.map(task => [
-        formatTaskReference(task.id),
+        task.reference,
         task.title,
-        STATUS_LABELS[task.status],
-        PRIORITY_LABELS[task.priority],
+        task.workflow_status?.name || STATUS_LABELS[task.status] || task.status,
+        PRIORITY_LABELS[task.priority] || task.priority,
         task.assignee?.name || "-",
         formatDate(task.start_date),
         formatDate(task.due_date),
@@ -605,6 +575,12 @@ export default function TasksPage() {
 
     doc.save(`tareas_${Date.now()}.pdf`);
   }, [toast, visibleTasks]);
+
+  // --- Navigate to task detail ---
+
+  const goToTask = useCallback((taskId: number) => {
+    router.push(`/dashboard/tareas/${taskId}`);
+  }, [router]);
 
   // --- Render ---
 
@@ -620,24 +596,33 @@ export default function TasksPage() {
             <CardDescription>Organiza y da seguimiento a las tareas del equipo.</CardDescription>
             <p className="text-sm text-muted-foreground mt-1">
               {visibleTasks.length > 0 ? `${visibleTasks.length} ${visibleTasks.length === 1 ? "tarea" : "tareas"}` : "No hay tareas"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {tasks.length} en total
+              {tasks.length !== visibleTasks.length && ` (${tasks.length} total)`}
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <Button variant="outline" onClick={() => setViewMode(viewMode === "table" ? "calendar" : "table")} className="gap-2">
-              <CalendarIcon className="h-4 w-4" />
-              {viewMode === "table" ? "Vista Calendario" : "Vista Tabla"}
-            </Button>
-            <Button variant="outline" onClick={handleExportCSV} className="gap-2">
-              <Download className="h-4 w-4" />
-              Exportar CSV
-            </Button>
-            <Button variant="outline" onClick={handleExportPDF} className="gap-2">
-              <Download className="h-4 w-4" />
-              Exportar PDF
-            </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <ViewToggle view={viewMode} onChange={setViewMode} />
+            {viewMode === "list" && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5">
+                  <Download className="h-4 w-4" /> CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-1.5">
+                  <Download className="h-4 w-4" /> PDF
+                </Button>
+              </>
+            )}
+            {viewMode === "board" && workflows.length > 0 && (
+              <Select value={boardWorkflowId} onValueChange={setBoardWorkflowId}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Flujo de trabajo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workflows.filter(w => w.is_active).map(w => (
+                    <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Button onClick={openCreateDialog} className="gap-2">
               <PlusCircle className="h-4 w-4" />
               Agregar tarea
@@ -645,370 +630,309 @@ export default function TasksPage() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Filters */}
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar</Label>
-            <Input
-              placeholder="Título, referencia..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-56"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</Label>
-            <Select value={filters.status} onValueChange={(value) => handleFilterChange("status", value as TaskTableFilters["status"])}>
-              <SelectTrigger className="w-auto min-w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendiente">Pendiente</SelectItem>
-                <SelectItem value="en_progreso">En progreso</SelectItem>
-                <SelectItem value="completada">Completada</SelectItem>
-                <SelectItem value="archivada">Archivada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prioridad</Label>
-            <Select value={filters.priority} onValueChange={(value) => handleFilterChange("priority", value as TaskTableFilters["priority"])}>
-              <SelectTrigger className="w-auto min-w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                <SelectItem value="alta">Alta</SelectItem>
-                <SelectItem value="media">Media</SelectItem>
-                <SelectItem value="baja">Baja</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Responsable</Label>
-            <Select value={filters.assignee} onValueChange={(value) => handleFilterChange("assignee", value)}>
-              <SelectTrigger className="w-auto min-w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                {agents.map(agent => (
-                  <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vence desde</Label>
-            <Input
-              type="date"
-              value={filters.dueFrom}
-              onChange={(e) => handleFilterChange("dueFrom", e.target.value)}
-              className="h-10 w-36"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vence hasta</Label>
-            <Input
-              type="date"
-              value={filters.dueTo}
-              onChange={(e) => handleFilterChange("dueTo", e.target.value)}
-              className="h-10 w-36"
-            />
-          </div>
-          <Button variant="outline" onClick={handleClearFilters} disabled={!hasActiveFilters}>
-            Limpiar filtros
-          </Button>
-        </div>
+      <CardContent className="space-y-4">
+        {/* Unified Filters */}
+        {viewMode !== "board" && (
+          <TaskFilters
+            search={searchTerm}
+            onSearchChange={setSearchTerm}
+            status={filterStatus}
+            onStatusChange={setFilterStatus}
+            priority={filterPriority}
+            onPriorityChange={setFilterPriority}
+            assignedTo={filterAssignee}
+            onAssignedToChange={setFilterAssignee}
+            workflowId={filterWorkflow}
+            onWorkflowChange={setFilterWorkflow}
+            labelId={filterLabel}
+            onLabelChange={setFilterLabel}
+            users={agents}
+            workflows={workflows}
+            labels={labels}
+            onClear={clearFilters}
+          />
+        )}
 
-        {/* Table View */}
-        {viewMode === "table" && (
-          <div className="relative w-full overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead aria-sort={getAriaSort("reference")}>
-                    <button
-                      className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      onClick={() => handleSort("reference")}
-                    >
-                      Referencia {renderSortIcon("reference")}
-                    </button>
-                  </TableHead>
-                  <TableHead aria-sort={getAriaSort("title")}>
-                    <button
-                      className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      onClick={() => handleSort("title")}
-                    >
-                      Título {renderSortIcon("title")}
-                    </button>
-                  </TableHead>
-                  <TableHead aria-sort={getAriaSort("status")}>
-                    <button
-                      className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      onClick={() => handleSort("status")}
-                    >
-                      Estado {renderSortIcon("status")}
-                    </button>
-                  </TableHead>
-                  <TableHead aria-sort={getAriaSort("priority")}>
-                    <button
-                      className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      onClick={() => handleSort("priority")}
-                    >
-                      Prioridad {renderSortIcon("priority")}
-                    </button>
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell" aria-sort={getAriaSort("assignee")}>
-                    <button
-                      className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      onClick={() => handleSort("assignee")}
-                    >
-                      Responsable {renderSortIcon("assignee")}
-                    </button>
-                  </TableHead>
-                  <TableHead className="hidden lg:table-cell" aria-sort={getAriaSort("due_date")}>
-                    <button
-                      className="flex w-full items-center justify-between gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      onClick={() => handleSort("due_date")}
-                    >
-                      Vencimiento {renderSortIcon("due_date")}
-                    </button>
-                  </TableHead>
-                  <TableHead>
-                    <span className="sr-only">Acciones</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
+        {/* ====== LIST VIEW ====== */}
+        {viewMode === "list" && (
+          <>
+            {/* Desktop Table */}
+            <div className="relative w-full overflow-auto hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                      <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                    </TableCell>
+                    <TableHead aria-sort={getAriaSort("reference")}>
+                      <button className="flex w-full items-center gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("reference")}>
+                        Ref {renderSortIcon("reference")}
+                      </button>
+                    </TableHead>
+                    <TableHead aria-sort={getAriaSort("title")}>
+                      <button className="flex w-full items-center gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("title")}>
+                        Título {renderSortIcon("title")}
+                      </button>
+                    </TableHead>
+                    <TableHead aria-sort={getAriaSort("status")}>
+                      <button className="flex w-full items-center gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("status")}>
+                        Estado {renderSortIcon("status")}
+                      </button>
+                    </TableHead>
+                    <TableHead aria-sort={getAriaSort("priority")}>
+                      <button className="flex w-full items-center gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("priority")}>
+                        Prioridad {renderSortIcon("priority")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="hidden lg:table-cell" aria-sort={getAriaSort("assignee")}>
+                      <button className="flex w-full items-center gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("assignee")}>
+                        Responsable {renderSortIcon("assignee")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="hidden xl:table-cell">Etiquetas</TableHead>
+                    <TableHead className="hidden lg:table-cell" aria-sort={getAriaSort("due_date")}>
+                      <button className="flex w-full items-center gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground" onClick={() => handleSort("due_date")}>
+                        Vencimiento {renderSortIcon("due_date")}
+                      </button>
+                    </TableHead>
+                    <TableHead><span className="sr-only">Acciones</span></TableHead>
                   </TableRow>
-                ) : visibleTasks.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                      No hay tareas.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedTasks.map(task => {
-                    const isOverdue = isTaskOverdue(task);
-                    const parsed = parseProjectCode(task.project_code);
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                      </TableCell>
+                    </TableRow>
+                  ) : visibleTasks.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                        No hay tareas.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedTasks.map(task => {
+                      const overdue = isTaskOverdue(task);
+                      const parsed = parseProjectCode(task.project_code);
 
-                    return (
-                      <TableRow key={task.id}>
-                        <TableCell className="font-mono text-sm">
-                          <div className="flex flex-col">
-                            <span className="font-semibold">{formatTaskReference(task.id)}</span>
-                            {parsed ? (
-                              <Link href={parsed.url} className="text-xs text-blue-600 hover:underline">
-                                {task.project_code}
-                              </Link>
-                            ) : task.project_code ? (
-                              <span className="text-xs text-muted-foreground">{task.project_code}</span>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{task.title}</span>
-                            {task.details && (
-                              <span className="text-xs text-muted-foreground line-clamp-1">{task.details}</span>
+                      return (
+                        <TableRow
+                          key={task.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => goToTask(task.id)}
+                        >
+                          <TableCell className="font-mono text-sm">
+                            <div className="flex flex-col">
+                              <span className="font-semibold">{task.reference}</span>
+                              {parsed ? (
+                                <Link
+                                  href={parsed.url}
+                                  className="text-xs text-blue-600 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {task.project_code}
+                                </Link>
+                              ) : task.project_code ? (
+                                <span className="text-xs text-muted-foreground">{task.project_code}</span>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{task.title}</span>
+                              {task.details && (
+                                <span className="text-xs text-muted-foreground line-clamp-1">{task.details}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {task.workflow_status ? (
+                              <Badge
+                                variant="outline"
+                                className="text-xs"
+                                style={{
+                                  borderColor: task.workflow_status.color,
+                                  color: task.workflow_status.color,
+                                  backgroundColor: `${task.workflow_status.color}15`,
+                                }}
+                              >
+                                {task.workflow_status.name}
+                              </Badge>
+                            ) : (
+                              <Badge variant={STATUS_BADGE_VARIANT[task.status] || "outline"}>
+                                {STATUS_LABELS[task.status] || task.status}
+                              </Badge>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_BADGE_VARIANT[task.status]}>
-                            {STATUS_LABELS[task.status]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={PRIORITY_BADGE_VARIANT[task.priority]}>
-                            {PRIORITY_LABELS[task.priority]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="text-sm">{task.assignee?.name || "-"}</span>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <div className="flex flex-col">
-                            <span className="text-sm">{formatDate(task.due_date)}</span>
-                            {isOverdue && (
-                              <Badge variant="destructive" className="w-fit mt-1 text-xs">ATRASADA</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={PRIORITY_BADGE_VARIANT[task.priority] || "default"}>
+                              {PRIORITY_LABELS[task.priority] || task.priority}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            <span className="text-sm">{task.assignee?.name || "-"}</span>
+                          </TableCell>
+                          <TableCell className="hidden xl:table-cell">
+                            {task.labels && task.labels.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {task.labels.slice(0, 2).map(l => (
+                                  <LabelBadge key={l.id} label={l} size="sm" />
+                                ))}
+                                {task.labels.length > 2 && (
+                                  <span className="text-[10px] text-muted-foreground">+{task.labels.length - 2}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
                             )}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            <div className="flex flex-col">
+                              <span className="text-sm">{formatDate(task.due_date)}</span>
+                              {overdue && (
+                                <Badge variant="destructive" className="w-fit mt-1 text-xs">ATRASADA</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button size="icon" variant="ghost" onClick={() => openEditDialog(task)} className="h-8 w-8">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost" onClick={() => openDeleteDialog(task)} className="h-8 w-8 text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+
+              {/* Pagination */}
+              {visibleTasks.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>
+                      {Math.min((currentPage - 1) * itemsPerPage + 1, visibleTasks.length)}–{Math.min(currentPage * itemsPerPage, visibleTasks.length)} de {visibleTasks.length}
+                    </span>
+                    <span className="hidden sm:inline">·</span>
+                    <span className="hidden sm:flex items-center gap-1">
+                      Por página:
+                      <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="h-8 w-8 p-0 hidden sm:flex">
+                      <ChevronLeft className="h-3 w-3" /><ChevronLeft className="h-3 w-3 -ml-2" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-8 px-3 gap-1">
+                      <ChevronLeft className="h-4 w-4" /><span className="hidden sm:inline">Anterior</span>
+                    </Button>
+                    <span className="text-sm px-3 tabular-nums">{currentPage} / {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="h-8 px-3 gap-1">
+                      <span className="hidden sm:inline">Siguiente</span><ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="h-8 w-8 p-0 hidden sm:flex">
+                      <ChevronRight className="h-3 w-3" /><ChevronRight className="h-3 w-3 -ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3">
+              {isLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : paginatedTasks.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No hay tareas.</p>
+              ) : (
+                paginatedTasks.map(task => {
+                  const overdue = isTaskOverdue(task);
+                  return (
+                    <Card key={task.id} className="cursor-pointer" onClick={() => goToTask(task.id)}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-base">{task.title}</CardTitle>
+                            <CardDescription className="text-xs mt-1">{task.reference}</CardDescription>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openEditDialog(task)}
-                              className="h-8 w-8"
-                            >
+                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button size="icon" variant="ghost" onClick={() => openEditDialog(task)} className="h-8 w-8">
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openDeleteDialog(task)}
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                            >
+                            <Button size="icon" variant="ghost" onClick={() => openDeleteDialog(task)} className="h-8 w-8 text-destructive">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {task.workflow_status ? (
+                            <Badge variant="outline" style={{ borderColor: task.workflow_status.color, color: task.workflow_status.color }}>
+                              {task.workflow_status.name}
+                            </Badge>
+                          ) : (
+                            <Badge variant={STATUS_BADGE_VARIANT[task.status] || "outline"}>
+                              {STATUS_LABELS[task.status] || task.status}
+                            </Badge>
+                          )}
+                          <Badge variant={PRIORITY_BADGE_VARIANT[task.priority] || "default"}>
+                            {PRIORITY_LABELS[task.priority] || task.priority}
+                          </Badge>
+                          {overdue && <Badge variant="destructive">ATRASADA</Badge>}
+                        </div>
+                        {task.labels && task.labels.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {task.labels.map(l => <LabelBadge key={l.id} label={l} size="sm" />)}
+                          </div>
+                        )}
+                        <div className="text-sm space-y-1">
+                          <div><span className="font-medium">Responsable:</span> {task.assignee?.name || "-"}</div>
+                          <div><span className="font-medium">Vence:</span> {formatDate(task.due_date)}</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </>
+        )}
 
-            {/* Pagination */}
-            {visibleTasks.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>
-                    {Math.min((currentPage - 1) * itemsPerPage + 1, visibleTasks.length)}–{Math.min(currentPage * itemsPerPage, visibleTasks.length)} de {visibleTasks.length} tareas
-                  </span>
-                  <span className="hidden sm:inline">·</span>
-                  <span className="hidden sm:flex items-center gap-1">
-                    Por página:
-                    <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
-                      <SelectTrigger className="h-7 w-16 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="h-8 w-8 p-0 hidden sm:flex"
-                  >
-                    <ChevronLeft className="h-3 w-3" />
-                    <ChevronLeft className="h-3 w-3 -ml-2" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="h-8 px-3 gap-1"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <span className="hidden sm:inline">Anterior</span>
-                  </Button>
-                  <span className="text-sm px-3 tabular-nums">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="h-8 px-3 gap-1"
-                  >
-                    <span className="hidden sm:inline">Siguiente</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className="h-8 w-8 p-0 hidden sm:flex"
-                  >
-                    <ChevronRight className="h-3 w-3" />
-                    <ChevronRight className="h-3 w-3 -ml-2" />
-                  </Button>
-                </div>
+        {/* ====== BOARD VIEW ====== */}
+        {viewMode === "board" && (
+          <>
+            {isBoardLoading ? (
+              <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" /></div>
+            ) : boardData && boardData.columns.length > 0 ? (
+              <KanbanBoard
+                columns={boardData.columns}
+                onTransition={handleBoardTransition}
+                onTaskClick={goToTask}
+              />
+            ) : (
+              <div className="text-center py-16 text-muted-foreground">
+                {!boardWorkflowId ? "Selecciona un flujo de trabajo para ver el tablero." : "No hay columnas en este flujo."}
               </div>
             )}
-          </div>
+          </>
         )}
 
-        {/* Calendar View (Placeholder) */}
+        {/* ====== CALENDAR VIEW ====== */}
         {viewMode === "calendar" && (
-          <div className="flex items-center justify-center h-64 border rounded-lg bg-muted/20">
-            <div className="text-center">
-              <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">Vista de calendario próximamente</p>
-            </div>
-          </div>
+          <CalendarView tasks={visibleTasks} onTaskClick={goToTask} />
         )}
-
-        {/* Mobile Cards View (shown below md breakpoint) */}
-        <div className="md:hidden space-y-4">
-          {paginatedTasks.map(task => {
-            const isOverdue = isTaskOverdue(task);
-            return (
-              <Card key={task.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">{task.title}</CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {formatTaskReference(task.id)}
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openEditDialog(task)}
-                        className="h-8 w-8"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openDeleteDialog(task)}
-                        className="h-8 w-8 text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={STATUS_BADGE_VARIANT[task.status]}>
-                      {STATUS_LABELS[task.status]}
-                    </Badge>
-                    <Badge variant={PRIORITY_BADGE_VARIANT[task.priority]}>
-                      {PRIORITY_LABELS[task.priority]}
-                    </Badge>
-                    {isOverdue && <Badge variant="destructive">ATRASADA</Badge>}
-                  </div>
-                  {task.details && (
-                    <p className="text-sm text-muted-foreground">{task.details}</p>
-                  )}
-                  <div className="text-sm space-y-1">
-                    <div><span className="font-medium">Responsable:</span> {task.assignee?.name || "-"}</div>
-                    <div><span className="font-medium">Vence:</span> {formatDate(task.due_date)}</div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
       </CardContent>
 
       {/* Create/Edit Dialog */}
@@ -1042,13 +966,8 @@ export default function TasksPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>
-                <Select
-                  value={formValues.status}
-                  onValueChange={(value) => handleFormChange("status", value)}
-                >
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={formValues.status} onValueChange={(value) => handleFormChange("status", value)}>
+                  <SelectTrigger id="status"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pendiente">Pendiente</SelectItem>
                     <SelectItem value="en_progreso">En progreso</SelectItem>
@@ -1059,13 +978,8 @@ export default function TasksPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="priority">Prioridad</Label>
-                <Select
-                  value={formValues.priority}
-                  onValueChange={(value) => handleFormChange("priority", value)}
-                >
-                  <SelectTrigger id="priority">
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={formValues.priority} onValueChange={(value) => handleFormChange("priority", value)}>
+                  <SelectTrigger id="priority"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="alta">Alta</SelectItem>
                     <SelectItem value="media">Media</SelectItem>
@@ -1075,22 +989,28 @@ export default function TasksPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="assigned_to">Responsable</Label>
-                <Select
-                  value={formValues.assigned_to}
-                  onValueChange={(value) => handleFormChange("assigned_to", value)}
-                >
-                  <SelectTrigger id="assigned_to">
-                    <SelectValue placeholder="Sin asignar" />
-                  </SelectTrigger>
+                <Select value={formValues.assigned_to} onValueChange={(value) => handleFormChange("assigned_to", value)}>
+                  <SelectTrigger id="assigned_to"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
                   <SelectContent>
                     {agents.map(agent => (
-                      <SelectItem key={agent.id} value={String(agent.id)}>
-                        {agent.name}
-                      </SelectItem>
+                      <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              {workflows.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="workflow_id">Flujo de trabajo</Label>
+                  <Select value={formValues.workflow_id} onValueChange={(value) => handleFormChange("workflow_id", value)}>
+                    <SelectTrigger id="workflow_id"><SelectValue placeholder="Por defecto" /></SelectTrigger>
+                    <SelectContent>
+                      {workflows.filter(w => w.is_active).map(w => (
+                        <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="start_date">Fecha de inicio</Label>
                 <Input
@@ -1112,9 +1032,7 @@ export default function TasksPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeDialog}>
-                Cancelar
-              </Button>
+              <Button type="button" variant="outline" onClick={closeDialog}>Cancelar</Button>
               <Button type="submit" disabled={isSaving}>
                 {isSaving ? "Guardando..." : "Guardar"}
               </Button>

@@ -29,7 +29,7 @@
 | Auditoría Asientos ERP | `/dashboard/auditoria-asientos` | ✅ Mar 2026 |
 | Inversiones | `/dashboard/inversiones` | ✅ |
 | Rewards | `/dashboard/rewards` | ✅ |
-| Tareas | `/dashboard/tareas` | ✅ |
+| Tareas | `/dashboard/tareas` | ✅ (refactorizado Mar 2026 — workflows, Kanban, calendario, labels, watchers) |
 | Reportes | `/dashboard/reportes` | ✅ Mar 2026 (5 tabs — Inversiones removido, tiene su propia sección) |
 | Rutas | `/dashboard/rutas` | ✅ Mar 2026 (refactorizado: 1,672 → ~100 líneas orquestador + 5 tabs + types + utils) |
 
@@ -196,6 +196,34 @@ class MiController extends Controller {
 - Memoización (useMemo/useCallback) extensiva
 - next/link bien usado
 - Custom hooks reutilizables (use-bulk-selection, use-toast, use-debounce)
+
+---
+
+## Módulo Tareas — Sistema de Workflows tipo Jira/Notion (Mar 2026)
+
+### Backend
+- **Motor de Workflows**: tablas `task_workflows`, `task_workflow_statuses`, `task_workflow_transitions` — admin configura estados personalizados con colores, transiciones permitidas y puntos/XP por transición
+- **Labels y Watchers**: `task_labels` (CRUD admin), `task_watchers` (observadores por tarea)
+- **Campos nuevos en tasks**: `workflow_id`, `workflow_status_id`, `created_by`, `completed_at`, `estimated_hours`, `actual_hours`
+- **Backward compat**: campo `status` ENUM se sincroniza automáticamente via `syncLegacyStatus()` en boot del modelo Task
+- **Workflow default "Por Defecto"**: 4 estados (Pendiente→En Progreso→Completada→Archivada) con 6 transiciones y puntos. Migración de datos existentes incluida
+- **Eventos y gamificación**: `TaskStatusChanged` → `AwardTaskTransitionPoints` (puntos de transición) + `NotifyTaskStatusChanged` (notifica assignee + watchers). `TaskCompleted` → `HandleTaskCompletion` (puntos base + bonus on-time)
+- **Config**: `config/gamification.php` → sección `tasks` (base_completion_points=50, base_completion_xp=25, on_time_bonus_points=20, on_time_bonus_xp=10)
+- **Notificaciones programadas**: `tasks:notify-due-soon` (hourly), `tasks:notify-overdue` (daily 8AM CR)
+- **KPI enhancement**: `completed_at` para cálculo preciso, `workflowBreakdown` por agente, `rewardPoints` de tareas
+- **Endpoints nuevos**: `/api/tareas/board/{workflow}`, `/api/tareas/{task}/transition`, watchers CRUD, labels CRUD, 13 rutas admin workflow
+
+### Frontend
+- **3 vistas**: Lista (tabla con paginación), Board (Kanban drag-drop con @dnd-kit), Calendario (grid mensual)
+- **ViewToggle**: segmented control Lista/Tablero/Calendario
+- **TaskFilters**: barra unificada con buscar, estado, prioridad, responsable, flujo, etiqueta
+- **KanbanBoard**: columnas por workflow status, drag-and-drop dispara `POST /transition`, overlay durante drag
+- **CalendarView**: grid mensual con tareas en due_date, dot de color por prioridad
+- **TaskCard**: card reutilizable con reference, título, prioridad, assignee, labels, due date
+- **QuickTaskModal**: modal global Ctrl+Shift+T desde cualquier página del dashboard
+- **Detalle de tarea**: transiciones dinámicas (botones coloreados con puntos/XP), labels add/remove, watchers add/remove, completed_at visible
+- **Admin config**: WorkflowsTab (crear/editar workflows con estados y transiciones), LabelManager (CRUD de etiquetas)
+- **Dependencia**: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`
 
 ---
 

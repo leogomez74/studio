@@ -20,6 +20,7 @@ import { SidebarUserMenu } from "@/components/sidebar-user-menu";
 import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { ConfigurationMenuItem } from "@/components/configuration-menu-item";
 import { ChatBubble } from "@/components/chat-bubble";
+import { GlobalQuickTask } from "@/components/tareas/GlobalQuickTask";
 
 // Esta es la función principal del layout del dashboard.
 // Recibe 'children', que es el contenido específico de cada página del dashboard.
@@ -62,6 +63,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <React.Suspense fallback={<div />}>{children}</React.Suspense>
           </div>
           <ChatBubble />
+          <GlobalQuickTask />
         </SidebarInset>
         </SidebarProvider>
       </PermissionsProvider>

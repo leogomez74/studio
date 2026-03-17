@@ -18,6 +18,9 @@ import {
   CheckSquare,
   Square,
   Check,
+  ArrowRight,
+  Star,
+  Tag,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -42,23 +45,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/axios";
-import { API_BASE_URL } from "@/lib/env";
 import { useAuth } from "@/components/auth-guard";
 import { CaseChat } from "@/components/case-chat";
+import { LabelBadge } from "@/components/tareas/LabelBadge";
+import { WatchersList } from "@/components/tareas/WatchersList";
+import type { AvailableTransition, TaskLabel, TaskWatcher, TaskWorkflowStatus } from "@/types/tasks";
 
 // --- Types ---
 
 type TaskStatus = "pendiente" | "en_progreso" | "completada" | "archivada" | "deleted";
 type TaskPriority = "alta" | "media" | "baja";
 
-interface Agent {
+interface TaskDetail {
   id: number;
-  name: string;
-  email: string;
-}
-
-interface TaskItem {
-  id: number;
+  reference: string;
   project_code: string | null;
   project_name: string | null;
   title: string;
@@ -66,9 +66,27 @@ interface TaskItem {
   status: TaskStatus;
   priority: TaskPriority;
   assigned_to: number | null;
-  assignee: Agent | null;
+  assignee: { id: number; name: string; email: string } | null;
+  created_by: number | null;
+  creator?: { id: number; name: string; email: string } | null;
+  workflow_id: number | null;
+  workflow_status_id: number | null;
+  workflow_status: TaskWorkflowStatus | null;
+  workflow: {
+    id: number;
+    name: string;
+    slug: string;
+    color: string | null;
+    statuses?: TaskWorkflowStatus[];
+  } | null;
+  labels: TaskLabel[];
+  watchers: TaskWatcher[];
+  available_transitions: AvailableTransition[];
   start_date: string | null;
   due_date: string | null;
+  completed_at: string | null;
+  estimated_hours: number | null;
+  actual_hours: number | null;
   archived_at: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -107,10 +125,8 @@ interface ChecklistItem {
 
 // --- Helper Functions ---
 
-const formatTaskReference = (id: number): string => `TA-${String(id).padStart(4, "0")}`;
-
-const isTaskOverdue = (task: TaskItem): boolean => {
-  if (!task.due_date || task.status === "completada") return false;
+const isTaskOverdue = (task: TaskDetail): boolean => {
+  if (!task.due_date || task.status === "completada" || task.completed_at) return false;
   const dueDate = new Date(task.due_date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -179,14 +195,6 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   deleted: "Eliminada",
 };
 
-const STATUS_VARIANTS: Record<TaskStatus, "outline" | "default" | "secondary" | "destructive"> = {
-  pendiente: "outline",
-  en_progreso: "default",
-  completada: "secondary",
-  archivada: "destructive",
-  deleted: "destructive",
-};
-
 const PRIORITY_LABELS: Record<TaskPriority, string> = {
   alta: "Alta",
   media: "Media",
@@ -218,6 +226,7 @@ const FIELD_LABELS: Record<string, string> = {
   documento: "Documento",
   project_code: "Código proyecto",
   project_name: "Nombre proyecto",
+  workflow_status_id: "Estado del flujo",
 };
 
 // --- Main Component ---
@@ -229,7 +238,7 @@ export default function TaskDetailPage() {
   const { token } = useAuth();
   const taskId = params.id as string;
 
-  const [task, setTask] = useState<TaskItem | null>(null);
+  const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -241,10 +250,11 @@ export default function TaskDetailPage() {
   const [editedStartDate, setEditedStartDate] = useState("");
   const [editedDueDate, setEditedDueDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
 
-  // Users
-  const [users, setUsers] = useState<Agent[]>([]);
+  // Users & Labels
+  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
+  const [allLabels, setAllLabels] = useState<TaskLabel[]>([]);
 
   // Timeline
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
@@ -268,7 +278,7 @@ export default function TaskDetailPage() {
     try {
       setLoading(true);
       const res = await api.get(`/api/tareas/${taskId}`);
-      const data = res.data as TaskItem;
+      const data = res.data as TaskDetail;
       setTask(data);
       setEditedTitle(data.title);
       setEditedDetails(data.details || "");
@@ -276,32 +286,29 @@ export default function TaskDetailPage() {
       setEditedAssignedTo(data.assigned_to ? String(data.assigned_to) : "");
       setEditedStartDate(toDateInput(data.start_date));
       setEditedDueDate(toDateInput(data.due_date));
-    } catch (err) {
-      console.error("Error fetching task:", err);
+    } catch {
       setError("No se pudo cargar la tarea.");
     } finally {
       setLoading(false);
     }
   }, [taskId]);
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/users`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      if (res.ok) setUsers(await res.json());
-    } catch (err) {
-      console.error("Error fetching users:", err);
-    }
-  }, [token]);
+  const fetchMeta = useCallback(async () => {
+    const [agentsRes, labelsRes] = await Promise.allSettled([
+      api.get('/api/agents'),
+      api.get('/api/task-labels'),
+    ]);
+    if (agentsRes.status === "fulfilled") setUsers(Array.isArray(agentsRes.value.data) ? agentsRes.value.data : []);
+    if (labelsRes.status === "fulfilled") setAllLabels(labelsRes.value.data || []);
+  }, []);
 
   const fetchTimeline = useCallback(async () => {
     try {
       setTimelineLoading(true);
       const res = await api.get(`/api/tareas/${taskId}/timeline`);
       setTimeline(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error("Error fetching timeline:", err);
+    } catch {
+      // silent
     } finally {
       setTimelineLoading(false);
     }
@@ -312,8 +319,8 @@ export default function TaskDetailPage() {
       setDocsLoading(true);
       const res = await api.get(`/api/tareas/${taskId}/documents`);
       setDocuments(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error("Error fetching documents:", err);
+    } catch {
+      // silent
     } finally {
       setDocsLoading(false);
     }
@@ -324,8 +331,8 @@ export default function TaskDetailPage() {
       setChecklistLoading(true);
       const res = await api.get(`/api/tareas/${taskId}/checklist`);
       setChecklist(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error("Error fetching checklist:", err);
+    } catch {
+      // silent
     } finally {
       setChecklistLoading(false);
     }
@@ -334,54 +341,102 @@ export default function TaskDetailPage() {
   useEffect(() => {
     if (taskId && token) {
       fetchTask();
-      fetchUsers();
+      fetchMeta();
       fetchTimeline();
       fetchDocuments();
       fetchChecklist();
     }
-  }, [taskId, token, fetchTask, fetchUsers, fetchTimeline, fetchDocuments, fetchChecklist]);
+  }, [taskId, token, fetchTask, fetchMeta, fetchTimeline, fetchDocuments, fetchChecklist]);
 
   // Save all editable fields
   const handleSave = async () => {
     if (!task) return;
     try {
       setSaving(true);
-      const payload: Record<string, unknown> = {
+      await api.put(`/api/tareas/${task.id}`, {
         title: editedTitle,
         details: editedDetails,
         priority: editedPriority,
         assigned_to: editedAssignedTo ? Number(editedAssignedTo) : null,
         start_date: editedStartDate || null,
         due_date: editedDueDate || null,
-      };
-      const res = await api.put(`/api/tareas/${task.id}`, payload);
-      setTask(res.data as TaskItem);
+      });
       toast({ title: "Guardado", description: "La tarea se actualizó correctamente." });
+      fetchTask();
       fetchTimeline();
-    } catch (err) {
-      console.error("Error saving task:", err);
+    } catch {
       toast({ title: "Error", description: "No se pudo guardar la tarea.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
-  // Quick status update
-  const handleStatusChange = async (newStatus: TaskStatus) => {
+  // Workflow transition
+  const handleTransition = async (transition: AvailableTransition) => {
     if (!task) return;
-    const previousStatus = task.status;
     try {
-      setUpdatingStatus(true);
-      setTask((prev) => (prev ? { ...prev, status: newStatus } : null));
-      await api.put(`/api/tareas/${task.id}`, { status: newStatus });
-      toast({ title: "Estado actualizado", description: `La tarea ahora está ${STATUS_LABELS[newStatus].toLowerCase()}.` });
+      setTransitioning(true);
+      const res = await api.post(`/api/tareas/${task.id}/transition`, {
+        to_status_id: transition.to_status.id,
+      });
+      const reward = res.data.reward;
+      if (reward && (reward.points > 0 || reward.xp > 0)) {
+        toast({
+          title: `+${reward.points} pts / +${reward.xp} XP`,
+          description: `${transition.to_status.name}${reward.transition_name ? ` — ${reward.transition_name}` : ""}`,
+        });
+      } else {
+        toast({ title: "Estado actualizado", description: `Ahora: ${transition.to_status.name}` });
+      }
+      fetchTask();
       fetchTimeline();
-    } catch (err) {
-      console.error("Error updating status:", err);
-      setTask((prev) => (prev ? { ...prev, status: previousStatus } : null));
-      toast({ title: "Error", description: "No se pudo actualizar el estado.", variant: "destructive" });
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast({ title: "Error", description: err.response?.data?.message || "No se pudo realizar la transición.", variant: "destructive" });
     } finally {
-      setUpdatingStatus(false);
+      setTransitioning(false);
+    }
+  };
+
+  // Label management
+  const handleAddLabel = async (labelId: number) => {
+    if (!task) return;
+    try {
+      await api.post(`/api/tareas/${task.id}/labels`, { label_id: labelId });
+      fetchTask();
+    } catch {
+      toast({ title: "Error", description: "No se pudo agregar la etiqueta.", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveLabel = async (labelId: number) => {
+    if (!task) return;
+    try {
+      await api.delete(`/api/tareas/${task.id}/labels/${labelId}`);
+      fetchTask();
+    } catch {
+      toast({ title: "Error", description: "No se pudo eliminar la etiqueta.", variant: "destructive" });
+    }
+  };
+
+  // Watcher management
+  const handleAddWatcher = async (userId: number) => {
+    if (!task) return;
+    try {
+      await api.post(`/api/tareas/${task.id}/watchers`, { user_id: userId });
+      fetchTask();
+    } catch {
+      toast({ title: "Error", description: "No se pudo agregar el observador.", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveWatcher = async (userId: number) => {
+    if (!task) return;
+    try {
+      await api.delete(`/api/tareas/${task.id}/watchers/${userId}`);
+      fetchTask();
+    } catch {
+      toast({ title: "Error", description: "No se pudo eliminar el observador.", variant: "destructive" });
     }
   };
 
@@ -408,25 +463,22 @@ export default function TaskDetailPage() {
       setUploadNotes("");
       setShowUploadForm(false);
       fileInput.value = "";
-      toast({ title: "Archivo subido", description: "El documento se subió correctamente." });
+      toast({ title: "Archivo subido" });
       fetchTimeline();
-    } catch (err) {
-      console.error("Error uploading document:", err);
+    } catch {
       toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
     } finally {
       setUploading(false);
     }
   };
 
-  // Delete document
   const handleDeleteDocument = async (docId: number) => {
     try {
       await api.delete(`/api/tareas/${taskId}/documents/${docId}`);
       setDocuments((prev) => prev.filter((d) => d.id !== docId));
-      toast({ title: "Eliminado", description: "El documento se eliminó correctamente." });
+      toast({ title: "Eliminado" });
       fetchTimeline();
-    } catch (err) {
-      console.error("Error deleting document:", err);
+    } catch {
       toast({ title: "Error", description: "No se pudo eliminar el documento.", variant: "destructive" });
     }
   };
@@ -436,8 +488,7 @@ export default function TaskDetailPage() {
     try {
       const res = await api.patch(`/api/tareas/${taskId}/checklist/${itemId}/toggle`);
       setChecklist((prev) => prev.map((item) => (item.id === itemId ? (res.data as ChecklistItem) : item)));
-    } catch (err) {
-      console.error("Error toggling checklist item:", err);
+    } catch {
       toast({ title: "Error", description: "No se pudo actualizar el ítem.", variant: "destructive" });
     }
   };
@@ -448,8 +499,7 @@ export default function TaskDetailPage() {
       const res = await api.post(`/api/tareas/${taskId}/checklist`, { title: newItemTitle.trim() });
       setChecklist((prev) => [...prev, res.data as ChecklistItem]);
       setNewItemTitle("");
-    } catch (err) {
-      console.error("Error adding checklist item:", err);
+    } catch {
       toast({ title: "Error", description: "No se pudo agregar el ítem.", variant: "destructive" });
     }
   };
@@ -458,8 +508,7 @@ export default function TaskDetailPage() {
     try {
       await api.delete(`/api/tareas/${taskId}/checklist/${itemId}`);
       setChecklist((prev) => prev.filter((item) => item.id !== itemId));
-    } catch (err) {
-      console.error("Error deleting checklist item:", err);
+    } catch {
       toast({ title: "Error", description: "No se pudo eliminar el ítem.", variant: "destructive" });
     }
   };
@@ -467,7 +516,6 @@ export default function TaskDetailPage() {
   const completedCount = checklist.filter((i) => i.is_completed).length;
   const totalCount = checklist.length;
 
-  // Check if form has changes
   const hasChanges = task
     ? editedTitle !== task.title ||
       editedDetails !== (task.details || "") ||
@@ -477,7 +525,10 @@ export default function TaskDetailPage() {
       editedDueDate !== toDateInput(task.due_date)
     : false;
 
-  // Loading state
+  const availableLabels = allLabels.filter(
+    (l) => !task?.labels?.some((tl) => tl.id === l.id)
+  );
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -486,7 +537,6 @@ export default function TaskDetailPage() {
     );
   }
 
-  // Error state
   if (error || !task) {
     return (
       <div className="container mx-auto p-6">
@@ -514,14 +564,28 @@ export default function TaskDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-800">{formatTaskReference(task.id)}</h1>
-              <Badge variant={STATUS_VARIANTS[task.status]}>{STATUS_LABELS[task.status]}</Badge>
-              <Badge variant={PRIORITY_VARIANTS[task.priority]}>{PRIORITY_LABELS[task.priority]}</Badge>
-              {isOverdue && (
-                <Badge variant="destructive" className="bg-red-600">ATRASADA</Badge>
+              <h1 className="text-2xl font-bold text-gray-800">{task.reference}</h1>
+              {task.workflow_status ? (
+                <Badge
+                  variant="outline"
+                  style={{
+                    borderColor: task.workflow_status.color,
+                    color: task.workflow_status.color,
+                    backgroundColor: `${task.workflow_status.color}15`,
+                  }}
+                >
+                  {task.workflow_status.name}
+                </Badge>
+              ) : (
+                <Badge variant="outline">{STATUS_LABELS[task.status]}</Badge>
               )}
+              <Badge variant={PRIORITY_VARIANTS[task.priority]}>{PRIORITY_LABELS[task.priority]}</Badge>
+              {isOverdue && <Badge variant="destructive" className="bg-red-600">ATRASADA</Badge>}
             </div>
             <p className="text-sm text-gray-500 mt-1">{task.title}</p>
+            {task.workflow && (
+              <p className="text-xs text-muted-foreground mt-0.5">Flujo: {task.workflow.name}</p>
+            )}
           </div>
         </div>
         {hasChanges && (
@@ -532,34 +596,48 @@ export default function TaskDetailPage() {
         )}
       </div>
 
+      {/* Workflow Transitions */}
+      {task.available_transitions && task.available_transitions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Transiciones disponibles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {task.available_transitions.map((transition) => (
+                <Button
+                  key={transition.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleTransition(transition)}
+                  disabled={transitioning}
+                  className="gap-1.5"
+                  style={{
+                    borderColor: transition.to_status.color,
+                    color: transition.to_status.color,
+                  }}
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                  {transition.name || transition.to_status.name}
+                  {(transition.points_award > 0 || transition.xp_award > 0) && (
+                    <span className="ml-1 text-[10px] opacity-70 flex items-center gap-0.5">
+                      <Star className="h-3 w-3" />
+                      {transition.points_award > 0 && `${transition.points_award}pts`}
+                      {transition.points_award > 0 && transition.xp_award > 0 && " / "}
+                      {transition.xp_award > 0 && `${transition.xp_award}xp`}
+                    </span>
+                  )}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Quick Status Update */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Actualización rápida de estado</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {(["pendiente", "en_progreso", "completada", "archivada"] as TaskStatus[]).map((status) => (
-                  <Button
-                    key={status}
-                    variant={task.status === status ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleStatusChange(status)}
-                    disabled={updatingStatus}
-                    className="text-xs"
-                  >
-                    {STATUS_LABELS[status]}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tabs */}
           <Tabs defaultValue="resumen" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
@@ -576,29 +654,14 @@ export default function TaskDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Title */}
                   <div>
                     <Label className="text-xs text-muted-foreground">Título</Label>
-                    <Input
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="mt-1"
-                    />
+                    <Input value={editedTitle} onChange={(e) => setEditedTitle(e.target.value)} className="mt-1" />
                   </div>
-
-                  {/* Description */}
                   <div>
                     <Label className="text-xs text-muted-foreground">Descripción</Label>
-                    <Textarea
-                      value={editedDetails}
-                      onChange={(e) => setEditedDetails(e.target.value)}
-                      placeholder="Describe los detalles de la tarea..."
-                      rows={5}
-                      className="mt-1"
-                    />
+                    <Textarea value={editedDetails} onChange={(e) => setEditedDetails(e.target.value)} placeholder="Describe los detalles de la tarea..." rows={5} className="mt-1" />
                   </div>
-
-                  {/* Priority & Assigned */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground">Prioridad</Label>
@@ -624,43 +687,33 @@ export default function TaskDetailPage() {
                       </Select>
                     </div>
                   </div>
-
-                  {/* Dates */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground">Fecha de inicio</Label>
-                      <Input
-                        type="date"
-                        value={editedStartDate}
-                        onChange={(e) => setEditedStartDate(e.target.value)}
-                        className="mt-1"
-                      />
+                      <Input type="date" value={editedStartDate} onChange={(e) => setEditedStartDate(e.target.value)} className="mt-1" />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Fecha de vencimiento</Label>
-                      <Input
-                        type="date"
-                        value={editedDueDate}
-                        onChange={(e) => setEditedDueDate(e.target.value)}
-                        className="mt-1"
-                      />
+                      <Input type="date" value={editedDueDate} onChange={(e) => setEditedDueDate(e.target.value)} className="mt-1" />
                     </div>
                   </div>
-
-                  {/* Created date (read-only) */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Fecha de creación</Label>
-                    <Input value={formatDate(task.created_at)} readOnly disabled className="mt-1 bg-muted" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Fecha de creación</Label>
+                      <Input value={formatDate(task.created_at)} readOnly disabled className="mt-1 bg-muted" />
+                    </div>
+                    {task.completed_at && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Completada</Label>
+                        <Input value={formatDate(task.completed_at)} readOnly disabled className="mt-1 bg-muted" />
+                      </div>
+                    )}
                   </div>
-
-                  {/* Link to related entity */}
                   {parsed && (
                     <div>
                       <Label className="text-xs text-muted-foreground">{parsed.label}</Label>
                       <div className="mt-1">
-                        <Link href={parsed.url} className="text-sm text-blue-600 hover:underline">
-                          {task.project_code}
-                        </Link>
+                        <Link href={parsed.url} className="text-sm text-blue-600 hover:underline">{task.project_code}</Link>
                       </div>
                     </div>
                   )}
@@ -675,15 +728,11 @@ export default function TaskDetailPage() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <Clock className="h-4 w-4" /> Timeline de eventos
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    Historial de cambios y actualizaciones
-                  </CardDescription>
+                  <CardDescription className="text-xs">Historial de cambios y actualizaciones</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {timelineLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    </div>
+                    <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
                   ) : timeline.length === 0 ? (
                     <div className="text-center py-8 text-sm text-muted-foreground">
                       <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -691,34 +740,22 @@ export default function TaskDetailPage() {
                     </div>
                   ) : (
                     <div className="relative">
-                      {/* Vertical line */}
                       <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
-
                       <div className="space-y-6">
                         {timeline.map((entry) => (
                           <div key={entry.id} className="relative pl-8">
-                            {/* Dot */}
                             <div className={`absolute left-1.5 top-1.5 w-3 h-3 rounded-full border-2 border-background ${
                               entry.action === "create" ? "bg-green-500" :
                               entry.action === "delete" ? "bg-red-500" :
                               entry.action === "upload" ? "bg-blue-500" :
                               "bg-yellow-500"
                             }`} />
-
                             <div className="bg-muted/50 rounded-lg p-3">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium">
-                                  {ACTION_LABELS[entry.action] || entry.action}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDateTime(entry.created_at)}
-                                </span>
+                                <span className="text-sm font-medium">{ACTION_LABELS[entry.action] || entry.action}</span>
+                                <span className="text-xs text-muted-foreground">{formatDateTime(entry.created_at)}</span>
                               </div>
-                              <p className="text-xs text-muted-foreground mb-1">
-                                por {entry.user_name || "Sistema"}
-                              </p>
-
-                              {/* Changes detail */}
+                              <p className="text-xs text-muted-foreground mb-1">por {entry.user_name || "Sistema"}</p>
                               {entry.changes && entry.changes.length > 0 && (
                                 <div className="mt-2 space-y-1">
                                   {entry.changes.map((change, idx) => (
@@ -756,32 +793,19 @@ export default function TaskDetailPage() {
                       <CardTitle className="text-base flex items-center gap-2">
                         <FileText className="h-4 w-4" /> Documentos adjuntos
                       </CardTitle>
-                      <CardDescription className="text-xs">
-                        {documents.length} documento{documents.length !== 1 ? "s" : ""}
-                      </CardDescription>
+                      <CardDescription className="text-xs">{documents.length} documento{documents.length !== 1 ? "s" : ""}</CardDescription>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowUploadForm(!showUploadForm)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => setShowUploadForm(!showUploadForm)}>
                       <Plus className="h-4 w-4 mr-1" /> Subir
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {/* Upload form */}
                   {showUploadForm && (
                     <form onSubmit={handleUploadDocument} className="border rounded-lg p-4 mb-4 space-y-3 bg-muted/30">
                       <div>
                         <Label className="text-xs">Nombre del documento</Label>
-                        <Input
-                          value={uploadName}
-                          onChange={(e) => setUploadName(e.target.value)}
-                          placeholder="Ej: Contrato firmado"
-                          className="mt-1"
-                          required
-                        />
+                        <Input value={uploadName} onChange={(e) => setUploadName(e.target.value)} placeholder="Ej: Contrato firmado" className="mt-1" required />
                       </div>
                       <div>
                         <Label className="text-xs">Archivo</Label>
@@ -789,17 +813,10 @@ export default function TaskDetailPage() {
                       </div>
                       <div>
                         <Label className="text-xs">Notas (opcional)</Label>
-                        <Input
-                          value={uploadNotes}
-                          onChange={(e) => setUploadNotes(e.target.value)}
-                          placeholder="Observaciones sobre el documento"
-                          className="mt-1"
-                        />
+                        <Input value={uploadNotes} onChange={(e) => setUploadNotes(e.target.value)} placeholder="Observaciones" className="mt-1" />
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setShowUploadForm(false)}>
-                          Cancelar
-                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setShowUploadForm(false)}>Cancelar</Button>
                         <Button type="submit" size="sm" disabled={uploading}>
                           {uploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
                           Subir archivo
@@ -808,11 +825,8 @@ export default function TaskDetailPage() {
                     </form>
                   )}
 
-                  {/* Documents list */}
                   {docsLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    </div>
+                    <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
                   ) : documents.length === 0 ? (
                     <div className="text-center py-8 text-sm text-muted-foreground">
                       <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -830,29 +844,16 @@ export default function TaskDetailPage() {
                                 {doc.uploader?.name || "—"} · {formatDate(doc.created_at)}
                                 {doc.size ? ` · ${formatFileSize(doc.size)}` : ""}
                               </p>
-                              {doc.notes && (
-                                <p className="text-xs text-muted-foreground italic mt-0.5">{doc.notes}</p>
-                              )}
+                              {doc.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{doc.notes}</p>}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                             {doc.url && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                asChild
-                              >
-                                <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                                  <Download className="h-4 w-4" />
-                                </a>
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={doc.url} target="_blank" rel="noopener noreferrer"><Download className="h-4 w-4" /></a>
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteDocument(doc.id)}
-                              className="text-red-500 hover:text-red-700"
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteDocument(doc.id)} className="text-red-500 hover:text-red-700">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -868,6 +869,56 @@ export default function TaskDetailPage() {
 
         {/* Side Panel */}
         <div className="lg:col-span-1 space-y-6">
+          {/* Labels */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tag className="h-4 w-4" /> Etiquetas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {task.labels && task.labels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {task.labels.map((label) => (
+                    <LabelBadge key={label.id} label={label} size="md" onRemove={() => handleRemoveLabel(label.id)} />
+                  ))}
+                </div>
+              )}
+              {availableLabels.length > 0 && (
+                <Select onValueChange={(v) => handleAddLabel(parseInt(v))}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Agregar etiqueta..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableLabels.map((l) => (
+                      <SelectItem key={l.id} value={String(l.id)}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
+                          {l.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {task.labels.length === 0 && availableLabels.length === 0 && (
+                <p className="text-xs text-muted-foreground">Sin etiquetas disponibles</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Watchers */}
+          <Card>
+            <CardContent className="pt-6">
+              <WatchersList
+                watchers={task.watchers || []}
+                users={users}
+                onAdd={handleAddWatcher}
+                onRemove={handleRemoveWatcher}
+              />
+            </CardContent>
+          </Card>
+
           {/* Checklist */}
           <Card>
             <CardHeader className="pb-3">
@@ -875,55 +926,30 @@ export default function TaskDetailPage() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <CheckSquare className="h-4 w-4" /> Checklist
                 </CardTitle>
-                {totalCount > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {completedCount}/{totalCount}
-                  </span>
-                )}
+                {totalCount > 0 && <span className="text-xs text-muted-foreground">{completedCount}/{totalCount}</span>}
               </div>
               {totalCount > 0 && (
                 <div className="w-full bg-muted rounded-full h-1.5 mt-2">
-                  <div
-                    className="bg-green-500 h-1.5 rounded-full transition-all"
-                    style={{ width: `${(completedCount / totalCount) * 100}%` }}
-                  />
+                  <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${(completedCount / totalCount) * 100}%` }} />
                 </div>
               )}
             </CardHeader>
             <CardContent>
               {checklistLoading ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </div>
+                <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" /></div>
               ) : (
                 <div className="space-y-1">
                   {checklist.map((item) => (
                     <div key={item.id} className="flex items-center gap-2 group py-1">
-                      <button
-                        onClick={() => handleToggleChecklistItem(item.id)}
-                        className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-                      >
-                        {item.is_completed ? (
-                          <Check className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <Square className="h-4 w-4" />
-                        )}
+                      <button onClick={() => handleToggleChecklistItem(item.id)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                        {item.is_completed ? <Check className="h-4 w-4 text-green-500" /> : <Square className="h-4 w-4" />}
                       </button>
-                      <span className={`text-sm flex-1 ${item.is_completed ? "line-through text-muted-foreground" : ""}`}>
-                        {item.title}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteChecklistItem(item.id)}
-                        className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                      >
+                      <span className={`text-sm flex-1 ${item.is_completed ? "line-through text-muted-foreground" : ""}`}>{item.title}</span>
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteChecklistItem(item.id)} className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 text-red-500 hover:text-red-700">
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   ))}
-
-                  {/* Add new item */}
                   <div className="flex items-center gap-2 pt-2">
                     <Plus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <Input

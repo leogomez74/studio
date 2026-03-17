@@ -15,6 +15,10 @@ use App\Events\Rewards\ChallengeCompleted;
 use App\Events\Rewards\StreakUpdated;
 use App\Events\Rewards\RewardRedeemed;
 
+// Task Events
+use App\Events\TaskStatusChanged;
+use App\Events\TaskCompleted;
+
 // Rewards Listeners
 use App\Listeners\Rewards\HandlePointsEarned;
 use App\Listeners\Rewards\HandleBadgeEarned;
@@ -22,6 +26,11 @@ use App\Listeners\Rewards\HandleLevelUp;
 use App\Listeners\Rewards\HandleChallengeCompleted;
 use App\Listeners\Rewards\HandleStreakUpdated;
 use App\Listeners\Rewards\HandleRewardRedeemed;
+
+// Task Listeners
+use App\Listeners\AwardTaskTransitionPoints;
+use App\Listeners\HandleTaskCompletion;
+use App\Listeners\NotifyTaskStatusChanged;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -50,19 +59,22 @@ class EventServiceProvider extends ServiceProvider
         RewardRedeemed::class => [
             HandleRewardRedeemed::class,
         ],
+
+        // Task Events
+        TaskStatusChanged::class => [
+            AwardTaskTransitionPoints::class,
+            NotifyTaskStatusChanged::class,
+        ],
+        TaskCompleted::class => [
+            HandleTaskCompletion::class,
+        ],
     ];
 
-    /**
-     * Register any events for your application.
-     */
     public function boot(): void
     {
         //
     }
 
-    /**
-     * Determine if events and listeners should be automatically discovered.
-     */
     public function shouldDiscoverEvents(): bool
     {
         return false;

@@ -201,6 +201,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // --- Tareas ---
     Route::get('/tareas/overdue-count', [TaskController::class, 'overdueCount']);
+    Route::get('/tareas/board/{workflow}', [TaskController::class, 'boardData']);
     Route::get('/tareas', [TaskController::class, 'index']);
     Route::post('/tareas', [TaskController::class, 'store'])->middleware('permission:tareas,create');
     Route::get('/tareas/{task}', [TaskController::class, 'show']);
@@ -208,6 +209,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/tareas/{task}', [TaskController::class, 'destroy'])->middleware('permission:tareas,delete');
     Route::post('/tareas/{task}/archivar', [TaskController::class, 'archive'])->middleware('permission:tareas,archive');
     Route::post('/tareas/{task}/restaurar', [TaskController::class, 'restore'])->middleware('permission:tareas,edit');
+    Route::post('/tareas/{task}/transition', [TaskController::class, 'transition'])->middleware('permission:tareas,edit');
+    Route::post('/tareas/{task}/watchers', [TaskController::class, 'addWatcher'])->middleware('permission:tareas,edit');
+    Route::delete('/tareas/{task}/watchers/{user}', [TaskController::class, 'removeWatcher'])->middleware('permission:tareas,edit');
+    Route::post('/tareas/{task}/labels', [TaskController::class, 'addLabel'])->middleware('permission:tareas,edit');
+    Route::delete('/tareas/{task}/labels/{label}', [TaskController::class, 'removeLabel'])->middleware('permission:tareas,edit');
     Route::get('/tareas/{task}/timeline', [TaskController::class, 'timeline']);
     Route::get('/tareas/{task}/documents', [TaskController::class, 'documents']);
     Route::post('/tareas/{task}/documents', [TaskController::class, 'storeDocument'])->middleware('permission:tareas,edit');
@@ -216,6 +222,32 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/tareas/{task}/checklist', [TaskController::class, 'storeChecklistItem'])->middleware('permission:tareas,edit');
     Route::patch('/tareas/{task}/checklist/{item}/toggle', [TaskController::class, 'toggleChecklistItem'])->middleware('permission:tareas,edit');
     Route::delete('/tareas/{task}/checklist/{item}', [TaskController::class, 'destroyChecklistItem'])->middleware('permission:tareas,delete');
+
+    // --- Workflows (admin) ---
+    Route::prefix('task-workflows')->middleware('admin')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'store']);
+        Route::get('/{workflow}', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'show']);
+        Route::put('/{workflow}', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'update']);
+        Route::delete('/{workflow}', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'destroy']);
+        Route::get('/{workflow}/statuses', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'statuses']);
+        Route::post('/{workflow}/statuses', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'storeStatus']);
+        Route::put('/{workflow}/statuses/{status}', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'updateStatus']);
+        Route::delete('/{workflow}/statuses/{status}', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'deleteStatus']);
+        Route::post('/{workflow}/statuses/reorder', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'reorderStatuses']);
+        Route::get('/{workflow}/transitions', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'transitions']);
+        Route::post('/{workflow}/transitions', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'storeTransition']);
+        Route::delete('/{workflow}/transitions/{transition}', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'deleteTransition']);
+    });
+
+    // Also expose workflows list for non-admin users (needed for task creation)
+    Route::get('/task-workflows', [\App\Http\Controllers\Api\TaskWorkflowController::class, 'index']);
+
+    // --- Labels ---
+    Route::get('/task-labels', [\App\Http\Controllers\Api\TaskLabelController::class, 'index']);
+    Route::post('/task-labels', [\App\Http\Controllers\Api\TaskLabelController::class, 'store'])->middleware('admin');
+    Route::put('/task-labels/{label}', [\App\Http\Controllers\Api\TaskLabelController::class, 'update'])->middleware('admin');
+    Route::delete('/task-labels/{label}', [\App\Http\Controllers\Api\TaskLabelController::class, 'destroy'])->middleware('admin');
 
     // --- Rutas (Mensajería / Logística) ---
     Route::apiResource('tareas-ruta', TareaRutaController::class);

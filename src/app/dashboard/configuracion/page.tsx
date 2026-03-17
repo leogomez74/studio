@@ -16,6 +16,8 @@ import PolizaTab from '@/components/configuracion/PolizaTab';
 import PatronosTab from '@/components/configuracion/PatronosTab';
 import DeductorasTab from '@/components/configuracion/DeductorasTab';
 import TareasAutomationTab from '@/components/configuracion/TareasAutomationTab';
+import { WorkflowsTab } from '@/components/configuracion/WorkflowsTab';
+import { LabelManager } from '@/components/configuracion/LabelManager';
 import IntegracionesTab from '@/components/configuracion/IntegracionesTab';
 import ApiTokensTab from '@/components/configuracion/ApiTokensTab';
 
@@ -39,6 +41,8 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="poliza">Póliza</TabsTrigger>
           <TabsTrigger value="embargo">Embargo</TabsTrigger>
           <TabsTrigger value="tareas">Tareas</TabsTrigger>
+          <TabsTrigger value="workflows">Flujos</TabsTrigger>
+          <TabsTrigger value="labels">Etiquetas</TabsTrigger>
           <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
           <TabsTrigger value="api-tokens">API Tokens</TabsTrigger>
         </TabsList>
@@ -93,6 +97,14 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="tareas">
           <TareasAutomationTab />
+        </TabsContent>
+
+        <TabsContent value="workflows">
+          <WorkflowsTab />
+        </TabsContent>
+
+        <TabsContent value="labels">
+          <LabelManager />
         </TabsContent>
 
         <TabsContent value="integraciones">

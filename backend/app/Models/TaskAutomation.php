@@ -14,6 +14,7 @@ class TaskAutomation extends Model
         'priority',
         'due_days_offset',
         'is_active',
+        'workflow_id',
     ];
 
     protected $casts = [

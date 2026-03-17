@@ -154,4 +154,21 @@ return [
         'streak_milestone' => true,
         'redemption_approved' => true,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tareas
+    |--------------------------------------------------------------------------
+    |
+    | Puntos y XP otorgados al completar tareas.
+    | Los puntos de transición se configuran por workflow en la BD.
+    |
+    */
+
+    'tasks' => [
+        'base_completion_points' => 50,
+        'base_completion_xp' => 25,
+        'on_time_bonus_points' => 20,
+        'on_time_bonus_xp' => 10,
+    ],
 ];

@@ -80,3 +80,22 @@ Schedule::command('embargo:actualizar-smi')
     ->cron('0 6 5 1,7 *')
     ->withoutOverlapping()
     ->onOneServer();
+
+/*
+|--------------------------------------------------------------------------
+| Scheduled Tasks - Notificaciones de Tareas
+|--------------------------------------------------------------------------
+*/
+
+// Notificar tareas próximas a vencer (cada hora)
+Schedule::command('tasks:notify-due-soon')
+    ->hourly()
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Recordatorio diario de tareas vencidas (8:00 AM Costa Rica)
+Schedule::command('tasks:notify-overdue')
+    ->dailyAt('08:00')
+    ->timezone('America/Costa_Rica')
+    ->withoutOverlapping()
+    ->onOneServer();

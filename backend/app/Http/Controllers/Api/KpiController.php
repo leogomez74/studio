@@ -1102,10 +1102,10 @@ class KpiController extends Controller
                         ? round(($tasksCompleted / $tasksTotal) * 100, 0)
                         : 0;
 
-                    // Average completion time (days from created_at to updated_at for completed tasks)
+                    // Average completion time (days from created_at to completed_at or updated_at)
                     $avgCompletionDays = Task::where('assigned_to', $agent->id)
                         ->where('status', 'completada')
-                        ->selectRaw('AVG(DATEDIFF(updated_at, created_at)) as avg_days')
+                        ->selectRaw('AVG(DATEDIFF(COALESCE(completed_at, updated_at), created_at)) as avg_days')
                         ->value('avg_days');
                     $avgCompletionTime = $avgCompletionDays ? round($avgCompletionDays, 1) : 0;
 
@@ -1124,7 +1124,7 @@ class KpiController extends Controller
                     $completedOnTime = Task::where('assigned_to', $agent->id)
                         ->where('status', 'completada')
                         ->whereNotNull('due_date')
-                        ->whereRaw('updated_at <= due_date')
+                        ->whereRaw('COALESCE(completed_at, updated_at) <= due_date')
                         ->count();
                     $onTimeRate = $completedWithDueDate > 0
                         ? round(($completedOnTime / $completedWithDueDate) * 100, 0)
@@ -1135,6 +1135,21 @@ class KpiController extends Controller
                         ->whereNotIn('status', ['deleted'])
                         ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
                         ->count();
+
+                    // Workflow breakdown: completed tasks per workflow
+                    $workflowBreakdown = Task::where('assigned_to', $agent->id)
+                        ->where('status', 'completada')
+                        ->whereNotNull('workflow_id')
+                        ->join('task_workflows', 'tasks.workflow_id', '=', 'task_workflows.id')
+                        ->selectRaw('task_workflows.name as workflow_name, COUNT(*) as count')
+                        ->groupBy('task_workflows.id', 'task_workflows.name')
+                        ->pluck('count', 'workflow_name');
+
+                    // Reward points earned from tasks
+                    $rewardPoints = \App\Models\Rewards\RewardTransaction::whereHas('rewardUser', fn ($q) => $q->where('user_id', $agent->id))
+                        ->whereIn('reference_type', ['task', 'task_transition'])
+                        ->where('type', 'earn')
+                        ->sum('amount');
 
                     return [
                         'name' => $agent->name,
@@ -1147,6 +1162,8 @@ class KpiController extends Controller
                         'avgCompletionTime' => $avgCompletionTime,
                         'onTimeRate' => min($onTimeRate, 100),
                         'tasksInPeriod' => $tasksInPeriod,
+                        'workflowBreakdown' => $workflowBreakdown,
+                        'rewardPoints' => (int) $rewardPoints,
                     ];
                 })
                 ->filter(fn($agent) => $agent['tasksTotal'] > 0)
