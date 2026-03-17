@@ -159,69 +159,69 @@ function TablaGeneralSection({ data }: { data: any }) {
     if (monedaFilter && monedaFilter !== currency) return null;
     const filtered = filterInversiones(section.inversiones);
     return (
-    <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-2 bg-primary text-primary-foreground px-3 py-1.5 rounded">{title}</h3>
-      <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Desembolso</TableHead>
-            <TableHead>Inversionista</TableHead>
-            <TableHead className="text-right">Monto Capital</TableHead>
-            <TableHead className="text-center">Plazo</TableHead>
-            <TableHead>Inicio</TableHead>
-            <TableHead>Vencimiento</TableHead>
-            <TableHead className="text-center">Tasa</TableHead>
-            <TableHead className="text-right">Int. Mensual</TableHead>
-            <TableHead className="text-right">Retención</TableHead>
-            <TableHead className="text-right">Int. Neto</TableHead>
-            <TableHead>Forma Pago</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.map((inv: any) => (
-            <TableRow key={inv.id} className={inv.overdue_coupons_count > 0 ? 'bg-destructive/5' : ''}>
-              <TableCell>
-                <div className="flex items-center gap-1.5">
-                  <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">
-                    {inv.numero_desembolso}
-                  </Link>
-                  {inv.overdue_coupons_count > 0 && (
-                    <span title={`${inv.overdue_coupons_count} cupón(es) atrasado(s)`}>
-                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
-                    </span>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>
-                <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">
-                  {inv.investor?.name ?? '—'}
-                </Link>
-              </TableCell>
-              <TableCell className="text-right font-mono">{fmt(inv.monto_capital, currency)}</TableCell>
-              <TableCell className="text-center">{inv.plazo_meses}m</TableCell>
-              <TableCell>{new Date(inv.fecha_inicio).toLocaleDateString('es-CR')}</TableCell>
-              <TableCell>{new Date(inv.fecha_vencimiento).toLocaleDateString('es-CR')}</TableCell>
-              <TableCell className="text-center">{(Number(inv.tasa_anual) * 100).toFixed(2)}%</TableCell>
-              <TableCell className="text-right font-mono">{fmt(inv.interes_mensual, currency)}</TableCell>
-              <TableCell className="text-right font-mono">{fmt(inv.retencion_mensual, currency)}</TableCell>
-              <TableCell className="text-right font-mono font-semibold">{fmt(inv.interes_neto_mensual, currency)}</TableCell>
-              <TableCell>{inv.forma_pago}</TableCell>
-            </TableRow>
-          ))}
-          <TableRow className="bg-muted font-bold">
-            <TableCell colSpan={2}>TOTALES</TableCell>
-            <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.monto_capital), 0), currency)}</TableCell>
-            <TableCell colSpan={4}></TableCell>
-            <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.interes_mensual), 0), currency)}</TableCell>
-            <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.retencion_mensual), 0), currency)}</TableCell>
-            <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.interes_neto_mensual), 0), currency)}</TableCell>
-            <TableCell></TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-2 bg-primary text-primary-foreground px-3 py-1.5 rounded">{title}</h3>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Desembolso</TableHead>
+                <TableHead>Inversionista</TableHead>
+                <TableHead className="text-right">Monto Capital</TableHead>
+                <TableHead className="text-center">Plazo</TableHead>
+                <TableHead>Inicio</TableHead>
+                <TableHead>Vencimiento</TableHead>
+                <TableHead className="text-center">Tasa</TableHead>
+                <TableHead className="text-right">Int. Mensual</TableHead>
+                <TableHead className="text-right">Retención</TableHead>
+                <TableHead className="text-right">Int. Neto</TableHead>
+                <TableHead>Forma Pago</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((inv: any) => (
+                <TableRow key={inv.id} className={inv.overdue_coupons_count > 0 ? 'bg-destructive/5' : ''}>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">
+                        {inv.numero_desembolso}
+                      </Link>
+                      {inv.overdue_coupons_count > 0 && (
+                        <span title={`${inv.overdue_coupons_count} cupón(es) atrasado(s)`}>
+                          <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">
+                      {inv.investor?.name ?? '—'}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right font-mono">{fmt(inv.monto_capital, currency)}</TableCell>
+                  <TableCell className="text-center">{inv.plazo_meses}m</TableCell>
+                  <TableCell>{new Date(inv.fecha_inicio).toLocaleDateString('es-CR')}</TableCell>
+                  <TableCell>{new Date(inv.fecha_vencimiento).toLocaleDateString('es-CR')}</TableCell>
+                  <TableCell className="text-center">{(Number(inv.tasa_anual) * 100).toFixed(2)}%</TableCell>
+                  <TableCell className="text-right font-mono">{fmt(inv.interes_mensual, currency)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmt(inv.retencion_mensual, currency)}</TableCell>
+                  <TableCell className="text-right font-mono font-semibold">{fmt(inv.interes_neto_mensual, currency)}</TableCell>
+                  <TableCell>{inv.forma_pago}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="bg-muted font-bold">
+                <TableCell colSpan={2}>TOTALES</TableCell>
+                <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.monto_capital), 0), currency)}</TableCell>
+                <TableCell colSpan={4}></TableCell>
+                <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.interes_mensual), 0), currency)}</TableCell>
+                <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.retencion_mensual), 0), currency)}</TableCell>
+                <TableCell className="text-right font-mono">{fmt(filtered.reduce((s: number, i: any) => s + Number(i.interes_neto_mensual), 0), currency)}</TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
       </div>
-    </div>
     );
   };
 
@@ -329,6 +329,8 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         investor_id: inv?.investor_id ?? inv?.investor?.id,
         investment_id: inv?.id,
         fecha_pago: paymentForm.fecha_pago,
+        monto_capital: 0,
+        monto_interes: Number(paymentForm.monto),
         monto: Number(paymentForm.monto),
         tipo: paymentForm.tipo,
         moneda: inv?.moneda ?? 'CRC',
@@ -512,9 +514,9 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         const isFirstProximo = idx > 0 && prevIsOverdue && !isOverdue;
         const filteredCupones = search
           ? mes.cupones.filter((c: any) => {
-              const inv = c.investment;
-              return (inv?.investor?.name ?? '').toLowerCase().includes(search.toLowerCase()) || (inv?.numero_desembolso ?? '').toLowerCase().includes(search.toLowerCase());
-            })
+            const inv = c.investment;
+            return (inv?.investor?.name ?? '').toLowerCase().includes(search.toLowerCase()) || (inv?.numero_desembolso ?? '').toLowerCase().includes(search.toLowerCase());
+          })
           : mes.cupones;
         if (search && filteredCupones.length === 0) return null;
 
@@ -528,138 +530,138 @@ function PagosProximosSection({ data, onRefresh, onPaymentsChange }: { data: any
         const paginatedCupones = filteredCupones.slice((currentPage - 1) * CUPONES_PER_PAGE, currentPage * CUPONES_PER_PAGE);
 
         return (
-        <React.Fragment key={mes.mes}>
-          {isFirstProximo && (
-            <div className="flex items-center gap-3 my-3">
-              <div className="flex-1 border-t border-border" />
-              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide px-3 flex items-center gap-1.5">
-                <CalendarClock className="h-4 w-4" /> Próximos pagos
-              </span>
-              <div className="flex-1 border-t border-border" />
-            </div>
-          )}
-        <Collapsible defaultOpen={idx === 0 || isOverdue}>
-          <CollapsibleTrigger asChild>
-            <button className={`w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity ${isOverdue ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}>
-              {isOverdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CalendarClock className="h-5 w-5 shrink-0" />}
-              {mes.label}
-              {isOverdue && (
-                <span className="flex items-center gap-1 bg-destructive-foreground/20 text-destructive-foreground px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide">
-                  <AlertTriangle className="h-3 w-3" /> Pago Atrasado
+          <React.Fragment key={mes.mes}>
+            {isFirstProximo && (
+              <div className="flex items-center gap-3 my-3">
+                <div className="flex-1 border-t border-border" />
+                <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide px-3 flex items-center gap-1.5">
+                  <CalendarClock className="h-4 w-4" /> Próximos pagos
                 </span>
-              )}
-              <span className="ml-auto text-sm font-normal opacity-80 flex items-center gap-3">
-                {mes.resumen.crc.cantidad > 0 && <span className="font-mono">CRC: {fmt(mes.resumen.crc.interes_neto, 'CRC')}</span>}
-                {mes.resumen.usd.cantidad > 0 && <span className="font-mono">USD: {fmt(mes.resumen.usd.interes_neto, 'USD')}</span>}
-                <span>{mes.resumen.total_cupones} cupones — {mes.resumen.total_inversiones} inversiones</span>
-                <ChevronDown className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-180" />
-              </span>
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="flex items-center gap-2 mt-2 mb-1 px-1">
-              <Button variant="outline" size="sm" onClick={() => toggleMonth(filteredCupones)} disabled={paying}>
-                {allMonthSelected ? 'Deseleccionar mes' : 'Seleccionar mes'}
-              </Button>
-              <Button size="sm" variant="default" onClick={() => handlePayMonth(filteredCupones)} disabled={paying}>
-                {paying ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
-                Marcar mes como Pagado
-              </Button>
-              {someMonthSelected && (
-                <span className="text-xs text-muted-foreground">{monthIds.filter((id: number) => selected.has(id)).length} de {monthIds.length} seleccionados</span>
-              )}
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={allMonthSelected}
-                        onCheckedChange={() => toggleMonth(filteredCupones)}
-                        aria-label="Seleccionar todos"
-                      />
-                    </TableHead>
-                    <TableHead>Desembolso</TableHead>
-                    <TableHead>Inversionista</TableHead>
-                    <TableHead className="text-right">Monto Capital</TableHead>
-                    <TableHead>Periodicidad</TableHead>
-                    <TableHead>Fecha Cupón</TableHead>
-                    <TableHead className="text-right">Int. Bruto</TableHead>
-                    <TableHead className="text-right">Retención</TableHead>
-                    <TableHead className="text-right">Int. Neto</TableHead>
-                    <TableHead className="text-center">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedCupones.map((c: any) => {
-                    const inv = c.investment;
-                    const moneda = inv?.moneda ?? 'CRC';
-                    return (
-                      <TableRow key={c.id} className={selected.has(c.id) ? 'bg-primary/5' : ''}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selected.has(c.id)}
-                            onCheckedChange={() => toggleCoupon(c.id)}
-                            aria-label={`Seleccionar cupón ${c.id}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {inv ? (
-                            <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
-                          ) : '—'}
-                        </TableCell>
-                        <TableCell>
-                          {inv ? (
-                            <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">{inv.investor?.name ?? '—'}</Link>
-                          ) : '—'}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">{inv ? fmt(inv.monto_capital, moneda) : '—'}</TableCell>
-                        <TableCell>{inv?.forma_pago ?? '—'}</TableCell>
-                        <TableCell>{new Date(c.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(c.interes_bruto, moneda)}</TableCell>
-                        <TableCell className="text-right font-mono text-destructive">- {fmt(c.retencion, moneda)}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-primary">{fmt(c.interes_neto, moneda)}</TableCell>
-                        <TableCell className="text-center">
-                          <Button variant="outline" size="sm" onClick={() => openPaymentDialog(c)}>
-                            <DollarSign className="h-4 w-4 mr-1" /> Registrar Pago
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-2 py-3">
-                <p className="text-sm text-muted-foreground">
-                  Mostrando {(currentPage - 1) * CUPONES_PER_PAGE + 1}–{Math.min(currentPage * CUPONES_PER_PAGE, filteredCupones.length)} de {filteredCupones.length} cupones
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setMonthPages(prev => ({ ...prev, [mes.mes]: currentPage - 1 }))}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm font-medium">{currentPage} / {totalPages}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setMonthPages(prev => ({ ...prev, [mes.mes]: currentPage + 1 }))}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                <div className="flex-1 border-t border-border" />
               </div>
             )}
-          </CollapsibleContent>
-        </Collapsible>
-        </React.Fragment>
+            <Collapsible defaultOpen={idx === 0 || isOverdue}>
+              <CollapsibleTrigger asChild>
+                <button className={`w-full text-lg font-semibold px-3 py-2 rounded flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity ${isOverdue ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}>
+                  {isOverdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CalendarClock className="h-5 w-5 shrink-0" />}
+                  {mes.label}
+                  {isOverdue && (
+                    <span className="flex items-center gap-1 bg-destructive-foreground/20 text-destructive-foreground px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide">
+                      <AlertTriangle className="h-3 w-3" /> Pago Atrasado
+                    </span>
+                  )}
+                  <span className="ml-auto text-sm font-normal opacity-80 flex items-center gap-3">
+                    {mes.resumen.crc.cantidad > 0 && <span className="font-mono">CRC: {fmt(mes.resumen.crc.interes_neto, 'CRC')}</span>}
+                    {mes.resumen.usd.cantidad > 0 && <span className="font-mono">USD: {fmt(mes.resumen.usd.interes_neto, 'USD')}</span>}
+                    <span>{mes.resumen.total_cupones} cupones — {mes.resumen.total_inversiones} inversiones</span>
+                    <ChevronDown className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-180" />
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="flex items-center gap-2 mt-2 mb-1 px-1">
+                  <Button variant="outline" size="sm" onClick={() => toggleMonth(filteredCupones)} disabled={paying}>
+                    {allMonthSelected ? 'Deseleccionar mes' : 'Seleccionar mes'}
+                  </Button>
+                  <Button size="sm" variant="default" onClick={() => handlePayMonth(filteredCupones)} disabled={paying}>
+                    {paying ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+                    Marcar mes como Pagado
+                  </Button>
+                  {someMonthSelected && (
+                    <span className="text-xs text-muted-foreground">{monthIds.filter((id: number) => selected.has(id)).length} de {monthIds.length} seleccionados</span>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={allMonthSelected}
+                            onCheckedChange={() => toggleMonth(filteredCupones)}
+                            aria-label="Seleccionar todos"
+                          />
+                        </TableHead>
+                        <TableHead>Desembolso</TableHead>
+                        <TableHead>Inversionista</TableHead>
+                        <TableHead className="text-right">Monto Capital</TableHead>
+                        <TableHead>Periodicidad</TableHead>
+                        <TableHead>Fecha Cupón</TableHead>
+                        <TableHead className="text-right">Int. Bruto</TableHead>
+                        <TableHead className="text-right">Retención</TableHead>
+                        <TableHead className="text-right">Int. Neto</TableHead>
+                        <TableHead className="text-center">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedCupones.map((c: any) => {
+                        const inv = c.investment;
+                        const moneda = inv?.moneda ?? 'CRC';
+                        return (
+                          <TableRow key={c.id} className={selected.has(c.id) ? 'bg-primary/5' : ''}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selected.has(c.id)}
+                                onCheckedChange={() => toggleCoupon(c.id)}
+                                aria-label={`Seleccionar cupón ${c.id}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {inv ? (
+                                <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
+                              ) : '—'}
+                            </TableCell>
+                            <TableCell>
+                              {inv ? (
+                                <Link href={`/dashboard/inversiones/${inv.id}`} className="hover:underline">{inv.investor?.name ?? '—'}</Link>
+                              ) : '—'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">{inv ? fmt(inv.monto_capital, moneda) : '—'}</TableCell>
+                            <TableCell>{inv?.forma_pago ?? '—'}</TableCell>
+                            <TableCell>{new Date(c.fecha_cupon).toLocaleDateString('es-CR')}</TableCell>
+                            <TableCell className="text-right font-mono">{fmt(c.interes_bruto, moneda)}</TableCell>
+                            <TableCell className="text-right font-mono text-destructive">- {fmt(c.retencion, moneda)}</TableCell>
+                            <TableCell className="text-right font-mono font-semibold text-primary">{fmt(c.interes_neto, moneda)}</TableCell>
+                            <TableCell className="text-center">
+                              <Button variant="outline" size="sm" onClick={() => openPaymentDialog(c)}>
+                                <DollarSign className="h-4 w-4 mr-1" /> Registrar Pago
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-2 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      Mostrando {(currentPage - 1) * CUPONES_PER_PAGE + 1}–{Math.min(currentPage * CUPONES_PER_PAGE, filteredCupones.length)} de {filteredCupones.length} cupones
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1}
+                        onClick={() => setMonthPages(prev => ({ ...prev, [mes.mes]: currentPage - 1 }))}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm font-medium">{currentPage} / {totalPages}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setMonthPages(prev => ({ ...prev, [mes.mes]: currentPage + 1 }))}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          </React.Fragment>
         );
       })}
 
@@ -1021,7 +1023,7 @@ export default function InversionesPage() {
   const [pagosPeriodo, setPagosPeriodo] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ investor_id: '', investment_id: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
+  const [paymentForm, setPaymentForm] = useState({ investor_id: '', investment_id: '', fecha_pago: new Date().toISOString().split('T')[0], monto_capital: '', monto_interes: '', monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
   const [savingPayment, setSavingPayment] = useState(false);
   const [retencionesMoneda, setRetencionesMoneda] = useState('');
   const [pagadas, setPagadas] = useState<Investment[]>([]);
@@ -1166,6 +1168,8 @@ export default function InversionesPage() {
         investor_id: Number(paymentForm.investor_id),
         investment_id: paymentForm.investment_id ? Number(paymentForm.investment_id) : null,
         fecha_pago: paymentForm.fecha_pago,
+        monto_capital: Number(paymentForm.monto_capital) || 0,
+        monto_interes: Number(paymentForm.monto_interes) || 0,
         monto: Number(paymentForm.monto),
         tipo: paymentForm.tipo,
         moneda: paymentForm.moneda,
@@ -1174,7 +1178,7 @@ export default function InversionesPage() {
       });
       toastSuccess('Pago registrado correctamente.');
       setShowPaymentForm(false);
-      setPaymentForm({ investor_id: '', investment_id: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
+      setPaymentForm({ investor_id: '', investment_id: '', monto_capital: '', monto_interes: '', fecha_pago: new Date().toISOString().split('T')[0], monto: '', tipo: 'Interés', moneda: 'CRC', comentarios: '', registered_by: '' });
       fetchData();
     } catch (err: any) {
       toastError(err?.response?.data?.message || 'Error al registrar el pago.');
@@ -1351,24 +1355,24 @@ export default function InversionesPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Inversionista</TableHead>
-                    <TableHead>Cédula</TableHead>
-                    <TableHead className="hidden md:table-cell">Contacto</TableHead>
-                    <TableHead className="hidden md:table-cell">Tipo</TableHead>
-                    <TableHead>Inversiones Activas</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead><span className="sr-only">Acciones</span></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedInvestors.map(investor => (
-                    <InvestorTableRow key={investor.id} investor={investor} onDelete={handleDeleteInvestor} onEdit={(inv) => { setEditingInvestor(inv); setShowInvestorForm(true); }} />
-                  ))}
-                </TableBody>
-              </Table>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Inversionista</TableHead>
+                      <TableHead>Cédula</TableHead>
+                      <TableHead className="hidden md:table-cell">Contacto</TableHead>
+                      <TableHead className="hidden md:table-cell">Tipo</TableHead>
+                      <TableHead>Inversiones Activas</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead><span className="sr-only">Acciones</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedInvestors.map(investor => (
+                      <InvestorTableRow key={investor.id} investor={investor} onDelete={handleDeleteInvestor} onEdit={(inv) => { setEditingInvestor(inv); setShowInvestorForm(true); }} />
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
               {investorsTotalPages > 1 && (
                 <PaginationControls current={safeInvestorsPage} total={investorsTotalPages} totalItems={filteredInvestors.length} label="inversionistas" onPageChange={setInvestorsPage} />
@@ -1427,26 +1431,26 @@ export default function InversionesPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Inversionista</TableHead>
-                    <TableHead className="text-right">Monto Capital</TableHead>
-                    <TableHead className="text-center">Tasa</TableHead>
-                    <TableHead>Forma Pago</TableHead>
-                    <TableHead className="text-right">Int. Mensual</TableHead>
-                    <TableHead className="text-right">Retención</TableHead>
-                    <TableHead className="text-right">Int. Neto</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead><span className="sr-only">Acciones</span></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedInvestments.map(investment => (
-                    <InvestmentTableRow key={investment.id} investment={investment} onDelete={handleDeleteInvestment} />
-                  ))}
-                </TableBody>
-              </Table>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Inversionista</TableHead>
+                      <TableHead className="text-right">Monto Capital</TableHead>
+                      <TableHead className="text-center">Tasa</TableHead>
+                      <TableHead>Forma Pago</TableHead>
+                      <TableHead className="text-right">Int. Mensual</TableHead>
+                      <TableHead className="text-right">Retención</TableHead>
+                      <TableHead className="text-right">Int. Neto</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead><span className="sr-only">Acciones</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedInvestments.map(investment => (
+                      <InvestmentTableRow key={investment.id} investment={investment} onDelete={handleDeleteInvestment} />
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
               {investmentsTotalPages > 1 && (
                 <PaginationControls current={safeInvestmentsPage} total={investmentsTotalPages} totalItems={filteredInvestments.length} label="inversiones" onPageChange={setInvestmentsPage} />
@@ -1530,64 +1534,64 @@ export default function InversionesPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Inversión</TableHead>
-                    <TableHead>Inversionista</TableHead>
-                    <TableHead>Período</TableHead>
-                    <TableHead>Fecha de Pago</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                    <TableHead>Moneda</TableHead>
-                    <TableHead>Responsable</TableHead>
-                    <TableHead>Comentarios</TableHead>
-                    <TableHead><span className="sr-only">Acciones</span></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedPayments.map(p => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">
-                        {p.investment_id ? (
-                          <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investment?.numero_desembolso ?? '—'}</Link>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell>
-                        {p.investment_id ? (
-                          <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investor?.name ?? '—'}</Link>
-                        ) : (p.investor?.name ?? '—')}
-                      </TableCell>
-                      <TableCell className="text-sm font-mono">
-                        {p.periodo ? (() => { const [y, m] = p.periodo.split('-'); return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' }); })() : '—'}
-                      </TableCell>
-                      <TableCell>{new Date(p.fecha_pago).toLocaleDateString('es-CR')}</TableCell>
-                      <TableCell><Badge variant="outline">{p.tipo}</Badge></TableCell>
-                      <TableCell className="text-right font-mono">{fmt(p.monto, p.moneda)}</TableCell>
-                      <TableCell>{p.moneda}</TableCell>
-                      <TableCell>{p.registered_by_user?.name ?? '—'}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{p.comentarios}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {p.comprobante_url && (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600" asChild>
-                              <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
-                          <Button size="icon" variant="ghost" className="text-destructive h-8 w-8" onClick={() => handleDeletePayment(p.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Inversión</TableHead>
+                      <TableHead>Inversionista</TableHead>
+                      <TableHead>Período</TableHead>
+                      <TableHead>Fecha de Pago</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                      <TableHead>Moneda</TableHead>
+                      <TableHead>Responsable</TableHead>
+                      <TableHead>Comentarios</TableHead>
+                      <TableHead><span className="sr-only">Acciones</span></TableHead>
                     </TableRow>
-                  ))}
-                  {filteredPayments.length === 0 && (
-                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Sin pagos registrados</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedPayments.map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-medium">
+                          {p.investment_id ? (
+                            <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investment?.numero_desembolso ?? '—'}</Link>
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {p.investment_id ? (
+                            <Link href={`/dashboard/inversiones/${p.investment_id}`} className="hover:underline">{p.investor?.name ?? '—'}</Link>
+                          ) : (p.investor?.name ?? '—')}
+                        </TableCell>
+                        <TableCell className="text-sm font-mono">
+                          {p.periodo ? (() => { const [y, m] = p.periodo.split('-'); return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-CR', { month: 'short', year: 'numeric' }); })() : '—'}
+                        </TableCell>
+                        <TableCell>{new Date(p.fecha_pago).toLocaleDateString('es-CR')}</TableCell>
+                        <TableCell><Badge variant="outline">{p.tipo}</Badge></TableCell>
+                        <TableCell className="text-right font-mono">{fmt(p.monto, p.moneda)}</TableCell>
+                        <TableCell>{p.moneda}</TableCell>
+                        <TableCell>{p.registered_by_user?.name ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{p.comentarios}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {p.comprobante_url && (
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600" asChild>
+                                <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="text-destructive h-8 w-8" onClick={() => handleDeletePayment(p.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredPayments.length === 0 && (
+                      <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Sin pagos registrados</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
               {pagosTotalPages > 1 && (
                 <PaginationControls current={safePagosPage} total={pagosTotalPages} totalItems={filteredPayments.length} label="pagos" onPageChange={setPagosPage} />
@@ -1666,34 +1670,34 @@ export default function InversionesPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No. Inversión</TableHead>
-                    <TableHead className="text-right">Monto Invertido</TableHead>
-                    <TableHead className="text-center">Tasa</TableHead>
-                    <TableHead>Moneda</TableHead>
-                    <TableHead>Periodicidad</TableHead>
-                    <TableHead className="text-right">Retención Mensual</TableHead>
-                    <TableHead className="text-right">Interés Neto Mensual</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedRetenciones.map(inv => (
-                    <TableRow key={inv.id}>
-                      <TableCell>
-                        <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{fmt(inv.monto_capital, inv.moneda)}</TableCell>
-                      <TableCell className="text-center font-mono">{(Number(inv.tasa_anual) * 100).toFixed(2)}%</TableCell>
-                      <TableCell>{inv.moneda}</TableCell>
-                      <TableCell>{inv.forma_pago}</TableCell>
-                      <TableCell className="text-right font-mono text-destructive">- {fmt(inv.retencion_mensual ?? 0, inv.moneda)}</TableCell>
-                      <TableCell className="text-right font-mono font-semibold text-primary">{fmt(inv.interes_neto_mensual ?? 0, inv.moneda)}</TableCell>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>No. Inversión</TableHead>
+                      <TableHead className="text-right">Monto Invertido</TableHead>
+                      <TableHead className="text-center">Tasa</TableHead>
+                      <TableHead>Moneda</TableHead>
+                      <TableHead>Periodicidad</TableHead>
+                      <TableHead className="text-right">Retención Mensual</TableHead>
+                      <TableHead className="text-right">Interés Neto Mensual</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedRetenciones.map(inv => (
+                      <TableRow key={inv.id}>
+                        <TableCell>
+                          <Link href={`/dashboard/inversiones/${inv.id}`} className="font-medium hover:underline">{inv.numero_desembolso}</Link>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{fmt(inv.monto_capital, inv.moneda)}</TableCell>
+                        <TableCell className="text-center font-mono">{(Number(inv.tasa_anual) * 100).toFixed(2)}%</TableCell>
+                        <TableCell>{inv.moneda}</TableCell>
+                        <TableCell>{inv.forma_pago}</TableCell>
+                        <TableCell className="text-right font-mono text-destructive">- {fmt(inv.retencion_mensual ?? 0, inv.moneda)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-primary">{fmt(inv.interes_neto_mensual ?? 0, inv.moneda)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
               {retencionesTotalPages > 1 && (
                 <PaginationControls current={safeRetencionesPage} total={retencionesTotalPages} totalItems={filteredRetenciones.length} label="retenciones" onPageChange={setRetencionesPage} />
@@ -1828,17 +1832,28 @@ export default function InversionesPage() {
                 <Label>Fecha de Pago *</Label>
                 <Input type="date" value={paymentForm.fecha_pago} onChange={e => setPaymentForm(f => ({ ...f, fecha_pago: e.target.value }))} />
               </div>
-              <div className="grid gap-2">
-                <Label>Monto *</Label>
-                <Input type="number" step="0.01" value={paymentForm.monto} onChange={e => setPaymentForm(f => ({ ...f, monto: e.target.value }))} className="font-mono" placeholder="0.00" />
-              </div>
+              {paymentForm.tipo == "Abono" ? (
+                <div className="grid gap-2">
+                  <Label>Capital *</Label>
+                  <Input type="number" step="0.01" value={paymentForm.monto_capital} onChange={e => setPaymentForm(f => ({ ...f, monto_capital: e.target.value,monto: String(Number(e.target.value) + Number(f.monto_interes)) }))} className="font-mono" placeholder="0.00" />
+                  <Label>Interés *</Label>
+                  <Input type="number" step="0.01" value={paymentForm.monto_interes} onChange={e => setPaymentForm(f => ({ ...f, monto_interes: e.target.value, monto: String(Number(f.monto_capital) + Number(e.target.value)) }))} className="font-mono" placeholder="0.00" />
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  <Label>Monto *</Label>
+                  <Input type="number" step="0.01" value={paymentForm.monto} onChange={e => setPaymentForm(f => ({ ...f, monto: e.target.value }))} className="font-mono" placeholder="0.00" />
+                </div>
+              )}
+
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Tipo *</Label>
-                <Select value={paymentForm.tipo} onValueChange={v => setPaymentForm(f => ({ ...f, tipo: v }))}>
+                <Select value={paymentForm.tipo} onValueChange={v => setPaymentForm(f => ({ ...f, tipo: v, monto_capital: '', monto_interes: '' }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="Abono">Abono Mixto</SelectItem>
                     <SelectItem value="Interés">Interés</SelectItem>
                     <SelectItem value="Capital">Capital</SelectItem>
                     <SelectItem value="Adelanto">Adelanto</SelectItem>

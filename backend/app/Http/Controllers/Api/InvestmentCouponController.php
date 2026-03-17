@@ -92,10 +92,14 @@ class InvestmentCouponController extends Controller
             'coupon_ids' => 'required|array',
             'coupon_ids.*' => 'exists:investment_coupons,id',
             'fecha_pago' => 'nullable|date',
+            'comentarios' => 'nullable|string',
+            'registered_by' => 'nullable|exists:users,id',
         ]);
 
         return DB::transaction(function () use ($validated, $request) {
             $fechaPago = $validated['fecha_pago'] ?? now()->toDateString();
+            $comentarios = $validated['comentarios'] ?? null;
+            $registeredBy = $validated['registered_by'] ?? $request->user()?->id;
 
             $coupons = InvestmentCoupon::lockForUpdate()
                 ->with('investment')
@@ -115,8 +119,12 @@ class InvestmentCouponController extends Controller
                     'investment_id' => $coupon->investment_id,
                     'fecha_pago' => $fechaPago,
                     'monto' => $coupon->interes_neto,
+                    'monto_capital' => 0,
+                    'monto_interes' => $coupon->interes_neto,
                     'tipo' => 'Interés',
                     'moneda' => $coupon->investment->moneda,
+                    'comentarios' => $comentarios,
+                    'registered_by' => $registeredBy,
                     'periodo' => $coupon->fecha_cupon,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -235,6 +243,8 @@ class InvestmentCouponController extends Controller
                 'investment_id' => $coupon->investment_id,
                 'fecha_pago' => $fechaPago,
                 'monto' => $monto > 0 ? $monto : $coupon->interes_neto,
+                'monto_capital' => 0,
+                'monto_interes' => $monto > 0 ? $monto : $coupon->interes_neto,
                 'tipo' => 'Interés',
                 'moneda' => $moneda,
                 'comentarios' => $comentarios,

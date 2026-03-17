@@ -13,6 +13,8 @@ class InvestmentPayment extends Model
         'investor_id',
         'investment_id',
         'fecha_pago',
+        'monto_capital',
+        'monto_interes',
         'monto',
         'tipo',
         'moneda',
@@ -23,6 +25,8 @@ class InvestmentPayment extends Model
     ];
 
     protected $casts = [
+        'monto_capital' => 'decimal:2',
+        'monto_interes' => 'decimal:2',
         'monto' => 'decimal:2',
         'fecha_pago' => 'date',
         'periodo' => 'date',

@@ -439,6 +439,8 @@ export type InvestmentPayment = {
   investor_id: number;
   investment_id?: number;
   fecha_pago: string;
+  monto_capital: number;
+  monto_interes: number;
   monto: number;
   tipo: 'Interés' | 'Capital' | 'Adelanto' | 'Liquidación';
   moneda: 'CRC' | 'USD';
