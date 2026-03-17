@@ -8,10 +8,13 @@ use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Credit;
 use App\Models\SaldoPendiente;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Traits\AccountingTrigger;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -390,6 +393,34 @@ class PlanillaUploadController extends Controller
             DB::commit();
 
             $this->logActivity('delete', 'Planilla', $planilla, 'Planilla #' . $planilla->id, [], $request);
+
+            // Tarea automática para verificar saldos post-anulación
+            try {
+                $automation = TaskAutomation::where('event_type', 'planilla_anulada')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation) {
+                    $deductoraName = $planilla->deductora->nombre ?? 'N/A';
+                    $details = implode("\n", [
+                        "**Planilla:** #{$planilla->id}",
+                        "**Deductora:** {$deductoraName}",
+                        "**Fecha planilla:** {$planilla->fecha_planilla}",
+                        "**Pagos reversados:** {$pagos->count()}",
+                        "**Monto total:** ₡" . number_format((float) $planilla->monto_total, 2),
+                        "**Motivo:** {$validated['motivo']}",
+                        "**Anulada por:** {$user->name}",
+                        "",
+                        "La planilla fue anulada. Verificar que los saldos de los créditos quedaron correctos, conciliar con la deductora y notificar a los clientes afectados.",
+                    ]);
+                    Task::createFromAutomation($automation, 'PLAN-ANULA-' . $planilla->id, $details);
+                }
+            } catch (\Exception $e) {
+                Log::error('Error creando tarea para planilla anulada', [
+                    'planilla_id' => $planilla->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'message' => 'Planilla anulada exitosamente',

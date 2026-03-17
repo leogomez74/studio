@@ -171,6 +171,8 @@ export default function ClientDetailPage() {
   const [institucionOpen, setInstitucionOpen] = useState(false);
   const [profesionSearch, setProfesionSearch] = useState("");
   const [profesionOpen, setProfesionOpen] = useState(false);
+  const [fieldStatus, setFieldStatus] = useState<Record<string, "editing" | "success" | "error">>({});
+  const [focusedValue, setFocusedValue] = useState<Record<string, string>>({});
 
   // Datos Adicionales (Credid)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -453,6 +455,52 @@ export default function ClientDetailPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Per-field autosave helpers
+  const getFieldClass = (key: string) => {
+    const status = fieldStatus[key];
+    if (status === "editing") return "border-yellow-500 ring-1 ring-yellow-500 focus-visible:ring-yellow-500 transition-none";
+    if (status === "success") return "border-green-500 ring-1 ring-green-500 focus-visible:ring-green-500 transition-none";
+    if (status === "error") return "border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500 transition-none";
+    return "transition-colors duration-1000";
+  };
+
+  const handleInputFocus = (key: string, value: string) => {
+    setFocusedValue(p => ({ ...p, [key]: value }));
+    setFieldStatus(p => ({ ...p, [key]: "editing" }));
+  };
+
+  const handleSaveField = useCallback(async (key: string, newValue: string, skipFocusCheck = false) => {
+    if (!isEditMode) return;
+    if (!skipFocusCheck && focusedValue[key] === newValue) {
+      setFieldStatus(p => { const next = { ...p }; delete next[key]; return next; });
+      return;
+    }
+    const value: unknown = key === 'deductora_id' ? (newValue ? Number(newValue) : null) : newValue;
+    try {
+      await api.put(`/api/clients/${id}`, { [key]: value });
+      setClient(prev => prev ? { ...prev, [key]: value } as Client : prev);
+      setFieldStatus(p => ({ ...p, [key]: "success" }));
+      setTimeout(() => {
+        setFieldStatus(p => { if (p[key] === "success") { const next = { ...p }; delete next[key]; return next; } return p; });
+      }, 2000);
+    } catch {
+      setFieldStatus(p => ({ ...p, [key]: "error" }));
+      toast({ title: "Error", description: "No se pudo guardar el campo.", variant: "destructive" });
+    }
+  }, [id, isEditMode, focusedValue, toast]);
+
+  const bindInput = (key: keyof Client) => ({
+    value: String(formData[key] ?? ""),
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setFormData(p => ({ ...p, [key]: e.target.value })),
+    onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      handleInputFocus(String(key), e.target.value),
+    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      void handleSaveField(String(key), e.target.value),
+    className: getFieldClass(String(key)),
+    disabled: !isEditMode,
+  });
+
   const selectedProvince = React.useMemo(() =>
     PROVINCES.find(p => p.name === formData.province), 
     [formData.province]
@@ -510,42 +558,23 @@ export default function ClientDetailPage() {
     if (isEditMode) setTimeout(autoSave, 100);
   };
 
+  // autoSave usado exclusivamente por cascade selects (province/canton/district)
   const autoSave = useCallback(async () => {
     if (!isEditMode) return;
     const EDITABLE_FIELDS = [
-      'name', 'apellido1', 'apellido2', 'cedula', 'email', 'phone', 'status',
-      'assigned_to_id', 'notes', 'source', 'whatsapp', 'tel_casa', 'tel_amigo',
-      'province', 'canton', 'distrito', 'direccion1', 'direccion2',
-      'ocupacion', 'estado_civil', 'relacionado_a', 'tipo_relacion', 'fecha_nacimiento',
-      'is_active', 'cedula_vencimiento', 'genero', 'nacionalidad', 'telefono2',
-      'institucion_labora', 'departamento_cargo', 'deductora_id', 'nivel_academico',
-      'profesion', 'sector', 'puesto', 'estado_puesto',
-      'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito', 'trabajo_direccion',
-      'actividad_economica', 'tel_amigo_2', 'relacionado_a_2', 'tipo_relacion_2',
+      'province', 'canton', 'distrito',
+      'trabajo_provincia', 'trabajo_canton', 'trabajo_distrito',
     ];
     const payload: Record<string, unknown> = Object.fromEntries(
       Object.entries(formData).filter(([key]) => EDITABLE_FIELDS.includes(key))
     );
-    if (payload.deductora_id) payload.deductora_id = Number(payload.deductora_id);
     try {
-      setSaving(true);
       await api.put(`/api/clients/${id}`, payload);
       setClient(prev => ({ ...prev, ...formData } as Client));
-    } catch (error: any) {
-      console.error("Error auto-saving client:", error);
-      toast({ title: "Error", description: "No se pudo guardar los cambios.", variant: "destructive" });
-    } finally {
-      setSaving(false);
+    } catch {
+      toast({ title: "Error", description: "No se pudo guardar la ubicación.", variant: "destructive" });
     }
   }, [id, formData, isEditMode, toast]);
-
-  const handleBlur = () => {
-    if (isEditMode) autoSave();
-  };
-
-  const handleSave = async () => {
-    autoSave();
-  };
 
   const handleArchive = async () => {
     if (!client) return;
@@ -945,58 +974,42 @@ export default function ClientDetailPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label>Nombre {isFieldMissing('name') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.name || ""}
-                  onChange={(e) => handleInputChange("name", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("name")} />
               </div>
               <div className="space-y-2">
                 <Label>Primer Apellido {isFieldMissing('apellido1') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.apellido1 || ""}
-                  onChange={(e) => handleInputChange("apellido1", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("apellido1")} />
               </div>
               <div className="space-y-2">
                 <Label>Segundo Apellido</Label>
-                <Input 
-                  value={formData.apellido2 || ""} 
-                  onChange={(e) => handleInputChange("apellido2", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("apellido2")} />
               </div>
               <div className="space-y-2">
                 <Label>Cédula {isFieldMissing('cedula') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.cedula || ""}
-                  onChange={(e) => handleInputChange("cedula", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("cedula")} />
               </div>
               <div className="space-y-2">
                 <Label>Vencimiento Cédula</Label>
-                <Input 
+                <Input
                   type="date"
-                  value={formData.cedula_vencimiento || ""} 
-                  onChange={(e) => handleInputChange("cedula_vencimiento", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
+                  value={formData.cedula_vencimiento || ""}
+                  onChange={(e) => setFormData(p => ({ ...p, cedula_vencimiento: e.target.value }))}
+                  onFocus={(e) => handleInputFocus("cedula_vencimiento", e.target.value)}
+                  onBlur={(e) => void handleSaveField("cedula_vencimiento", e.target.value)}
+                  className={getFieldClass("cedula_vencimiento")}
+                  disabled={!isEditMode}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Fecha de Nacimiento {isFieldMissing('fecha_nacimiento') && <span className="text-red-500">*</span>}</Label>
                 <Input
                   type="date"
-                  value={formData.fecha_nacimiento ? String(formData.fecha_nacimiento).split('T')[0] : ""} 
-                  onChange={(e) => handleInputChange("fecha_nacimiento", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
+                  value={formData.fecha_nacimiento ? String(formData.fecha_nacimiento).split('T')[0] : ""}
+                  onChange={(e) => setFormData(p => ({ ...p, fecha_nacimiento: e.target.value }))}
+                  onFocus={(e) => handleInputFocus("fecha_nacimiento", e.target.value)}
+                  onBlur={(e) => void handleSaveField("fecha_nacimiento", e.target.value)}
+                  className={getFieldClass("fecha_nacimiento")}
+                  disabled={!isEditMode}
                 />
               </div>
               <div className="space-y-2">
@@ -1004,9 +1017,9 @@ export default function ClientDetailPage() {
                 {isEditMode ? (
                   <Select
                     value={formData.genero || ""}
-                    onValueChange={(value) => { handleInputChange("genero", value); if (isEditMode) setTimeout(autoSave, 100); }}
+                    onValueChange={(value) => { handleInputChange("genero", value); void handleSaveField("genero", value, true); }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={getFieldClass("genero")}>
                       <SelectValue placeholder="Seleccionar género" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1023,9 +1036,9 @@ export default function ClientDetailPage() {
                 {isEditMode ? (
                   <Select
                     value={formData.estado_civil || ""}
-                    onValueChange={(value) => { handleInputChange("estado_civil", value); if (isEditMode) setTimeout(autoSave, 100); }}
+                    onValueChange={(value) => { handleInputChange("estado_civil", value); void handleSaveField("estado_civil", value, true); }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={getFieldClass("estado_civil")}>
                       <SelectValue placeholder="Seleccionar estado civil" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1051,57 +1064,27 @@ export default function ClientDetailPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label>Email {isFieldMissing('email') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.email || ""}
-                  onChange={(e) => handleInputChange("email", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("email")} />
               </div>
               <div className="space-y-2">
                 <Label>Teléfono Móvil {isFieldMissing('phone') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.phone || ""}
-                  onChange={(e) => handleInputChange("phone", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("phone")} />
               </div>
               <div className="space-y-2">
                 <Label>Teléfono 2</Label>
-                <Input 
-                  value={formData.telefono2 || ""} 
-                  onChange={(e) => handleInputChange("telefono2", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("telefono2")} />
               </div>
               <div className="space-y-2">
                 <Label>Teléfono Amigo</Label>
-                <Input
-                  value={formData.telefono3 || ""}
-                  onChange={(e) => handleInputChange("telefono3", e.target.value)}
-                  onBlur={handleBlur}
-                  disabled={!isEditMode}
-                />
+                <Input {...bindInput("telefono3")} />
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp {isFieldMissing('whatsapp') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.whatsapp || ""}
-                  onChange={(e) => handleInputChange("whatsapp", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("whatsapp")} />
               </div>
               <div className="space-y-2">
                 <Label>Teléfono Casa</Label>
-                <Input
-                  value={formData.tel_casa || ""}
-                  onChange={(e) => handleInputChange("tel_casa", e.target.value)}
-                  onBlur={handleBlur}
-                  disabled={!isEditMode}
-                />
+                <Input {...bindInput("tel_casa")} />
               </div>
             </div>
           </div>
@@ -1120,33 +1103,15 @@ export default function ClientDetailPage() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Número de Referencia</Label>
-                  <Input
-                    value={formData.tel_amigo || ""}
-                    onChange={(e) => handleInputChange("tel_amigo", e.target.value)}
-                    onBlur={handleBlur}
-                    disabled={!isEditMode}
-                    placeholder="Número telefónico"
-                  />
+                  <Input {...bindInput("tel_amigo")} placeholder="Número telefónico" />
                 </div>
                 <div className="space-y-2">
                   <Label>Nombre de la Persona</Label>
-                  <Input
-                    value={formData.relacionado_a || ""}
-                    onChange={(e) => handleInputChange("relacionado_a", e.target.value)}
-                    onBlur={handleBlur}
-                    disabled={!isEditMode}
-                    placeholder="Nombre completo"
-                  />
+                  <Input {...bindInput("relacionado_a")} placeholder="Nombre completo" />
                 </div>
                 <div className="space-y-2">
                   <Label>Relación</Label>
-                  <Input
-                    value={formData.tipo_relacion || ""}
-                    onChange={(e) => handleInputChange("tipo_relacion", e.target.value)}
-                    onBlur={handleBlur}
-                    disabled={!isEditMode}
-                    placeholder="Ej: Amigo, Familiar"
-                  />
+                  <Input {...bindInput("tipo_relacion")} placeholder="Ej: Amigo, Familiar" />
                 </div>
               </div>
             </div>
@@ -1157,33 +1122,15 @@ export default function ClientDetailPage() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Número de Referencia</Label>
-                  <Input
-                    value={formData.tel_amigo_2 || ""}
-                    onChange={(e) => handleInputChange("tel_amigo_2", e.target.value)}
-                    onBlur={handleBlur}
-                    disabled={!isEditMode}
-                    placeholder="Número telefónico"
-                  />
+                  <Input {...bindInput("tel_amigo_2")} placeholder="Número telefónico" />
                 </div>
                 <div className="space-y-2">
                   <Label>Nombre de la Persona</Label>
-                  <Input
-                    value={formData.relacionado_a_2 || ""}
-                    onChange={(e) => handleInputChange("relacionado_a_2", e.target.value)}
-                    onBlur={handleBlur}
-                    disabled={!isEditMode}
-                    placeholder="Nombre completo"
-                  />
+                  <Input {...bindInput("relacionado_a_2")} placeholder="Nombre completo" />
                 </div>
                 <div className="space-y-2">
                   <Label>Relación</Label>
-                  <Input
-                    value={formData.tipo_relacion_2 || ""}
-                    onChange={(e) => handleInputChange("tipo_relacion_2", e.target.value)}
-                    onBlur={handleBlur}
-                    disabled={!isEditMode}
-                    placeholder="Ej: Amigo, Familiar"
-                  />
+                  <Input {...bindInput("tipo_relacion_2")} placeholder="Ej: Amigo, Familiar" />
                 </div>
               </div>
             </div>
@@ -1265,21 +1212,11 @@ export default function ClientDetailPage() {
               </div>
               <div className="col-span-3 md:col-span-2 space-y-2">
                 <Label>Dirección Exacta {isFieldMissing('direccion1') && <span className="text-red-500">*</span>}</Label>
-                <Textarea
-                  value={formData.direccion1 || ""} 
-                  onChange={(e) => handleInputChange("direccion1", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Textarea {...bindInput("direccion1")} />
               </div>
               <div className="col-span-3 md:col-span-1 space-y-2">
                 <Label>Dirección 2 (Opcional)</Label>
-                <Textarea 
-                  value={formData.direccion2 || ""} 
-                  onChange={(e) => handleInputChange("direccion2", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Textarea {...bindInput("direccion2")} />
               </div>
             </div>
           </div>
@@ -1295,9 +1232,9 @@ export default function ClientDetailPage() {
                 {isEditMode ? (
                   <Select
                     value={formData.nivel_academico || ""}
-                    onValueChange={(value) => { handleInputChange("nivel_academico", value); if (isEditMode) setTimeout(autoSave, 100); }}
+                    onValueChange={(value) => { handleInputChange("nivel_academico", value); void handleSaveField("nivel_academico", value, true); }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={getFieldClass("nivel_academico")}>
                       <SelectValue placeholder="Seleccionar nivel académico" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1349,6 +1286,7 @@ export default function ClientDetailPage() {
                               className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
                               onClick={() => {
                                 handleInputChange("profesion", prof);
+                                void handleSaveField("profesion", prof, true);
                                 setProfesionOpen(false);
                                 setProfesionSearch("");
                               }}
@@ -1373,30 +1311,20 @@ export default function ClientDetailPage() {
               </div>
               <div className="space-y-2">
                 <Label>Sector {isFieldMissing('sector') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.sector || ""} 
-                  onChange={(e) => handleInputChange("sector", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("sector")} />
               </div>
               <div className="space-y-2">
                 <Label>Puesto {isFieldMissing('puesto') && <span className="text-red-500">*</span>}</Label>
-                <Input
-                  value={formData.puesto || ""} 
-                  onChange={(e) => handleInputChange("puesto", e.target.value)} 
-                  onBlur={handleBlur}
-                  disabled={!isEditMode} 
-                />
+                <Input {...bindInput("puesto")} />
               </div>
               <div className="space-y-2">
                 <Label>Nombramiento</Label>
                 <Select
                   value={formData.estado_puesto || ""}
-                  onValueChange={(value) => { handleInputChange("estado_puesto", value); if (isEditMode) setTimeout(autoSave, 100); }}
+                  onValueChange={(value) => { handleInputChange("estado_puesto", value); void handleSaveField("estado_puesto", value, true); }}
                   disabled={!isEditMode}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={getFieldClass("estado_puesto")}>
                     <SelectValue placeholder="Seleccionar nombramiento" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1441,6 +1369,7 @@ export default function ClientDetailPage() {
                               className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
                               onClick={() => {
                                 handleInputChange("institucion_labora", inst.nombre);
+                                void handleSaveField("institucion_labora", inst.nombre, true);
                                 setInstitucionOpen(false);
                                 setInstitucionSearch("");
                               }}
@@ -1538,12 +1467,7 @@ export default function ClientDetailPage() {
               </div>
               <div className="col-span-3 space-y-2">
                 <Label>Dirección Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
-                <Textarea
-                  value={formData.trabajo_direccion || ""}
-                  onChange={(e) => handleInputChange("trabajo_direccion", e.target.value)}
-                  onBlur={handleBlur}
-                  disabled={!isEditMode}
-                />
+                <Textarea {...bindInput("trabajo_direccion")} />
               </div>
             </div>
           </div>
@@ -1867,9 +1791,9 @@ export default function ClientDetailPage() {
                 {isEditMode ? (
                   <Select
                     value={String(formData.assigned_to_id || "")}
-                    onValueChange={(value) => { handleInputChange("assigned_to_id", value); if (isEditMode) setTimeout(autoSave, 100); }}
+                    onValueChange={(value) => { handleInputChange("assigned_to_id", value); void handleSaveField("assigned_to_id", value, true); }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={getFieldClass("assigned_to_id")}>
                       <SelectValue placeholder="Seleccionar responsable" />
                     </SelectTrigger>
                     <SelectContent>

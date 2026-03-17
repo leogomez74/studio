@@ -9,6 +9,8 @@ use App\Models\Lead;
 use App\Models\LeadAlert;
 use App\Models\Opportunity;
 use App\Models\Person;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -142,7 +144,35 @@ class CheckLeadInactivity extends Command
             'opportunities_count' => count($inactiveOpportunities),
         ]);
 
-        // 6. Enviar webhook con la alerta
+        // 6. Crear tarea automática de seguimiento
+        try {
+            $automation = TaskAutomation::where('event_type', 'lead_inactivity_alert')
+                ->where('is_active', true)
+                ->first();
+
+            if ($automation) {
+                $leadsCount = count($inactiveLeads);
+                $oppsCount = count($inactiveOpportunities);
+                $leadNames = collect($inactiveLeads)->pluck('name')->take(5)->implode(', ');
+                $details = implode("\n", [
+                    "**Alerta #{$alertNumber}** — {$alertType}",
+                    "**Leads inactivos:** {$leadsCount}" . ($leadsCount > 0 ? " ({$leadNames}" . ($leadsCount > 5 ? '...' : '') . ")" : ''),
+                    "**Oportunidades inactivas:** {$oppsCount}",
+                    "",
+                    $message,
+                    "",
+                    "Revisar los leads y oportunidades inactivos, dar seguimiento o marcar como Perdido según corresponda.",
+                ]);
+                Task::createFromAutomation($automation, 'INACT-' . $alert->id, $details);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error creando tarea para alerta de inactividad', [
+                'alert_id' => $alert->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // 7. Enviar webhook con la alerta
         $this->sendWebhook($alert, $inactiveLeads, $inactiveOpportunities);
 
         $this->info("Alerta #{$alertNumber} creada exitosamente ({$alertType}).");

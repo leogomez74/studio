@@ -239,7 +239,7 @@ class MiController extends Controller {
 - **Backend**: `TaskAutomationController` acepta `assigned_to_ids[]` array y sincroniza pivote. Los 7 controllers que disparan automations usan `Task::createFromAutomation()` (LeadController, OpportunityController, CreditController, AnalisisController, PropuestaController, PaymentVerificationController, CreateMissingCreditTasks command)
 - **Frontend**: `TareasAutomationTab.tsx` usa multi-select con Popover+Checkbox (badges removibles) en vez de Select simple
 - **PaymentVerification**: caso especial, usa solo el primer verificador (`$assigneeIds[0]`) porque la verificación es 1:1
-- **14 eventos configurables** (7 originales + 3 autorización admin + 4 flujos crédito):
+- **21 eventos configurables** (7 originales + 3 autorización admin + 4 flujos crédito + 5 inversiones + 2 operaciones):
   - Originales: `lead_created`, `opportunity_created`, `analisis_created`, `pep_aceptado`, `pep_rechazado`, `credit_created`, `payment_verification`
   - `payment_reversal_request` — anulación de abono (CreditPaymentController, fallback: cobros.archive)
   - `saldo_reintegro_request` — reintegro de saldo (SaldoPendienteController, fallback: cobros.assign)
@@ -248,6 +248,13 @@ class MiController extends Controller {
   - `credit_mora` — seguimiento de cobro al entrar en mora (MoraService, solo primera vez)
   - `abono_extraordinario` — verificar plan y notificar cliente (AbonoService)
   - `credit_cerrado` — archivo documental al cerrar crédito (CancelacionService + AbonoService)
+  - `investment_created` — formalizar acuerdo de inversión (InvestmentController::store)
+  - `investment_renewed` — verificar términos de inversión renovada (InvestmentController::renew)
+  - `investment_liquidated` — procesar liquidación anticipada (InvestmentController::liquidate)
+  - `investment_cancelacion_total` — completar cancelación total (InvestmentController::cancelacionTotal)
+  - `investment_finalized` — archivar expediente finalizado (InvestmentService::markCouponAsPaid, InvestmentService::cancelacionTotal, InvestmentCouponController::markBulkPaid, InvestmentCouponController::bulkPayByDesembolso)
+  - `planilla_anulada` — verificar saldos post-anulación (PlanillaUploadController::anular)
+  - `lead_inactivity_alert` — seguimiento de leads/oportunidades inactivos (CheckLeadInactivity command, cron diario)
 
 ---
 

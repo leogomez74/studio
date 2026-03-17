@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Investment;
 use App\Models\InvestmentCoupon;
 use App\Models\InvestmentRateHistory;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Services\InvestmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Traits\LogsActivity;
 use App\Traits\AccountingTrigger;
@@ -67,6 +70,33 @@ class InvestmentController extends Controller
         });
 
         $this->logActivity('create', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
+
+        // Tarea automática para formalizar inversión
+        try {
+            $automation = TaskAutomation::where('event_type', 'investment_created')
+                ->where('is_active', true)
+                ->first();
+
+            if ($automation) {
+                $investorName = $investment->investor?->name ?? 'N/A';
+                $details = implode("\n", [
+                    "**Inversión:** {$investment->numero_desembolso}",
+                    "**Inversionista:** {$investorName}",
+                    "**Monto:** " . ($investment->moneda === 'USD' ? '$' : '₡') . number_format((float) $investment->monto_capital, 2),
+                    "**Plazo:** {$investment->plazo_meses} meses",
+                    "**Tasa:** " . number_format((float) $investment->tasa_anual * 100, 2) . "%",
+                    "**Forma pago:** {$investment->forma_pago}",
+                    "",
+                    "Formalizar acuerdo de inversión, verificar cuenta bancaria y configurar pagos.",
+                ]);
+                Task::createFromAutomation($automation, 'INV-' . $investment->id, $details);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error creando tarea para inversión creada', [
+                'investment_id' => $investment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $this->triggerAccountingEntry('INV_CAPITAL_RECIBIDO', (float) $investment->monto_capital, $investment->numero_desembolso, [
             'investment_id'  => $investment->id,
@@ -208,6 +238,32 @@ class InvestmentController extends Controller
             $investment = Investment::lockForUpdate()->findOrFail($id);
             $result = $this->service->liquidateEarly($investment);
             $this->logActivity('liquidate', 'Inversiones', $investment, $investment->numero_desembolso);
+
+            // Tarea automática para procesar liquidación anticipada
+            try {
+                $automation = TaskAutomation::where('event_type', 'investment_liquidated')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation) {
+                    $investorName = $investment->investor?->name ?? 'N/A';
+                    $monedaSymbol = $investment->moneda === 'USD' ? '$' : '₡';
+                    $details = implode("\n", [
+                        "**Inversión:** {$investment->numero_desembolso}",
+                        "**Inversionista:** {$investorName}",
+                        "**Monto capital:** {$monedaSymbol}" . number_format((float) $investment->monto_capital, 2),
+                        "",
+                        "La inversión fue liquidada anticipadamente. Verificar liquidación de intereses, procesar devolución de capital y actualizar documentación.",
+                    ]);
+                    Task::createFromAutomation($automation, 'INV-' . $investment->id, $details);
+                }
+            } catch (\Exception $e) {
+                Log::error('Error creando tarea para inversión liquidada', [
+                    'investment_id' => $investment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return response()->json($result);
         });
     }
@@ -227,6 +283,36 @@ class InvestmentController extends Controller
             $investment = Investment::lockForUpdate()->findOrFail($id);
             $newInvestment = $this->service->renewInvestment($investment, $validated);
             $this->logActivity('renew', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
+
+            // Tarea automática para configurar nueva inversión renovada
+            try {
+                $automation = TaskAutomation::where('event_type', 'investment_renewed')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation) {
+                    $investorName = $newInvestment->investor?->name ?? 'N/A';
+                    $monedaSymbol = $newInvestment->moneda === 'USD' ? '$' : '₡';
+                    $details = implode("\n", [
+                        "**Nueva inversión:** {$newInvestment->numero_desembolso}",
+                        "**Inversión anterior:** {$investment->numero_desembolso}",
+                        "**Inversionista:** {$investorName}",
+                        "**Monto:** {$monedaSymbol}" . number_format((float) $newInvestment->monto_capital, 2),
+                        "**Plazo:** {$newInvestment->plazo_meses} meses",
+                        "**Tasa:** " . number_format((float) $newInvestment->tasa_anual * 100, 2) . "%",
+                        "",
+                        "La inversión fue renovada. Verificar nuevos términos, actualizar documentación y confirmar con el inversionista.",
+                    ]);
+                    Task::createFromAutomation($automation, 'INV-' . $newInvestment->id, $details);
+                }
+            } catch (\Exception $e) {
+                Log::error('Error creando tarea para inversión renovada', [
+                    'investment_id' => $newInvestment->id,
+                    'old_investment_id' => $investment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return response()->json($newInvestment->load('coupons'), 201);
         });
     }
@@ -263,7 +349,9 @@ class InvestmentController extends Controller
     public function cancelacionTotal(Request $request, int $id)
     {
         $validated = $request->validate([
-            'tipo' => 'required|in:con_intereses,sin_intereses',
+            'tipo'           => 'required|in:con_intereses,sin_intereses,mixto',
+            'monto_capital'  => 'required_if:tipo,mixto|numeric|min:0.01',
+            'monto_interes'  => 'required_if:tipo,mixto|numeric|min:0',
         ]);
 
         return DB::transaction(function () use ($id, $validated, $request) {
@@ -273,7 +361,12 @@ class InvestmentController extends Controller
                 return response()->json(['message' => 'Solo se pueden realizar abonos totales en inversiones activas.'], 422);
             }
 
-            $result = $this->service->cancelacionTotal($investment, $validated['tipo']);
+            $result = $this->service->cancelacionTotal(
+                $investment,
+                $validated['tipo'],
+                $validated['monto_capital'] ?? null,
+                $validated['monto_interes'] ?? null,
+            );
             $this->logActivity('cancelacion_total', 'Inversiones', $investment, $investment->numero_desembolso, ['tipo' => $validated['tipo']], $request);
 
             $this->triggerAccountingEntry('INV_CANCELACION_TOTAL', (float) $investment->monto_capital, $investment->numero_desembolso, [
@@ -283,6 +376,38 @@ class InvestmentController extends Controller
                 'moneda'          => $investment->moneda,
                 'tipo_cancelacion' => $validated['tipo'],
             ]);
+
+            // Tarea automática para completar proceso de cancelación total
+            try {
+                $automation = TaskAutomation::where('event_type', 'investment_cancelacion_total')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation) {
+                    $investorName = $investment->investor?->name ?? 'N/A';
+                    $monedaSymbol = $investment->moneda === 'USD' ? '$' : '₡';
+                    $tipoLabel = match($validated['tipo']) {
+                        'con_intereses' => 'con intereses',
+                        'sin_intereses' => 'sin intereses',
+                        'mixto'         => 'abono mixto (capital: ' . ($validated['monto_capital'] ?? 0) . ', interés: ' . ($validated['monto_interes'] ?? 0) . ')',
+                        default         => $validated['tipo'],
+                    };
+                    $details = implode("\n", [
+                        "**Inversión:** {$investment->numero_desembolso}",
+                        "**Inversionista:** {$investorName}",
+                        "**Monto capital:** {$monedaSymbol}" . number_format((float) $investment->monto_capital, 2),
+                        "**Tipo:** Cancelación total {$tipoLabel}",
+                        "",
+                        "Se procesó la cancelación total de la inversión. Verificar transferencia de capital, emitir comprobantes y archivar expediente.",
+                    ]);
+                    Task::createFromAutomation($automation, 'INV-' . $investment->id, $details);
+                }
+            } catch (\Exception $e) {
+                Log::error('Error creando tarea para cancelación total de inversión', [
+                    'investment_id' => $investment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return response()->json($result->load(['investor:id,name,cedula', 'coupons', 'payments']));
         });
