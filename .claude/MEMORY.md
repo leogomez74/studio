@@ -239,6 +239,11 @@ class MiController extends Controller {
 - **Backend**: `TaskAutomationController` acepta `assigned_to_ids[]` array y sincroniza pivote. Los 7 controllers que disparan automations usan `Task::createFromAutomation()` (LeadController, OpportunityController, CreditController, AnalisisController, PropuestaController, PaymentVerificationController, CreateMissingCreditTasks command)
 - **Frontend**: `TareasAutomationTab.tsx` usa multi-select con Popover+Checkbox (badges removibles) en vez de Select simple
 - **PaymentVerification**: caso especial, usa solo el primer verificador (`$assigneeIds[0]`) porque la verificación es 1:1
+- **10 eventos configurables** (7 originales + 3 de autorización admin):
+  - Originales: `lead_created`, `opportunity_created`, `analisis_created`, `pep_aceptado`, `pep_rechazado`, `credit_created`, `payment_verification`
+  - `payment_reversal_request` — solicitud de anulación de abono (CreditPaymentController, fallback: permiso `cobros.archive`)
+  - `saldo_reintegro_request` — solicitud de reintegro de saldo (SaldoPendienteController, fallback: permiso `cobros.assign`)
+  - `reward_redemption_request` — canje de recompensa pendiente de aprobación (CatalogController)
 
 ---
 

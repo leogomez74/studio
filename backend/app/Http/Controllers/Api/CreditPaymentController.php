@@ -349,38 +349,50 @@ class CreditPaymentController extends Controller
         $credit     = $payment->credit;
         $solicitante = $request->user();
 
-        // Crear tarea para que los autorizados puedan gestionar la solicitud
-        \App\Models\Task::create([
-            'title'        => "Solicitud de Anulación: Abono #{$payment->id} — {$credit->reference}",
-            'details'      => implode("\n", [
-                "**Solicitado por:** {$solicitante->name} ({$solicitante->email})",
-                "**Crédito:** {$credit->reference}",
-                "**Monto del abono:** ₡" . number_format($payment->monto, 2, '.', ','),
-                "**Fuente:** {$payment->source}",
-                "**Fecha del pago:** " . ($payment->fecha_pago ? \Carbon\Carbon::parse($payment->fecha_pago)->format('d/m/Y') : 'N/A'),
-                "**Motivo:** {$request->motivo}",
-                "",
-                "_Para aprobar: anular el abono #{$payment->id} desde el módulo Cobros._",
-            ]),
-            'project_code' => $credit->reference,
-            'project_name' => $credit->title ?? 'Crédito',
-            'priority'     => 'alta',
-            'status'       => 'pendiente',
-            'created_by'   => $solicitante->id,
+        $details = implode("\n", [
+            "**Solicitado por:** {$solicitante->name} ({$solicitante->email})",
+            "**Crédito:** {$credit->reference}",
+            "**Monto del abono:** ₡" . number_format($payment->monto, 2, '.', ','),
+            "**Fuente:** {$payment->source}",
+            "**Fecha del pago:** " . ($payment->fecha_pago ? \Carbon\Carbon::parse($payment->fecha_pago)->format('d/m/Y') : 'N/A'),
+            "**Motivo:** {$request->motivo}",
+            "",
+            "_Para aprobar: anular el abono #{$payment->id} desde el módulo Cobros._",
         ]);
 
-        // Notificar a usuarios con permiso "Anular Abono" (can_archive en cobros)
-        // Incluye roles con full_access=true O con can_archive=true en módulo cobros
-        $usuariosConPermiso = \App\Models\User::whereHas('role', function ($q) {
-            $q->where('full_access', true)
-              ->orWhereHas('permissions', function ($q2) {
-                  $q2->where('module_key', 'cobros')->where('can_archive', true);
-              });
-        })->where('id', '!=', $solicitante->id)->get();
+        // Intentar usar automation configurable, sino fallback a búsqueda por permisos
+        $automation = \App\Models\TaskAutomation::where('event_type', 'payment_reversal_request')
+            ->where('is_active', true)
+            ->first();
 
-        foreach ($usuariosConPermiso as $destinatario) {
+        if ($automation) {
+            $tasks = \App\Models\Task::createFromAutomation($automation, $credit->reference, $details);
+            // Notificar a los assignees configurados
+            $notifyIds = $automation->getAssigneeIds();
+        } else {
+            // Fallback: crear tarea sin asignar y notificar por permisos
+            \App\Models\Task::create([
+                'title'        => "Solicitud de Anulación: Abono #{$payment->id} — {$credit->reference}",
+                'details'      => $details,
+                'project_code' => $credit->reference,
+                'project_name' => $credit->title ?? 'Crédito',
+                'priority'     => 'alta',
+                'status'       => 'pendiente',
+                'created_by'   => $solicitante->id,
+            ]);
+            // Buscar por permisos
+            $notifyIds = \App\Models\User::whereHas('role', function ($q) {
+                $q->where('full_access', true)
+                  ->orWhereHas('permissions', function ($q2) {
+                      $q2->where('module_key', 'cobros')->where('can_archive', true);
+                  });
+            })->where('id', '!=', $solicitante->id)->pluck('id')->toArray();
+        }
+
+        foreach ($notifyIds as $userId) {
+            if ($userId == $solicitante->id) continue;
             \App\Models\Notification::create([
-                'user_id' => $destinatario->id,
+                'user_id' => $userId,
                 'type'    => 'solicitud_anulacion',
                 'title'   => "Solicitud de anulación de abono",
                 'body'    => "{$solicitante->name} solicita anular el abono #{$payment->id} del crédito {$credit->reference}. Motivo: {$request->motivo}",

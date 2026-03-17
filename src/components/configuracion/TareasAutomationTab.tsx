@@ -37,6 +37,9 @@ const AUTOMATION_EVENTS = [
   { key: 'pep_rechazado', title: 'PEP Rechaza Análisis', description: 'Al marcar estado PEP como "Rechazado", se asigna tarea para informar al cliente que no califica para el crédito.', defaultTitle: 'Informar al cliente que no califica para el crédito' },
   { key: 'credit_created', title: 'Nuevo Crédito Creado', description: 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.', defaultTitle: 'Nuevo crédito creado' },
   { key: 'payment_verification', title: 'Verificación de Abonos', description: 'Al solicitar un abono manual (ventanilla, adelanto, extraordinario, cancelación anticipada), se crea una tarea de verificación bancaria asignada al usuario seleccionado. Este debe confirmar el depósito antes de que se aplique el abono.', defaultTitle: 'Verificar depósito bancario' },
+  { key: 'payment_reversal_request', title: 'Solicitud de Anulación de Abono', description: 'Cuando un usuario solicita anular un abono, se crea una tarea para que el responsable autorizado revise y apruebe o rechace la anulación.', defaultTitle: 'Revisar solicitud de anulación de abono' },
+  { key: 'saldo_reintegro_request', title: 'Solicitud de Reintegro de Saldo', description: 'Cuando un usuario solicita reintegrar un saldo pendiente, se crea una tarea para que el responsable autorizado apruebe el reintegro.', defaultTitle: 'Revisar solicitud de reintegro de saldo' },
+  { key: 'reward_redemption_request', title: 'Canje de Recompensa', description: 'Cuando un usuario canjea puntos por una recompensa del catálogo, se crea una tarea para que el responsable apruebe y gestione la entrega.', defaultTitle: 'Aprobar canje de recompensa' },
 ];
 
 const TareasAutomationTab: React.FC = () => {

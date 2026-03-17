@@ -607,37 +607,48 @@ class SaldoPendienteController extends Controller
         $credit      = $saldo->credit;
         $solicitante = $request->user();
 
-        // Crear tarea para los autorizados
-        \App\Models\Task::create([
-            'title'        => "Solicitud de Reintegro de Saldo #{$saldo->id} — {$credit->reference}",
-            'details'      => implode("\n", [
-                "**Solicitado por:** {$solicitante->name} ({$solicitante->email})",
-                "**Crédito:** {$credit->reference}",
-                "**Cliente:** " . ($credit->lead->name ?? 'N/A'),
-                "**Cédula:** {$saldo->cedula}",
-                "**Monto:** ₡" . number_format($saldo->monto, 2, '.', ','),
-                "**Motivo:** {$request->motivo}",
-                "",
-                "_Para aprobar: reintegrar el saldo #{$saldo->id} desde el módulo Cobros > Saldos por Asignar._",
-            ]),
-            'project_code' => $credit->reference,
-            'project_name' => $credit->title ?? 'Crédito',
-            'priority'     => 'alta',
-            'status'       => 'pendiente',
-            'created_by'   => $solicitante->id,
+        $details = implode("\n", [
+            "**Solicitado por:** {$solicitante->name} ({$solicitante->email})",
+            "**Crédito:** {$credit->reference}",
+            "**Cliente:** " . ($credit->lead->name ?? 'N/A'),
+            "**Cédula:** {$saldo->cedula}",
+            "**Monto:** ₡" . number_format($saldo->monto, 2, '.', ','),
+            "**Motivo:** {$request->motivo}",
+            "",
+            "_Para aprobar: reintegrar el saldo #{$saldo->id} desde el módulo Cobros > Saldos por Asignar._",
         ]);
 
-        // Notificar a usuarios con permiso "Reintegro de Saldo" (cobros.assign) o full_access
-        $usuariosConPermiso = \App\Models\User::whereHas('role', function ($q) {
-            $q->where('full_access', true)
-              ->orWhereHas('permissions', function ($q2) {
-                  $q2->where('module_key', 'cobros')->where('can_assign', true);
-              });
-        })->where('id', '!=', $solicitante->id)->get();
+        // Intentar usar automation configurable, sino fallback a búsqueda por permisos
+        $automation = \App\Models\TaskAutomation::where('event_type', 'saldo_reintegro_request')
+            ->where('is_active', true)
+            ->first();
 
-        foreach ($usuariosConPermiso as $destinatario) {
+        if ($automation) {
+            $tasks = \App\Models\Task::createFromAutomation($automation, $credit->reference, $details);
+            $notifyIds = $automation->getAssigneeIds();
+        } else {
+            // Fallback: crear tarea sin asignar y notificar por permisos
+            \App\Models\Task::create([
+                'title'        => "Solicitud de Reintegro de Saldo #{$saldo->id} — {$credit->reference}",
+                'details'      => $details,
+                'project_code' => $credit->reference,
+                'project_name' => $credit->title ?? 'Crédito',
+                'priority'     => 'alta',
+                'status'       => 'pendiente',
+                'created_by'   => $solicitante->id,
+            ]);
+            $notifyIds = \App\Models\User::whereHas('role', function ($q) {
+                $q->where('full_access', true)
+                  ->orWhereHas('permissions', function ($q2) {
+                      $q2->where('module_key', 'cobros')->where('can_assign', true);
+                  });
+            })->where('id', '!=', $solicitante->id)->pluck('id')->toArray();
+        }
+
+        foreach ($notifyIds as $userId) {
+            if ($userId == $solicitante->id) continue;
             \App\Models\Notification::create([
-                'user_id' => $destinatario->id,
+                'user_id' => $userId,
                 'type'    => 'solicitud_reintegro',
                 'title'   => "Solicitud de reintegro de saldo",
                 'body'    => "{$solicitante->name} solicita reintegrar el saldo #{$saldo->id} del crédito {$credit->reference}. Motivo: {$request->motivo}",

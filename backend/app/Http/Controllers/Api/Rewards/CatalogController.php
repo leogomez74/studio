@@ -115,6 +115,31 @@ class CatalogController extends Controller
                 ['field' => 'new_balance', 'old_value' => null, 'new_value' => $rewardUser->fresh()->total_points],
             ], $request);
 
+            // Crear tarea automática para aprobación si está configurada
+            try {
+                $automation = \App\Models\TaskAutomation::where('event_type', 'reward_redemption_request')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation) {
+                    $details = implode("\n", [
+                        "**Solicitado por:** {$user->name} ({$user->email})",
+                        "**Recompensa:** {$item->name}",
+                        "**Categoría:** {$item->category}",
+                        "**Puntos gastados:** {$redemption->points_spent}",
+                        "**Notas:** " . ($deliveryInfo['notes'] ?? 'N/A'),
+                        "",
+                        "_Para gestionar: ir a Recompensas > Redenciones pendientes._",
+                    ]);
+                    \App\Models\Task::createFromAutomation($automation, 'REWARD-' . $redemption->id, $details);
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Error creando tarea automática para redención', [
+                    'redemption_id' => $redemption->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Item canjeado exitosamente.',
