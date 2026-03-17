@@ -11,10 +11,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Traits\LogsActivity;
+use App\Traits\AccountingTrigger;
 
 class InvestmentController extends Controller
 {
-    use LogsActivity;
+    use LogsActivity, AccountingTrigger;
     public function __construct(private InvestmentService $service) {}
 
     public function index(Request $request)
@@ -66,6 +67,13 @@ class InvestmentController extends Controller
         });
 
         $this->logActivity('create', 'Inversiones', $investment, $investment->numero_desembolso, [], $request);
+
+        $this->triggerAccountingEntry('INV_CAPITAL_RECIBIDO', (float) $investment->monto_capital, $investment->numero_desembolso, [
+            'investment_id'  => $investment->id,
+            'investor_id'    => $investment->investor_id,
+            'investor_nombre' => $investment->investor?->name ?? 'N/A',
+            'moneda'         => $investment->moneda,
+        ]);
 
         return response()->json($investment->load('coupons'), 201);
     }
@@ -267,6 +275,14 @@ class InvestmentController extends Controller
 
             $result = $this->service->cancelacionTotal($investment, $validated['tipo']);
             $this->logActivity('cancelacion_total', 'Inversiones', $investment, $investment->numero_desembolso, ['tipo' => $validated['tipo']], $request);
+
+            $this->triggerAccountingEntry('INV_CANCELACION_TOTAL', (float) $investment->monto_capital, $investment->numero_desembolso, [
+                'investment_id'   => $investment->id,
+                'investor_id'     => $investment->investor_id,
+                'investor_nombre' => $investment->investor?->name ?? 'N/A',
+                'moneda'          => $investment->moneda,
+                'tipo_cancelacion' => $validated['tipo'],
+            ]);
 
             return response()->json($result->load(['investor:id,name,cedula', 'coupons', 'payments']));
         });

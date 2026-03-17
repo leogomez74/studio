@@ -7,10 +7,11 @@ use App\Models\Investment;
 use App\Models\InvestmentPayment;
 use Illuminate\Http\Request;
 use App\Traits\LogsActivity;
+use App\Traits\AccountingTrigger;
 
 class InvestmentPaymentController extends Controller
 {
-    use LogsActivity;
+    use LogsActivity, AccountingTrigger;
     public function index(Request $request)
     {
         $query = InvestmentPayment::with(['investor:id,name', 'investment:id,numero_desembolso,moneda', 'registeredByUser:id,name']);
@@ -60,6 +61,17 @@ class InvestmentPaymentController extends Controller
 
         $payment = InvestmentPayment::create($validated);
         $this->logActivity('create', 'Pagos Inversión', $payment, $payment->tipo . ' - ' . $payment->monto, [], $request);
+
+        $investment = $payment->investment;
+        $this->triggerAccountingEntry('INV_PAGO_MANUAL', (float) $payment->monto, 'INV-PAY-' . $payment->id, [
+            'investment_id'   => $payment->investment_id,
+            'investor_id'     => $payment->investor_id,
+            'investor_nombre' => $payment->investor?->name ?? 'N/A',
+            'moneda'          => $payment->moneda,
+            'tipo_pago'       => $payment->tipo,
+            'numero_desembolso' => $investment?->numero_desembolso ?? 'N/A',
+        ]);
+
         return response()->json($payment->load(['investor:id,name', 'investment:id,numero_desembolso', 'registeredByUser:id,name']), 201);
     }
 

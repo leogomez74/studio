@@ -128,7 +128,36 @@ const ACCOUNTING_ENTRY_TYPES = [
     description: 'Se dispara automáticamente al anular una planilla que tenía sobrante retenido. Es el espejo inverso de SALDO_SOBRANTE.',
     controller: 'PlanillaUploadController@anular (automático)',
     reference: 'ANULA-SOB-{ID}'
-  }
+  },
+  // --- Inversiones ---
+  {
+    value: 'INV_CAPITAL_RECIBIDO',
+    label: 'Inversión — Capital Recibido',
+    description: 'Al registrar una nueva inversión (entrada de capital del inversionista)',
+    controller: 'InvestmentController@store',
+    reference: 'INV-CAP-{ID}'
+  },
+  {
+    value: 'INV_INTERES_DEVENGADO',
+    label: 'Inversión — Interés Devengado',
+    description: '1er asiento automático al marcar cupón como pagado: devengado interés neto + retención',
+    controller: 'InvestmentCouponController@markPaid / markBulkPaid / bulkPayByDesembolso',
+    reference: 'INV-INT-{CUPON_ID}'
+  },
+  {
+    value: 'INV_CANCELACION_TOTAL',
+    label: 'Inversión — Cancelación Total',
+    description: 'Al devolver capital total al inversionista (con o sin intereses)',
+    controller: 'InvestmentController@cancelacionTotal',
+    reference: 'INV-CANCEL-{ID}'
+  },
+  {
+    value: 'INV_PAGO_MANUAL',
+    label: 'Inversión — Pago Manual',
+    description: 'Al registrar un pago manual de tipo Interés, Capital, Adelanto o Liquidación',
+    controller: 'InvestmentPaymentController@store',
+    reference: 'INV-PAY-{ID}'
+  },
 ];
 
 export default function ContabilidadErpTab() {
@@ -151,6 +180,11 @@ export default function ContabilidadErpTab() {
   const [deductorasMapping, setDeductorasMapping] = useState<any[]>([]);
   const [deductoraMappingLoading, setDeductoraMappingLoading] = useState(false);
   const [savingDeductoraMapping, setSavingDeductoraMapping] = useState<number | null>(null);
+
+  // Investor Mapping state
+  const [investorsMapping, setInvestorsMapping] = useState<any[]>([]);
+  const [investorMappingLoading, setInvestorMappingLoading] = useState(false);
+  const [savingInvestorMapping, setSavingInvestorMapping] = useState<number | null>(null);
 
   // Accounting Entry Configuration state
   const [accountingConfigs, setAccountingConfigs] = useState<any[]>([]);
@@ -289,6 +323,33 @@ export default function ContabilidadErpTab() {
       toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo guardar.', variant: 'destructive' });
     } finally {
       setSavingDeductoraMapping(null);
+    }
+  };
+
+  // Investor Mapping functions
+  const fetchInvestorsMapping = useCallback(async () => {
+    setInvestorMappingLoading(true);
+    try {
+      const res = await api.get('/api/investors');
+      setInvestorsMapping(res.data.data || res.data || []);
+    } catch (err) {
+      console.error('Error loading investors for mapping:', err);
+      toast({ title: 'Error', description: 'No se pudieron cargar los inversionistas.', variant: 'destructive' });
+    } finally {
+      setInvestorMappingLoading(false);
+    }
+  }, [toast]);
+
+  const saveInvestorMapping = async (investorId: number, erpAccountKey: string) => {
+    setSavingInvestorMapping(investorId);
+    try {
+      await api.put(`/api/investors/${investorId}`, { erp_account_key: erpAccountKey });
+      toast({ title: 'Mapeo actualizado', description: 'Cuenta ERP asignada al inversionista.' });
+      fetchInvestorsMapping();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'No se pudo guardar.', variant: 'destructive' });
+    } finally {
+      setSavingInvestorMapping(null);
     }
   };
 
@@ -434,8 +495,9 @@ export default function ContabilidadErpTab() {
   useEffect(() => {
     fetchErpAccounts();
     fetchDeductorasMapping();
+    fetchInvestorsMapping();
     fetchAccountingConfigs();
-  }, [fetchErpAccounts, fetchDeductorasMapping, fetchAccountingConfigs]);
+  }, [fetchErpAccounts, fetchDeductorasMapping, fetchInvestorsMapping, fetchAccountingConfigs]);
 
   return (
         <div className="space-y-6">
@@ -752,6 +814,78 @@ export default function ContabilidadErpTab() {
             </CardContent>
           </Card>
 
+          {/* Mapeo de Inversionistas a Cuentas ERP */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Mapeo de Inversionistas</CardTitle>
+              <CardDescription>
+                Asigna una cuenta contable del ERP a cada inversionista. Se usa en asientos de tipo <strong>Inversionista</strong> para registrar intereses por pagar individualmente.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {investorMappingLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Inversionista</TableHead>
+                      <TableHead>Cédula</TableHead>
+                      <TableHead>Cuenta ERP</TableHead>
+                      <TableHead>Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {investorsMapping.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                          No hay inversionistas registrados
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      investorsMapping.map((investor) => (
+                        <TableRow key={investor.id}>
+                          <TableCell className="font-medium">{investor.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{investor.cedula}</TableCell>
+                          <TableCell>
+                            <Select
+                              value={investor.erp_account_key || 'none'}
+                              onValueChange={(value) => saveInvestorMapping(investor.id, value === 'none' ? '' : value)}
+                              disabled={savingInvestorMapping === investor.id}
+                            >
+                              <SelectTrigger className="w-[300px]">
+                                <SelectValue placeholder="Seleccionar cuenta..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sin asignar</SelectItem>
+                                {erpAccounts.map((account) => (
+                                  <SelectItem key={account.id} value={account.key}>
+                                    {account.account_code ? `${account.account_code} - ` : ''}{account.account_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            {savingInvestorMapping === investor.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : investor.erp_account_key ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Mapeado</span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">Pendiente</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Referencia de Tipos de Asientos */}
           <Card>
             <CardHeader>
@@ -924,11 +1058,12 @@ export default function ContabilidadErpTab() {
                                       <SelectItem value="fixed">Cuenta Fija</SelectItem>
                                       <SelectItem value="deductora">Deductora</SelectItem>
                                       <SelectItem value="deductora_or_fixed">Deductora o Fija (auto)</SelectItem>
+                                      <SelectItem value="investor">Inversionista</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Cuenta{line.account_type === 'fixed' ? ' (Requerida)' : line.account_type === 'deductora_or_fixed' ? ' (Fallback si no hay deductora)' : ' (Dinámica)'}</Label>
+                                  <Label>Cuenta{line.account_type === 'fixed' ? ' (Requerida)' : line.account_type === 'deductora_or_fixed' ? ' (Fallback si no hay deductora)' : line.account_type === 'investor' ? ' (Dinámica por inversionista)' : ' (Dinámica)'}</Label>
                                   {(line.account_type === 'fixed' || line.account_type === 'deductora_or_fixed') ? (
                                     <Select
                                       value={line.account_key || ''}
