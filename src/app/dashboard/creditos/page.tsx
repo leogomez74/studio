@@ -72,6 +72,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
+import { getAuthUser } from "@/lib/auth";
+import React from "react";
 
 // Funciones para formateo de moneda (Colones)
 const formatCurrency = (value: string | number): string => {
@@ -1067,7 +1069,7 @@ export default function CreditsPage() {
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-   
+
 
     // Plan de Pagos (Detailed Installments)
     if (credit.plan_de_pagos && credit.plan_de_pagos.length > 0) {
@@ -1247,1124 +1249,1130 @@ export default function CreditsPage() {
   return (
     <ProtectedPage module="creditos">
       <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
-          <p className="text-muted-foreground">Gestiona los créditos y sus documentos.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
+            <p className="text-muted-foreground">Gestiona los créditos y sus documentos.</p>
+          </div>
         </div>
-      </div>
 
-      {/* Filtros visibles */}
-      <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-lg border">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="filter-monto" className="text-sm whitespace-nowrap">Monto:</Label>
-          <Input
-            id="filter-monto"
-            className="w-[140px] h-9"
-            value={filters.monto}
-            onChange={(e) => setFilters({ ...filters, monto: e.target.value })}
-            placeholder="Ej: 100000"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="filter-op" className="text-sm whitespace-nowrap">No. Op.:</Label>
-          <Input
-            id="filter-op"
-            className="w-[140px] h-9"
-            value={filters.numeroOperacion}
-            onChange={(e) => setFilters({ ...filters, numeroOperacion: e.target.value })}
-            placeholder="Ej: CRED-123"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="filter-client" className="text-sm whitespace-nowrap">Cliente:</Label>
-          <Input
-            id="filter-client"
-            className="w-[180px] h-9"
-            value={filters.leadName}
-            onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
-            placeholder="Nombre del cliente"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="filter-doc" className="text-sm whitespace-nowrap">No. Doc.:</Label>
-          <Input
-            id="filter-doc"
-            className="w-[140px] h-9"
-            value={filters.documentoId}
-            onChange={(e) => setFilters({ ...filters, documentoId: e.target.value })}
-            placeholder="ID Documento"
-          />
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <Label htmlFor="items-per-page" className="text-sm whitespace-nowrap">Mostrar:</Label>
-          <Select
-            value={String(itemsPerPage)}
-            onValueChange={(value) => {
-              setItemsPerPage(Number(value));
-              setCurrentPage(1);
-            }}
-          >
-            <SelectTrigger id="items-per-page" className="w-[80px] h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {(filters.monto || filters.numeroOperacion || filters.leadName || filters.documentoId || filters.deductora) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "", deductora: "" })}
-          >
-            Limpiar Filtros
-          </Button>
-        )}
-      </div>
-
-      <Tabs value={tabValue} onValueChange={setTabValue}>
-        <div className="flex flex-wrap items-center gap-2">
-          <TabsList className="flex flex-wrap gap-2">
-            {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="capitalize">
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <Separator orientation="vertical" className="h-6 mx-1" />
-          <Button
-            variant={filters.deductora === "sin" ? "default" : "outline"}
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => { setFilters({ ...filters, deductora: filters.deductora === "sin" ? "" : "sin" }); setCurrentPage(1); setSelectedCreditIds(new Set()); }}
-          >
-            Sin deductora
-          </Button>
-          {deductoras.map((d) => (
-            <Button
-              key={d.id}
-              variant={filters.deductora === String(d.id) ? "default" : "outline"}
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => { setFilters({ ...filters, deductora: filters.deductora === String(d.id) ? "" : String(d.id) }); setCurrentPage(1); setSelectedCreditIds(new Set()); }}
+        {/* Filtros visibles */}
+        <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="filter-monto" className="text-sm whitespace-nowrap">Monto:</Label>
+            <Input
+              id="filter-monto"
+              className="w-[140px] h-9"
+              value={filters.monto}
+              onChange={(e) => setFilters({ ...filters, monto: e.target.value })}
+              placeholder="Ej: 100000"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="filter-op" className="text-sm whitespace-nowrap">No. Op.:</Label>
+            <Input
+              id="filter-op"
+              className="w-[140px] h-9"
+              value={filters.numeroOperacion}
+              onChange={(e) => setFilters({ ...filters, numeroOperacion: e.target.value })}
+              placeholder="Ej: CRED-123"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="filter-client" className="text-sm whitespace-nowrap">Cliente:</Label>
+            <Input
+              id="filter-client"
+              className="w-[180px] h-9"
+              value={filters.leadName}
+              onChange={(e) => setFilters({ ...filters, leadName: e.target.value })}
+              placeholder="Nombre del cliente"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="filter-doc" className="text-sm whitespace-nowrap">No. Doc.:</Label>
+            <Input
+              id="filter-doc"
+              className="w-[140px] h-9"
+              value={filters.documentoId}
+              onChange={(e) => setFilters({ ...filters, documentoId: e.target.value })}
+              placeholder="ID Documento"
+            />
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Label htmlFor="items-per-page" className="text-sm whitespace-nowrap">Mostrar:</Label>
+            <Select
+              value={String(itemsPerPage)}
+              onValueChange={(value) => {
+                setItemsPerPage(Number(value));
+                setCurrentPage(1);
+              }}
             >
-              {d.nombre}
+              <SelectTrigger id="items-per-page" className="w-[80px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {(filters.monto || filters.numeroOperacion || filters.leadName || filters.documentoId || filters.deductora) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFilters({ monto: "", numeroOperacion: "", leadName: "", documentoId: "", deductora: "" })}
+            >
+              Limpiar Filtros
             </Button>
-          ))}
-          {filters.deductora === "sin" && (
-            <>
-              <Separator orientation="vertical" className="h-6 mx-1" />
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-8 text-xs"
-                disabled={selectedCreditIds.size === 0 || loadingMora}
-                onClick={handleCalcularMora}
-              >
-                {loadingMora ? "Calculando..." : `Calcular Mora${selectedCreditIds.size > 0 ? ` (${selectedCreditIds.size})` : ""}`}
-              </Button>
-            </>
           )}
         </div>
 
-        {CREDIT_STATUS_TAB_CONFIG.map((tab) => {
-          const paginationData = getPaginatedCredits(tab.value);
-          return (
-          <TabsContent key={tab.value} value={tab.value}>
-            <Card>
-              <CardContent className="p-0">
-                <DraggableScrollContainer className="overflow-x-auto select-none p-6">
-                  <Table className="min-w-[1800px]">
-                    <TableHeader>
-                      <TableRow>
-                        {/* Checkbox de selección (solo "Sin deductora") */}
-                        {filters.deductora === "sin" && (
-                          <TableHead className="w-[40px] text-center">
-                            <Checkbox
-                              checked={
-                                paginationData.allFilteredCredits.length > 0 &&
-                                paginationData.allFilteredCredits.every((c: CreditItem) => selectedCreditIds.has(c.id))
-                              }
-                              onCheckedChange={(checked) => {
-                                setSelectedCreditIds(prev => {
-                                  const next = new Set(prev);
-                                  paginationData.allFilteredCredits.forEach((c: CreditItem) => {
-                                    if (checked) next.add(c.id); else next.delete(c.id);
-                                  });
-                                  return next;
-                                });
-                              }}
-                            />
-                          </TableHead>
-                        )}
-                        {/* NUEVA COLUMNA: Botón de expansión */}
-                        <TableHead className="w-[40px] sticky left-0 bg-background z-10 border-r">
-                          {/* Vacío, solo para alinear */}
-                        </TableHead>
-                        {/* Acciones - ACTUALIZAR sticky position */}
-                        <TableHead className="text-right sticky left-[40px] bg-background z-10 w-[180px]">Acciones</TableHead>
-                        <TableHead className="w-[130px]">Estado</TableHead>
-                        <TableHead className="min-w-[200px]">Nombre</TableHead>
-                        <TableHead className="w-[120px]">Cédula</TableHead>
-                        <TableHead>No. Operación</TableHead>
-                        <TableHead>Divisa</TableHead>
-                        <TableHead>Monto</TableHead>
-                        <TableHead>Plazo</TableHead>
-                        <TableHead>Saldo</TableHead>
-                        <TableHead>Cuota</TableHead>
-                        <TableHead>Línea</TableHead>
-                        <TableHead>1ª Deducción</TableHead>
-                        <TableHead>Formalización</TableHead>
-                        <TableHead>Garantía</TableHead>
-                        <TableHead>Vencimiento</TableHead>
-                        <TableHead>Proceso</TableHead>
-                        <TableHead>Tasa</TableHead>
-                        <TableHead>Cuotas Atrasadas</TableHead>
-                        <TableHead>Deductora</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.from(paginationData.groups.entries()).map(([leadId, credits]) => {
-                        const primaryCredit = credits[0]; // Crédito más reciente (ya ordenado)
-                        const additionalCredits = credits.slice(1); // Resto de créditos
-                        const hasMultipleCredits = additionalCredits.length > 0;
-                        const isExpanded = expandedClientIds.has(leadId);
+        <Tabs value={tabValue} onValueChange={setTabValue}>
+          <div className="flex flex-wrap items-center gap-2">
+            <TabsList className="flex flex-wrap gap-2">
+              {CREDIT_STATUS_TAB_CONFIG.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="capitalize">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <Separator orientation="vertical" className="h-6 mx-1" />
+            <Button
+              variant={filters.deductora === "sin" ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => { setFilters({ ...filters, deductora: filters.deductora === "sin" ? "" : "sin" }); setCurrentPage(1); setSelectedCreditIds(new Set()); }}
+            >
+              Sin deductora
+            </Button>
+            {deductoras.map((d) => (
+              <Button
+                key={d.id}
+                variant={filters.deductora === String(d.id) ? "default" : "outline"}
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => { setFilters({ ...filters, deductora: filters.deductora === String(d.id) ? "" : String(d.id) }); setCurrentPage(1); setSelectedCreditIds(new Set()); }}
+              >
+                {d.nombre}
+              </Button>
+            ))}
+            {filters.deductora === "sin" && (
+              <>
+                <Separator orientation="vertical" className="h-6 mx-1" />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={selectedCreditIds.size === 0 || loadingMora}
+                  onClick={handleCalcularMora}
+                >
+                  {loadingMora ? "Calculando..." : `Calcular Mora${selectedCreditIds.size > 0 ? ` (${selectedCreditIds.size})` : ""}`}
+                </Button>
+              </>
+            )}
+          </div>
 
-                        const credit = primaryCredit; // Renombrar para mantener compatibilidad con código existente
-                        // --- LÓGICA CALCULADA EN FRONTEND ---
-                        // Helper: Nombre completo
-                        const getFullName = () => {
-                          const person = credit.client || credit.lead;
-                          if (!person) return '-';
-                          const parts = [
-                            person.name,
-                            person.apellido1,
-                            person.apellido2
-                          ].filter(Boolean);
-                          return parts.length > 0 ? parts.join(' ') : '-';
-                        };
-                        const nombreCompleto = getFullName();
-
-                        // --- LÓGICA CALCULADA EN FRONTEND ---
-                        const pagosOrdenados = credit.plan_de_pagos?.length
-                          ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
-                          : [];
-
-
-                        // 1. Primera Deducción: Tomar siempre la primera cuota del plan_de_pagos
-                        const fechaInicio = pagosOrdenados.length > 0 ? pagosOrdenados[0].fecha_corte : null;
-
-                        // 2. Vencimiento: De cabecera o la última cuota
-                        const fechaFin = credit.fecha_culminacion_credito;
-
-                        // 3. Tasa: Solo usar tasa dinámica si está en estado editable
-                        const estadosEditablesTabla = ['Aprobado', 'Por firmar'];
-                        const esEditableTabla = credit.status && estadosEditablesTabla.includes(credit.status);
-                        const tasa = esEditableTabla
-                          ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null))
-                          : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null));
-
-                        // 4. Fallbacks para Línea y Proceso
-                        const linea = credit.linea || credit.category || "-";
-                        const proceso = credit.proceso || credit.status || "-";
-
-                        return (
-                          <Fragment key={`group-${leadId}`}>
-                            {/* ========== FILA MADRE ========== */}
-                            <TableRow className="hover:bg-muted/50">
-                              {/* Checkbox (solo "Sin deductora") */}
-                              {filters.deductora === "sin" && (
-                                <TableCell className="w-[40px] text-center">
-                                  <Checkbox
-                                    checked={selectedCreditIds.has(credit.id)}
-                                    onCheckedChange={(checked) => {
-                                      setSelectedCreditIds(prev => {
-                                        const next = new Set(prev);
-                                        if (checked) next.add(credit.id); else next.delete(credit.id);
-                                        return next;
+          {CREDIT_STATUS_TAB_CONFIG.map((tab) => {
+            const paginationData = getPaginatedCredits(tab.value);
+            return (
+              <TabsContent key={tab.value} value={tab.value}>
+                <Card>
+                  <CardContent className="p-0">
+                    <DraggableScrollContainer className="overflow-x-auto select-none p-6">
+                      <Table className="min-w-[1800px]">
+                        <TableHeader>
+                          <TableRow>
+                            {/* Checkbox de selección (solo "Sin deductora") */}
+                            {filters.deductora === "sin" && (
+                              <TableHead className="w-[40px] text-center">
+                                <Checkbox
+                                  checked={
+                                    paginationData.allFilteredCredits.length > 0 &&
+                                    paginationData.allFilteredCredits.every((c: CreditItem) => selectedCreditIds.has(c.id))
+                                  }
+                                  onCheckedChange={(checked) => {
+                                    setSelectedCreditIds(prev => {
+                                      const next = new Set(prev);
+                                      paginationData.allFilteredCredits.forEach((c: CreditItem) => {
+                                        if (checked) next.add(c.id); else next.delete(c.id);
                                       });
-                                    }}
-                                  />
-                                </TableCell>
-                              )}
-                              {/* COLUMNA 1: Botón de Expansión */}
-                              <TableCell className="w-[40px] sticky left-0 bg-background z-10 border-r">
-                                {hasMultipleCredits && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => toggleClientExpansion(leadId)}
-                                          className="h-8 w-8"
-                                          aria-label={isExpanded ? "Colapsar créditos" : "Expandir créditos"}
-                                        >
-                                          {isExpanded ? (
-                                            <ChevronDown className="h-4 w-4" />
-                                          ) : (
-                                            <ChevronRight className="h-4 w-4" />
-                                          )}
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" sideOffset={30} className="z-[9999] relative">
-                                        {isExpanded
-                                          ? "Ocultar créditos adicionales"
-                                          : `Mostrar ${additionalCredits.length} crédito${additionalCredits.length > 1 ? 's' : ''} adicional${additionalCredits.length > 1 ? 'es' : ''}`
-                                        }
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )}
-                              </TableCell>
-
-                              {/* COLUMNA 2: Acciones - ACTUALIZAR sticky position */}
-                              <TableCell className="text-right sticky left-[40px] bg-background z-10 w-[180px]">
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  asChild
-                                  title="Ver detalle"
-                                  className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
-                                >
-                                  <Link href={`/dashboard/creditos/${credit.id}`}>
-                                    <Eye className="h-4 w-4" />
-                                  </Link>
-                                </Button>
-                                {['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') ? (
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    disabled
-                                    title={
-                                      credit.status === 'En Mora'
-                                        ? "No se puede editar un crédito en mora"
-                                        : credit.status === 'Cerrado'
-                                        ? "No se puede editar un crédito cerrado"
-                                        : "No se puede editar un crédito formalizado"
-                                    }
-                                    className="border-gray-300 text-gray-400 cursor-not-allowed"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    asChild
-                                    title="Editar crédito"
-                                    className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
-                                  >
-                                    <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
-                                      <Pencil className="h-4 w-4" />
-                                    </Link>
-                                  </Button>
-                                )}
-
-                                {!['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') && (
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    title="Formalizar crédito"
-                                    className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
-                                    onClick={() => {
-                                      setSelectedCredit(credit);
-                                      setFormalizacionDate(new Date());
-                                      setFormalizarDialogOpen(true);
-                                    }}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                )}
-
-                                <Button
-                                  size="icon"
-                                  className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
-                                  onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </Button>
-
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                    <DropdownMenuItem onClick={() => router.push(`/dashboard/creditos/${credit.id}?tab=plan-pagos`)}>
-                                      <FileSpreadsheet className="h-4 w-4 mr-2" />
-                                      Ver Plan de Pagos
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
-                                    <FileText className="h-4 w-4 mr-2" />
-                                      Gestionar documentos
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => { setCambiarDeductoraCredit(credit); setNuevaDeductoraId(String(credit.deductora_id || '')); setCambiarDeductoraOpen(true); }}>
-                                      <Building className="h-4 w-4 mr-2" />
-                                      Cambiar Cooperativa
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </TableCell>
-                            <TableCell className="w-[130px]">
-                              {(() => {
-                                const badgeStyle = getStatusBadgeStyle(credit.status);
-                                return (
-                                  <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
-                                    {credit.status}
-                                  </Badge>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell className="text-sm capitalize min-w-[200px]">{nombreCompleto.toLowerCase()}</TableCell>
-                            <TableCell className="w-[120px]">{credit.lead?.cedula || '-'}</TableCell>
-                            <TableCell className="font-medium">
-                              <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
-                                {credit.numero_operacion || credit.reference || "-"}
-                              </Link>
-                            </TableCell>
-                            <TableCell>{credit.divisa || "CRC"}</TableCell>
-                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
-                            <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
-                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
-                            <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
-
-                            {/* Columnas Calculadas / Fallbacks */}
-                            <TableCell>{linea}</TableCell>
-                            <TableCell>{fechaInicio ? formatDate(fechaInicio) : "No aplicable"}</TableCell>
-                            <TableCell>{credit.formalized_at ? formatDate(credit.formalized_at) : "-"}</TableCell>
-                            <TableCell>{credit.garantia || "No aplicable"}</TableCell>
-                            <TableCell>{formatDate(fechaFin)}</TableCell>
-                            <TableCell>{proceso}</TableCell>
-                            <TableCell>{tasa ? `${tasa}%` : "-"}</TableCell>
-
-                            <TableCell>{calculateCuotasAtrasadas(credit)}</TableCell>
-                            <TableCell>
-                              {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
-                            </TableCell>
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              </TableHead>
+                            )}
+                            {/* NUEVA COLUMNA: Botón de expansión */}
+                            <TableHead className="w-[40px] sticky left-0 bg-background z-10 border-r">
+                              {/* Vacío, solo para alinear */}
+                            </TableHead>
+                            {/* Acciones - ACTUALIZAR sticky position */}
+                            <TableHead className="text-right sticky left-[40px] bg-background z-10 w-[180px]">Acciones</TableHead>
+                            <TableHead className="w-[130px]">Estado</TableHead>
+                            <TableHead className="min-w-[200px]">Nombre</TableHead>
+                            <TableHead className="w-[120px]">Cédula</TableHead>
+                            <TableHead>No. Operación</TableHead>
+                            <TableHead>Divisa</TableHead>
+                            <TableHead>Monto</TableHead>
+                            <TableHead>Plazo</TableHead>
+                            <TableHead>Saldo</TableHead>
+                            <TableHead>Cuota</TableHead>
+                            <TableHead>Línea</TableHead>
+                            <TableHead>1ª Deducción</TableHead>
+                            <TableHead>Formalización</TableHead>
+                            <TableHead>Garantía</TableHead>
+                            <TableHead>Vencimiento</TableHead>
+                            <TableHead>Proceso</TableHead>
+                            <TableHead>Tasa</TableHead>
+                            <TableHead>Cuotas Atrasadas</TableHead>
+                            <TableHead>Deductora</TableHead>
                           </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {Array.from(paginationData.groups.entries()).map(([leadId, credits]) => {
+                            const primaryCredit = credits[0]; // Crédito más reciente (ya ordenado)
+                            const additionalCredits = credits.slice(1); // Resto de créditos
+                            const hasMultipleCredits = additionalCredits.length > 0;
+                            const isExpanded = expandedClientIds.has(leadId);
 
-                          {/* ========== FILAS HIJAS (Créditos adicionales) ========== */}
-                          {hasMultipleCredits && isExpanded && additionalCredits.map((credit) => {
-                            // Calcular datos para este crédito secundario (copiar lógica de arriba)
-                            const getFullNameSecondary = () => {
+                            const credit = primaryCredit; // Renombrar para mantener compatibilidad con código existente
+                            // --- LÓGICA CALCULADA EN FRONTEND ---
+                            // Helper: Nombre completo
+                            const getFullName = () => {
                               const person = credit.client || credit.lead;
                               if (!person) return '-';
-                              const parts = [person.name, person.apellido1, person.apellido2].filter(Boolean);
+                              const parts = [
+                                person.name,
+                                person.apellido1,
+                                person.apellido2
+                              ].filter(Boolean);
                               return parts.length > 0 ? parts.join(' ') : '-';
                             };
-                            const nombreCompletoSecondary = getFullNameSecondary();
+                            const nombreCompleto = getFullName();
 
-                            const pagosOrdenadosSecondary = credit.plan_de_pagos?.length
+                            // --- LÓGICA CALCULADA EN FRONTEND ---
+                            const pagosOrdenados = credit.plan_de_pagos?.length
                               ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
                               : [];
 
-                            const fechaInicioSecondary = pagosOrdenadosSecondary.length > 0
-                              ? pagosOrdenadosSecondary[0].fecha_corte
-                              : null;
 
-                            const fechaFinSecondary = credit.fecha_culminacion_credito;
+                            // 1. Primera Deducción: Tomar siempre la primera cuota del plan_de_pagos
+                            const fechaInicio = pagosOrdenados.length > 0 ? pagosOrdenados[0].fecha_corte : null;
 
-                            const estadosEditablesTablaSecondary = ['Aprobado', 'Por firmar'];
-                            const esEditableTablaSecondary = credit.status && estadosEditablesTablaSecondary.includes(credit.status);
-                            const tasaSecondary = esEditableTablaSecondary
-                              ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null))
-                              : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null));
+                            // 2. Vencimiento: De cabecera o la última cuota
+                            const fechaFin = credit.fecha_culminacion_credito;
 
-                            const lineaSecondary = credit.linea || credit.category || "-";
-                            const procesoSecondary = credit.proceso || credit.status || "-";
+                            // 3. Tasa: Solo usar tasa dinámica si está en estado editable
+                            const estadosEditablesTabla = ['Aprobado', 'Por firmar'];
+                            const esEditableTabla = credit.status && estadosEditablesTabla.includes(credit.status);
+                            const tasa = esEditableTabla
+                              ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null))
+                              : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null));
+
+                            // 4. Fallbacks para Línea y Proceso
+                            const linea = credit.linea || credit.category || "-";
+                            const proceso = credit.proceso || credit.status || "-";
 
                             return (
-                              <TableRow
-                                key={`credit-${credit.id}`}
-                                className="bg-muted/30 hover:bg-muted/50"
-                              >
-                                {/* Checkbox hija (solo "Sin deductora") */}
-                                {filters.deductora === "sin" && (
-                                  <TableCell className="w-[40px] text-center">
-                                    <Checkbox
-                                      checked={selectedCreditIds.has(credit.id)}
-                                      onCheckedChange={(checked) => {
-                                        setSelectedCreditIds(prev => {
-                                          const next = new Set(prev);
-                                          if (checked) next.add(credit.id); else next.delete(credit.id);
-                                          return next;
-                                        });
-                                      }}
-                                    />
+                              <Fragment key={`group-${leadId}`}>
+                                {/* ========== FILA MADRE ========== */}
+                                <TableRow className="hover:bg-muted/50">
+                                  {/* Checkbox (solo "Sin deductora") */}
+                                  {filters.deductora === "sin" && (
+                                    <TableCell className="w-[40px] text-center">
+                                      <Checkbox
+                                        checked={selectedCreditIds.has(credit.id)}
+                                        onCheckedChange={(checked) => {
+                                          setSelectedCreditIds(prev => {
+                                            const next = new Set(prev);
+                                            if (checked) next.add(credit.id); else next.delete(credit.id);
+                                            return next;
+                                          });
+                                        }}
+                                      />
+                                    </TableCell>
+                                  )}
+                                  {/* COLUMNA 1: Botón de Expansión */}
+                                  <TableCell className="w-[40px] sticky left-0 bg-background z-10 border-r">
+                                    {hasMultipleCredits && (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => toggleClientExpansion(leadId)}
+                                              className="h-8 w-8"
+                                              aria-label={isExpanded ? "Colapsar créditos" : "Expandir créditos"}
+                                            >
+                                              {isExpanded ? (
+                                                <ChevronDown className="h-4 w-4" />
+                                              ) : (
+                                                <ChevronRight className="h-4 w-4" />
+                                              )}
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" sideOffset={30} className="z-[9999] relative">
+                                            {isExpanded
+                                              ? "Ocultar créditos adicionales"
+                                              : `Mostrar ${additionalCredits.length} crédito${additionalCredits.length > 1 ? 's' : ''} adicional${additionalCredits.length > 1 ? 'es' : ''}`
+                                            }
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
                                   </TableCell>
-                                )}
-                                {/* COLUMNA 1: Vacía (alineación) */}
-                                <TableCell className="w-[40px] sticky left-0 bg-muted/30 z-10 border-r" />
 
-                                {/* COLUMNA 2: Acciones con indentación visual */}
-                                <TableCell className="text-right sticky left-[40px] bg-muted/30 z-10 w-[180px]">
-                                  <div className="flex items-center justify-end gap-1">
-                                    {/* Línea de indentación visual */}
-                                    <div className="w-4 h-px bg-border mr-1" />
-
-                                    {/* Botones de acción (igual que fila madre) */}
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      asChild
-                                      title="Ver detalle"
-                                      className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
-                                    >
-                                      <Link href={`/dashboard/creditos/${credit.id}`}>
-                                        <Eye className="h-4 w-4" />
-                                      </Link>
-                                    </Button>
-                                    {['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') ? (
-                                      <Button
-                                        variant="outline"
-                                        size="icon"
-                                        disabled
-                                        title={
-                                          credit.status === 'En Mora'
-                                            ? "No se puede editar un crédito en mora"
-                                            : credit.status === 'Cerrado'
-                                            ? "No se puede editar un crédito cerrado"
-                                            : "No se puede editar un crédito formalizado"
-                                        }
-                                        className="border-gray-300 text-gray-400 cursor-not-allowed"
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                    ) : (
+                                  {/* COLUMNA 2: Acciones - ACTUALIZAR sticky position */}
+                                  <TableCell className="text-right sticky left-[40px] bg-background z-10 w-[180px]">
+                                    <div className="flex items-center gap-1">
                                       <Button
                                         variant="outline"
                                         size="icon"
                                         asChild
-                                        title="Editar crédito"
-                                        className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                                        title="Ver detalle"
+                                        className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
                                       >
-                                        <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
-                                          <Pencil className="h-4 w-4" />
+                                        <Link href={`/dashboard/creditos/${credit.id}`}>
+                                          <Eye className="h-4 w-4" />
                                         </Link>
                                       </Button>
-                                    )}
+                                      {['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') ? (
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          disabled
+                                          title={
+                                            credit.status === 'En Mora'
+                                              ? "No se puede editar un crédito en mora"
+                                              : credit.status === 'Cerrado'
+                                                ? "No se puede editar un crédito cerrado"
+                                                : "No se puede editar un crédito formalizado"
+                                          }
+                                          className="border-gray-300 text-gray-400 cursor-not-allowed"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          asChild
+                                          title="Editar crédito"
+                                          className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                                        >
+                                          <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
+                                            <Pencil className="h-4 w-4" />
+                                          </Link>
+                                        </Button>
+                                      )}
 
-                                    {!['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') && (
+                                      {!['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') && (
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          title="Formalizar crédito"
+                                          className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                          onClick={() => {
+                                            setSelectedCredit(credit);
+                                            setFormalizacionDate(new Date());
+                                            setFormalizarDialogOpen(true);
+                                          }}
+                                        >
+                                          <Check className="h-4 w-4" />
+                                        </Button>
+                                      )}
+
                                       <Button
-                                        variant="outline"
                                         size="icon"
-                                        title="Formalizar crédito"
-                                        className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
-                                        onClick={() => {
-                                          setSelectedCredit(credit);
-                                          setFormalizacionDate(new Date());
-                                          setFormalizarDialogOpen(true);
-                                        }}
+                                        className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
+                                        onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
                                       >
-                                        <Check className="h-4 w-4" />
+                                        <FileText className="h-4 w-4" />
                                       </Button>
-                                    )}
 
-                                    <Button
-                                      size="icon"
-                                      className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
-                                      onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                          <DropdownMenuItem onClick={() => router.push(`/dashboard/creditos/${credit.id}?tab=plan-pagos`)}>
+                                            <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                            Ver Plan de Pagos
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
+                                            <FileText className="h-4 w-4 mr-2" />
+                                            Gestionar documentos
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => { setCambiarDeductoraCredit(credit); setNuevaDeductoraId(String(credit.deductora_id || '')); setCambiarDeductoraOpen(true); }}>
+                                            <Building className="h-4 w-4 mr-2" />
+                                            Cambiar Cooperativa
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="w-[130px]">
+                                    {(() => {
+                                      const badgeStyle = getStatusBadgeStyle(credit.status);
+                                      return (
+                                        <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
+                                          {credit.status}
+                                        </Badge>
+                                      );
+                                    })()}
+                                  </TableCell>
+                                  <TableCell className="text-sm capitalize min-w-[200px]">{nombreCompleto.toLowerCase()}</TableCell>
+                                  <TableCell className="w-[120px]">{credit.lead?.cedula || '-'}</TableCell>
+                                  <TableCell className="font-medium">
+                                    <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                                      {credit.numero_operacion || credit.reference || "-"}
+                                    </Link>
+                                  </TableCell>
+                                  <TableCell>{credit.divisa || "CRC"}</TableCell>
+                                  <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
+                                  <TableCell>{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
+                                  <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
+                                  <TableCell>{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
+
+                                  {/* Columnas Calculadas / Fallbacks */}
+                                  <TableCell>{linea}</TableCell>
+                                  <TableCell>{fechaInicio ? formatDate(fechaInicio) : "No aplicable"}</TableCell>
+                                  <TableCell>{credit.formalized_at ? formatDate(credit.formalized_at) : "-"}</TableCell>
+                                  <TableCell>{credit.garantia || "No aplicable"}</TableCell>
+                                  <TableCell>{formatDate(fechaFin)}</TableCell>
+                                  <TableCell>{proceso}</TableCell>
+                                  <TableCell>{tasa ? `${tasa}%` : "-"}</TableCell>
+
+                                  <TableCell>{calculateCuotasAtrasadas(credit)}</TableCell>
+                                  <TableCell>
+                                    {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
+                                  </TableCell>
+                                </TableRow>
+
+                                {/* ========== FILAS HIJAS (Créditos adicionales) ========== */}
+                                {hasMultipleCredits && isExpanded && additionalCredits.map((credit) => {
+                                  // Calcular datos para este crédito secundario (copiar lógica de arriba)
+                                  const getFullNameSecondary = () => {
+                                    const person = credit.client || credit.lead;
+                                    if (!person) return '-';
+                                    const parts = [person.name, person.apellido1, person.apellido2].filter(Boolean);
+                                    return parts.length > 0 ? parts.join(' ') : '-';
+                                  };
+                                  const nombreCompletoSecondary = getFullNameSecondary();
+
+                                  const pagosOrdenadosSecondary = credit.plan_de_pagos?.length
+                                    ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
+                                    : [];
+
+                                  const fechaInicioSecondary = pagosOrdenadosSecondary.length > 0
+                                    ? pagosOrdenadosSecondary[0].fecha_corte
+                                    : null;
+
+                                  const fechaFinSecondary = credit.fecha_culminacion_credito;
+
+                                  const estadosEditablesTablaSecondary = ['Aprobado', 'Por firmar'];
+                                  const esEditableTablaSecondary = credit.status && estadosEditablesTablaSecondary.includes(credit.status);
+                                  const tasaSecondary = esEditableTablaSecondary
+                                    ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null))
+                                    : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null));
+
+                                  const lineaSecondary = credit.linea || credit.category || "-";
+                                  const procesoSecondary = credit.proceso || credit.status || "-";
+
+                                  return (
+                                    <TableRow
+                                      key={`credit-${credit.id}`}
+                                      className="bg-muted/30 hover:bg-muted/50"
                                     >
-                                      <FileText className="h-4 w-4" />
-                                    </Button>
+                                      {/* Checkbox hija (solo "Sin deductora") */}
+                                      {filters.deductora === "sin" && (
+                                        <TableCell className="w-[40px] text-center">
+                                          <Checkbox
+                                            checked={selectedCreditIds.has(credit.id)}
+                                            onCheckedChange={(checked) => {
+                                              setSelectedCreditIds(prev => {
+                                                const next = new Set(prev);
+                                                if (checked) next.add(credit.id); else next.delete(credit.id);
+                                                return next;
+                                              });
+                                            }}
+                                          />
+                                        </TableCell>
+                                      )}
+                                      {/* COLUMNA 1: Vacía (alineación) */}
+                                      <TableCell className="w-[40px] sticky left-0 bg-muted/30 z-10 border-r" />
 
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                        <DropdownMenuItem onClick={() => router.push(`/dashboard/creditos/${credit.id}?tab=plan-pagos`)}>
-                                          <FileSpreadsheet className="h-4 w-4 mr-2" />
-                                          Ver Plan de Pagos
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
-                                          <FileText className="h-4 w-4 mr-2" />
-                                          Gestionar documentos
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setCambiarDeductoraCredit(credit); setNuevaDeductoraId(String(credit.deductora_id || '')); setCambiarDeductoraOpen(true); }}>
-                                          <Building className="h-4 w-4 mr-2" />
-                                          Cambiar Cooperativa
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                </TableCell>
+                                      {/* COLUMNA 2: Acciones con indentación visual */}
+                                      <TableCell className="text-right sticky left-[40px] bg-muted/30 z-10 w-[180px]">
+                                        <div className="flex items-center justify-end gap-1">
+                                          {/* Línea de indentación visual */}
+                                          <div className="w-4 h-px bg-border mr-1" />
 
-                                {/* COLUMNAS 3-19: Datos del crédito secundario */}
-                                <TableCell className="w-[130px] bg-muted/30">
-                                  {(() => {
-                                    const badgeStyle = getStatusBadgeStyle(credit.status);
-                                    return (
-                                      <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
-                                        {credit.status}
-                                      </Badge>
-                                    );
-                                  })()}
-                                </TableCell>
-                                <TableCell className="text-sm capitalize min-w-[200px] bg-muted/30">{nombreCompletoSecondary.toLowerCase()}</TableCell>
-                                <TableCell className="w-[120px] bg-muted/30">{credit.lead?.cedula || '-'}</TableCell>
-                                <TableCell className="font-medium bg-muted/30">
-                                  <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
-                                    {credit.numero_operacion || credit.reference || "-"}
-                                  </Link>
-                                </TableCell>
-                                <TableCell className="bg-muted/30">{credit.divisa || "CRC"}</TableCell>
-                                <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
-                                <TableCell className="bg-muted/30">{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
-                                <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
-                                <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
-                                <TableCell className="bg-muted/30">{lineaSecondary}</TableCell>
-                                <TableCell className="bg-muted/30">{fechaInicioSecondary ? formatDate(fechaInicioSecondary) : "No aplicable"}</TableCell>
-                                <TableCell className="bg-muted/30">{credit.formalized_at ? formatDate(credit.formalized_at) : "-"}</TableCell>
-                                <TableCell className="bg-muted/30">{credit.garantia || "No aplicable"}</TableCell>
-                                <TableCell className="bg-muted/30">{formatDate(fechaFinSecondary)}</TableCell>
-                                <TableCell className="bg-muted/30">{procesoSecondary}</TableCell>
-                                <TableCell className="bg-muted/30">{tasaSecondary ? `${tasaSecondary}%` : "-"}</TableCell>
-                                <TableCell className="bg-muted/30">{calculateCuotasAtrasadas(credit)}</TableCell>
-                                <TableCell className="bg-muted/30">
-                                  {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
-                                </TableCell>
-                              </TableRow>
+                                          {/* Botones de acción (igual que fila madre) */}
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            asChild
+                                            title="Ver detalle"
+                                            className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
+                                          >
+                                            <Link href={`/dashboard/creditos/${credit.id}`}>
+                                              <Eye className="h-4 w-4" />
+                                            </Link>
+                                          </Button>
+                                          {['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') ? (
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              disabled
+                                              title={
+                                                credit.status === 'En Mora'
+                                                  ? "No se puede editar un crédito en mora"
+                                                  : credit.status === 'Cerrado'
+                                                    ? "No se puede editar un crédito cerrado"
+                                                    : "No se puede editar un crédito formalizado"
+                                              }
+                                              className="border-gray-300 text-gray-400 cursor-not-allowed"
+                                            >
+                                              <Pencil className="h-4 w-4" />
+                                            </Button>
+                                          ) : (
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              asChild
+                                              title="Editar crédito"
+                                              className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                                            >
+                                              <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
+                                                <Pencil className="h-4 w-4" />
+                                              </Link>
+                                            </Button>
+                                          )}
+
+                                          {!['Formalizado', 'En Mora', 'Cerrado'].includes(credit.status || '') && (
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              title="Formalizar crédito"
+                                              className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
+                                              onClick={() => {
+                                                setSelectedCredit(credit);
+                                                setFormalizacionDate(new Date());
+                                                setFormalizarDialogOpen(true);
+                                              }}
+                                            >
+                                              <Check className="h-4 w-4" />
+                                            </Button>
+                                          )}
+
+                                          <Button
+                                            size="icon"
+                                            className="h-9 w-9 rounded-md bg-blue-900 text-white hover:bg-blue-800 border-0"
+                                            onClick={() => router.push(`/dashboard/creditos/${credit.id}/pagare`)}
+                                          >
+                                            <FileText className="h-4 w-4" />
+                                          </Button>
+
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                              <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                              <DropdownMenuItem onClick={() => router.push(`/dashboard/creditos/${credit.id}?tab=plan-pagos`)}>
+                                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                                Ver Plan de Pagos
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => { setDocumentsCredit(credit); setIsDocumentsOpen(true); }}>
+                                                <FileText className="h-4 w-4 mr-2" />
+                                                Gestionar documentos
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => { setCambiarDeductoraCredit(credit); setNuevaDeductoraId(String(credit.deductora_id || '')); setCambiarDeductoraOpen(true); }}>
+                                                <Building className="h-4 w-4 mr-2" />
+                                                Cambiar Cooperativa
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
+                                        </div>
+                                      </TableCell>
+
+                                      {/* COLUMNAS 3-19: Datos del crédito secundario */}
+                                      <TableCell className="w-[130px] bg-muted/30">
+                                        {(() => {
+                                          const badgeStyle = getStatusBadgeStyle(credit.status);
+                                          return (
+                                            <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
+                                              {credit.status}
+                                            </Badge>
+                                          );
+                                        })()}
+                                      </TableCell>
+                                      <TableCell className="text-sm capitalize min-w-[200px] bg-muted/30">{nombreCompletoSecondary.toLowerCase()}</TableCell>
+                                      <TableCell className="w-[120px] bg-muted/30">{credit.lead?.cedula || '-'}</TableCell>
+                                      <TableCell className="font-medium bg-muted/30">
+                                        <Link href={`/dashboard/creditos/${credit.id}`} className="hover:underline text-primary">
+                                          {credit.numero_operacion || credit.reference || "-"}
+                                        </Link>
+                                      </TableCell>
+                                      <TableCell className="bg-muted/30">{credit.divisa || "CRC"}</TableCell>
+                                      <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.monto_credito || 0)}</TableCell>
+                                      <TableCell className="bg-muted/30">{credit.plazo ? `${credit.plazo} meses` : "-"}</TableCell>
+                                      <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.saldo || 0)}</TableCell>
+                                      <TableCell className="bg-muted/30">{new Intl.NumberFormat('es-CR', { style: 'currency', currency: credit.divisa || 'CRC' }).format(credit.cuota || 0)}</TableCell>
+                                      <TableCell className="bg-muted/30">{lineaSecondary}</TableCell>
+                                      <TableCell className="bg-muted/30">{fechaInicioSecondary ? formatDate(fechaInicioSecondary) : "No aplicable"}</TableCell>
+                                      <TableCell className="bg-muted/30">{credit.formalized_at ? formatDate(credit.formalized_at) : "-"}</TableCell>
+                                      <TableCell className="bg-muted/30">{credit.garantia || "No aplicable"}</TableCell>
+                                      <TableCell className="bg-muted/30">{formatDate(fechaFinSecondary)}</TableCell>
+                                      <TableCell className="bg-muted/30">{procesoSecondary}</TableCell>
+                                      <TableCell className="bg-muted/30">{tasaSecondary ? `${tasaSecondary}%` : "-"}</TableCell>
+                                      <TableCell className="bg-muted/30">{calculateCuotasAtrasadas(credit)}</TableCell>
+                                      <TableCell className="bg-muted/30">
+                                        {deductoras.find(d => d.id === (credit.deductora_id || credit.lead?.deductora_id))?.nombre || "Sin asignar"}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </Fragment>
                             );
                           })}
-                        </Fragment>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </DraggableScrollContainer>
+                        </TableBody>
+                      </Table>
+                    </DraggableScrollContainer>
 
-                {/* Pagination Controls */}
-                {paginationData.totalPages > 0 && (
-                  <div className="flex items-center justify-between px-6 py-4 border-t">
-                    <div className="text-sm text-muted-foreground">
-                      Mostrando {paginationData.startIndex} a {paginationData.endIndex} de{" "}
-                      <strong>{paginationData.totalGroups}</strong> clientes
-                      {" "}({paginationData.totalItems} créditos totales)
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(1)}
-                        disabled={currentPage === 1}
-                      >
-                        Primera
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-
-                      {/* Page numbers */}
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, paginationData.totalPages) }, (_, i) => {
-                          let pageNum: number;
-                          if (paginationData.totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= paginationData.totalPages - 2) {
-                            pageNum = paginationData.totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
-                          return (
-                            <Button
-                              key={pageNum}
-                              variant={currentPage === pageNum ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCurrentPage(pageNum)}
-                              className="w-9"
-                            >
-                              {pageNum}
-                            </Button>
-                          );
-                        })}
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, paginationData.totalPages))}
-                        disabled={currentPage === paginationData.totalPages}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(paginationData.totalPages)}
-                        disabled={currentPage === paginationData.totalPages}
-                      >
-                        Última
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        );
-        })}
-      </Tabs>
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={!!dialogState} onOpenChange={(open) => !open && setDialogState(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{dialogState === 'create' ? 'Nuevo Crédito' : 'Editar Crédito'}</DialogTitle>
-            <DialogDescription>Completa la información del crédito.</DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <ScrollArea className="h-[60vh] pr-4">
-                <div className="space-y-6 p-1">
-                  {/* 1. Datos Generales */}
-                  <div>
-                    <h3 className="text-lg font-medium">Datos Generales</h3>
-                    <Separator className="my-2" />
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Título</FormLabel>
-                            <FormControl>
-                              <Input {...field} disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="reference"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Referencia</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Se genera automáticamente" {...field} disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="clientId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Cliente</FormLabel>
-                            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={openCombobox}
-                                    className="justify-between font-normal w-full h-10"
-                                  >
-                                    {field.value
-                                      ? clients.find((client) => String(client.id) === field.value)?.name
-                                      : "Selecciona un cliente..."}
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="p-0 w-[400px]" align="start">
-                                <div className="p-2 border-b">
-                                  <Input
-                                    placeholder="Buscar por nombre o cédula..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="h-8"
-                                  />
-                                </div>
-                                <div className="max-h-[200px] overflow-y-auto p-1">
-                                  {filteredClients.length === 0 ? (
-                                    <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron clientes.</div>
-                                  ) : (
-                                    filteredClients.map((client) => (
-                                      <div
-                                        key={client.id}
-                                        className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(client.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
-                                        onClick={() => {
-                                          form.setValue("clientId", String(client.id));
-                                          form.setValue("title", client.name);
-                                          setOpenCombobox(false);
-                                        }}
-                                      >
-                                        <Check
-                                          className={`mr-2 h-4 w-4 ${String(client.id) === field.value ? "opacity-100" : "opacity-0"
-                                            }`}
-                                        />
-                                        <div className="flex flex-col">
-                                          <span>{client.name}</span>
-                                          {client.cedula && <span className="text-xs text-muted-foreground">{client.cedula}</span>}
-                                        </div>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="assignedTo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Responsable</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona un responsable" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {users.map(user => (
-                                  <SelectItem key={user.id} value={user.name}>{user.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="opportunityId"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel>Oportunidad (Opcional)</FormLabel>
-                            <Select onValueChange={(value) => {
-                              field.onChange(value);
-                              const selected = availableOpportunities.find(o => String(o.id) === value);
-                              if (selected?.analisis) {
-                                const a = selected.analisis;
-                                if (a.monto_credito) form.setValue("monto_credito", a.monto_credito);
-                                if (a.plazo) form.setValue("plazo", a.plazo);
-                                if (a.category) form.setValue("category", a.category);
-                                if (a.divisa) form.setValue("divisa", a.divisa);
-                              }
-                              if (selected?.opportunity_type) {
-                                const tipo = selected.opportunity_type.toLowerCase().includes('micro') ? 'microcredito' : 'regular';
-                                form.setValue("tipo_credito", tipo);
-                              }
-                            }} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona una oportunidad" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {availableOpportunities.map(o => (
-                                  <SelectItem key={o.id} value={String(o.id)}>{o.title}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 2. Condiciones Financieras */}
-                  <div>
-                    <h3 className="text-lg font-medium">Condiciones Financieras</h3>
-                    <Separator className="my-2" />
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="tipo_credito"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Tipo de Crédito</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona el tipo de crédito" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="regular">Crédito Regular</SelectItem>
-                                <SelectItem value="microcredito">Micro-crédito</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="monto_credito"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Monto Solicitado</FormLabel>
-                            <FormControl>
-                              <Input value={field.value ? formatCurrency(field.value) : '₡0.00'} disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="plazo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Plazo (Meses)</FormLabel>
-                            <FormControl>
-                              <Input value={field.value} disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="divisa"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Divisa</FormLabel>
-                            <FormControl>
-                              <Input value="CRC - Colón Costarricense" disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="openedAt"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha Apertura</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 3. Configuración Adicional */}
-                  <div>
-                    <h3 className="text-lg font-medium">Configuración Adicional</h3>
-                    <Separator className="my-2" />
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="category"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Categoría</FormLabel>
-                            <FormControl>
-                              <Input value={field.value} disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="poliza"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>¿Tiene póliza?</FormLabel>
-                            <FormControl>
-                              <div className="flex items-center space-x-2 h-10 px-3 border rounded-md">
-                                <Switch
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                                <span className="text-sm text-muted-foreground">
-                                  {field.value ? "Sí posee póliza" : "No posee póliza"}
-                                </span>
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel>Estado Inicial</FormLabel>
-                            <FormControl>
-                              <Input value={field.value} disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel>Descripción</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                className="min-h-[120px]"
-                                placeholder="Describe el contexto del crédito..."
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {currentClient ? (
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Información del cliente</CardTitle>
-                        <CardDescription>Resumen del cliente relacionado con este crédito.</CardDescription>
-                      </CardHeader>
-                      <CardContent className="text-sm">
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <div>
-                            <span className="font-medium">Nombre:</span> {currentClient.name}
-                          </div>
-                          <div>
-                            <span className="font-medium">Correo:</span> {currentClient.email ?? "-"}
-                          </div>
+                    {/* Pagination Controls */}
+                    {paginationData.totalPages > 0 && (
+                      <div className="flex items-center justify-between px-6 py-4 border-t">
+                        <div className="text-sm text-muted-foreground">
+                          Mostrando {paginationData.startIndex} a {paginationData.endIndex} de{" "}
+                          <strong>{paginationData.totalGroups}</strong> clientes
+                          {" "}({paginationData.totalItems} créditos totales)
                         </div>
-                      </CardContent>
-                    </Card>
-                  ) : null}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(1)}
+                            disabled={currentPage === 1}
+                          >
+                            Primera
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+
+                          {/* Page numbers */}
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(5, paginationData.totalPages) }, (_, i) => {
+                              let pageNum: number;
+                              if (paginationData.totalPages <= 5) {
+                                pageNum = i + 1;
+                              } else if (currentPage <= 3) {
+                                pageNum = i + 1;
+                              } else if (currentPage >= paginationData.totalPages - 2) {
+                                pageNum = paginationData.totalPages - 4 + i;
+                              } else {
+                                pageNum = currentPage - 2 + i;
+                              }
+                              return (
+                                <Button
+                                  key={pageNum}
+                                  variant={currentPage === pageNum ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setCurrentPage(pageNum)}
+                                  className="w-9"
+                                >
+                                  {pageNum}
+                                </Button>
+                              );
+                            })}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, paginationData.totalPages))}
+                            disabled={currentPage === paginationData.totalPages}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(paginationData.totalPages)}
+                            disabled={currentPage === paginationData.totalPages}
+                          >
+                            Última
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+
+        {/* Create/Edit Dialog */}
+        <Dialog open={!!dialogState} onOpenChange={(open) => !open && setDialogState(null)}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{dialogState === 'create' ? 'Nuevo Crédito' : 'Editar Crédito'}</DialogTitle>
+              <DialogDescription>Completa la información del crédito.</DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <ScrollArea className="h-[60vh] pr-4">
+                  <div className="space-y-6 p-1">
+                    {/* 1. Datos Generales */}
+                    <div>
+                      <h3 className="text-lg font-medium">Datos Generales</h3>
+                      <Separator className="my-2" />
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="title"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Título</FormLabel>
+                              <FormControl>
+                                <Input {...field} disabled />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="reference"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Referencia</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Se genera automáticamente" {...field} disabled />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="clientId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cliente</FormLabel>
+                              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                                <PopoverTrigger asChild>
+                                  <FormControl>
+                                    <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      aria-expanded={openCombobox}
+                                      className="justify-between font-normal w-full h-10"
+                                    >
+                                      {field.value
+                                        ? clients.find((client) => String(client.id) === field.value)?.name
+                                        : "Selecciona un cliente..."}
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="p-0 w-[400px]" align="start">
+                                  <div className="p-2 border-b">
+                                    <Input
+                                      placeholder="Buscar por nombre o cédula..."
+                                      value={searchQuery}
+                                      onChange={(e) => setSearchQuery(e.target.value)}
+                                      className="h-8"
+                                    />
+                                  </div>
+                                  <div className="max-h-[200px] overflow-y-auto p-1">
+                                    {filteredClients.length === 0 ? (
+                                      <div className="py-6 text-center text-sm text-muted-foreground">No se encontraron clientes.</div>
+                                    ) : (
+                                      filteredClients.map((client) => (
+                                        <div
+                                          key={client.id}
+                                          className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${String(client.id) === field.value ? "bg-accent text-accent-foreground" : ""}`}
+                                          onClick={() => {
+                                            form.setValue("clientId", String(client.id));
+                                            form.setValue("title", client.name);
+                                            setOpenCombobox(false);
+                                          }}
+                                        >
+                                          <Check
+                                            className={`mr-2 h-4 w-4 ${String(client.id) === field.value ? "opacity-100" : "opacity-0"
+                                              }`}
+                                          />
+                                          <div className="flex flex-col">
+                                            <span>{client.name}</span>
+                                            {client.cedula && <span className="text-xs text-muted-foreground">{client.cedula}</span>}
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="assignedTo"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Responsable</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un responsable" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {users.map(user => (
+                                    <SelectItem key={user.id} value={user.name}>{user.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="opportunityId"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel>Oportunidad (Opcional)</FormLabel>
+                              <Select onValueChange={(value) => {
+                                field.onChange(value);
+                                const selected = availableOpportunities.find(o => String(o.id) === value);
+                                if (selected?.analisis) {
+                                  const a = selected.analisis;
+                                  if (a.monto_credito) form.setValue("monto_credito", a.monto_credito);
+                                  if (a.plazo) form.setValue("plazo", a.plazo);
+                                  if (a.category) form.setValue("category", a.category);
+                                  if (a.divisa) form.setValue("divisa", a.divisa);
+                                }
+                                if (selected?.opportunity_type) {
+                                  const tipo = selected.opportunity_type.toLowerCase().includes('micro') ? 'microcredito' : 'regular';
+                                  form.setValue("tipo_credito", tipo);
+                                }
+                              }} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona una oportunidad" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {availableOpportunities.map(o => (
+                                    <SelectItem key={o.id} value={String(o.id)}>{o.title}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 2. Condiciones Financieras */}
+                    <div>
+                      <h3 className="text-lg font-medium">Condiciones Financieras</h3>
+                      <Separator className="my-2" />
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="tipo_credito"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Tipo de Crédito</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona el tipo de crédito" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="regular">Crédito Regular</SelectItem>
+                                  <SelectItem value="microcredito">Micro-crédito</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="monto_credito"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Monto Solicitado</FormLabel>
+                              <FormControl>
+                                <Input value={field.value ? formatCurrency(field.value) : '₡0.00'} disabled />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="plazo"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Plazo (Meses)</FormLabel>
+                              <FormControl>
+                                <Input value={field.value} disabled />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="divisa"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Divisa</FormLabel>
+                              <FormControl>
+                                <Input value="CRC - Colón Costarricense" disabled />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="openedAt"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Fecha Apertura</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 3. Configuración Adicional */}
+                    <div>
+                      <h3 className="text-lg font-medium">Configuración Adicional</h3>
+                      <Separator className="my-2" />
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="category"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Categoría</FormLabel>
+                              <FormControl>
+                                <Input value={field.value} disabled />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="poliza"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>¿Tiene póliza?</FormLabel>
+                              <FormControl>
+                                <div className="flex items-center space-x-2 h-10 px-3 border rounded-md">
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                  <span className="text-sm text-muted-foreground">
+                                    {field.value ? "Sí posee póliza" : "No posee póliza"}
+                                  </span>
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="status"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel>Estado Inicial</FormLabel>
+                              <FormControl>
+                                <Input value={field.value} disabled />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel>Descripción</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  className="min-h-[120px]"
+                                  placeholder="Describe el contexto del crédito..."
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {currentClient ? (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Información del cliente</CardTitle>
+                          <CardDescription>Resumen del cliente relacionado con este crédito.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-sm">
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <span className="font-medium">Nombre:</span> {currentClient.name}
+                            </div>
+                            <div>
+                              <span className="font-medium">Correo:</span> {currentClient.email ?? "-"}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : null}
+                  </div>
+                </ScrollArea>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setDialogState(null)}>Cancelar</Button>
+                  <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Formalizar Dialog */}
+        <Dialog open={formalizarDialogOpen} onOpenChange={setFormalizarDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Formalizar Crédito</DialogTitle>
+              <DialogDescription>
+                Seleccione la fecha de formalización del crédito {selectedCredit?.numero_operacion}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {getAuthUser()?.role?.id === 1 ? (
+                <div className="space-y-2">
+                  <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
+                  <DatePicker
+                    value={formalizacionDate}
+                    onChange={(date) => setFormalizacionDate(date || new Date())}
+                  />
                 </div>
-              </ScrollArea>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogState(null)}>Cancelar</Button>
-                <Button type="submit" disabled={isSaving}>{isSaving ? "Guardando..." : "Guardar"}</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Formalizar Dialog */}
-      <Dialog open={formalizarDialogOpen} onOpenChange={setFormalizarDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Formalizar Crédito</DialogTitle>
-            <DialogDescription>
-              Seleccione la fecha de formalización del crédito {selectedCredit?.numero_operacion}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
-              <DatePicker
-                value={formalizacionDate}
-                onChange={(date) => setFormalizacionDate(date || new Date())}
-              />
+              ) : (
+                <div className="p-4 bg-muted/50 rounded-md text-sm text-muted-foreground border">
+                  El crédito se formalizará con la fecha de hoy: <strong>{new Date().toLocaleDateString('es-CR')}</strong>
+                </div>
+              )}
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFormalizarDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleFormalizar}>
-              Formalizar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFormalizarDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleFormalizar}>
+                Formalizar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Documents Dialog */}
-      <CreditDocumentsDialog
-        isOpen={isDocumentsOpen}
-        credit={documentsCredit}
-        onClose={() => setIsDocumentsOpen(false)}
-        canDownloadDocuments={canDownloadDocuments}
-        deductoras={deductoras}
-      />
+        {/* Documents Dialog */}
+        <CreditDocumentsDialog
+          isOpen={isDocumentsOpen}
+          credit={documentsCredit}
+          onClose={() => setIsDocumentsOpen(false)}
+          canDownloadDocuments={canDownloadDocuments}
+          deductoras={deductoras}
+        />
 
-      {/* Diálogo para Cambiar Cooperativa */}
-      <Dialog open={cambiarDeductoraOpen} onOpenChange={setCambiarDeductoraOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cambiar Cooperativa</DialogTitle>
-            <DialogDescription>
-              Crédito: <strong>{cambiarDeductoraCredit?.numero_operacion || cambiarDeductoraCredit?.reference || ''}</strong>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Label>Cooperativa / Deductora</Label>
-            <Select value={nuevaDeductoraId} onValueChange={setNuevaDeductoraId}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Sin asignar" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sin_asignar">Sin asignar</SelectItem>
-                {deductoras.map((d) => (
-                  <SelectItem key={d.id} value={String(d.id)}>{d.nombre || d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCambiarDeductoraOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCambiarDeductora}>Guardar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Diálogo para Cambiar Cooperativa */}
+        <Dialog open={cambiarDeductoraOpen} onOpenChange={setCambiarDeductoraOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cambiar Cooperativa</DialogTitle>
+              <DialogDescription>
+                Crédito: <strong>{cambiarDeductoraCredit?.numero_operacion || cambiarDeductoraCredit?.reference || ''}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label>Cooperativa / Deductora</Label>
+              <Select value={nuevaDeductoraId} onValueChange={setNuevaDeductoraId}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Sin asignar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sin_asignar">Sin asignar</SelectItem>
+                  {deductoras.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>{d.nombre || d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCambiarDeductoraOpen(false)}>Cancelar</Button>
+              <Button onClick={handleCambiarDeductora}>Guardar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Diálogo de confirmación para Calcular Mora */}
-      <Dialog open={showMoraDialog} onOpenChange={setShowMoraDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              Calcular Mora
-            </DialogTitle>
-            <DialogDescription>
-              Se aplicará el cálculo de intereses corrientes vencidos y mora a{" "}
-              <strong>{selectedCreditIds.size} crédito{selectedCreditIds.size !== 1 ? "s" : ""}</strong> sin deductora.
-              Esta acción marcará las cuotas pendientes más antiguas como &quot;Mora&quot; y agregará cuotas desplazadas al final del plan.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowMoraDialog(false)}>
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={confirmarCalcularMora}>
-              Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        {/* Diálogo de confirmación para Calcular Mora */}
+        <Dialog open={showMoraDialog} onOpenChange={setShowMoraDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                Calcular Mora
+              </DialogTitle>
+              <DialogDescription>
+                Se aplicará el cálculo de intereses corrientes vencidos y mora a{" "}
+                <strong>{selectedCreditIds.size} crédito{selectedCreditIds.size !== 1 ? "s" : ""}</strong> sin deductora.
+                Esta acción marcará las cuotas pendientes más antiguas como &quot;Mora&quot; y agregará cuotas desplazadas al final del plan.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setShowMoraDialog(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmarCalcularMora}>
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </ProtectedPage>
   );
 }
@@ -2658,7 +2666,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
                               title="Eliminar"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
                               </svg>
                             </Button>
                           </div>
