@@ -490,7 +490,7 @@ class PlanillaUploadController extends Controller
             $credit = $pago->credit;
             $lead   = $credit->lead ?? null;
             $nombre = $lead
-                ? trim(($lead->primer_nombre ?? '') . ' ' . ($lead->primer_apellido ?? '') . ' ' . ($lead->segundo_apellido ?? ''))
+                ? trim(($lead->name ?? '') . ' ' . ($lead->apellido1 ?? '') . ' ' . ($lead->apellido2 ?? ''))
                 : ($pago->cedula ?? '-');
 
             $operacion = $credit ? ($credit->numero_operacion ?? $credit->reference ?? '-') : '-';
