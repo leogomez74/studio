@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
 use App\Models\Notification;
+use App\Models\User;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -20,6 +21,7 @@ class CommentController extends Controller
         'client'      => 'App\\Models\\Client',
         'analisis'    => 'App\\Models\\Analisis',
         'direct'      => 'App\\Models\\User',
+        'user'        => 'App\\Models\\User',
     ];
 
     // GET /api/comments?commentable_type=credit&commentable_id=177
@@ -30,15 +32,37 @@ class CommentController extends Controller
             'commentable_id'   => 'required',
         ]);
 
+        $userId = $request->user()->id;
         $type = $this->typeMap[$request->commentable_type] ?? $request->commentable_type;
+        $targetId = $request->commentable_id;
 
-        $comments = Comment::roots()
-            ->whereNull('archived_at')
-            ->where('commentable_type', $type)
-            ->where('commentable_id', $request->commentable_id)
-            ->with(['user:id,name,email', 'replies.user:id,name'])
+        $query = Comment::roots()->whereNull('archived_at');
+
+        if ($type === User::class) {
+            // Lógica para mensajes directos entre dos usuarios específicos
+            $query->where(function ($q) use ($userId, $targetId) {
+                // Mensajes de A para B
+                $q->where(function ($sub) use ($userId, $targetId) {
+                    $sub->where('user_id', $userId)
+                        ->where('commentable_type', User::class)
+                        ->where('commentable_id', $targetId);
+                })
+                // O mensajes de B para A
+                ->orWhere(function ($sub) use ($userId, $targetId) {
+                    $sub->where('user_id', $targetId)
+                        ->where('commentable_type', User::class)
+                        ->where('commentable_id', $userId);
+                });
+            });
+        } else {
+            // LÓGICA NORMAL PARA ENTIDADES (Créditos, Leads, etc.)
+            $query->where('commentable_type', $type)
+                ->where('commentable_id', $targetId);
+        }
+
+        $comments = $query->with(['user:id,name,email', 'replies.user:id,name'])
             ->orderBy('created_at', 'desc')
-            ->paginate(20);
+            ->paginate(50);
 
         return response()->json($comments);
     }
@@ -52,6 +76,8 @@ class CommentController extends Controller
             'body'             => 'required|string|max:5000',
             'mentions'         => 'nullable|array',
             'parent_id'        => 'nullable|integer|exists:comments,id',
+            'comment_type'     => 'nullable|string',
+            'metadata'         => 'nullable|array',
         ]);
 
         $type = $this->typeMap[$request->commentable_type] ?? $request->commentable_type;
@@ -63,6 +89,8 @@ class CommentController extends Controller
             'user_id'          => $request->user()->id,
             'body'             => $request->body,
             'mentions'         => $request->mentions,
+            'comment_type'     => $request->comment_type,
+            'metadata'         => $request->metadata,
         ]);
 
         $this->logActivity('create', 'Comentarios', $comment, 'Comentario #' . $comment->id, [], $request);
@@ -100,7 +128,7 @@ class CommentController extends Controller
         }
 
         // Auto-notify recipient of direct messages
-        if ($request->commentable_type === 'direct') {
+        if ($request->commentable_type === 'direct' || $type === User::class) {
             $recipientId = (int) $request->commentable_id;
             if ($recipientId !== $request->user()->id) {
                 $truncatedBody = \Illuminate\Support\Str::limit($request->body, 120);
@@ -176,6 +204,18 @@ class CommentController extends Controller
         } else {
             $query->whereNull('archived_at');
         }
+
+        // FILTRAR POR SEGURIDAD: Los mensajes directos solo para sus dueños
+        $query->where(function($q) use ($userId) {
+            $q->where('commentable_type', '!=', User::class)
+              ->orWhere(function($sub) use ($userId) {
+                  $sub->where('commentable_type', User::class)
+                      ->where(function($inner) use ($userId) {
+                          $inner->where('user_id', $userId)
+                                ->orWhere('commentable_id', $userId);
+                      });
+              });
+        });
 
         $comments = $query
             ->with([

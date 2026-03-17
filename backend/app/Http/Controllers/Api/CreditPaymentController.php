@@ -338,6 +338,71 @@ class CreditPaymentController extends Controller
     }
 
     /**
+     * Solicitud de anulación para usuarios sin permiso directo.
+     * Crea una Tarea y notifica a todos los usuarios con permiso "Anular Abono" (cobros.archive).
+     */
+    public function requestReverse(Request $request, int $id)
+    {
+        $request->validate(['motivo' => 'required|string|max:500']);
+
+        $payment    = CreditPayment::with('credit')->findOrFail($id);
+        $credit     = $payment->credit;
+        $solicitante = $request->user();
+
+        // Crear tarea para que los autorizados puedan gestionar la solicitud
+        \App\Models\Task::create([
+            'title'        => "Solicitud de Anulación: Abono #{$payment->id} — {$credit->reference}",
+            'details'      => implode("\n", [
+                "**Solicitado por:** {$solicitante->name} ({$solicitante->email})",
+                "**Crédito:** {$credit->reference}",
+                "**Monto del abono:** ₡" . number_format($payment->monto, 2, '.', ','),
+                "**Fuente:** {$payment->source}",
+                "**Fecha del pago:** " . ($payment->fecha_pago ? \Carbon\Carbon::parse($payment->fecha_pago)->format('d/m/Y') : 'N/A'),
+                "**Motivo:** {$request->motivo}",
+                "",
+                "_Para aprobar: anular el abono #{$payment->id} desde el módulo Cobros._",
+            ]),
+            'project_code' => $credit->reference,
+            'project_name' => $credit->title ?? 'Crédito',
+            'priority'     => 'alta',
+            'status'       => 'pendiente',
+            'created_by'   => $solicitante->id,
+        ]);
+
+        // Notificar a usuarios con permiso "Anular Abono" (can_archive en cobros)
+        // Incluye roles con full_access=true O con can_archive=true en módulo cobros
+        $usuariosConPermiso = \App\Models\User::whereHas('role', function ($q) {
+            $q->where('full_access', true)
+              ->orWhereHas('permissions', function ($q2) {
+                  $q2->where('module_key', 'cobros')->where('can_archive', true);
+              });
+        })->where('id', '!=', $solicitante->id)->get();
+
+        foreach ($usuariosConPermiso as $destinatario) {
+            \App\Models\Notification::create([
+                'user_id' => $destinatario->id,
+                'type'    => 'solicitud_anulacion',
+                'title'   => "Solicitud de anulación de abono",
+                'body'    => "{$solicitante->name} solicita anular el abono #{$payment->id} del crédito {$credit->reference}. Motivo: {$request->motivo}",
+                'data'    => json_encode([
+                    'payment_id'     => $payment->id,
+                    'credit_id'      => $credit->id,
+                    'solicitante_id' => $solicitante->id,
+                    'motivo'         => $request->motivo,
+                ]),
+            ]);
+        }
+
+        // Log de auditoría: quién solicitó
+        $this->logActivity('create', 'Pagos', $payment,
+            "Solicitud anulación abono #{$payment->id} por {$solicitante->name}", [], $request);
+
+        return response()->json([
+            'message' => 'Solicitud enviada. Los usuarios autorizados han sido notificados.',
+        ]);
+    }
+
+    /**
      * Carga de intereses / mora para créditos SIN deductora
      */
     public function cargarInteresesSinDeductora(Request $request)

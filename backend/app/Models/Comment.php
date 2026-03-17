@@ -15,12 +15,15 @@ class Comment extends Model
         'commentable_id',
         'user_id',
         'body',
+        'comment_type',
+        'metadata',
         'mentions',
         'archived_at',
     ];
 
     protected $casts = [
         'mentions'    => 'array',
+        'metadata'    => 'array',
         'archived_at' => 'datetime',
     ];
 

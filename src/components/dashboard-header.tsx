@@ -50,6 +50,13 @@ interface CommentNotification {
     sender_name?: string;
     comment_body?: string;
     entity_reference?: string;
+    verification_id?: number;
+    credit_reference?: string;
+    payment_type_label?: string;
+    monto?: number;
+    status?: string;
+    verifier_name?: string;
+    notes?: string;
   } | null;
   read_at: string | null;
   created_at: string;

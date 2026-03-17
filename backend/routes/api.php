@@ -495,6 +495,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Créditos ---
     Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
     Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
+    Route::post('/credits/{id}/sync-status', [App\Http\Controllers\Api\CreditController::class, 'syncStatus']);
     Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
     Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos'])->middleware('throttle:30,1');
     Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
@@ -502,6 +503,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('credits/{id}/documents/{documentId}', [\App\Http\Controllers\Api\CreditController::class, 'destroyDocument'])->middleware('permission:creditos,delete');
     Route::get('credits/{id}/refundicion-preview', [\App\Http\Controllers\Api\CreditController::class, 'refundicionPreview']);
     Route::post('credits/{id}/refundicion', [\App\Http\Controllers\Api\CreditController::class, 'refundicion'])->middleware('throttle:10,1');
+
+    // --- Verificación de Abonos ---
+    Route::get('payment-verifications', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'index']);
+    Route::post('payment-verifications', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'store'])->middleware('throttle:30,1');
+    Route::patch('payment-verifications/{id}/respond', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'respond'])->middleware('throttle:30,1');
+    Route::post('payment-verifications/{id}/apply', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'apply'])->middleware('throttle:10,1');
+    Route::post('payment-verifications/{id}/cancel', [\App\Http\Controllers\Api\PaymentVerificationController::class, 'cancel'])->middleware('throttle:30,1');
 
     // --- Pagos de Crédito ---
     Route::post('credit-payments/carga-intereses', [CreditPaymentController::class, 'cargarInteresesSinDeductora'])->middleware('throttle:30,1');
@@ -514,6 +522,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto'])->middleware('throttle:30,1');
     Route::post('credit-payments/abono-extraordinario/preview', [CreditPaymentController::class, 'previewAbonoExtraordinario'])->middleware('throttle:30,1');
     Route::post('credit-payments/{id}/reverse', [CreditPaymentController::class, 'reversePayment'])->middleware('throttle:10,1');
+    Route::post('credit-payments/{id}/request-reverse', [CreditPaymentController::class, 'requestReverse'])->middleware('throttle:10,1');
     Route::apiResource('credit-payments', CreditPaymentController::class);
 
     // --- Saldos Pendientes ---
@@ -521,6 +530,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('saldos-pendientes/{id}/preview', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'previewAsignacion'])->middleware('throttle:30,1');
     Route::post('saldos-pendientes/{id}/asignar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'asignar'])->middleware('throttle:30,1');
     Route::post('saldos-pendientes/{id}/reintegrar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'reintegrar'])->middleware('throttle:30,1');
+    Route::post('saldos-pendientes/{id}/request-reintegrar', [\App\Http\Controllers\Api\SaldoPendienteController::class, 'requestReintegrar'])->middleware('throttle:10,1');
 
     // --- Historial de Planillas ---
     Route::get('planilla-uploads', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'index']);

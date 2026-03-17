@@ -158,16 +158,23 @@ class MiController extends Controller {
 - Sanitización errores: mensajes genéricos al cliente, detalles solo en Log::warning
 - HttpOnly cookies: diferido — requiere migración completa auth, bajo riesgo actual
 
+## Módulo de Verificación Bancaria (Mar 2026)
+- **Flujo**: Captura de datos de abono → Solicitud a verificador (Task + DM + Notificación) → Aprobación/Rechazo interactivo → Aplicación final por el solicitante.
+- **Interacción**: Tarjetas interactivas en Chat y Comunicaciones con aprobación directa y campo de notas.
+- **Configuración**: El verificador se define en `task_automations` bajo el evento `payment_verification`.
+- **Backend**: `PaymentVerificationController.php`, robustez con null coalescing en notas y transacciones seguras.
+
 ## Módulo Comentarios Internos (Mar 2026)
-- **Polimórfico**: comentarios en Credit, Opportunity, Lead, Client, Analisis, User (direct)
-- **Mensajes directos**: `commentable_type = 'direct'` → `App\Models\User`, `commentable_id` = user destinatario
-- **Emojis**: `@emoji-mart/react` + `@emoji-mart/data`
-- **GIFs**: `gif-picker-react` (Tenor API, key en `NEXT_PUBLIC_TENOR_API_KEY`)
-- **GIF formato**: `[GIF](url)` en body del comentario, parseado en frontend
-- **Notificaciones**: click navega a `/dashboard/comunicaciones?comment_id=X` para abrir thread
-- **Mensaje directo desde burbuja**: CommentsPanel tiene botón Users en header → picker de usuarios → thread directo. Usa `activeType`/`activeId` para alternar entre modo entidad y directo
-- **Burbuja chat** (`chat-bubble.tsx`): dos tabs "Directos" y "Comentarios". DMs agrupados por contacto, comentarios agrupados por entidad. Usa `/api/agents` (no `/api/users`).
-- **Archivos clave**: `chat-bubble.tsx`, `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`
+- **Polimórfico**: comentarios en Credit, Opportunity, Lead, Client, Analisis, User (direct).
+- **Mensajes directos**: `commentable_type = 'direct'` → `App\Models\User`, `commentable_id` = user destinatario.
+- **Privacidad**: Mensajes directos solo visibles para emisor y receptor (filtrado en `CommentController@recent`).
+- **Agrupamiento**: 
+  - Directos: Agrupados por contacto (el "otro" usuario) para evitar duplicados.
+  - Entidades: Agrupados por `type:id` para mostrar solo el más reciente por Crédito/Lead.
+- **Fix Carga de Hilos**: Hilos directos resuelven dinámicamente el `targetId` según quién es el contacto (emisor o receptor), evitando chats vacíos.
+- **Emojis/GIFs**: Integrados con picker y formato `[GIF](url)`.
+- **Burbuja chat**: Tabs "Directos" y "Comentarios" con ancho ampliado al 85% para tarjetas de verificación.
+- **Archivos clave**: `chat-bubble.tsx`, `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`.
 
 ---
 

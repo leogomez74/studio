@@ -67,6 +67,8 @@ interface Comment {
   user_id: number;
   user: { id: number; name: string };
   created_at: string;
+  comment_type?: string;
+  metadata?: Record<string, any> | null;
 }
 
 interface UserOption {
@@ -254,16 +256,163 @@ function MentionLink({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Verification embedded cards
+// ---------------------------------------------------------------------------
+
+function VerificationRequestCard({
+  metadata,
+  commentId,
+  onRefresh,
+}: {
+  metadata: Record<string, any>;
+  commentId: number;
+  onRefresh?: () => void;
+}) {
+  const [responding, setResponding] = useState(false);
+  const [notes, setNotes] = useState('');
+  const { toast } = useToast();
+
+  const handleRespond = async (status: 'approved' | 'rejected') => {
+    setResponding(true);
+    try {
+      await api.patch(
+        `/api/payment-verifications/${metadata.verification_id}/respond`,
+        {
+          status,
+          notes: notes || undefined,
+        }
+      );
+      toast({
+        title: status === 'approved' ? 'Verificado' : 'Rechazado',
+        description:
+          status === 'approved'
+            ? 'Abono marcado como verificado.'
+            : 'Abono marcado como no aplicado.',
+      });
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Error al responder.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  const isResolved = metadata.status !== 'pending';
+
+  return (
+    <div className="mt-2 rounded-lg border bg-card p-4 w-full max-w-md shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xl">🏦</span>
+        <span className="text-sm font-bold text-foreground">Solicitud de Verificación Bancaria</span>
+      </div>
+      <div className="space-y-1.5 text-xs text-muted-foreground mb-4">
+        <p>Crédito: <span className="font-semibold text-foreground text-sm ml-1">{metadata.credit_reference}</span></p>
+        <p>Tipo: <span className="font-medium text-foreground ml-1">{metadata.payment_type_label}</span></p>
+        <div className="py-2 border-y border-border/50 my-2">
+          <p className="text-[10px] uppercase font-bold opacity-60 mb-0.5">Monto del abono</p>
+          <p className="font-bold text-lg text-foreground">₡{Number(metadata.monto || 0).toLocaleString('es-CR')}</p>
+        </div>
+        {metadata.client_name && <p>Cliente: <span className="font-medium text-foreground ml-1">{metadata.client_name}</span></p>}
+      </div>
+      {!isResolved && (
+        <div className="space-y-3 pt-2 border-t border-border/50">
+          <textarea
+            placeholder="Notas de verificación (opcional)..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[60px] resize-none"
+          />
+          <div className="flex gap-3">
+            <Button
+              onClick={() => handleRespond('approved')}
+              disabled={responding}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold h-9 transition-all active:scale-95"
+            >
+              ✅ VERIFICAR
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => handleRespond('rejected')}
+              disabled={responding}
+              className="flex-1 font-bold h-9 transition-all active:scale-95"
+            >
+              ❌ RECHAZAR
+            </Button>
+          </div>
+        </div>
+      )}
+      {isResolved && (
+        <div
+          className={cn(
+            'mt-3 rounded-md px-3 py-2 text-xs font-bold text-center border',
+            metadata.status === 'approved'
+              ? 'bg-green-100 text-green-800 border-green-200'
+              : 'bg-red-100 text-red-800 border-red-200'
+          )}
+        >
+          {metadata.status === 'approved'
+            ? '✅ VERIFICADO Y APROBADO'
+            : '❌ VERIFICADO Y RECHAZADO'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VerificationResponseCard({
+  metadata,
+}: {
+  metadata: Record<string, any>;
+}) {
+  const isApproved = metadata.status === 'approved';
+  return (
+    <div
+      className={cn(
+        'mt-2 rounded-lg border p-4 w-full max-w-md shadow-sm',
+        isApproved
+          ? 'bg-green-50 border-green-200'
+          : 'bg-red-50 border-red-200'
+      )}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xl">{isApproved ? '✅' : '❌'}</span>
+        <span className={cn("text-sm font-bold", isApproved ? "text-green-800" : "text-red-800")}>
+          {isApproved ? 'Abono Verificado' : 'Abono no Verificado'}
+        </span>
+      </div>
+      <div className="space-y-1.5 text-xs opacity-80">
+        <p>Crédito: <span className="font-semibold text-foreground ml-1">{metadata.credit_reference}</span></p>
+        <p>Tipo: <span className="font-medium text-foreground ml-1">{metadata.payment_type_label}</span></p>
+        <p className="font-bold text-base text-foreground mt-1">₡{Number(metadata.monto || 0).toLocaleString('es-CR')}</p>
+        {metadata.notes && (
+          <div className="mt-2 pt-2 border-t border-current/10 italic text-[11px]">
+            <span className="font-semibold not-italic">Notas: </span>{metadata.notes}
+          </div>
+        )}
+      </div>
+      {isApproved && (
+        <p className="mt-3 text-xs font-bold text-green-700 bg-green-100/50 p-2 rounded text-center border border-green-200">
+          Vaya al módulo de Cobros para aplicar el abono formalmente.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CommentBubble({
   comment,
   isOwn,
   onDelete,
   onMentionClick,
+  onRefresh,
 }: {
   comment: Comment;
   isOwn: boolean;
   onDelete: (id: number) => void;
   onMentionClick: (mention: Mention) => void;
+  onRefresh?: () => void;
 }) {
   const [showDelete, setShowDelete] = useState(false);
   const segments = useMemo(
@@ -303,27 +452,39 @@ function CommentBubble({
             {relativeTime(comment.created_at)}
           </span>
         </div>
-        <div className="mt-0.5 text-sm text-foreground/90 leading-relaxed break-words">
-          {segments.map((seg, i) =>
-            seg.kind === 'text' ? (
-              <span key={i}>{seg.value}</span>
-            ) : seg.kind === 'gif' ? (
-              <img
-                key={i}
-                src={seg.url}
-                alt="GIF"
-                className="rounded-lg max-w-[200px] max-h-[150px] object-cover mt-1"
-                loading="lazy"
-              />
-            ) : (
-              <MentionLink
-                key={i}
-                mention={seg.mention}
-                onClick={() => onMentionClick(seg.mention)}
-              />
-            )
-          )}
-        </div>
+        {/* Card embebido para verificación de abonos */}
+        {comment.comment_type === 'verification_request' && comment.metadata ? (
+          <VerificationRequestCard
+            metadata={comment.metadata}
+            commentId={comment.id}
+            onRefresh={onRefresh}
+          />
+        ) : comment.comment_type === 'verification_response' &&
+          comment.metadata ? (
+          <VerificationResponseCard metadata={comment.metadata} />
+        ) : (
+          <div className="mt-0.5 text-sm text-foreground/90 leading-relaxed break-words">
+            {segments.map((seg, i) =>
+              seg.kind === 'text' ? (
+                <span key={i}>{seg.value}</span>
+              ) : seg.kind === 'gif' ? (
+                <img
+                  key={i}
+                  src={seg.url}
+                  alt="GIF"
+                  className="rounded-lg max-w-[200px] max-h-[150px] object-cover mt-1"
+                  loading="lazy"
+                />
+              ) : (
+                <MentionLink
+                  key={i}
+                  mention={seg.mention}
+                  onClick={() => onMentionClick(seg.mention)}
+                />
+              )
+            )}
+          </div>
+        )}
       </div>
 
       {/* Delete button */}
@@ -1004,6 +1165,7 @@ export function CommentsPanel({
                       isOwn={user?.id === comment.user_id}
                       onDelete={handleDelete}
                       onMentionClick={handleMentionClick}
+                      onRefresh={fetchComments}
                     />
                   </div>
                 </div>

@@ -525,10 +525,12 @@ class SaldoPendienteController extends Controller
      */
     public function reintegrar(Request $request, int $id)
     {
-        // Solo administradores pueden reintegrar saldos
+        // Solo usuarios con permiso "Reintegro de Saldo" (cobros.assign) o full_access
         $user = $request->user();
-        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
-            return response()->json(['message' => 'Solo administradores pueden reintegrar saldos'], 403);
+        $perms = $user->role?->getFormattedPermissions() ?? [];
+        $tienePermiso = $user->role?->full_access || ($perms['cobros']['assign'] ?? false);
+        if (!$tienePermiso) {
+            return response()->json(['message' => 'No tienes permiso para reintegrar saldos'], 403);
         }
 
         $validated = $request->validate([
@@ -591,5 +593,66 @@ class SaldoPendienteController extends Controller
                 'credit_reference' => $credit->reference ?? $credit->numero_operacion,
             ]);
         });
+    }
+
+    /**
+     * Solicitud de reintegro para usuarios sin permiso directo.
+     * Crea una Tarea y notifica a todos los usuarios con permiso "Reintegro de Saldo" (cobros.assign).
+     */
+    public function requestReintegrar(Request $request, int $id)
+    {
+        $request->validate(['motivo' => 'required|string|max:500']);
+
+        $saldo       = SaldoPendiente::with('credit.lead')->where('estado', 'pendiente')->findOrFail($id);
+        $credit      = $saldo->credit;
+        $solicitante = $request->user();
+
+        // Crear tarea para los autorizados
+        \App\Models\Task::create([
+            'title'        => "Solicitud de Reintegro de Saldo #{$saldo->id} — {$credit->reference}",
+            'details'      => implode("\n", [
+                "**Solicitado por:** {$solicitante->name} ({$solicitante->email})",
+                "**Crédito:** {$credit->reference}",
+                "**Cliente:** " . ($credit->lead->name ?? 'N/A'),
+                "**Cédula:** {$saldo->cedula}",
+                "**Monto:** ₡" . number_format($saldo->monto, 2, '.', ','),
+                "**Motivo:** {$request->motivo}",
+                "",
+                "_Para aprobar: reintegrar el saldo #{$saldo->id} desde el módulo Cobros > Saldos por Asignar._",
+            ]),
+            'project_code' => $credit->reference,
+            'project_name' => $credit->title ?? 'Crédito',
+            'priority'     => 'alta',
+            'status'       => 'pendiente',
+            'created_by'   => $solicitante->id,
+        ]);
+
+        // Notificar a usuarios con permiso "Reintegro de Saldo" (cobros.assign) o full_access
+        $usuariosConPermiso = \App\Models\User::whereHas('role', function ($q) {
+            $q->where('full_access', true)
+              ->orWhereHas('permissions', function ($q2) {
+                  $q2->where('module_key', 'cobros')->where('can_assign', true);
+              });
+        })->where('id', '!=', $solicitante->id)->get();
+
+        foreach ($usuariosConPermiso as $destinatario) {
+            \App\Models\Notification::create([
+                'user_id' => $destinatario->id,
+                'type'    => 'solicitud_reintegro',
+                'title'   => "Solicitud de reintegro de saldo",
+                'body'    => "{$solicitante->name} solicita reintegrar el saldo #{$saldo->id} del crédito {$credit->reference}. Motivo: {$request->motivo}",
+                'data'    => json_encode([
+                    'saldo_id'       => $saldo->id,
+                    'credit_id'      => $credit->id,
+                    'solicitante_id' => $solicitante->id,
+                    'motivo'         => $request->motivo,
+                ]),
+            ]);
+        }
+
+        $this->logActivity('create', 'Cobros', $saldo,
+            "Solicitud reintegro saldo #{$saldo->id} por {$solicitante->name}", [], $request);
+
+        return response()->json(['message' => 'Solicitud enviada. Los usuarios autorizados han sido notificados.']);
     }
 }

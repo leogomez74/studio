@@ -117,6 +117,7 @@ import { CreditDocumentManager } from '@/components/credit-document-manager';
 import { RefundicionModal } from '@/components/RefundicionModal';
 import { SaldosPorAsignar } from '@/components/saldos-por-asignar';
 import { TareasTab } from '@/components/TareasTab';
+import { getAuthUser } from '@/lib/auth';
 
 // --- Interfaces ---
 
@@ -2348,13 +2349,19 @@ function CreditDetailClient({ id }: { id: string }) {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
-              <DatePicker
-                value={formalizacionDate}
-                onChange={(date) => setFormalizacionDate(date || new Date())}
-              />
-            </div>
+            {getAuthUser()?.role?.id === 1 ? (
+              <div className="space-y-2">
+                <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
+                <DatePicker
+                  value={formalizacionDate}
+                  onChange={(date) => setFormalizacionDate(date || new Date())}
+                />
+              </div>
+            ) : (
+              <div className="p-4 bg-muted/50 rounded-md text-sm text-muted-foreground border">
+                El crédito se formalizará con la fecha de hoy: <strong>{new Date().toLocaleDateString('es-CR')}</strong>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
