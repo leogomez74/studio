@@ -35,13 +35,14 @@ class CreateMissingCreditTasks extends Command
             ->where('is_active', true)
             ->first();
 
-        if (!$automation || !$automation->assigned_to) {
+        $assigneeIds = $automation ? $automation->getAssigneeIds() : [];
+        if (!$automation || empty($assigneeIds)) {
             $this->error('No hay configuración de tarea automática activa para credit_created');
             return Command::FAILURE;
         }
 
         $this->info("Configuración encontrada: {$automation->title}");
-        $this->info("Usuario asignado por defecto: {$automation->assigned_to}");
+        $this->info("Usuarios asignados: " . implode(', ', $assigneeIds));
 
         // Obtener todos los créditos
         $credits = Credit::with('lead')->get();
@@ -55,28 +56,21 @@ class CreateMissingCreditTasks extends Command
             $existingTask = Task::where('project_code', 'CRED-' . $credit->id)->first();
 
             if (!$existingTask) {
-                // Crear la tarea
-                $task = Task::create([
-                    'project_code' => 'CRED-' . $credit->id,
-                    'project_name' => $credit->title,
-                    'title' => $automation->title,
-                    'details' => 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.',
-                    'status' => 'pendiente',
-                    'priority' => $automation->priority ?? 'media',
-                    'assigned_to' => $automation->assigned_to,
-                    'start_date' => now()->toDateString(),
-                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
-                ]);
-                $task->copyChecklistFromAutomation($automation);
+                // Crear tareas (una por responsable configurado)
+                $tasks = Task::createFromAutomation(
+                    $automation,
+                    'CRED-' . $credit->id,
+                    'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.'
+                );
 
-                $tasksCreated++;
-                $this->line("✓ Tarea creada para crédito: {$credit->reference}");
+                $tasksCreated += count($tasks);
+                $this->line("✓ " . count($tasks) . " tarea(s) creada(s) para crédito: {$credit->reference}");
             }
 
             // Actualizar el crédito con assigned_to si no lo tiene
             if (!$credit->assigned_to) {
-                // Usar el assigned_to del lead si existe, sino usar el de la automation
-                $assignedTo = $credit->lead?->assigned_to_id ?? $automation->assigned_to;
+                // Usar el assigned_to del lead si existe, sino usar el primero de la automation
+                $assignedTo = $credit->lead?->assigned_to_id ?? $assigneeIds[0];
                 $credit->update(['assigned_to' => $assignedTo]);
                 $creditsUpdated++;
                 $this->line("✓ Responsable asignado al crédito: {$credit->reference} (Usuario ID: {$assignedTo})");

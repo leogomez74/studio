@@ -247,18 +247,11 @@ class LeadController extends Controller
                 ->where('is_active', true)
                 ->first();
 
-            if ($automation && $automation->assigned_to) {
-                $task = Task::create([
-                    'project_code' => 'LEAD-' . $result['lead']->id,
-                    'title' => $automation->title,
-                    'status' => 'pendiente',
-                    'priority' => $automation->priority ?? 'media',
-                    'assigned_to' => $automation->assigned_to,
-                    'start_date' => now()->toDateString(),
-                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
-                ]);
-                $task->copyChecklistFromAutomation($automation);
-                Log::info('Tarea automática creada para lead', ['cedula' => $result['lead']->cedula]);
+            if ($automation) {
+                $tasks = Task::createFromAutomation($automation, 'LEAD-' . $result['lead']->id);
+                if (!empty($tasks)) {
+                    Log::info('Tareas automáticas creadas para lead', ['cedula' => $result['lead']->cedula, 'count' => count($tasks)]);
+                }
             }
 
             // Tarea automática para la oportunidad creada junto con el lead
@@ -267,18 +260,11 @@ class LeadController extends Controller
                     ->where('is_active', true)
                     ->first();
 
-                if ($oppAutomation && $oppAutomation->assigned_to) {
-                    $oppTask = Task::create([
-                        'project_code' => 'OPP-' . $result['opportunity']->id,
-                        'title' => $oppAutomation->title,
-                        'status' => 'pendiente',
-                        'priority' => $oppAutomation->priority ?? 'media',
-                        'assigned_to' => $oppAutomation->assigned_to,
-                        'start_date' => now()->toDateString(),
-                        'due_date' => now()->addDays($oppAutomation->due_days_offset ?? 3)->toDateString(),
-                    ]);
-                    $oppTask->copyChecklistFromAutomation($oppAutomation);
-                    Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $result['opportunity']->id]);
+                if ($oppAutomation) {
+                    $oppTasks = Task::createFromAutomation($oppAutomation, 'OPP-' . $result['opportunity']->id);
+                    if (!empty($oppTasks)) {
+                        Log::info('Tareas automáticas creadas para oportunidad', ['opportunity_id' => $result['opportunity']->id, 'count' => count($oppTasks)]);
+                    }
                 }
             }
         } catch (\Exception $e) {

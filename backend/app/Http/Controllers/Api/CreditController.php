@@ -311,23 +311,19 @@ class CreditController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if ($automation && $automation->assigned_to) {
-            // Asignar el responsable del crédito
-            $credit->update(['assigned_to' => $automation->assigned_to]);
+        if ($automation) {
+            $assigneeIds = $automation->getAssigneeIds();
+            if (!empty($assigneeIds)) {
+                // Asignar el primer responsable al crédito
+                $credit->update(['assigned_to' => $assigneeIds[0]]);
 
-            // Crear la tarea automática
-            $task = \App\Models\Task::create([
-                'project_code' => 'CRED-' . $credit->id,
-                'project_name' => $credit->title,
-                'title' => $automation->title,
-                'details' => 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.',
-                'status' => 'pendiente',
-                'priority' => $automation->priority ?? 'media',
-                'assigned_to' => $automation->assigned_to,
-                'start_date' => now()->toDateString(),
-                'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
-            ]);
-            $task->copyChecklistFromAutomation($automation);
+                // Crear tareas automáticas (una por responsable)
+                \App\Models\Task::createFromAutomation(
+                    $automation,
+                    'CRED-' . $credit->id,
+                    'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.'
+                );
+            }
         }
 
         $this->logActivity('create', 'Créditos', $credit, $credit->referencia ?? $credit->reference ?? (string) $credit->id, [], $request);

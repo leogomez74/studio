@@ -196,18 +196,11 @@ class PropuestaController extends Controller
                 ->where('is_active', true)
                 ->first();
 
-            if ($automation && $automation->assigned_to) {
-                $task = Task::create([
-                    'project_code' => 'ANA-' . $analisis->id,
-                    'title' => $automation->title,
-                    'status' => 'pendiente',
-                    'priority' => $automation->priority ?? 'media',
-                    'assigned_to' => $automation->assigned_to,
-                    'start_date' => now()->toDateString(),
-                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
-                ]);
-                $task->copyChecklistFromAutomation($automation);
-                Log::info('Tarea automática creada (pep_aceptado)', ['task_id' => $task->id, 'analisis_id' => $analisis->id]);
+            if ($automation) {
+                $tasks = Task::createFromAutomation($automation, 'ANA-' . $analisis->id);
+                if (!empty($tasks)) {
+                    Log::info('Tareas automáticas creadas (pep_aceptado)', ['count' => count($tasks), 'analisis_id' => $analisis->id]);
+                }
             }
         } catch (\Exception $e) {
             Log::error('Error creando tarea automática para propuesta aprobada', ['propuesta_id' => $propuesta->id, 'analisis_id' => $analisis->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);

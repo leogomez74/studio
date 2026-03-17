@@ -69,13 +69,15 @@ class PaymentVerificationController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$automation || !$automation->assigned_to) {
+        $assigneeIds = $automation ? $automation->getAssigneeIds() : [];
+        if (!$automation || empty($assigneeIds)) {
             return response()->json([
                 'message' => 'No hay verificador configurado. Configure una tarea automática de tipo "payment_verification" en Configuración.',
             ], 422);
         }
 
-        $verifierId = $automation->assigned_to;
+        // Para verificaciones se usa el primer verificador configurado
+        $verifierId = $assigneeIds[0];
         $requesterId = $request->user()->id;
 
         if ($verifierId === $requesterId) {

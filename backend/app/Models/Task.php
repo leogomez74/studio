@@ -93,6 +93,42 @@ class Task extends Model
         }
     }
 
+    /**
+     * Create tasks from an automation for all configured assignees.
+     * Returns an array of created Task instances.
+     *
+     * @param TaskAutomation $automation
+     * @param string $projectCode e.g. 'LEAD-123'
+     * @param string|null $details Optional task details
+     * @return Task[]
+     */
+    public static function createFromAutomation(TaskAutomation $automation, string $projectCode, ?string $details = null): array
+    {
+        $assigneeIds = $automation->getAssigneeIds();
+        if (empty($assigneeIds)) {
+            return [];
+        }
+
+        $tasks = [];
+        foreach ($assigneeIds as $userId) {
+            $task = self::create([
+                'project_code' => $projectCode,
+                'title' => $automation->title,
+                'details' => $details,
+                'status' => 'pendiente',
+                'priority' => $automation->priority ?? 'media',
+                'assigned_to' => $userId,
+                'workflow_id' => $automation->workflow_id,
+                'start_date' => now()->toDateString(),
+                'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
+            ]);
+            $task->copyChecklistFromAutomation($automation);
+            $tasks[] = $task;
+        }
+
+        return $tasks;
+    }
+
     public function currentStatusName(): string
     {
         if ($this->workflowStatus) {

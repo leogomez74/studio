@@ -13,7 +13,7 @@ class TaskAutomationController extends Controller
 
     public function index()
     {
-        return TaskAutomation::with(['assignee:id,name', 'checklistItems'])->get();
+        return TaskAutomation::with(['assignee:id,name', 'assignees:id,name', 'checklistItems'])->get();
     }
 
     public function upsert(Request $request)
@@ -22,6 +22,8 @@ class TaskAutomationController extends Controller
             'event_type' => 'required|string|max:50',
             'title' => 'required|string|max:255',
             'assigned_to' => 'nullable|integer|exists:users,id',
+            'assigned_to_ids' => 'nullable|array',
+            'assigned_to_ids.*' => 'integer|exists:users,id',
             'priority' => 'nullable|string|in:alta,media,baja',
             'due_days_offset' => 'nullable|integer|min:0|max:365',
             'is_active' => 'required|boolean',
@@ -30,12 +32,23 @@ class TaskAutomationController extends Controller
         ]);
 
         $checklistItems = $validated['checklist_items'] ?? null;
-        unset($validated['checklist_items']);
+        $assigneeIds = $validated['assigned_to_ids'] ?? null;
+        unset($validated['checklist_items'], $validated['assigned_to_ids']);
+
+        // Si se envían assigned_to_ids, usar el primero como assigned_to legacy
+        if ($assigneeIds !== null && count($assigneeIds) > 0) {
+            $validated['assigned_to'] = $assigneeIds[0];
+        }
 
         $automation = TaskAutomation::updateOrCreate(
             ['event_type' => $validated['event_type']],
             $validated
         );
+
+        // Sincronizar assignees en tabla pivote
+        if ($assigneeIds !== null) {
+            $automation->assignees()->sync($assigneeIds);
+        }
 
         // Sincronizar checklist items si se enviaron
         if ($checklistItems !== null) {
@@ -50,6 +63,6 @@ class TaskAutomationController extends Controller
 
         $this->logActivity('upsert', 'Automatización Tareas', $automation, $automation->title, null, $request);
 
-        return response()->json($automation->load(['assignee:id,name', 'checklistItems']));
+        return response()->json($automation->load(['assignee:id,name', 'assignees:id,name', 'checklistItems']));
     }
 }

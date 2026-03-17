@@ -226,18 +226,11 @@ class OpportunityController extends Controller
                 ->where('is_active', true)
                 ->first();
 
-            if ($automation && $automation->assigned_to) {
-                $task = Task::create([
-                    'project_code' => 'OPP-' . $opportunity->id,
-                    'title' => $automation->title,
-                    'status' => 'pendiente',
-                    'priority' => $automation->priority ?? 'media',
-                    'assigned_to' => $automation->assigned_to,
-                    'start_date' => now()->toDateString(),
-                    'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
-                ]);
-                $task->copyChecklistFromAutomation($automation);
-                Log::info('Tarea automática creada para oportunidad', ['opportunity_id' => $opportunity->id]);
+            if ($automation) {
+                $tasks = Task::createFromAutomation($automation, 'OPP-' . $opportunity->id);
+                if (!empty($tasks)) {
+                    Log::info('Tareas automáticas creadas para oportunidad', ['opportunity_id' => $opportunity->id, 'count' => count($tasks)]);
+                }
             }
         } catch (\Exception $e) {
             Log::error('Error creando tarea automática para oportunidad', ['opportunity_id' => $opportunity->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);

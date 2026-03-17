@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, X } from 'lucide-react';
+import { ChevronDown, Loader2, Plus, X } from 'lucide-react';
 import { useAuth } from '@/components/auth-guard';
 import { API_BASE_URL } from '@/lib/env';
 import api from '@/lib/axios';
@@ -22,14 +23,14 @@ interface ChecklistTemplate {
 }
 
 interface AutomationConfig {
-  assigned_to: string;
+  assigned_to_ids: number[];
   due_days_offset: number;
   is_active: boolean;
   checklist_items: ChecklistTemplate[];
 }
 
 const AUTOMATION_EVENTS = [
-  { key: 'lead_created', title: 'Nuevo Lead Creado', description: 'Al registrar un nuevo lead, se crea automáticamente una tarea asignada al usuario seleccionado.', defaultTitle: 'Nuevo lead creado' },
+  { key: 'lead_created', title: 'Nuevo Lead Creado', description: 'Al registrar un nuevo lead, se crea automáticamente una tarea por cada responsable seleccionado.', defaultTitle: 'Nuevo lead creado' },
   { key: 'opportunity_created', title: 'Nueva Oportunidad Creada', description: 'Al generar una oportunidad, se crea tarea para realizar análisis, solicitar colillas y verificarlas.', defaultTitle: 'Realizar análisis, solicitar colillas y verificarlas' },
   { key: 'analisis_created', title: 'Análisis Creado', description: 'Al crear un análisis, se asigna tarea para enviar propuesta al equipo PEP, dar seguimiento y verificar estado.', defaultTitle: 'Enviar propuesta al equipo PEP, dar seguimiento y verificar estado' },
   { key: 'pep_aceptado', title: 'PEP Acepta Análisis', description: 'Al aceptar el análisis o aprobar una propuesta, se asigna tarea para informar al cliente la propuesta aceptada.', defaultTitle: 'Informar al cliente la propuesta aceptada' },
@@ -44,6 +45,7 @@ const TareasAutomationTab: React.FC = () => {
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [automationsLoading, setAutomationsLoading] = useState(false);
   const [configs, setConfigs] = useState<Record<string, AutomationConfig>>({});
+  const saveTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   const fetchUsers = async () => {
     try {
@@ -65,8 +67,17 @@ const TareasAutomationTab: React.FC = () => {
         const checklistItems = Array.isArray(auto?.checklist_items)
           ? (auto.checklist_items as { id: number; title: string }[]).map((item) => ({ id: item.id, title: item.title }))
           : [];
+
+        // Leer assignees del pivote; fallback a assigned_to legacy
+        let assignedIds: number[] = [];
+        if (Array.isArray(auto?.assignees) && auto.assignees.length > 0) {
+          assignedIds = (auto.assignees as { id: number }[]).map(u => u.id);
+        } else if (auto?.assigned_to) {
+          assignedIds = [Number(auto.assigned_to)];
+        }
+
         newConfigs[event.key] = {
-          assigned_to: auto?.assigned_to ? String(auto.assigned_to) : '',
+          assigned_to_ids: assignedIds,
           due_days_offset: (auto?.due_days_offset as number) ?? 3,
           is_active: (auto?.is_active as boolean) ?? false,
           checklist_items: checklistItems,
@@ -81,11 +92,15 @@ const TareasAutomationTab: React.FC = () => {
     if (token) { fetchUsers(); fetchAutomations(); }
   }, [token, fetchAutomations]);
 
-  const saveAutomation = async (eventType: string, title: string, assignedTo: string, dueDaysOffset?: number, checklistItems?: ChecklistTemplate[]) => {
+  const saveAutomation = async (eventType: string, title: string, assignedToIds: number[], dueDaysOffset?: number, checklistItems?: ChecklistTemplate[]) => {
     try {
       await api.post('/api/task-automations', {
-        event_type: eventType, title, assigned_to: assignedTo ? Number(assignedTo) : null,
-        priority: 'media', due_days_offset: dueDaysOffset ?? configs[eventType]?.due_days_offset ?? 3, is_active: !!assignedTo,
+        event_type: eventType,
+        title,
+        assigned_to_ids: assignedToIds,
+        priority: 'media',
+        due_days_offset: dueDaysOffset ?? configs[eventType]?.due_days_offset ?? 3,
+        is_active: assignedToIds.length > 0,
         checklist_items: checklistItems ?? configs[eventType]?.checklist_items ?? [],
       });
       toast({ title: 'Guardado', description: 'Configuración actualizada.' });
@@ -93,6 +108,29 @@ const TareasAutomationTab: React.FC = () => {
       console.error('Error saving automation:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la configuración.' });
     }
+  };
+
+  const debouncedSave = (eventKey: string, ids: number[]) => {
+    if (saveTimeoutRef.current[eventKey]) {
+      clearTimeout(saveTimeoutRef.current[eventKey]);
+    }
+    saveTimeoutRef.current[eventKey] = setTimeout(() => {
+      const event = AUTOMATION_EVENTS.find(e => e.key === eventKey);
+      if (event) {
+        saveAutomation(eventKey, event.defaultTitle, ids);
+      }
+    }, 600);
+  };
+
+  const toggleAssignee = (eventKey: string, userId: number) => {
+    setConfigs(prev => {
+      const current = prev[eventKey]?.assigned_to_ids || [];
+      const updated = current.includes(userId)
+        ? current.filter(id => id !== userId)
+        : [...current, userId];
+      debouncedSave(eventKey, updated);
+      return { ...prev, [eventKey]: { ...prev[eventKey], assigned_to_ids: updated, is_active: updated.length > 0 } };
+    });
   };
 
   const addChecklistItem = (eventKey: string) => {
@@ -123,10 +161,18 @@ const TareasAutomationTab: React.FC = () => {
 
   const saveChecklist = (eventKey: string) => {
     const config = configs[eventKey];
-    if (config?.assigned_to) {
+    if (config?.assigned_to_ids.length > 0) {
       const validItems = config.checklist_items.filter(i => i.title.trim());
-      saveAutomation(eventKey, AUTOMATION_EVENTS.find(e => e.key === eventKey)?.defaultTitle || '', config.assigned_to, config.due_days_offset, validItems);
+      saveAutomation(eventKey, AUTOMATION_EVENTS.find(e => e.key === eventKey)?.defaultTitle || '', config.assigned_to_ids, config.due_days_offset, validItems);
     }
+  };
+
+  const getAssigneeNames = (eventKey: string): string => {
+    const ids = configs[eventKey]?.assigned_to_ids || [];
+    if (ids.length === 0) return 'Ninguno (desactivado)';
+    const names = ids.map(id => users.find(u => u.id === id)?.name || `#${id}`);
+    if (names.length <= 2) return names.join(', ');
+    return `${names[0]}, ${names[1]} +${names.length - 2}`;
   };
 
   return (
@@ -134,7 +180,7 @@ const TareasAutomationTab: React.FC = () => {
       <CardHeader>
         <CardTitle>Tareas Automáticas</CardTitle>
         <CardDescription>
-          Configura las tareas que se crean automáticamente al ocurrir ciertos eventos en el sistema. Selecciona &quot;Ninguno&quot; para desactivar una tarea.
+          Configura las tareas que se crean automáticamente al ocurrir ciertos eventos. Se crea una tarea por cada responsable seleccionado. Deja sin responsables para desactivar.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -150,23 +196,36 @@ const TareasAutomationTab: React.FC = () => {
                 <p className="text-sm text-muted-foreground mb-3">{event.description}</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Asignar tarea a</Label>
-                    <Select
-                      value={configs[event.key]?.assigned_to || 'none'}
-                      onValueChange={(value) => {
-                        const assignedTo = value === 'none' ? '' : value;
-                        setConfigs(prev => ({ ...prev, [event.key]: { ...prev[event.key], assigned_to: assignedTo, is_active: !!assignedTo } }));
-                        saveAutomation(event.key, event.defaultTitle, assignedTo);
-                      }}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Ninguno</SelectItem>
-                        {users.map((user) => (
-                          <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Responsables</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between text-left font-normal h-auto min-h-[36px] py-1.5">
+                          <span className="truncate text-sm">
+                            {getAssigneeNames(event.key)}
+                          </span>
+                          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[260px] p-2" align="start">
+                        <div className="max-h-[200px] overflow-y-auto space-y-1">
+                          {users.map((user) => {
+                            const isChecked = (configs[event.key]?.assigned_to_ids || []).includes(user.id);
+                            return (
+                              <label
+                                key={user.id}
+                                className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted cursor-pointer text-sm"
+                              >
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={() => toggleAssignee(event.key, user.id)}
+                                />
+                                {user.name}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-2">
                     <Label>Días de plazo</Label>
@@ -181,17 +240,37 @@ const TareasAutomationTab: React.FC = () => {
                       }}
                       onBlur={() => {
                         const config = configs[event.key];
-                        if (config?.assigned_to) {
-                          saveAutomation(event.key, event.defaultTitle, config.assigned_to, config.due_days_offset);
+                        if (config?.assigned_to_ids.length > 0) {
+                          saveAutomation(event.key, event.defaultTitle, config.assigned_to_ids, config.due_days_offset);
                         }
                       }}
-                      disabled={!configs[event.key]?.assigned_to}
+                      disabled={(configs[event.key]?.assigned_to_ids || []).length === 0}
                     />
                   </div>
                 </div>
 
+                {/* Selected assignees badges */}
+                {(configs[event.key]?.assigned_to_ids || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(configs[event.key]?.assigned_to_ids || []).map(id => {
+                      const user = users.find(u => u.id === id);
+                      return (
+                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs">
+                          {user?.name || `#${id}`}
+                          <button
+                            onClick={() => toggleAssignee(event.key, id)}
+                            className="hover:opacity-70"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Checklist template */}
-                {configs[event.key]?.assigned_to && (
+                {(configs[event.key]?.assigned_to_ids || []).length > 0 && (
                   <div className="mt-4 border-t pt-3">
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-xs text-muted-foreground">Subtareas predefinidas</Label>

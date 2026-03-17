@@ -232,6 +232,14 @@ class MiController extends Controller {
 - **Admin config**: WorkflowsTab (crear/editar workflows con estados y transiciones), LabelManager (CRUD de etiquetas)
 - **Dependencia**: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`
 
+### Multi-Assignee en Automatizaciones (Mar 2026)
+- **Tabla pivote**: `task_automation_assignees` (automation_id, user_id, unique constraint)
+- **Modelo**: `TaskAutomation::assignees()` BelongsToMany + `getAssigneeIds()` helper (fallback a legacy `assigned_to`)
+- **Task::createFromAutomation()**: método estático que crea una tarea por cada responsable configurado, copiando checklist
+- **Backend**: `TaskAutomationController` acepta `assigned_to_ids[]` array y sincroniza pivote. Los 7 controllers que disparan automations usan `Task::createFromAutomation()` (LeadController, OpportunityController, CreditController, AnalisisController, PropuestaController, PaymentVerificationController, CreateMissingCreditTasks command)
+- **Frontend**: `TareasAutomationTab.tsx` usa multi-select con Popover+Checkbox (badges removibles) en vez de Select simple
+- **PaymentVerification**: caso especial, usa solo el primer verificador (`$assigneeIds[0]`) porque la verificación es 1:1
+
 ---
 
 ## Deuda técnica pendiente (ver mejoras.md)
