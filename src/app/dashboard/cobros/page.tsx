@@ -793,6 +793,7 @@ const CobrosTable = React.memo(function CobrosTable({ credits, isLoading, curren
             {paginatedCredits.map((credit) => {
               const diasAtraso = calculateDaysInArrears(credit);
               return (
+                console.log('Calculando días de atraso por crédito', credit.reference, '->', diasAtraso),
                 <TableRow key={credit.id} className={`hover:bg-muted/50 cursor-pointer ${selectedCreditId === credit.id ? 'bg-muted' : ''}`} onClick={() => onSelectCredit?.(credit.id!)}>
                   <TableCell className="font-medium">
                     <span className="hover:underline text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelectCredit?.(credit.id!); }}>
