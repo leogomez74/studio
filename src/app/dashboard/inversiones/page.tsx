@@ -1832,22 +1832,6 @@ export default function InversionesPage() {
                 <Label>Fecha de Pago *</Label>
                 <Input type="date" value={paymentForm.fecha_pago} onChange={e => setPaymentForm(f => ({ ...f, fecha_pago: e.target.value }))} />
               </div>
-              {paymentForm.tipo == "Abono" ? (
-                <div className="grid gap-2">
-                  <Label>Capital *</Label>
-                  <Input type="number" step="0.01" value={paymentForm.monto_capital} onChange={e => setPaymentForm(f => ({ ...f, monto_capital: e.target.value,monto: String(Number(e.target.value) + Number(f.monto_interes)) }))} className="font-mono" placeholder="0.00" />
-                  <Label>Interés *</Label>
-                  <Input type="number" step="0.01" value={paymentForm.monto_interes} onChange={e => setPaymentForm(f => ({ ...f, monto_interes: e.target.value, monto: String(Number(f.monto_capital) + Number(e.target.value)) }))} className="font-mono" placeholder="0.00" />
-                </div>
-              ) : (
-                <div className="grid gap-2">
-                  <Label>Monto *</Label>
-                  <Input type="number" step="0.01" value={paymentForm.monto} onChange={e => setPaymentForm(f => ({ ...f, monto: e.target.value }))} className="font-mono" placeholder="0.00" />
-                </div>
-              )}
-
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Tipo *</Label>
                 <Select value={paymentForm.tipo} onValueChange={v => setPaymentForm(f => ({ ...f, tipo: v, monto_capital: '', monto_interes: '' }))}>
@@ -1861,16 +1845,33 @@ export default function InversionesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2">
-                <Label>Moneda *</Label>
-                <Select value={paymentForm.moneda} onValueChange={v => setPaymentForm(f => ({ ...f, moneda: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CRC">CRC</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                  </SelectContent>
-                </Select>
+            </div>
+            {paymentForm.tipo === "Abono" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Capital *</Label>
+                  <Input type="number" step="0.01" value={paymentForm.monto_capital} onChange={e => setPaymentForm(f => ({ ...f, monto_capital: e.target.value, monto: String(Number(e.target.value) + Number(f.monto_interes)) }))} className="font-mono" placeholder="0.00" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Interés *</Label>
+                  <Input type="number" step="0.01" value={paymentForm.monto_interes} onChange={e => setPaymentForm(f => ({ ...f, monto_interes: e.target.value, monto: String(Number(f.monto_capital) + Number(e.target.value)) }))} className="font-mono" placeholder="0.00" />
+                </div>
               </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label>Monto *</Label>
+                <Input type="number" step="0.01" value={paymentForm.monto} onChange={e => setPaymentForm(f => ({ ...f, monto: e.target.value }))} className="font-mono" placeholder="0.00" />
+              </div>
+            )}
+            <div className="grid gap-2">
+              <Label>Moneda *</Label>
+              <Select value={paymentForm.moneda} onValueChange={v => setPaymentForm(f => ({ ...f, moneda: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CRC">CRC</SelectItem>
+                  <SelectItem value="USD">USD</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label>Responsable *</Label>
