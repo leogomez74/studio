@@ -237,6 +237,13 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const totalEmbargo = desglose?.total_embargo ?? embargableResult?.resultado ?? 0;
   const cuotaSuperaEmbargo = cuotaCalculada > 0 && totalEmbargo > 0 && cuotaCalculada > totalEmbargo;
 
+  const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
+  const montoMaxConfig = cfg ? parseFloat(String(cfg.monto_maximo)) : (esMicro ? 690000 : Infinity);
+  const montoMinConfig = cfg ? parseFloat(String(cfg.monto_minimo)) : 0;
+  const montoActual = parseFloat(montoSugerido) || 0;
+  const montoSuperaLimite = montoActual > 0 && montoActual > montoMaxConfig;
+  const montoBajoMinimo = montoActual > 0 && montoActual < montoMinConfig;
+
   return (
     <div className="space-y-4">
 
@@ -483,17 +490,36 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs">Monto Sugerido (₡)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Monto Sugerido (₡)</Label>
+                    {montoMaxConfig < Infinity && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {fmt(montoMinConfig)} — {fmt(montoMaxConfig)}
+                      </span>
+                    )}
+                  </div>
                   <div className="relative mt-1">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
                     <Input
                       value={withCommas(montoSugerido)}
                       onChange={e => setMontoSugerido(stripCommas(e.target.value))}
                       placeholder="0"
-                      className="h-8 text-sm pl-7"
+                      className={`h-8 text-sm pl-7 ${montoSuperaLimite || montoBajoMinimo ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                       inputMode="numeric"
                     />
                   </div>
+                  {montoSuperaLimite && (
+                    <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3 shrink-0" />
+                      Supera el máximo permitido de {fmt(montoMaxConfig)}
+                    </p>
+                  )}
+                  {montoBajoMinimo && (
+                    <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3 shrink-0" />
+                      El mínimo para este tipo es {fmt(montoMinConfig)}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -501,9 +527,16 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                   <Select value={plazo} onValueChange={setPlazo}>
                     <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {[12, 24, 36, 48, 60, 72, 84, 96, 108, 120].map(p => (
-                        <SelectItem key={p} value={String(p)}>{p} meses</SelectItem>
-                      ))}
+                      {[6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 72, 84, 96, 108, 120]
+                        .filter(p => {
+                          const min = cfg?.plazo_minimo ?? 6;
+                          const max = cfg?.plazo_maximo ?? 120;
+                          return p >= min && p <= max;
+                        })
+                        .map(p => (
+                          <SelectItem key={p} value={String(p)}>{p} meses</SelectItem>
+                        ))
+                      }
                     </SelectContent>
                   </Select>
                 </div>
@@ -531,14 +564,15 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 <Separator />
 
                 {cuotaSuperaEmbargo && (() => {
-                  // Calcular monto máximo viable con el plazo actual
+                  // Calcular monto máximo viable con el plazo actual (respetando límite de config)
                   const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
                   const ta = cfg ? parseFloat(String(cfg.tasa_anual)) : (esMicro ? 54 : 36);
                   const r = (ta / 100) / 12;
                   const m = parseInt(plazo) || 0;
-                  const maxMonto = m > 0 && r > 0
+                  const maxMontoEmbargo = m > 0 && r > 0
                     ? Math.floor(totalEmbargo * (Math.pow(1 + r, m) - 1) / (r * Math.pow(1 + r, m)))
                     : 0;
+                  const maxMonto = Math.min(maxMontoEmbargo, montoMaxConfig);
                   return (
                     <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 space-y-1">
                       <div className="flex items-center gap-1.5 font-medium">
@@ -563,7 +597,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
                 <Button
                   onClick={handleCrearAnalisis}
-                  disabled={!montoSugerido || !plazo || cuotaSuperaEmbargo}
+                  disabled={!montoSugerido || !plazo || cuotaSuperaEmbargo || montoSuperaLimite || montoBajoMinimo}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 disabled:opacity-50"
                 >
                   <CheckCircle className="h-4 w-4" />
