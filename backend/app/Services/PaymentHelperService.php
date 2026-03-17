@@ -172,7 +172,10 @@ class PaymentHelperService
         if ($credit->status === 'En Mora') {
             $tieneMora = $credit->planDePagos()
                 ->where('numero_cuota', '>', 0)
-                ->where('estado', 'Mora')
+                ->where(function($query) {
+                    $query->where('estado', 'Mora')
+                          ->orWhere('dias_mora', '>', 0);
+                })
                 ->exists();
 
             if (!$tieneMora) {

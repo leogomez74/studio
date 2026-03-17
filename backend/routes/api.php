@@ -463,6 +463,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Créditos ---
     Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
     Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
+    Route::post('/credits/{id}/sync-status', [App\Http\Controllers\Api\CreditController::class, 'syncStatus']);
     Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
     Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos'])->middleware('throttle:30,1');
     Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);

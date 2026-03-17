@@ -1237,4 +1237,31 @@ class CreditController extends Controller
 
         return response()->json($result, 201);
     }
+
+    /**
+     * Sincronizar el estado del crédito si quedó "En Mora" sin tener cuotas vencidas.
+     */
+    public function syncStatus($id)
+    {
+        $credit = Credit::findOrFail($id);
+        
+        if ($credit->status === Credit::STATUS_EN_MORA) {
+            $tieneMora = $credit->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->where(function($query) {
+                    $query->where('estado', 'Mora')
+                          ->orWhere('dias_mora', '>', 0);
+                })
+                ->exists();
+
+            if (!$tieneMora) {
+                $credit->status = Credit::STATUS_FORMALIZADO;
+                $credit->save();
+                return response()->json(['message' => 'Estado corregido exitosamente a Formalizado.', 'status' => $credit->status]);
+            }
+            return response()->json(['message' => 'El crédito mantiene su estado porque aún tiene cuotas en mora.', 'status' => $credit->status]);
+        }
+
+        return response()->json(['message' => 'El crédito no requiere corrección (su estado actual es ' . $credit->status . ').', 'status' => $credit->status]);
+    }
 }
