@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Credit;
 use App\Models\PlanDePago;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use Carbon\Carbon;
 
 class MoraService
@@ -135,7 +137,36 @@ class MoraService
         $this->helper->agregarCuotaDesplazada($credit, $amortizacionOriginal);
 
         // 9. Cambiar estado del crédito
+        $wasAlreadyInMora = $credit->status === 'En Mora';
         Credit::where('id', $credit->id)->update(['status' => 'En Mora']);
+
+        // 10. Crear tarea de seguimiento de mora (solo la primera vez)
+        if (!$wasAlreadyInMora) {
+            try {
+                $automation = TaskAutomation::where('event_type', 'credit_mora')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation) {
+                    $clienteNombre = $credit->lead->name ?? 'N/A';
+                    $details = implode("\n", [
+                        "**Crédito:** {$credit->reference}",
+                        "**Cliente:** {$clienteNombre}",
+                        "**Cuota en mora:** #{$cuota->numero_cuota}",
+                        "**Saldo capital:** ₡" . number_format((float) $credit->saldo, 2),
+                        "**Interés vencido:** ₡" . number_format($interesVencido, 2),
+                        "",
+                        "El crédito ha entrado en mora. Se requiere gestión de cobro.",
+                    ]);
+                    Task::createFromAutomation($automation, $credit->reference, $details);
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Error creando tarea de mora', [
+                    'credit_id' => $credit->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return [
             'credit_id' => $credit->id,

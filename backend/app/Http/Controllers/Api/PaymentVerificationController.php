@@ -101,7 +101,7 @@ class PaymentVerificationController extends Controller
                 'status' => 'pending',
             ]);
 
-            // 2. Crear tarea para el verificador
+            // 2. Crear tarea para el verificador (usa config de automation)
             $task = Task::create([
                 'project_code' => 'VERIF-' . $verification->id,
                 'project_name' => $credit->reference ?? 'Crédito #' . $credit->id,
@@ -110,9 +110,13 @@ class PaymentVerificationController extends Controller
                 'status' => 'pendiente',
                 'priority' => $automation->priority ?? 'alta',
                 'assigned_to' => $verifierId,
+                'workflow_id' => $automation->workflow_id,
                 'start_date' => now()->toDateString(),
                 'due_date' => now()->addDays($automation->due_days_offset ?? 1)->toDateString(),
             ]);
+
+            // Copiar checklist de la automation si tiene
+            $task->copyChecklistFromAutomation($automation);
 
             $verification->update(['task_id' => $task->id]);
 

@@ -40,6 +40,10 @@ const AUTOMATION_EVENTS = [
   { key: 'payment_reversal_request', title: 'Solicitud de Anulación de Abono', description: 'Cuando un usuario solicita anular un abono, se crea una tarea para que el responsable autorizado revise y apruebe o rechace la anulación.', defaultTitle: 'Revisar solicitud de anulación de abono' },
   { key: 'saldo_reintegro_request', title: 'Solicitud de Reintegro de Saldo', description: 'Cuando un usuario solicita reintegrar un saldo pendiente, se crea una tarea para que el responsable autorizado apruebe el reintegro.', defaultTitle: 'Revisar solicitud de reintegro de saldo' },
   { key: 'reward_redemption_request', title: 'Canje de Recompensa', description: 'Cuando un usuario canjea puntos por una recompensa del catálogo, se crea una tarea para que el responsable apruebe y gestione la entrega.', defaultTitle: 'Aprobar canje de recompensa' },
+  { key: 'cancelacion_anticipada', title: 'Cancelación Anticipada de Crédito', description: 'Al procesar una cancelación anticipada, se crea tarea para adjuntar pagaré firmado y completar la formalización del cierre.', defaultTitle: 'Adjuntar pagaré firmado' },
+  { key: 'credit_mora', title: 'Crédito Entra en Mora', description: 'Cuando un crédito entra en mora por primera vez (cuota impaga), se crea tarea de seguimiento de cobro para el responsable.', defaultTitle: 'Seguimiento de crédito en mora' },
+  { key: 'abono_extraordinario', title: 'Abono Extraordinario Aplicado', description: 'Al aplicar un abono extraordinario (reduce cuota o plazo), se crea tarea para verificar el nuevo plan de pagos y notificar al cliente el cambio.', defaultTitle: 'Verificar plan de pagos y notificar cliente' },
+  { key: 'credit_cerrado', title: 'Crédito Cerrado', description: 'Cuando un crédito pasa a estado Cerrado o Finalizado (por cancelación anticipada o abono que deja saldo en 0), se crea tarea de archivo documental.', defaultTitle: 'Archivar expediente de crédito cerrado' },
 ];
 
 const TareasAutomationTab: React.FC = () => {

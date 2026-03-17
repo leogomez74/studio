@@ -6,6 +6,8 @@ use App\Models\Credit;
 use App\Models\CreditPayment;
 use App\Models\Notification;
 use App\Models\PlanDePago;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Models\User;
 use App\Traits\AccountingTrigger;
 
@@ -156,6 +158,35 @@ class AbonoService
             ]
         );
 
+        // Crear tarea automática de seguimiento (configurable via automation)
+        try {
+            $automation = TaskAutomation::where('event_type', 'abono_extraordinario')
+                ->where('is_active', true)
+                ->first();
+
+            if ($automation) {
+                $strategyLabel = $strategy === 'reduce_amount' ? 'Reducir cuota' : 'Reducir plazo';
+                $clienteNombre = $credit->lead->name ?? 'N/A';
+                $details = implode("\n", [
+                    "**Crédito:** {$credit->reference}",
+                    "**Cliente:** {$clienteNombre}",
+                    "**Monto abono:** ₡" . number_format($montoAbono, 2),
+                    "**Estrategia:** {$strategyLabel}",
+                    "**Saldo anterior:** ₡" . number_format($saldoActual, 2),
+                    "**Nuevo saldo:** ₡" . number_format($nuevoCapitalBase, 2),
+                    $penalizacion > 0 ? "**Penalización:** ₡" . number_format($penalizacion, 2) : "",
+                    "",
+                    "Se aplicó un abono extraordinario. Verificar nuevo plan de pagos y notificar al cliente.",
+                ]);
+                Task::createFromAutomation($automation, $credit->reference, $details);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error creando tarea para abono extraordinario', [
+                'credit_id' => $credit->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         // 3. Regenerar Proyección
         if ($nuevoCapitalBase > 0) {
             $this->helper->regenerarProyeccion(
@@ -207,6 +238,31 @@ class AbonoService
                 ->delete();
             $credit->status = 'Finalizado';
             $credit->save();
+
+            // Crear tarea de cierre de crédito
+            try {
+                $closedAutomation = TaskAutomation::where('event_type', 'credit_cerrado')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($closedAutomation) {
+                    $clienteNombre = $credit->lead->name ?? 'N/A';
+                    $details = implode("\n", [
+                        "**Crédito:** {$credit->reference}",
+                        "**Cliente:** {$clienteNombre}",
+                        "**Motivo cierre:** Abono extraordinario (saldo en 0)",
+                        "**Monto abono:** ₡" . number_format($montoAbono, 2),
+                        "",
+                        "El crédito ha sido cerrado por abono extraordinario. Verificar documentación y archivar expediente.",
+                    ]);
+                    Task::createFromAutomation($closedAutomation, $credit->reference, $details);
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Error creando tarea de cierre de crédito', [
+                    'credit_id' => $credit->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return $paymentRecord;
@@ -290,6 +346,29 @@ class AbonoService
                 ->delete();
             $credit->status = 'Finalizado';
             $credit->save();
+
+            // Crear tarea de cierre de crédito
+            try {
+                $closedAutomation = TaskAutomation::where('event_type', 'credit_cerrado')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($closedAutomation) {
+                    $details = implode("\n", [
+                        "**Crédito:** {$credit->reference}",
+                        "**Motivo cierre:** Abono a capital (saldo en 0)",
+                        "**Monto abono:** ₡" . number_format($montoAbono, 2),
+                        "",
+                        "El crédito ha sido cerrado. Verificar documentación y archivar expediente.",
+                    ]);
+                    Task::createFromAutomation($closedAutomation, $credit->reference, $details);
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Error creando tarea de cierre de crédito', [
+                    'credit_id' => $credit->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return $paymentRecord;

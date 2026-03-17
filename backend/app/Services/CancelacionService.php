@@ -6,6 +6,7 @@ use App\Models\Credit;
 use App\Models\CreditPayment;
 use App\Models\DeductoraChange;
 use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Traits\AccountingTrigger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -169,26 +170,71 @@ class CancelacionService
             DeductoraChange::registrarExclusion($credit, 'Cancelación anticipada', Auth::id());
         }
 
-        // Crear tarea para adjuntar pagaré firmado
-        if ($credit->assigned_to) {
-            $existingTask = Task::where('project_code', $credit->reference)
-                ->where('title', 'Adjuntar pagaré firmado')
-                ->whereNotIn('status', ['deleted'])
+        // Crear tarea para adjuntar pagaré firmado (configurable via automation)
+        try {
+            $automation = TaskAutomation::where('event_type', 'cancelacion_anticipada')
+                ->where('is_active', true)
                 ->first();
 
-            if (!$existingTask) {
-                Task::create([
-                    'project_code' => $credit->reference,
-                    'project_name' => (string) $credit->id,
-                    'title' => 'Adjuntar pagaré firmado',
-                    'details' => 'El crédito ha sido pagado completamente. Se requiere adjuntar el pagaré firmado por el cliente.',
-                    'status' => 'pendiente',
-                    'priority' => 'alta',
-                    'assigned_to' => $credit->assigned_to,
-                    'start_date' => now(),
-                    'due_date' => now()->addDays(3),
+            if ($automation) {
+                $details = implode("\n", [
+                    "**Crédito:** {$credit->reference}",
+                    "**Cliente:** " . ($credit->lead->name ?? 'N/A'),
+                    "**Monto cancelado:** ₡" . number_format($montoTotalCancelar, 2),
+                    "",
+                    "El crédito ha sido pagado completamente. Se requiere adjuntar el pagaré firmado por el cliente.",
                 ]);
+                Task::createFromAutomation($automation, $credit->reference, $details);
+            } elseif ($credit->assigned_to) {
+                // Fallback: crear tarea directa al responsable del crédito
+                $existingTask = Task::where('project_code', $credit->reference)
+                    ->where('title', 'Adjuntar pagaré firmado')
+                    ->whereNotIn('status', ['deleted'])
+                    ->first();
+
+                if (!$existingTask) {
+                    Task::create([
+                        'project_code' => $credit->reference,
+                        'project_name' => (string) $credit->id,
+                        'title' => 'Adjuntar pagaré firmado',
+                        'details' => 'El crédito ha sido pagado completamente. Se requiere adjuntar el pagaré firmado por el cliente.',
+                        'status' => 'pendiente',
+                        'priority' => 'alta',
+                        'assigned_to' => $credit->assigned_to,
+                        'start_date' => now(),
+                        'due_date' => now()->addDays(3),
+                    ]);
+                }
             }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error creando tarea para cancelación anticipada', [
+                'credit_id' => $credit->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Crear tarea de cierre de crédito (archivo documental)
+        try {
+            $closedAutomation = TaskAutomation::where('event_type', 'credit_cerrado')
+                ->where('is_active', true)
+                ->first();
+
+            if ($closedAutomation) {
+                $details = implode("\n", [
+                    "**Crédito:** {$credit->reference}",
+                    "**Cliente:** " . ($credit->lead->name ?? 'N/A'),
+                    "**Motivo cierre:** Cancelación anticipada",
+                    "**Monto total cancelado:** ₡" . number_format($montoTotalCancelar, 2),
+                    "",
+                    "El crédito ha sido cerrado. Verificar documentación completa y archivar expediente.",
+                ]);
+                Task::createFromAutomation($closedAutomation, $credit->reference, $details);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error creando tarea de cierre de crédito', [
+                'credit_id' => $credit->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         // ACCOUNTING_API_TRIGGER: Cancelación Anticipada
