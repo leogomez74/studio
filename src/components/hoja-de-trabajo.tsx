@@ -1,0 +1,550 @@
+'use client';
+
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import api from '@/lib/axios';
+import type { ManchaDetalle, JuicioDetalle, EmbargoDetalle, DeduccionMensual } from '@/lib/analisis';
+import type { Opportunity } from '@/lib/data';
+
+// ─── Tipos exportados ─────────────────────────────────────────────────────────
+
+export interface DatosPreAnalisis {
+  // Credid
+  numero_manchas: number;
+  numero_juicios: number;
+  numero_embargos: number;
+  manchas_detalle: ManchaDetalle[];
+  juicios_detalle: JuicioDetalle[];
+  embargos_detalle: EmbargoDetalle[];
+  cargo: string;
+  nombramiento: string;
+  score: number | null;
+  scoreRiesgo: { score_riesgo: number; score_riesgo_color: string; score_riesgo_label: string } | null;
+  // Ingresos (1-12; quincenas para micro, meses para regular)
+  ingreso_bruto: string;
+  ingreso_bruto_2: string;
+  ingreso_bruto_3: string;
+  ingreso_bruto_4: string;
+  ingreso_bruto_5: string;
+  ingreso_bruto_6: string;
+  ingreso_bruto_7: string;
+  ingreso_bruto_8: string;
+  ingreso_bruto_9: string;
+  ingreso_bruto_10: string;
+  ingreso_bruto_11: string;
+  ingreso_bruto_12: string;
+  deducciones_mensuales: DeduccionMensual[];
+  // Propuesta
+  monto_sugerido: string;
+  plazo: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(v: number) {
+  return '₡' + v.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Agrega puntos de miles para mostrar en el input (ej: "300000" → "300.000") */
+function withCommas(raw: string): string {
+  if (!raw) return '';
+  return raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** Quita comas y caracteres no numéricos para guardar en estado */
+function stripCommas(value: string): string {
+  return value.replace(/[^0-9]/g, '');
+}
+
+/** Elige negro o blanco según luminosidad del fondo para que el texto siempre sea legible */
+function contrastColor(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return '#fff';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
+}
+
+// ─── Componente ───────────────────────────────────────────────────────────────
+
+interface HojaDeTrabajoProps {
+  opportunity: Opportunity;
+  onCrearAnalisis: (datos: DatosPreAnalisis) => void;
+}
+
+export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoProps) {
+  const { toast } = useToast();
+  const lead = opportunity.lead;
+  const esMicro = (opportunity.opportunity_type || '').toLowerCase().includes('micro');
+  const totalPeriodos = esMicro ? 6 : 12;
+  const labelPeriodo = esMicro ? 'Quincena' : 'Mes';
+
+  // ── Paso 1: Credid ──────────────────────────────────────────────────────────
+  const [credidData, setCredidData] = useState<any>(null);
+  const [loadingCredid, setLoadingCredid] = useState(false);
+  const [credidError, setCredidError] = useState('');
+
+  const consultarCredid = async () => {
+    if (!lead?.cedula) {
+      toast({ title: 'Cédula no disponible', description: 'El lead no tiene cédula registrada.', variant: 'destructive' });
+      return;
+    }
+    setLoadingCredid(true);
+    setCredidError('');
+    try {
+      const res = await api.get('/api/credid/reporte', { params: { cedula: lead.cedula } });
+      if (res.data.success) {
+        setCredidData(res.data.datos_analisis);
+      } else {
+        setCredidError(res.data.message || 'No se pudo obtener el reporte.');
+      }
+    } catch (err: any) {
+      setCredidError(err.response?.data?.message || 'Error al consultar Credid.');
+    } finally {
+      setLoadingCredid(false);
+    }
+  };
+
+  // ── Paso 2: Ingresos ─────────────────────────────────────────────────────────
+  const [ingresos, setIngresos] = useState(() =>
+    Array.from({ length: 12 }, (_, i) => ({ num: i + 1, bruto: '', deducciones: '' }))
+  );
+
+  const updateIngreso = (num: number, field: 'bruto' | 'deducciones', value: string) => {
+    setIngresos(prev => prev.map(i => i.num === num ? { ...i, [field]: stripCommas(value) } : i));
+  };
+
+  const periodos = ingresos.slice(0, totalPeriodos);
+
+  const netosPorPeriodo = useMemo(() =>
+    periodos.map(i => (parseFloat(i.bruto) || 0) - (parseFloat(i.deducciones) || 0)),
+    [periodos]
+  );
+
+  // Solo calcular promedios cuando TODOS los períodos tengan bruto > 0
+  const todosLlenos = useMemo(() =>
+    periodos.every(i => (parseFloat(i.bruto) || 0) > 0),
+    [periodos]
+  );
+
+  const promedioBruto = useMemo(() => {
+    if (!todosLlenos) return 0;
+    const vals = periodos.map(i => parseFloat(i.bruto) || 0);
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  }, [periodos, todosLlenos]);
+
+  const promedioNeto = useMemo(() => {
+    if (!todosLlenos) return 0;
+    return netosPorPeriodo.reduce((a, b) => a + b, 0) / netosPorPeriodo.length;
+  }, [netosPorPeriodo, todosLlenos]);
+
+  // ── Paso 3: Embargo ──────────────────────────────────────────────────────────
+  const [pensionAlimenticia, setPensionAlimenticia] = useState('');
+  const [otroEmbargo, setOtroEmbargo] = useState('');
+  const [embargableResult, setEmbargableResult] = useState<any>(null);
+  const [loadingEmbargo, setLoadingEmbargo] = useState(false);
+
+  const calcularEmbargo = useCallback(async (bruto: number) => {
+    if (bruto <= 0) return;
+    setLoadingEmbargo(true);
+    try {
+      const res = await api.post('/api/calcular-embargo', {
+        salario_bruto: bruto,
+        pension_alimenticia: parseFloat(pensionAlimenticia) || 0,
+        otro_embargo_1: parseFloat(otroEmbargo) || 0,
+      });
+      setEmbargableResult(res.data);
+    } catch { /* silencioso */ }
+    finally { setLoadingEmbargo(false); }
+  }, [pensionAlimenticia, otroEmbargo]);
+
+  useEffect(() => {
+    if (promedioBruto > 0) {
+      const t = setTimeout(() => calcularEmbargo(promedioBruto), 600);
+      return () => clearTimeout(t);
+    }
+  }, [promedioBruto, pensionAlimenticia, otroEmbargo, calcularEmbargo]);
+
+  // ── Paso 4: Propuesta ────────────────────────────────────────────────────────
+  const [montoSugerido, setMontoSugerido] = useState('');
+  const [plazo, setPlazo] = useState('36');
+  const [loanConfigs, setLoanConfigs] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    api.get('/api/loan-configurations/rangos').then(r => setLoanConfigs(r.data)).catch(() => {});
+  }, []);
+
+  const cuotaCalculada = useMemo(() => {
+    const monto = parseFloat(montoSugerido) || 0;
+    const m = parseInt(plazo) || 0;
+    if (monto <= 0 || m <= 0) return 0;
+    const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
+    const ta = cfg ? parseFloat(String(cfg.tasa_anual)) : (esMicro ? 54 : 36);
+    const r = (ta / 100) / 12;
+    if (r <= 0) return monto / m;
+    const p = Math.pow(1 + r, m);
+    return monto * ((r * p) / (p - 1));
+  }, [montoSugerido, plazo, loanConfigs, esMicro]);
+
+  // ── Submit ───────────────────────────────────────────────────────────────────
+  const handleCrearAnalisis = () => {
+    const get = (num: number) => ingresos.find(i => i.num === num)?.bruto ?? '';
+    onCrearAnalisis({
+      numero_manchas: credidData?.numero_manchas || 0,
+      numero_juicios: credidData?.numero_juicios || 0,
+      numero_embargos: credidData?.numero_embargos || 0,
+      manchas_detalle: credidData?.manchas_detalle || [],
+      juicios_detalle: credidData?.juicios_detalle || [],
+      embargos_detalle: credidData?.embargos_detalle || [],
+      cargo: credidData?.cargo || lead?.puesto || '',
+      nombramiento: credidData?.nombramiento || lead?.estado_puesto || '',
+      score: credidData?.score ?? null,
+      scoreRiesgo: credidData?.score_riesgo != null ? {
+        score_riesgo: credidData.score_riesgo,
+        score_riesgo_color: credidData.score_riesgo_color,
+        score_riesgo_label: credidData.score_riesgo_label,
+      } : null,
+      ingreso_bruto: get(1),
+      ingreso_bruto_2: get(2),
+      ingreso_bruto_3: get(3),
+      ingreso_bruto_4: get(4),
+      ingreso_bruto_5: get(5),
+      ingreso_bruto_6: get(6),
+      ingreso_bruto_7: get(7),
+      ingreso_bruto_8: get(8),
+      ingreso_bruto_9: get(9),
+      ingreso_bruto_10: get(10),
+      ingreso_bruto_11: get(11),
+      ingreso_bruto_12: get(12),
+      deducciones_mensuales: ingresos
+        .filter(i => parseFloat(i.deducciones) > 0)
+        .map(i => ({ mes: i.num, monto: parseFloat(i.deducciones) })),
+      monto_sugerido: montoSugerido,
+      plazo,
+    });
+  };
+
+  const desglose = embargableResult?.desglose;
+  const totalEmbargo = desglose?.total_embargo ?? embargableResult?.resultado ?? 0;
+  const cuotaSuperaEmbargo = cuotaCalculada > 0 && totalEmbargo > 0 && cuotaCalculada > totalEmbargo;
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── Card 1: Credid ─────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3 pt-4 px-5">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">1</span>
+            <CardTitle className="text-sm font-semibold">Récord Crediticio (Credid)</CardTitle>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Cédula: <strong>{lead?.cedula || '—'}</strong></span>
+              <Button onClick={consultarCredid} disabled={loadingCredid || !lead?.cedula} size="sm" variant="outline" className="h-7 text-xs gap-1.5">
+                {loadingCredid ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                {credidData ? 'Actualizar' : 'Consultar Credid'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="px-5 pb-4">
+          {credidError && (
+            <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 p-2.5 rounded mb-3">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {credidError}
+            </div>
+          )}
+          {!credidData && !loadingCredid && (
+            <div className="text-xs text-muted-foreground text-center py-4 bg-slate-50 rounded">
+              Haz clic en "Consultar Credid" para obtener el récord crediticio
+            </div>
+          )}
+          {credidData && (
+            <div className="space-y-3">
+              {/* Contadores + Score en una fila */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {[
+                  { label: 'Manchas', val: credidData.numero_manchas, color: 'red' },
+                  { label: 'Juicios', val: credidData.numero_juicios, color: 'orange' },
+                  { label: 'Embargos', val: credidData.numero_embargos, color: 'orange' },
+                ].map(({ label, val, color }) => (
+                  <div key={label} className="flex items-center gap-1.5 bg-slate-50 rounded px-3 py-1.5">
+                    <span className="text-xs text-muted-foreground">{label}:</span>
+                    <span className={`text-base font-bold ${val > 0 ? `text-${color}-600` : 'text-green-600'}`}>{val}</span>
+                  </div>
+                ))}
+                {credidData.score_riesgo != null && (() => {
+                  const s = credidData.score_riesgo;
+                  const cls = s >= 67
+                    ? 'bg-green-100 text-green-800 border-green-300'
+                    : s >= 34
+                    ? 'bg-orange-100 text-orange-800 border-orange-300'
+                    : 'bg-red-100 text-red-800 border-red-300';
+                  return (
+                    <Badge variant="outline" className={`text-xs font-semibold ${cls}`}>
+                      Score {s}/100 — {credidData.score_riesgo_label}
+                    </Badge>
+                  );
+                })()}
+                {credidData.cargo && (
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {credidData.cargo} {credidData.nombramiento && `· ${credidData.nombramiento}`}
+                  </span>
+                )}
+              </div>
+
+              {/* Detalles colapsados en texto pequeño */}
+              {credidData.manchas_detalle?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Manchas</p>
+                  {credidData.manchas_detalle.map((m: ManchaDetalle, i: number) => (
+                    <div key={i} className="text-xs flex justify-between bg-red-50 rounded px-2.5 py-1.5">
+                      <span className="text-muted-foreground">{m.fecha_inicio} — {m.descripcion}</span>
+                      <span className="font-medium text-red-700">₡{m.monto.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {credidData.juicios_detalle?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Juicios</p>
+                  {credidData.juicios_detalle.map((j: JuicioDetalle, i: number) => (
+                    <div key={i} className="text-xs flex justify-between bg-orange-50 rounded px-2.5 py-1.5">
+                      <span className="text-muted-foreground">{j.fecha_inicio}{j.estado && ` — ${j.estado}`}{j.expediente && ` (${j.expediente})`}</span>
+                      {j.monto != null && <span className="font-medium text-orange-700">₡{j.monto.toLocaleString()}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {credidData.numero_manchas === 0 && credidData.numero_juicios === 0 && credidData.numero_embargos === 0 && (
+                <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded">
+                  <CheckCircle className="h-3.5 w-3.5" /> Récord limpio
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Card 2: Colillas ────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3 pt-4 px-5">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
+            <CardTitle className="text-sm font-semibold">
+              {esMicro ? `Colillas / Ingresos (6 quincenas)` : `Colillas / Ingresos (12 meses)`}
+            </CardTitle>
+            {promedioNeto > 0 && (
+              <Badge variant="outline" className="ml-auto text-blue-700 border-blue-300 text-xs">
+                Prom. neto: {fmt(promedioNeto)}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="px-5 pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+            {[0, 1].map(col => {
+              const mitad = Math.ceil(totalPeriodos / 2);
+              const inicio = col === 0 ? 0 : mitad;
+              const grupo = periodos.slice(inicio, col === 0 ? mitad : totalPeriodos);
+              if (grupo.length === 0) return null;
+              return (
+                <div key={col}>
+                  <div className="grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)_72px] gap-1.5 items-center text-[10px] font-medium text-muted-foreground uppercase tracking-wide pb-1 border-b">
+                    <span>{labelPeriodo[0]}</span>
+                    <span>Bruto (₡)</span>
+                    <span>Deduc. (₡)</span>
+                    <span className="text-right">Neto</span>
+                  </div>
+                  {grupo.map((ingreso, idx) => {
+                    const neto = netosPorPeriodo[inicio + idx];
+                    const hayBruto = (parseFloat(ingreso.bruto) || 0) > 0;
+                    return (
+                      <div key={ingreso.num} className="grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)_72px] gap-1.5 items-center py-1 border-b border-dashed">
+                        <span className="text-xs font-medium text-slate-500 tabular-nums">{labelPeriodo[0]}{ingreso.num}</span>
+                        <Input
+                          value={withCommas(ingreso.bruto)}
+                          onChange={e => updateIngreso(ingreso.num, 'bruto', e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-xs px-2 min-w-0"
+                          inputMode="numeric"
+                        />
+                        <Input
+                          value={withCommas(ingreso.deducciones)}
+                          onChange={e => updateIngreso(ingreso.num, 'deducciones', e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-xs px-2 min-w-0"
+                          inputMode="numeric"
+                        />
+                        <span className={`text-xs text-right font-medium tabular-nums ${hayBruto ? neto >= 0 ? 'text-green-700' : 'text-red-600' : 'text-muted-foreground'}`}>
+                          {hayBruto ? fmt(neto) : '—'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          {!todosLlenos && periodos.some(i => (parseFloat(i.bruto) || 0) > 0) && (
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 rounded border border-amber-200 text-xs text-amber-700">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              Faltan {periodos.filter(i => !(parseFloat(i.bruto) || 0)).length} {labelPeriodo.toLowerCase()}{periodos.filter(i => !(parseFloat(i.bruto) || 0)).length !== 1 ? 's' : ''} por completar para calcular el promedio
+            </div>
+          )}
+          {promedioNeto > 0 && (
+            <div className="mt-3 flex justify-between items-center px-3 py-2 bg-blue-50 rounded border border-blue-100 text-xs">
+              <span className="text-blue-800">Promedio Bruto: <strong>{fmt(promedioBruto)}</strong></span>
+              <span className="font-bold text-blue-900">Promedio Neto: {fmt(promedioNeto)}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Card 3: Embargable + Propuesta (fusionados) ─────────────────────── */}
+      <Card>
+        <CardContent className="px-5 pt-4 pb-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {/* Embargable */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                <p className="text-sm font-semibold">Máximo Embargable</p>
+                {totalEmbargo > 0 && (
+                  <Badge variant="outline" className="text-purple-700 border-purple-300 text-xs ml-auto">
+                    Máx: {fmt(totalEmbargo)}
+                  </Badge>
+                )}
+              </div>
+
+              {promedioBruto === 0 ? (
+                <div className="text-xs text-muted-foreground text-center py-6 bg-slate-50 rounded">
+                  Ingresa los ingresos en el Paso 2
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Pensión Alimenticia (₡)</Label>
+                      <Input value={withCommas(pensionAlimenticia)} onChange={e => setPensionAlimenticia(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Otro Embargo (₡)</Label>
+                      <Input value={withCommas(otroEmbargo)} onChange={e => setOtroEmbargo(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
+                    </div>
+                  </div>
+
+                  {loadingEmbargo && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calculando...
+                    </div>
+                  )}
+
+                  {desglose && (
+                    <div className="space-y-1 text-xs">
+                      {[
+                        { label: 'Salario Bruto', val: desglose.salario_bruto, cls: '' },
+                        { label: '− CCSS', val: -desglose.descuento_ccss, cls: 'text-red-600' },
+                        { label: '− Renta', val: -desglose.impuesto_renta, cls: 'text-red-600' },
+                        { label: '= Salario Líquido', val: desglose.salario_liquido, cls: 'font-medium border-t pt-1' },
+                        { label: 'Tramo 1', val: desglose.embargo_tramo1, cls: '' },
+                        { label: 'Tramo 2', val: desglose.embargo_tramo2, cls: '' },
+                      ].map(({ label, val, cls }) => (
+                        <div key={label} className={`flex justify-between ${cls}`}>
+                          <span className="text-muted-foreground">{label}</span>
+                          <span>{fmt(Math.abs(val))}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between font-bold text-purple-700 border-t pt-1">
+                        <span>= Máx Embargable</span>
+                        <span>{fmt(desglose.total_embargo)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Propuesta */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                <p className="text-sm font-semibold">Propuesta Sugerida</p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs">Monto Sugerido (₡)</Label>
+                  <div className="relative mt-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₡</span>
+                    <Input
+                      value={withCommas(montoSugerido)}
+                      onChange={e => setMontoSugerido(stripCommas(e.target.value))}
+                      placeholder="0"
+                      className="h-8 text-sm pl-7"
+                      inputMode="numeric"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Plazo (meses)</Label>
+                  <Select value={plazo} onValueChange={setPlazo}>
+                    <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[12, 24, 36, 48, 60, 72, 84, 96, 108, 120].map(p => (
+                        <SelectItem key={p} value={String(p)}>{p} meses</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex justify-between items-center px-3 py-2 bg-slate-50 rounded border text-sm">
+                  <span className="text-xs text-muted-foreground">Cuota estimada</span>
+                  <span className="font-bold text-slate-700">{cuotaCalculada > 0 ? fmt(cuotaCalculada) : '—'}</span>
+                </div>
+
+                {totalEmbargo > 0 && cuotaCalculada > 0 && (
+                  <div className={`flex justify-between items-center px-3 py-2 rounded border text-xs ${cuotaSuperaEmbargo ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                    <span className="text-muted-foreground">Cuota vs Máx embargable</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={cuotaSuperaEmbargo ? 'text-red-700 font-medium' : 'text-green-700 font-medium'}>{fmt(cuotaCalculada)}</span>
+                      <span className="text-muted-foreground">/</span>
+                      <span className="text-purple-700">{fmt(totalEmbargo)}</span>
+                      {cuotaSuperaEmbargo
+                        ? <AlertCircle className="h-3.5 w-3.5 text-red-600" />
+                        : <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                      }
+                    </div>
+                  </div>
+                )}
+
+                <Separator />
+
+                <Button
+                  onClick={handleCrearAnalisis}
+                  disabled={!montoSugerido || !plazo}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Listo — Crear Análisis
+                </Button>
+              </div>
+            </div>
+
+          </div>
+        </CardContent>
+      </Card>
+
+    </div>
+  );
+}

@@ -20,6 +20,7 @@ import type {
   JuicioDetalle,
   EmbargoDetalle
 } from '@/lib/analisis';
+import type { DatosPreAnalisis } from '@/components/hoja-de-trabajo';
 
 // Tipo para archivos del filesystem
 interface OpportunityFile {
@@ -39,6 +40,7 @@ interface AnalisisWizardModalProps {
   divisa?: string;
   onSuccess: () => void;
   onTipoChange?: (newTipo: string) => void;
+  datosPreCargados?: DatosPreAnalisis;
 }
 
 interface FormData {
@@ -55,6 +57,12 @@ interface FormData {
   ingreso_bruto_4: string;
   ingreso_bruto_5: string;
   ingreso_bruto_6: string;
+  ingreso_bruto_7: string;
+  ingreso_bruto_8: string;
+  ingreso_bruto_9: string;
+  ingreso_bruto_10: string;
+  ingreso_bruto_11: string;
+  ingreso_bruto_12: string;
   deducciones_mensuales: DeduccionMensual[];
 
   // Paso 3
@@ -77,6 +85,12 @@ const initialFormData: FormData = {
   ingreso_bruto_4: '',
   ingreso_bruto_5: '',
   ingreso_bruto_6: '',
+  ingreso_bruto_7: '',
+  ingreso_bruto_8: '',
+  ingreso_bruto_9: '',
+  ingreso_bruto_10: '',
+  ingreso_bruto_11: '',
+  ingreso_bruto_12: '',
   deducciones_mensuales: [],
   numero_manchas: 0,
   numero_juicios: 0,
@@ -94,7 +108,8 @@ export function AnalisisWizardModal({
   producto,
   divisa = 'CRC',
   onSuccess,
-  onTipoChange
+  onTipoChange,
+  datosPreCargados,
 }: AnalisisWizardModalProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -143,55 +158,105 @@ export function AnalisisWizardModal({
         }
       }).catch(err => console.error('Error loading users/automations:', err));
 
-      // Cargar oportunidad con lead para obtener profesion, puesto, nombramiento y cédula
-      api.get(`/api/opportunities/${opportunityId}`)
-        .then(async (res) => {
-          const lead = res.data.lead;
-          if (lead) {
-            setLeadData({
-              profesion: lead.profesion,
-              puesto: lead.puesto,
-              estado_puesto: lead.estado_puesto,
-              cedula: lead.cedula
-            });
+      // Si hay datos pre-cargados de la Hoja de Trabajo, usarlos directamente
+      if (datosPreCargados) {
+        setFormData(prev => ({
+          ...prev,
+          ingreso_bruto: datosPreCargados.ingreso_bruto,
+          ingreso_bruto_2: datosPreCargados.ingreso_bruto_2,
+          ingreso_bruto_3: datosPreCargados.ingreso_bruto_3,
+          ingreso_bruto_4: datosPreCargados.ingreso_bruto_4,
+          ingreso_bruto_5: datosPreCargados.ingreso_bruto_5,
+          ingreso_bruto_6: datosPreCargados.ingreso_bruto_6,
+          ingreso_bruto_7: datosPreCargados.ingreso_bruto_7 ?? '',
+          ingreso_bruto_8: datosPreCargados.ingreso_bruto_8 ?? '',
+          ingreso_bruto_9: datosPreCargados.ingreso_bruto_9 ?? '',
+          ingreso_bruto_10: datosPreCargados.ingreso_bruto_10 ?? '',
+          ingreso_bruto_11: datosPreCargados.ingreso_bruto_11 ?? '',
+          ingreso_bruto_12: datosPreCargados.ingreso_bruto_12 ?? '',
+          deducciones_mensuales: datosPreCargados.deducciones_mensuales,
+          numero_manchas: datosPreCargados.numero_manchas,
+          numero_juicios: datosPreCargados.numero_juicios,
+          numero_embargos: datosPreCargados.numero_embargos,
+          manchas_detalle: datosPreCargados.manchas_detalle,
+          juicios_detalle: datosPreCargados.juicios_detalle,
+          embargos_detalle: datosPreCargados.embargos_detalle,
+          monto_sugerido: datosPreCargados.monto_sugerido,
+          plazo: datosPreCargados.plazo,
+        }));
+        setLeadData(prev => prev ? prev : {
+          puesto: datosPreCargados.cargo,
+          estado_puesto: datosPreCargados.nombramiento,
+        });
+        if (datosPreCargados.score != null) setScore(datosPreCargados.score);
+        if (datosPreCargados.scoreRiesgo != null) setScoreRiesgo(datosPreCargados.scoreRiesgo);
+        setCredidLoaded(true);
 
-            // Consultar Credid automáticamente si hay cédula
-            if (lead.cedula) {
-              try {
-                setCredidLoading(true);
-                const credidRes = await api.get('/api/credid/reporte', { params: { cedula: lead.cedula } });
-                if (credidRes.data.success) {
-                  const d = credidRes.data.datos_analisis;
-                  setFormData(prev => ({
-                    ...prev,
-                    numero_manchas: d.numero_manchas || 0,
-                    numero_juicios: d.numero_juicios || 0,
-                    numero_embargos: d.numero_embargos || 0,
-                    manchas_detalle: d.manchas_detalle || [],
-                    juicios_detalle: d.juicios_detalle || [],
-                    embargos_detalle: d.embargos_detalle || [],
-                  }));
-                  // Guardar cargo/nombramiento del Credid para usarlos en el submit
-                  setLeadData(prev => prev ? {
-                    ...prev,
-                    puesto: d.cargo || prev.puesto,
-                    estado_puesto: d.nombramiento || prev.estado_puesto
-                  } : prev);
-                  setScore(d.score);
-                  if (d.score_riesgo != null) {
-                    setScoreRiesgo({ score_riesgo: d.score_riesgo, score_riesgo_color: d.score_riesgo_color, score_riesgo_label: d.score_riesgo_label });
+        // Aun así cargar lead para tener el nombre/cédula disponible
+        api.get(`/api/opportunities/${opportunityId}`)
+          .then(res => {
+            const lead = res.data.lead;
+            if (lead) {
+              setLeadData({
+                profesion: lead.profesion,
+                puesto: datosPreCargados.cargo || lead.puesto,
+                estado_puesto: datosPreCargados.nombramiento || lead.estado_puesto,
+                cedula: lead.cedula,
+              });
+            }
+          })
+          .catch(err => console.error('Error loading opportunity:', err));
+      } else {
+        // Flujo normal: cargar oportunidad con lead y consultar Credid automáticamente
+        api.get(`/api/opportunities/${opportunityId}`)
+          .then(async (res) => {
+            const lead = res.data.lead;
+            if (lead) {
+              setLeadData({
+                profesion: lead.profesion,
+                puesto: lead.puesto,
+                estado_puesto: lead.estado_puesto,
+                cedula: lead.cedula
+              });
+
+              // Consultar Credid automáticamente si hay cédula
+              if (lead.cedula) {
+                try {
+                  setCredidLoading(true);
+                  const credidRes = await api.get('/api/credid/reporte', { params: { cedula: lead.cedula } });
+                  if (credidRes.data.success) {
+                    const d = credidRes.data.datos_analisis;
+                    setFormData(prev => ({
+                      ...prev,
+                      numero_manchas: d.numero_manchas || 0,
+                      numero_juicios: d.numero_juicios || 0,
+                      numero_embargos: d.numero_embargos || 0,
+                      manchas_detalle: d.manchas_detalle || [],
+                      juicios_detalle: d.juicios_detalle || [],
+                      embargos_detalle: d.embargos_detalle || [],
+                    }));
+                    // Guardar cargo/nombramiento del Credid para usarlos en el submit
+                    setLeadData(prev => prev ? {
+                      ...prev,
+                      puesto: d.cargo || prev.puesto,
+                      estado_puesto: d.nombramiento || prev.estado_puesto
+                    } : prev);
+                    setScore(d.score);
+                    if (d.score_riesgo != null) {
+                      setScoreRiesgo({ score_riesgo: d.score_riesgo, score_riesgo_color: d.score_riesgo_color, score_riesgo_label: d.score_riesgo_label });
+                    }
+                    setCredidLoaded(true);
                   }
-                  setCredidLoaded(true);
+                } catch (err) {
+                  console.error('Error consultando Credid:', err);
+                } finally {
+                  setCredidLoading(false);
                 }
-              } catch (err) {
-                console.error('Error consultando Credid:', err);
-              } finally {
-                setCredidLoading(false);
               }
             }
-          }
-        })
-        .catch(err => console.error('Error loading opportunity:', err));
+          })
+          .catch(err => console.error('Error loading opportunity:', err));
+      }
 
       // Cargar configuraciones de préstamos para validación
       api.get('/api/loan-configurations/rangos')
@@ -200,7 +265,7 @@ export function AnalisisWizardModal({
         })
         .catch(err => console.error('Error loading loan configs:', err));
     }
-  }, [open, opportunityId]);
+  }, [open, opportunityId, datosPreCargados]);
 
   // Validar monto sugerido según tipo de crédito
   useEffect(() => {
@@ -490,6 +555,18 @@ export function AnalisisWizardModal({
         ingreso_neto_5: calcularIngresoNeto(5) || null,
         ingreso_bruto_6: parseFloat(formData.ingreso_bruto_6) || null,
         ingreso_neto_6: calcularIngresoNeto(6) || null,
+        ingreso_bruto_7: parseFloat(formData.ingreso_bruto_7) || null,
+        ingreso_neto_7: calcularIngresoNeto(7) || null,
+        ingreso_bruto_8: parseFloat(formData.ingreso_bruto_8) || null,
+        ingreso_neto_8: calcularIngresoNeto(8) || null,
+        ingreso_bruto_9: parseFloat(formData.ingreso_bruto_9) || null,
+        ingreso_neto_9: calcularIngresoNeto(9) || null,
+        ingreso_bruto_10: parseFloat(formData.ingreso_bruto_10) || null,
+        ingreso_neto_10: calcularIngresoNeto(10) || null,
+        ingreso_bruto_11: parseFloat(formData.ingreso_bruto_11) || null,
+        ingreso_neto_11: calcularIngresoNeto(11) || null,
+        ingreso_bruto_12: parseFloat(formData.ingreso_bruto_12) || null,
+        ingreso_neto_12: calcularIngresoNeto(12) || null,
         deducciones_mensuales: formData.deducciones_mensuales,
         numero_manchas: formData.numero_manchas,
         numero_juicios: formData.numero_juicios,
@@ -1044,10 +1121,9 @@ export function AnalisisWizardModal({
 
         {/* Step 3: Ingresos Mensuales */}
         {currentStep === 3 && (() => {
-          // Determinar meses según tipo de crédito
+          // Determinar períodos según tipo de crédito
           const esMicroCredito = currentProducto?.toLowerCase().includes('micro') || false;
-          const fixedMonths = esMicroCredito ? 3 : 6;
-          const maxExtra = 0; // No permitir agregar meses adicionales
+          const fixedMonths = esMicroCredito ? 6 : 12;
           const totalMonths = fixedMonths + extraMonths;
 
           const removeExtraMonth = (mes: number) => {
@@ -1075,7 +1151,7 @@ export function AnalisisWizardModal({
                   return (
                     <div key={mes} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-semibold text-sm text-gray-700">Mes {mes}</h4>
+                        <h4 className="font-semibold text-sm text-gray-700">{esMicroCredito ? `Quincena ${mes}` : `Mes ${mes}`}</h4>
                         {isExtra && (
                           <Button
                             type="button"
@@ -1156,17 +1232,6 @@ export function AnalisisWizardModal({
                   );
                 })}
 
-                {maxExtra > 0 && extraMonths < maxExtra && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setExtraMonths(prev => prev + 1)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Agregar mes ({extraMonths + fixedMonths + 1} de {fixedMonths + maxExtra})
-                  </Button>
-                )}
               </CardContent>
             </Card>
           );

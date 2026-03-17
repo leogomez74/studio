@@ -496,7 +496,7 @@ export default function DealsPage() {
     try {
       const [usersRes, automationsRes] = await Promise.all([
         api.get('/api/agents'),
-        api.get('/api/task-automations'),
+        api.get('/api/task-automations').catch(() => ({ data: [] })),
       ]);
       setUsers(usersRes.data);
       const automations = Array.isArray(automationsRes.data) ? automationsRes.data : [];

@@ -61,6 +61,8 @@ import { usePermissions } from "@/contexts/PermissionsContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AnalisisWizardModal } from "@/components/analisis-wizard-modal";
 import { TareasTab } from '@/components/TareasTab';
+import { HojaDeTrabajo } from '@/components/hoja-de-trabajo';
+import type { DatosPreAnalisis } from '@/components/hoja-de-trabajo';
 
 // Tipo para archivos del filesystem
 interface OpportunityFile {
@@ -117,6 +119,7 @@ export default function OpportunityDetailPage() {
   // Analisis state
   const [existingAnalisis, setExistingAnalisis] = useState<any>(null);
   const [isAnalisisDialogOpen, setIsAnalisisDialogOpen] = useState(false);
+  const [datosPreCargados, setDatosPreCargados] = useState<DatosPreAnalisis | null>(null);
   const [activeTab, setActiveTab] = useState("resumen");
   const [analysisStarted, setAnalysisStarted] = useState(false); // Track if analysis process started
   const [analisisForm, setAnalisisForm] = useState({
@@ -812,8 +815,14 @@ export default function OpportunityDetailPage() {
         {/* Main Content - Full Width (Chat panel commented out) */}
         <div className="space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
+              <TabsTrigger value="hoja-trabajo" className="relative">
+                Hoja de Trabajo
+                {datosPreCargados && (
+                  <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-green-700 border-green-400">Listo</Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="archivos" className="relative">
                 Archivos
                 {getMissingDocuments().length > 0 && (
@@ -1309,6 +1318,16 @@ export default function OpportunityDetailPage() {
               <TareasTab projectCode={`OPP-${opportunity.id}`} entityLabel="de la Oportunidad" />
             </TabsContent>
 
+            <TabsContent value="hoja-trabajo">
+              <HojaDeTrabajo
+                opportunity={opportunity}
+                onCrearAnalisis={(datos) => {
+                  setDatosPreCargados(datos);
+                  setIsAnalisisDialogOpen(true);
+                }}
+              />
+            </TabsContent>
+
             {/* Botón de navegación */}
             {activeTab === "resumen" && (
               <div className="flex justify-end mt-4">
@@ -1332,11 +1351,15 @@ export default function OpportunityDetailPage() {
       {/* Analisis Creation Dialog - Wizard Modal */}
       <AnalisisWizardModal
         open={isAnalisisDialogOpen}
-        onOpenChange={setIsAnalisisDialogOpen}
+        onOpenChange={(open) => {
+          setIsAnalisisDialogOpen(open);
+          if (!open) setDatosPreCargados(null);
+        }}
         opportunityId={opportunity?.id || ''}
         monto_solicitado={opportunity?.amount ? parseFloat(String(opportunity.amount)) : undefined}
         producto={opportunity?.opportunity_type || 'Micro Crédito'}
         divisa="CRC"
+        datosPreCargados={datosPreCargados ?? undefined}
         onSuccess={() => {
           fetchExistingAnalisis();
           toast({ title: "Análisis creado", description: "El análisis se ha creado correctamente" });
