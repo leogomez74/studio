@@ -817,8 +817,8 @@ export default function OpportunityDetailPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
-              <TabsTrigger value="hoja-trabajo" className="relative">
-                Hoja de Trabajo
+              <TabsTrigger value="hoja-analisis" className="relative">
+                Hoja de Análisis
                 {datosPreCargados && (
                   <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-green-700 border-green-400">Listo</Badge>
                 )}
@@ -897,11 +897,11 @@ export default function OpportunityDetailPage() {
                         canCreateAnalisis && (
                           <Button
                             variant="default"
-                            onClick={handleOpenAnalisisDialog}
+                            onClick={() => setActiveTab("hoja-analisis")}
                             className="h-8 text-xs bg-indigo-600 text-white hover:bg-indigo-700 gap-1"
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
-                            Subir Análisis
+                            Crear Análisis
                           </Button>
                         )
                       )
@@ -1318,7 +1318,7 @@ export default function OpportunityDetailPage() {
               <TareasTab projectCode={`OPP-${opportunity.id}`} entityLabel="de la Oportunidad" />
             </TabsContent>
 
-            <TabsContent value="hoja-trabajo">
+            <TabsContent value="hoja-analisis">
               <HojaDeTrabajo
                 opportunity={opportunity}
                 onCrearAnalisis={(datos) => {
