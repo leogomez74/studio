@@ -44,6 +44,12 @@ const AUTOMATION_EVENTS = [
   { key: 'credit_mora', title: 'Crédito Entra en Mora', description: 'Cuando un crédito entra en mora por primera vez (cuota impaga), se crea tarea de seguimiento de cobro para el responsable.', defaultTitle: 'Seguimiento de crédito en mora' },
   { key: 'abono_extraordinario', title: 'Abono Extraordinario Aplicado', description: 'Al aplicar un abono extraordinario (reduce cuota o plazo), se crea tarea para verificar el nuevo plan de pagos y notificar al cliente el cambio.', defaultTitle: 'Verificar plan de pagos y notificar cliente' },
   { key: 'credit_cerrado', title: 'Crédito Cerrado', description: 'Cuando un crédito pasa a estado Cerrado o Finalizado (por cancelación anticipada o abono que deja saldo en 0), se crea tarea de archivo documental.', defaultTitle: 'Archivar expediente de crédito cerrado' },
+  // — Inversiones —
+  { key: 'investment_created', title: 'Nueva Inversión Creada', description: 'Al registrar una nueva inversión, se crea tarea para formalizar el acuerdo, verificar cuenta bancaria y configurar pagos de intereses.', defaultTitle: 'Formalizar acuerdo de inversión' },
+  { key: 'investment_renewed', title: 'Inversión Renovada', description: 'Al renovar una inversión (nueva inversión con nuevos términos), se crea tarea para verificar nuevos términos, actualizar documentación y confirmar con el inversionista.', defaultTitle: 'Verificar términos de inversión renovada' },
+  { key: 'investment_liquidated', title: 'Liquidación Anticipada de Inversión', description: 'Al liquidar una inversión anticipadamente, se crea tarea para procesar devolución de capital, liquidar intereses pendientes y actualizar documentación.', defaultTitle: 'Procesar liquidación anticipada de inversión' },
+  { key: 'investment_cancelacion_total', title: 'Cancelación Total de Inversión', description: 'Al procesar la cancelación total (con o sin intereses), se crea tarea para verificar transferencia de capital, emitir comprobantes y archivar expediente.', defaultTitle: 'Completar cancelación total de inversión' },
+  { key: 'investment_finalized', title: 'Inversión Finalizada', description: 'Cuando una inversión pasa a estado Finalizada (capital e intereses completamente pagados), se crea tarea para archivar expediente, emitir constancia de cierre y notificar al inversionista.', defaultTitle: 'Archivar expediente de inversión finalizada' },
 ];
 
 const TareasAutomationTab: React.FC = () => {
