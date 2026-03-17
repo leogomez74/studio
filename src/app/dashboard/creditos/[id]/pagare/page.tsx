@@ -33,6 +33,7 @@ interface CreditData {
     direccion1?: string;
     direccion2?: string;
     deductora_id?: number;
+    institucion_labora?: string;
   };
   lead?: {
     name?: string;
@@ -42,6 +43,7 @@ interface CreditData {
     direccion1?: string;
     direccion2?: string;
     deductora_id?: number;
+    institucion_labora?: string;
   };
 }
 
@@ -173,8 +175,10 @@ export default function PagarePage() {
   // Mostrar autorización si hay deductora asignada al crédito o al cliente
   const showAutorizacion = !!deductoraId;
 
-  // Mostrar formulario AYA solo para COOPESANGABRIEL
-  const showAyaForm = !!deductoraId && deductoraNombre.toLowerCase().includes('gabriel');
+  // Mostrar formulario AYA solo si la institución es AYA Y la deductora del crédito es San Gabriel
+  const showAyaForm = !!debtor?.institucion_labora &&
+    debtor.institucion_labora.toLowerCase().includes('aya') &&
+    deductoraNombre.toLowerCase().includes('gabriel');
 
   // Variables de fecha
   const now = new Date();
@@ -264,7 +268,7 @@ export default function PagarePage() {
         pdf.addImage(imgData3, 'JPEG', x3, 0, finalWidth3, finalHeight3);
       }
 
-      // Página 4: Formulario AYA (solo COOPESANGABRIEL)
+      // Página 4: Formulario AYA (institucion_labora = AYA y deductora = San Gabriel)
       if (showAyaForm && ayaRef.current) {
         pdf.addPage();
         const canvas4 = await captureElement(ayaRef.current);
@@ -565,7 +569,7 @@ export default function PagarePage() {
         </div>
       )}
 
-      {/* Página 4: Formulario AYA — solo para COOPESANGABRIEL */}
+      {/* Página 4: Formulario AYA — institucion_labora = AYA y deductora = San Gabriel */}
       {showAyaForm && (
         <div
           ref={ayaRef}
