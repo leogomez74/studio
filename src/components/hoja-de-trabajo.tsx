@@ -530,10 +530,41 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
                 <Separator />
 
+                {cuotaSuperaEmbargo && (() => {
+                  // Calcular monto máximo viable con el plazo actual
+                  const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
+                  const ta = cfg ? parseFloat(String(cfg.tasa_anual)) : (esMicro ? 54 : 36);
+                  const r = (ta / 100) / 12;
+                  const m = parseInt(plazo) || 0;
+                  const maxMonto = m > 0 && r > 0
+                    ? Math.floor(totalEmbargo * (Math.pow(1 + r, m) - 1) / (r * Math.pow(1 + r, m)))
+                    : 0;
+                  return (
+                    <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 space-y-1">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        Cuota ({fmt(cuotaCalculada)}) supera el máximo embargable ({fmt(totalEmbargo)})
+                      </div>
+                      {maxMonto > 0 && (
+                        <div className="flex items-center justify-between gap-2 pl-5">
+                          <span className="text-red-600">Monto máximo viable a {plazo} meses:</span>
+                          <button
+                            type="button"
+                            className="font-bold underline text-indigo-700 hover:text-indigo-900"
+                            onClick={() => setMontoSugerido(String(maxMonto))}
+                          >
+                            {fmt(maxMonto)} — aplicar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <Button
                   onClick={handleCrearAnalisis}
-                  disabled={!montoSugerido || !plazo}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                  disabled={!montoSugerido || !plazo || cuotaSuperaEmbargo}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 disabled:opacity-50"
                 >
                   <CheckCircle className="h-4 w-4" />
                   Listo — Crear Análisis
