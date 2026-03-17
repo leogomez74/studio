@@ -22,6 +22,7 @@ class Investor extends Model
         'cuenta_bancaria',
         'banco',
         'moneda_preferida',
+        'erp_account_key',
         'joined_at',
     ];
 

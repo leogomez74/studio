@@ -149,6 +149,13 @@
 - `.claude/` excepciones en .gitignore para archivos de memoria
 - **S10**: Índice en `numero_desembolso` — migración creada
 
+### ✅ Marcadores Contables Inversiones (17 Mar 2026)
+- Migración `erp_account_key` en tabla `investors`
+- `Investor.php` — campo en `$fillable`
+- `AccountingTrigger.php` — soporte `account_type=investor`, componentes `interes_neto/retencion/interes_bruto`, métodos legacy `triggerAccountingInversionRecibida` + `triggerAccountingInteresInversion`
+- Triggers en `InvestmentController` (store, cancelacionTotal), `InvestmentCouponController` (markPaid, markBulkPaid, bulkPayByDesembolso), `InvestmentPaymentController` (store)
+- `ContabilidadErpTab.tsx` — 4 nuevos tipos INV_*, estado/funciones mapeo inversionistas, selector `investor` en account_type, sección UI "Mapeo de Inversionistas"
+
 ### Pendiente (del plan de auditoría)
 - **O1**: Capitalización — el negocio confirmó que capitalizar por interés neto está correcto. Sin cambio.
 

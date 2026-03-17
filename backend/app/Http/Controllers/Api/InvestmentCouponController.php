@@ -10,10 +10,11 @@ use App\Services\InvestmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Traits\LogsActivity;
+use App\Traits\AccountingTrigger;
 
 class InvestmentCouponController extends Controller
 {
-    use LogsActivity;
+    use LogsActivity, AccountingTrigger;
     public function __construct(private InvestmentService $service) {}
 
     public function index(int $id)
@@ -44,6 +45,20 @@ class InvestmentCouponController extends Controller
 
             $this->service->markCouponAsPaid($coupon, $validated['fecha_pago'] ?? null, $comprobantePath);
             $this->logActivity('mark_paid', 'Cupones Inversión', $coupon, 'Cupón #' . $coupon->id, [], $request);
+
+            $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_neto, 'CUPON-' . $coupon->id, [
+                'investment_id'   => $coupon->investment_id,
+                'investor_id'     => $coupon->investment->investor_id,
+                'investor_nombre' => $coupon->investment->investor?->name ?? 'N/A',
+                'coupon_id'       => $coupon->id,
+                'moneda'          => $coupon->investment->moneda,
+                'amount_breakdown' => [
+                    'interes_neto'  => (float) $coupon->interes_neto,
+                    'retencion'     => (float) $coupon->retencion,
+                    'interes_bruto' => (float) $coupon->interes_bruto,
+                ],
+            ]);
+
             return response()->json($coupon->fresh());
         });
     }
@@ -108,6 +123,22 @@ class InvestmentCouponController extends Controller
                 ])->toArray();
 
                 InvestmentPayment::insert($payments);
+
+                // Disparar asiento contable por cada cupón pagado
+                foreach ($coupons as $coupon) {
+                    $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_neto, 'CUPON-' . $coupon->id, [
+                        'investment_id'   => $coupon->investment_id,
+                        'investor_id'     => $coupon->investment->investor_id,
+                        'investor_nombre' => $coupon->investment->investor?->name ?? 'N/A',
+                        'coupon_id'       => $coupon->id,
+                        'moneda'          => $coupon->investment->moneda,
+                        'amount_breakdown' => [
+                            'interes_neto'  => (float) $coupon->interes_neto,
+                            'retencion'     => (float) $coupon->retencion,
+                            'interes_bruto' => (float) $coupon->interes_bruto,
+                        ],
+                    ]);
+                }
 
                 // Auto-finalizar inversiones 'Capital Devuelto' sin cupones pendientes
                 $investmentIds = $coupons->pluck('investment_id')->unique();
@@ -215,6 +246,22 @@ class InvestmentCouponController extends Controller
             ])->toArray();
 
             InvestmentPayment::insert($payments);
+
+            // Disparar asiento contable por cada cupón pagado
+            foreach ($coupons as $coupon) {
+                $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_neto, 'CUPON-' . $coupon->id, [
+                    'investment_id'   => $coupon->investment_id,
+                    'investor_id'     => $coupon->investment->investor_id,
+                    'investor_nombre' => $coupon->investment->investor?->name ?? 'N/A',
+                    'coupon_id'       => $coupon->id,
+                    'moneda'          => $moneda,
+                    'amount_breakdown' => [
+                        'interes_neto'  => (float) $coupon->interes_neto,
+                        'retencion'     => (float) $coupon->retencion,
+                        'interes_bruto' => (float) $coupon->interes_bruto,
+                    ],
+                ]);
+            }
 
             // Auto-finalizar inversiones 'Capital Devuelto' sin cupones pendientes
             $investments->where('estado', 'Capital Devuelto')->each(function (Investment $inv) {

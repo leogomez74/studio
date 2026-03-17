@@ -6,6 +6,7 @@ use App\Models\ErpAccountingAccount;
 use App\Models\AccountingEntryConfig;
 use App\Models\AccountingEntryLog;
 use App\Models\Deductora;
+use App\Models\Investor;
 use App\Services\ErpAccountingService;
 use Illuminate\Support\Facades\Log;
 
@@ -191,6 +192,29 @@ trait AccountingTrigger
                 additionalData: $context
             ),
 
+            'INV_CAPITAL_RECIBIDO' => $this->triggerAccountingInversionRecibida(
+                investmentId: (int) ($context['investment_id'] ?? 0),
+                monto: $amount,
+                moneda: $context['moneda'] ?? 'CRC',
+                investorNombre: $context['investor_nombre'] ?? 'N/A'
+            ),
+
+            'INV_INTERES_DEVENGADO', 'INV_RETENCION' => $this->triggerAccountingInteresInversion(
+                investmentId: (int) ($context['investment_id'] ?? 0),
+                couponId: (int) ($context['coupon_id'] ?? 0),
+                interesNeto: (float) ($context['amount_breakdown']['interes_neto'] ?? $amount),
+                retencion: (float) ($context['amount_breakdown']['retencion'] ?? 0),
+                moneda: $context['moneda'] ?? 'CRC',
+                investorNombre: $context['investor_nombre'] ?? 'N/A'
+            ),
+
+            // Tipos de inversión solo disponibles en sistema configurable
+            'INV_CANCELACION_TOTAL', 'INV_PAGO_MANUAL' => [
+                'success' => false,
+                'skipped' => true,
+                'error' => "Tipo '{$entryType}' requiere configuración en la UI de asientos contables.",
+            ],
+
             // Tipos solo disponibles en sistema configurable — sin implementación legacy
             'ANULACION_SOBRANTE', 'SALDO_SOBRANTE', 'REINTEGRO_SALDO' => [
                 'success' => false,
@@ -315,6 +339,16 @@ trait AccountingTrigger
                     if ($deductora && $deductora->erp_account_key) {
                         $accountCode = $this->getAccountCode($deductora->erp_account_key);
                         $deductoraContextNombre = $deductora->nombre;
+                    }
+                }
+            } elseif ($line->account_type === 'investor') {
+                // Cuenta dinámica por inversionista
+                $investorId = $context['investor_id'] ?? null;
+                if ($investorId) {
+                    $investor = Investor::find($investorId);
+                    if ($investor && $investor->erp_account_key) {
+                        $accountCode = $this->getAccountCode($investor->erp_account_key);
+                        $deductoraContextNombre = $investor->name;
                     }
                 }
             } elseif ($line->account_type === 'deductora_or_fixed') {
@@ -479,6 +513,10 @@ trait AccountingTrigger
             'cargos_adicionales_total' => $breakdown['cargos_adicionales_total'] ?? 0,
             'monto_neto' => ($breakdown['total'] ?? $totalAmount) - ($breakdown['cargos_adicionales_total'] ?? 0),
             'cargo_adicional' => $this->resolveCargosAdicionales($breakdown, $line->cargo_adicional_key),
+            // Componentes de inversiones
+            'interes_neto' => $breakdown['interes_neto'] ?? 0,
+            'retencion' => $breakdown['retencion'] ?? 0,
+            'interes_bruto' => $breakdown['interes_bruto'] ?? 0,
             default => $breakdown['total'] ?? $totalAmount,
         };
     }
@@ -966,6 +1004,121 @@ trait AccountingTrigger
         }
 
         return $result;
+    }
+
+    /**
+     * ACCOUNTING_API_TRIGGER: Inversión Recibida (entrada de capital)
+     *
+     * 1er Asiento: DÉBITO Bancos / CRÉDITO Pasivo Capital Inversionista
+     */
+    protected function triggerAccountingInversionRecibida(int $investmentId, float $monto, string $moneda, string $investorNombre): array
+    {
+        $codBanco = $this->getAccountCode('banco_inversiones_' . strtolower($moneda));
+        $codPasivo = $this->getAccountCode('pasivo_capital_inversionistas');
+        $monto = round($monto, 2);
+
+        Log::info('ACCOUNTING_API_TRIGGER: Inversión Recibida', [
+            'trigger_type' => 'INV_CAPITAL_RECIBIDO',
+            'investment_id' => $investmentId,
+            'monto' => $monto,
+            'moneda' => $moneda,
+            'investor' => $investorNombre,
+        ]);
+
+        if (!$codBanco || !$codPasivo) {
+            Log::warning('ERP: Cuentas de inversión no configuradas. Asiento INV_CAPITAL_RECIBIDO NO enviado.', ['investment_id' => $investmentId]);
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables de inversión no configuradas'];
+        }
+
+        $service = $this->getErpService();
+        if (!$service->isConfigured()) {
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
+        }
+
+        $result = $service->createJournalEntry(
+            date: now()->format('Y-m-d'),
+            description: "Capital recibido inversión #{$investmentId} - {$investorNombre} ({$moneda})",
+            items: [
+                ['account_code' => $codBanco,   'debit' => $monto, 'credit' => 0,     'description' => "Entrada capital inversión #{$investmentId}"],
+                ['account_code' => $codPasivo,  'debit' => 0,      'credit' => $monto, 'description' => "Pasivo capital {$investorNombre}"],
+            ],
+            reference: "INV-CAP-{$investmentId}"
+        );
+
+        if (!($result['success'] ?? false) && !($result['skipped'] ?? false)) {
+            Log::critical('ACCOUNTING: Fallo asiento INV_CAPITAL_RECIBIDO', ['investment_id' => $investmentId, 'error' => $result['error'] ?? 'Desconocido']);
+        }
+
+        return $result;
+    }
+
+    /**
+     * ACCOUNTING_API_TRIGGER: Pago de Interés a Inversionista
+     *
+     * 1er Asiento (devengo): DÉBITO Intereses sobre Préstamos Recibidos / CRÉDITO Intereses por Pagar [inversionista]
+     * 2do Asiento (retención): DÉBITO Intereses por Pagar [inversionista] / CRÉDITO Retenciones a la Fuente
+     *
+     * Los asientos reales al pagar se hacen manualmente en el ERP (ver imagen de especificación).
+     */
+    protected function triggerAccountingInteresInversion(int $investmentId, int $couponId, float $interesNeto, float $retencion, string $moneda, string $investorNombre): array
+    {
+        $codGastoInteres  = $this->getAccountCode('gasto_intereses_inversiones');
+        $codPagarInversor = $this->getAccountCode('intereses_por_pagar_inversiones');
+        $codRetenciones   = $this->getAccountCode('retenciones_a_la_fuente');
+        $interesNeto = round($interesNeto, 2);
+        $retencion   = round($retencion, 2);
+        $interesBruto = round($interesNeto + $retencion, 2);
+
+        Log::info('ACCOUNTING_API_TRIGGER: Interés Inversión', [
+            'trigger_type'  => 'INV_INTERES_DEVENGADO',
+            'investment_id' => $investmentId,
+            'coupon_id'     => $couponId,
+            'interes_bruto' => $interesBruto,
+            'interes_neto'  => $interesNeto,
+            'retencion'     => $retencion,
+            'investor'      => $investorNombre,
+        ]);
+
+        if (!$codGastoInteres || !$codPagarInversor || !$codRetenciones) {
+            Log::warning('ERP: Cuentas de interés inversión no configuradas. Asiento INV_INTERES_DEVENGADO NO enviado.', ['investment_id' => $investmentId]);
+            return ['success' => false, 'skipped' => true, 'error' => 'Cuentas contables de interés inversión no configuradas'];
+        }
+
+        $service = $this->getErpService();
+        if (!$service->isConfigured()) {
+            return ['success' => false, 'skipped' => true, 'error' => 'Servicio ERP no configurado'];
+        }
+
+        // 1er Asiento: devengo de interés neto
+        $result1 = $service->createJournalEntry(
+            date: now()->format('Y-m-d'),
+            description: "Interés devengado inversión #{$investmentId} - {$investorNombre}",
+            items: [
+                ['account_code' => $codGastoInteres,  'debit' => $interesBruto, 'credit' => 0,           'description' => "Intereses sobre préstamos recibidos #{$investmentId}"],
+                ['account_code' => $codPagarInversor, 'debit' => 0,             'credit' => $interesNeto, 'description' => "Intereses por pagar {$investorNombre}"],
+            ],
+            reference: "INV-INT-{$couponId}"
+        );
+
+        // 2do Asiento: retención fiscal (solo si hay retención)
+        $result2 = ['success' => true, 'skipped' => true];
+        if ($retencion > 0) {
+            $result2 = $service->createJournalEntry(
+                date: now()->format('Y-m-d'),
+                description: "Retención interés inversión #{$investmentId} - {$investorNombre}",
+                items: [
+                    ['account_code' => $codPagarInversor, 'debit' => $retencion, 'credit' => 0,          'description' => "Retención {$investorNombre} cupón #{$couponId}"],
+                    ['account_code' => $codRetenciones,   'debit' => 0,          'credit' => $retencion, 'description' => "Retenciones a la fuente inversiones"],
+                ],
+                reference: "INV-RET-{$couponId}"
+            );
+        }
+
+        if (!($result1['success'] ?? false) && !($result1['skipped'] ?? false)) {
+            Log::critical('ACCOUNTING: Fallo asiento INV_INTERES_DEVENGADO', ['investment_id' => $investmentId, 'error' => $result1['error'] ?? 'Desconocido']);
+        }
+
+        return $result1;
     }
 
     /**
