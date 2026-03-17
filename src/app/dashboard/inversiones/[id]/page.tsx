@@ -71,7 +71,9 @@ export default function InvestmentDetailPage() {
 
   // Cancelacion total modal
   const [showCancelacionTotal, setShowCancelacionTotal] = useState(false);
-  const [tipoCancelacion, setTipoCancelacion] = useState<'con_intereses' | 'sin_intereses'>('con_intereses');
+  const [tipoCancelacion, setTipoCancelacion] = useState<'con_intereses' | 'sin_intereses' | 'mixto'>('con_intereses');
+  const [abonoCapital, setAbonoCapital] = useState('');
+  const [abonoInteres, setAbonoInteres] = useState('');
   const [cancelacionLoading, setCancelacionLoading] = useState(false);
   const [showEstadoCuentaPrompt, setShowEstadoCuentaPrompt] = useState(false);
 
@@ -252,7 +254,10 @@ export default function InvestmentDetailPage() {
     if (!investment) return;
     setCancelacionLoading(true);
     try {
-      await api.post(`/api/investments/${investment.id}/cancelacion-total`, { tipo: tipoCancelacion });
+      await api.post(`/api/investments/${investment.id}/cancelacion-total`, {
+        tipo: tipoCancelacion,
+        ...(tipoCancelacion === 'mixto' ? { monto_capital: Number(abonoCapital), monto_interes: Number(abonoInteres) } : {}),
+      });
       setShowCancelacionTotal(false);
       toastSuccess('Abono realizado exitosamente.');
       setShowEstadoCuentaPrompt(true);
@@ -980,12 +985,63 @@ export default function InvestmentDetailPage() {
                     </p>
                   </div>
                 </label>
+                <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${tipoCancelacion === 'mixto' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
+                  <input
+                    type="radio"
+                    name="tipoCancelacion"
+                    checked={tipoCancelacion === 'mixto'}
+                    onChange={() => setTipoCancelacion('mixto')}
+                    className="accent-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Abono mixto (montos editables)</p>
+                    <p className="text-xs text-muted-foreground mb-2">Especifique manualmente el capital e interés a abonar</p>
+                    {tipoCancelacion === 'mixto' && (
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Capital</p>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={abonoCapital}
+                            onChange={e => setAbonoCapital(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full border rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Interés</p>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={abonoInteres}
+                            onChange={e => setAbonoInteres(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full border rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        {(abonoCapital || abonoInteres) && (
+                          <p className="col-span-2 text-sm font-mono font-semibold text-primary">
+                            Total: {fmt(Number(abonoCapital) + Number(abonoInteres), investment.moneda)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </label>
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelacionTotal(false)}>Cerrar</Button>
-            <Button onClick={handleCancelacionTotal} disabled={cancelacionLoading}>
+            <Button
+              onClick={handleCancelacionTotal}
+              disabled={cancelacionLoading || (tipoCancelacion === 'mixto' && !abonoCapital)}
+            >
               {cancelacionLoading ? 'Procesando...' : 'Confirmar Abono'}
             </Button>
           </DialogFooter>
