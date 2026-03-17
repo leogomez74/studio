@@ -1120,6 +1120,13 @@ export default function ContabilidadErpTab() {
                                       {(configForm.entry_type === 'FORMALIZACION' || configForm.entry_type === 'REFUNDICION_NUEVO') && (
                                         <SelectItem value="monto_neto">Monto Neto (Total − Cargos Adicionales)</SelectItem>
                                       )}
+                                      {configForm.entry_type?.startsWith('INV_') && (
+                                        <>
+                                          <SelectItem value="interes_neto">Interés Neto (después de retención)</SelectItem>
+                                          <SelectItem value="interes_bruto">Interés Bruto (antes de retención)</SelectItem>
+                                          <SelectItem value="retencion">Retención Fiscal</SelectItem>
+                                        </>
+                                      )}
                                     </SelectContent>
                                   </Select>
                                 </div>
