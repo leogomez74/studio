@@ -84,37 +84,37 @@ const calculateDaysInArrears = (credit: Credit): number => {
     return 0;
   }
 
-  // Buscar la cuota en mora más antigua por fecha_corte
   const cuotasMora = credit.plan_de_pagos.filter((c: any) => c.estado === 'Mora' && c.numero_cuota > 0);
   if (cuotasMora.length === 0) {
-    // Fallback: max dias_mora
+    // Fallback: max dias_mora de cualquier cuota
     return credit.plan_de_pagos.reduce((max, cuota) => {
       const dm = cuota.dias_mora || 0;
       return dm > max ? dm : max;
     }, 0);
   }
 
-  // Encontrar la fecha_corte más antigua de las cuotas en mora
-  let earliestDate: Date | null = null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let maxDias = 0;
   for (const c of cuotasMora) {
-    const fc = c.fecha_corte;
-    if (fc) {
-      const d = new Date(fc);
-      if (!isNaN(d.getTime()) && (!earliestDate || d < earliestDate)) {
-        earliestDate = d;
+    // Prioridad 1: dias_mora guardado directamente en la cuota
+    if (c.dias_mora && c.dias_mora > 0) {
+      maxDias = Math.max(maxDias, c.dias_mora);
+      continue;
+    }
+    // Prioridad 2: calcular desde fecha_corte (solo si es pasada)
+    if (c.fecha_corte) {
+      const fc = new Date(c.fecha_corte);
+      if (!isNaN(fc.getTime()) && fc < today) {
+        const diff = Math.floor((today.getTime() - fc.getTime()) / (1000 * 60 * 60 * 24));
+        maxDias = Math.max(maxDias, diff);
       }
     }
   }
 
-  if (earliestDate) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffMs = today.getTime() - earliestDate.getTime();
-    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-  }
-
   // Fallback: cuotas en mora × 30
-  return cuotasMora.length * 30;
+  return maxDias > 0 ? maxDias : cuotasMora.length * 30;
 };
 
 // --- Estado de Cuenta PDF ---
