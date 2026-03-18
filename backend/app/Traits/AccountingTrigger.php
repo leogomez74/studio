@@ -341,13 +341,23 @@ trait AccountingTrigger
                         $deductoraContextNombre = $deductora->nombre;
                     }
                 }
-            } elseif ($line->account_type === 'investor') {
-                // Cuenta dinámica por inversionista
+            } elseif ($line->account_type === 'investor_prestamos') {
+                // Cuenta dinámica por inversionista — Préstamos por Pagar (capital)
                 $investorId = $context['investor_id'] ?? null;
                 if ($investorId) {
                     $investor = Investor::find($investorId);
-                    if ($investor && $investor->erp_account_key) {
-                        $accountCode = $this->getAccountCode($investor->erp_account_key);
+                    if ($investor && $investor->erp_account_key_prestamos) {
+                        $accountCode = $this->getAccountCode($investor->erp_account_key_prestamos);
+                        $deductoraContextNombre = $investor->name;
+                    }
+                }
+            } elseif ($line->account_type === 'investor_intereses') {
+                // Cuenta dinámica por inversionista — Intereses por Pagar
+                $investorId = $context['investor_id'] ?? null;
+                if ($investorId) {
+                    $investor = Investor::find($investorId);
+                    if ($investor && $investor->erp_account_key_intereses) {
+                        $accountCode = $this->getAccountCode($investor->erp_account_key_intereses);
                         $deductoraContextNombre = $investor->name;
                     }
                 }

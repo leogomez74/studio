@@ -327,7 +327,11 @@ class InvestmentExportController extends Controller
     public function retencionesPdf()
     {
         $data = $this->service->getTablaGeneral();
-        $pdf = Pdf::loadView('pdf.tabla_general_inversiones', array_merge($data, ['titulo' => 'Reporte de Retenciones']));
+        $bgPath = public_path('pdf_background_portrait.jpg');
+        $bgBase64 = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath));
+        $pdf = Pdf::loadView('pdf.retenciones', array_merge($data, [
+            'bgBase64' => $bgBase64,
+        ]))->setPaper('letter', 'portrait');
         return $pdf->stream('reporte_retenciones.pdf');
     }
 
