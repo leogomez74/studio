@@ -261,7 +261,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
             <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">1</span>
             <CardTitle className="text-sm font-semibold">Récord Crediticio (Credid)</CardTitle>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Cédula: <strong>{lead?.cedula || '—'}</strong></span>
+              <span className="text-xs text-muted-foreground">
+                {lead?.name && <strong className="text-slate-700">{lead.name} · </strong>}
+                Cédula: <strong>{lead?.cedula || '—'}</strong>
+              </span>
               <Button onClick={consultarCredid} disabled={loadingCredid || !lead?.cedula} size="sm" variant="outline" className="h-7 text-xs gap-1.5">
                 {loadingCredid ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
                 {credidData ? 'Actualizar' : 'Consultar Credid'}
