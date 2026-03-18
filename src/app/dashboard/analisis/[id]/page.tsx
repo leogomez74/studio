@@ -1106,31 +1106,91 @@ export default function AnalisisDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Resumen de Salarios (todos los meses) */}
+          {/* Ingresos Netos */}
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Ingresos Netos</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-[160px] overflow-y-auto">
+            <CardContent className="px-4 pt-4 pb-3">
               {(() => {
-                const periodos = [
+                const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+                const raw = [
                   analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3,
                   analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6,
                   analisis.ingreso_neto_7, analisis.ingreso_neto_8, analisis.ingreso_neto_9,
                   analisis.ingreso_neto_10, analisis.ingreso_neto_11, analisis.ingreso_neto_12,
                 ];
-                const conDatos = periodos.map((v, i) => ({ num: i + 1, val: v })).filter(p => p.val);
-                if (conDatos.length === 0) return (
+                const datos = raw.map((v, i) => ({ idx: i, val: Number(v) || 0 })).filter(p => p.val > 0);
+                if (datos.length === 0) return (
                   <p className="text-sm text-gray-400 text-center py-4">No hay ingresos registrados</p>
                 );
-                return conDatos.map(p => (
-                  <div key={p.num} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                    <span className="font-medium text-gray-700">#{p.num}</span>
-                    <span className="text-green-700 font-semibold">
-                      ₡{new Intl.NumberFormat('en-US').format(Number(p.val) || 0)}
-                    </span>
+
+                // Calcular nombres de mes desde la fecha del análisis (excluye mes actual)
+                const refDate = new Date(analisis.created_at || Date.now());
+                const esMicro = analisis.category?.toLowerCase().includes('micro');
+                const totalPeriodos = datos.length;
+
+                const getLabelFor = (idx: number): string => {
+                  if (esMicro) {
+                    // 6 quincenas → 3 meses × Q1/Q2
+                    const mesIdx = Math.floor(idx / 2);
+                    const quincena = (idx % 2) + 1;
+                    const d = new Date(refDate);
+                    d.setMonth(d.getMonth() - (3 - mesIdx));
+                    return `${MESES[d.getMonth()]} Q${quincena}`;
+                  }
+                  // Regular: N meses hacia atrás
+                  const d = new Date(refDate);
+                  d.setMonth(d.getMonth() - (totalPeriodos - idx));
+                  return MESES[d.getMonth()];
+                };
+
+                const valores = datos.map(p => p.val);
+                const promedio = valores.reduce((a, b) => a + b, 0) / valores.length;
+                const minVal = Math.min(...valores);
+                const maxVal = Math.max(...valores);
+                const fmt = (n: number) => '₡' + new Intl.NumberFormat('en-US').format(Math.round(n));
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ingresos Netos</p>
+                      <span className="text-[10px] text-muted-foreground">{totalPeriodos} período{totalPeriodos !== 1 ? 's' : ''}</span>
+                    </div>
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: 'Promedio', val: promedio, cls: 'text-blue-700 bg-blue-50 border-blue-100' },
+                        { label: 'Mínimo', val: minVal, cls: 'text-orange-700 bg-orange-50 border-orange-100' },
+                        { label: 'Máximo', val: maxVal, cls: 'text-green-700 bg-green-50 border-green-100' },
+                      ].map(s => (
+                        <div key={s.label} className={`rounded-md border px-2 py-1.5 text-center ${s.cls}`}>
+                          <p className="text-[10px] opacity-70 mb-0.5">{s.label}</p>
+                          <p className="text-xs font-bold tabular-nums">{fmt(s.val)}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Barras con mes */}
+                    <div className="space-y-1 max-h-[130px] overflow-y-auto pr-1">
+                      {datos.map(p => {
+                        const pct = maxVal > 0 ? (p.val / maxVal) * 100 : 0;
+                        const isMin = p.val === minVal;
+                        const isMax = p.val === maxVal;
+                        return (
+                          <div key={p.idx} className="flex items-center gap-2">
+                            <span className="text-[10px] font-medium text-gray-500 w-14 shrink-0">{getLabelFor(p.idx)}</span>
+                            <div className="flex-1 h-4 bg-gray-100 rounded overflow-hidden">
+                              <div
+                                className={`h-full rounded ${isMin ? 'bg-orange-400' : isMax ? 'bg-emerald-500' : 'bg-blue-400'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className={`text-[11px] font-semibold tabular-nums w-[88px] text-right shrink-0 ${isMin ? 'text-orange-700' : isMax ? 'text-emerald-700' : 'text-gray-700'}`}>
+                              {fmt(p.val)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ));
+                );
               })()}
             </CardContent>
           </Card>
