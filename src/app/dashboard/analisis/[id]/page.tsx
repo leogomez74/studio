@@ -1109,35 +1109,29 @@ export default function AnalisisDetailPage() {
           {/* Resumen de Salarios (todos los meses) */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Ingresos Mensuales</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-500">Ingresos Netos</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 max-h-[160px] overflow-y-auto">
-              {[
-                { mes: 1, bruto: analisis.ingreso_bruto, neto: analisis.ingreso_neto },
-                { mes: 2, bruto: analisis.ingreso_bruto_2, neto: analisis.ingreso_neto_2 },
-                { mes: 3, bruto: analisis.ingreso_bruto_3, neto: analisis.ingreso_neto_3 },
-                { mes: 4, bruto: analisis.ingreso_bruto_4, neto: analisis.ingreso_neto_4 },
-                { mes: 5, bruto: analisis.ingreso_bruto_5, neto: analisis.ingreso_neto_5 },
-                { mes: 6, bruto: analisis.ingreso_bruto_6, neto: analisis.ingreso_neto_6 },
-              ]
-                .filter(item => item.bruto || item.neto) // Solo mostrar meses con datos
-                .map(item => (
-                  <div key={item.mes} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                    <span className="font-medium text-gray-700">Mes {item.mes}</span>
-                    <div className="flex gap-3">
-                      <span className="text-gray-600">
-                        B: ₡{new Intl.NumberFormat('en-US').format(item.bruto || 0)}
-                      </span>
-                      <span className="text-green-700 font-semibold">
-                        N: ₡{new Intl.NumberFormat('en-US').format(item.neto || 0)}
-                      </span>
-                    </div>
+              {(() => {
+                const periodos = [
+                  analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3,
+                  analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6,
+                  analisis.ingreso_neto_7, analisis.ingreso_neto_8, analisis.ingreso_neto_9,
+                  analisis.ingreso_neto_10, analisis.ingreso_neto_11, analisis.ingreso_neto_12,
+                ];
+                const conDatos = periodos.map((v, i) => ({ num: i + 1, val: v })).filter(p => p.val);
+                if (conDatos.length === 0) return (
+                  <p className="text-sm text-gray-400 text-center py-4">No hay ingresos registrados</p>
+                );
+                return conDatos.map(p => (
+                  <div key={p.num} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                    <span className="font-medium text-gray-700">#{p.num}</span>
+                    <span className="text-green-700 font-semibold">
+                      ₡{new Intl.NumberFormat('en-US').format(Number(p.val) || 0)}
+                    </span>
                   </div>
-                ))}
-              {![analisis.ingreso_bruto, analisis.ingreso_bruto_2, analisis.ingreso_bruto_3,
-                 analisis.ingreso_bruto_4, analisis.ingreso_bruto_5, analisis.ingreso_bruto_6].some(v => v) && (
-                <p className="text-sm text-gray-400 text-center py-4">No hay ingresos registrados</p>
-              )}
+                ));
+              })()}
             </CardContent>
           </Card>
         </div>

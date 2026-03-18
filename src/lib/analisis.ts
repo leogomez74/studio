@@ -97,6 +97,18 @@ export interface AnalisisItem {
   ingreso_neto_5?: number;
   ingreso_bruto_6?: number;
   ingreso_neto_6?: number;
+  ingreso_bruto_7?: number;
+  ingreso_neto_7?: number;
+  ingreso_bruto_8?: number;
+  ingreso_neto_8?: number;
+  ingreso_bruto_9?: number;
+  ingreso_neto_9?: number;
+  ingreso_bruto_10?: number;
+  ingreso_neto_10?: number;
+  ingreso_bruto_11?: number;
+  ingreso_neto_11?: number;
+  ingreso_bruto_12?: number;
+  ingreso_neto_12?: number;
   numero_manchas?: number;
   numero_juicios?: number;
   numero_embargos?: number;
