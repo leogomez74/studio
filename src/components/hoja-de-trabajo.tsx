@@ -136,10 +136,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     return MESES_ES[d.getMonth()];
   }), [totalMeses]);
 
-  const [ingresos, setIngresos] = useState(() => {
+  const [ingresos, setIngresos] = useState<{ num: number; liquido: string }[]>(() => {
     try {
       const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
-      if (draft.ingresos) return draft.ingresos;
+      if (draft.ingresos) return draft.ingresos as { num: number; liquido: string }[];
     } catch {}
     return Array.from({ length: 12 }, (_, i) => ({ num: i + 1, liquido: '' }));
   });
