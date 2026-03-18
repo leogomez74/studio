@@ -23,6 +23,8 @@ class Investor extends Model
         'banco',
         'moneda_preferida',
         'erp_account_key',
+        'erp_account_key_prestamos',
+        'erp_account_key_intereses',
         'joined_at',
     ];
 
