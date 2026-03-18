@@ -79,7 +79,7 @@ class LeaderboardService
             default => 'total_points',
         };
 
-        $query = RewardUser::with('user:id,name,email')
+        $query = RewardUser::with('user:id,name,email,avatar')
             ->select('reward_users.*', DB::raw("{$column} as value"))
             ->where($column, '>', 0)
             ->orderByDesc('value');

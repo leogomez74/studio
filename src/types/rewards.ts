@@ -215,14 +215,22 @@ export interface DailyTask {
   target: number;
 }
 
-// Dashboard
+// Dashboard (consolidado — 1 solo request)
 export interface DashboardData {
   summary: UserSummary;
   badges: {
     earned: Badge[];
     available: Badge[];
   };
+  leaderboard?: {
+    metric: string;
+    period: string;
+    entries: LeaderboardEntry[];
+  };
+  challenges?: Challenge[];
   recentActivity: Transaction[];
+  // Alias snake_case del backend
+  recent_activity?: Transaction[];
 }
 
 export interface UserSummary {
