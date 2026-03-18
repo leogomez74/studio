@@ -50,8 +50,10 @@ class EmbargoCalculatorService
         // Paso 4: Determinar monto embargable (excedente sobre SMI)
         $embargable = max(0, $disponible - $smi);
 
+        $otroEmbargoTotal = $otroEmbargo1 + $otroEmbargo2;
+
         if ($embargable <= 0) {
-            return $this->buildResponse(0, $salarioBruto, $descuentoCcss, $impuestoRenta, $pensionAlimenticia, $smi);
+            return $this->buildResponse(0, $salarioBruto, $descuentoCcss, $impuestoRenta, $pensionAlimenticia, $smi, 0, 0, 0, 0, $otroEmbargoTotal);
         }
 
         // Paso 5: Aplicar tramos
@@ -63,7 +65,7 @@ class EmbargoCalculatorService
 
         return $this->buildResponse(
             $totalEmbargo, $salarioBruto, $descuentoCcss, $impuestoRenta,
-            $pensionAlimenticia, $smi, $embargable, $montoTramo1, $montoTramo2, $limiteTramo1
+            $pensionAlimenticia, $smi, $embargable, $montoTramo1, $montoTramo2, $limiteTramo1, $otroEmbargoTotal
         );
     }
 
@@ -107,6 +109,7 @@ class EmbargoCalculatorService
         float $montoTramo1 = 0,
         float $montoTramo2 = 0,
         float $limiteTramo1 = 0,
+        float $otroEmbargo = 0,
     ): array {
         return [
             'resultado' => $totalEmbargo,
@@ -117,6 +120,7 @@ class EmbargoCalculatorService
                 'impuesto_renta' => round($impuestoRenta, 2),
                 'salario_liquido' => round($salarioBruto - $descuentoCcss - $impuestoRenta, 2),
                 'pension_alimenticia' => round($pensionAlimenticia, 2),
+                'otro_embargo' => round($otroEmbargo, 2),
                 'salario_minimo_protegido' => round($smi, 2),
                 'monto_embargable' => round($embargable, 2),
                 'limite_tramo1' => round($limiteTramo1, 2),

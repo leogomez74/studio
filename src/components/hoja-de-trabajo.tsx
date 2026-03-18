@@ -121,7 +121,8 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const totalMeses = esMicro ? 3 : 12;
   const mesesNombres = useMemo(() => Array.from({ length: totalMeses }, (_, i) => {
     const d = new Date();
-    d.setMonth(d.getMonth() - (totalMeses - 1 - i));
+    // Excluir el mes actual (en circulación), empezar desde el mes anterior
+    d.setMonth(d.getMonth() - (totalMeses - i));
     return MESES_ES[d.getMonth()];
   }), [totalMeses]);
 
@@ -242,7 +243,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
   const desglose = embargableResult?.desglose;
   const totalEmbargo = desglose?.total_embargo ?? embargableResult?.resultado ?? 0;
-  const cuotaSuperaEmbargo = cuotaCalculada > 0 && totalEmbargo > 0 && cuotaCalculada > totalEmbargo;
+  const cuotaSuperaEmbargo = cuotaCalculada > 0 && embargableResult != null && cuotaCalculada > totalEmbargo;
 
   const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
   const montoMaxConfig = cfg ? parseFloat(String(cfg.monto_maximo)) : (esMicro ? 690000 : Infinity);
@@ -515,6 +516,8 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                         { label: '− CCSS', val: -desglose.descuento_ccss, cls: 'text-red-600' },
                         { label: '− Renta', val: -desglose.impuesto_renta, cls: 'text-red-600' },
                         { label: '= Salario Líquido', val: desglose.salario_liquido, cls: 'font-medium border-t pt-1' },
+                        ...(desglose.pension_alimenticia > 0 ? [{ label: '− Pensión Alimenticia', val: -desglose.pension_alimenticia, cls: 'text-orange-600' }] : []),
+                        ...(desglose.otro_embargo > 0 ? [{ label: '− Otro Embargo', val: -desglose.otro_embargo, cls: 'text-orange-600' }] : []),
                         { label: 'Tramo 1', val: desglose.embargo_tramo1, cls: '' },
                         { label: 'Tramo 2', val: desglose.embargo_tramo2, cls: '' },
                       ].map(({ label, val, cls }) => (
@@ -523,9 +526,9 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                           <span>{fmt(Math.abs(val))}</span>
                         </div>
                       ))}
-                      <div className="flex justify-between font-bold text-purple-700 border-t pt-1">
+                      <div className={`flex justify-between font-bold border-t pt-1 ${desglose.total_embargo <= 0 ? 'text-red-600' : 'text-purple-700'}`}>
                         <span>= Máx Embargable</span>
-                        <span>{fmt(desglose.total_embargo)}</span>
+                        <span>{desglose.total_embargo <= 0 ? '₡0 (sin capacidad)' : fmt(desglose.total_embargo)}</span>
                       </div>
                     </div>
                   )}
