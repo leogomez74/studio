@@ -686,38 +686,23 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                   </div>
                 )}
 
-                {totalEmbargo > 0 && cuotaCalculada > 0 && (
-                  <div className={`flex justify-between items-center px-3 py-2 rounded border text-xs ${cuotaSuperaEmbargo ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-                    <span className="text-muted-foreground">Cuota vs Máx embargable</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={cuotaSuperaEmbargo ? 'text-red-700 font-medium' : 'text-green-700 font-medium'}>{fmt(cuotaCalculada)}</span>
-                      <span className="text-muted-foreground">/</span>
-                      <span className="text-purple-700">{fmt(totalEmbargo)}</span>
-                      {cuotaSuperaEmbargo
-                        ? <AlertCircle className="h-3.5 w-3.5 text-red-600" />
-                        : <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                      }
-                    </div>
-                  </div>
-                )}
-
                 <Separator />
 
-                {cuotaSuperaEmbargo && (() => {
-                  // Calcular monto máximo viable con el plazo actual (respetando límite de config)
+                {cuotaSuperaCapacidad && (() => {
                   const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
                   const ta = cfg ? parseFloat(String(cfg.tasa_anual)) : (esMicro ? 54 : 36);
                   const r = (ta / 100) / 12;
                   const m = parseInt(plazo) || 0;
-                  const maxMontoEmbargo = m > 0 && r > 0
-                    ? Math.floor(totalEmbargo * (Math.pow(1 + r, m) - 1) / (r * Math.pow(1 + r, m)))
+                  // PMT inverso: monto máximo que genera una cuota ≤ capacidadReal
+                  const maxMontoCapacidad = m > 0 && r > 0
+                    ? Math.floor(capacidadReal * (Math.pow(1 + r, m) - 1) / (r * Math.pow(1 + r, m)))
                     : 0;
-                  const maxMonto = Math.min(maxMontoEmbargo, montoMaxConfig);
+                  const maxMonto = Math.min(maxMontoCapacidad, montoMaxConfig);
                   return (
                     <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 space-y-1">
                       <div className="flex items-center gap-1.5 font-medium">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                        Cuota ({fmt(cuotaCalculada)}) supera el máximo embargable ({fmt(totalEmbargo)})
+                        Cuota ({fmt(cuotaCalculada)}) supera el 25% de capacidad real ({fmt(capacidadReal)})
                       </div>
                       {maxMonto > 0 && (
                         <div className="flex items-center justify-between gap-2 pl-5">
@@ -737,7 +722,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
                 <Button
                   onClick={handleCrearAnalisis}
-                  disabled={!montoSugerido || !plazo || cuotaSuperaEmbargo || montoSuperaLimite || montoBajoMinimo}
+                  disabled={!montoSugerido || !plazo || cuotaSuperaCapacidad || montoSuperaLimite || montoBajoMinimo}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 disabled:opacity-50"
                 >
                   <CheckCircle className="h-4 w-4" />
