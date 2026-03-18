@@ -199,7 +199,7 @@ trait AccountingTrigger
                 investorNombre: $context['investor_nombre'] ?? 'N/A'
             ),
 
-            'INV_INTERES_DEVENGADO', 'INV_RETENCION' => $this->triggerAccountingInteresInversion(
+            'INV_INTERES_DEVENGADO', 'INV_RETENCION_INTERES' => $this->triggerAccountingInteresInversion(
                 investmentId: (int) ($context['investment_id'] ?? 0),
                 couponId: (int) ($context['coupon_id'] ?? 0),
                 interesNeto: (float) ($context['amount_breakdown']['interes_neto'] ?? $amount),
