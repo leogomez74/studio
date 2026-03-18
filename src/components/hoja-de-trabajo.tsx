@@ -227,17 +227,20 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     api.get('/api/loan-configurations/rangos').then(r => setLoanConfigs(r.data)).catch(() => {});
   }, []);
 
+  const tasaAnual = useMemo(() => {
+    const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
+    return cfg ? parseFloat(String(cfg.tasa_anual)) : (esMicro ? 54 : 36);
+  }, [loanConfigs, esMicro]);
+
   const cuotaCalculada = useMemo(() => {
     const monto = parseFloat(montoSugerido) || 0;
     const m = parseInt(plazo) || 0;
     if (monto <= 0 || m <= 0) return 0;
-    const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
-    const ta = cfg ? parseFloat(String(cfg.tasa_anual)) : (esMicro ? 54 : 36);
-    const r = (ta / 100) / 12;
+    const r = (tasaAnual / 100) / 12;
     if (r <= 0) return monto / m;
     const p = Math.pow(1 + r, m);
     return monto * ((r * p) / (p - 1));
-  }, [montoSugerido, plazo, loanConfigs, esMicro]);
+  }, [montoSugerido, plazo, tasaAnual]);
 
   // ── Auto-guardado en localStorage ────────────────────────────────────────────
   useEffect(() => {
@@ -704,7 +707,12 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 </div>
 
                 <div className="flex justify-between items-center px-3 py-2 bg-slate-50 rounded border text-sm">
-                  <span className="text-xs text-muted-foreground">Cuota estimada</span>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground">Cuota estimada</span>
+                    {tasaAnual > 0 && (
+                      <span className="text-[10px] text-muted-foreground/70">Tasa {tasaAnual}% anual</span>
+                    )}
+                  </div>
                   <span className="font-bold text-slate-700">{cuotaCalculada > 0 ? fmt(cuotaCalculada) : '—'}</span>
                 </div>
 
@@ -740,9 +748,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 <Separator />
 
                 {cuotaSuperaCapacidad && (() => {
-                  const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
-                  const ta = cfg ? parseFloat(String(cfg.tasa_anual)) : (esMicro ? 54 : 36);
-                  const r = (ta / 100) / 12;
+                  const r = (tasaAnual / 100) / 12;
                   const m = parseInt(plazo) || 0;
                   // PMT inverso: monto máximo que genera una cuota ≤ capacidadReal
                   const maxMontoCapacidad = m > 0 && r > 0
