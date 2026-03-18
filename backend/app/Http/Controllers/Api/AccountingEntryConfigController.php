@@ -47,10 +47,10 @@ class AccountingEntryConfigController extends Controller
             'active' => 'sometimes|boolean',
             'lines' => 'required|array|min:2',
             'lines.*.movement_type' => 'required|in:debit,credit',
-            'lines.*.account_type' => 'required|in:fixed,deductora,deductora_or_fixed',
+            'lines.*.account_type' => 'required|in:fixed,deductora,deductora_or_fixed,investor_prestamos,investor_intereses',
             'lines.*.account_key' => 'required_if:lines.*.account_type,fixed|nullable|string|max:50',
             'lines.*.description' => 'nullable|string|max:255',
-            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,penalizacion,cargos_adicionales_total,monto_neto,cargo_adicional',
+            'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,penalizacion,cargos_adicionales_total,monto_neto,cargo_adicional,interes_neto,retencion,interes_bruto,total_interes_bruto,total_retencion',
             'lines.*.cargo_adicional_key' => 'nullable|string|max:50',
         ]);
 
@@ -109,7 +109,7 @@ class AccountingEntryConfigController extends Controller
             'active' => 'sometimes|boolean',
             'lines' => 'sometimes|array|min:2',
             'lines.*.movement_type' => 'required_with:lines|in:debit,credit',
-            'lines.*.account_type' => 'required_with:lines|in:fixed,deductora,deductora_or_fixed',
+            'lines.*.account_type' => 'required_with:lines|in:fixed,deductora,deductora_or_fixed,investor_prestamos,investor_intereses',
             'lines.*.account_key' => 'required_if:lines.*.account_type,fixed|nullable|string|max:50',
             'lines.*.description' => 'nullable|string|max:255',
             'lines.*.amount_component' => 'sometimes|string|in:total,interes_corriente,interes_moratorio,poliza,capital,sobrante,penalizacion,cargos_adicionales_total,monto_neto,cargo_adicional',
