@@ -99,7 +99,9 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const DRAFT_KEY = `hoja_trabajo_op_${opportunity.id}`;
 
   // ── Paso 1: Credid ──────────────────────────────────────────────────────────
-  const [credidData, setCredidData] = useState<any>(null);
+  const [credidData, setCredidData] = useState<any>(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').credidData ?? null; } catch { return null; }
+  });
   const [loadingCredid, setLoadingCredid] = useState(false);
   const [credidError, setCredidError] = useState('');
 
@@ -246,10 +248,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   useEffect(() => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo,
+        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData,
       }));
     } catch {}
-  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo]);
+  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData]);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
@@ -328,7 +330,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const montoSuperaLimite = montoActual > 0 && montoActual > montoMaxConfig;
   const montoBajoMinimo = montoActual > 0 && montoActual < montoMinConfig;
 
-  const tieneBorrador = ingresos.some(i => i.liquido) || !!salarioBrutoManual || !!montoSugerido;
+  const tieneBorrador = !!credidData || ingresos.some(i => i.liquido) || !!salarioBrutoManual || !!montoSugerido;
 
   return (
     <div className="space-y-4">
