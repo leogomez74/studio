@@ -21,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PlanillaUploadController extends Controller
 {
@@ -570,5 +571,30 @@ class PlanillaUploadController extends Controller
         return response()->download($temp, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Exportar resumen de distribución de planilla como PDF con diseño CREDIPEP
+     */
+    public function exportResumenPdf($id)
+    {
+        $planilla = PlanillaUpload::with(['deductora', 'user'])->findOrFail($id);
+
+        $payments = CreditPayment::with(['credit.lead'])
+            ->where('planilla_upload_id', $planilla->id)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $bgPath  = public_path('pdf_background_hoja_cierre.jpg');
+        $bgBase64 = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath));
+
+        $totalMonto = $payments->sum('monto');
+
+        $pdf = Pdf::loadView('pdf.resumen_planilla', compact(
+            'planilla', 'payments', 'bgBase64', 'totalMonto'
+        ))->setPaper('letter', 'portrait');
+
+        $filename = 'resumen_planilla_' . $planilla->id . '_' . ($planilla->fecha_planilla ?? 'sin-fecha') . '.pdf';
+        return $pdf->stream($filename);
     }
 }

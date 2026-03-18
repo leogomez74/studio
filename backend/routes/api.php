@@ -539,6 +539,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('planilla-uploads/{id}', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'show']);
     Route::get('planilla-uploads/{id}/download', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'download']);
     Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen']);
+    Route::get('planilla-uploads/{id}/export-resumen-pdf', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumenPdf']);
     Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular'])->middleware('throttle:10,1');
 
     // --- Tasas ---
