@@ -1205,7 +1205,7 @@ export default function AnalisisDetailPage() {
             <CardContent className="space-y-1.5">
               {[
                 { label: 'Salario Bruto', value: analisis.hoja_trabajo_datos.salario_bruto_manual ? `₡${new Intl.NumberFormat('en-US').format(Number(analisis.hoja_trabajo_datos.salario_bruto_manual))}` : null },
-                { label: 'Pensión Alimenticia', value: analisis.hoja_trabajo_datos.pension_alimenticia ? `₡${new Intl.NumberFormat('en-US').format(Number(analisis.hoja_trabajo_datos.pension_alimenticia))}` : null },
+                { label: 'Pensión Alimentaria', value: analisis.hoja_trabajo_datos.pension_alimenticia ? `₡${new Intl.NumberFormat('en-US').format(Number(analisis.hoja_trabajo_datos.pension_alimenticia))}` : null },
                 { label: 'Otro Embargo', value: analisis.hoja_trabajo_datos.otro_embargo ? `₡${new Intl.NumberFormat('en-US').format(Number(analisis.hoja_trabajo_datos.otro_embargo))}` : null },
                 { label: 'Máx. Embargable', value: analisis.hoja_trabajo_datos.max_embargable != null ? `₡${new Intl.NumberFormat('en-US').format(analisis.hoja_trabajo_datos.max_embargable)}` : null, highlight: true },
                 { label: 'Mín. Salario 3 Meses', value: analisis.hoja_trabajo_datos.min_salario_meses != null ? `₡${new Intl.NumberFormat('en-US').format(analisis.hoja_trabajo_datos.min_salario_meses)}` : null },

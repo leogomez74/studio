@@ -96,6 +96,8 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const totalPeriodos = esMicro ? 6 : 12;
   const labelPeriodo = esMicro ? 'Quincena' : 'Mes';
 
+  const DRAFT_KEY = `hoja_trabajo_op_${opportunity.id}`;
+
   // ── Paso 1: Credid ──────────────────────────────────────────────────────────
   const [credidData, setCredidData] = useState<any>(null);
   const [loadingCredid, setLoadingCredid] = useState(false);
@@ -134,9 +136,13 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     return MESES_ES[d.getMonth()];
   }), [totalMeses]);
 
-  const [ingresos, setIngresos] = useState(() =>
-    Array.from({ length: 12 }, (_, i) => ({ num: i + 1, liquido: '' }))
-  );
+  const [ingresos, setIngresos] = useState(() => {
+    try {
+      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
+      if (draft.ingresos) return draft.ingresos;
+    } catch {}
+    return Array.from({ length: 12 }, (_, i) => ({ num: i + 1, liquido: '' }));
+  });
 
   const updateIngreso = (num: number, value: string) => {
     setIngresos(prev => prev.map(i => i.num === num ? { ...i, liquido: stripCommas(value) } : i));
@@ -166,9 +172,15 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   }, [periodos, todosLlenos, esMicro, totalMeses]);
 
   // ── Paso 3: Embargo ──────────────────────────────────────────────────────────
-  const [salarioBrutoManual, setSalarioBrutoManual] = useState('');
-  const [pensionAlimenticia, setPensionAlimenticia] = useState('');
-  const [otroEmbargo, setOtroEmbargo] = useState('');
+  const [salarioBrutoManual, setSalarioBrutoManual] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').salarioBrutoManual || ''; } catch { return ''; }
+  });
+  const [pensionAlimenticia, setPensionAlimenticia] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').pensionAlimenticia || ''; } catch { return ''; }
+  });
+  const [otroEmbargo, setOtroEmbargo] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').otroEmbargo || ''; } catch { return ''; }
+  });
   const [embargableResult, setEmbargableResult] = useState<any>(null);
   const [loadingEmbargo, setLoadingEmbargo] = useState(false);
 
@@ -203,8 +215,12 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   }, [brutoParaCalculo, pensionAlimenticia, otroEmbargo, calcularEmbargo]);
 
   // ── Paso 4: Propuesta ────────────────────────────────────────────────────────
-  const [montoSugerido, setMontoSugerido] = useState('');
-  const [plazo, setPlazo] = useState('36');
+  const [montoSugerido, setMontoSugerido] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').montoSugerido || ''; } catch { return ''; }
+  });
+  const [plazo, setPlazo] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').plazo || '36'; } catch { return '36'; }
+  });
   const [loanConfigs, setLoanConfigs] = useState<Record<string, any>>({});
 
   useEffect(() => {
@@ -222,6 +238,15 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     const p = Math.pow(1 + r, m);
     return monto * ((r * p) / (p - 1));
   }, [montoSugerido, plazo, loanConfigs, esMicro]);
+
+  // ── Auto-guardado en localStorage ────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo,
+      }));
+    } catch {}
+  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo]);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
@@ -264,6 +289,8 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
       salario_castigado: salarioCastigado,
       capacidad_real_25: capacidadReal,
     });
+    // Limpiar borrador al crear el análisis
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
   };
 
   const desglose = embargableResult?.desglose;
@@ -298,8 +325,32 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const montoSuperaLimite = montoActual > 0 && montoActual > montoMaxConfig;
   const montoBajoMinimo = montoActual > 0 && montoActual < montoMinConfig;
 
+  const tieneBorrador = ingresos.some(i => i.liquido) || !!salarioBrutoManual || !!montoSugerido;
+
   return (
     <div className="space-y-4">
+
+      {tieneBorrador && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+          <span>Borrador guardado automáticamente</span>
+          <button
+            type="button"
+            className="text-amber-600 hover:text-red-600 underline"
+            onClick={() => {
+              try { localStorage.removeItem(DRAFT_KEY); } catch {}
+              setIngresos(Array.from({ length: 12 }, (_, i) => ({ num: i + 1, liquido: '' })));
+              setSalarioBrutoManual('');
+              setPensionAlimenticia('');
+              setOtroEmbargo('');
+              setMontoSugerido('');
+              setPlazo('36');
+              setCredidData(null);
+            }}
+          >
+            Limpiar borrador
+          </button>
+        </div>
+      )}
 
       {/* ── Card 1: Credid ─────────────────────────────────────────────────── */}
       <Card>
@@ -550,7 +601,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs">Pensión Alimenticia (₡)</Label>
+                      <Label className="text-xs">Pensión Alimentaria (₡)</Label>
                       <Input value={withCommas(pensionAlimenticia)} onChange={e => setPensionAlimenticia(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
                     </div>
                     <div>
@@ -572,7 +623,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                         { label: '− CCSS', val: -desglose.descuento_ccss, cls: 'text-red-600' },
                         { label: '− Renta', val: -desglose.impuesto_renta, cls: 'text-red-600' },
                         { label: '= Salario Líquido', val: desglose.salario_liquido, cls: 'font-medium border-t pt-1' },
-                        ...(desglose.pension_alimenticia > 0 ? [{ label: '− Pensión Alimenticia', val: -desglose.pension_alimenticia, cls: 'text-orange-600' }] : []),
+                        ...(desglose.pension_alimenticia > 0 ? [{ label: '− Pensión Alimentaria', val: -desglose.pension_alimenticia, cls: 'text-orange-600' }] : []),
                         ...(desglose.otro_embargo > 0 ? [{ label: '− Otro Embargo', val: -desglose.otro_embargo, cls: 'text-orange-600' }] : []),
                         { label: 'Tramo 1', val: desglose.embargo_tramo1, cls: '' },
                         { label: 'Tramo 2', val: desglose.embargo_tramo2, cls: '' },
