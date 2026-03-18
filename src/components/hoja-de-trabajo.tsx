@@ -158,10 +158,20 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   }, [periodos, todosLlenos, esMicro, totalMeses]);
 
   // ── Paso 3: Embargo ──────────────────────────────────────────────────────────
+  const [salarioBrutoManual, setSalarioBrutoManual] = useState('');
   const [pensionAlimenticia, setPensionAlimenticia] = useState('');
   const [otroEmbargo, setOtroEmbargo] = useState('');
   const [embargableResult, setEmbargableResult] = useState<any>(null);
   const [loadingEmbargo, setLoadingEmbargo] = useState(false);
+
+  // Pre-llenar salario bruto con el promedio líquido cuando esté disponible
+  useEffect(() => {
+    if (promedioLiquido > 0 && !salarioBrutoManual) {
+      setSalarioBrutoManual(String(Math.round(promedioLiquido)));
+    }
+  }, [promedioLiquido]);
+
+  const brutoParaCalculo = parseFloat(salarioBrutoManual) || promedioLiquido;
 
   const calcularEmbargo = useCallback(async (bruto: number) => {
     if (bruto <= 0) return;
@@ -178,11 +188,11 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   }, [pensionAlimenticia, otroEmbargo]);
 
   useEffect(() => {
-    if (promedioLiquido > 0) {
-      const t = setTimeout(() => calcularEmbargo(promedioLiquido), 600);
+    if (brutoParaCalculo > 0) {
+      const t = setTimeout(() => calcularEmbargo(brutoParaCalculo), 600);
       return () => clearTimeout(t);
     }
-  }, [promedioLiquido, pensionAlimenticia, otroEmbargo, calcularEmbargo]);
+  }, [brutoParaCalculo, pensionAlimenticia, otroEmbargo, calcularEmbargo]);
 
   // ── Paso 4: Propuesta ────────────────────────────────────────────────────────
   const [montoSugerido, setMontoSugerido] = useState('');
@@ -492,6 +502,16 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs">Salario Bruto (₡)</Label>
+                    <Input
+                      value={withCommas(salarioBrutoManual)}
+                      onChange={e => setSalarioBrutoManual(stripCommas(e.target.value))}
+                      placeholder="Ingresa el salario bruto"
+                      className="h-8 text-xs mt-1"
+                      inputMode="numeric"
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Pensión Alimenticia (₡)</Label>
