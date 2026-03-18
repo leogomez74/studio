@@ -1148,6 +1148,8 @@ export default function ContabilidadErpTab() {
                                           <SelectItem value="interes_neto">Interés Neto (después de retención)</SelectItem>
                                           <SelectItem value="interes_bruto">Interés Bruto (antes de retención)</SelectItem>
                                           <SelectItem value="retencion">Retención Fiscal</SelectItem>
+                                          <SelectItem value="total_interes_bruto">Sumatoria Interés Bruto (pago masivo)</SelectItem>
+                                          <SelectItem value="total_retencion">Sumatoria Retención Fiscal (pago masivo)</SelectItem>
                                         </>
                                       )}
                                     </SelectContent>
