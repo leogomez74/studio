@@ -77,9 +77,13 @@ function CatalogItemCard({
 }) {
   const category = categoryConfig[item.category as keyof typeof categoryConfig] || categoryConfig.general;
   const CategoryIcon = category.icon;
-  const itemCost = item.pointsCost ?? item.cost;
+  const itemCost = item.points_cost ?? item.pointsCost ?? item.cost ?? 0;
   const canAfford = userPoints >= itemCost;
-  const isAvailable = (item.isAvailable ?? item.isActive) && (item.stock === null || item.stock > 0);
+  const imageUrl = item.image_url ?? item.imageUrl;
+  const isActive = item.is_active ?? item.isActive;
+  const isFeatured = item.is_featured ?? item.isFeatured;
+  const canRedeem = item.can_redeem ?? item.canRedeem;
+  const isAvailable = (item.isAvailable ?? isActive) && (item.stock === null || item.stock === -1 || item.stock > 0);
 
   return (
     <Card className={cn(
@@ -88,9 +92,9 @@ function CatalogItemCard({
     )}>
       {/* Image */}
       <div className="relative aspect-video bg-muted overflow-hidden rounded-t-lg">
-        {item.imageUrl ? (
-          <img 
-            src={item.imageUrl} 
+        {imageUrl ? (
+          <img
+            src={imageUrl}
             alt={item.name}
             className="w-full h-full object-cover"
           />
@@ -110,7 +114,7 @@ function CatalogItemCard({
         </Badge>
 
         {/* Featured Badge */}
-        {item.isFeatured && (
+        {isFeatured && (
           <Badge className="absolute top-2 right-2 bg-amber-500">
             <Star className="h-3 w-3 mr-1" />
             Destacado
@@ -118,7 +122,7 @@ function CatalogItemCard({
         )}
 
         {/* Out of Stock */}
-        {item.stock !== null && item.stock <= 0 && (
+        {item.stock !== null && item.stock !== -1 && item.stock <= 0 && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <Badge variant="destructive" className="text-sm">
               Agotado
@@ -246,17 +250,18 @@ function ItemDetailDialog({
 
   const category = categoryConfig[item.category as keyof typeof categoryConfig] || categoryConfig.general;
   const CategoryIcon = category.icon;
-  const itemCost = item.pointsCost ?? item.cost;
+  const itemCost = item.points_cost ?? item.pointsCost ?? item.cost ?? 0;
   const canAfford = userPoints >= itemCost;
+  const imageUrl = item.image_url ?? item.imageUrl;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <div className="aspect-video bg-muted rounded-lg overflow-hidden mb-4">
-            {item.imageUrl ? (
-              <img 
-                src={item.imageUrl} 
+            {imageUrl ? (
+              <img
+                src={imageUrl}
                 alt={item.name}
                 className="w-full h-full object-cover"
               />
@@ -283,10 +288,10 @@ function ItemDetailDialog({
             <div className="border rounded-lg p-3">
               <h4 className="text-sm font-medium mb-2">Requisitos</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                {item.requirements.minLevel && (
-                  <li>• Nivel mínimo: {item.requirements.minLevel}</li>
+                {item.requirements.min_level && (
+                  <li>• Nivel mínimo: {item.requirements.min_level}</li>
                 )}
-                {item.requirements.badgeId && (
+                {item.requirements.badge_id && (
                   <li>• Badge requerido</li>
                 )}
               </ul>
@@ -388,8 +393,8 @@ export default function CatalogPage() {
   });
 
   // Separate featured
-  const featuredItems = filteredItems.filter((item: CatalogItem) => item.isFeatured);
-  const regularItems = filteredItems.filter((item: CatalogItem) => !item.isFeatured);
+  const featuredItems = filteredItems.filter((item: CatalogItem) => item.is_featured ?? item.isFeatured);
+  const regularItems = filteredItems.filter((item: CatalogItem) => !(item.is_featured ?? item.isFeatured));
 
   const handleItemClick = (item: CatalogItem) => {
     setSelectedItem(item);
@@ -406,9 +411,7 @@ export default function CatalogPage() {
     
     setRedeeming(true);
     try {
-      // Aquí iría la llamada a la API para canjear
-      // await redeemItem(selectedItem.id);
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simular
+      await redeemItem(selectedItem.id);
       refetchCatalog();
       refetchRedemptions();
       setConfirmOpen(false);
@@ -585,7 +588,7 @@ export default function CatalogPage() {
             <AlertDialogTitle>Confirmar canje</AlertDialogTitle>
             <AlertDialogDescription>
               ¿Estás seguro de que deseas canjear <strong>{selectedItem?.name}</strong> por{" "}
-              <strong>{(selectedItem?.pointsCost ?? selectedItem?.cost ?? 0).toLocaleString()}</strong> puntos?
+              <strong>{(selectedItem?.points_cost ?? selectedItem?.pointsCost ?? selectedItem?.cost ?? 0).toLocaleString()}</strong> puntos?
               <br /><br />
               Esta acción no se puede deshacer.
             </AlertDialogDescription>

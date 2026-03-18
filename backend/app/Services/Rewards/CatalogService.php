@@ -41,7 +41,7 @@ class CatalogService
             $query->where('category', $category);
         }
 
-        return $query->orderBy('cost')->get()->map(function ($item) use ($user) {
+        return $query->orderBy('points_cost')->get()->map(function ($item) use ($user) {
             $canRedeem = $this->canRedeem($user, $item);
 
             return [
@@ -50,11 +50,15 @@ class CatalogService
                 'name' => $item->name,
                 'description' => $item->description,
                 'category' => $item->category,
-                'cost' => $item->cost,
-                'currency' => $item->currency,
+                'points_cost' => $item->points_cost,
                 'stock' => $item->stock,
                 'image_url' => $item->image_url,
-                'level_required' => $item->level_required,
+                'icon' => $item->icon,
+                'is_active' => $item->is_active,
+                'is_featured' => $item->is_featured,
+                'requirements' => $item->requirements,
+                'available_from' => $item->available_from,
+                'available_until' => $item->available_until,
                 'can_redeem' => $canRedeem['can_redeem'],
                 'reason' => $canRedeem['reason'] ?? null,
             ];
@@ -85,19 +89,20 @@ class CatalogService
             return ['can_redeem' => false, 'reason' => 'Este item está agotado.'];
         }
 
-        // Verificar nivel
-        if ($user->level < $item->level_required) {
+        // Verificar nivel (desde requirements JSON)
+        $minLevel = $item->requirements['min_level'] ?? 0;
+        if ($minLevel > 0 && $user->level < $minLevel) {
             return [
                 'can_redeem' => false,
-                'reason' => "Necesitas nivel {$item->level_required} para canjear este item."
+                'reason' => "Necesitas nivel {$minLevel} para canjear este item."
             ];
         }
 
         // Verificar puntos
-        if ($user->total_points < $item->cost) {
+        if ($user->total_points < $item->points_cost) {
             return [
                 'can_redeem' => false,
-                'reason' => "No tienes suficientes puntos. Necesitas {$item->cost} puntos."
+                'reason' => "No tienes suficientes puntos. Necesitas {$item->points_cost} puntos."
             ];
         }
 
@@ -121,7 +126,7 @@ class CatalogService
 
         return DB::transaction(function () use ($user, $item, $deliveryInfo, $notes) {
             // Descontar puntos
-            $this->rewardService->spendPoints($user, $item->cost, 'spend', [
+            $this->rewardService->spendPoints($user, $item->points_cost, 'spend', [
                 'description' => "Canje: {$item->name}",
                 'reference_type' => 'catalog_item',
                 'reference_id' => $item->id,
@@ -136,7 +141,7 @@ class CatalogService
             return RewardRedemption::create([
                 'reward_user_id' => $user->id,
                 'catalog_item_id' => $item->id,
-                'points_spent' => $item->cost,
+                'points_spent' => $item->points_cost,
                 'status' => 'pending',
                 'notes' => $notes,
                 'delivery_info' => $deliveryInfo,
