@@ -1933,7 +1933,7 @@ export default function AnalisisDetailPage() {
                     <p className="text-sm font-medium">{credidData.nombramiento}</p>
                   </div>
                 )}
-                {credidData.ingreso_sugerido && (
+                {credidData.ingreso_sugerido && !isNaN(Number(credidData.ingreso_sugerido)) && Number(credidData.ingreso_sugerido) > 0 && (
                   <div>
                     <p className="text-xs text-muted-foreground">Ingreso sugerido</p>
                     <p className="text-sm font-medium">₡{Number(credidData.ingreso_sugerido).toLocaleString()}</p>
