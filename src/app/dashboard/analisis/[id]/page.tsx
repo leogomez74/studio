@@ -1142,6 +1142,31 @@ export default function AnalisisDetailPage() {
           </Card>
         </div>
 
+        {/* Hoja de Trabajo */}
+        {analisis.hoja_trabajo_datos && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Hoja de Trabajo</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              {[
+                { label: 'Salario Bruto', value: analisis.hoja_trabajo_datos.salario_bruto_manual ? `₡${new Intl.NumberFormat('en-US').format(Number(analisis.hoja_trabajo_datos.salario_bruto_manual))}` : null },
+                { label: 'Pensión Alimenticia', value: analisis.hoja_trabajo_datos.pension_alimenticia ? `₡${new Intl.NumberFormat('en-US').format(Number(analisis.hoja_trabajo_datos.pension_alimenticia))}` : null },
+                { label: 'Otro Embargo', value: analisis.hoja_trabajo_datos.otro_embargo ? `₡${new Intl.NumberFormat('en-US').format(Number(analisis.hoja_trabajo_datos.otro_embargo))}` : null },
+                { label: 'Máx. Embargable', value: analisis.hoja_trabajo_datos.max_embargable != null ? `₡${new Intl.NumberFormat('en-US').format(analisis.hoja_trabajo_datos.max_embargable)}` : null, highlight: true },
+                { label: 'Mín. Salario 3 Meses', value: analisis.hoja_trabajo_datos.min_salario_meses != null ? `₡${new Intl.NumberFormat('en-US').format(analisis.hoja_trabajo_datos.min_salario_meses)}` : null },
+                { label: 'Salario Castigado', value: analisis.hoja_trabajo_datos.salario_castigado != null ? `₡${new Intl.NumberFormat('en-US').format(analisis.hoja_trabajo_datos.salario_castigado)}` : null },
+                { label: '25% Capacidad Real', value: analisis.hoja_trabajo_datos.capacidad_real_25 != null ? `₡${new Intl.NumberFormat('en-US').format(analisis.hoja_trabajo_datos.capacidad_real_25)}` : null, highlight: true },
+              ].filter(row => row.value !== null).map(row => (
+                <div key={row.label} className={`flex items-center justify-between px-3 py-1.5 rounded text-xs ${row.highlight ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                  <span className="text-gray-600">{row.label}</span>
+                  <span className={`font-semibold ${row.highlight ? 'text-blue-700' : 'text-gray-800'}`}>{row.value}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Fila 3: Propuestas de Crédito */}
         <Card>
           <CardHeader className="pb-3">

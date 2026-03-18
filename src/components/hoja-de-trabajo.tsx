@@ -45,6 +45,14 @@ export interface DatosPreAnalisis {
   // Propuesta
   monto_sugerido: string;
   plazo: string;
+  // Hoja de Trabajo — datos de embargo y capacidad
+  salario_bruto_manual?: string;
+  pension_alimenticia?: string;
+  otro_embargo?: string;
+  max_embargable?: number;
+  min_salario_meses?: number;
+  salario_castigado?: number;
+  capacidad_real_25?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -248,6 +256,13 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
       deducciones_mensuales: [],
       monto_sugerido: montoSugerido,
       plazo,
+      salario_bruto_manual: salarioBrutoManual,
+      pension_alimenticia: pensionAlimenticia,
+      otro_embargo: otroEmbargo,
+      max_embargable: totalEmbargo,
+      min_salario_meses: minSalarioMeses,
+      salario_castigado: salarioCastigado,
+      capacidad_real_25: capacidadReal,
     });
   };
 

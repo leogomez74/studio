@@ -119,6 +119,15 @@ export interface AnalisisItem {
   score_riesgo?: number;
   score_riesgo_color?: 'green' | 'yellow' | 'orange' | 'red';
   score_riesgo_label?: string;
+  hoja_trabajo_datos?: {
+    salario_bruto_manual?: string;
+    pension_alimenticia?: string;
+    otro_embargo?: string;
+    max_embargable?: number;
+    min_salario_meses?: number;
+    salario_castigado?: number;
+    capacidad_real_25?: number;
+  };
 }
 
 export interface AnalisisFile {

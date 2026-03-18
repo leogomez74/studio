@@ -63,6 +63,7 @@ class Analisis extends Model
         'deducciones',
         // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales',
+        'hoja_trabajo_datos',
     ];
 
     protected $casts = [
@@ -102,6 +103,7 @@ class Analisis extends Model
         'deducciones' => 'array',
         // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales' => 'array',
+        'hoja_trabajo_datos' => 'array',
     ];
 
     protected $hidden = [

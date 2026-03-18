@@ -582,6 +582,19 @@ export function AnalisisWizardModal({
         payload.nombramiento = leadData.estado_puesto || null;
       }
 
+      // Guardar datos de la Hoja de Trabajo si vienen precargados
+      if (datosPreCargados?.max_embargable != null) {
+        payload.hoja_trabajo_datos = {
+          salario_bruto_manual: datosPreCargados.salario_bruto_manual,
+          pension_alimenticia: datosPreCargados.pension_alimenticia,
+          otro_embargo: datosPreCargados.otro_embargo,
+          max_embargable: datosPreCargados.max_embargable,
+          min_salario_meses: datosPreCargados.min_salario_meses,
+          salario_castigado: datosPreCargados.salario_castigado,
+          capacidad_real_25: datosPreCargados.capacidad_real_25,
+        };
+      }
+
       const response = await api.post('/api/analisis', payload);
 
       onSuccess();
