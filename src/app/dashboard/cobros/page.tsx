@@ -131,9 +131,16 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
   const doc = new jsPDF({ orientation: 'landscape' });
   const currentDate = new Date().toLocaleDateString('es-CR');
   const pageW = 297;
+  const pageH = 210;
   const margin = 14;
-  const centerX = pageW / 2;
   const lineEnd = pageW - margin;
+  const HEADER_H = 38;
+  const FOOTER_H = 22;
+  const CONTENT_BOTTOM = pageH - FOOTER_H - 4;
+
+  // Colores corporativos
+  const BLUE: [number, number, number] = [25, 75, 148];
+  const GREEN: [number, number, number] = [147, 186, 57];
 
   const formatDatePDF = (dateStr: string | null | undefined): string => {
     if (!dateStr) return "-";
@@ -143,133 +150,197 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
   };
   const fmtNum = (v: number) => new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(v || 0);
 
+  // Carga de imágenes
+  const loadImg = (src: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+
+  let headerImg: HTMLImageElement | null = null;
+  let footerImg: HTMLImageElement | null = null;
+  try {
+    [headerImg, footerImg] = await Promise.all([
+      loadImg('/header_pep.jpg'),
+      loadImg('/footer_pep.png'),
+    ]);
+  } catch { /* si no carga, usa diseño simple */ }
+
   const renderPDF = () => {
-    doc.setFontSize(14);
+    // ── HEADER ──
+    if (headerImg) {
+      doc.addImage(headerImg, 'JPEG', 0, 0, pageW, HEADER_H);
+    } else {
+      doc.setFillColor(...BLUE);
+      doc.rect(0, 0, pageW, HEADER_H, 'F');
+    }
+
+    // Título sobre el header
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text("ESTADO DE CUENTA", centerX, 15, { align: "center" });
+    doc.setTextColor(255, 255, 255);
+    doc.text("ESTADO DE CUENTA", margin + 4, 18);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`REPORTE AL ${currentDate}`, centerX, 21, { align: "center" });
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.5);
-    doc.line(margin, 25, lineEnd, 25);
+    doc.setTextColor(210, 230, 255);
+    doc.text(`REPORTE AL ${currentDate}`, margin + 4, 26);
+    doc.setTextColor(0, 0, 0);
 
-    const infoY = 33;
+    // ── FOOTER ──
+    if (footerImg) {
+      doc.addImage(footerImg, 'PNG', 0, pageH - FOOTER_H, pageW, FOOTER_H);
+    } else {
+      doc.setFillColor(...BLUE);
+      doc.rect(0, pageH - FOOTER_H, pageW, FOOTER_H, 'F');
+    }
+
+    // ── INFO DEL CLIENTE ──
+    const infoY = HEADER_H + 8;
     const lead = credit.lead || {};
     const clientName = [lead.name, lead.apellido1, lead.apellido2].filter(Boolean).join(' ') || "CLIENTE";
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(...BLUE);
     doc.text("N° Cuenta:", margin, infoY);
     doc.setFont("helvetica", "normal");
-    doc.text(`${credit.lead_id || "-"}`, 42, infoY);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${credit.lead_id || "-"}`, margin + 22, infoY);
 
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(...BLUE);
     doc.text("Cliente:", margin, infoY + 6);
     doc.setFont("helvetica", "normal");
-    doc.text(clientName.toUpperCase(), 42, infoY + 6);
+    doc.setTextColor(0, 0, 0);
+    doc.text(clientName.toUpperCase(), margin + 22, infoY + 6);
 
-    const rightCol = 160;
-    const labelW = 30;
+    const rightCol = 155;
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(...BLUE);
     doc.text("Inst./Empresa:", rightCol, infoY);
     doc.setFont("helvetica", "normal");
-    doc.text(`${lead.institucion_labora || lead.ocupacion || "-"}`, rightCol + labelW, infoY);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${lead.institucion_labora || lead.ocupacion || "-"}`, rightCol + 32, infoY);
+
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(...BLUE);
     doc.text("Sección:", rightCol, infoY + 6);
     doc.setFont("helvetica", "normal");
-    doc.text(`${lead.puesto || "-"}`, rightCol + labelW, infoY + 6);
-
-    // Créditos
-    let finalY = infoY + 18;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128);
-    doc.text("Créditos / Otras deducciones", margin, finalY);
     doc.setTextColor(0, 0, 0);
-    doc.setDrawColor(0, 0, 128);
+    doc.text(`${lead.puesto || "-"}`, rightCol + 32, infoY + 6);
+
+    // Línea divisoria info
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.3);
+    doc.line(margin, infoY + 10, lineEnd, infoY + 10);
+
+    // ── SECCIÓN CRÉDITOS ──
+    let finalY = infoY + 16;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...BLUE);
+    doc.text("Créditos / Otras deducciones", margin, finalY);
+    doc.setDrawColor(...BLUE);
     doc.setLineWidth(0.3);
     doc.line(margin, finalY + 2, lineEnd, finalY + 2);
+    doc.setTextColor(0, 0, 0);
 
     const tasaValue = credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00';
     autoTable(doc, {
-      startY: finalY + 5,
+      startY: finalY + 4,
       head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
       body: [[
-        credit.numero_operacion || credit.reference, credit.linea || credit.category || "-",
-        fmtNum(credit.monto_credito), credit.plazo || 120, fmtNum(credit.cuota), fmtNum(credit.saldo),
-        `${tasaValue}%`, "0.00", credit.primera_deduccion || "-",
+        credit.numero_operacion || credit.reference,
+        credit.linea || credit.category || "Crédito",
+        fmtNum(credit.monto_credito),
+        credit.plazo || 120,
+        fmtNum(credit.cuota),
+        fmtNum(credit.saldo),
+        `${Number(tasaValue).toFixed(2)}%`,
+        "0.00",
+        credit.primera_deduccion || "-",
         new Date().toISOString().split('T')[0],
         (credit.fecha_culminacion_credito || "-").split('T')[0].split(' ')[0],
-        credit.status || "NORMAL"
+        credit.status || "Formalizado"
       ]],
       theme: 'plain',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: GREEN },
+      alternateRowStyles: { fillColor: [240, 247, 220] },
       columnStyles: {
-        0: { cellWidth: 30 }, 1: { cellWidth: 28 }, 2: { cellWidth: 25 }, 3: { cellWidth: 15 },
-        4: { cellWidth: 22 }, 5: { cellWidth: 25 }, 6: { cellWidth: 18 }, 7: { cellWidth: 22 },
-        8: { cellWidth: 22 }, 9: { cellWidth: 22 }, 10: { cellWidth: 22 }, 11: { cellWidth: 22 }
+        0: { cellWidth: 30 }, 1: { cellWidth: 26 }, 2: { cellWidth: 24 }, 3: { cellWidth: 13 },
+        4: { cellWidth: 22 }, 5: { cellWidth: 24 }, 6: { cellWidth: 15 }, 7: { cellWidth: 20 },
+        8: { cellWidth: 20 }, 9: { cellWidth: 20 }, 10: { cellWidth: 20 }, 11: { cellWidth: 22 }
       },
     });
 
-    // Fianzas
-    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128);
-    doc.text("Fianzas", margin, finalY);
-    doc.setTextColor(0, 0, 0);
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.3);
-    doc.line(margin, finalY + 2, lineEnd, finalY + 2);
-
-    // Plan de Pagos
-    const cuotasPagadas = (credit.plan_de_pagos || []).filter((p: any) => ['Pagado', 'Pagada'].includes(p.estado || ''));
-
-    if (cuotasPagadas.length > 0) {
-      finalY = finalY + 20;
-      doc.setFontSize(11);
+    // ── SECCIÓN FIANZAS ──
+    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+    if (finalY + 14 < CONTENT_BOTTOM) {
+      doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(0, 0, 128);
-      doc.text("Plan de Pagos", margin, finalY);
-      doc.setTextColor(0, 0, 0);
-      doc.setDrawColor(0, 0, 128);
+      doc.setTextColor(...BLUE);
+      doc.text("Fianzas", margin, finalY);
+      doc.setDrawColor(...BLUE);
       doc.setLineWidth(0.3);
       doc.line(margin, finalY + 2, lineEnd, finalY + 2);
+      doc.setTextColor(0, 0, 0);
+    }
 
-      const paymentRows = cuotasPagadas.map((p: any) => [
-        p.numero_cuota, formatDatePDF(p.fecha_corte), formatDatePDF(p.fecha_pago),
-        fmtNum(p.cuota), fmtNum(p.interes_corriente), fmtNum(p.amortizacion), fmtNum(p.nuevo_saldo), p.estado
-      ]);
-      autoTable(doc, {
-        startY: finalY + 5,
-        head: [['#', 'FECHA CUOTA', 'FECHA PAGO', 'CUOTA', 'INTERÉS', 'AMORTIZACIÓN', 'SALDO', 'ESTADO']],
-        body: paymentRows,
-        theme: 'striped',
-        styles: { fontSize: 7, cellPadding: 1 },
-        headStyles: { fontStyle: 'bold', textColor: [0, 0, 0], fillColor: [220, 220, 220] },
-      });
-    } else {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.text("*** NO HAY CUOTAS CANCELADAS A LA FECHA ***", 20, finalY + 10);
+    // ── PLAN DE PAGOS ──
+    const cuotasPagadas = (credit.plan_de_pagos || []).filter((p: any) => ['Pagado', 'Pagada'].includes(p.estado || ''));
+
+    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
+      ? (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14
+      : finalY + 14;
+
+    if (finalY + 20 < CONTENT_BOTTOM) {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...BLUE);
+      doc.text("Plan de Pagos", margin, finalY);
+      doc.setDrawColor(...BLUE);
+      doc.setLineWidth(0.3);
+      doc.line(margin, finalY + 2, lineEnd, finalY + 2);
+      doc.setTextColor(0, 0, 0);
+
+      if (cuotasPagadas.length > 0) {
+        const paymentRows = cuotasPagadas.map((p: any) => [
+          p.numero_cuota,
+          formatDatePDF(p.fecha_corte),
+          formatDatePDF(p.fecha_pago),
+          fmtNum(p.cuota),
+          fmtNum(p.interes_corriente),
+          fmtNum(p.amortizacion),
+          fmtNum(p.nuevo_saldo),
+          p.estado
+        ]);
+        autoTable(doc, {
+          startY: finalY + 4,
+          margin: { bottom: FOOTER_H + 4 },
+          head: [['#', 'FECHA CUOTA', 'FECHA PAGO', 'CUOTA', 'CUOTA INTERÉS', 'AMORTIZACIÓN', 'SALDO', 'ESTADO']],
+          body: paymentRows,
+          theme: 'striped',
+          styles: { fontSize: 7.5, cellPadding: 1.5 },
+          headStyles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: GREEN },
+          alternateRowStyles: { fillColor: [240, 247, 220] },
+        });
+      } else {
+        doc.setFontSize(8.5);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(100, 100, 100);
+        doc.text("*** NO HAY CUOTAS CANCELADAS A LA FECHA ***", margin, finalY + 10);
+        doc.setTextColor(0, 0, 0);
+      }
     }
 
     doc.save(`estado_cuenta_${credit.reference || credit.id}.pdf`);
   };
 
-  const img = new Image();
-  img.src = '/logopepweb.png';
-  img.onload = () => {
-    doc.addImage(img, 'PNG', 14, 10, 40, 15);
-    renderPDF();
-  };
-  img.onerror = () => {
-    doc.setFontSize(16);
-    doc.text("CREDIPEP", 14, 20);
-    renderPDF();
-  };
+  renderPDF();
 };
 
 // --- Certificación de Deuda PDF ---
