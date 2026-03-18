@@ -7,14 +7,15 @@
         @page { margin: 0; size: letter portrait; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Helvetica, Arial, sans-serif; font-size: 9px; color: #12368c; }
+        .colones { font-family: 'DejaVu Sans', sans-serif; }
 
         table { width: 100%; border-collapse: collapse; }
 
         thead tr th {
             background-color: #184b94;
             color: #ffffff;
-            border: 1px solid #184b94;
-            padding: 5px 5px;
+            border: none;
+            padding: 5px 6px;
             font-size: 8px;
             font-weight: bold;
             text-align: center;
@@ -22,19 +23,19 @@
         }
 
         tbody tr td {
-            background-color: #ffffff;
-            border: 1px solid #184b94;
-            padding: 3px 5px;
+            background-color: #ccd8e8;
+            border: none;
+            padding: 3px 6px;
             font-size: 8px;
             color: #12368c;
         }
 
-        tbody tr.alt td { background-color: #f0f4fa; }
+        tbody tr.alt td { background-color: #eeeeee; }
 
         .total-row td {
-            background-color: #dbeafe;
+            background-color: #ccd8e8;
             font-weight: bold;
-            border-top: 2px solid #184b94;
+            border-top: none;
             color: #12368c;
         }
 
@@ -57,21 +58,21 @@
     <div style="position:relative;margin-top:148pt;padding-left:24pt;padding-right:24pt;">
 
         {{-- INFO BLOCK — dos columnas --}}
-        <table style="width:100%;border-collapse:collapse;font-family:Helvetica,Arial,sans-serif;font-size:9px;color:#12368c;line-height:1.8;margin-bottom:8pt;">
+        <table style="width:100%;border-collapse:collapse;border:none;font-family:Helvetica,Arial,sans-serif;font-size:9px;color:#12368c;line-height:1.8;margin-bottom:8pt;">
             <tr>
                 {{-- Columna izquierda: ~44% --}}
-                <td style="vertical-align:top;width:38%;padding-right:0;">
+                <td style="vertical-align:top;width:38%;padding-right:0;border:none;background:transparent;">
                     <div><span class="info-label">Deductora:</span> {{ $planilla->deductora->nombre ?? '-' }}</div>
                     <div><span class="info-label">Procesada por:</span> {{ $planilla->user->name ?? '-' }}</div>
                     <div><span class="info-label">Total Pagos:</span> {{ $planilla->cantidad_pagos ?? $payments->count() }}</div>
                 </td>
                 {{-- Separación visual --}}
-                <td style="width:4%;"></td>
+                <td style="width:4%;border:none;background:transparent;"></td>
                 {{-- Columna derecha: ~58% — alineada bajo la "R" del título --}}
-                <td style="vertical-align:top;width:58%;">
+                <td style="vertical-align:top;width:58%;border:none;background:transparent;">
                     <div><span class="info-label">Fecha Planilla:</span> {{ $planilla->fecha_planilla ?? '-' }}</div>
                     <div><span class="info-label">Estado:</span> {{ ucfirst($planilla->estado) }}</div>
-                    <div><span class="info-label">Monto Total:</span> ₡{{ number_format((float) $planilla->monto_total, 2) }}</div>
+                    <div><span class="info-label">Monto Total:</span> <span class="colones">₡</span>{{ number_format((float) $planilla->monto_total, 2) }}</div>
                 </td>
             </tr>
         </table>
@@ -99,7 +100,7 @@
                         ? trim(($lead->name ?? '') . ' ' . ($lead->apellido1 ?? '') . ' ' . ($lead->apellido2 ?? ''))
                         : ($pago->cedula ?? '-');
                     $operacion = $credit ? ($credit->numero_operacion ?? $credit->reference ?? '-') : '-';
-                    $sobrante  = $pago->movimiento_total > 0 ? '₡' . number_format((float) $pago->movimiento_total, 2) : '-';
+                    $sobrante  = $pago->movimiento_total > 0 ? '<span class="colones">₡</span>' . number_format((float) $pago->movimiento_total, 2) : '-';
                     $estado    = $pago->estado_reverso === 'Anulado' ? 'Anulado' : ($pago->estado ?? '-');
                 @endphp
                 <tr class="{{ $idx % 2 === 1 ? 'alt' : '' }}">
@@ -108,8 +109,8 @@
                     <td>{{ $nombre }}</td>
                     <td>{{ $pago->cedula ?? '-' }}</td>
                     <td style="text-align:center;">{{ $pago->numero_cuota ?? '-' }}</td>
-                    <td style="text-align:right;">₡{{ number_format((float) $pago->monto, 2) }}</td>
-                    <td style="text-align:right;">{{ $sobrante }}</td>
+                    <td style="text-align:right;"><span class="colones">₡</span>{{ number_format((float) $pago->monto, 2) }}</td>
+                    <td style="text-align:right;">{!! $sobrante !!}</td>
                     <td style="text-align:center;">{{ $estado }}</td>
                 </tr>
                 @empty
@@ -118,8 +119,8 @@
 
                 <tr class="total-row">
                     <td colspan="5" style="text-align:right;padding-right:8px;">TOTAL</td>
-                    <td style="text-align:right;">₡{{ number_format((float) $totalMonto, 2) }}</td>
-                    <td colspan="2"></td>
+                    <td style="text-align:right;background-color:#184b94;color:#ffffff;font-weight:bold;"><span class="colones">₡</span>{{ number_format((float) $totalMonto, 2) }}</td>
+                    <td colspan="2" style="background-color:#184b94;"></td>
                 </tr>
             </tbody>
         </table>
