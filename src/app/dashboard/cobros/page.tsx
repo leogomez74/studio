@@ -180,29 +180,8 @@ const generateEstadoCuentaFromCredit = async (creditId: number) => {
     doc.setFont("helvetica", "normal");
     doc.text(`${lead.puesto || "-"}`, rightCol + labelW, infoY + 6);
 
-    // Planes de Ahorros
-    const seccionesY = infoY + 18;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128);
-    doc.text("Planes de Ahorros", margin, seccionesY);
-    doc.setTextColor(0, 0, 0);
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.3);
-    doc.line(margin, seccionesY + 2, lineEnd, seccionesY + 2);
-
-    autoTable(doc, {
-      startY: seccionesY + 5,
-      head: [['N.CON', 'PLAN', 'MENSUALIDAD', 'INICIO', 'REND.CORTE', 'APORTES', 'RENDIMIENTO', 'ACUMULADO']],
-      body: [['621', 'SOBRANTES POR APLICAR', '0.00', '27/09/2022', '', '0.64', '0.00', '0.64']],
-      theme: 'plain',
-      styles: { fontSize: 8, cellPadding: 1 },
-      headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
-      columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 50 } }
-    });
-
     // Créditos
-    let finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    let finalY = infoY + 18;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 128);
