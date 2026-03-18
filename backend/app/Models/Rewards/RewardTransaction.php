@@ -18,10 +18,11 @@ class RewardTransaction extends Model
         'reward_user_id',
         'type',
         'amount',
+        'currency',
         'balance_after',
         'description',
-        'source_type',
-        'source_id',
+        'reference_type',
+        'reference_id',
         'metadata',
         'expires_at',
     ];
@@ -72,7 +73,7 @@ class RewardTransaction extends Model
      */
     public function source()
     {
-        return $this->morphTo();
+        return $this->morphTo('reference');
     }
 
     /*

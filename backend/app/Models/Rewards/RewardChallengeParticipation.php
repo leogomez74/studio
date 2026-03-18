@@ -22,12 +22,14 @@ class RewardChallengeParticipation extends Model
         'joined_at',
         'completed_at',
         'metadata',
+        'rewards_claimed',
     ];
 
     protected $casts = [
         'challenge_id' => 'integer',
         'reward_user_id' => 'integer',
         'progress' => 'array',
+        'rewards_claimed' => 'array',
         'joined_at' => 'datetime',
         'completed_at' => 'datetime',
         'metadata' => 'array',

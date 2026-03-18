@@ -16,11 +16,25 @@ class PointsEarned
 
     public function __construct(
         public RewardUser $rewardUser,
-        public int $amount,
-        public string $type,
         public ?RewardTransaction $transaction = null,
         public array $context = []
     ) {}
+
+    /**
+     * Get the amount from the transaction
+     */
+    public function getAmount(): int
+    {
+        return $this->transaction?->amount ?? 0;
+    }
+
+    /**
+     * Get the type from the transaction
+     */
+    public function getType(): string
+    {
+        return $this->transaction?->type ?? 'earn';
+    }
 
     /**
      * Get the user ID

@@ -99,8 +99,10 @@ function BadgeCard({
           {/* Progress */}
           {!isEarned && progress !== undefined && progress > 0 && (
             <div className="w-full">
-              <Progress value={progress} className="h-1.5" />
-              <span className="text-xs text-muted-foreground">{progress}%</span>
+              <Progress value={progress <= 1 ? progress * 100 : progress} className="h-1.5" />
+              <span className="text-xs text-muted-foreground">
+                {Math.round(progress <= 1 ? progress * 100 : progress)}%
+              </span>
             </div>
           )}
 

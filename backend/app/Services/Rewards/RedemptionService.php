@@ -75,7 +75,7 @@ class RedemptionService
                 'delivery_info' => $redemption->delivery_info,
                 'created_at' => $redemption->created_at->toIso8601String(),
                 'approved_at' => $redemption->approved_at?->toIso8601String(),
-                'approved_by' => $redemption->approvedBy?->name,
+                'approved_by' => $redemption->processedByUser?->name,
                 'delivered_at' => $redemption->delivered_at?->toIso8601String(),
             ])
             ->toArray();

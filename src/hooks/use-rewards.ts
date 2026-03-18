@@ -108,14 +108,16 @@ export function useRewardsProfile() {
 export function useRewardsBalance() {
   const [balance, setBalance] = useState<BalanceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const fetchBalance = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const result = await fetchWithAuth<BalanceData>('/rewards/balance');
       setBalance(result);
     } catch (err) {
-      console.error('Error fetching balance:', err);
+      setError(err instanceof Error ? err : new Error('Error desconocido'));
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +127,7 @@ export function useRewardsBalance() {
     fetchBalance();
   }, [fetchBalance]);
 
-  return { balance, isLoading, refetch: fetchBalance };
+  return { balance, isLoading, error, refetch: fetchBalance };
 }
 
 /**
@@ -134,14 +136,16 @@ export function useRewardsBalance() {
 export function useTransactionHistory(limit: number = 20) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const fetchHistory = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const result = await fetchWithAuth<Transaction[]>(`/rewards/history?limit=${limit}`);
       setTransactions(result);
     } catch (err) {
-      console.error('Error fetching history:', err);
+      setError(err instanceof Error ? err : new Error('Error desconocido'));
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +155,7 @@ export function useTransactionHistory(limit: number = 20) {
     fetchHistory();
   }, [fetchHistory]);
 
-  return { transactions, isLoading, refetch: fetchHistory };
+  return { transactions, isLoading, error, refetch: fetchHistory };
 }
 
 /**
@@ -201,14 +205,16 @@ export function useBadgeProgress() {
     locked: Badge[];
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const fetchProgress = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const result = await fetchWithAuth<typeof progress>('/rewards/badges/progress');
       setProgress(result);
     } catch (err) {
-      console.error('Error fetching badge progress:', err);
+      setError(err instanceof Error ? err : new Error('Error desconocido'));
     } finally {
       setIsLoading(false);
     }
@@ -218,7 +224,7 @@ export function useBadgeProgress() {
     fetchProgress();
   }, [fetchProgress]);
 
-  return { progress, isLoading, refetch: fetchProgress };
+  return { progress, isLoading, error, refetch: fetchProgress };
 }
 
 /**
@@ -380,15 +386,17 @@ export function useCatalog(category?: string) {
 export function useRedemptions(status?: string) {
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const fetchRedemptions = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const params = status ? `?status=${status}` : '';
       const result = await fetchWithAuth<Redemption[]>(`/rewards/redemptions${params}`);
       setRedemptions(result);
     } catch (err) {
-      console.error('Error fetching redemptions:', err);
+      setError(err instanceof Error ? err : new Error('Error desconocido'));
     } finally {
       setIsLoading(false);
     }
@@ -398,7 +406,7 @@ export function useRedemptions(status?: string) {
     fetchRedemptions();
   }, [fetchRedemptions]);
 
-  return { redemptions, isLoading, refetch: fetchRedemptions };
+  return { redemptions, isLoading, error, refetch: fetchRedemptions };
 }
 
 // Tipos para Analytics

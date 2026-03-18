@@ -31,8 +31,8 @@ class HandlePointsEarned implements ShouldQueue
             $rewardUser,
             'points_earned',
             [
-                'amount' => $event->amount,
-                'type' => $event->type,
+                'amount' => $event->getAmount(),
+                'type' => $event->getType(),
                 'total_points' => $event->getTotalPoints(),
                 'lifetime_points' => $event->getLifetimePoints(),
                 ...$event->context,
@@ -57,7 +57,7 @@ class HandlePointsEarned implements ShouldQueue
     {
         \Log::error('Failed to handle PointsEarned event', [
             'user_id' => $event->getUserId(),
-            'amount' => $event->amount,
+            'amount' => $event->getAmount(),
             'error' => $exception->getMessage(),
         ]);
     }

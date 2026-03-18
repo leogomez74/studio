@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/components/auth-guard";
 import { useLeaderboard, useMyLeaderboardPosition, useLeaderboardStats, type LeaderboardMetric, type LeaderboardPeriod, type LeaderboardData } from "@/hooks/use-leaderboard";
 import type { LeaderboardEntry } from "@/types/rewards";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -286,9 +287,8 @@ export default function LeaderboardPage() {
   const [period, setPeriod] = useState<LeaderboardPeriod>("weekly");
 
   const { ranking, isLoading, error } = useLeaderboard({ metric, period, limit: 50 });
-  
-  // Simular usuario actual - esto vendría del contexto de auth
-  const currentUserId = 1;
+  const { user } = useAuth();
+  const currentUserId = user?.id;
 
   return (
     <div className="space-y-6">
