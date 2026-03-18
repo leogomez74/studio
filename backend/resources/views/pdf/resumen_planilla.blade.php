@@ -56,20 +56,25 @@
     {{-- CONTENIDO --}}
     <div style="position:relative;margin-top:148pt;padding-left:24pt;padding-right:24pt;">
 
-        {{-- INFO BLOCK --}}
-        <div style="font-family:Helvetica,Arial,sans-serif;font-size:9px;color:#12368c;line-height:1.7;margin-bottom:8pt;">
-            <span class="info-label">Deductora:</span> {{ $planilla->deductora->nombre ?? '-' }}
-            &nbsp;&nbsp;&nbsp;
-            <span class="info-label">Fecha Planilla:</span> {{ $planilla->fecha_planilla ?? '-' }}
-            <br>
-            <span class="info-label">Procesada por:</span> {{ $planilla->user->name ?? '-' }}
-            &nbsp;&nbsp;&nbsp;
-            <span class="info-label">Estado:</span> {{ ucfirst($planilla->estado) }}
-            <br>
-            <span class="info-label">Total Pagos:</span> {{ $planilla->cantidad_pagos ?? $payments->count() }}
-            &nbsp;&nbsp;&nbsp;
-            <span class="info-label">Monto Total:</span> ₡{{ number_format((float) $planilla->monto_total, 2) }}
-        </div>
+        {{-- INFO BLOCK — dos columnas --}}
+        <table style="width:100%;border-collapse:collapse;font-family:Helvetica,Arial,sans-serif;font-size:9px;color:#12368c;line-height:1.8;margin-bottom:8pt;">
+            <tr>
+                {{-- Columna izquierda: ~44% --}}
+                <td style="vertical-align:top;width:38%;padding-right:0;">
+                    <div><span class="info-label">Deductora:</span> {{ $planilla->deductora->nombre ?? '-' }}</div>
+                    <div><span class="info-label">Procesada por:</span> {{ $planilla->user->name ?? '-' }}</div>
+                    <div><span class="info-label">Total Pagos:</span> {{ $planilla->cantidad_pagos ?? $payments->count() }}</div>
+                </td>
+                {{-- Separación visual --}}
+                <td style="width:4%;"></td>
+                {{-- Columna derecha: ~58% — alineada bajo la "R" del título --}}
+                <td style="vertical-align:top;width:58%;">
+                    <div><span class="info-label">Fecha Planilla:</span> {{ $planilla->fecha_planilla ?? '-' }}</div>
+                    <div><span class="info-label">Estado:</span> {{ ucfirst($planilla->estado) }}</div>
+                    <div><span class="info-label">Monto Total:</span> ₡{{ number_format((float) $planilla->monto_total, 2) }}</div>
+                </td>
+            </tr>
+        </table>
 
         {{-- TABLA --}}
         <table>
