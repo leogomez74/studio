@@ -380,14 +380,6 @@ export function AnalisisWizardModal({
     }
   }, [formData.monto_sugerido, formData.plazo, currentProducto, loanConfigs]);
 
-  // Calcular ingreso neto para cada mes
-  const calcularIngresoNeto = (mes: number): number => {
-    const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}` as keyof FormData;
-    const bruto = parseFloat(formData[brutoProp] as string) || 0;
-    const deduccion = formData.deducciones_mensuales.find(d => d.mes === mes)?.monto || 0;
-    return bruto - deduccion;
-  };
-
   // Formatear número con separadores de miles
   const formatNumber = (value: string | number): string => {
     if (!value && value !== 0) return '';
@@ -1140,11 +1132,8 @@ export function AnalisisWizardModal({
           const totalMonths = fixedMonths + extraMonths;
 
           const removeExtraMonth = (mes: number) => {
-            // Clear data for the removed month
             const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}`;
             updateFormData(brutoProp, '');
-            const newDeducciones = formData.deducciones_mensuales.filter(d => d.mes !== mes);
-            updateFormData('deducciones_mensuales', newDeducciones);
             setExtraMonths(prev => Math.max(0, prev - 1));
           };
 
@@ -1156,9 +1145,6 @@ export function AnalisisWizardModal({
               <CardContent className="space-y-6">
                 {Array.from({ length: totalMonths }, (_, i) => i + 1).map((mes) => {
                   const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}` as keyof FormData;
-                  const bruto = parseFloat(formData[brutoProp] as string) || 0;
-                  const deduccion = formData.deducciones_mensuales.find(d => d.mes === mes);
-                  const ingresoNeto = bruto - (deduccion?.monto || 0);
                   const isExtra = mes > fixedMonths;
 
                   return (
@@ -1178,67 +1164,33 @@ export function AnalisisWizardModal({
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <Label htmlFor={`bruto_${mes}`}>Ingreso Bruto</Label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                            <Input
-                              id={`bruto_${mes}`}
-                              type="text"
-                              inputMode="numeric"
-                              className="pl-7"
-                              value={formatNumber(formData[brutoProp] as string)}
-                              onChange={(e) => {
-                                const value = parseNumber(e.target.value);
-                                updateFormData(brutoProp as string, value);
+                      <div>
+                        <Label htmlFor={`neto_${mes}`}>Ingreso Neto</Label>
+                        <div className="relative mt-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
+                          <Input
+                            id={`neto_${mes}`}
+                            type="text"
+                            inputMode="numeric"
+                            className="pl-7"
+                            value={formatNumber(formData[brutoProp] as string)}
+                            onChange={(e) => {
+                              const value = parseNumber(e.target.value);
+                              updateFormData(brutoProp as string, value);
 
-                                // Si es el Mes 1, auto-llenar los demás meses según el tipo de crédito
-                                if (mes === 1) {
-                                  updateFormData('ingreso_bruto_2', value);
-                                  updateFormData('ingreso_bruto_3', value);
-                                  if (!esMicroCredito) {
-                                    updateFormData('ingreso_bruto_4', value);
-                                    updateFormData('ingreso_bruto_5', value);
-                                    updateFormData('ingreso_bruto_6', value);
-                                  }
+                              // Si es el Mes 1, auto-llenar los demás meses según el tipo de crédito
+                              if (mes === 1) {
+                                updateFormData('ingreso_bruto_2', value);
+                                updateFormData('ingreso_bruto_3', value);
+                                if (!esMicroCredito) {
+                                  updateFormData('ingreso_bruto_4', value);
+                                  updateFormData('ingreso_bruto_5', value);
+                                  updateFormData('ingreso_bruto_6', value);
                                 }
-                              }}
-                              placeholder="0"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label htmlFor={`deduccion_${mes}`}>Deducción</Label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                            <Input
-                              id={`deduccion_${mes}`}
-                              type="text"
-                              inputMode="numeric"
-                              className="pl-7"
-                              value={formatNumber(deduccion?.monto || '')}
-                              onChange={(e) => {
-                                const newMonto = parseFloat(parseNumber(e.target.value)) || 0;
-                                const newDeducciones = formData.deducciones_mensuales.filter(d => d.mes !== mes);
-                                if (newMonto > 0) {
-                                  newDeducciones.push({ mes, monto: newMonto });
-                                }
-                                updateFormData('deducciones_mensuales', newDeducciones);
-                              }}
-                              placeholder="0"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label>Ingreso Neto</Label>
-                          <div className="h-10 px-3 py-2 bg-gray-100 border rounded-md flex items-center">
-                            <span className="font-medium text-green-700">
-                              {formatCurrency(ingresoNeto)}
-                            </span>
-                          </div>
+                              }
+                            }}
+                            placeholder="0"
+                          />
                         </div>
                       </div>
                     </div>
