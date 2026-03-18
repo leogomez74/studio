@@ -349,7 +349,9 @@ class InvestmentController extends Controller
     public function cancelacionTotal(Request $request, int $id)
     {
         $validated = $request->validate([
-            'tipo' => 'required|in:con_intereses,sin_intereses',
+            'tipo'           => 'required|in:con_intereses,sin_intereses,mixto',
+            'monto_capital'  => 'required_if:tipo,mixto|numeric|min:0.01',
+            'monto_interes'  => 'required_if:tipo,mixto|numeric|min:0',
         ]);
 
         return DB::transaction(function () use ($id, $validated, $request) {
@@ -359,7 +361,12 @@ class InvestmentController extends Controller
                 return response()->json(['message' => 'Solo se pueden realizar abonos totales en inversiones activas.'], 422);
             }
 
-            $result = $this->service->cancelacionTotal($investment, $validated['tipo']);
+            $result = $this->service->cancelacionTotal(
+                $investment,
+                $validated['tipo'],
+                $validated['monto_capital'] ?? null,
+                $validated['monto_interes'] ?? null,
+            );
             $this->logActivity('cancelacion_total', 'Inversiones', $investment, $investment->numero_desembolso, ['tipo' => $validated['tipo']], $request);
 
             $this->triggerAccountingEntry('INV_CANCELACION_TOTAL', (float) $investment->monto_capital, $investment->numero_desembolso, [
@@ -379,7 +386,12 @@ class InvestmentController extends Controller
                 if ($automation) {
                     $investorName = $investment->investor?->name ?? 'N/A';
                     $monedaSymbol = $investment->moneda === 'USD' ? '$' : '₡';
-                    $tipoLabel = $validated['tipo'] === 'con_intereses' ? 'con intereses' : 'sin intereses';
+                    $tipoLabel = match($validated['tipo']) {
+                        'con_intereses' => 'con intereses',
+                        'sin_intereses' => 'sin intereses',
+                        'mixto'         => 'abono mixto (capital: ' . ($validated['monto_capital'] ?? 0) . ', interés: ' . ($validated['monto_interes'] ?? 0) . ')',
+                        default         => $validated['tipo'],
+                    };
                     $details = implode("\n", [
                         "**Inversión:** {$investment->numero_desembolso}",
                         "**Inversionista:** {$investorName}",

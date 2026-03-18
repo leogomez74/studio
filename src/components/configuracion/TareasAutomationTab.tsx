@@ -50,6 +50,9 @@ const AUTOMATION_EVENTS = [
   { key: 'investment_liquidated', title: 'Liquidación Anticipada de Inversión', description: 'Al liquidar una inversión anticipadamente, se crea tarea para procesar devolución de capital, liquidar intereses pendientes y actualizar documentación.', defaultTitle: 'Procesar liquidación anticipada de inversión' },
   { key: 'investment_cancelacion_total', title: 'Cancelación Total de Inversión', description: 'Al procesar la cancelación total (con o sin intereses), se crea tarea para verificar transferencia de capital, emitir comprobantes y archivar expediente.', defaultTitle: 'Completar cancelación total de inversión' },
   { key: 'investment_finalized', title: 'Inversión Finalizada', description: 'Cuando una inversión pasa a estado Finalizada (capital e intereses completamente pagados), se crea tarea para archivar expediente, emitir constancia de cierre y notificar al inversionista.', defaultTitle: 'Archivar expediente de inversión finalizada' },
+  // — Operaciones —
+  { key: 'planilla_anulada', title: 'Planilla Anulada', description: 'Al anular una planilla (reversar todos los pagos), se crea tarea para verificar que los saldos quedaron correctos, conciliar con la deductora y notificar a los clientes afectados.', defaultTitle: 'Verificar saldos post-anulación de planilla' },
+  { key: 'lead_inactivity_alert', title: 'Alerta de Inactividad de Leads', description: 'Cuando el sistema detecta leads u oportunidades inactivos (cron diario), se crea tarea para dar seguimiento o marcar como Perdido según corresponda.', defaultTitle: 'Seguimiento de leads/oportunidades inactivos' },
 ];
 
 const TareasAutomationTab: React.FC = () => {

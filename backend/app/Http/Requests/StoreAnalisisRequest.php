@@ -43,6 +43,18 @@ class StoreAnalisisRequest extends FormRequest
             'ingreso_neto_5' => 'nullable|numeric|min:0|max:999999999.99',
             'ingreso_bruto_6' => 'nullable|numeric|min:0|max:999999999.99',
             'ingreso_neto_6' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_bruto_7' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_neto_7' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_bruto_8' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_neto_8' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_bruto_9' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_neto_9' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_bruto_10' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_neto_10' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_bruto_11' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_neto_11' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_bruto_12' => 'nullable|numeric|min:0|max:999999999.99',
+            'ingreso_neto_12' => 'nullable|numeric|min:0|max:999999999.99',
             'numero_manchas' => 'nullable|integer|min:0',
             'numero_juicios' => 'nullable|integer|min:0',
             'numero_embargos' => 'nullable|integer|min:0',
@@ -76,6 +88,7 @@ class StoreAnalisisRequest extends FormRequest
             'deducciones' => 'nullable|array|max:20',
             'deducciones.*.nombre' => 'required_with:deducciones|string|max:100',
             'deducciones.*.monto' => 'required_with:deducciones|numeric|min:0|max:999999999.99',
+            'hoja_trabajo_datos' => 'nullable|array',
         ];
     }
 

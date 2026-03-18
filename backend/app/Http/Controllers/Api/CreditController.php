@@ -1237,6 +1237,43 @@ class CreditController extends Controller
     /**
      * Sincronizar el estado del crédito si quedó "En Mora" sin tener cuotas vencidas.
      */
+    /**
+     * TEMPORAL: Fuerza mora en la primera cuota pendiente de un crédito (solo admin, solo testing).
+     */
+    public function forceMora(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'dias_mora' => 'required|integer|min:1|max:365',
+        ]);
+
+        $credit = Credit::with('planDePagos')->findOrFail($id);
+
+        $cuota = $credit->planDePagos()
+            ->where('numero_cuota', '>', 0)
+            ->where('estado', 'Pendiente')
+            ->orderBy('numero_cuota')
+            ->first();
+
+        if (!$cuota) {
+            return response()->json(['message' => 'No hay cuotas pendientes para aplicar mora.'], 422);
+        }
+
+        $cuota->update([
+            'estado'     => 'Mora',
+            'dias_mora'  => $validated['dias_mora'],
+        ]);
+
+        $credit->update(['status' => Credit::STATUS_EN_MORA]);
+
+        return response()->json([
+            'message'    => 'Mora aplicada correctamente.',
+            'credit_id'  => $credit->id,
+            'cuota'      => $cuota->numero_cuota,
+            'dias_mora'  => $validated['dias_mora'],
+            'status'     => $credit->status,
+        ]);
+    }
+
     public function syncStatus($id)
     {
         $credit = Credit::findOrFail($id);

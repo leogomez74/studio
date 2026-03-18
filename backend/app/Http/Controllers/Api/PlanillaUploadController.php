@@ -8,16 +8,20 @@ use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Credit;
 use App\Models\SaldoPendiente;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Traits\AccountingTrigger;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PlanillaUploadController extends Controller
 {
@@ -391,6 +395,34 @@ class PlanillaUploadController extends Controller
 
             $this->logActivity('delete', 'Planilla', $planilla, 'Planilla #' . $planilla->id, [], $request);
 
+            // Tarea automática para verificar saldos post-anulación
+            try {
+                $automation = TaskAutomation::where('event_type', 'planilla_anulada')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($automation) {
+                    $deductoraName = $planilla->deductora->nombre ?? 'N/A';
+                    $details = implode("\n", [
+                        "**Planilla:** #{$planilla->id}",
+                        "**Deductora:** {$deductoraName}",
+                        "**Fecha planilla:** {$planilla->fecha_planilla}",
+                        "**Pagos reversados:** {$pagos->count()}",
+                        "**Monto total:** ₡" . number_format((float) $planilla->monto_total, 2),
+                        "**Motivo:** {$validated['motivo']}",
+                        "**Anulada por:** {$user->name}",
+                        "",
+                        "La planilla fue anulada. Verificar que los saldos de los créditos quedaron correctos, conciliar con la deductora y notificar a los clientes afectados.",
+                    ]);
+                    Task::createFromAutomation($automation, 'PLAN-ANULA-' . $planilla->id, $details);
+                }
+            } catch (\Exception $e) {
+                Log::error('Error creando tarea para planilla anulada', [
+                    'planilla_id' => $planilla->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return response()->json([
                 'message' => 'Planilla anulada exitosamente',
                 'planilla' => $planilla->fresh(['deductora', 'user', 'anuladaPor']),
@@ -539,5 +571,30 @@ class PlanillaUploadController extends Controller
         return response()->download($temp, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Exportar resumen de distribución de planilla como PDF con diseño CREDIPEP
+     */
+    public function exportResumenPdf($id)
+    {
+        $planilla = PlanillaUpload::with(['deductora', 'user'])->findOrFail($id);
+
+        $payments = CreditPayment::with(['credit.lead'])
+            ->where('planilla_upload_id', $planilla->id)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $bgPath  = public_path('pdf_background_hoja_cierre.jpg');
+        $bgBase64 = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($bgPath));
+
+        $totalMonto = $payments->sum('monto');
+
+        $pdf = Pdf::loadView('pdf.resumen_planilla', compact(
+            'planilla', 'payments', 'bgBase64', 'totalMonto'
+        ))->setPaper('letter', 'portrait');
+
+        $filename = 'resumen_planilla_' . $planilla->id . '_' . ($planilla->fecha_planilla ?? 'sin-fecha') . '.pdf';
+        return $pdf->stream($filename);
     }
 }

@@ -496,6 +496,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('credits/next-reference', [\App\Http\Controllers\Api\CreditController::class, 'nextReference']);
     Route::apiResource('credits', \App\Http\Controllers\Api\CreditController::class);
     Route::post('/credits/{id}/sync-status', [App\Http\Controllers\Api\CreditController::class, 'syncStatus']);
+    // TEMPORAL: forzar mora en cuota para testing
+    Route::post('/credits/{id}/force-mora', [App\Http\Controllers\Api\CreditController::class, 'forceMora'])->middleware('admin');
     Route::get('credits/{id}/balance', [\App\Http\Controllers\Api\CreditController::class, 'balance']);
     Route::post('credits/{id}/generate-plan-de-pagos', [\App\Http\Controllers\Api\CreditController::class, 'generatePlanDePagos'])->middleware('throttle:30,1');
     Route::get('credits/{id}/documents', [\App\Http\Controllers\Api\CreditController::class, 'documents']);
@@ -537,6 +539,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('planilla-uploads/{id}', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'show']);
     Route::get('planilla-uploads/{id}/download', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'download']);
     Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen']);
+    Route::get('planilla-uploads/{id}/export-resumen-pdf', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumenPdf']);
     Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular'])->middleware('throttle:10,1');
 
     // --- Tasas ---

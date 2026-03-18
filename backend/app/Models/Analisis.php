@@ -41,6 +41,18 @@ class Analisis extends Model
         'ingreso_neto_5',
         'ingreso_bruto_6',
         'ingreso_neto_6',
+        'ingreso_bruto_7',
+        'ingreso_neto_7',
+        'ingreso_bruto_8',
+        'ingreso_neto_8',
+        'ingreso_bruto_9',
+        'ingreso_neto_9',
+        'ingreso_bruto_10',
+        'ingreso_neto_10',
+        'ingreso_bruto_11',
+        'ingreso_neto_11',
+        'ingreso_bruto_12',
+        'ingreso_neto_12',
         'numero_manchas',
         'numero_juicios',
         'numero_embargos',
@@ -51,6 +63,7 @@ class Analisis extends Model
         'deducciones',
         // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales',
+        'hoja_trabajo_datos',
     ];
 
     protected $casts = [
@@ -70,6 +83,18 @@ class Analisis extends Model
         'ingreso_neto_5' => 'decimal:2',
         'ingreso_bruto_6' => 'decimal:2',
         'ingreso_neto_6' => 'decimal:2',
+        'ingreso_bruto_7' => 'decimal:2',
+        'ingreso_neto_7' => 'decimal:2',
+        'ingreso_bruto_8' => 'decimal:2',
+        'ingreso_neto_8' => 'decimal:2',
+        'ingreso_bruto_9' => 'decimal:2',
+        'ingreso_neto_9' => 'decimal:2',
+        'ingreso_bruto_10' => 'decimal:2',
+        'ingreso_neto_10' => 'decimal:2',
+        'ingreso_bruto_11' => 'decimal:2',
+        'ingreso_neto_11' => 'decimal:2',
+        'ingreso_bruto_12' => 'decimal:2',
+        'ingreso_neto_12' => 'decimal:2',
         'plazo' => 'integer',
         'numero_manchas' => 'integer',
         'numero_juicios' => 'integer',
@@ -78,6 +103,7 @@ class Analisis extends Model
         'deducciones' => 'array',
         // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales' => 'array',
+        'hoja_trabajo_datos' => 'array',
     ];
 
     protected $hidden = [

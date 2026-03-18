@@ -140,9 +140,16 @@ const ACCOUNTING_ENTRY_TYPES = [
   {
     value: 'INV_INTERES_DEVENGADO',
     label: 'Inversión — Interés Devengado',
-    description: '1er asiento automático al marcar cupón como pagado: devengado interés neto + retención',
+    description: '1er asiento al marcar cupón pagado: Débito Intereses sobre Préstamos Recibidos / Crédito Intereses por Pagar [inv]',
     controller: 'InvestmentCouponController@markPaid / markBulkPaid / bulkPayByDesembolso',
     reference: 'INV-INT-{CUPON_ID}'
+  },
+  {
+    value: 'INV_RETENCION_INTERES',
+    label: 'Inversión — Retención de Interés',
+    description: '2do asiento al marcar cupón pagado (automático): Débito Intereses por Pagar [inv] / Crédito Retenciones a la Fuente',
+    controller: 'InvestmentCouponController@markPaid / markBulkPaid / bulkPayByDesembolso',
+    reference: 'INV-RET-{CUPON_ID}'
   },
   {
     value: 'INV_CANCELACION_TOTAL',
@@ -340,10 +347,10 @@ export default function ContabilidadErpTab() {
     }
   }, [toast]);
 
-  const saveInvestorMapping = async (investorId: number, erpAccountKey: string) => {
+  const saveInvestorMapping = async (investorId: number, field: 'erp_account_key_prestamos' | 'erp_account_key_intereses', erpAccountKey: string) => {
     setSavingInvestorMapping(investorId);
     try {
-      await api.put(`/api/investors/${investorId}`, { erp_account_key: erpAccountKey });
+      await api.put(`/api/investors/${investorId}`, { [field]: erpAccountKey });
       toast({ title: 'Mapeo actualizado', description: 'Cuenta ERP asignada al inversionista.' });
       fetchInvestorsMapping();
     } catch (err: any) {
@@ -833,14 +840,15 @@ export default function ContabilidadErpTab() {
                     <TableRow>
                       <TableHead>Inversionista</TableHead>
                       <TableHead>Cédula</TableHead>
-                      <TableHead>Cuenta ERP</TableHead>
+                      <TableHead>Préstamos por Pagar</TableHead>
+                      <TableHead>Intereses por Pagar</TableHead>
                       <TableHead>Estado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {investorsMapping.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                           No hay inversionistas registrados
                         </TableCell>
                       </TableRow>
@@ -851,11 +859,30 @@ export default function ContabilidadErpTab() {
                           <TableCell className="text-muted-foreground">{investor.cedula}</TableCell>
                           <TableCell>
                             <Select
-                              value={investor.erp_account_key || 'none'}
-                              onValueChange={(value) => saveInvestorMapping(investor.id, value === 'none' ? '' : value)}
+                              value={investor.erp_account_key_prestamos || 'none'}
+                              onValueChange={(value) => saveInvestorMapping(investor.id, 'erp_account_key_prestamos', value === 'none' ? '' : value)}
                               disabled={savingInvestorMapping === investor.id}
                             >
-                              <SelectTrigger className="w-[300px]">
+                              <SelectTrigger className="w-[240px]">
+                                <SelectValue placeholder="Seleccionar cuenta..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sin asignar</SelectItem>
+                                {erpAccounts.map((account) => (
+                                  <SelectItem key={account.id} value={account.key}>
+                                    {account.account_code ? `${account.account_code} - ` : ''}{account.account_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={investor.erp_account_key_intereses || 'none'}
+                              onValueChange={(value) => saveInvestorMapping(investor.id, 'erp_account_key_intereses', value === 'none' ? '' : value)}
+                              disabled={savingInvestorMapping === investor.id}
+                            >
+                              <SelectTrigger className="w-[240px]">
                                 <SelectValue placeholder="Seleccionar cuenta..." />
                               </SelectTrigger>
                               <SelectContent>
@@ -871,10 +898,12 @@ export default function ContabilidadErpTab() {
                           <TableCell>
                             {savingInvestorMapping === investor.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : investor.erp_account_key ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Mapeado</span>
+                            ) : investor.erp_account_key_prestamos && investor.erp_account_key_intereses ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Completo</span>
+                            ) : investor.erp_account_key_prestamos || investor.erp_account_key_intereses ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">Parcial</span>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">Pendiente</span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800">Pendiente</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -1058,12 +1087,13 @@ export default function ContabilidadErpTab() {
                                       <SelectItem value="fixed">Cuenta Fija</SelectItem>
                                       <SelectItem value="deductora">Deductora</SelectItem>
                                       <SelectItem value="deductora_or_fixed">Deductora o Fija (auto)</SelectItem>
-                                      <SelectItem value="investor">Inversionista</SelectItem>
+                                      <SelectItem value="investor_prestamos">Inversionista — Préstamos por Pagar</SelectItem>
+                                      <SelectItem value="investor_intereses">Inversionista — Intereses por Pagar</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Cuenta{line.account_type === 'fixed' ? ' (Requerida)' : line.account_type === 'deductora_or_fixed' ? ' (Fallback si no hay deductora)' : line.account_type === 'investor' ? ' (Dinámica por inversionista)' : ' (Dinámica)'}</Label>
+                                  <Label>Cuenta{line.account_type === 'fixed' ? ' (Requerida)' : line.account_type === 'deductora_or_fixed' ? ' (Fallback si no hay deductora)' : line.account_type === 'investor_prestamos' ? ' (Dinámica — Préstamos por Pagar)' : line.account_type === 'investor_intereses' ? ' (Dinámica — Intereses por Pagar)' : ' (Dinámica)'}</Label>
                                   {(line.account_type === 'fixed' || line.account_type === 'deductora_or_fixed') ? (
                                     <Select
                                       value={line.account_key || ''}
@@ -1125,6 +1155,8 @@ export default function ContabilidadErpTab() {
                                           <SelectItem value="interes_neto">Interés Neto (después de retención)</SelectItem>
                                           <SelectItem value="interes_bruto">Interés Bruto (antes de retención)</SelectItem>
                                           <SelectItem value="retencion">Retención Fiscal</SelectItem>
+                                          <SelectItem value="total_interes_bruto">Sumatoria Interés Bruto (pago masivo)</SelectItem>
+                                          <SelectItem value="total_retencion">Sumatoria Retención Fiscal (pago masivo)</SelectItem>
                                         </>
                                       )}
                                     </SelectContent>

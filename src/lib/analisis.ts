@@ -97,6 +97,18 @@ export interface AnalisisItem {
   ingreso_neto_5?: number;
   ingreso_bruto_6?: number;
   ingreso_neto_6?: number;
+  ingreso_bruto_7?: number;
+  ingreso_neto_7?: number;
+  ingreso_bruto_8?: number;
+  ingreso_neto_8?: number;
+  ingreso_bruto_9?: number;
+  ingreso_neto_9?: number;
+  ingreso_bruto_10?: number;
+  ingreso_neto_10?: number;
+  ingreso_bruto_11?: number;
+  ingreso_neto_11?: number;
+  ingreso_bruto_12?: number;
+  ingreso_neto_12?: number;
   numero_manchas?: number;
   numero_juicios?: number;
   numero_embargos?: number;
@@ -119,6 +131,15 @@ export interface AnalisisItem {
   score_riesgo?: number;
   score_riesgo_color?: 'green' | 'yellow' | 'orange' | 'red';
   score_riesgo_label?: string;
+  hoja_trabajo_datos?: {
+    salario_bruto_manual?: string;
+    pension_alimenticia?: string;
+    otro_embargo?: string;
+    max_embargable?: number;
+    min_salario_meses?: number;
+    salario_castigado?: number;
+    capacidad_real_25?: number;
+  };
 }
 
 export interface AnalisisFile {
