@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
+use App\Events\BusinessActionPerformed;
 
 class CreditController extends Controller
 {
@@ -327,6 +328,9 @@ class CreditController extends Controller
         }
 
         $this->logActivity('create', 'Créditos', $credit, $credit->referencia ?? $credit->reference ?? (string) $credit->id, [], $request);
+
+        // Gamificación: puntos por crear crédito (hito mayor)
+        BusinessActionPerformed::dispatch('credit_created', $request->user(), $credit);
 
         return response()->json($credit->load(['planDePagos', 'assignedTo:id,name']), 201);
     }

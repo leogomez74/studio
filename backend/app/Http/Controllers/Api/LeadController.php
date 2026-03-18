@@ -16,6 +16,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Events\BusinessActionPerformed;
 
 class LeadController extends Controller
 {
@@ -286,6 +287,9 @@ class LeadController extends Controller
             }
         }
 
+        // Gamificación: puntos por crear lead
+        BusinessActionPerformed::dispatch('lead_created', $request->user(), $result['lead']);
+
         return response()->json([
             'lead' => $result['lead'],
             'opportunity' => $result['opportunity'],
@@ -504,6 +508,9 @@ class LeadController extends Controller
         $lead->save();
 
         $this->logActivity('update', 'Leads', $lead, "Convertido a cliente: {$lead->cedula}", [], $request);
+
+        // Gamificación: puntos por convertir lead a cliente
+        BusinessActionPerformed::dispatch('lead_converted', $request->user(), $lead);
 
         return response()->json($lead);
     }

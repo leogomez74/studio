@@ -15,6 +15,7 @@ use App\Models\TaskAutomation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use App\Events\BusinessActionPerformed;
 
 class AnalisisController extends Controller
 {
@@ -212,6 +213,9 @@ class AnalisisController extends Controller
         $analisis->load('propuestas');
 
         $this->logActivity('create', 'Análisis', $analisis, $analisis->reference ?? (string) $analisis->id, [], $request);
+
+        // Gamificación: puntos por crear análisis
+        BusinessActionPerformed::dispatch('analisis_created', $request->user(), $analisis);
 
         return response()->json($analisis, 201);
     }

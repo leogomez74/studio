@@ -19,6 +19,9 @@ use App\Events\Rewards\RewardRedeemed;
 use App\Events\TaskStatusChanged;
 use App\Events\TaskCompleted;
 
+// Business Events
+use App\Events\BusinessActionPerformed;
+
 // Rewards Listeners
 use App\Listeners\Rewards\HandlePointsEarned;
 use App\Listeners\Rewards\HandleBadgeEarned;
@@ -31,6 +34,9 @@ use App\Listeners\Rewards\HandleRewardRedeemed;
 use App\Listeners\AwardTaskTransitionPoints;
 use App\Listeners\HandleTaskCompletion;
 use App\Listeners\NotifyTaskStatusChanged;
+
+// Business Listeners
+use App\Listeners\AwardBusinessPoints;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -67,6 +73,11 @@ class EventServiceProvider extends ServiceProvider
         ],
         TaskCompleted::class => [
             HandleTaskCompletion::class,
+        ],
+
+        // Business Actions → Gamification
+        BusinessActionPerformed::class => [
+            AwardBusinessPoints::class,
         ],
     ];
 

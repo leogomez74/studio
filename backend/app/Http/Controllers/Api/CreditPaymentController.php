@@ -15,6 +15,7 @@ use App\Traits\LogsActivity;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Events\BusinessActionPerformed;
 
 class CreditPaymentController extends Controller
 {
@@ -128,6 +129,9 @@ class CreditPaymentController extends Controller
 
         $this->logActivity('create', 'Pagos', $payment, ($credit->reference ?? $validated['credit_id']) . ' - Cuota #' . ($payment->numero_cuota ?? '?'), [], $request);
 
+        // Gamificación: puntos por registrar pago
+        BusinessActionPerformed::dispatch('payment_recorded', $request->user(), $payment);
+
         return response()->json([
             'message' => 'Pago aplicado correctamente',
             'payment' => $payment,
@@ -236,6 +240,9 @@ class CreditPaymentController extends Controller
         }
 
         $this->logActivity('upload', 'Pagos', $result['planillaUpload'], 'Planilla #' . $result['planillaUpload']->id, [], $request);
+
+        // Gamificación: puntos por carga masiva de planilla
+        BusinessActionPerformed::dispatch('planilla_uploaded', $request->user(), $result['planillaUpload']);
 
         return response()->json([
             'message' => 'Proceso completado',
