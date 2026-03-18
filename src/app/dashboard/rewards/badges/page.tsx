@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useBadges, useBadgeProgress } from "@/hooks/use-rewards";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -243,21 +243,24 @@ export default function BadgesPage() {
   const { earnedBadges, availableBadges, isLoading: loadingBadges } = useBadges();
   const { progress: progressData } = useBadgeProgress();
 
-  const allBadges: BadgeType[] = [...earnedBadges, ...availableBadges];
-  const earnedBadgeIds = new Set(earnedBadges.map((b: BadgeType) => b.id));
-  const earnedBadgesMap = new Map(earnedBadges.map((b: BadgeType) => [b.id, b.earnedAt]));
+  const allBadges: BadgeType[] = useMemo(() => [...earnedBadges, ...availableBadges], [earnedBadges, availableBadges]);
+  const earnedBadgeIds = useMemo(() => new Set(earnedBadges.map((b: BadgeType) => b.id)), [earnedBadges]);
+  const earnedBadgesMap = useMemo(() => new Map(earnedBadges.map((b: BadgeType) => [b.id, b.earnedAt])), [earnedBadges]);
 
-  // Filter badges
-  const filteredBadges = allBadges.filter((badge: BadgeType) => {
-    const matchesSearch = badge.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         badge.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRarity = rarityFilter === "all" || badge.rarity === rarityFilter;
-    return matchesSearch && matchesRarity;
-  });
+  // Filter badges (memoized)
+  const filteredBadges = useMemo(() =>
+    allBadges.filter((badge: BadgeType) => {
+      const matchesSearch = badge.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           badge.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRarity = rarityFilter === "all" || badge.rarity === rarityFilter;
+      return matchesSearch && matchesRarity;
+    }),
+    [allBadges, searchQuery, rarityFilter]
+  );
 
-  // Separate earned and unearned
-  const filteredEarnedBadges = filteredBadges.filter((b: BadgeType) => earnedBadgeIds.has(b.id));
-  const filteredUnearnedBadges = filteredBadges.filter((b: BadgeType) => !earnedBadgeIds.has(b.id));
+  // Separate earned and unearned (memoized)
+  const filteredEarnedBadges = useMemo(() => filteredBadges.filter((b: BadgeType) => earnedBadgeIds.has(b.id)), [filteredBadges, earnedBadgeIds]);
+  const filteredUnearnedBadges = useMemo(() => filteredBadges.filter((b: BadgeType) => !earnedBadgeIds.has(b.id)), [filteredBadges, earnedBadgeIds]);
 
   const handleBadgeClick = (badge: BadgeType) => {
     setSelectedBadge(badge);
@@ -266,7 +269,7 @@ export default function BadgesPage() {
 
   const totalBadges = allBadges.length;
   const earnedCount = earnedBadgeIds.size;
-  const completionPercent = totalBadges > 0 ? Math.round((earnedCount / totalBadges) * 100) : 0;
+  const completionPercent = useMemo(() => totalBadges > 0 ? Math.round((earnedCount / totalBadges) * 100) : 0, [totalBadges, earnedCount]);
 
   return (
     <div className="space-y-6">

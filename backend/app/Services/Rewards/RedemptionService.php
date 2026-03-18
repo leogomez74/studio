@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Rewards;
 
+use App\Exceptions\Rewards\RedemptionException;
 use App\Models\Rewards\RewardCatalogItem;
 use App\Models\Rewards\RewardUser;
 use App\Models\Rewards\RewardRedemption;
@@ -48,7 +49,7 @@ class RedemptionService
      */
     public function getAllRedemptions(?string $status = null, int $limit = 50): array
     {
-        $query = RewardRedemption::with(['rewardUser.user', 'catalogItem']);
+        $query = RewardRedemption::with(['rewardUser.user', 'catalogItem', 'processedByUser']);
 
         if ($status) {
             $query->where('status', $status);
@@ -86,12 +87,12 @@ class RedemptionService
      */
     public function approve(RewardRedemption $redemption, int $approvedById): RewardRedemption
     {
-        if ($redemption->status !== 'pending') {
-            throw new \Exception('Solo se pueden aprobar redenciones pendientes.');
+        if ($redemption->status !== RewardRedemption::STATUS_PENDING) {
+            throw RedemptionException::notPending();
         }
 
         $redemption->update([
-            'status' => 'approved',
+            'status' => RewardRedemption::STATUS_APPROVED,
             'approved_by' => $approvedById,
             'approved_at' => now(),
         ]);
@@ -104,8 +105,8 @@ class RedemptionService
      */
     public function reject(RewardRedemption $redemption, int $rejectedById, ?string $reason = null): RewardRedemption
     {
-        if ($redemption->status !== 'pending') {
-            throw new \Exception('Solo se pueden rechazar redenciones pendientes.');
+        if ($redemption->status !== RewardRedemption::STATUS_PENDING) {
+            throw RedemptionException::notPending();
         }
 
         return DB::transaction(function () use ($redemption, $rejectedById, $reason) {
@@ -120,10 +121,10 @@ class RedemptionService
             }
 
             $redemption->update([
-                'status' => 'rejected',
+                'status' => RewardRedemption::STATUS_REJECTED,
                 'approved_by' => $rejectedById,
                 'approved_at' => now(),
-                'notes' => $reason ? ($redemption->notes . "\nRazón de rechazo: " . $reason) : $redemption->notes,
+                'notes' => $reason ? ($redemption->notes ? $redemption->notes . "\nRazón de rechazo: " . $reason : "Razón de rechazo: " . $reason) : $redemption->notes,
             ]);
 
             return $redemption->fresh();
@@ -135,12 +136,12 @@ class RedemptionService
      */
     public function markAsDelivered(RewardRedemption $redemption): RewardRedemption
     {
-        if ($redemption->status !== 'approved') {
-            throw new \Exception('Solo se pueden marcar como entregadas las redenciones aprobadas.');
+        if ($redemption->status !== RewardRedemption::STATUS_APPROVED) {
+            throw RedemptionException::notApproved();
         }
 
         $redemption->update([
-            'status' => 'delivered',
+            'status' => RewardRedemption::STATUS_DELIVERED,
             'delivered_at' => now(),
         ]);
 
@@ -152,8 +153,8 @@ class RedemptionService
      */
     public function cancel(RewardRedemption $redemption): RewardRedemption
     {
-        if (!in_array($redemption->status, ['pending', 'approved'])) {
-            throw new \Exception('Solo se pueden cancelar redenciones pendientes o aprobadas.');
+        if (!in_array($redemption->status, [RewardRedemption::STATUS_PENDING, RewardRedemption::STATUS_APPROVED])) {
+            throw RedemptionException::cannotCancel();
         }
 
         return DB::transaction(function () use ($redemption) {
@@ -168,7 +169,7 @@ class RedemptionService
             }
 
             $redemption->update([
-                'status' => 'cancelled',
+                'status' => RewardRedemption::STATUS_CANCELLED,
             ]);
 
             return $redemption->fresh();

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useCatalog, useRedemptions, useRewardsBalance } from "@/hooks/use-rewards";
+import { useState, useMemo } from "react";
+import { useCatalog, useRedemptions } from "@/hooks/use-rewards";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -380,21 +380,27 @@ export default function CatalogPage() {
 
   const { items, userPoints, isLoading: loadingCatalog, refetch: refetchCatalog, redeemItem } = useCatalog();
   const { redemptions, isLoading: loadingRedemptions, refetch: refetchRedemptions } = useRedemptions();
-  const { balance: balanceData } = useRewardsBalance();
 
-  const effectiveUserPoints = balanceData?.totalPoints ?? userPoints;
+  // Filter items (memoized)
+  const filteredItems = useMemo(() =>
+    items.filter((item: CatalogItem) => {
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           item.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    }),
+    [items, searchQuery, categoryFilter]
+  );
 
-  // Filter items
-  const filteredItems = items.filter((item: CatalogItem) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
-
-  // Separate featured
-  const featuredItems = filteredItems.filter((item: CatalogItem) => item.is_featured ?? item.isFeatured);
-  const regularItems = filteredItems.filter((item: CatalogItem) => !(item.is_featured ?? item.isFeatured));
+  // Separate featured (memoized)
+  const featuredItems = useMemo(() =>
+    filteredItems.filter((item: CatalogItem) => item.is_featured ?? item.isFeatured),
+    [filteredItems]
+  );
+  const regularItems = useMemo(() =>
+    filteredItems.filter((item: CatalogItem) => !(item.is_featured ?? item.isFeatured)),
+    [filteredItems]
+  );
 
   const handleItemClick = (item: CatalogItem) => {
     setSelectedItem(item);
