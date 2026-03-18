@@ -140,9 +140,16 @@ const ACCOUNTING_ENTRY_TYPES = [
   {
     value: 'INV_INTERES_DEVENGADO',
     label: 'Inversión — Interés Devengado',
-    description: '1er asiento automático al marcar cupón como pagado: devengado interés neto + retención',
+    description: '1er asiento al marcar cupón pagado: Débito Intereses sobre Préstamos Recibidos / Crédito Intereses por Pagar [inv]',
     controller: 'InvestmentCouponController@markPaid / markBulkPaid / bulkPayByDesembolso',
     reference: 'INV-INT-{CUPON_ID}'
+  },
+  {
+    value: 'INV_RETENCION_INTERES',
+    label: 'Inversión — Retención de Interés',
+    description: '2do asiento al marcar cupón pagado (automático): Débito Intereses por Pagar [inv] / Crédito Retenciones a la Fuente',
+    controller: 'InvestmentCouponController@markPaid / markBulkPaid / bulkPayByDesembolso',
+    reference: 'INV-RET-{CUPON_ID}'
   },
   {
     value: 'INV_CANCELACION_TOTAL',
@@ -1148,6 +1155,8 @@ export default function ContabilidadErpTab() {
                                           <SelectItem value="interes_neto">Interés Neto (después de retención)</SelectItem>
                                           <SelectItem value="interes_bruto">Interés Bruto (antes de retención)</SelectItem>
                                           <SelectItem value="retencion">Retención Fiscal</SelectItem>
+                                          <SelectItem value="total_interes_bruto">Sumatoria Interés Bruto (pago masivo)</SelectItem>
+                                          <SelectItem value="total_retencion">Sumatoria Retención Fiscal (pago masivo)</SelectItem>
                                         </>
                                       )}
                                     </SelectContent>

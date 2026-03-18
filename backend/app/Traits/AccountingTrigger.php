@@ -199,7 +199,7 @@ trait AccountingTrigger
                 investorNombre: $context['investor_nombre'] ?? 'N/A'
             ),
 
-            'INV_INTERES_DEVENGADO', 'INV_RETENCION' => $this->triggerAccountingInteresInversion(
+            'INV_INTERES_DEVENGADO', 'INV_RETENCION_INTERES' => $this->triggerAccountingInteresInversion(
                 investmentId: (int) ($context['investment_id'] ?? 0),
                 couponId: (int) ($context['coupon_id'] ?? 0),
                 interesNeto: (float) ($context['amount_breakdown']['interes_neto'] ?? $amount),
@@ -523,10 +523,13 @@ trait AccountingTrigger
             'cargos_adicionales_total' => $breakdown['cargos_adicionales_total'] ?? 0,
             'monto_neto' => ($breakdown['total'] ?? $totalAmount) - ($breakdown['cargos_adicionales_total'] ?? 0),
             'cargo_adicional' => $this->resolveCargosAdicionales($breakdown, $line->cargo_adicional_key),
-            // Componentes de inversiones
+            // Componentes de inversiones (individuales)
             'interes_neto' => $breakdown['interes_neto'] ?? 0,
             'retencion' => $breakdown['retencion'] ?? 0,
             'interes_bruto' => $breakdown['interes_bruto'] ?? 0,
+            // Componentes de inversiones (sumatoria para pago masivo)
+            'total_interes_bruto' => $breakdown['total_interes_bruto'] ?? 0,
+            'total_retencion' => $breakdown['total_retencion'] ?? 0,
             default => $breakdown['total'] ?? $totalAmount,
         };
     }

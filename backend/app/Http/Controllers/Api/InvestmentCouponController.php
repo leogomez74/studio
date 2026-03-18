@@ -49,7 +49,7 @@ class InvestmentCouponController extends Controller
             $this->service->markCouponAsPaid($coupon, $validated['fecha_pago'] ?? null, $comprobantePath);
             $this->logActivity('mark_paid', 'Cupones Inversión', $coupon, 'Cupón #' . $coupon->id, [], $request);
 
-            $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_neto, 'CUPON-' . $coupon->id, [
+            $accountingContext = [
                 'investment_id'   => $coupon->investment_id,
                 'investor_id'     => $coupon->investment->investor_id,
                 'investor_nombre' => $coupon->investment->investor?->name ?? 'N/A',
@@ -60,7 +60,10 @@ class InvestmentCouponController extends Controller
                     'retencion'     => (float) $coupon->retencion,
                     'interes_bruto' => (float) $coupon->interes_bruto,
                 ],
-            ]);
+            ];
+
+            $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_bruto, 'CUPON-' . $coupon->id, $accountingContext);
+            $this->triggerAccountingEntry('INV_RETENCION_INTERES', (float) $coupon->retencion, 'CUPON-RET-' . $coupon->id, $accountingContext);
 
             return response()->json($coupon->fresh());
         });
@@ -135,9 +138,9 @@ class InvestmentCouponController extends Controller
 
                 InvestmentPayment::insert($payments);
 
-                // Disparar asiento contable por cada cupón pagado
+                // Disparar asientos contables por cada cupón pagado
                 foreach ($coupons as $coupon) {
-                    $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_neto, 'CUPON-' . $coupon->id, [
+                    $accountingContext = [
                         'investment_id'   => $coupon->investment_id,
                         'investor_id'     => $coupon->investment->investor_id,
                         'investor_nombre' => $coupon->investment->investor?->name ?? 'N/A',
@@ -148,7 +151,9 @@ class InvestmentCouponController extends Controller
                             'retencion'     => (float) $coupon->retencion,
                             'interes_bruto' => (float) $coupon->interes_bruto,
                         ],
-                    ]);
+                    ];
+                    $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_bruto, 'CUPON-' . $coupon->id, $accountingContext);
+                    $this->triggerAccountingEntry('INV_RETENCION_INTERES', (float) $coupon->retencion, 'CUPON-RET-' . $coupon->id, $accountingContext);
                 }
 
                 // Auto-finalizar inversiones 'Capital Devuelto' sin cupones pendientes
@@ -261,9 +266,9 @@ class InvestmentCouponController extends Controller
 
             InvestmentPayment::insert($payments);
 
-            // Disparar asiento contable por cada cupón pagado
+            // Disparar asientos contables por cada cupón pagado
             foreach ($coupons as $coupon) {
-                $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_neto, 'CUPON-' . $coupon->id, [
+                $accountingContext = [
                     'investment_id'   => $coupon->investment_id,
                     'investor_id'     => $coupon->investment->investor_id,
                     'investor_nombre' => $coupon->investment->investor?->name ?? 'N/A',
@@ -274,7 +279,9 @@ class InvestmentCouponController extends Controller
                         'retencion'     => (float) $coupon->retencion,
                         'interes_bruto' => (float) $coupon->interes_bruto,
                     ],
-                ]);
+                ];
+                $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', (float) $coupon->interes_bruto, 'CUPON-' . $coupon->id, $accountingContext);
+                $this->triggerAccountingEntry('INV_RETENCION_INTERES', (float) $coupon->retencion, 'CUPON-RET-' . $coupon->id, $accountingContext);
             }
 
             // Auto-finalizar inversiones 'Capital Devuelto' sin cupones pendientes
