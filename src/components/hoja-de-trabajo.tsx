@@ -115,37 +115,46 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   };
 
   // ── Paso 2: Ingresos ─────────────────────────────────────────────────────────
+  const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  // Para micro: 3 meses × 2 quincenas = 6 periodos. Para regular: 12 meses = 12 periodos.
+  const totalMeses = esMicro ? 3 : 12;
+  const mesesNombres = useMemo(() => Array.from({ length: totalMeses }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - (totalMeses - 1 - i));
+    return MESES_ES[d.getMonth()];
+  }), [totalMeses]);
+
   const [ingresos, setIngresos] = useState(() =>
-    Array.from({ length: 12 }, (_, i) => ({ num: i + 1, bruto: '', deducciones: '' }))
+    Array.from({ length: 12 }, (_, i) => ({ num: i + 1, liquido: '' }))
   );
 
-  const updateIngreso = (num: number, field: 'bruto' | 'deducciones', value: string) => {
-    setIngresos(prev => prev.map(i => i.num === num ? { ...i, [field]: stripCommas(value) } : i));
+  const updateIngreso = (num: number, value: string) => {
+    setIngresos(prev => prev.map(i => i.num === num ? { ...i, liquido: stripCommas(value) } : i));
   };
 
   const periodos = ingresos.slice(0, totalPeriodos);
 
-  const netosPorPeriodo = useMemo(() =>
-    periodos.map(i => (parseFloat(i.bruto) || 0) - (parseFloat(i.deducciones) || 0)),
-    [periodos]
-  );
-
-  // Solo calcular promedios cuando TODOS los períodos tengan bruto > 0
+  // Solo calcular promedio cuando TODOS los períodos tengan líquido > 0
   const todosLlenos = useMemo(() =>
-    periodos.every(i => (parseFloat(i.bruto) || 0) > 0),
+    periodos.every(i => (parseFloat(i.liquido) || 0) > 0),
     [periodos]
   );
 
-  const promedioBruto = useMemo(() => {
+  // Para micro: promedio = suma de totales mensuales (q1+q2) / 3 meses
+  // Para regular: promedio = suma de líquidos / 12
+  const promedioLiquido = useMemo(() => {
     if (!todosLlenos) return 0;
-    const vals = periodos.map(i => parseFloat(i.bruto) || 0);
+    const vals = periodos.map(i => parseFloat(i.liquido) || 0);
+    if (esMicro) {
+      // Sumar pares (q1+q2) por mes y promediar
+      const totalesMes = Array.from({ length: totalMeses }, (_, mi) =>
+        (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
+      );
+      return totalesMes.reduce((a, b) => a + b, 0) / totalMeses;
+    }
     return vals.reduce((a, b) => a + b, 0) / vals.length;
-  }, [periodos, todosLlenos]);
-
-  const promedioNeto = useMemo(() => {
-    if (!todosLlenos) return 0;
-    return netosPorPeriodo.reduce((a, b) => a + b, 0) / netosPorPeriodo.length;
-  }, [netosPorPeriodo, todosLlenos]);
+  }, [periodos, todosLlenos, esMicro, totalMeses]);
 
   // ── Paso 3: Embargo ──────────────────────────────────────────────────────────
   const [pensionAlimenticia, setPensionAlimenticia] = useState('');
@@ -168,11 +177,11 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   }, [pensionAlimenticia, otroEmbargo]);
 
   useEffect(() => {
-    if (promedioBruto > 0) {
-      const t = setTimeout(() => calcularEmbargo(promedioBruto), 600);
+    if (promedioLiquido > 0) {
+      const t = setTimeout(() => calcularEmbargo(promedioLiquido), 600);
       return () => clearTimeout(t);
     }
-  }, [promedioBruto, pensionAlimenticia, otroEmbargo, calcularEmbargo]);
+  }, [promedioLiquido, pensionAlimenticia, otroEmbargo, calcularEmbargo]);
 
   // ── Paso 4: Propuesta ────────────────────────────────────────────────────────
   const [montoSugerido, setMontoSugerido] = useState('');
@@ -197,7 +206,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
-    const get = (num: number) => ingresos.find(i => i.num === num)?.bruto ?? '';
+    const get = (num: number) => ingresos.find(i => i.num === num)?.liquido ?? '';
     onCrearAnalisis({
       numero_manchas: credidData?.numero_manchas || 0,
       numero_juicios: credidData?.numero_juicios || 0,
@@ -225,9 +234,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
       ingreso_bruto_10: get(10),
       ingreso_bruto_11: get(11),
       ingreso_bruto_12: get(12),
-      deducciones_mensuales: ingresos
-        .filter(i => parseFloat(i.deducciones) > 0)
-        .map(i => ({ mes: i.num, monto: parseFloat(i.deducciones) })),
+      deducciones_mensuales: [],
       monto_sugerido: montoSugerido,
       plazo,
     });
@@ -324,8 +331,23 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Juicios</p>
                   {credidData.juicios_detalle.map((j: JuicioDetalle, i: number) => (
                     <div key={i} className="text-xs flex justify-between bg-orange-50 rounded px-2.5 py-1.5">
-                      <span className="text-muted-foreground">{j.fecha_inicio}{j.estado && ` — ${j.estado}`}{j.expediente && ` (${j.expediente})`}</span>
-                      {j.monto != null && <span className="font-medium text-orange-700">₡{j.monto.toLocaleString()}</span>}
+                      <span className="text-muted-foreground">
+                        {j.fecha_inicio}{j.estado && ` — ${j.estado}`}{j.expediente && ` · Exp: ${j.expediente}`}
+                      </span>
+                      {j.monto != null && <span className="font-medium text-orange-700 shrink-0 ml-3">₡{j.monto.toLocaleString()}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {credidData.embargos_detalle?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Embargos</p>
+                  {credidData.embargos_detalle.map((e: EmbargoDetalle, i: number) => (
+                    <div key={i} className="text-xs flex justify-between bg-yellow-50 rounded px-2.5 py-1.5">
+                      <span className="text-muted-foreground">
+                        {e.fecha_inicio}{e.motivo && ` — ${e.motivo}`}
+                      </span>
+                      {e.monto != null && <span className="font-medium text-yellow-700 shrink-0 ml-3">₡{e.monto.toLocaleString()}</span>}
                     </div>
                   ))}
                 </div>
@@ -346,71 +368,98 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
           <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
             <CardTitle className="text-sm font-semibold">
-              {esMicro ? `Colillas / Ingresos (6 quincenas)` : `Colillas / Ingresos (12 meses)`}
+              {esMicro ? `Colillas / Ingresos (${totalMeses} meses × 2 quincenas)` : `Colillas / Ingresos (12 meses)`}
             </CardTitle>
-            {promedioNeto > 0 && (
+            {promedioLiquido > 0 && (
               <Badge variant="outline" className="ml-auto text-blue-700 border-blue-300 text-xs">
-                Prom. neto: {fmt(promedioNeto)}
+                Prom. mensual: {fmt(promedioLiquido)}
               </Badge>
             )}
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-            {[0, 1].map(col => {
-              const mitad = Math.ceil(totalPeriodos / 2);
-              const inicio = col === 0 ? 0 : mitad;
-              const grupo = periodos.slice(inicio, col === 0 ? mitad : totalPeriodos);
-              if (grupo.length === 0) return null;
-              return (
-                <div key={col}>
-                  <div className="grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)_72px] gap-1.5 items-center text-[10px] font-medium text-muted-foreground uppercase tracking-wide pb-1 border-b">
-                    <span>{labelPeriodo[0]}</span>
-                    <span>Bruto (₡)</span>
-                    <span>Deduc. (₡)</span>
-                    <span className="text-right">Neto</span>
-                  </div>
-                  {grupo.map((ingreso, idx) => {
-                    const neto = netosPorPeriodo[inicio + idx];
-                    const hayBruto = (parseFloat(ingreso.bruto) || 0) > 0;
-                    return (
-                      <div key={ingreso.num} className="grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)_72px] gap-1.5 items-center py-1 border-b border-dashed">
-                        <span className="text-xs font-medium text-slate-500 tabular-nums">{labelPeriodo[0]}{ingreso.num}</span>
+          {esMicro ? (
+            /* Micro: 3 meses × 2 quincenas */
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+              {mesesNombres.map((nombreMes, mi) => {
+                const q1 = ingresos[mi * 2];
+                const q2 = ingresos[mi * 2 + 1];
+                const totalMes = (parseFloat(q1?.liquido) || 0) + (parseFloat(q2?.liquido) || 0);
+                return (
+                  <div key={mi} className="border rounded-md p-3 bg-slate-50">
+                    <p className="text-xs font-semibold text-slate-700 mb-2">{nombreMes}</p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-slate-500 w-5">1Q</span>
                         <Input
-                          value={withCommas(ingreso.bruto)}
-                          onChange={e => updateIngreso(ingreso.num, 'bruto', e.target.value)}
+                          value={withCommas(q1?.liquido || '')}
+                          onChange={e => updateIngreso(q1.num, e.target.value)}
                           placeholder="0"
-                          className="h-7 text-xs px-2 min-w-0"
+                          className="h-7 text-xs px-2 flex-1"
                           inputMode="numeric"
                         />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-slate-500 w-5">2Q</span>
                         <Input
-                          value={withCommas(ingreso.deducciones)}
-                          onChange={e => updateIngreso(ingreso.num, 'deducciones', e.target.value)}
+                          value={withCommas(q2?.liquido || '')}
+                          onChange={e => updateIngreso(q2.num, e.target.value)}
                           placeholder="0"
-                          className="h-7 text-xs px-2 min-w-0"
+                          className="h-7 text-xs px-2 flex-1"
                           inputMode="numeric"
                         />
-                        <span className={`text-xs text-right font-medium tabular-nums ${hayBruto ? neto >= 0 ? 'text-green-700' : 'text-red-600' : 'text-muted-foreground'}`}>
-                          {hayBruto ? fmt(neto) : '—'}
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-slate-200">
+                        <span className="text-[10px] text-slate-500">Total</span>
+                        <span className={`text-xs font-semibold tabular-nums ${totalMes > 0 ? 'text-green-700' : 'text-slate-400'}`}>
+                          {totalMes > 0 ? fmt(totalMes) : '—'}
                         </span>
                       </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-
-          {!todosLlenos && periodos.some(i => (parseFloat(i.bruto) || 0) > 0) && (
-            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 rounded border border-amber-200 text-xs text-amber-700">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              Faltan {periodos.filter(i => !(parseFloat(i.bruto) || 0)).length} {labelPeriodo.toLowerCase()}{periodos.filter(i => !(parseFloat(i.bruto) || 0)).length !== 1 ? 's' : ''} por completar para calcular el promedio
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* Regular: 12 meses, 1 entrada por mes */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+              {[0, 1].map(col => {
+                const mitad = Math.ceil(totalMeses / 2);
+                const inicio = col === 0 ? 0 : mitad;
+                const grupo = mesesNombres.slice(inicio, col === 0 ? mitad : totalMeses);
+                return (
+                  <div key={col}>
+                    {grupo.map((nombreMes, idx) => {
+                      const ingreso = ingresos[inicio + idx];
+                      const hayLiquido = (parseFloat(ingreso?.liquido) || 0) > 0;
+                      return (
+                        <div key={inicio + idx} className="grid grid-cols-[80px_minmax(0,1fr)] gap-2 items-center py-1 border-b border-dashed">
+                          <span className="text-xs font-medium text-slate-600">{nombreMes}</span>
+                          <Input
+                            value={withCommas(ingreso?.liquido || '')}
+                            onChange={e => updateIngreso(ingreso.num, e.target.value)}
+                            placeholder="0"
+                            className={`h-7 text-xs px-2 ${hayLiquido ? 'border-green-300' : ''}`}
+                            inputMode="numeric"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           )}
-          {promedioNeto > 0 && (
-            <div className="mt-3 flex justify-between items-center px-3 py-2 bg-blue-50 rounded border border-blue-100 text-xs">
-              <span className="text-blue-800">Promedio Bruto: <strong>{fmt(promedioBruto)}</strong></span>
-              <span className="font-bold text-blue-900">Promedio Neto: {fmt(promedioNeto)}</span>
+
+          {!todosLlenos && periodos.some(i => (parseFloat(i.liquido) || 0) > 0) && (
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 rounded border border-amber-200 text-xs text-amber-700">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              Faltan {periodos.filter(i => !(parseFloat(i.liquido) || 0)).length} {esMicro ? 'quincena(s)' : 'mes(es)'} por completar para calcular el promedio
+            </div>
+          )}
+          {promedioLiquido > 0 && (
+            <div className="mt-3 flex justify-end items-center px-3 py-2 bg-blue-50 rounded border border-blue-100 text-xs">
+              <span className="font-bold text-blue-900">Promedio mensual líquido: {fmt(promedioLiquido)}</span>
             </div>
           )}
         </CardContent>
@@ -433,7 +482,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 )}
               </div>
 
-              {promedioBruto === 0 ? (
+              {promedioLiquido === 0 ? (
                 <div className="text-xs text-muted-foreground text-center py-6 bg-slate-50 rounded">
                   Ingresa los ingresos en el Paso 2
                 </div>
