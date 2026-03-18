@@ -37,6 +37,7 @@ class CacheService
         Cache::forget($this->userKey($userId));
         Cache::forget($this->userBadgesKey($userId));
         Cache::forget($this->userStatsKey($userId));
+        Cache::forget($this->dashboardKey($userId));
     }
 
     /**
@@ -110,6 +111,30 @@ class CacheService
         return Cache::get($this->userStatsKey($userId));
     }
 
+    /**
+     * Invalida caché del dashboard completo del usuario.
+     */
+    public function invalidateDashboard(int $userId): void
+    {
+        Cache::forget($this->dashboardKey($userId));
+    }
+
+    /**
+     * Obtiene dashboard completo desde caché.
+     */
+    public function getDashboard(int $userId): ?array
+    {
+        return Cache::get($this->dashboardKey($userId));
+    }
+
+    /**
+     * Guarda dashboard completo en caché (60 segundos).
+     */
+    public function setDashboard(int $userId, array $data): void
+    {
+        Cache::put($this->dashboardKey($userId), $data, 60);
+    }
+
     // Key generators
     private function userKey(int $userId): string
     {
@@ -124,6 +149,11 @@ class CacheService
     private function userStatsKey(int $userId): string
     {
         return self::PREFIX . "user:{$userId}:stats";
+    }
+
+    private function dashboardKey(int $userId): string
+    {
+        return self::PREFIX . "user:{$userId}:dashboard";
     }
 
     private function leaderboardKey(string $metric, string $period): string

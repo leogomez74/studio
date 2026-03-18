@@ -51,8 +51,15 @@ class ChallengeService
                 break;
         }
 
-        return $query->orderBy('ends_at')->get()->map(function ($challenge) use ($user) {
-            $participation = $this->getParticipation($user, $challenge);
+        // Eager load participations count + user's participation to avoid N+1
+        $challenges = $query
+            ->withCount('participations')
+            ->with(['participations' => fn ($q) => $q->where('reward_user_id', $user->id)])
+            ->orderBy('ends_at')
+            ->get();
+
+        return $challenges->map(function ($challenge) {
+            $participation = $challenge->participations->first();
 
             return [
                 'id' => $challenge->id,
@@ -76,7 +83,7 @@ class ChallengeService
                     'completedAt' => $participation->completed_at,
                     'joinedAt' => $participation->joined_at,
                 ] : null,
-                'participantsCount' => $challenge->participations()->count(),
+                'participantsCount' => $challenge->participations_count,
                 'maxParticipants' => $challenge->max_participants,
             ];
         })->toArray();

@@ -109,6 +109,7 @@ class RewardCatalogItem extends Model
         return $query->active()
             ->where(function ($q) {
                 $q->whereNull('stock')
+                  ->orWhere('stock', '=', self::UNLIMITED_STOCK)
                   ->orWhere('stock', '>', 0);
             })
             ->where(function ($q) {
@@ -160,7 +161,7 @@ class RewardCatalogItem extends Model
             return false;
         }
 
-        if ($this->stock !== null && $this->stock <= 0) {
+        if ($this->stock !== null && $this->stock !== self::UNLIMITED_STOCK && $this->stock <= 0) {
             return false;
         }
 
@@ -182,7 +183,7 @@ class RewardCatalogItem extends Model
      */
     public function getInStockAttribute(): bool
     {
-        return $this->stock === null || $this->stock > 0;
+        return $this->stock === null || $this->stock === self::UNLIMITED_STOCK || $this->stock > 0;
     }
 
     /**

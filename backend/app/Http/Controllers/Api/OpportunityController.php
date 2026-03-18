@@ -13,6 +13,7 @@ use App\Models\Lead;
 use App\Models\Person;
 use App\Models\Task;
 use App\Models\TaskAutomation;
+use App\Events\BusinessActionPerformed;
 
 class OpportunityController extends Controller
 {
@@ -238,6 +239,9 @@ class OpportunityController extends Controller
 
         $this->logActivity('create', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), [], $request);
 
+        // Gamificación: puntos por crear oportunidad
+        BusinessActionPerformed::dispatch('opportunity_created', $request->user(), $opportunity);
+
         return response()->json([
             'opportunity' => $opportunity,
             'files_moved' => $moveResult
@@ -333,6 +337,18 @@ class OpportunityController extends Controller
             ]);
 
             $this->logActivity('update', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), [['field' => 'status', 'old_value' => $oldStatus, 'new_value' => $newStatus]], $request);
+
+            // Gamificación: puntos por cambio de estado
+            if (strtolower($newStatus) === 'ganada') {
+                BusinessActionPerformed::dispatch('opportunity_won', $request->user(), $opportunity, [
+                    'old_status' => $oldStatus,
+                ]);
+            } else {
+                BusinessActionPerformed::dispatch('opportunity_status_advanced', $request->user(), $opportunity, [
+                    'old_status' => $oldStatus,
+                    'new_status' => $newStatus,
+                ]);
+            }
 
             return response()->json([
                 'success' => true,

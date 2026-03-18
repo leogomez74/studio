@@ -171,4 +171,68 @@ return [
         'on_time_bonus_points' => 20,
         'on_time_bonus_xp' => 10,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Acciones de Negocio
+    |--------------------------------------------------------------------------
+    |
+    | Puntos y XP otorgados por acciones de negocio del CRM.
+    | Cada acción tiene puntos base y XP. Similar a Duolingo,
+    | el usuario gana recompensas al completar acciones del día a día.
+    |
+    */
+
+    'actions' => [
+        'lead_created' => [
+            'points' => 25,
+            'xp' => 10,
+            'description' => 'Lead registrado',
+        ],
+        'lead_converted' => [
+            'points' => 100,
+            'xp' => 30,
+            'description' => 'Lead convertido a cliente',
+        ],
+        'opportunity_created' => [
+            'points' => 30,
+            'xp' => 12,
+            'description' => 'Oportunidad creada',
+        ],
+        'opportunity_status_advanced' => [
+            'points' => 25,
+            'xp' => 10,
+            'description' => 'Oportunidad avanzada de estado',
+        ],
+        'opportunity_won' => [
+            'points' => 200,
+            'xp' => 50,
+            'description' => 'Oportunidad ganada',
+        ],
+        'analisis_created' => [
+            'points' => 40,
+            'xp' => 15,
+            'description' => 'Análisis de crédito creado',
+        ],
+        'credit_created' => [
+            'points' => 150,
+            'xp' => 40,
+            'description' => 'Crédito creado',
+        ],
+        'payment_recorded' => [
+            'points' => 15,
+            'xp' => 8,
+            'description' => 'Pago registrado',
+        ],
+        'planilla_uploaded' => [
+            'points' => 100,
+            'xp' => 25,
+            'description' => 'Planilla de pagos cargada',
+        ],
+        'investment_created' => [
+            'points' => 75,
+            'xp' => 20,
+            'description' => 'Inversión creada',
+        ],
+    ],
 ];

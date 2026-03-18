@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Traits\LogsActivity;
 use App\Traits\AccountingTrigger;
+use App\Events\BusinessActionPerformed;
 
 class InvestmentController extends Controller
 {
@@ -104,6 +105,9 @@ class InvestmentController extends Controller
             'investor_nombre' => $investment->investor?->name ?? 'N/A',
             'moneda'         => $investment->moneda,
         ]);
+
+        // Gamificación: puntos por crear inversión
+        BusinessActionPerformed::dispatch('investment_created', $request->user(), $investment);
 
         return response()->json($investment->load('coupons'), 201);
     }

@@ -169,6 +169,8 @@ class RewardService
             return $cached;
         }
 
+        $user->loadCount('badges');
+
         $summary = [
             'level' => $user->level,
             'experience_points' => $user->experience_points,
@@ -177,7 +179,7 @@ class RewardService
             'lifetime_points' => $user->lifetime_points,
             'current_streak' => $user->current_streak,
             'longest_streak' => $user->longest_streak,
-            'badges_count' => $user->badges()->count(),
+            'badges_count' => $user->badges_count,
             'last_activity_at' => $user->last_activity_at?->toIso8601String(),
         ];
 

@@ -124,27 +124,32 @@ export interface CatalogItem {
   name: string;
   description: string;
   category: CatalogCategory;
-  cost: number;
-  currency: string;
-  stock: number | null; // -1 or null = unlimited
-  imageUrl: string | null;
-  levelRequired: number;
-  availableFrom: string | null;
-  availableUntil: string | null;
-  isActive: boolean;
-  canRedeem: boolean;
+  points_cost: number;
+  stock: number | null; // -1 = unlimited
+  image_url: string | null;
+  icon: string | null;
+  is_active: boolean;
+  is_featured: boolean;
+  available_from: string | null;
+  available_until: string | null;
+  can_redeem: boolean;
   reason?: string;
-  // Alternative property names for API compatibility
+  requirements?: {
+    min_level?: number;
+    badge_id?: number;
+  };
+  // Alternative camelCase names for frontend compatibility
   pointsCost?: number;
+  imageUrl?: string | null;
+  isActive?: boolean;
   isAvailable?: boolean;
   isFeatured?: boolean;
-  requirements?: {
-    minLevel?: number;
-    badgeId?: number;
-  };
+  canRedeem?: boolean;
+  levelRequired?: number;
+  cost?: number;
 }
 
-export type CatalogCategory = 'digital' | 'physical' | 'experience' | 'donation';
+export type CatalogCategory = 'digital' | 'physical' | 'experience' | 'discount' | 'general';
 
 // Redemption
 export interface Redemption {
@@ -215,14 +220,22 @@ export interface DailyTask {
   target: number;
 }
 
-// Dashboard
+// Dashboard (consolidado — 1 solo request)
 export interface DashboardData {
   summary: UserSummary;
   badges: {
     earned: Badge[];
     available: Badge[];
   };
+  leaderboard?: {
+    metric: string;
+    period: string;
+    entries: LeaderboardEntry[];
+  };
+  challenges?: Challenge[];
   recentActivity: Transaction[];
+  // Alias snake_case del backend
+  recent_activity?: Transaction[];
 }
 
 export interface UserSummary {

@@ -619,6 +619,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/config', [GamificationConfigController::class, 'index']);
             Route::put('/config', [GamificationConfigController::class, 'update']);
             Route::get('/stats', [GamificationConfigController::class, 'stats']);
+
+            // Catalog CRUD
+            Route::get('/catalog', [GamificationConfigController::class, 'catalogIndex']);
+            Route::post('/catalog', [GamificationConfigController::class, 'catalogStore']);
+            Route::put('/catalog/{id}', [GamificationConfigController::class, 'catalogUpdate']);
+            Route::delete('/catalog/{id}', [GamificationConfigController::class, 'catalogDestroy']);
+
+            // Badges CRUD
+            Route::get('/badges', [GamificationConfigController::class, 'badgeIndex']);
+            Route::post('/badges', [GamificationConfigController::class, 'badgeStore']);
+            Route::put('/badges/{id}', [GamificationConfigController::class, 'badgeUpdate']);
+            Route::delete('/badges/{id}', [GamificationConfigController::class, 'badgeDestroy']);
+
+            // Challenges CRUD
+            Route::get('/challenges', [GamificationConfigController::class, 'challengeIndex']);
+            Route::post('/challenges', [GamificationConfigController::class, 'challengeStore']);
+            Route::put('/challenges/{id}', [GamificationConfigController::class, 'challengeUpdate']);
+            Route::delete('/challenges/{id}', [GamificationConfigController::class, 'challengeDestroy']);
         });
     }); // fin middleware admin
 }); // fin middleware auth:sanctum
