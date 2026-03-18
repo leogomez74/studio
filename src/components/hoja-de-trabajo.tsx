@@ -255,6 +255,27 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const totalEmbargo = desglose?.total_embargo ?? embargableResult?.resultado ?? 0;
   const cuotaSuperaEmbargo = cuotaCalculada > 0 && embargableResult != null && cuotaCalculada > totalEmbargo;
 
+  // ── Salario Castigado + 25% Capacidad Real ───────────────────────────────────
+  const minSalarioMeses = useMemo(() => {
+    if (!todosLlenos) return 0;
+    const vals = periodos.map(i => parseFloat(i.liquido) || 0);
+    if (esMicro) {
+      const totalesMes = Array.from({ length: totalMeses }, (_, mi) =>
+        (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
+      );
+      return Math.min(...totalesMes);
+    }
+    return Math.min(...vals);
+  }, [periodos, todosLlenos, esMicro, totalMeses]);
+
+  const otroEmbargoNum = parseFloat(otroEmbargo) || 0;
+  const embargoPorNuevoCredito = otroEmbargoNum > 0
+    ? Math.max(0, totalEmbargo - otroEmbargoNum)  // embargada: solo la diferencia
+    : totalEmbargo;                                 // libre: restar todo el máximo embargable
+  const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito);
+  const capacidadReal = Math.round(salarioCastigado * 0.25);
+  const cuotaSuperaCapacidad = cuotaCalculada > 0 && minSalarioMeses > 0 && cuotaCalculada > capacidadReal;
+
   const cfg = loanConfigs[esMicro ? 'microcredito' : 'regular'];
   const montoMaxConfig = cfg ? parseFloat(String(cfg.monto_maximo)) : (esMicro ? 690000 : Infinity);
   const montoMinConfig = cfg ? parseFloat(String(cfg.monto_minimo)) : 0;
@@ -620,6 +641,35 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                   <span className="text-xs text-muted-foreground">Cuota estimada</span>
                   <span className="font-bold text-slate-700">{cuotaCalculada > 0 ? fmt(cuotaCalculada) : '—'}</span>
                 </div>
+
+                {/* Salario Castigado + 25% Capacidad Real */}
+                {minSalarioMeses > 0 && embargableResult != null && (
+                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 space-y-1 text-xs">
+                    <p className="font-semibold text-slate-600 text-[11px] uppercase tracking-wide mb-1">Salario Castigado</p>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Mín. {totalMeses} meses</span>
+                      <span>{fmt(minSalarioMeses)}</span>
+                    </div>
+                    <div className="flex justify-between text-orange-600">
+                      <span>− {otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
+                      <span>{fmt(embargoPorNuevoCredito)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold border-t pt-1 text-slate-700">
+                      <span>= Sal. Castigado</span>
+                      <span>{fmt(salarioCastigado)}</span>
+                    </div>
+                    <div className={`flex justify-between font-bold pt-1 ${cuotaSuperaCapacidad ? 'text-red-600' : 'text-green-700'}`}>
+                      <span>25% Capacidad Real</span>
+                      <div className="flex items-center gap-1">
+                        <span>{fmt(capacidadReal)}</span>
+                        {cuotaCalculada > 0 && (cuotaSuperaCapacidad
+                          ? <AlertCircle className="h-3 w-3" />
+                          : <CheckCircle className="h-3 w-3" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {totalEmbargo > 0 && cuotaCalculada > 0 && (
                   <div className={`flex justify-between items-center px-3 py-2 rounded border text-xs ${cuotaSuperaEmbargo ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
