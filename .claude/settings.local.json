@@ -56,7 +56,7 @@
       "Bash(tasklist /FI \"IMAGENAME eq php.exe\" /V)",
       "Bash(grep -E \"\\\\.\\(php|sql\\)$\")",
       "Read(//c/Users/danie/AppData/Local/Temp/claude/c--laragon-www-studio/tasks/**)",
-      "Bash(grep -E \"\\\\.\\(php\\)$\")"
+      "Bash(head -5 grep -rn \"account_type\\\\|movement_type\" \"c:\\\\Users\\\\User\\\\Desktop\\\\Proyectos CR\\\\studio\\\\backend\\\\database\\\\migrations\" --include=\"*.php\" -l)"
     ]
   },
   "enableAllProjectMcpServers": true,

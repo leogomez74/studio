@@ -79,6 +79,9 @@ class InvestorController extends Controller
             'cuenta_bancaria' => 'nullable|string|max:50',
             'banco' => 'nullable|string|max:100',
             'joined_at' => 'nullable|date',
+            'erp_account_key' => 'nullable|string|max:100',
+            'erp_account_key_prestamos' => 'nullable|string|max:100',
+            'erp_account_key_intereses' => 'nullable|string|max:100',
         ]);
 
         $investor->update($validated);
