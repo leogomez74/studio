@@ -199,6 +199,7 @@ export default function ContabilidadErpTab() {
   const [isAccountingConfigDialogOpen, setIsAccountingConfigDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<any | null>(null);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [accountKeySearch, setAccountKeySearch] = useState('');
   const [configForm, setConfigForm] = useState({
     entry_type: '',
     name: '',
@@ -995,14 +996,16 @@ export default function ContabilidadErpTab() {
                               <SelectValue placeholder="Seleccionar evento..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {ACCOUNTING_ENTRY_TYPES.map((type) => (
-                                <SelectItem key={type.value} value={type.value}>
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{type.label}</span>
-                                    <span className="text-xs text-muted-foreground">{type.description}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
+                              {ACCOUNTING_ENTRY_TYPES
+                                .filter(type => editingConfig || !accountingConfigs.some(c => c.entry_type === type.value))
+                                .map((type) => (
+                                  <SelectItem key={type.value} value={type.value}>
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{type.label}</span>
+                                      <span className="text-xs text-muted-foreground">{type.description}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -1097,18 +1100,30 @@ export default function ContabilidadErpTab() {
                                   {(line.account_type === 'fixed' || line.account_type === 'deductora_or_fixed') ? (
                                     <Select
                                       value={line.account_key || ''}
-                                      onValueChange={(value) => updateConfigLine(index, 'account_key', value)}
+                                      onValueChange={(value) => { updateConfigLine(index, 'account_key', value); setAccountKeySearch(''); }}
                                       disabled={savingConfig}
                                     >
                                       <SelectTrigger>
                                         <SelectValue placeholder="Seleccionar..." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {erpAccounts.map((account) => (
-                                          <SelectItem key={account.id} value={account.key}>
-                                            {account.account_code ? `${account.account_code} - ` : ''}{account.account_name}
-                                          </SelectItem>
-                                        ))}
+                                        <div className="p-2 pb-1">
+                                          <input
+                                            className="w-full border rounded px-2 py-1 text-sm outline-none"
+                                            placeholder="Buscar cuenta..."
+                                            value={accountKeySearch}
+                                            onChange={(e) => setAccountKeySearch(e.target.value)}
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        </div>
+                                        {erpAccounts
+                                          .filter(a => !accountKeySearch || `${a.account_code ?? ''} ${a.account_name}`.toLowerCase().includes(accountKeySearch.toLowerCase()))
+                                          .map((account) => (
+                                            <SelectItem key={account.id} value={account.key}>
+                                              {account.account_code ? `${account.account_code} - ` : ''}{account.account_name}
+                                            </SelectItem>
+                                          ))}
                                       </SelectContent>
                                     </Select>
                                   ) : (
