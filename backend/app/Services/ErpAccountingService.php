@@ -319,4 +319,78 @@ class ErpAccountingService
             ];
         }
     }
+
+    // ================================================================
+    // CREACIÓN DE CUENTAS CONTABLES
+    // ================================================================
+
+    /**
+     * Crear una cuenta contable en el ERP.
+     * Retorna [ 'code' => '2201-01-04', 'name' => '...', 'erp_id' => 123 ] o lanza Exception.
+     */
+    public function createAccount(string $accountName, int $accountType, int $accountSubType, string $prefix): array
+    {
+        if (!$this->isConfigured()) {
+            throw new Exception('ERP no configurado. Verifica ERP_API_URL, ERP_API_EMAIL y ERP_API_PASSWORD.');
+        }
+
+        $token = $this->getToken();
+
+        $response = Http::timeout(20)
+            ->withToken($token)
+            ->post($this->baseUrl . '/api/accounts', [
+                'account_name'     => $accountName,
+                'account_type'     => $accountType,
+                'account_sub_type' => $accountSubType,
+                'opening_balance'  => 0,
+                'prefix'           => $prefix,
+            ]);
+
+        if ($response->status() === 401) {
+            Cache::forget(self::TOKEN_CACHE_KEY);
+            $token = $this->authenticate();
+            $response = Http::timeout(20)
+                ->withToken($token)
+                ->post($this->baseUrl . '/api/accounts', [
+                    'account_name'     => $accountName,
+                    'account_type'     => $accountType,
+                    'account_sub_type' => $accountSubType,
+                    'opening_balance'  => 0,
+                    'prefix'           => $prefix,
+                ]);
+        }
+
+        $data = $response->json();
+
+        if (!($data['is_success'] ?? false)) {
+            throw new Exception('ERP no pudo crear la cuenta: ' . ($data['message'] ?? $response->body()));
+        }
+
+        return [
+            'code'   => $data['data']['code'],
+            'name'   => $data['data']['name'],
+            'erp_id' => $data['data']['id'],
+        ];
+    }
+
+    /**
+     * Genera un key snake_case único para erp_accounting_accounts.
+     * Ej: "Préstamos por Pagar Carlos Lopez" → "prestamos_por_pagar_carlos_lopez"
+     */
+    public function generateAccountKey(string $accountName): string
+    {
+        $key = mb_strtolower($accountName);
+        $key = str_replace(['á','é','í','ó','ú','ü','ñ'], ['a','e','i','o','u','u','n'], $key);
+        $key = preg_replace('/[^a-z0-9]+/', '_', $key);
+        $key = trim($key, '_');
+
+        // Garantizar unicidad
+        $base = $key;
+        $i = 1;
+        while (ErpAccountingAccount::where('key', $key)->exists()) {
+            $key = $base . '_' . $i++;
+        }
+
+        return $key;
+    }
 }
