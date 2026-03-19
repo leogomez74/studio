@@ -122,10 +122,10 @@
 ## Pendiente — Baja prioridad
 
 ### Pendiente Rewards (baja prioridad)
-- Custom exceptions en vez de `\Exception` genérico en RedemptionService
-- Tests del módulo de rewards
-- Consolidar API calls en catalog page (3 paralelos → 1 endpoint consolidado)
-- Memoizar filtros costosos con useMemo en páginas de rewards
+- ~~Custom exceptions en vez de `\Exception` genérico~~ ✅ `RedemptionException` con métodos estáticos
+- ~~Tests del módulo de rewards~~ ✅ 28 tests (62 assertions): RedemptionServiceTest + CatalogServiceTest
+- ~~Consolidar API calls en catalog page~~ ✅ Eliminada llamada redundante `useRewardsBalance`
+- ~~Memoizar filtros costosos con useMemo~~ ✅ Catalog + Badges pages
 
 ## Auditoría Módulo Inversiones (Mar 2026)
 

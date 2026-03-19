@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Rewards;
 
+use App\Exceptions\Rewards\RedemptionException;
 use App\Models\Rewards\RewardUser;
 use App\Models\Rewards\RewardCatalogItem;
 use App\Models\Rewards\RewardRedemption;
@@ -121,7 +122,7 @@ class CatalogService
         $canRedeem = $this->canRedeem($user, $item);
 
         if (!$canRedeem['can_redeem']) {
-            throw new \Exception($canRedeem['reason']);
+            throw RedemptionException::cannotRedeem($canRedeem['reason']);
         }
 
         return DB::transaction(function () use ($user, $item, $deliveryInfo, $notes) {
