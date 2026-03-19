@@ -1126,77 +1126,140 @@ export function AnalisisWizardModal({
 
         {/* Step 3: Ingresos Mensuales */}
         {currentStep === 3 && (() => {
-          // Determinar períodos según tipo de crédito
           const esMicroCredito = currentProducto?.toLowerCase().includes('micro') || false;
           const fixedMonths = esMicroCredito ? 6 : 12;
           const totalMonths = fixedMonths + extraMonths;
+          const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+          const numMeses = esMicroCredito ? 3 : totalMonths;
+          const mesesNombres = Array.from({ length: numMeses }, (_, i) => {
+            const d = new Date();
+            d.setMonth(d.getMonth() - (numMeses - i));
+            return MESES_ES[d.getMonth()];
+          });
+
+          const getVal = (num: number) => parseFloat(formData[`ingreso_bruto${num > 1 ? `_${num}` : ''}` as keyof FormData] as string) || 0;
+
+          const promedioMensual = (() => {
+            if (esMicroCredito) {
+              const totales = Array.from({ length: 3 }, (_, mi) => getVal(mi * 2 + 1) + getVal(mi * 2 + 2));
+              return totales.every(t => t > 0) ? totales.reduce((a, b) => a + b, 0) / 3 : 0;
+            }
+            const vals = Array.from({ length: totalMonths }, (_, i) => getVal(i + 1));
+            return vals.every(v => v > 0) ? vals.reduce((a, b) => a + b, 0) / totalMonths : 0;
+          })();
+
+          const fmtCRC = (v: number) => new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(v);
 
           const removeExtraMonth = (mes: number) => {
-            const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}`;
-            updateFormData(brutoProp, '');
+            updateFormData(`ingreso_bruto_${mes}`, '');
             setExtraMonths(prev => Math.max(0, prev - 1));
           };
 
           return (
             <Card>
               <CardHeader>
-                <CardTitle>Ingresos Mensuales</CardTitle>
+                <CardTitle>
+                  {esMicroCredito
+                    ? `Colillas / Ingresos (3 meses × 2 quincenas)`
+                    : `Colillas / Ingresos (${totalMonths} meses)`}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {Array.from({ length: totalMonths }, (_, i) => i + 1).map((mes) => {
-                  const brutoProp = `ingreso_bruto${mes > 1 ? `_${mes}` : ''}` as keyof FormData;
-                  const isExtra = mes > fixedMonths;
-
-                  return (
-                    <div key={mes} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold text-sm text-gray-700">{esMicroCredito ? `Quincena ${mes}` : `Mes ${mes}`}</h4>
-                        {isExtra && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-red-500"
-                            onClick={() => removeExtraMonth(mes)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-
-                      <div>
-                        <Label htmlFor={`neto_${mes}`}>Ingreso Neto</Label>
-                        <div className="relative mt-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₡</span>
-                          <Input
-                            id={`neto_${mes}`}
-                            type="text"
-                            inputMode="numeric"
-                            className="pl-7"
-                            value={formatNumber(formData[brutoProp] as string)}
-                            onChange={(e) => {
-                              const value = parseNumber(e.target.value);
-                              updateFormData(brutoProp as string, value);
-
-                              // Si es el Mes 1, auto-llenar los demás meses según el tipo de crédito
-                              if (mes === 1) {
-                                updateFormData('ingreso_bruto_2', value);
-                                updateFormData('ingreso_bruto_3', value);
-                                if (!esMicroCredito) {
-                                  updateFormData('ingreso_bruto_4', value);
-                                  updateFormData('ingreso_bruto_5', value);
-                                  updateFormData('ingreso_bruto_6', value);
-                                }
-                              }
-                            }}
-                            placeholder="0"
-                          />
+              <CardContent className="space-y-4">
+                {esMicroCredito ? (
+                  /* Micro: 3 meses × 2 quincenas */
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {mesesNombres.map((nombreMes, mi) => {
+                      const q1Prop = `ingreso_bruto${mi * 2 + 1 > 1 ? `_${mi * 2 + 1}` : ''}` as keyof FormData;
+                      const q2Prop = `ingreso_bruto_${mi * 2 + 2}` as keyof FormData;
+                      const q1Val = getVal(mi * 2 + 1);
+                      const q2Val = getVal(mi * 2 + 2);
+                      const total = q1Val + q2Val;
+                      return (
+                        <div key={mi} className="border rounded-md p-3 bg-slate-50">
+                          <p className="text-xs font-semibold text-slate-700 mb-2">{nombreMes}</p>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-medium text-slate-500 w-5">1Q</span>
+                              <Input
+                                type="text" inputMode="numeric"
+                                className="h-7 text-xs px-2 flex-1"
+                                value={formatNumber(formData[q1Prop] as string)}
+                                onChange={e => updateFormData(q1Prop as string, parseNumber(e.target.value))}
+                                placeholder="0"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-medium text-slate-500 w-5">2Q</span>
+                              <Input
+                                type="text" inputMode="numeric"
+                                className="h-7 text-xs px-2 flex-1"
+                                value={formatNumber(formData[q2Prop] as string)}
+                                onChange={e => updateFormData(q2Prop as string, parseNumber(e.target.value))}
+                                placeholder="0"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center pt-1 border-t border-slate-200">
+                              <span className="text-[10px] text-slate-500">Total</span>
+                              <span className={`text-xs font-semibold tabular-nums ${total > 0 ? 'text-green-700' : 'text-slate-400'}`}>
+                                {total > 0 ? fmtCRC(total) : '—'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Regular: 12 meses en grid 2 columnas */
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+                    {[0, 1].map(col => {
+                      const mitad = Math.ceil(totalMonths / 2);
+                      const inicio = col === 0 ? 0 : mitad;
+                      const grupo = mesesNombres.slice(inicio, col === 0 ? mitad : totalMonths);
+                      return (
+                        <div key={col}>
+                          {grupo.map((nombreMes, idx) => {
+                            const mesNum = inicio + idx + 1;
+                            const brutoProp = `ingreso_bruto${mesNum > 1 ? `_${mesNum}` : ''}` as keyof FormData;
+                            const val = formData[brutoProp] as string;
+                            const hayVal = (parseFloat(val) || 0) > 0;
+                            const isExtra = mesNum > fixedMonths;
+                            return (
+                              <div key={mesNum} className="grid grid-cols-[80px_minmax(0,1fr)_auto] gap-2 items-center py-1.5 border-b border-dashed">
+                                <span className="text-xs font-medium text-slate-600">{nombreMes}</span>
+                                <Input
+                                  type="text" inputMode="numeric"
+                                  className={`h-7 text-xs px-2 ${hayVal ? 'border-green-300' : ''}`}
+                                  value={formatNumber(val)}
+                                  onChange={e => {
+                                    const value = parseNumber(e.target.value);
+                                    updateFormData(brutoProp as string, value);
+                                    if (mesNum === 1) {
+                                      for (let m = 2; m <= fixedMonths; m++) updateFormData(`ingreso_bruto_${m}`, value);
+                                    }
+                                  }}
+                                  placeholder="0"
+                                />
+                                {isExtra && (
+                                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-500" onClick={() => removeExtraMonth(mesNum)}>
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
+                {promedioMensual > 0 && (
+                  <div className="flex justify-between items-center px-3 py-2 bg-blue-50 rounded border border-blue-200">
+                    <span className="text-xs font-medium text-blue-800">Promedio mensual líquido:</span>
+                    <span className="text-sm font-bold text-blue-900">{fmtCRC(promedioMensual)}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
