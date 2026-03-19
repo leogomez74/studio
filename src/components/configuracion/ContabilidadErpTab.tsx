@@ -159,9 +159,16 @@ const ACCOUNTING_ENTRY_TYPES = [
     reference: 'INV-CANCEL-{ID}'
   },
   {
-    value: 'INV_PAGO_MANUAL',
-    label: 'Inversión — Pago Manual',
-    description: 'Al registrar un pago manual de tipo Interés, Capital, Adelanto o Liquidación',
+    value: 'INV_PAGO_INTERES',
+    label: 'Inversión — Pago de Interés',
+    description: 'Al registrar un pago manual con tipo=Interés: Débito Intereses por Pagar [inv] / Crédito Bancos',
+    controller: 'InvestmentPaymentController@store',
+    reference: 'INV-PAY-{ID}'
+  },
+  {
+    value: 'INV_PAGO_CAPITAL',
+    label: 'Inversión — Pago de Capital',
+    description: 'Al registrar un pago manual con tipo=Capital/Adelanto/Abono/Liquidación: Débito Préstamos por Pagar [inv] / Crédito Bancos',
     controller: 'InvestmentPaymentController@store',
     reference: 'INV-PAY-{ID}'
   },

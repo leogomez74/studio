@@ -65,12 +65,13 @@ class InvestmentPaymentController extends Controller
         $this->logActivity('create', 'Pagos Inversión', $payment, $payment->tipo . ' - ' . $payment->monto, [], $request);
 
         $investment = $payment->investment;
-        $this->triggerAccountingEntry('INV_PAGO_MANUAL', (float) $payment->monto, 'INV-PAY-' . $payment->id, [
-            'investment_id'   => $payment->investment_id,
-            'investor_id'     => $payment->investor_id,
-            'investor_nombre' => $payment->investor?->name ?? 'N/A',
-            'moneda'          => $payment->moneda,
-            'tipo_pago'       => $payment->tipo,
+        $entryType = $payment->tipo === 'Interés' ? 'INV_PAGO_INTERES' : 'INV_PAGO_CAPITAL';
+        $this->triggerAccountingEntry($entryType, (float) $payment->monto, 'INV-PAY-' . $payment->id, [
+            'investment_id'     => $payment->investment_id,
+            'investor_id'       => $payment->investor_id,
+            'investor_nombre'   => $payment->investor?->name ?? 'N/A',
+            'moneda'            => $payment->moneda,
+            'tipo_pago'         => $payment->tipo,
             'numero_desembolso' => $investment?->numero_desembolso ?? 'N/A',
         ]);
 

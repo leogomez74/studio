@@ -209,7 +209,7 @@ trait AccountingTrigger
             ),
 
             // Tipos de inversión solo disponibles en sistema configurable
-            'INV_CANCELACION_TOTAL', 'INV_PAGO_MANUAL' => [
+            'INV_CANCELACION_TOTAL', 'INV_PAGO_INTERES', 'INV_PAGO_CAPITAL' => [
                 'success' => false,
                 'skipped' => true,
                 'error' => "Tipo '{$entryType}' requiere configuración en la UI de asientos contables.",
