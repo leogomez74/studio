@@ -56,7 +56,19 @@
       "Bash(tasklist /FI \"IMAGENAME eq php.exe\" /V)",
       "Bash(grep -E \"\\\\.\\(php|sql\\)$\")",
       "Read(//c/Users/danie/AppData/Local/Temp/claude/c--laragon-www-studio/tasks/**)",
-      "Bash(grep -E \"\\\\.\\(php\\)$\")"
+      "Bash(grep -E \"\\\\.\\(php\\)$\")",
+      "Bash(find /c/laragon/www/studio/src/hooks -name *leaderboard* -o -name *reward*)",
+      "Bash(grep -E \"\\\\.php$\")",
+      "Bash(grep -n \"rewards_claimed\" c:/laragon/www/studio/backend/database/migrations/*reward_challenge_participations* --include=\"*.php\")",
+      "Bash(grep -n \"reference_type\\\\|reference_id\\\\|currency\" c:/laragon/www/studio/backend/database/migrations/*reward_transactions* --include=\"*.php\")",
+      "Bash(git pull:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git merge:*)",
+      "Bash(php -m)",
+      "Bash(mysql -u root -e \"CREATE DATABASE IF NOT EXISTS studio_testing\")",
+      "Bash(mysql -u root -e \"DESCRIBE studio.reward_redemptions\")",
+      "Bash(grep -l \"reward_redemptions\" database/migrations/*.php)"
     ]
   },
   "enableAllProjectMcpServers": true,
