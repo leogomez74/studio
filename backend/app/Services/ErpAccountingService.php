@@ -338,7 +338,7 @@ class ErpAccountingService
 
         $response = Http::timeout(20)
             ->withToken($token)
-            ->post($this->baseUrl . '/api/accounts', [
+            ->post($this->baseUrl . '/accounts', [
                 'account_name'     => $accountName,
                 'account_type'     => $accountType,
                 'account_sub_type' => $accountSubType,
@@ -351,7 +351,7 @@ class ErpAccountingService
             $token = $this->authenticate();
             $response = Http::timeout(20)
                 ->withToken($token)
-                ->post($this->baseUrl . '/api/accounts', [
+                ->post($this->baseUrl . '/accounts', [
                     'account_name'     => $accountName,
                     'account_type'     => $accountType,
                     'account_sub_type' => $accountSubType,
