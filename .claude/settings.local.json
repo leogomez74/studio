@@ -68,7 +68,8 @@
       "Bash(php -m)",
       "Bash(mysql -u root -e \"CREATE DATABASE IF NOT EXISTS studio_testing\")",
       "Bash(mysql -u root -e \"DESCRIBE studio.reward_redemptions\")",
-      "Bash(grep -l \"reward_redemptions\" database/migrations/*.php)"
+      "Bash(grep -l \"reward_redemptions\" database/migrations/*.php)",
+      "Bash(head -5 grep -rn \"account_type\\\\|movement_type\" \"c:\\\\Users\\\\User\\\\Desktop\\\\Proyectos CR\\\\studio\\\\backend\\\\database\\\\migrations\" --include=\"*.php\" -l)"
     ]
   },
   "enableAllProjectMcpServers": true,
