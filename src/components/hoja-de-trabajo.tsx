@@ -94,7 +94,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const lead = opportunity.lead;
   const esMicro = (opportunity.opportunity_type || '').toLowerCase().includes('micro');
   const totalPeriodos = esMicro ? 6 : 12;
-  const labelPeriodo = esMicro ? 'Quincena' : 'Mes';
+  const labelPeriodo = 'Quincena';
 
   const DRAFT_KEY = `hoja_trabajo_op_${opportunity.id}`;
 
@@ -129,8 +129,8 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   // ── Paso 2: Ingresos ─────────────────────────────────────────────────────────
   const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-  // Para micro: 3 meses × 2 quincenas = 6 periodos. Para regular: 12 meses = 12 periodos.
-  const totalMeses = esMicro ? 3 : 12;
+  // Micro: 3 meses × 2 quincenas = 6 periodos. Regular: 6 meses × 2 quincenas = 12 periodos.
+  const totalMeses = esMicro ? 3 : 6;
   const mesesNombres = useMemo(() => Array.from({ length: totalMeses }, (_, i) => {
     const d = new Date();
     // Excluir el mes actual (en circulación), empezar desde el mes anterior
@@ -158,20 +158,15 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     [periodos]
   );
 
-  // Para micro: promedio = suma de totales mensuales (q1+q2) / 3 meses
-  // Para regular: promedio = suma de líquidos / 12
+  // Promedio = suma de totales mensuales (q1+q2) / totalMeses (3 micro, 6 regular)
   const promedioLiquido = useMemo(() => {
     if (!todosLlenos) return 0;
     const vals = periodos.map(i => parseFloat(i.liquido) || 0);
-    if (esMicro) {
-      // Sumar pares (q1+q2) por mes y promediar
-      const totalesMes = Array.from({ length: totalMeses }, (_, mi) =>
-        (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
-      );
-      return totalesMes.reduce((a, b) => a + b, 0) / totalMeses;
-    }
-    return vals.reduce((a, b) => a + b, 0) / vals.length;
-  }, [periodos, todosLlenos, esMicro, totalMeses]);
+    const totalesMes = Array.from({ length: totalMeses }, (_, mi) =>
+      (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
+    );
+    return totalesMes.reduce((a, b) => a + b, 0) / totalMeses;
+  }, [periodos, todosLlenos, totalMeses]);
 
   // ── Paso 3: Embargo ──────────────────────────────────────────────────────────
   const [salarioBrutoManual, setSalarioBrutoManual] = useState(() => {
@@ -439,6 +434,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                     <div key={i} className="text-xs flex justify-between bg-orange-50 rounded px-2.5 py-1.5">
                       <span className="text-muted-foreground">
                         {j.fecha_inicio}{j.estado && ` — ${j.estado}`}{j.expediente && ` · Exp: ${j.expediente}`}
+                        {j.acreedor && <span className="block font-medium text-slate-700">{j.acreedor}</span>}
                       </span>
                       {j.monto != null && <span className="font-medium text-orange-700 shrink-0 ml-3">₡{j.monto.toLocaleString()}</span>}
                     </div>
@@ -474,7 +470,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
           <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
             <CardTitle className="text-sm font-semibold">
-              {esMicro ? `Colillas / Ingresos (${totalMeses} meses × 2 quincenas)` : `Colillas / Ingresos (12 meses)`}
+              {esMicro ? `Colillas / Ingresos (3 meses × 2 quincenas)` : `Colillas / Ingresos (6 meses × 2 quincenas)`}
             </CardTitle>
             {promedioLiquido > 0 && (
               <Badge variant="outline" className="ml-auto text-blue-700 border-blue-300 text-xs">
@@ -484,83 +480,52 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-4">
-          {esMicro ? (
-            /* Micro: 3 meses × 2 quincenas */
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
-              {mesesNombres.map((nombreMes, mi) => {
-                const q1 = ingresos[mi * 2];
-                const q2 = ingresos[mi * 2 + 1];
-                const totalMes = (parseFloat(q1?.liquido) || 0) + (parseFloat(q2?.liquido) || 0);
-                return (
-                  <div key={mi} className="border rounded-md p-3 bg-slate-50">
-                    <p className="text-xs font-semibold text-slate-700 mb-2">{nombreMes}</p>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-slate-500 w-5">1Q</span>
-                        <Input
-                          value={withCommas(q1?.liquido || '')}
-                          onChange={e => updateIngreso(q1.num, e.target.value)}
-                          placeholder="0"
-                          className="h-7 text-xs px-2 flex-1"
-                          inputMode="numeric"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-slate-500 w-5">2Q</span>
-                        <Input
-                          value={withCommas(q2?.liquido || '')}
-                          onChange={e => updateIngreso(q2.num, e.target.value)}
-                          placeholder="0"
-                          className="h-7 text-xs px-2 flex-1"
-                          inputMode="numeric"
-                        />
-                      </div>
-                      <div className="flex justify-between items-center pt-1 border-t border-slate-200">
-                        <span className="text-[10px] text-slate-500">Total</span>
-                        <span className={`text-xs font-semibold tabular-nums ${totalMes > 0 ? 'text-green-700' : 'text-slate-400'}`}>
-                          {totalMes > 0 ? fmt(totalMes) : '—'}
-                        </span>
-                      </div>
+          {/* 3 meses × 2 quincenas (micro y regular) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+            {mesesNombres.map((nombreMes, mi) => {
+              const q1 = ingresos[mi * 2];
+              const q2 = ingresos[mi * 2 + 1];
+              const totalMes = (parseFloat(q1?.liquido) || 0) + (parseFloat(q2?.liquido) || 0);
+              return (
+                <div key={mi} className="border rounded-md p-3 bg-slate-50">
+                  <p className="text-xs font-semibold text-slate-700 mb-2">{nombreMes}</p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-medium text-slate-500 w-5">1Q</span>
+                      <Input
+                        value={withCommas(q1?.liquido || '')}
+                        onChange={e => updateIngreso(q1.num, e.target.value)}
+                        placeholder="0"
+                        className="h-7 text-xs px-2 flex-1"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-medium text-slate-500 w-5">2Q</span>
+                      <Input
+                        value={withCommas(q2?.liquido || '')}
+                        onChange={e => updateIngreso(q2.num, e.target.value)}
+                        placeholder="0"
+                        className="h-7 text-xs px-2 flex-1"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-200">
+                      <span className="text-[10px] text-slate-500">Total</span>
+                      <span className={`text-xs font-semibold tabular-nums ${totalMes > 0 ? 'text-green-700' : 'text-slate-400'}`}>
+                        {totalMes > 0 ? fmt(totalMes) : '—'}
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* Regular: 12 meses, 1 entrada por mes */
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-              {[0, 1].map(col => {
-                const mitad = Math.ceil(totalMeses / 2);
-                const inicio = col === 0 ? 0 : mitad;
-                const grupo = mesesNombres.slice(inicio, col === 0 ? mitad : totalMeses);
-                return (
-                  <div key={col}>
-                    {grupo.map((nombreMes, idx) => {
-                      const ingreso = ingresos[inicio + idx];
-                      const hayLiquido = (parseFloat(ingreso?.liquido) || 0) > 0;
-                      return (
-                        <div key={inicio + idx} className="grid grid-cols-[80px_minmax(0,1fr)] gap-2 items-center py-1 border-b border-dashed">
-                          <span className="text-xs font-medium text-slate-600">{nombreMes}</span>
-                          <Input
-                            value={withCommas(ingreso?.liquido || '')}
-                            onChange={e => updateIngreso(ingreso.num, e.target.value)}
-                            placeholder="0"
-                            className={`h-7 text-xs px-2 ${hayLiquido ? 'border-green-300' : ''}`}
-                            inputMode="numeric"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+              );
+            })}
+          </div>
 
           {!todosLlenos && periodos.some(i => (parseFloat(i.liquido) || 0) > 0) && (
             <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 rounded border border-amber-200 text-xs text-amber-700">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              Faltan {periodos.filter(i => !(parseFloat(i.liquido) || 0)).length} {esMicro ? 'quincena(s)' : 'mes(es)'} por completar para calcular el promedio
+              Faltan {periodos.filter(i => !(parseFloat(i.liquido) || 0)).length} quincena(s) por completar para calcular el promedio
             </div>
           )}
           {promedioLiquido > 0 && (

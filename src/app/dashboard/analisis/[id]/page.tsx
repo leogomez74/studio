@@ -1059,6 +1059,7 @@ export default function AnalisisDetailPage() {
                               {juicio.estado}
                             </Badge>
                           </div>
+                          {juicio.acreedor && <p className="text-gray-800 font-medium">Acreedor: {juicio.acreedor}</p>}
                           <p className="text-gray-600">Inicio: {new Date(juicio.fecha_inicio).toLocaleDateString('es-CR')}</p>
                           <p className="text-red-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(juicio.monto)}
@@ -2012,6 +2013,7 @@ export default function AnalisisDetailPage() {
                         <span className="font-medium">{j.expediente}</span>
                         <Badge variant={j.estado === 'En Trámite' ? 'destructive' : 'secondary'} className="ml-2 text-[10px]">{j.estado}</Badge>
                         {j.monto > 0 && <span className="ml-2">₡{Number(j.monto).toLocaleString()}</span>}
+                        {j.acreedor && <p className="mt-0.5 text-gray-700">{j.acreedor}</p>}
                       </div>
                     ))}
                   </div>

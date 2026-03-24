@@ -219,11 +219,17 @@ class CredidService
             $estado = $juicio['Estado'] ?? '';
             $estaActivo = stripos($estado, 'proceso') !== false || stripos($estado, 'trámite') !== false;
 
+            // Extraer nombre del actor (demandante/acreedor)
+            $partes = $juicio['Partes'] ?? [];
+            $actor = collect($partes)->first(fn($p) => stripos($p['Tipo'] ?? '', 'ACTOR') !== false);
+            $acreedor = $actor ? trim($actor['Nombre'] ?? '') : null;
+
             $resultado[] = [
                 'fecha_inicio' => $this->parseFechaCredid($juicio['FechaEntrada'] ?? null),
                 'estado' => $estaActivo ? 'En Trámite' : 'Finalizado',
                 'expediente' => $juicio['Expediente'] ?? '',
                 'monto' => (float) ($juicio['Cuantia'] ?? 0),
+                'acreedor' => $acreedor ?: null,
             ];
         }
 

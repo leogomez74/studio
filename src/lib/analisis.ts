@@ -37,6 +37,7 @@ export interface JuicioDetalle {
   estado?: 'En Trámite' | 'Finalizado';
   expediente?: string;
   monto?: number;
+  acreedor?: string;
 }
 
 export interface EmbargoDetalle {
