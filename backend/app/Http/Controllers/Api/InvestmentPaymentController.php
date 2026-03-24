@@ -65,14 +65,27 @@ class InvestmentPaymentController extends Controller
         $this->logActivity('create', 'Pagos Inversión', $payment, $payment->tipo . ' - ' . $payment->monto, [], $request);
 
         $investment = $payment->investment;
-        $this->triggerAccountingEntry('INV_PAGO_MANUAL', (float) $payment->monto, 'INV-PAY-' . $payment->id, [
-            'investment_id'   => $payment->investment_id,
-            'investor_id'     => $payment->investor_id,
-            'investor_nombre' => $payment->investor?->name ?? 'N/A',
-            'moneda'          => $payment->moneda,
-            'tipo_pago'       => $payment->tipo,
+        $context = [
+            'investment_id'     => $payment->investment_id,
+            'investor_id'       => $payment->investor_id,
+            'investor_nombre'   => $payment->investor?->name ?? 'N/A',
+            'moneda'            => $payment->moneda,
+            'tipo_pago'         => $payment->tipo,
             'numero_desembolso' => $investment?->numero_desembolso ?? 'N/A',
-        ]);
+        ];
+
+        if ($payment->tipo === 'Interés') {
+            $tasaRetencion = (float) ($investment?->tasa_retencion ?? 0.15);
+            $interesBruto  = (float) $payment->monto;
+            $retencion     = round($interesBruto * $tasaRetencion, 2);
+            $interesNeto   = round($interesBruto - $retencion, 2);
+
+            $breakdown = ['interes_bruto' => $interesBruto, 'interes_neto' => $interesNeto, 'retencion' => $retencion];
+            $this->triggerAccountingEntry('INV_INTERES_DEVENGADO', $interesBruto, 'INV-PAY-' . $payment->id, array_merge($context, ['amount_breakdown' => $breakdown]));
+            $this->triggerAccountingEntry('INV_RETENCION_INTERES', $retencion,     'INV-PAY-RET-' . $payment->id, array_merge($context, ['amount_breakdown' => $breakdown]));
+        } else {
+            $this->triggerAccountingEntry('INV_PAGO_CAPITAL', (float) $payment->monto, 'INV-PAY-' . $payment->id, $context);
+        }
 
         return response()->json($payment->load(['investor:id,name', 'investment:id,numero_desembolso', 'registeredByUser:id,name']), 201);
     }

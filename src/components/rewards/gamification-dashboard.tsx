@@ -7,6 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import type { ChartConfig } from "@/components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   Trophy,
   Flame,
   Star,
@@ -18,10 +36,14 @@ import {
   Zap,
   Target,
   Gift,
-  Clock
+  Clock,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Activity,
 } from "lucide-react";
 import Link from "next/link";
-import { useRewardsDashboard } from "@/hooks/use-rewards";
+import { useRewardsDashboard, useRewardsAnalytics } from "@/hooks/use-rewards";
+import type { WeeklyActivity, TopAction, BadgeDistribution } from "@/hooks/use-rewards";
 import type {
   UserSummary,
   Badge as BadgeType,
@@ -64,27 +86,275 @@ function getRankIcon(rank: number) {
 }
 
 // ============================================
+// Default data for charts (when no real data)
+// ============================================
+
+function getDefaultWeeklyActivity(): WeeklyActivity[] {
+  const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const today = new Date();
+  return days.map((day, i) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() - (6 - i));
+    return {
+      day,
+      date: date.toISOString().split('T')[0],
+      points: 0,
+      badges: 0,
+      challenges: 0,
+    };
+  });
+}
+
+function getDefaultTopActions(): TopAction[] {
+  return [
+    { action: 'lead_created', label: 'Crear Lead', count: 0, points: 0 },
+    { action: 'opportunity_won', label: 'Ganar Oportunidad', count: 0, points: 0 },
+    { action: 'credit_approved', label: 'Aprobar Crédito', count: 0, points: 0 },
+    { action: 'payment_registered', label: 'Registrar Pago', count: 0, points: 0 },
+    { action: 'daily_login', label: 'Login Diario', count: 0, points: 0 },
+  ];
+}
+
+function getDefaultBadgeDistribution(): BadgeDistribution[] {
+  return [
+    { rarity: 'common', count: 0, percentage: 0 },
+    { rarity: 'uncommon', count: 0, percentage: 0 },
+    { rarity: 'rare', count: 0, percentage: 0 },
+    { rarity: 'epic', count: 0, percentage: 0 },
+    { rarity: 'legendary', count: 0, percentage: 0 },
+  ];
+}
+
+// ============================================
+// Chart Configs
+// ============================================
+
+const activityChartConfig = {
+  points: { label: 'Puntos', color: 'hsl(var(--chart-1))' },
+  badges: { label: 'Badges', color: 'hsl(var(--chart-2))' },
+  challenges: { label: 'Desafíos', color: 'hsl(var(--chart-3))' },
+} satisfies ChartConfig;
+
+const actionsChartConfig = {
+  points: { label: 'Puntos', color: 'hsl(var(--chart-1))' },
+} satisfies ChartConfig;
+
+const badgeChartConfig = {
+  count: { label: 'Badges' },
+  common: { label: 'Común', color: '#9ca3af' },
+  uncommon: { label: 'Poco común', color: '#22c55e' },
+  rare: { label: 'Raro', color: '#3b82f6' },
+  epic: { label: 'Épico', color: '#a855f7' },
+  legendary: { label: 'Legendario', color: '#eab308' },
+} satisfies ChartConfig;
+
+const RARITY_COLORS: Record<string, string> = {
+  common: '#9ca3af',
+  uncommon: '#22c55e',
+  rare: '#3b82f6',
+  epic: '#a855f7',
+  legendary: '#eab308',
+};
+
+// ============================================
+// Weekly Activity Chart
+// ============================================
+function WeeklyActivityChart({ data }: { data: WeeklyActivity[] }) {
+  const chartData = data.length > 0 ? data : getDefaultWeeklyActivity();
+  const hasData = data.some(d => d.points > 0 || d.badges > 0 || d.challenges > 0);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Activity className="h-5 w-5 text-blue-500" />
+          Actividad Semanal
+        </CardTitle>
+        <Link href="/dashboard/rewards/analytics">
+          <Button variant="ghost" size="sm" className="text-xs">
+            Ver analytics <ChevronRight className="h-3 w-3 ml-1" />
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ChartContainer config={activityChartConfig} className="h-[220px] w-full">
+          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="fillPoints" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-points)" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="var(--color-points)" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10 }} width={30} />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+            <Area
+              type="monotone"
+              dataKey="points"
+              stroke="var(--color-points)"
+              fill="url(#fillPoints)"
+              strokeWidth={2}
+            />
+          </AreaChart>
+        </ChartContainer>
+        {!hasData && (
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Los puntos que ganes aparecerán aquí
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
+// Top Actions Bar Chart
+// ============================================
+function TopActionsChart({ data }: { data: TopAction[] }) {
+  const chartData = data.length > 0 ? data.slice(0, 5) : getDefaultTopActions();
+  const hasData = data.some(d => d.points > 0);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-green-500" />
+          Top Acciones
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ChartContainer config={actionsChartConfig} className="h-[200px] w-full">
+          <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
+            <YAxis
+              type="category"
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 10 }}
+              width={100}
+            />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+            <Bar dataKey="points" fill="var(--color-points)" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ChartContainer>
+        {!hasData && (
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Completa acciones en el CRM para ver tu progreso
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
+// Badge Distribution Donut Chart
+// ============================================
+function BadgeDistributionChart({ data }: { data: BadgeDistribution[] }) {
+  const chartData = data.length > 0 ? data : getDefaultBadgeDistribution();
+  const hasData = data.some(d => d.count > 0);
+  const total = chartData.reduce((sum, d) => sum + d.count, 0);
+
+  // Show placeholder ring if no data
+  const displayData = hasData
+    ? chartData.filter(d => d.count > 0)
+    : [{ rarity: 'empty', count: 1, percentage: 100 }];
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <PieChartIcon className="h-5 w-5 text-purple-500" />
+          Distribución de Badges
+        </CardTitle>
+        <Link href="/dashboard/rewards/badges">
+          <Button variant="ghost" size="sm" className="text-xs">
+            Ver todos <ChevronRight className="h-3 w-3 ml-1" />
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ChartContainer config={badgeChartConfig} className="h-[180px] w-full">
+          <PieChart>
+            <ChartTooltip
+              cursor={false}
+              content={hasData ? <ChartTooltipContent nameKey="rarity" /> : undefined}
+            />
+            <Pie
+              data={displayData}
+              dataKey="count"
+              nameKey="rarity"
+              cx="50%"
+              cy="50%"
+              innerRadius={50}
+              outerRadius={70}
+              strokeWidth={2}
+            >
+              {displayData.map((entry) => (
+                <Cell
+                  key={entry.rarity}
+                  fill={hasData ? (RARITY_COLORS[entry.rarity] || '#9ca3af') : '#e5e7eb'}
+                />
+              ))}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        {hasData ? (
+          <div className="flex flex-wrap justify-center gap-3 mt-1">
+            {chartData.filter(d => d.count > 0).map((d) => (
+              <div key={d.rarity} className="flex items-center gap-1.5 text-xs">
+                <div
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: RARITY_COLORS[d.rarity] || '#9ca3af' }}
+                />
+                <span className="text-muted-foreground capitalize">{d.rarity}</span>
+                <span className="font-medium">{d.count}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center mt-1">
+            <p className="text-lg font-bold text-muted-foreground">{total}</p>
+            <p className="text-xs text-muted-foreground">badges obtenidos</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
 // Loading Skeleton
 // ============================================
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      <Card>
+        <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6">
+          <Skeleton className="h-16 w-48 bg-white/20" />
+        </div>
+        <CardContent className="p-4"><Skeleton className="h-3 w-full" /></CardContent>
+      </Card>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i}>
-            <CardContent className="p-5">
-              <Skeleton className="h-4 w-20 mb-2" />
-              <Skeleton className="h-8 w-24" />
+            <CardContent className="p-4">
+              <Skeleton className="h-4 w-16 mb-2" />
+              <Skeleton className="h-8 w-20" />
             </CardContent>
           </Card>
         ))}
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          <Card><CardContent className="p-6"><Skeleton className="h-32 w-full" /></CardContent></Card>
-          <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
+          <Card><CardContent className="p-6"><Skeleton className="h-[220px] w-full" /></CardContent></Card>
+          <Card><CardContent className="p-6"><Skeleton className="h-[200px] w-full" /></CardContent></Card>
         </div>
         <div className="space-y-6">
+          <Card><CardContent className="p-6"><Skeleton className="h-[180px] w-full" /></CardContent></Card>
           <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
           <Card><CardContent className="p-6"><Skeleton className="h-32 w-full" /></CardContent></Card>
         </div>
@@ -380,11 +650,11 @@ function RecentActivity({ transactions }: { transactions: Transaction[] }) {
 }
 
 // ============================================
-// GamificationDashboard — 1 solo request
+// GamificationDashboard — dashboard + analytics
 // ============================================
 export function GamificationDashboard() {
-  // Un solo request consolidado: summary + badges + leaderboard + challenges + actividad
   const { data, isLoading } = useRewardsDashboard();
+  const { data: analytics } = useRewardsAnalytics('week');
 
   if (isLoading || !data) {
     return <DashboardSkeleton />;
@@ -395,6 +665,10 @@ export function GamificationDashboard() {
   const challenges = data.challenges || [];
   const recentActivity = data.recentActivity || data.recent_activity || [];
   const availableBadges = data.badges?.available || [];
+
+  const weeklyActivity = analytics?.weekly_activity || [];
+  const topActions = analytics?.top_actions || [];
+  const badgeDistribution = analytics?.badge_distribution || [];
 
   const currentUserId = typeof window !== 'undefined'
     ? parseInt(localStorage.getItem('dsf.user.id') || '0', 10) || undefined
@@ -408,10 +682,16 @@ export function GamificationDashboard() {
       {/* 4 stats rápidas */}
       <QuickStats summary={summary} />
 
-      {/* Layout 3 columnas: contenido principal (2) + sidebar (1) */}
+      {/* Charts + Sidebar: 3 columnas */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Columna principal */}
+        {/* Columna principal — Gráficos + Contenido */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Actividad semanal */}
+          <WeeklyActivityChart data={weeklyActivity} />
+
+          {/* Top acciones */}
+          <TopActionsChart data={topActions} />
+
           {/* Desafíos activos */}
           <ActiveChallenges challenges={challenges} />
 
@@ -421,6 +701,9 @@ export function GamificationDashboard() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Distribución de badges */}
+          <BadgeDistributionChart data={badgeDistribution} />
+
           {/* Ranking */}
           <MiniLeaderboard entries={leaderboardEntries} currentUserId={currentUserId} />
 
