@@ -132,6 +132,57 @@ class InvestorController extends Controller
     // CUENTAS ERP AUTOMÁTICAS
     // ================================================================
 
+    /**
+     * POST /api/investors/{id}/create-erp-accounts
+     * Crea (o recrea) las cuentas ERP para un inversionista existente.
+     */
+    public function createErpAccounts(int $id, Request $request)
+    {
+        $investor = Investor::findOrFail($id);
+        $erp = app(ErpAccountingService::class);
+
+        if (!$erp->isConfigured()) {
+            return response()->json(['message' => 'El ERP no está configurado. Verifica las variables de entorno.'], 422);
+        }
+
+        // Si ya tiene cuentas asignadas, no recrear (evita duplicados en el ERP)
+        if (!empty($investor->erp_account_key_prestamos) && !empty($investor->erp_account_key_intereses)) {
+            // Verificar que las cuentas aún existen en la BD local
+            $prestamosExists = ErpAccountingAccount::where('key', $investor->erp_account_key_prestamos)->exists();
+            $interesesExists  = ErpAccountingAccount::where('key', $investor->erp_account_key_intereses)->exists();
+
+            if ($prestamosExists && $interesesExists) {
+                return response()->json([
+                    'message'  => 'Este inversionista ya tiene cuentas ERP asignadas.',
+                    'prestamos_key' => $investor->erp_account_key_prestamos,
+                    'intereses_key' => $investor->erp_account_key_intereses,
+                    'already_exists' => true,
+                ], 200);
+            }
+        }
+
+        try {
+            $this->createInvestorErpAccounts($investor, $erp);
+            $investor->refresh();
+
+            $this->logActivity('update', 'Inversionistas', $investor,
+                'Cuentas ERP creadas manualmente para ' . $investor->name, [], $request);
+
+            return response()->json([
+                'message'       => 'Cuentas ERP creadas y asignadas correctamente.',
+                'prestamos_key' => $investor->erp_account_key_prestamos,
+                'intereses_key' => $investor->erp_account_key_intereses,
+                'investor'      => $investor->fresh(),
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('ERP: Error al crear cuentas manualmente', [
+                'investor_id' => $investor->id,
+                'error'       => $e->getMessage(),
+            ]);
+            return response()->json(['message' => 'Error al crear cuentas en el ERP: ' . $e->getMessage()], 422);
+        }
+    }
+
     private function createInvestorErpAccounts(Investor $investor, ErpAccountingService $erp): void
     {
         $name = $investor->name;

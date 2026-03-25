@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MoreHorizontal, FileText, FileSpreadsheet, Loader2, PlusCircle, DollarSign, Paperclip, AlertCircle } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, FileText, FileSpreadsheet, Loader2, PlusCircle, DollarSign, Paperclip, AlertCircle, Building2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +32,7 @@ export default function InvestorDetailPage() {
   const [showForm, setShowForm] = useState(false);
   const [allInvestors, setAllInvestors] = useState<Investor[]>([]);
   const [activeTab, setActiveTab] = useState('activas');
+  const [creatingErp, setCreatingErp] = useState(false);
   const { toast } = useToast();
 
   const fetchInvestor = useCallback(async (silent = false) => {
@@ -88,6 +89,24 @@ export default function InvestorDetailPage() {
     !hasContrato && 'Contrato de Inversionista',
   ].filter(Boolean) as string[];
 
+  const handleCreateErpAccounts = async () => {
+    if (!investor) return;
+    setCreatingErp(true);
+    try {
+      const res = await api.post(`/api/investors/${investor.id}/create-erp-accounts`);
+      if (res.data.already_exists) {
+        toast({ title: 'Cuentas ERP ya existentes', description: `Préstamos: ${res.data.prestamos_key} / Intereses: ${res.data.intereses_key}` });
+      } else {
+        toast({ title: 'Cuentas ERP creadas', description: `Préstamos y intereses asignados correctamente para ${investor.name}.` });
+        fetchInvestor(true);
+      }
+    } catch (err: any) {
+      toast({ title: 'Error ERP', description: err?.response?.data?.message || 'No se pudieron crear las cuentas ERP.', variant: 'destructive' });
+    } finally {
+      setCreatingErp(false);
+    }
+  };
+
   const handleNuevaInversion = () => {
     if (missingDocs.length > 0) {
       toast({
@@ -129,6 +148,17 @@ export default function InvestorDetailPage() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => downloadExport(`/api/investors/${investor.id}/export/excel`, `inversionista-${investor.name}.xlsx`)}>
             <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCreateErpAccounts}
+            disabled={creatingErp}
+            title={investor.erp_account_key_prestamos ? 'Cuentas ERP ya asignadas' : 'Crear cuentas ERP para este inversionista'}
+            className={investor.erp_account_key_prestamos ? 'text-green-600 border-green-300' : 'text-orange-600 border-orange-300'}
+          >
+            {creatingErp ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Building2 className="h-4 w-4 mr-1" />}
+            {investor.erp_account_key_prestamos ? 'ERP ✓' : 'Crear cuentas ERP'}
           </Button>
           <Button size="sm" className="gap-1" onClick={handleNuevaInversion}>
             <PlusCircle className="h-4 w-4" /> Nueva Inversión

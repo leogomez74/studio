@@ -443,6 +443,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('investment-coupons/{id}/pay', [InvestmentCouponController::class, 'markPaid'])->middleware('throttle:60,1');
     Route::patch('investment-coupons/{id}/correct', [InvestmentCouponController::class, 'correct'])->middleware('throttle:30,1');
     Route::apiResource('investors', InvestorController::class);
+    Route::post('investors/{id}/create-erp-accounts', [InvestorController::class, 'createErpAccounts'])->middleware('throttle:10,1');
     Route::get('investor-documents', [InvestorDocumentController::class, 'index']);
     Route::post('investor-documents', [InvestorDocumentController::class, 'store']);
     Route::delete('investor-documents/{id}', [InvestorDocumentController::class, 'destroy']);

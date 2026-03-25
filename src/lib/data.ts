@@ -267,6 +267,9 @@ export type Investor = {
   active_investments_count?: number;
   investments?: Investment[];
   payments?: InvestmentPayment[];
+  erp_account_key?: string | null;
+  erp_account_key_prestamos?: string | null;
+  erp_account_key_intereses?: string | null;
 };
 
 export type Opportunity = {
