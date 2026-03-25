@@ -650,6 +650,19 @@ class LeadController extends Controller
                 ->whereIn('project_code', $taskCodes->filter()->unique()->toArray())
                 ->delete();
 
+            // Eliminar cambios de deductora vinculados al lead (FK: deductora_changes.lead_id)
+            DB::table('deductora_changes')->where('lead_id', $person->id)->delete();
+
+            // Eliminar créditos huérfanos vinculados directamente al lead (FK: credits.lead_id)
+            // (pueden existir créditos sin oportunidad o con oportunidad ya eliminada)
+            $orphanCredits = DB::table('credits')->where('lead_id', $person->id)->pluck('id');
+            if ($orphanCredits->isNotEmpty()) {
+                DB::table('credit_payments')->whereIn('credit_id', $orphanCredits)->delete();
+                DB::table('plan_de_pagos')->whereIn('credit_id', $orphanCredits)->delete();
+                DB::table('saldos_pendientes')->whereIn('credit_id', $orphanCredits)->delete();
+                DB::table('credits')->whereIn('id', $orphanCredits)->delete();
+            }
+
             // Finalmente, eliminar la persona (CASCADE eliminará person_documents de la BD)
             $deletedPerson = DB::table('persons')->where('id', $person->id)->delete();
 
