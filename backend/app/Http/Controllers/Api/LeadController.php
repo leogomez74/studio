@@ -288,7 +288,9 @@ class LeadController extends Controller
         }
 
         // Gamificación: puntos por crear lead
-        BusinessActionPerformed::dispatch('lead_created', $request->user(), $result['lead']);
+        if ($request->user()) {
+            BusinessActionPerformed::dispatch('lead_created', $request->user(), $result['lead']);
+        }
 
         return response()->json([
             'lead' => $result['lead'],
@@ -510,7 +512,9 @@ class LeadController extends Controller
         $this->logActivity('update', 'Leads', $lead, "Convertido a cliente: {$lead->cedula}", [], $request);
 
         // Gamificación: puntos por convertir lead a cliente
-        BusinessActionPerformed::dispatch('lead_converted', $request->user(), $lead);
+        if ($request->user()) {
+            BusinessActionPerformed::dispatch('lead_converted', $request->user(), $lead);
+        }
 
         return response()->json($lead);
     }
