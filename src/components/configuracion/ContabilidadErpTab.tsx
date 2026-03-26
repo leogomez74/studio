@@ -26,16 +26,46 @@ const PAGE_SIZE = 10;
 function MiniPagination({ page, total, onPage }: { page: number; total: number; onPage: (p: number) => void }) {
   const lastPage = Math.ceil(total / PAGE_SIZE);
   if (lastPage <= 1) return null;
+
+  // Mostrar máx 5 páginas centradas en la actual
+  const delta = 2;
+  const range: number[] = [];
+  for (let i = Math.max(1, page - delta); i <= Math.min(lastPage, page + delta); i++) {
+    range.push(i);
+  }
+
   return (
-    <div className="flex items-center justify-between px-1 pt-2 text-sm text-muted-foreground">
+    <div className="flex items-center justify-between px-1 pt-3 text-sm text-muted-foreground border-t mt-2">
       <span>{total} registros</span>
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === 1} onClick={() => onPage(page - 1)}>
-          <ChevronLeft className="h-4 w-4" />
+        <Button variant="outline" size="icon" className="h-7 w-7" disabled={page === 1} onClick={() => onPage(page - 1)}>
+          <ChevronLeft className="h-3 w-3" />
         </Button>
-        <span>{page} / {lastPage}</span>
-        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === lastPage} onClick={() => onPage(page + 1)}>
-          <ChevronRight className="h-4 w-4" />
+        {range[0] > 1 && (
+          <>
+            <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => onPage(1)}>1</Button>
+            {range[0] > 2 && <span className="px-1">…</span>}
+          </>
+        )}
+        {range.map(p => (
+          <Button
+            key={p}
+            variant={p === page ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 w-7 p-0 text-xs"
+            onClick={() => onPage(p)}
+          >
+            {p}
+          </Button>
+        ))}
+        {range[range.length - 1] < lastPage && (
+          <>
+            {range[range.length - 1] < lastPage - 1 && <span className="px-1">…</span>}
+            <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => onPage(lastPage)}>{lastPage}</Button>
+          </>
+        )}
+        <Button variant="outline" size="icon" className="h-7 w-7" disabled={page === lastPage} onClick={() => onPage(page + 1)}>
+          <ChevronRight className="h-3 w-3" />
         </Button>
       </div>
     </div>
