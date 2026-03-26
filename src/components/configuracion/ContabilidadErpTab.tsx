@@ -19,7 +19,28 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, Loader2, Pencil, Trash } from 'lucide-react';
+import { PlusCircle, Loader2, Pencil, Trash, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const PAGE_SIZE = 10;
+
+function MiniPagination({ page, total, onPage }: { page: number; total: number; onPage: (p: number) => void }) {
+  const lastPage = Math.ceil(total / PAGE_SIZE);
+  if (lastPage <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-1 pt-2 text-sm text-muted-foreground">
+      <span>{total} registros</span>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === 1} onClick={() => onPage(page - 1)}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span>{page} / {lastPage}</span>
+        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === lastPage} onClick={() => onPage(page + 1)}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
 
@@ -192,6 +213,13 @@ export default function ContabilidadErpTab() {
   const [investorsMapping, setInvestorsMapping] = useState<any[]>([]);
   const [investorMappingLoading, setInvestorMappingLoading] = useState(false);
   const [savingInvestorMapping, setSavingInvestorMapping] = useState<number | null>(null);
+
+  // Pagination states
+  const [pageAccounts, setPageAccounts] = useState(1);
+  const [pageDeductoras, setPageDeductoras] = useState(1);
+  const [pageInvestors, setPageInvestors] = useState(1);
+  const [pageEntryTypes, setPageEntryTypes] = useState(1);
+  const [pageConfigs, setPageConfigs] = useState(1);
 
   // Accounting Entry Configuration state
   const [accountingConfigs, setAccountingConfigs] = useState<any[]>([]);
@@ -678,7 +706,7 @@ export default function ContabilidadErpTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {erpAccounts.map((account) => (
+                    {erpAccounts.slice((pageAccounts - 1) * PAGE_SIZE, pageAccounts * PAGE_SIZE).map((account) => (
                       <TableRow key={account.id}>
                         <TableCell className="font-mono text-sm">{account.key}</TableCell>
                         <TableCell>
@@ -749,6 +777,7 @@ export default function ContabilidadErpTab() {
                   </TableBody>
                 </Table>
               )}
+              <MiniPagination page={pageAccounts} total={erpAccounts.length} onPage={setPageAccounts} />
             </CardContent>
           </Card>
 
@@ -782,7 +811,7 @@ export default function ContabilidadErpTab() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      deductorasMapping.map((deductora) => (
+                      deductorasMapping.slice((pageDeductoras - 1) * PAGE_SIZE, pageDeductoras * PAGE_SIZE).map((deductora) => (
                         <TableRow key={deductora.id}>
                           <TableCell className="font-medium">{deductora.nombre}</TableCell>
                           <TableCell>
@@ -819,6 +848,7 @@ export default function ContabilidadErpTab() {
                   </TableBody>
                 </Table>
               )}
+              <MiniPagination page={pageDeductoras} total={deductorasMapping.length} onPage={setPageDeductoras} />
             </CardContent>
           </Card>
 
@@ -854,7 +884,7 @@ export default function ContabilidadErpTab() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      investorsMapping.map((investor) => (
+                      investorsMapping.slice((pageInvestors - 1) * PAGE_SIZE, pageInvestors * PAGE_SIZE).map((investor) => (
                         <TableRow key={investor.id}>
                           <TableCell className="font-medium">{investor.name}</TableCell>
                           <TableCell className="text-muted-foreground">{investor.cedula}</TableCell>
@@ -913,6 +943,7 @@ export default function ContabilidadErpTab() {
                   </TableBody>
                 </Table>
               )}
+              <MiniPagination page={pageInvestors} total={investorsMapping.length} onPage={setPageInvestors} />
             </CardContent>
           </Card>
 
@@ -935,7 +966,7 @@ export default function ContabilidadErpTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ACCOUNTING_ENTRY_TYPES.map((type) => (
+                  {ACCOUNTING_ENTRY_TYPES.slice((pageEntryTypes - 1) * PAGE_SIZE, pageEntryTypes * PAGE_SIZE).map((type) => (
                     <TableRow key={type.value}>
                       <TableCell>
                         <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{type.value}</code>
@@ -956,6 +987,7 @@ export default function ContabilidadErpTab() {
                   ))}
                 </TableBody>
               </Table>
+              <MiniPagination page={pageEntryTypes} total={ACCOUNTING_ENTRY_TYPES.length} onPage={setPageEntryTypes} />
             </CardContent>
           </Card>
 
@@ -1254,7 +1286,7 @@ export default function ContabilidadErpTab() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      accountingConfigs.map((config) => (
+                      accountingConfigs.slice((pageConfigs - 1) * PAGE_SIZE, pageConfigs * PAGE_SIZE).map((config) => (
                         <TableRow key={config.id}>
                           <TableCell className="font-mono text-sm">{config.entry_type}</TableCell>
                           <TableCell className="font-medium">{config.name}</TableCell>
@@ -1294,6 +1326,7 @@ export default function ContabilidadErpTab() {
                   </TableBody>
                 </Table>
               )}
+              <MiniPagination page={pageConfigs} total={accountingConfigs.length} onPage={setPageConfigs} />
             </CardContent>
           </Card>
 
