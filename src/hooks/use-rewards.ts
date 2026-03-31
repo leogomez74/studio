@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getAuthToken } from '@/lib/auth';
+import api from '@/lib/axios';
 import type {
   DashboardData,
   ProfileData,
@@ -15,34 +15,23 @@ import type {
   ApiResponse,
 } from '@/types/rewards';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-
 /**
- * Helper para hacer peticiones autenticadas
+ * Helper para hacer peticiones autenticadas usando axios
  */
-async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken();
-  
-  if (!token) {
-    throw new Error('No hay sesión activa');
+async function fetchWithAuth<T>(endpoint: string, options: { method?: string; body?: any } = {}): Promise<T> {
+  const method = (options.method || 'GET').toLowerCase();
+  const url = `/api${endpoint}`;
+
+  let response;
+  if (method === 'post') {
+    response = await api.post(url, options.body);
+  } else if (method === 'patch') {
+    response = await api.patch(url, options.body);
+  } else {
+    response = await api.get(url);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Error ${response.status}`);
-  }
-
-  const result = await response.json();
+  const result = response.data;
   return result.data ?? result;
 }
 
