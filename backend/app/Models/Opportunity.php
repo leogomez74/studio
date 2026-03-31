@@ -24,7 +24,7 @@ class Opportunity extends Model
         'expected_close_date',
         'comments',
         'assigned_to_id',
-        'lost_reason'
+        'lost_reason',
     ];
 
     protected $casts = [

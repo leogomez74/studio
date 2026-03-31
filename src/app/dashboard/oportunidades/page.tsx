@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef, FormEvent, ChangeEvent } from "react";
+import Swal from "sweetalert2";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -734,6 +735,33 @@ export default function DealsPage() {
       setIsBulkDeleting(false);
     }
   }, [selectedIds, opportunities, clearSelection, fetchOpportunities]);
+
+  // --- Archive Individual ---
+  const handleArchiveOpportunity = useCallback(async (opportunity: Opportunity) => {
+    const result = await Swal.fire({
+      title: '¿Archivar oportunidad?',
+      html: `¿Estás seguro de que deseas archivar la oportunidad <b>#${opportunity.id}</b>?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, archivar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.patch('/api/opportunities/update-status', {
+        id: String(opportunity.id),
+        status: 'Cerrada',
+      });
+      toastSuccess('Archivada', `Oportunidad #${opportunity.id} archivada correctamente.`);
+      fetchOpportunities();
+      fetchArchivedOpportunities();
+    } catch {
+      toastError('Error', 'No se pudo archivar la oportunidad.');
+    }
+  }, [fetchOpportunities, fetchArchivedOpportunities]);
 
   // --- Bulk Archive Logic ---
   const handleBulkArchive = useCallback(async () => {
@@ -1542,6 +1570,24 @@ export default function DealsPage() {
                               </PermissionButton>
                             </TooltipTrigger>
                             <TooltipContent>{getAnalisisButtonProps(opportunity).label}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <PermissionButton
+                                module="oportunidades"
+                                action="archive"
+                                size="icon"
+                                variant="destructive"
+                                className="h-9 w-9 rounded-md"
+                                onClick={() => handleArchiveOpportunity(opportunity)}
+                              >
+                                <Archive className="h-4 w-4" />
+                              </PermissionButton>
+                            </TooltipTrigger>
+                            <TooltipContent>Archivar oportunidad</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>
