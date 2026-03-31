@@ -218,7 +218,9 @@ export default function CommunicationsPage() {
   const { user } = useAuth();
 
   // --- Inbox view toggle ---
-  const [activeInbox, setActiveInbox] = useState<'conversations' | 'comments'>('conversations');
+  const [activeInbox, setActiveInbox] = useState<'conversations' | 'comments' | 'assigned'>('conversations');
+  const [selectedAssigned, setSelectedAssigned] = useState<InternalComment | null>(null);
+  const [assignedComments, setAssignedComments] = useState<InternalComment[]>([]);
 
   // Estados para las conversaciones
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -474,6 +476,12 @@ export default function CommunicationsPage() {
 
   useEffect(() => {
     if (activeInbox === 'comments') fetchAllComments(commentsView === 'archived');
+    if (activeInbox === 'assigned') {
+      api.get('/api/comments/recent', { params: { limit: 100 } }).then(res => {
+        const data: InternalComment[] = Array.isArray(res.data) ? res.data : res.data.data ?? [];
+        setAssignedComments(data.filter(c => c.comment_type === 'verification_request' && c.metadata?.status === 'pending'));
+      }).catch(() => {});
+    }
   }, [activeInbox, commentsView, fetchAllComments]);
 
   // Auto-open thread from URL params (notification click)
@@ -687,9 +695,16 @@ export default function CommunicationsPage() {
               <MessageCircle className="mr-2 h-4 w-4" />
               Comentarios Internos
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
+            <Button
+              variant={activeInbox === 'assigned' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => { setActiveInbox('assigned'); setSelectedAssigned(null); }}
+            >
               <Users className="mr-2 h-4 w-4" />
               Asignadas a mí
+              {assignedComments.length > 0 && (
+                <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{assignedComments.length}</span>
+              )}
             </Button>
             <Button variant="ghost" className="w-full justify-start text-muted-foreground">
               <Star className="mr-2 h-4 w-4" />
@@ -725,7 +740,7 @@ export default function CommunicationsPage() {
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={activeInbox === 'comments' ? 'Buscar comentario...' : 'Buscar conversación...'}
+              placeholder={activeInbox === 'comments' ? 'Buscar comentario...' : activeInbox === 'assigned' ? 'Buscar verificación...' : 'Buscar conversación...'}
               className="pl-8"
               value={commentSearch}
               onChange={(e) => setCommentSearch(e.target.value)}
@@ -782,6 +797,7 @@ export default function CommunicationsPage() {
             ) : (
               <nav>
                 {allComments
+                  .filter((c) => c.comment_type !== 'verification_request')
                   .filter((c) => !commentSearch || c.body.toLowerCase().includes(commentSearch.toLowerCase()) || (c.entity_reference || '').toLowerCase().includes(commentSearch.toLowerCase()))
                   .map((comment) => {
                     const info = getEntityInfo(comment.commentable_type);
@@ -824,6 +840,44 @@ export default function CommunicationsPage() {
                   })}
               </nav>
             )
+          ) : activeInbox === 'assigned' ? (
+
+          /* ----- ASSIGNED / VERIFICATION LIST ----- */
+          assignedComments.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">No hay verificaciones pendientes</div>
+          ) : (
+            <nav>
+              {assignedComments.map((comment) => {
+                const meta = comment.metadata ?? {};
+                const isSelected = selectedAssigned?.id === comment.id;
+                return (
+                  <button
+                    key={comment.id}
+                    onClick={() => setSelectedAssigned(comment)}
+                    className={cn(
+                      'w-full text-left p-3 hover:bg-muted/50 transition-colors flex items-start gap-3 border-b last:border-0',
+                      isSelected && 'bg-muted'
+                    )}
+                  >
+                    <div className="h-9 w-9 shrink-0 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-bold">🏦</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 justify-between">
+                        <span className="text-sm font-semibold truncate">{meta.credit_reference ?? `#${comment.commentable_id}`}</span>
+                        <span className="text-[11px] text-muted-foreground shrink-0">{relativeTime(comment.created_at)}</span>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-[16px] rounded border-0 mt-0.5 bg-orange-100 text-orange-700">
+                        Verificación pendiente
+                      </Badge>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {meta.client_name ?? ''} — ₡{Number(meta.monto || 0).toLocaleString('es-CR')}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </nav>
+          )
+
           ) : (
 
           /* ----- CONVERSATIONS LIST ----- */
@@ -866,6 +920,43 @@ export default function CommunicationsPage() {
 
       {/* Columna 3 */}
       <Card className="flex flex-col overflow-hidden">
+
+        {/* ----- ASSIGNED VERIFICATION PANEL ----- */}
+        {activeInbox === 'assigned' ? (
+          selectedAssigned ? (
+            <div className="flex flex-col h-full">
+              <div className="p-4 border-b flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    🏦 Verificación de pago
+                  </h3>
+                  <p className="text-xs text-muted-foreground">{selectedAssigned.metadata?.credit_reference ?? `Comentario #${selectedAssigned.id}`}</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedAssigned(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 flex items-start justify-center">
+                <VerificationCard
+                  metadata={selectedAssigned.metadata ?? {}}
+                  type="request"
+                  onRefresh={() => {
+                    setSelectedAssigned(null);
+                    api.get('/api/comments/recent', { params: { limit: 100 } }).then(res => {
+                      const data: InternalComment[] = Array.isArray(res.data) ? res.data : res.data.data ?? [];
+                      setAssignedComments(data.filter(c => c.comment_type === 'verification_request' && c.metadata?.status === 'pending'));
+                    }).catch(() => {});
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+              <Users className="h-10 w-10 opacity-20" />
+              <p className="text-sm">Selecciona una verificación pendiente</p>
+            </div>
+          )
+        ) : null}
 
         {/* ----- COMMENTS THREAD PANEL ----- */}
         {activeInbox === 'comments' ? (
