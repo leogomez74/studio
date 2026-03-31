@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import Swal from "sweetalert2";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -952,10 +953,22 @@ export default function ClientesPage() {
 
   const handleArchiveLead = async (lead: Lead) => {
       const hasOpportunities = lead.opportunities && lead.opportunities.length > 0;
-      const message = hasOpportunities
-          ? `${lead.name} tiene ${lead.opportunities!.length} oportunidad(es) asociada(s). ¿Deseas archivarlo de todas formas?`
-          : `¿Archivar a ${lead.name}?`;
-      if (!confirm(message)) return;
+
+      const result = await Swal.fire({
+          title: hasOpportunities ? '⚠️ Lead con oportunidades' : '¿Archivar lead?',
+          html: hasOpportunities
+              ? `<b>${lead.name}</b> tiene <b>${lead.opportunities!.length} oportunidad(es)</b> asociada(s).<br/><br/>¿Deseas archivarlo de todas formas?`
+              : `¿Estás seguro de que deseas archivar a <b>${lead.name}</b>?`,
+          icon: hasOpportunities ? 'warning' : 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Sí, archivar',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#ef4444',
+          cancelButtonColor: '#6b7280',
+          reverseButtons: true,
+      });
+
+      if (!result.isConfirmed) return;
       try {
           await api.patch(`/api/leads/${lead.id}/toggle-active`);
           toastSuccess("Archivado", "Lead archivado correctamente.");
