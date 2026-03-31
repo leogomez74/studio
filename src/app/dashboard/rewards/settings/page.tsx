@@ -116,13 +116,18 @@ function PointsConfigTab() {
 
   useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
+  const updateAction = (key: string, field: 'points' | 'xp', value: number) => {
+    setActions(prev => prev.map(a => a.key === key ? { ...a, [field]: value } : a));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put(`${ADMIN_BASE}/config`, {
-        levels_config: { base_xp: 100, multiplier: 1.5 },
-      });
-      toast({ title: "Guardado", description: "Configuración actualizada correctamente" });
+      const actionsPayload = Object.fromEntries(
+        actions.map(a => [a.key, { points: a.points, xp: a.xp }])
+      );
+      await api.put(`${ADMIN_BASE}/config`, { actions: actionsPayload });
+      toast({ title: "Guardado", description: "Puntos por acción actualizados correctamente" });
     } catch {
       toast({ title: "Error", description: "No se pudo guardar", variant: "destructive" });
     } finally {
@@ -141,7 +146,7 @@ function PointsConfigTab() {
             Puntos por Acción de Negocio
           </CardTitle>
           <CardDescription>
-            Puntos y XP que otorga cada acción del CRM (configurados en gamification.php)
+            Puntos y XP que otorga cada acción del CRM. Edita los valores y presiona Guardar.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -161,8 +166,24 @@ function PointsConfigTab() {
                   <TableCell>
                     <code className="text-xs bg-muted px-2 py-1 rounded">{action.key}</code>
                   </TableCell>
-                  <TableCell className="text-center font-mono">{action.points}</TableCell>
-                  <TableCell className="text-center font-mono">{action.xp}</TableCell>
+                  <TableCell className="text-center">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={action.points}
+                      onChange={(e) => updateAction(action.key, 'points', parseInt(e.target.value) || 0)}
+                      className="w-20 text-center font-mono mx-auto"
+                    />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={action.xp}
+                      onChange={(e) => updateAction(action.key, 'xp', parseInt(e.target.value) || 0)}
+                      className="w-20 text-center font-mono mx-auto"
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

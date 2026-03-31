@@ -20,6 +20,36 @@ class GamificationConfigController extends Controller
 
     // ─── Config General ─────────────────────────────────────────────
 
+    private const OVERRIDES_FILE = 'gamification_overrides.json';
+
+    private function loadOverrides(): array
+    {
+        $path = storage_path('app/' . self::OVERRIDES_FILE);
+        if (!file_exists($path)) return [];
+        return json_decode(file_get_contents($path), true) ?? [];
+    }
+
+    private function saveOverrides(array $overrides): void
+    {
+        file_put_contents(
+            storage_path('app/' . self::OVERRIDES_FILE),
+            json_encode($overrides, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+    }
+
+    private function mergedActions(): array
+    {
+        $base      = config('gamification.actions', []);
+        $overrides = $this->loadOverrides()['actions'] ?? [];
+        foreach ($overrides as $key => $vals) {
+            if (isset($base[$key])) {
+                $base[$key]['points'] = $vals['points'] ?? $base[$key]['points'];
+                $base[$key]['xp']     = $vals['xp']     ?? $base[$key]['xp'];
+            }
+        }
+        return $base;
+    }
+
     public function index(): JsonResponse
     {
         return response()->json([
@@ -45,9 +75,9 @@ class GamificationConfigController extends Controller
                     'base_xp' => config('gamification.levels.base_xp', 100),
                     'multiplier' => config('gamification.levels.multiplier', 1.5),
                 ],
-                'actions' => config('gamification.actions', []),
+                'actions' => $this->mergedActions(),
                 'streaks' => config('gamification.streaks', []),
-                'points' => config('gamification.points', []),
+                'points'  => config('gamification.points', []),
             ],
         ]);
     }
@@ -55,12 +85,21 @@ class GamificationConfigController extends Controller
     public function update(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'levels_config.base_xp' => 'nullable|integer|min:1',
+            'levels_config.base_xp'    => 'nullable|integer|min:1',
             'levels_config.multiplier' => 'nullable|numeric|min:1',
+            'actions'                  => 'nullable|array',
+            'actions.*.points'         => 'integer|min:0',
+            'actions.*.xp'             => 'integer|min:0',
         ]);
 
+        if (!empty($validated['actions'])) {
+            $overrides = $this->loadOverrides();
+            $overrides['actions'] = $validated['actions'];
+            $this->saveOverrides($overrides);
+        }
+
         $this->logActivity('update', 'Rewards - Configuración', null, 'Gamificación', [
-            ['field' => 'config', 'old_value' => null, 'new_value' => $validated],
+            ['field' => 'actions', 'old_value' => null, 'new_value' => $validated['actions'] ?? []],
         ], $request);
 
         return response()->json([
