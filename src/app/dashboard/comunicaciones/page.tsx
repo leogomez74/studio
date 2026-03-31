@@ -1330,16 +1330,32 @@ export default function CommunicationsPage() {
                     </p>
                   </div>
                 </div>
-                {selectedThread.commentable_type !== 'App\\Models\\User' && (
-                  <Button variant="ghost" size="sm" className="gap-1 text-xs"
-                    onClick={() => {
-                      const info = getEntityInfo(selectedThread.commentable_type);
-                      router.push(`${info.route}/${selectedThread.commentable_id}`);
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-destructive"
+                    title={selectedThread.archived_at ? 'Restaurar conversación' : 'Archivar conversación'}
+                    onClick={async () => {
+                      const endpoint = selectedThread.archived_at
+                        ? `/api/comments/${selectedThread.id}/unarchive`
+                        : `/api/comments/${selectedThread.id}/archive`;
+                      await api.patch(endpoint);
+                      setSelectedThread(null);
+                      fetchAllComments(commentsView === 'archived');
                     }}
                   >
-                    <ExternalLink className="h-3.5 w-3.5" /> Ver entidad
+                    <Archive className="h-3.5 w-3.5" />
+                    {selectedThread.archived_at ? 'Restaurar' : 'Archivar'}
                   </Button>
-                )}
+                  {selectedThread.commentable_type !== 'App\\Models\\User' && (
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs"
+                      onClick={() => {
+                        const info = getEntityInfo(selectedThread.commentable_type);
+                        router.push(`${info.route}/${selectedThread.commentable_id}`);
+                      }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Ver entidad
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Thread messages */}
