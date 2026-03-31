@@ -462,7 +462,7 @@ export default function DealsPage() {
     try {
       setIsLoadingArchived(true);
       const response = await api.get('/api/opportunities', {
-        params: { status: 'Cerrada', per_page: 100 }
+        params: { statuses: ['Cerrada', 'Perdida'], per_page: 100 }
       });
       const isPaginated = response.data.data && response.data.current_page;
       const data = isPaginated ? response.data.data : response.data;

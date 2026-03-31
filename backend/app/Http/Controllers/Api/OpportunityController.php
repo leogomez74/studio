@@ -52,7 +52,9 @@ class OpportunityController extends Controller
                 'analisis:id,opportunity_id,monto_solicitado,monto_sugerido,cuota,plazo,category,divisa,lead_id'
             ]);
 
-        if ($request->has('status') && $request->input('status') !== 'todos') {
+        if ($request->filled('statuses')) {
+            $query->whereIn('status', (array) $request->input('statuses'));
+        } elseif ($request->has('status') && $request->input('status') !== 'todos') {
             $query->where('status', $request->input('status'));
         }
         if ($request->filled('exclude_status')) {
