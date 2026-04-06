@@ -1,7 +1,15 @@
 [variables]
-    NIXPACKS_PHP_VERSION = '8.3'
+    NIXPACKS_PHP_VERSION = '8.4'
     NIXPACKS_NODE_VERSION = '22'
 
 [phases.setup]
-    nixPkgs = ['php83', 'nodejs_22', 'php83Packages.composer','nginx', 'libmysqlclient']
+    nixPkgs = ['php84', 'nodejs_22', 'php84Packages.composer','nginx', 'libmysqlclient']
 
+[phases.build]
+    # Usamos cmds para ejecutar varios comandos en orden
+    cmds = [
+        'composer install --no-interaction --optimize-autoloader',
+        'php artisan migrate --force',
+        'php artisan optimize:clear',
+        'php artisan optimize'
+    ]
