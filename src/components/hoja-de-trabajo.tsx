@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Search, CheckCircle, AlertCircle, PenLine, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 import type { ManchaDetalle, JuicioDetalle, EmbargoDetalle, DeduccionMensual } from '@/lib/analisis';
@@ -104,6 +104,12 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   });
   const [loadingCredid, setLoadingCredid] = useState(false);
   const [credidError, setCredidError] = useState('');
+  const [manualMode, setManualMode] = useState(false);
+  const [manualManchas, setManualManchas] = useState<ManchaDetalle[]>([]);
+  const [manualJuicios, setManualJuicios] = useState<JuicioDetalle[]>([]);
+  const [manualEmbargos, setManualEmbargos] = useState<EmbargoDetalle[]>([]);
+  const [manualCargo, setManualCargo] = useState('');
+  const [manualNombramiento, setManualNombramiento] = useState('');
 
   const consultarCredid = async () => {
     if (!lead?.cedula) {
@@ -124,6 +130,39 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     } finally {
       setLoadingCredid(false);
     }
+  };
+
+  const applyManualData = () => {
+    setCredidData({
+      numero_manchas: manualManchas.length,
+      numero_juicios: manualJuicios.length,
+      numero_embargos: manualEmbargos.length,
+      manchas_detalle: manualManchas,
+      juicios_detalle: manualJuicios,
+      embargos_detalle: manualEmbargos,
+      cargo: manualCargo,
+      nombramiento: manualNombramiento,
+      score: null,
+      score_riesgo: null,
+      score_riesgo_color: null,
+      score_riesgo_label: null,
+    });
+    setManualMode(false);
+    toast({ title: 'Datos aplicados', description: 'Los datos manuales se guardaron correctamente.' });
+  };
+
+  const toggleManualMode = () => {
+    if (!manualMode) {
+      // Si ya hay datos de Credid, pre-llenar el formulario manual con ellos
+      if (credidData) {
+        setManualManchas(credidData.manchas_detalle || []);
+        setManualJuicios(credidData.juicios_detalle || []);
+        setManualEmbargos(credidData.embargos_detalle || []);
+        setManualCargo(credidData.cargo || '');
+        setManualNombramiento(credidData.nombramiento || '');
+      }
+    }
+    setManualMode(!manualMode);
   };
 
   // ── Paso 2: Ingresos ─────────────────────────────────────────────────────────
@@ -363,10 +402,16 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 {lead?.name && <strong className="text-slate-700">{lead.name} · </strong>}
                 Cédula: <strong>{lead?.cedula || '—'}</strong>
               </span>
-              <Button onClick={consultarCredid} disabled={loadingCredid || !lead?.cedula} size="sm" variant="outline" className="h-7 text-xs gap-1.5">
-                {loadingCredid ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
-                {credidData ? 'Actualizar' : 'Consultar Credid'}
-              </Button>
+              <div className="flex flex-col gap-1.5">
+                <Button onClick={consultarCredid} disabled={loadingCredid || !lead?.cedula} size="sm" variant="outline" className="h-7 text-xs gap-1.5">
+                  {loadingCredid ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                  {credidData ? 'Actualizar' : 'Consultar Credid'}
+                </Button>
+                <Button onClick={toggleManualMode} size="sm" variant={manualMode ? 'default' : 'outline'} className={`h-7 text-xs gap-1.5 ${manualMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}>
+                  <PenLine className="h-3 w-3" />
+                  Inserción Manual
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -376,9 +421,230 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
               <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {credidError}
             </div>
           )}
-          {!credidData && !loadingCredid && (
+
+          {/* ── Formulario Manual ── */}
+          {manualMode && (
+            <div className="space-y-4 border border-indigo-200 bg-indigo-50/50 rounded-lg p-4">
+              <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Ingreso Manual de Récord Crediticio</p>
+
+              {/* Cargo y Nombramiento */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Cargo</Label>
+                  <Input value={manualCargo} onChange={e => setManualCargo(e.target.value)} placeholder="Ej: Oficial de Seguridad" className="h-7 text-xs mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs">Nombramiento</Label>
+                  <Select value={manualNombramiento} onValueChange={setManualNombramiento}>
+                    <SelectTrigger className="h-7 text-xs mt-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Propiedad">Propiedad</SelectItem>
+                      <SelectItem value="Interino">Interino</SelectItem>
+                      <SelectItem value="Contrato">Contrato</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* ── Manchas ── */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-red-700">Manchas ({manualManchas.length})</p>
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-[10px] gap-1 border-red-300 text-red-700 hover:bg-red-50"
+                    onClick={() => setManualManchas(prev => [...prev, { id: Date.now(), fecha_inicio: '', descripcion: '', monto: 0 }])}
+                  >
+                    <Plus className="h-3 w-3" /> Agregar
+                  </Button>
+                </div>
+                {manualManchas.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground italic">Sin manchas registradas</p>
+                )}
+                {manualManchas.map((m, idx) => (
+                  <div key={m.id || idx} className="grid grid-cols-[110px_1fr_110px_28px] gap-2 items-end mb-2">
+                    <div>
+                      <Label className="text-[10px]">Fecha</Label>
+                      <Input
+                        type="date" value={m.fecha_inicio}
+                        onChange={e => setManualManchas(prev => prev.map((x, i) => i === idx ? { ...x, fecha_inicio: e.target.value } : x))}
+                        className="h-7 text-xs mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Descripción</Label>
+                      <Input
+                        value={m.descripcion}
+                        onChange={e => setManualManchas(prev => prev.map((x, i) => i === idx ? { ...x, descripcion: e.target.value } : x))}
+                        placeholder="Descripción de la mancha" className="h-7 text-xs mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Monto (₡)</Label>
+                      <Input
+                        value={m.monto || ''} inputMode="numeric"
+                        onChange={e => setManualManchas(prev => prev.map((x, i) => i === idx ? { ...x, monto: parseFloat(e.target.value) || 0 } : x))}
+                        placeholder="0" className="h-7 text-xs mt-0.5"
+                      />
+                    </div>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => setManualManchas(prev => prev.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <Separator />
+
+              {/* ── Juicios ── */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-orange-700">Juicios ({manualJuicios.length})</p>
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-[10px] gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                    onClick={() => setManualJuicios(prev => [...prev, { id: Date.now(), fecha_inicio: '', estado: 'En Trámite' as const, expediente: '', monto: 0, acreedor: '' }])}
+                  >
+                    <Plus className="h-3 w-3" /> Agregar
+                  </Button>
+                </div>
+                {manualJuicios.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground italic">Sin juicios registrados</p>
+                )}
+                {manualJuicios.map((j, idx) => (
+                  <div key={j.id || idx} className="space-y-1.5 mb-3 p-2.5 bg-orange-50/50 rounded border border-orange-100">
+                    <div className="grid grid-cols-[110px_1fr_110px_28px] gap-2 items-end">
+                      <div>
+                        <Label className="text-[10px]">Fecha</Label>
+                        <Input
+                          type="date" value={j.fecha_inicio}
+                          onChange={e => setManualJuicios(prev => prev.map((x, i) => i === idx ? { ...x, fecha_inicio: e.target.value } : x))}
+                          className="h-7 text-xs mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Acreedor</Label>
+                        <Input
+                          value={j.acreedor || ''}
+                          onChange={e => setManualJuicios(prev => prev.map((x, i) => i === idx ? { ...x, acreedor: e.target.value } : x))}
+                          placeholder="Nombre del acreedor" className="h-7 text-xs mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Monto (₡)</Label>
+                        <Input
+                          value={j.monto || ''} inputMode="numeric"
+                          onChange={e => setManualJuicios(prev => prev.map((x, i) => i === idx ? { ...x, monto: parseFloat(e.target.value) || 0 } : x))}
+                          placeholder="0" className="h-7 text-xs mt-0.5"
+                        />
+                      </div>
+                      <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => setManualJuicios(prev => prev.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[10px]">Expediente</Label>
+                        <Input
+                          value={j.expediente || ''}
+                          onChange={e => setManualJuicios(prev => prev.map((x, i) => i === idx ? { ...x, expediente: e.target.value } : x))}
+                          placeholder="No. de expediente" className="h-7 text-xs mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Estado</Label>
+                        <Select
+                          value={j.estado || 'En Trámite'}
+                          onValueChange={val => setManualJuicios(prev => prev.map((x, i) => i === idx ? { ...x, estado: val as 'En Trámite' | 'Finalizado' } : x))}
+                        >
+                          <SelectTrigger className="h-7 text-xs mt-0.5"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="En Trámite">En Trámite</SelectItem>
+                            <SelectItem value="Finalizado">Finalizado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Separator />
+
+              {/* ── Embargos ── */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-yellow-700">Embargos ({manualEmbargos.length})</p>
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-[10px] gap-1 border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                    onClick={() => setManualEmbargos(prev => [...prev, { id: Date.now(), fecha_inicio: '', motivo: '', monto: 0 }])}
+                  >
+                    <Plus className="h-3 w-3" /> Agregar
+                  </Button>
+                </div>
+                {manualEmbargos.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground italic">Sin embargos registrados</p>
+                )}
+                {manualEmbargos.map((e, idx) => (
+                  <div key={e.id || idx} className="grid grid-cols-[110px_1fr_110px_28px] gap-2 items-end mb-2">
+                    <div>
+                      <Label className="text-[10px]">Fecha</Label>
+                      <Input
+                        type="date" value={e.fecha_inicio}
+                        onChange={e2 => setManualEmbargos(prev => prev.map((x, i) => i === idx ? { ...x, fecha_inicio: e2.target.value } : x))}
+                        className="h-7 text-xs mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Motivo</Label>
+                      <Input
+                        value={e.motivo || ''}
+                        onChange={e2 => setManualEmbargos(prev => prev.map((x, i) => i === idx ? { ...x, motivo: e2.target.value } : x))}
+                        placeholder="Motivo del embargo" className="h-7 text-xs mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Monto (₡)</Label>
+                      <Input
+                        value={e.monto || ''} inputMode="numeric"
+                        onChange={e2 => setManualEmbargos(prev => prev.map((x, i) => i === idx ? { ...x, monto: parseFloat(e2.target.value) || 0 } : x))}
+                        placeholder="0" className="h-7 text-xs mt-0.5"
+                      />
+                    </div>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => setManualEmbargos(prev => prev.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <Separator />
+
+              {/* Botones de acción del modo manual */}
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setManualMode(false)}>
+                  Cancelar
+                </Button>
+                <Button type="button" size="sm" className="h-7 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={applyManualData}>
+                  <CheckCircle className="h-3 w-3" />
+                  Aplicar Datos
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!credidData && !loadingCredid && !manualMode && (
             <div className="text-xs text-muted-foreground text-center py-4 bg-slate-50 rounded">
-              Haz clic en "Consultar Credid" para obtener el récord crediticio
+              Haz clic en &quot;Consultar Credid&quot; o &quot;Inserción Manual&quot; para registrar el récord crediticio
             </div>
           )}
           {credidData && (
