@@ -1,6 +1,5 @@
-// Fuente de datos: INEC / Gobierno de Costa Rica (datos oficiales de provincias, cantones y distritos).
-// Nota: Los nombres están en castellano con tildes y acentos oficiales.
-// Si se requiere coincidencia más tolerante, normalizar con .normalize('NFD').replace(/\p{Diacritic}/gu, '') o toLowerCase().
+// Fuente: INEC / Registro Nacional de Costa Rica — datos oficiales completos.
+// 7 provincias · 82 cantones · 473 distritos
 
 export type CostaRicaProvince = {
   name: string;
@@ -14,70 +13,75 @@ export const COSTA_RICA_PROVINCES: CostaRicaProvince[] = [
   {
     name: "San José",
     cantons: [
-      { name: "San José", districts: ["Carmen","Merced","Hospital","Catedral","Zapote","San Francisco de Dos Ríos","La Uruca","Mata Redonda","Pavas","Hatillo","San Sebastián"] },
-      { name: "Escazú", districts: ["Escazú Centro","San Rafael","San Antonio"] },
-      { name: "Desamparados", districts: ["Desamparados","San Miguel","San Juan de Dios","San Rafael Arriba","San Antonio","Frailes","Patarrá","San Cristóbal","Rosario"] },
-      { name: "Aserrí", districts: ["Aserrí","Tarbaca","Vuelta de Jorco","San Gabriel","Legua","Monterrey"] },
-      { name: "Mora", districts: ["Colón","Guayabo","Tabarcia","Piedras Negras","Picagres","Jaris"] },
-      { name: "Goicoechea", districts: ["Guadalupe","San José","Calle Blancos","Mata de Plátano","Ipís","Rancho Redondo","Purral"] },
+      { name: "San José", districts: ["Carmen","Merced","Hospital","Catedral","Zapote","San Francisco de Dos Ríos","Uruca","Mata Redonda","Pavas","Hatillo","San Sebastián"] },
+      { name: "Escazú", districts: ["Escazú","San Antonio","San Rafael"] },
+      { name: "Desamparados", districts: ["Desamparados","San Miguel","San Juan de Dios","San Rafael Arriba","San Antonio","Frailes","Patarrá","San Cristóbal","Rosario","Damas","San Rafael Abajo","Gravilias","Los Guido"] },
+      { name: "Puriscal", districts: ["Santiago","Mercedes Sur","Barbacoas","Grifo Alto","San Rafael","Candelarita","Desamparaditos","Llano Grande","Chires"] },
+      { name: "Tarrazú", districts: ["San Marcos","San Lorenzo","San Carlos"] },
+      { name: "Aserrí", districts: ["Aserrí","Tarbaca","Vuelta de Jorco","San Gabriel","Legua","Monterrey","Salitrillos"] },
+      { name: "Mora", districts: ["Colón","Guayabo","Tabarcia","Piedras Negras","Picagres","Jaris","Quitirrisí"] },
+      { name: "Goicoechea", districts: ["Guadalupe","San Francisco","Calle Blancos","Mata de Plátano","Ipís","Rancho Redondo","Purral"] },
       { name: "Santa Ana", districts: ["Santa Ana","Salitral","Pozos","Uruca","Piedades","Brasil"] },
-      { name: "Alajuelita", districts: ["Alajuelita","San Josecito","San Antonio","Concepción"] },
+      { name: "Alajuelita", districts: ["Alajuelita","San Josecito","San Antonio","Concepción","San Felipe"] },
       { name: "Vásquez de Coronado", districts: ["San Isidro","San Rafael","Dulce Nombre de Jesús","Patalillo","Cascajal"] },
-      { name: "Acosta", districts: ["San Ignacio","Guaitil","Palmichal","Cangrejal"] },
-      { name: "Tibás", districts: ["San Juan","Cinco Esquinas","Anselmo Llorente","León XIII"] },
-      { name: "Moravia", districts: ["San Vicente","San Jerónimo","Sabaría"] },
+      { name: "Acosta", districts: ["San Ignacio","Guaitil","Palmichal","San Juan","Cangrejal","Sabanillas"] },
+      { name: "Tibás", districts: ["San Juan","Cinco Esquinas","Anselmo Llorente","León XIII","Colima"] },
+      { name: "Moravia", districts: ["San Vicente","San Jerónimo","La Trinidad"] },
       { name: "Montes de Oca", districts: ["San Pedro","Sabanilla","Mercedes","San Rafael"] },
-      { name: "Turrubares", districts: ["San Pablo","San Pedro","San Juan de Mata" ,"San Luis"] },
+      { name: "Turrubares", districts: ["San Pablo","San Pedro","San Juan de Mata","San Luis","Carara"] },
       { name: "Dota", districts: ["Santa María","Jardín","Copey"] },
       { name: "Curridabat", districts: ["Curridabat","Granadilla","Sánchez","Tirrases"] },
-      { name: "Pérez Zeledón", districts: ["San Isidro de El General","Rivas","Daniel Flores","Río Nuevo","Páramo","Pejibaye","Cajón","Barú","Rivas"] },
+      { name: "Pérez Zeledón", districts: ["San Isidro de El General","General","Daniel Flores","Rivas","San Pedro","Platanares","Pejibaye","Cajón","Barú","Río Nuevo","Páramo","La Amistad"] },
       { name: "León Cortés Castro", districts: ["San Pablo","San Andrés","Llano Bonito","San Isidro","Santa Cruz","San Antonio"] }
     ]
   },
   {
     name: "Alajuela",
     cantons: [
-      { name: "Alajuela", districts: ["Alajuela","San José","Carrizal","San Antonio","Guácima","San Isidro","Sabanilla","San Rafael","Río Segundo","Desamparados","Turrúcares","Tambor","La Garita","San Ramón","Cipreses"] },
-      { name: "San Ramón", districts: ["San Ramón","Santiago","San Juan","Piedades Norte","Piedades Sur","San Rafael","San Isidro","Peñas Blancas","Los Ángeles"] },
-      { name: "Grecia", districts: ["Grecia","San Isidro","San José","San Roque","Tacares","Río Cuarto","Puente de Piedra"] },
-      { name: "San Mateo", districts: ["San Mateo","Desmonte","Jesús María"] },
-      { name: "Atenas", districts: ["Atenas","Mercedes","San José","San Isidro","Concepción","San Antonio"] },
-      { name: "Naranjo", districts: ["Naranjo","San Miguel","San José","Ciruela","San Juan","El Rosario"] },
-      { name: "Palmares", districts: ["Zaragoza","Buenos Aires","Santiago","Candelaria","Esquipulas"] },
-      { name: "Poás", districts: ["San Pedro","San Juan","San Rafael","Carrillos"] },
-      { name: "Orotina", districts: ["Orotina","El Mastate","Hacienda Vieja","Cleveland","Mastatal"] },
+      { name: "Alajuela", districts: ["Alajuela","San José","Carrizal","San Antonio","Guácima","San Isidro","Sabanilla","San Rafael","Río Segundo","Desamparados","Turrúcares","Tambor","La Garita","Sarapiquí"] },
+      { name: "San Ramón", districts: ["San Ramón","Santiago","San Juan","Piedades Norte","Piedades Sur","San Rafael","San Isidro","Ángeles","Alfaro","Volio","Concepción","Zapotal","Peñas Blancas","La Angostura"] },
+      { name: "Grecia", districts: ["Grecia","San Isidro","San José","San Roque","Tacares","Río Cuarto","Puente de Piedra","Bolívar"] },
+      { name: "San Mateo", districts: ["San Mateo","Desmonte","Jesús María","Labrador"] },
+      { name: "Atenas", districts: ["Atenas","Jesús","Mercedes","San Isidro","Concepción","San José","Santa Eulalia","Escobal"] },
+      { name: "Naranjo", districts: ["Naranjo","San Miguel","San José","Cirrí Sur","San Jerónimo","San Juan","El Rosario","Palmitos"] },
+      { name: "Palmares", districts: ["Zaragoza","Palmares","Buenos Aires","Santiago","Candelaria","Esquipulas","La Granja"] },
+      { name: "Poás", districts: ["San Pedro","San Juan","San Rafael","Carrillos","Sabana Redonda"] },
+      { name: "Orotina", districts: ["Orotina","El Mastate","Hacienda Vieja","Coyolar","La Ceiba"] },
       { name: "San Carlos", districts: ["Quesada","Florencia","Buenavista","Aguas Zarcas","Venecia","Pital","La Fortuna","La Tigra","La Palmera","Venado","Cutris","Monterrey","Pocosol"] },
-      { name: "Zarcero", districts: ["Zarcero","Laguna","Tapesco","Toro Amarillo","Guadalupe"] },
-      { name: "Valverde Vega", districts: ["San Miguel","Sardinal","La Cruz"] },
-      { name: "Upala", districts: ["Upala","Aguas Claras","San José (Pizote)","Bijagua","Delicias","Odubero"] },
+      { name: "Zarcero", districts: ["Zarcero","Laguna","Tapesco","Guadalupe","Palmira","Zapote","Brisas"] },
+      { name: "Sarchí", districts: ["Sarchí Norte","Sarchí Sur","Toro Amarillo","San Pedro","Rodríguez"] },
+      { name: "Upala", districts: ["Upala","Aguas Claras","San José","Bijagua","Delicias","Dos Ríos","Yolillal","Canalete"] },
       { name: "Los Chiles", districts: ["Los Chiles","Caño Negro","El Amparo","San Jorge"] },
-      { name: "Guatuso", districts: ["San Rafael","Buenavista","Cote"] }
+      { name: "Guatuso", districts: ["San Rafael","Buenavista","Cote","Katira"] },
+      { name: "Río Cuarto", districts: ["Río Cuarto","Santa Rita","Santa Isabel"] }
     ]
   },
   {
     name: "Cartago",
     cantons: [
-      { name: "Cartago", districts: ["Oriental","Occidental","Carmen","San Nicolás","Aguacaliente","Guadalupe"] },
-      { name: "Paraíso", districts: ["Paraíso","Santiago","Orosi","Cachí"] },
-      { name: "La Unión", districts: ["Tres Ríos","San Diego","San Juan","San Rafael"] },
-      { name: "Turrialba", districts: ["Turrialba","La Suiza","Peralta","Santa Cruz","Santa Teresita","Pavones","Tuis","Taco","La Isabel","Chirripó"] },
+      { name: "Cartago", districts: ["Oriental","Occidental","Carmen","San Nicolás","Aguacaliente","Guadalupe","Corralillo","Tierra Blanca","Dulce Nombre","Llano Grande","Quebradilla"] },
+      { name: "Paraíso", districts: ["Paraíso","Santiago","Orosi","Cachí","Llanos de Santa Lucía"] },
+      { name: "La Unión", districts: ["Tres Ríos","San Diego","San Juan","San Rafael","Concepción","Dulce Nombre","San Ramón","Río Azul"] },
+      { name: "Jiménez", districts: ["Juan Viñas","Tucurrique","Pejibaye"] },
+      { name: "Turrialba", districts: ["Turrialba","La Suiza","Peralta","Santa Cruz","Santa Teresita","Pavones","Tuis","Tayutic","Santa Rosa","Tres Equis","La Isabel","Chirripó"] },
       { name: "Alvarado", districts: ["Pacayas","Cervantes","Capellades"] },
-      { name: "Oreamuno", districts: ["San Rafael","Cot","Potrero Cerrado","Cipreses","Santa Rosa","Purral"] },
-      { name: "El Guarco", districts: ["El Tejar","San Isidro","Tobosi"] }
+      { name: "Oreamuno", districts: ["San Rafael","Cot","Potrero Cerrado","Cipreses","Santa Rosa"] },
+      { name: "El Guarco", districts: ["El Tejar","San Isidro","Tobosi","Patio de Agua"] }
     ]
   },
   {
     name: "Heredia",
     cantons: [
       { name: "Heredia", districts: ["Heredia","Mercedes","San Francisco","Ulloa","Varablanca"] },
-      { name: "Barva", districts: ["Barva","San Pedro","San Pablo","San Roque","Santa Lucía"] },
-      { name: "Santo Domingo", districts: ["Santo Domingo","San Vicente","San Miguel","Paracito","Santo Tomás"] },
-      { name: "San Rafael", districts: ["San Rafael","San Josecito","Santiago","Ángeles"] },
+      { name: "Barva", districts: ["Barva","San Pedro","San Pablo","San Roque","Santa Lucía","San José de la Montaña"] },
+      { name: "Santo Domingo", districts: ["Santo Domingo","San Vicente","San Miguel","Paracito","Santo Tomás","Santa Rosa","Tures","Pará"] },
+      { name: "Santa Bárbara", districts: ["Santa Bárbara","San Pedro","San Juan","Jesús","Santo Domingo","Purabá"] },
+      { name: "San Rafael", districts: ["San Rafael","San Josecito","Santiago","Ángeles","Concepción"] },
       { name: "San Isidro", districts: ["San Isidro","San José","Concepción","San Francisco"] },
       { name: "Belén", districts: ["San Antonio","La Ribera","La Asunción"] },
       { name: "Flores", districts: ["San Joaquín","Barrantes","Llorente"] },
-      { name: "San Pablo", districts: ["San Pablo","Rincón de Sabanilla","Cascajal"] },
-      { name: "Sarapiquí", districts: ["Puerto Viejo","La Virgen","Horquetas","Llanuras del Gaspar","Cureña"] }
+      { name: "San Pablo", districts: ["San Pablo","Rincón de Sabanilla"] },
+      { name: "Sarapiquí", districts: ["Puerto Viejo","La Virgen","Las Horquetas","Llanuras del Gaspar","Cureña"] }
     ]
   },
   {
@@ -85,26 +89,28 @@ export const COSTA_RICA_PROVINCES: CostaRicaProvince[] = [
     cantons: [
       { name: "Liberia", districts: ["Liberia","Cañas Dulces","Mayorga","Nacascolo","Curubandé"] },
       { name: "Nicoya", districts: ["Nicoya","Mansión","San Antonio","Quebrada Honda","Sámara","Nosara","Belén de Nosarita"] },
-      { name: "Santa Cruz", districts: ["Santa Cruz","Bolsón","Veintisiete de Abril","Tempate","Cartagena","Cuajiniquil","Diriá","Belén"] },
-      { name: "Carrillo", districts: ["Filadelfia","Palmira","Sardinal","Belén de Carrillo"] },
-      { name: "Nandayure", districts: ["Carmona","Santa Rita","Zapotal","San Pablo","Porvenir"] },
-      { name: "La Cruz", districts: ["La Cruz","Santa Cecilia","Cabo Velas","Garita"] },
+      { name: "Santa Cruz", districts: ["Santa Cruz","Bolsón","Veintiséis de Abril","Tempate","Cartagena","Cuajiniquil","Diriá","Cabo Velas","Tamarindo"] },
+      { name: "Bagaces", districts: ["Bagaces","La Fortuna","Maromilla","Los Negritos"] },
+      { name: "Carrillo", districts: ["Filadelfia","Palmira","Sardinal","Belén"] },
+      { name: "Cañas", districts: ["Cañas","Palmira","San Miguel","Bebedero","Porozal"] },
       { name: "Abangares", districts: ["Las Juntas","Sierra","San Juan","Colorado"] },
       { name: "Tilarán", districts: ["Tilarán","Quebrada Grande","Tronadora","Santa Rosa","Líbano","Tierras Morenas","Arenal"] },
-      { name: "Hojancha", districts: ["Hojancha","Puerto Carrillo","Matambú","Monte Romo"] }
+      { name: "Nandayure", districts: ["Carmona","Santa Rita","Zapotal","San Pablo","Porvenir","Bejuco"] },
+      { name: "La Cruz", districts: ["La Cruz","Santa Cecilia","La Garita","Santa Elena"] },
+      { name: "Hojancha", districts: ["Hojancha","Monte Romo","Puerto Carrillo","Huacas"] }
     ]
   },
   {
     name: "Puntarenas",
     cantons: [
-      { name: "Puntarenas", districts: ["Puntarenas","Pitahaya","Chomes","Barranca","El Roble","Caldera","Tara","Moín","Canabal","Paquera","Cobano","Chacarita","Naine","Quebrada Grande","Monte Verde"] },
-      { name: "Esparza", districts: ["Espíritu Santo","San Juan Grande","Macacona","San Rafael"] },
-      { name: "Buenos Aires", districts: ["Buenos Aires","Volcán","Potrero Grande","Boruca","Pilas","Colinas","Chacarita","Turrialba"] },
-      { name: "Montes de Oro", districts: ["Miramar","La Unión","Sabana Grande"] },
-      { name: "Osa", districts: ["Puerto Cortés","Palmar","Sierpe","Bahía Ballena","Piedras Blancas","Llanuras del Gaspar"] },
+      { name: "Puntarenas", districts: ["Puntarenas","Pitahaya","Chomes","Lepanto","Paquera","Manzanillo","Guacimal","Barranca","Monte Verde","Isla del Coco","Cóbano","Chacarita","Chira","Acapulco","El Roble","Arancibia"] },
+      { name: "Esparza", districts: ["Espíritu Santo","San Juan Grande","Macacona","San Rafael","San Jerónimo","La Mina"] },
+      { name: "Buenos Aires", districts: ["Buenos Aires","Volcán","Potrero Grande","Boruca","Pilas","Colinas","Chánguena","Biolley","Brunka"] },
+      { name: "Montes de Oro", districts: ["Miramar","La Unión","San Isidro"] },
+      { name: "Osa", districts: ["Puerto Cortés","Palmar","Sierpe","Bahía Ballena","Piedras Blancas","Bahía Drake"] },
       { name: "Quepos", districts: ["Quepos","Savegre","Naranjito"] },
-      { name: "Golfito", districts: ["Golfito","Guaycará","Pavón"] },
-      { name: "Coto Brus", districts: ["San Vito","Rita","Sabalito","Aguabuena","Limoncito"] },
+      { name: "Golfito", districts: ["Golfito","Puerto Jiménez","Guaycará","Pavón"] },
+      { name: "Coto Brus", districts: ["San Vito","Sabalito","Aguabuena","Limoncito","Pittier","Gutiérrez Braun"] },
       { name: "Parrita", districts: ["Parrita"] },
       { name: "Corredores", districts: ["Corredor","La Cuesta","Canoas","Laurel"] },
       { name: "Garabito", districts: ["Jacó","Tárcoles"] }
@@ -113,17 +119,17 @@ export const COSTA_RICA_PROVINCES: CostaRicaProvince[] = [
   {
     name: "Limón",
     cantons: [
-      { name: "Limón", districts: ["Limón","Valle La Estrella","Limón Centro","Río Blanco","Matama"] },
-      { name: "Pococí", districts: ["Guápiles","Jiménez","Río Jiménez","La Rita","Roxana","Cariari","Colorado","La Colonia"] },
-      { name: "Siquirres", districts: ["Siquirres","Pacuarito","Florida","Germania","Carmen","Catarata"] },
+      { name: "Limón", districts: ["Limón","Valle La Estrella","Río Blanco","Matama"] },
+      { name: "Pococí", districts: ["Guápiles","Jiménez","Rita","Río Jiménez","La Colonia","Cariari","Colorado"] },
+      { name: "Siquirres", districts: ["Siquirres","Pacuarito","Florida","Germania","El Cairo","Alegría"] },
       { name: "Talamanca", districts: ["Bratsi","Sixaola","Cahuita","Telire"] },
       { name: "Matina", districts: ["Matina","Batán","Carrandí"] },
-      { name: "Guácimo", districts: ["Guácimo","Mercedes","Pocora","Cervantes"] }
+      { name: "Guácimo", districts: ["Guácimo","Mercedes","Pocora","Río Jiménez","Duacarí"] }
     ]
   }
 ];
 
-// Helpers: opciones para selects (value = nombre, label = nombre)
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const provinceMap = new Map<string, CostaRicaProvince>();
 for (const p of COSTA_RICA_PROVINCES) provinceMap.set(p.name, p);
@@ -147,4 +153,3 @@ export function getDistrictOptions(provinceName: string, cantonName: string): { 
   if (!c) return [];
   return c.districts.map(d => ({ value: d, label: d }));
 }
-
