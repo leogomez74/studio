@@ -8,11 +8,9 @@
 [phases.build]
     # Usamos cmds para ejecutar varios comandos en orden
     cmds = [
-        'composer install --no-interaction --optimize-autoloader',
-        'php artisan optimize:clear',
-        'php artisan optimize'
+        'composer install --no-interaction --optimize-autoloader'
     ]
 
 [processes]
     # Añadimos el migrate aquí, antes de lanzar los servicios
-    web = 'php artisan migrate --force'
+    web = 'php artisan optimize:clear && php artisan optimize && php artisan migrate --force'
