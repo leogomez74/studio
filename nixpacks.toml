@@ -1,0 +1,7 @@
+[phases.build]
+# Runs composer install, npm install, and the build script
+cmds = [
+  "composer install --no-dev --optimize-autoloader",
+  "npm ci",
+  "npm run build"
+]
