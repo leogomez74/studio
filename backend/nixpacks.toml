@@ -1,3 +1,9 @@
+[variables]
+    NIXPACKS_PHP_VERSION = '8.3'
+    NIXPACKS_NODE_VERSION = '22'
+
+[phases.setup]
+    nixPkgs = ['php83', 'nodejs_22', 'php83Packages.composer']
 [phases.build]
 # Runs composer install, npm install, and the build script
 cmds = [
@@ -5,3 +11,4 @@ cmds = [
   "npm ci",
   "npm run build"
 ]
+
