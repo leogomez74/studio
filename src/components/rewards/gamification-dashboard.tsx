@@ -656,7 +656,7 @@ export function GamificationDashboard() {
   const { data, isLoading } = useRewardsDashboard();
   const { data: analytics } = useRewardsAnalytics('week');
 
-  if (isLoading || !data) {
+  if (isLoading || !data || !data.summary) {
     return <DashboardSkeleton />;
   }
 

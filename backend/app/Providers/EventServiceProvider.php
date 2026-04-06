@@ -22,6 +22,9 @@ use App\Events\TaskCompleted;
 // Business Events
 use App\Events\BusinessActionPerformed;
 
+// Ventas Events
+use App\Events\VendorTierAchieved;
+
 // Rewards Listeners
 use App\Listeners\Rewards\HandlePointsEarned;
 use App\Listeners\Rewards\HandleBadgeEarned;
@@ -37,6 +40,9 @@ use App\Listeners\NotifyTaskStatusChanged;
 
 // Business Listeners
 use App\Listeners\AwardBusinessPoints;
+
+// Ventas Listeners
+use App\Listeners\CheckVendorTierProgress;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -78,6 +84,11 @@ class EventServiceProvider extends ServiceProvider
         // Business Actions → Gamification
         BusinessActionPerformed::class => [
             AwardBusinessPoints::class,
+        ],
+
+        // Ventas: Tier alcanzado → Reward points
+        VendorTierAchieved::class => [
+            CheckVendorTierProgress::class,
         ],
     ];
 

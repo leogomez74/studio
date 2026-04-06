@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Comision;
+use App\Models\Credit;
+use App\Models\MetaVenta;
 use App\Models\ReglaComision;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,15 +58,26 @@ class ComisionController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'tipo' => 'required|in:credito,inversion',
-            'referencia_id' => 'required|integer',
+            'user_id'         => 'required|exists:users,id',
+            'tipo'            => 'required|in:credito,inversion',
+            'referencia_id'   => 'required|integer',
             'referencia_tipo' => 'required|string',
             'monto_operacion' => 'required|numeric|min:0',
-            'porcentaje' => 'required|numeric|min:0|max:1',
             'fecha_operacion' => 'required|date',
-            'notas' => 'nullable|string|max:500',
+            'notas'           => 'nullable|string|max:500',
+            // porcentaje es opcional: si no viene, se calcula automáticamente
+            'porcentaje'      => 'nullable|numeric|min:0|max:1',
         ]);
+
+        // Resolver el porcentaje si no viene explícito
+        if (empty($validated['porcentaje'])) {
+            $validated['porcentaje'] = $this->resolverPorcentaje(
+                (int) $validated['user_id'],
+                $validated['tipo'],
+                (float) $validated['monto_operacion'],
+                $validated['fecha_operacion']
+            );
+        }
 
         $validated['monto_comision'] = round($validated['monto_operacion'] * $validated['porcentaje'], 2);
 
@@ -73,6 +86,48 @@ class ComisionController extends Controller
         $this->logActivity('create', 'Comisiones', $comision, $comision->tipo . ' - ' . $comision->monto_comision, [], $request);
 
         return response()->json($comision->load(['user:id,name']), 201);
+    }
+
+    /**
+     * Resuelve el porcentaje de comisión aplicable para un vendedor en una fecha dada.
+     *
+     * Lógica:
+     * 1. Si el vendedor tiene una meta activa con bonus_tiers en el período → aplica el tier alcanzado.
+     * 2. Si no tiene tiers o no alcanzó ninguno → aplica la ReglaComision base según monto.
+     * 3. Si no hay regla base → retorna 0.
+     */
+    private function resolverPorcentaje(int $userId, string $tipo, float $montoOperacion, string $fechaOperacion): float
+    {
+        $fecha = \Carbon\Carbon::parse($fechaOperacion);
+        $anio  = (int) $fecha->year;
+        $mes   = (int) $fecha->month;
+
+        // Buscar meta activa del vendedor en el período
+        $meta = MetaVenta::with('bonusTiers')
+            ->where('user_id', $userId)
+            ->where('anio', $anio)
+            ->where('mes', $mes)
+            ->where('activo', true)
+            ->first();
+
+        if ($meta && $meta->bonusTiers->isNotEmpty()) {
+            $creditosAlcanzados = Credit::where('assigned_to', $userId)
+                ->whereNotNull('formalized_at')
+                ->whereYear('formalized_at', $anio)
+                ->whereMonth('formalized_at', $mes)
+                ->count();
+
+            $tierActivo = $meta->tierActivo($creditosAlcanzados);
+
+            if ($tierActivo) {
+                return (float) $tierActivo->porcentaje;
+            }
+        }
+
+        // Fallback: comisión base por rango de monto
+        $regla = ReglaComision::buscarRegla($tipo, $montoOperacion);
+
+        return $regla ? (float) $regla->porcentaje : 0.0;
     }
 
     public function aprobar(Request $request, int $id): JsonResponse

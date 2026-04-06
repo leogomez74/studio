@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\MetaVentaController;
 use App\Http\Controllers\Api\VisitaController;
 use App\Http\Controllers\Api\ComisionController;
+use App\Http\Controllers\Api\VentasDashboardController;
 use App\Http\Controllers\Api\TareaRutaController;
 use App\Http\Controllers\Api\RutaDiariaController;
 
@@ -163,8 +164,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class)->middleware('admin');
 
     // --- Utilidades / Listas ---
-    Route::get('/agents', function () {
-        return response()->json(\App\Models\User::select('id', 'name')->get());
+    Route::get('/agents', function (\Illuminate\Http\Request $request) {
+        $user    = $request->user()->load('role');
+        $isAdmin = $user->role?->full_access === true;
+
+        if ($isAdmin) {
+            $users = \App\Models\User::select('id', 'name')->where('status', 'Activo')->get();
+        } else {
+            $users = \App\Models\User::select('id', 'name')->where('id', $user->id)->get();
+        }
+
+        return response()->json($users);
     });
     Route::get('/lead-statuses', function () {
         return response()->json(\App\Models\LeadStatus::select('id', 'name')->orderBy('order_column')->get());
@@ -386,6 +396,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/gamification', [\App\Http\Controllers\Api\KpiController::class, 'gamification']);
         Route::get('/business', [\App\Http\Controllers\Api\KpiController::class, 'business']);
         Route::get('/trends', [\App\Http\Controllers\Api\KpiController::class, 'trends']);
+        Route::get('/ventas', [\App\Http\Controllers\Api\KpiController::class, 'ventas']);
+        Route::get('/ventas/tendencias', [\App\Http\Controllers\Api\KpiController::class, 'ventasTendencias']);
+        Route::get('/ventas/equipo', [\App\Http\Controllers\Api\KpiController::class, 'ventasEquipo'])->middleware('admin');
     });
 
     // --- Enterprises ---
@@ -574,8 +587,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 
+    // --- Ventas: Dashboard y Leaderboard ---
+    Route::get('ventas/dashboard', [VentasDashboardController::class, 'dashboard']);
+    Route::get('ventas/dashboard/{userId}', [VentasDashboardController::class, 'dashboardVendor'])->middleware('admin');
+    Route::get('ventas/leaderboard', [VentasDashboardController::class, 'leaderboard']);
+
     // --- Ventas: Metas ---
     Route::apiResource('metas-venta', MetaVentaController::class);
+    Route::post('metas-venta/{metaId}/tiers', [MetaVentaController::class, 'storeTier']);
+    Route::put('metas-venta/{metaId}/tiers/{tierId}', [MetaVentaController::class, 'updateTier']);
+    Route::delete('metas-venta/{metaId}/tiers/{tierId}', [MetaVentaController::class, 'destroyTier']);
 
     // --- Ventas: Visitas ---
     Route::get('visitas/proximas', [VisitaController::class, 'proximas']);
