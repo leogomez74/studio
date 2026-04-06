@@ -4,11 +4,4 @@
 
 [phases.setup]
     nixPkgs = ['php83', 'nodejs_22', 'php83Packages.composer']
-[phases.build]
-# Runs composer install, npm install, and the build script
-cmds = [
-  "composer install",
-  "npm ci",
-  "npm run build"
-]
 
