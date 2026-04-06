@@ -1,7 +1,6 @@
 [phases.build]
 # Runs composer install, npm install, and the build script
 cmds = [
-  "cd backend",
   "composer install",
   "npm ci",
   "npm run build"
