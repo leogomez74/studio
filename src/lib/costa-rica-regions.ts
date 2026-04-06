@@ -131,8 +131,20 @@ export const COSTA_RICA_PROVINCES: CostaRicaProvince[] = [
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const provinceMap = new Map<string, CostaRicaProvince>();
-for (const p of COSTA_RICA_PROVINCES) provinceMap.set(p.name, p);
+/** Normaliza texto: minúsculas + sin tildes, para comparación tolerante */
+function norm(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function findProvince(name: string): CostaRicaProvince | undefined {
+  const n = norm(name);
+  return COSTA_RICA_PROVINCES.find(p => norm(p.name) === n);
+}
+
+function findCanton(province: CostaRicaProvince, name: string) {
+  const n = norm(name);
+  return province.cantons.find(c => norm(c.name) === n);
+}
 
 export function getProvinceOptions(): { value: string; label: string }[] {
   return COSTA_RICA_PROVINCES.map(p => ({ value: p.name, label: p.name }));
@@ -140,16 +152,16 @@ export function getProvinceOptions(): { value: string; label: string }[] {
 
 export function getCantonOptions(provinceName: string): { value: string; label: string }[] {
   if (!provinceName) return [];
-  const p = provinceMap.get(provinceName);
+  const p = findProvince(provinceName);
   if (!p) return [];
   return p.cantons.map(c => ({ value: c.name, label: c.name }));
 }
 
 export function getDistrictOptions(provinceName: string, cantonName: string): { value: string; label: string }[] {
   if (!provinceName || !cantonName) return [];
-  const p = provinceMap.get(provinceName);
+  const p = findProvince(provinceName);
   if (!p) return [];
-  const c = p.cantons.find(ct => ct.name === cantonName);
+  const c = findCanton(p, cantonName);
   if (!c) return [];
   return c.districts.map(d => ({ value: d, label: d }));
 }
