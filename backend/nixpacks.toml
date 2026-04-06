@@ -15,4 +15,4 @@
 
 [processes]
     # Añadimos el migrate aquí, antes de lanzar los servicios
-    web = 'php artisan migrate --force
+    web = 'php artisan migrate --force'
