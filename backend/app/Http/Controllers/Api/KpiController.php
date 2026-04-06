@@ -1779,4 +1779,297 @@ class KpiController extends Controller
             'leadsCount' => [],
         ];
     }
+
+    // =========================================================
+    // VENTAS KPIs
+    // =========================================================
+
+    /**
+     * KPIs propios del vendedor autenticado (o de un userId específico si admin).
+     * GET /api/kpis/ventas?anio=2026&mes=4
+     */
+    public function ventas(Request $request)
+    {
+        $user    = $request->user();
+        $anio    = (int) $request->input('anio', date('Y'));
+        $mes     = (int) $request->input('mes', date('n'));
+
+        // Admin puede ver un vendedor específico
+        $userId = ($user->role?->full_access && $request->has('user_id'))
+            ? (int) $request->input('user_id')
+            : $user->id;
+
+        return response()->json($this->getVentasKpisForUser($userId, $anio, $mes));
+    }
+
+    /**
+     * KPIs de todo el equipo de ventas — solo admin.
+     * GET /api/kpis/ventas/equipo?anio=2026&mes=4
+     */
+    public function ventasEquipo(Request $request)
+    {
+        $anio = (int) $request->input('anio', date('Y'));
+        $mes  = (int) $request->input('mes', date('n'));
+
+        // Obtener todos los vendedores con meta activa en el período
+        $vendedores = DB::table('metas_venta as mv')
+            ->join('users as u', 'u.id', '=', 'mv.user_id')
+            ->where('mv.anio', $anio)
+            ->where('mv.mes', $mes)
+            ->where('mv.activo', true)
+            ->select('u.id', 'u.name')
+            ->get();
+
+        $equipo = $vendedores->map(fn ($v) => array_merge(
+            ['user_id' => $v->id, 'name' => $v->name],
+            $this->getVentasKpisForUser($v->id, $anio, $mes)
+        ))->values()->toArray();
+
+        // Totales agregados del equipo
+        $inicio = Carbon::create($anio, $mes, 1)->startOfDay();
+        $fin    = Carbon::create($anio, $mes, 1)->endOfMonth()->endOfDay();
+
+        $totalCreditos = DB::table('credits')
+            ->whereIn('user_id', $vendedores->pluck('id'))
+            ->where('status', 'Formalizado')
+            ->whereBetween('fecha_formalizacion', [$inicio, $fin])
+            ->count();
+
+        $totalMonto = (float) DB::table('credits')
+            ->whereIn('user_id', $vendedores->pluck('id'))
+            ->where('status', 'Formalizado')
+            ->whereBetween('fecha_formalizacion', [$inicio, $fin])
+            ->sum('monto_credito');
+
+        $totalComisiones = (float) DB::table('comisiones')
+            ->whereIn('user_id', $vendedores->pluck('id'))
+            ->whereBetween('created_at', [$inicio, $fin])
+            ->sum('monto');
+
+        return response()->json([
+            'equipo'           => $equipo,
+            'total_vendedores' => $vendedores->count(),
+            'total_creditos'   => $totalCreditos,
+            'total_monto'      => $totalMonto,
+            'total_comisiones' => $totalComisiones,
+            'anio'             => $anio,
+            'mes'              => $mes,
+        ]);
+    }
+
+    /**
+     * Tendencias históricas de ventas del vendedor (últimos 6 meses).
+     * GET /api/kpis/ventas/tendencias
+     */
+    public function ventasTendencias(Request $request)
+    {
+        $user   = $request->user();
+        $userId = ($user->role?->full_access && $request->has('user_id'))
+            ? (int) $request->input('user_id')
+            : $user->id;
+
+        $meses = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $fecha  = Carbon::now()->subMonths($i);
+            $anio   = (int) $fecha->year;
+            $mes    = (int) $fecha->month;
+            $inicio = $fecha->copy()->startOfMonth();
+            $fin    = $fecha->copy()->endOfMonth();
+
+            // Créditos formalizados
+            $creditos = DB::table('credits')
+                ->where('user_id', $userId)
+                ->where('status', 'Formalizado')
+                ->whereBetween('fecha_formalizacion', [$inicio, $fin])
+                ->select('id', 'monto_credito')
+                ->get();
+
+            $creditosCount = $creditos->count();
+            $monto         = (float) $creditos->sum('monto_credito');
+
+            // Meta del mes
+            $meta = DB::table('metas_venta')
+                ->where('user_id', $userId)
+                ->where('anio', $anio)
+                ->where('mes', $mes)
+                ->first();
+
+            $metaCantidad = $meta?->meta_creditos_cantidad ?? 0;
+            $alcance      = $metaCantidad > 0
+                ? round(($creditosCount / $metaCantidad) * 100, 1)
+                : null;
+
+            // Comisiones del mes
+            $comision = (float) DB::table('comisiones')
+                ->where('user_id', $userId)
+                ->whereBetween('created_at', [$inicio, $fin])
+                ->sum('monto');
+
+            // Oportunidades (para tasa de cierre)
+            $oportunidades = DB::table('opportunities')
+                ->where('user_id', $userId)
+                ->whereBetween('created_at', [$inicio, $fin])
+                ->count();
+
+            $tasaCierre = $oportunidades > 0
+                ? round(($creditosCount / $oportunidades) * 100, 1)
+                : null;
+
+            $meses[] = [
+                'anio'          => $anio,
+                'mes'           => $mes,
+                'label'         => $fecha->locale('es')->isoFormat('MMM YY'),
+                'creditos'      => $creditosCount,
+                'monto'         => $monto,
+                'meta_cantidad' => $metaCantidad,
+                'alcance_pct'   => $alcance,
+                'comision'      => $comision,
+                'tasa_cierre'   => $tasaCierre,
+            ];
+        }
+
+        // Comparativa mes actual vs anterior
+        $actual   = $meses[5];
+        $anterior = $meses[4];
+        $delta_creditos = $anterior['creditos'] > 0
+            ? round((($actual['creditos'] - $anterior['creditos']) / $anterior['creditos']) * 100, 1)
+            : null;
+        $delta_monto = $anterior['monto'] > 0
+            ? round((($actual['monto'] - $anterior['monto']) / $anterior['monto']) * 100, 1)
+            : null;
+
+        // Proyección: ritmo diario actual extrapolado al fin de mes
+        $diasTranscurridos = max((int) Carbon::now()->day, 1);
+        $diasMes           = (int) Carbon::now()->daysInMonth;
+        $ritmo             = $actual['creditos'] / $diasTranscurridos;
+        $proyeccion        = (int) round($ritmo * $diasMes);
+
+        return response()->json([
+            'historico'   => $meses,
+            'comparativa' => [
+                'mes_actual'      => $actual,
+                'mes_anterior'    => $anterior,
+                'delta_creditos'  => $delta_creditos,
+                'delta_monto'     => $delta_monto,
+            ],
+            'proyeccion'  => [
+                'creditos_proyectados' => $proyeccion,
+                'meta_cantidad'        => $actual['meta_cantidad'],
+                'alcanzara_meta'       => $actual['meta_cantidad'] > 0 && $proyeccion >= $actual['meta_cantidad'],
+                'dias_transcurridos'   => $diasTranscurridos,
+                'dias_mes'             => $diasMes,
+            ],
+        ]);
+    }
+
+    private function getVentasKpisForUser(int $userId, int $anio, int $mes): array
+    {
+        $inicio = Carbon::create($anio, $mes, 1)->startOfDay();
+        $fin    = Carbon::create($anio, $mes, 1)->endOfMonth()->endOfDay();
+
+        // --- Meta del mes ---
+        $meta = DB::table('metas_venta')
+            ->where('user_id', $userId)
+            ->where('anio', $anio)
+            ->where('mes', $mes)
+            ->first();
+
+        // --- Créditos formalizados en el período ---
+        $creditos = DB::table('credits')
+            ->where('user_id', $userId)
+            ->where('status', 'Formalizado')
+            ->whereBetween('fecha_formalizacion', [$inicio, $fin])
+            ->select('id', 'monto_credito', 'fecha_formalizacion')
+            ->get();
+
+        $creditosCount   = $creditos->count();
+        $montoColocado   = (float) $creditos->sum('monto_credito');
+        $ticketPromedio  = $creditosCount > 0 ? $montoColocado / $creditosCount : 0.0;
+
+        // --- Tasa de cierre: créditos formalizados / oportunidades en el período ---
+        $oportunidades = DB::table('opportunities')
+            ->where('user_id', $userId)
+            ->whereBetween('created_at', [$inicio, $fin])
+            ->count();
+        $tasaCierre = $oportunidades > 0 ? round(($creditosCount / $oportunidades) * 100, 1) : null;
+
+        // --- Alcance de meta ---
+        $metaCantidad = $meta?->meta_creditos_cantidad ?? 0;
+        $alcancePct   = $metaCantidad > 0 ? round(($creditosCount / $metaCantidad) * 100, 1) : 0.0;
+
+        // --- Tier activo ---
+        $tierActivo = null;
+        if ($meta) {
+            $tierActivo = DB::table('meta_bonus_tiers')
+                ->where('meta_venta_id', $meta->id)
+                ->where('creditos_minimos', '<=', $creditosCount)
+                ->orderByDesc('creditos_minimos')
+                ->first();
+        }
+
+        // --- Comisiones del mes ---
+        $comisiones = DB::table('comisiones')
+            ->where('user_id', $userId)
+            ->whereBetween('created_at', [$inicio, $fin])
+            ->selectRaw('
+                SUM(CASE WHEN status = "pendiente" THEN monto ELSE 0 END) as pendientes,
+                SUM(CASE WHEN status = "aprobada"  THEN monto ELSE 0 END) as aprobadas,
+                SUM(CASE WHEN status = "pagada"    THEN monto ELSE 0 END) as pagadas,
+                SUM(monto) as total
+            ')
+            ->first();
+
+        // --- Visitas planificadas vs realizadas ---
+        $visitasPlanificadas = DB::table('visitas_ventas')
+            ->where('user_id', $userId)
+            ->whereBetween('fecha_planificada', [$inicio, $fin])
+            ->count();
+
+        $visitasRealizadas = DB::table('visitas_ventas')
+            ->where('user_id', $userId)
+            ->whereBetween('fecha_planificada', [$inicio, $fin])
+            ->where('status', 'completada')
+            ->count();
+
+        $tasaVisitas = $visitasPlanificadas > 0
+            ? round(($visitasRealizadas / $visitasPlanificadas) * 100, 1)
+            : null;
+
+        // --- Reward points (acumulados históricos) ---
+        $rewardPoints = DB::table('reward_users')
+            ->where('user_id', $userId)
+            ->value('total_points') ?? 0;
+
+        return [
+            'anio'               => $anio,
+            'mes'                => $mes,
+            'meta' => $meta ? [
+                'id'                => $meta->id,
+                'creditos_objetivo' => (int) $meta->meta_creditos_cantidad,
+                'monto_objetivo'    => (float) $meta->meta_creditos_monto,
+            ] : null,
+            'creditos_mes'       => $creditosCount,
+            'monto_colocado'     => $montoColocado,
+            'ticket_promedio'    => $ticketPromedio,
+            'tasa_cierre'        => $tasaCierre,
+            'alcance_pct'        => $alcancePct,
+            'tier_activo' => $tierActivo ? [
+                'nombre'     => $tierActivo->descripcion ?? 'Tier activo',
+                'porcentaje' => (float) $tierActivo->porcentaje,
+                'creditos_minimos' => (int) $tierActivo->creditos_minimos,
+            ] : null,
+            'comisiones' => [
+                'pendientes' => (float) ($comisiones->pendientes ?? 0),
+                'aprobadas'  => (float) ($comisiones->aprobadas  ?? 0),
+                'pagadas'    => (float) ($comisiones->pagadas    ?? 0),
+                'total'      => (float) ($comisiones->total      ?? 0),
+            ],
+            'visitas' => [
+                'planificadas' => $visitasPlanificadas,
+                'realizadas'   => $visitasRealizadas,
+                'tasa'         => $tasaVisitas,
+            ],
+            'reward_points' => (int) $rewardPoints,
+        ];
+    }
 }

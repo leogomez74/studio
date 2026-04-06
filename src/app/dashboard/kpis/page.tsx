@@ -56,10 +56,13 @@ import {
   FileCheck,
   Route,
   Hourglass,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
 import { ProtectedPage } from "@/components/ProtectedPage";
+import { getAuthUser } from "@/lib/auth";
+import { usePermissions } from "@/contexts/PermissionsContext";
 import {
   LineChart,
   Line,
@@ -181,6 +184,60 @@ interface AllKPIs {
   agents: AgentKPIs;
   gamification: GamificationKPIs;
   business: BusinessHealthKPIs;
+}
+
+interface VentasKPIs {
+  anio: number;
+  mes: number;
+  meta: { id: number; creditos_objetivo: number; monto_objetivo: number } | null;
+  creditos_mes: number;
+  monto_colocado: number;
+  ticket_promedio: number;
+  tasa_cierre: number | null;
+  alcance_pct: number;
+  tier_activo: { nombre: string; porcentaje: number; creditos_minimos: number } | null;
+  comisiones: { pendientes: number; aprobadas: number; pagadas: number; total: number };
+  visitas: { planificadas: number; realizadas: number; tasa: number | null };
+  reward_points: number;
+}
+
+interface VentasEquipoKPIs {
+  equipo: (VentasKPIs & { user_id: number; name: string })[];
+  total_vendedores: number;
+  total_creditos: number;
+  total_monto: number;
+  total_comisiones: number;
+  anio: number;
+  mes: number;
+}
+
+interface VentasMesHistorico {
+  anio: number;
+  mes: number;
+  label: string;
+  creditos: number;
+  monto: number;
+  meta_cantidad: number;
+  alcance_pct: number | null;
+  comision: number;
+  tasa_cierre: number | null;
+}
+
+interface VentasTendencias {
+  historico: VentasMesHistorico[];
+  comparativa: {
+    mes_actual: VentasMesHistorico;
+    mes_anterior: VentasMesHistorico;
+    delta_creditos: number | null;
+    delta_monto: number | null;
+  };
+  proyeccion: {
+    creditos_proyectados: number;
+    meta_cantidad: number;
+    alcanzara_meta: boolean;
+    dias_transcurridos: number;
+    dias_mes: number;
+  };
 }
 
 // ============ COMPONENTS ============
@@ -533,6 +590,7 @@ function TrendChart({
 
 // ============ MAIN PAGE ============
 export default function KPIsPage() {
+  const { canViewModule } = usePermissions();
   const isMobile = useMediaQuery("(max-width: 480px)");
   const [activeTab, setActiveTab] = useState("leads");
   const [period, setPeriod] = useState("month");
@@ -551,6 +609,21 @@ export default function KPIsPage() {
   const [trendData, setTrendData] = useState<TrendData | null>(null);
   const [trendsLoading, setTrendsLoading] = useState(true);
   const [trendsError, setTrendsError] = useState<string | null>(null);
+
+  // Ventas KPI State
+  const [ventasKPIs, setVentasKPIs] = useState<VentasKPIs | null>(null);
+  const [ventasEquipoKPIs, setVentasEquipoKPIs] = useState<VentasEquipoKPIs | null>(null);
+  const [ventasTendencias, setVentasTendencias] = useState<VentasTendencias | null>(null);
+  const [ventasLoading, setVentasLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const user = getAuthUser();
+    const admin = user?.role?.full_access === true;
+    setIsAdmin(admin);
+    // Vendedores aterrizan directamente en Ventas
+    if (!admin) setActiveTab('ventas');
+  }, []);
 
   const fetchKPIs = useCallback(async () => {
     setIsLoading(true);
@@ -591,10 +664,31 @@ export default function KPIsPage() {
     }
   }, [period]);
 
+  const fetchVentasKPIs = useCallback(async () => {
+    setVentasLoading(true);
+    try {
+      const anio = new Date().getFullYear();
+      const mes  = new Date().getMonth() + 1;
+      const [personalRes, equipoRes, tendenciasRes] = await Promise.allSettled([
+        api.get(`/api/kpis/ventas?anio=${anio}&mes=${mes}`),
+        api.get(`/api/kpis/ventas/equipo?anio=${anio}&mes=${mes}`),
+        api.get(`/api/kpis/ventas/tendencias`),
+      ]);
+      if (personalRes.status === 'fulfilled')   setVentasKPIs(personalRes.value.data as VentasKPIs);
+      if (equipoRes.status === 'fulfilled')     setVentasEquipoKPIs(equipoRes.value.data as VentasEquipoKPIs);
+      if (tendenciasRes.status === 'fulfilled') setVentasTendencias(tendenciasRes.value.data as VentasTendencias);
+    } catch {
+      // silently fail — section shows empty state
+    } finally {
+      setVentasLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchKPIs();
     fetchTrends();
-  }, [fetchKPIs, fetchTrends]);
+    fetchVentasKPIs();
+  }, [fetchKPIs, fetchTrends, fetchVentasKPIs]);
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000000) {
@@ -964,16 +1058,249 @@ export default function KPIsPage() {
           </>
         );
 
+        const fmtCRC = (n: number) =>
+          new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(n);
+
+        const ventasContent = ventasLoading ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+            </div>
+            <Skeleton className="h-64 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+
+            {/* ── Comparativa mes actual vs anterior ── */}
+            {ventasTendencias && (() => {
+              const { comparativa, proyeccion } = ventasTendencias;
+              const actual   = comparativa.mes_actual;
+              const anterior = comparativa.mes_anterior;
+              const deltaC   = comparativa.delta_creditos;
+              const deltaM   = comparativa.delta_monto;
+              return (
+                <div className="grid gap-4 md:grid-cols-3">
+                  {/* Créditos vs mes anterior */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        Créditos este mes
+                      </CardTitle>
+                      <CardDescription className="capitalize">
+                        {new Date(actual.anio, actual.mes - 1).toLocaleString('es-CR', { month: 'long' })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-3xl font-bold">{actual.creditos}</p>
+                      {actual.meta_cantidad > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <Progress value={Math.min(actual.alcance_pct ?? 0, 100)} className={cn('h-1.5', (actual.alcance_pct ?? 0) >= 100 && '[&>div]:bg-green-500')} />
+                          <p className="text-xs text-muted-foreground">{actual.alcance_pct ?? 0}% de {actual.meta_cantidad} meta</p>
+                        </div>
+                      )}
+                      {deltaC !== null && (
+                        <p className={cn('text-xs mt-2 flex items-center gap-1', deltaC >= 0 ? 'text-green-600' : 'text-red-500')}>
+                          {deltaC >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                          {Math.abs(deltaC)}% vs {new Date(anterior.anio, anterior.mes - 1).toLocaleString('es-CR', { month: 'long' })}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Monto vs mes anterior */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Banknote className="h-4 w-4 text-muted-foreground" />
+                        Monto colocado
+                      </CardTitle>
+                      <CardDescription className="capitalize">
+                        {new Date(actual.anio, actual.mes - 1).toLocaleString('es-CR', { month: 'long' })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-bold">{fmtCRC(actual.monto)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Anterior: {fmtCRC(anterior.monto)}</p>
+                      {deltaM !== null && (
+                        <p className={cn('text-xs mt-2 flex items-center gap-1', deltaM >= 0 ? 'text-green-600' : 'text-red-500')}>
+                          {deltaM >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                          {Math.abs(deltaM)}% vs mes anterior
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Proyección fin de mes */}
+                  <Card className={cn(proyeccion.meta_cantidad > 0 && (proyeccion.alcanzara_meta ? 'border-green-300' : 'border-yellow-300'))}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-muted-foreground" />
+                        Proyección fin de mes
+                      </CardTitle>
+                      <CardDescription>
+                        Ritmo actual: {proyeccion.dias_transcurridos} / {proyeccion.dias_mes} días
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-3xl font-bold">{proyeccion.creditos_proyectados}</p>
+                      <p className="text-xs text-muted-foreground mt-1">créditos proyectados</p>
+                      {proyeccion.meta_cantidad > 0 && (
+                        <Badge
+                          variant={proyeccion.alcanzara_meta ? 'default' : 'secondary'}
+                          className={cn('mt-2 text-xs', proyeccion.alcanzara_meta && 'bg-green-100 text-green-700 border-green-300')}
+                        >
+                          {proyeccion.alcanzara_meta ? '✓ Alcanzará la meta' : `Faltarán ~${proyeccion.meta_cantidad - proyeccion.creditos_proyectados} créditos`}
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+
+            {/* ── Tendencia de créditos últimos 6 meses ── */}
+            {ventasTendencias && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Créditos formalizados — últimos 6 meses</CardTitle>
+                  <CardDescription>Barras azules = créditos / línea naranja = meta</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={ventasTendencias.historico} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                        formatter={(value: number, name: string) => [
+                          value,
+                          name === 'creditos' ? 'Créditos' : 'Meta',
+                        ]}
+                      />
+                      <Legend formatter={(v) => v === 'creditos' ? 'Créditos' : 'Meta'} />
+                      <Area type="monotone" dataKey="creditos" stroke="#3b82f6" fill="#3b82f620" strokeWidth={2} dot={{ r: 4, fill: '#3b82f6' }} />
+                      <Line type="monotone" dataKey="meta_cantidad" stroke="#f97316" strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ── Tendencia de comisiones y tasa de cierre ── */}
+            {ventasTendencias && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Comisiones generadas</CardTitle>
+                    <CardDescription>Últimos 6 meses</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <AreaChart data={ventasTendencias.historico} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₡${(v/1000).toFixed(0)}K`} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                          formatter={(v: number) => [fmtCRC(v), 'Comisión']}
+                        />
+                        <Area type="monotone" dataKey="comision" stroke="#8b5cf6" fill="#8b5cf620" strokeWidth={2} dot={{ r: 3, fill: '#8b5cf6' }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Tasa de cierre</CardTitle>
+                    <CardDescription>Créditos / Oportunidades por mes</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <AreaChart data={ventasTendencias.historico} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                          formatter={(v: number) => [`${v}%`, 'Tasa cierre']}
+                        />
+                        <Area type="monotone" dataKey="tasa_cierre" stroke="#10b981" fill="#10b98120" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ── Equipo — solo admin ── */}
+            {isAdmin && ventasEquipoKPIs && (
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Rendimiento del equipo</h3>
+                <div className="grid gap-4 md:grid-cols-4 mb-4">
+                  <StatCard title="Vendedores activos"    value={ventasEquipoKPIs.total_vendedores}          icon={Users}     isLoading={false} colorClass="text-blue-600" />
+                  <StatCard title="Créditos del equipo"   value={ventasEquipoKPIs.total_creditos}            icon={CreditCard} isLoading={false} colorClass="text-green-600" />
+                  <StatCard title="Monto total colocado"  value={fmtCRC(ventasEquipoKPIs.total_monto)}       icon={Banknote}  isLoading={false} colorClass="text-purple-600" />
+                  <StatCard title="Comisiones generadas"  value={fmtCRC(ventasEquipoKPIs.total_comisiones)}  icon={DollarSign} isLoading={false} colorClass="text-orange-600" />
+                </div>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Alcance de meta por vendedor</CardTitle>
+                    <CardDescription>
+                      {new Date(ventasEquipoKPIs.anio, ventasEquipoKPIs.mes - 1).toLocaleString('es-CR', { month: 'long', year: 'numeric' })}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {ventasEquipoKPIs.equipo
+                        .sort((a, b) => b.alcance_pct - a.alcance_pct)
+                        .map((v, i) => (
+                          <div key={v.user_id} className="flex items-center gap-3">
+                            <span className="text-xs text-muted-foreground w-5 shrink-0">#{i + 1}</span>
+                            <span className="text-sm font-medium w-28 shrink-0 truncate">{v.name}</span>
+                            <div className="flex-1">
+                              <Progress value={Math.min(v.alcance_pct, 100)} className={cn('h-2', v.alcance_pct >= 100 && '[&>div]:bg-green-500')} />
+                            </div>
+                            <span className={cn('text-xs font-semibold w-12 text-right', v.alcance_pct >= 100 ? 'text-green-600' : 'text-muted-foreground')}>
+                              {v.alcance_pct}%
+                            </span>
+                            <span className="text-xs text-muted-foreground w-20 text-right">{v.creditos_mes} cred.</span>
+                            <span className="text-xs text-muted-foreground w-28 text-right hidden md:block">{fmtCRC(v.monto_colocado)}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {!ventasTendencias && !ventasLoading && (
+              <p className="text-center py-12 text-sm text-muted-foreground">Sin datos de ventas para este período.</p>
+            )}
+          </div>
+        );
+
         const sections = [
-          { id: "leads", label: "Leads", icon: Users, content: leadsContent },
-          { id: "opportunities", label: "Oportunidades", icon: Target, content: opportunitiesContent },
-          { id: "credits", label: "Créditos", icon: CreditCard, content: creditsContent },
-          { id: "collections", label: "Cobros", icon: Wallet, content: collectionsContent },
-          { id: "agents", label: "Agentes", icon: UserCheck, content: agentsContent },
-          { id: "gamification", label: "Gamificación", icon: Gamepad2, content: gamificationContent },
-          { id: "business", label: "Negocio", icon: Building2, content: businessContent },
-          { id: "trends", label: "Tendencias", icon: LineChartIcon, content: trendsContent },
-        ];
+          // module_key: null = siempre visible, string = requiere can_view en ese módulo
+          { id: "ventas",        label: "Ventas",        icon: ShoppingBag,    content: ventasContent,        module: "kpis" },
+          { id: "leads",        label: "Leads",         icon: Users,          content: leadsContent,         module: "crm" },
+          { id: "opportunities",label: "Oportunidades", icon: Target,         content: opportunitiesContent, module: "oportunidades" },
+          { id: "credits",      label: "Créditos",      icon: CreditCard,     content: creditsContent,       module: "creditos" },
+          { id: "collections",  label: "Cobros",        icon: Wallet,         content: collectionsContent,   module: "cobros" },
+          { id: "agents",       label: "Agentes",       icon: UserCheck,      content: agentsContent,        module: "staff" },
+          { id: "gamification", label: "Gamificación",  icon: Gamepad2,       content: gamificationContent,  module: "recompensas" },
+          { id: "business",     label: "Negocio",       icon: Building2,      content: businessContent,      module: null },
+          { id: "trends",       label: "Tendencias",    icon: LineChartIcon,  content: trendsContent,        module: null },
+        ].filter(({ module }) =>
+          // full_access ve todo; para el resto se requiere can_view en el módulo correspondiente
+          // module: null = solo visible para full_access
+          isAdmin
+            ? true
+            : module === "kpis" && canViewModule("kpis")
+        );
 
         return isMobile ? (
           <Accordion type="single" collapsible className="space-y-2">
@@ -995,7 +1322,7 @@ export default function KPIsPage() {
           </Accordion>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-grid">
+            <TabsList className="grid w-full lg:w-auto lg:inline-grid" style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}>
               {sections.map(({ id, label, icon: SectionIcon }) => (
                 <TabsTrigger key={id} value={id} className="gap-1">
                   <SectionIcon className="h-4 w-4" />

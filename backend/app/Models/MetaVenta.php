@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MetaVenta extends Model
 {
@@ -26,9 +28,37 @@ class MetaVenta extends Model
         'activo' => 'boolean',
     ];
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function bonusTiers(): HasMany
+    {
+        return $this->hasMany(MetaBonusTier::class, 'meta_venta_id')->orderBy('creditos_minimos');
+    }
+
+    /**
+     * Retorna el tier activo según la cantidad de créditos alcanzados.
+     * El tier activo es el de mayor umbral que el vendedor ya superó.
+     */
+    public function tierActivo(int $creditosAlcanzados): ?MetaBonusTier
+    {
+        return $this->bonusTiers
+            ->where('creditos_minimos', '<=', $creditosAlcanzados)
+            ->sortByDesc('creditos_minimos')
+            ->first();
+    }
+
+    /**
+     * Retorna el siguiente tier aún no alcanzado.
+     */
+    public function proximoTier(int $creditosAlcanzados): ?MetaBonusTier
+    {
+        return $this->bonusTiers
+            ->where('creditos_minimos', '>', $creditosAlcanzados)
+            ->sortBy('creditos_minimos')
+            ->first();
     }
 
     /**

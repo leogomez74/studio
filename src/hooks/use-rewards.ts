@@ -48,6 +48,21 @@ export function useRewardsDashboard() {
       setIsLoading(true);
       setError(null);
       const result = await fetchWithAuth<DashboardData>('/rewards/dashboard');
+      // Normalize summary keys: backend returns snake_case, types expect camelCase
+      if (result?.summary) {
+        const s = result.summary as unknown as Record<string, unknown>;
+        result.summary = {
+          level:             (s.level            ?? s.level)             as number,
+          experiencePoints:  (s.experiencePoints ?? s.experience_points) as number,
+          xpForNextLevel:    (s.xpForNextLevel   ?? s.xp_for_next_level) as number,
+          totalPoints:       (s.totalPoints      ?? s.total_points)      as number,
+          lifetimePoints:    (s.lifetimePoints   ?? s.lifetime_points)   as number,
+          currentStreak:     (s.currentStreak    ?? s.current_streak)    as number,
+          longestStreak:     (s.longestStreak    ?? s.longest_streak)    as number,
+          badgesCount:       (s.badgesCount      ?? s.badges_count)      as number,
+          lastActivityAt:    (s.lastActivityAt   ?? s.last_activity_at)  as string | null,
+        };
+      }
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Error desconocido'));

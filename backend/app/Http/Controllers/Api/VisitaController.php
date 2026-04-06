@@ -43,12 +43,20 @@ class VisitaController extends Controller
         );
     }
 
-    public function proximas(): JsonResponse
+    public function proximas(Request $request): JsonResponse
     {
-        $visitas = Visita::with(['user:id,name', 'institucion:id,nombre'])
-            ->proximas()
-            ->limit(10)
-            ->get();
+        $user    = $request->user();
+        $isAdmin = $user->role?->full_access ?? false;
+
+        $query = Visita::with(['user:id,name', 'institucion:id,nombre'])
+            ->proximas();
+
+        // Vendedor solo ve sus propias visitas
+        if (!$isAdmin) {
+            $query->where('user_id', $user->id);
+        }
+
+        $visitas = $query->limit(10)->get();
 
         return response()->json($visitas);
     }
