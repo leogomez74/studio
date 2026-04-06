@@ -280,6 +280,7 @@ export default function IncidenciasPage() {
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#6b7280',
       customClass: { container: 'swal-over-modal' },
+      didOpen: () => { document.body.style.pointerEvents = 'auto'; },
     });
     if (!result.isConfirmed) return;
     try {
