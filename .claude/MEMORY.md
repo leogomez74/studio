@@ -32,6 +32,7 @@
 | Tareas | `/dashboard/tareas` | ✅ (refactorizado Mar 2026 — workflows, Kanban, calendario, labels, watchers) |
 | Reportes | `/dashboard/reportes` | ✅ Mar 2026 (5 tabs — Inversiones removido, tiene su propia sección) |
 | Rutas | `/dashboard/rutas` | ✅ Mar 2026 (refactorizado: 1,672 → ~100 líneas orquestador + 5 tabs + types + utils) |
+| Ventas | `/dashboard/ventas` | ✅ Abr 2026 — rediseño completo (ver PLAN_MODULO_VENTAS.md) |
 
 ---
 

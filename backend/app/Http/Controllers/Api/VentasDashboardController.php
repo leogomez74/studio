@@ -49,7 +49,7 @@ class VentasDashboardController extends Controller
         $mes  = (int) $request->input('mes', date('n'));
 
         // Todos los vendedores con meta activa en el período
-        $metas = MetaVenta::with(['user:id,name', 'bonusTiers'])
+        $metas = MetaVenta::with(['user:id,name,role_id', 'user.role:id,name', 'bonusTiers'])
             ->where('anio', $anio)
             ->where('mes', $mes)
             ->where('activo', true)
@@ -69,6 +69,7 @@ class VentasDashboardController extends Controller
             $entry = [
                 'user_id'             => $meta->user_id,
                 'name'                => $meta->user?->name,
+                'role_name'           => $meta->user?->role?->name ?? 'Vendedor',
                 'creditos_mes'        => $creditosAlcanzados,
                 'meta_cantidad'       => (int) $meta->meta_creditos_cantidad,
                 'alcance_pct'         => $meta->meta_creditos_cantidad > 0
