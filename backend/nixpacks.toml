@@ -1,16 +1,9 @@
-[variables]
-    NIXPACKS_PHP_VERSION = '8.4'
-    NIXPACKS_NODE_VERSION = '22'
-
 [phases.setup]
     nixPkgs = ['php84', 'nodejs_22', 'php84Packages.composer','nginx', 'libmysqlclient']
 
-[phases.build]
-    # Usamos cmds para ejecutar varios comandos en orden
-    cmds = [
-        'composer install --no-interaction --optimize-autoloader'
-    ]
-
-[processes]
-    # Añadimos el migrate aquí, antes de lanzar los servicios
-    web = 'php artisan optimize:clear && php artisan optimize && php artisan migrate --force'
+[phases.postbuild]
+cmds = [
+    "php /app/artisan optimize:clear",
+    "php /app/artisan optimize",
+    "php /app/artisan migrate --force",
+]
