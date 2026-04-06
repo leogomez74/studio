@@ -403,45 +403,49 @@ export function DashboardHeader() {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 md:gap-4">
-        <Button
-          variant="destructive"
-          size="sm"
-          className="gap-2"
-          onClick={handleDeleteLeo}
-          disabled={deletingLeo}
-        >
-          {deletingLeo ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Eliminando...
-            </>
-          ) : (
-            <>
-              <AlertTriangle className="h-4 w-4" />
-              Eliminar Leo
-            </>
-          )}
-        </Button>
+        {process.env.NODE_ENV !== 'production' && (
+          <>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="gap-2"
+              onClick={handleDeleteLeo}
+              disabled={deletingLeo}
+            >
+              {deletingLeo ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4" />
+                  Eliminar Leo
+                </>
+              )}
+            </Button>
 
-        <Button
-          variant="destructive"
-          size="sm"
-          className="gap-2"
-          onClick={handleDeleteDaniel}
-          disabled={deletingDaniel}
-        >
-          {deletingDaniel ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Eliminando...
-            </>
-          ) : (
-            <>
-              <AlertTriangle className="h-4 w-4" />
-              Eliminar Daniel
-            </>
-          )}
-        </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="gap-2"
+              onClick={handleDeleteDaniel}
+              disabled={deletingDaniel}
+            >
+              {deletingDaniel ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4" />
+                  Eliminar Daniel
+                </>
+              )}
+            </Button>
+          </>
+        )}
 
         <Popover>
           <PopoverTrigger asChild>
