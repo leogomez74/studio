@@ -19,9 +19,12 @@ import {
 import { useAuth } from '@/components/auth-guard';
 import { usePermissions } from '@/contexts/PermissionsContext';
 
+const CONFIG_MODULES = ['config_general', 'config_personas', 'config_usuarios', 'config_contabilidad', 'config_sistema'];
+
 export function SidebarUserMenu() {
   const { user, logout } = useAuth();
   const { canViewModule } = usePermissions();
+  const canSeeConfig = CONFIG_MODULES.some(m => canViewModule(m));
 
   return (
     <SidebarMenu>
@@ -65,7 +68,7 @@ export function SidebarUserMenu() {
               <User className="mr-2 h-4 w-4" />
               <span>Perfil</span>
             </DropdownMenuItem>
-            {canViewModule('configuracion') && (
+            {canSeeConfig && (
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/configuracion">
                   <Settings className="mr-2 h-4 w-4" />

@@ -43,8 +43,10 @@ class Role extends Model
             $modules = [
                 'reportes', 'kpis', 'crm', 'oportunidades', 'analizados', 'creditos',
                 'calculos', 'cobros', 'cobro_judicial', 'ventas', 'inversiones',
-                'rutas', 'proyectos', 'comunicaciones', 'staff', 'entrenamiento',
-                'recompensas', 'configuracion', 'tareas', 'auditoria'
+                'rutas', 'comunicaciones', 'staff', 'entrenamiento',
+                'recompensas', 'tareas', 'auditoria', 'incidencias',
+                'config_general', 'config_personas', 'config_usuarios',
+                'config_contabilidad', 'config_sistema',
             ];
 
             $permissions = [];

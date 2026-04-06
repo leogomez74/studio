@@ -229,7 +229,7 @@ const EmpresasCRUD: React.FC = () => {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <PermissionButton module="configuracion" action="create" size="sm" className="gap-1" onClick={openCreateDialog}>
+              <PermissionButton module="config_personas" action="create" size="sm" className="gap-1" onClick={openCreateDialog}>
                 <PlusCircle className="h-4 w-4" />
                 Nueva Empresa
               </PermissionButton>

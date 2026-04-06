@@ -85,8 +85,8 @@ const navGroups = [
     label: 'Sistema',
     items: [
       { href: '/dashboard/auditoria', icon: ShieldCheck, label: 'Auditoría', module: 'auditoria' },
-      { href: '/dashboard/auditoria-asientos', icon: BookOpen, label: 'Auditoría Asientos', module: 'configuracion' },
-      { href: '/dashboard/incidencias', icon: Bug, label: 'Incidencias', module: 'auditoria' },
+      { href: '/dashboard/auditoria-asientos', icon: BookOpen, label: 'Auditoría Asientos', module: 'config_contabilidad' },
+      { href: '/dashboard/incidencias', icon: Bug, label: 'Incidencias', module: 'incidencias' },
     ],
   },
 ];
@@ -101,10 +101,7 @@ export function DashboardNav() {
   return (
     <div className="flex flex-col gap-1 px-2">
       {navGroups.map((group) => {
-        // Filter items based on permissions (bypass for tareas during testing)
-        const visibleItems = group.items.filter((item) =>
-          item.module === 'tareas' || item.module === 'dashboard' ? true : canViewModule(item.module)
-        );
+        const visibleItems = group.items.filter((item) => canViewModule(item.module));
 
         // Only render group if it has visible items
         if (visibleItems.length === 0) return null;

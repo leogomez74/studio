@@ -9,7 +9,8 @@ export function ConfigurationMenuItem() {
   const { canViewModule } = usePermissions();
 
   // Only show configuration if user has permission
-  if (!canViewModule('configuracion')) {
+  const canSeeConfig = ['config_general', 'config_personas', 'config_usuarios', 'config_contabilidad', 'config_sistema'].some(m => canViewModule(m));
+  if (!canSeeConfig) {
     return null;
   }
 

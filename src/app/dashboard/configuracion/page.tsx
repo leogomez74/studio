@@ -25,7 +25,7 @@ export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<string>('prestamos');
 
   return (
-    <ProtectedPage module="configuracion">
+    <ProtectedPage module={['config_general', 'config_personas', 'config_usuarios', 'config_contabilidad', 'config_sistema']}>
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
         <TabsList className="mb-4">
           <TabsTrigger value="prestamos">Préstamos</TabsTrigger>

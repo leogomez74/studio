@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+// Table imports kept for the roles list below
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -20,6 +21,9 @@ import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/auth-guard';
 import { API_BASE_URL } from '@/lib/env';
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface Permission {
   view: boolean;
@@ -56,39 +60,182 @@ interface Module {
   };
 }
 
-const MODULES: Module[] = [
-  { key: 'reportes', label: 'Reportes', permissions: ['view'] },
-  { key: 'kpis', label: 'KPIs', permissions: ['view'] },
-  { key: 'crm', label: 'CRM (Leads)', permissions: ['view', 'create', 'edit', 'delete', 'archive'] },
-  { key: 'oportunidades', label: 'Oportunidades', permissions: ['view', 'create', 'edit', 'delete'] },
+interface ModuleGroup {
+  group: string;
+  modules: Module[];
+}
+
+const MODULE_GROUPS: ModuleGroup[] = [
   {
-    key: 'analizados', label: 'Analizados',
-    permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign'],
-    customPermissionLabels: { delete: 'Estado PEP', archive: 'Estado Cliente', assign: 'Responsable' }
+    group: 'Ventas',
+    modules: [
+      {
+        // Ver leads/clientes, crear, editar, eliminar, archivar
+        key: 'crm', label: 'CRM (Leads y Clientes)',
+        permissions: ['view', 'create', 'edit', 'archive'],
+        customPermissionLabels: { archive: 'Archivar' },
+      },
+      {
+        // Ver oportunidades, crear, editar, archivar — eliminar no aplica en oportunidades
+        key: 'oportunidades', label: 'Oportunidades',
+        permissions: ['view', 'create', 'edit', 'archive'],
+        customPermissionLabels: { archive: 'Archivar' },
+      },
+      {
+        // Permisos repropósito: delete=Estado PEP, archive=Estado Cliente, assign=Responsable
+        key: 'analizados', label: 'Analizados',
+        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign'],
+        customPermissionLabels: { delete: 'Estado PEP', archive: 'Estado Cliente', assign: 'Responsable' },
+      },
+      {
+        // Ver, crear, editar créditos — eliminar no aplica (registro financiero permanente)
+        key: 'creditos', label: 'Créditos',
+        permissions: ['view', 'create', 'edit'],
+      },
+      {
+        // Solo visualizar la calculadora
+        key: 'calculos', label: 'Cálculos',
+        permissions: ['view'],
+      },
+    ],
   },
-  { key: 'creditos', label: 'Créditos', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'calculos', label: 'Cálculos', permissions: ['view'] },
   {
-    key: 'cobros', label: 'Cobros',
-    permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign'],
-    customPermissionLabels: { create: 'Registrar Abono', edit: 'Cargar Planilla', delete: 'Exportar', archive: 'Anular Abono', assign: 'Reintegro de Saldo' }
+    group: 'Finanzas',
+    modules: [
+      {
+        // Acciones específicas de cobros, cada permiso tiene función propia
+        key: 'cobros', label: 'Cobros',
+        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign'],
+        customPermissionLabels: {
+          create: 'Registrar Abono',
+          edit: 'Cargar Planilla',
+          delete: 'Exportar',
+          archive: 'Anular Abono',
+          assign: 'Reintegro de Saldo',
+        },
+      },
+      {
+        // Cobro judicial: ver, gestionar expedientes, editar estado, eliminar
+        key: 'cobro_judicial', label: 'Cobro Judicial',
+        permissions: ['view', 'create', 'edit', 'delete'],
+        customPermissionLabels: { create: 'Abrir expediente', delete: 'Cerrar expediente' },
+      },
+      {
+        // Solo visualizar módulo de ventas
+        key: 'ventas', label: 'Ventas',
+        permissions: ['view'],
+      },
+      {
+        // Inversiones: ver, crear, editar — archivar cuando se cierra una inversión
+        key: 'inversiones', label: 'Inversiones',
+        permissions: ['view', 'create', 'edit', 'archive'],
+        customPermissionLabels: { archive: 'Cerrar inversión' },
+      },
+      {
+        // Reportes: ver y exportar
+        key: 'reportes', label: 'Reportes',
+        permissions: ['view', 'create'],
+        customPermissionLabels: { create: 'Exportar' },
+      },
+    ],
   },
-  { key: 'cobro_judicial', label: 'Cobro Judicial', permissions: ['view'] },
-  { key: 'ventas', label: 'Ventas', permissions: ['view'] },
-  { key: 'inversiones', label: 'Inversiones', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'rutas', label: 'Rutas', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'proyectos', label: 'Proyectos', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'comunicaciones', label: 'Comunicaciones', permissions: ['view', 'create'] },
-  { key: 'staff', label: 'Colaboradores', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'entrenamiento', label: 'Entrenamiento', permissions: ['view'] },
-  { key: 'recompensas', label: 'Recompensas', permissions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'configuracion', label: 'Configuración', permissions: ['view', 'create', 'edit', 'delete'] },
   {
-    key: 'tareas', label: 'Tareas',
-    permissions: ['view'],
-    customPermissionLabels: { view: 'Ver todas' }
+    group: 'Operaciones',
+    modules: [
+      {
+        // KPIs: solo visualización
+        key: 'kpis', label: 'KPIs',
+        permissions: ['view'],
+      },
+      {
+        // Rutas: ver, crear, editar y eliminar rutas del día
+        key: 'rutas', label: 'Rutas',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+      {
+        // Tareas: ver todas, crear, editar, eliminar, archivar
+        key: 'tareas', label: 'Tareas',
+        permissions: ['view', 'create', 'edit', 'delete', 'archive'],
+        customPermissionLabels: { view: 'Ver todas' },
+      },
+      {
+        // Comunicaciones: ver mensajes, enviar — eliminar no aplica
+        key: 'comunicaciones', label: 'Comunicaciones',
+        permissions: ['view', 'create'],
+        customPermissionLabels: { create: 'Enviar mensaje' },
+      },
+    ],
+  },
+  {
+    group: 'Equipo',
+    modules: [
+      {
+        // Colaboradores: gestión completa de staff
+        key: 'staff', label: 'Colaboradores',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+      {
+        // Entrenamiento: solo visualización de materiales
+        key: 'entrenamiento', label: 'Entrenamiento',
+        permissions: ['view'],
+      },
+      {
+        // Recompensas: ver, crear, editar y eliminar recompensas del sistema
+        key: 'recompensas', label: 'Recompensas',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+    ],
+  },
+  {
+    group: 'Sistema',
+    modules: [
+      {
+        // Auditoría: solo lectura (bitácora inmutable)
+        key: 'auditoria', label: 'Auditoría',
+        permissions: ['view'],
+      },
+      {
+        // Incidencias: ver, reportar, editar estado, eliminar
+        key: 'incidencias', label: 'Incidencias',
+        permissions: ['view', 'create', 'edit', 'delete'],
+        customPermissionLabels: { create: 'Reportar' },
+      },
+    ],
+  },
+  {
+    group: 'Configuración',
+    modules: [
+      {
+        // Préstamos, tasas y productos: gestión completa
+        key: 'config_general', label: 'Config: Préstamos, Tasas y Productos',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+      {
+        // Patronos, deductoras, empresas, instituciones
+        key: 'config_personas', label: 'Config: Patronos, Deductoras, Empresas e Instituciones',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+      {
+        // Usuarios y roles: gestión completa
+        key: 'config_usuarios', label: 'Config: Usuarios y Roles',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+      {
+        // Contabilidad ERP: ver, crear cuentas, editar, eliminar mapeos
+        key: 'config_contabilidad', label: 'Config: Contabilidad ERP',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+      {
+        // Integraciones, API tokens, flujos, etiquetas
+        key: 'config_sistema', label: 'Config: Integraciones, API Tokens, Flujos y Etiquetas',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+    ],
   },
 ];
+
+// Flat list para compatibilidad con lógica existente
+const MODULES: Module[] = MODULE_GROUPS.flatMap(g => g.modules);
 
 const RolesPermisosManager: React.FC = () => {
   const { toast } = useToast();
@@ -301,61 +448,70 @@ const RolesPermisosManager: React.FC = () => {
 
                 <div className="space-y-3">
                   <Label className="text-base">Permisos por Módulo</Label>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/50">
-                          <TableHead className="w-[40px]"><input type="checkbox" className="h-4 w-4" disabled /></TableHead>
-                          <TableHead className="font-semibold">Módulo</TableHead>
-                          <TableHead className="text-center font-semibold w-[100px]">Ver</TableHead>
-                          <TableHead className="text-center font-semibold w-[100px]">Crear</TableHead>
-                          <TableHead className="text-center font-semibold w-[100px]">Editar</TableHead>
-                          <TableHead className="text-center font-semibold w-[100px]">Eliminar</TableHead>
-                          <TableHead className="text-center font-semibold w-[100px]">Archivar</TableHead>
-                          <TableHead className="text-center font-semibold w-[100px]">Asignar</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {MODULES.map((module) => {
+                  <div className="border rounded-lg overflow-auto max-h-[450px] divide-y">
+                    {MODULE_GROUPS.map((group) => (
+                      <div key={group.group}>
+                        {/* Encabezado de grupo */}
+                        <div className="bg-muted px-4 py-2 sticky top-0 z-10">
+                          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{group.group}</span>
+                        </div>
+                        {/* Filas de módulos */}
+                        {group.modules.map((module) => {
                           const perms = roleForm.permissions[module.key] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false };
                           const modulePermissions = module.permissions || ['view', 'create', 'edit', 'delete'];
                           const isModuleEnabled = perms.view || perms.create || perms.edit || perms.delete || perms.archive || perms.assign;
 
-                          const renderPermCell = (permType: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign') => {
-                            if (!modulePermissions.includes(permType)) return <span className="text-muted-foreground">-</span>;
-                            return (
-                              <div className="flex flex-col items-center gap-1">
-                                <input
-                                  type="checkbox"
-                                  checked={perms[permType] || false}
-                                  onChange={(e) => handlePermissionChange(module.key, permType, e.target.checked)}
-                                  disabled={saving || roleForm.full_access}
-                                  className="h-4 w-4"
-                                />
-                                {module.customPermissionLabels?.[permType] && (
-                                  <span className="text-[10px] text-muted-foreground">{module.customPermissionLabels[permType]}</span>
-                                )}
-                              </div>
-                            );
+                          const defaultLabels: Record<string, string> = {
+                            view: 'Ver', create: 'Crear', edit: 'Editar',
+                            delete: 'Eliminar', archive: 'Archivar', assign: 'Asignar',
                           };
 
                           return (
-                            <TableRow key={module.key}>
-                              <TableCell>
-                                <input type="checkbox" checked={isModuleEnabled} onChange={(e) => handleModuleToggle(module.key, e.target.checked)} disabled={saving || roleForm.full_access} className="h-4 w-4" />
-                              </TableCell>
-                              <TableCell className="font-medium">{module.label}</TableCell>
-                              <TableCell className="text-center">{renderPermCell('view')}</TableCell>
-                              <TableCell className="text-center">{renderPermCell('create')}</TableCell>
-                              <TableCell className="text-center">{renderPermCell('edit')}</TableCell>
-                              <TableCell className="text-center">{renderPermCell('delete')}</TableCell>
-                              <TableCell className="text-center">{renderPermCell('archive')}</TableCell>
-                              <TableCell className="text-center">{renderPermCell('assign')}</TableCell>
-                            </TableRow>
+                            <div key={module.key} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/10">
+                              {/* Toggle módulo completo */}
+                              <input
+                                type="checkbox"
+                                checked={isModuleEnabled}
+                                onChange={(e) => handleModuleToggle(module.key, e.target.checked)}
+                                disabled={saving || roleForm.full_access}
+                                className="h-4 w-4 shrink-0 cursor-pointer"
+                              />
+                              {/* Nombre del módulo */}
+                              <span className="w-56 shrink-0 text-sm font-medium">{module.label}</span>
+                              {/* Chips de permisos */}
+                              <div className="flex flex-wrap gap-2">
+                                {modulePermissions.map((permType) => {
+                                  const pt = permType as 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign';
+                                  const label = module.customPermissionLabels?.[pt] ?? defaultLabels[pt];
+                                  const checked = perms[pt] || false;
+                                  return (
+                                    <label
+                                      key={pt}
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer select-none transition-colors ${
+                                        saving || roleForm.full_access ? 'opacity-50 cursor-not-allowed' : ''
+                                      } ${
+                                        checked
+                                          ? 'bg-primary text-primary-foreground border-primary'
+                                          : 'bg-background text-muted-foreground border-border hover:border-primary/50'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => handlePermissionChange(module.key, pt, e.target.checked)}
+                                        disabled={saving || roleForm.full_access}
+                                        className="sr-only"
+                                      />
+                                      {label}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           );
                         })}
-                      </TableBody>
-                    </Table>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

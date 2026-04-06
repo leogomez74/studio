@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProtectedPageProps {
-  module: string;
+  module: string | string[];
   children: React.ReactNode;
 }
 
@@ -16,8 +16,12 @@ export function ProtectedPage({ module, children }: ProtectedPageProps) {
   const router = useRouter();
   const { toast } = useToast();
 
+  const hasAccess = Array.isArray(module)
+    ? module.some((m) => canViewModule(m))
+    : canViewModule(module);
+
   useEffect(() => {
-    if (!loading && !canViewModule(module)) {
+    if (!loading && !hasAccess) {
       toast({
         title: "Acceso denegado",
         description: "No tienes permisos para acceder a esta página.",
@@ -25,9 +29,8 @@ export function ProtectedPage({ module, children }: ProtectedPageProps) {
       });
       router.push('/dashboard');
     }
-  }, [loading, canViewModule, module, router, toast]);
+  }, [loading, hasAccess, router, toast]);
 
-  // Mostrar loading mientras se cargan los permisos
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-200px)] items-center justify-center">
@@ -36,11 +39,9 @@ export function ProtectedPage({ module, children }: ProtectedPageProps) {
     );
   }
 
-  // Si no tiene permiso, no mostrar nada (se redirigirá)
-  if (!canViewModule(module)) {
+  if (!hasAccess) {
     return null;
   }
 
-  // Si tiene permiso, mostrar el contenido
   return <>{children}</>;
 }
