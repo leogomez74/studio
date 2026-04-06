@@ -1,9 +1,5 @@
 [phases.setup]
     nixPkgs = ['php84', 'nodejs_22', 'php84Packages.composer','nginx', 'libmysqlclient']
 
-[phases.postbuild]
-cmds = [
-    "php /app/artisan optimize:clear",
-    "php /app/artisan optimize",
-    "php /app/artisan migrate --force",
-]
+[start]
+    cmd = "php artisan optimize:clear && php artisan optimize && php artisan migrate --force"
