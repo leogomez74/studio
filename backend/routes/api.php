@@ -186,6 +186,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('leads', LeadController::class)->except(['store']);
 
     // --- Clientes ---
+    Route::patch('/clients/{id}/toggle-active', [ClientController::class, 'toggleActive']);
     Route::post('/clients/{id}/consultar-credid', [ClientController::class, 'consultarCredid'])->middleware('throttle:10,1');
     Route::apiResource('clients', ClientController::class);
 

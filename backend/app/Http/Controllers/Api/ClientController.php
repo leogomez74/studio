@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\CredidService;
 use App\Traits\LogsActivity;
 use App\Models\Client;
+use App\Models\Person;
 use App\Models\Task;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -251,6 +252,22 @@ class ClientController extends Controller
         $client->delete();
 
         return response()->json(['message' => 'Client deleted successfully'], 200);
+    }
+
+    public function toggleActive(Request $request, string $id)
+    {
+        // Usar Person sin global scope para no depender del person_type_id
+        $person = Person::findOrFail($id);
+        $person->is_active = !$person->is_active;
+        $person->save();
+
+        $action = $person->is_active ? 'restaurado' : 'archivado';
+        $this->logActivity('update', 'Clientes', $person, "Cliente {$action}: " . ($person->cedula ?? $person->name), [], $request);
+
+        return response()->json([
+            'message'   => "Cliente {$action} correctamente",
+            'is_active' => $person->is_active,
+        ], 200);
     }
 
     private function resolveActiveFilter(Request $request): ?bool

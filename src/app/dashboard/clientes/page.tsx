@@ -990,6 +990,28 @@ export default function ClientesPage() {
       }
   };
 
+  const handleArchiveClient = async (client: Client) => {
+      const result = await Swal.fire({
+          title: '¿Archivar cliente?',
+          html: `¿Estás seguro de que deseas archivar a <b>${client.name} ${client.apellido1 ?? ''}</b>?`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Sí, archivar',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#ef4444',
+          cancelButtonColor: '#6b7280',
+          reverseButtons: true,
+      });
+      if (!result.isConfirmed) return;
+      try {
+          await api.patch(`/api/clients/${client.id}/toggle-active`);
+          toastSuccess("Archivado", "Cliente archivado correctamente.");
+          fetchData();
+      } catch (error) {
+          toastError("Error", "No se pudo archivar.");
+      }
+  };
+
   const handleEditClient = (client: Client) => {
       // Same logic, use dialog for now to test validation
       setEditingId(client.id);
@@ -1366,6 +1388,7 @@ export default function ClientesPage() {
                             data={clientsData}
                             onEdit={handleEditClient}
                             onDelete={confirmDeleteClient}
+                            onArchive={handleArchiveClient}
                             selection={clientsSelection}
                             onBulkAction={openBulkActionConfirmation}
                             onBulkExport={handleBulkExport}
@@ -2086,10 +2109,11 @@ function LeadsTable({ data, onAction, selection, onBulkAction, onBulkExport }: L
     </>
   );
 }
-function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkExport }: {
+function ClientsTable({ data, onEdit, onDelete, onArchive, selection, onBulkAction, onBulkExport }: {
   data: Client[],
   onEdit: (client: Client) => void,
   onDelete: (client: Client) => void,
+  onArchive: (client: Client) => void,
   selection: ReturnType<typeof useBulkSelection<Client>>,
   onBulkAction: (action: 'archive' | 'delete') => void,
   onBulkExport: () => void
@@ -2229,6 +2253,14 @@ function ClientsTable({ data, onEdit, onDelete, selection, onBulkAction, onBulkE
                             </PermissionButton>
                           </TooltipTrigger>
                           <TooltipContent>Editar</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <PermissionButton module="crm" action="edit" size="icon" className="bg-amber-100 text-amber-700 hover:bg-amber-200" onClick={() => onArchive(client)}>
+                              <Archive className="h-4 w-4" />
+                            </PermissionButton>
+                          </TooltipTrigger>
+                          <TooltipContent>Archivar</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
