@@ -279,6 +279,7 @@ export default function IncidenciasPage() {
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#6b7280',
+      customClass: { container: 'swal-over-modal' },
     });
     if (!result.isConfirmed) return;
     try {
