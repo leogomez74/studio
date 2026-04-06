@@ -1,0 +1,23 @@
+[phases.setup]
+nixPkgs = ['php84', 'nodejs_22', 'php84Packages.composer', 'nginx', 'libmysqlclient']
+
+[phases.install]
+cmds = [
+    # Instalar dependencias de Next.js (Raíz)
+    'npm ci',
+    # Instalar dependencias de Laravel (Subcarpeta)
+    'cd backend && composer install --ignore-platform-reqs --no-interaction --optimize-autoloader && npm ci'
+]
+
+[phases.build]
+cmds = [
+    # Build de Next.js (Raíz)
+    'npm run build',
+    # Build de Laravel/Vite (Subcarpeta)
+    'cd backend && npm run build'
+]
+
+[start]
+# 1. Entramos a backend para migrar y lanzar PHP/Nginx (Puerto 80)
+# 2. Lanzamos Next.js (Puerto 3000) desde la raíz
+cmd = 'cd backend && php artisan migrate --force && (php-fpm -y /assets/php-fpm.conf & nginx -c /nginx.conf & cd .. && npm run start)'
