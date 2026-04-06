@@ -466,6 +466,11 @@ const RolesPermisosManager: React.FC = () => {
                             delete: 'Eliminar', archive: 'Archivar', assign: 'Asignar',
                           };
 
+                          // Para tareas: chips especiales de visibilidad (mutuamente excluyentes)
+                          const isTareas = module.key === 'tareas';
+                          const tareasVerPropias = isModuleEnabled && !perms.view;
+                          const tareasVerTodas = perms.view;
+
                           return (
                             <div key={module.key} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/10">
                               {/* Toggle módulo completo */}
@@ -480,32 +485,77 @@ const RolesPermisosManager: React.FC = () => {
                               <span className="w-56 shrink-0 text-sm font-medium">{module.label}</span>
                               {/* Chips de permisos */}
                               <div className="flex flex-wrap gap-2">
-                                {modulePermissions.map((permType) => {
-                                  const pt = permType as 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign';
-                                  const label = module.customPermissionLabels?.[pt] ?? defaultLabels[pt];
-                                  const checked = perms[pt] || false;
-                                  return (
-                                    <label
-                                      key={pt}
-                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer select-none transition-colors ${
-                                        saving || roleForm.full_access ? 'opacity-50 cursor-not-allowed' : ''
-                                      } ${
-                                        checked
-                                          ? 'bg-primary text-primary-foreground border-primary'
-                                          : 'bg-background text-muted-foreground border-border hover:border-primary/50'
-                                      }`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={(e) => handlePermissionChange(module.key, pt, e.target.checked)}
+                                {isTareas ? (
+                                  <>
+                                    {/* Chip: Solo ver propias — activo si módulo habilitado y view=false */}
+                                    <label className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer select-none transition-colors ${
+                                      saving || roleForm.full_access ? 'opacity-50 cursor-not-allowed' : ''
+                                    } ${
+                                      tareasVerPropias
+                                        ? 'bg-amber-500 text-white border-amber-500'
+                                        : 'bg-background text-muted-foreground border-border hover:border-amber-400/50'
+                                    }`}>
+                                      <input type="radio" name={`tareas-vis-${module.key}`} className="sr-only"
+                                        checked={tareasVerPropias}
                                         disabled={saving || roleForm.full_access}
-                                        className="sr-only"
+                                        onChange={() => {
+                                          // Habilitar módulo + view=false
+                                          setRoleForm(prev => ({
+                                            ...prev,
+                                            permissions: {
+                                              ...prev.permissions,
+                                              tareas: { ...(prev.permissions['tareas'] || {}), view: false, create: prev.permissions['tareas']?.create || false, edit: prev.permissions['tareas']?.edit || false, delete: prev.permissions['tareas']?.delete || false, archive: prev.permissions['tareas']?.archive || false, assign: false },
+                                            },
+                                          }));
+                                        }}
                                       />
-                                      {label}
+                                      Ver propias
                                     </label>
-                                  );
-                                })}
+                                    {/* Chip: Ver todas — activo si view=true */}
+                                    <label className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer select-none transition-colors ${
+                                      saving || roleForm.full_access ? 'opacity-50 cursor-not-allowed' : ''
+                                    } ${
+                                      tareasVerTodas
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background text-muted-foreground border-border hover:border-primary/50'
+                                    }`}>
+                                      <input type="radio" name={`tareas-vis-${module.key}`} className="sr-only"
+                                        checked={tareasVerTodas}
+                                        disabled={saving || roleForm.full_access}
+                                        onChange={() => handlePermissionChange('tareas', 'view', true)}
+                                      />
+                                      Ver todas
+                                    </label>
+                                    {/* Resto de chips normales (crear, editar, etc.) */}
+                                    {modulePermissions.filter(p => p !== 'view').map((permType) => {
+                                      const pt = permType as 'create' | 'edit' | 'delete' | 'archive' | 'assign';
+                                      const label = module.customPermissionLabels?.[pt] ?? defaultLabels[pt];
+                                      const checked = perms[pt] || false;
+                                      return (
+                                        <label key={pt} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer select-none transition-colors ${
+                                          saving || roleForm.full_access ? 'opacity-50 cursor-not-allowed' : ''
+                                        } ${checked ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:border-primary/50'}`}>
+                                          <input type="checkbox" checked={checked} onChange={(e) => handlePermissionChange('tareas', pt, e.target.checked)} disabled={saving || roleForm.full_access} className="sr-only" />
+                                          {label}
+                                        </label>
+                                      );
+                                    })}
+                                  </>
+                                ) : (
+                                  modulePermissions.map((permType) => {
+                                    const pt = permType as 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign';
+                                    const label = module.customPermissionLabels?.[pt] ?? defaultLabels[pt];
+                                    const checked = perms[pt] || false;
+                                    return (
+                                      <label key={pt} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer select-none transition-colors ${
+                                        saving || roleForm.full_access ? 'opacity-50 cursor-not-allowed' : ''
+                                      } ${checked ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:border-primary/50'}`}>
+                                        <input type="checkbox" checked={checked} onChange={(e) => handlePermissionChange(module.key, pt, e.target.checked)} disabled={saving || roleForm.full_access} className="sr-only" />
+                                        {label}
+                                      </label>
+                                    );
+                                  })
+                                )}
                               </div>
                             </div>
                           );
