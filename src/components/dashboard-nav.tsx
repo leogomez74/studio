@@ -10,7 +10,6 @@ import {
   SidebarGroupContent,
 } from '@/components/ui/sidebar';
 import {
-  LayoutDashboard,
   Handshake,
   Landmark,
   Route,
@@ -43,7 +42,6 @@ const navGroups = [
   {
     label: 'General',
     items: [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', module: 'dashboard' },
       { href: '/dashboard/kpis', icon: BarChart3, label: 'KPIs', module: 'kpis' },
     ],
   },
