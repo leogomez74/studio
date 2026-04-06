@@ -11,6 +11,7 @@ class Bug extends Model
 {
     protected $fillable = [
         'reference',
+        'jira_key',
         'title',
         'description',
         'status',
