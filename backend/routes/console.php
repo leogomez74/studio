@@ -99,3 +99,21 @@ Schedule::command('tasks:notify-overdue')
     ->timezone('America/Costa_Rica')
     ->withoutOverlapping()
     ->onOneServer();
+
+/*
+|--------------------------------------------------------------------------
+| Scheduled Tasks - Cobro Judicial
+|--------------------------------------------------------------------------
+|
+| Verifica inactividad en expedientes judiciales activos:
+| - Impulso procesal: 90 días sin actuación → riesgo de abandono
+| - Prescripción: 4 años sin actuación → deuda puede quedar irrecuperable
+|
+*/
+
+// Verificar inactividad de expedientes judiciales diariamente a las 07:00
+Schedule::command('cobro-judicial:verificar-inactividad')
+    ->dailyAt('07:00')
+    ->timezone('America/Costa_Rica')
+    ->withoutOverlapping()
+    ->onOneServer();

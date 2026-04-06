@@ -38,7 +38,8 @@ class CreditController extends Controller
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id,deductora_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
             'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,fecha_corte,estado,dias_mora',
-            'assignedTo:id,name'
+            'assignedTo:id,name',
+            'expedienteJudicial:id,credit_id,estado,sub_estado',
         ]);
 
         if ($request->has('lead_id')) {
@@ -474,13 +475,21 @@ class CreditController extends Controller
             'deductora',
             'planDePagos' => function($q) {
                 $q->orderBy('numero_cuota', 'asc');
-            }
+            },
+            'expedienteJudicial:id,credit_id,numero_expediente,estado,sub_estado,credipep_es_actor,fecha_ultima_actuacion',
         ])->findOrFail($id);
 
         // Agregar monto en letras
         $response = $credit->toArray();
         $moneda = $credit->divisa === 'USD' ? 'DOLARES' : 'COLONES';
         $response['monto_letras'] = NumberToWords::convert((float) $credit->monto_credito, $moneda);
+
+        // Badge de cobro judicial
+        $exp = $credit->expedienteJudicial;
+        $response['has_expediente']      = $exp !== null;
+        $response['expediente_estado']   = $exp?->estado;
+        $response['expediente_sub_estado'] = $exp?->sub_estado;
+        $response['expediente_id']       = $exp?->id;
 
         return response()->json($response);
     }

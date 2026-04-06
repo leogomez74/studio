@@ -202,6 +202,11 @@ class Credit extends Model
         return $this->belongsTo(Opportunity::class);
     }
 
+    public function expedienteJudicial()
+    {
+        return $this->hasOne(ExpedienteJudicial::class);
+    }
+
     public function documents()
     {
         return $this->hasMany(CreditDocument::class);

@@ -143,6 +143,10 @@ Route::get('/questionnaire/status', [QuestionnaireController::class, 'checkStatu
 Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submit']);
 Route::get('/instituciones', [InstitucionController::class, 'index']);
 
+// --- Webhook n8n: notificaciones judiciales entrantes ---
+// Protegido por token estático en header X-N8N-Token (validado en middleware/controller)
+Route::post('/cobro-judicial/notificacion-entrante', [\App\Http\Controllers\Api\CobroJudicialController::class, 'notificacionEntrante']);
+
 // =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum
 // =============================================================================
@@ -383,6 +387,33 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('cobros/pdf',                [\App\Http\Controllers\Api\ReporteController::class, 'cobrosPdf']);
         Route::get('inversiones',               [\App\Http\Controllers\Api\ReporteController::class, 'inversiones']);
         Route::get('inversiones/excel',         [\App\Http\Controllers\Api\ReporteController::class, 'inversionesExcel']);
+    });
+
+    // --- Cobro Judicial ---
+    Route::prefix('cobro-judicial')->group(function () {
+        // Expedientes
+        Route::get('expedientes',                        [\App\Http\Controllers\Api\CobroJudicialController::class, 'index']);
+        Route::get('expedientes/{expediente}',           [\App\Http\Controllers\Api\CobroJudicialController::class, 'show']);
+        Route::get('expedientes/{expediente}/notificaciones', [\App\Http\Controllers\Api\CobroJudicialController::class, 'notificaciones']);
+        Route::patch('expedientes/{expediente}/sub-estado',       [\App\Http\Controllers\Api\CobroJudicialController::class, 'cambiarSubEstado']);
+        Route::patch('expedientes/{expediente}/patrono',          [\App\Http\Controllers\Api\CobroJudicialController::class, 'cambiarPatrono']);
+        Route::patch('expedientes/{expediente}/numero-expediente', [\App\Http\Controllers\Api\CobroJudicialController::class, 'actualizarNumeroExpediente']);
+
+        // Posibles casos
+        Route::get('posibles',                                    [\App\Http\Controllers\Api\CobroJudicialController::class, 'posibles']);
+        Route::post('posibles/{credit}/descartar',                [\App\Http\Controllers\Api\CobroJudicialController::class, 'descartarPosible']);
+
+        // Casos donde Credipep fue citada (sin flujo de aprobación)
+        Route::post('registrar-citado',                           [\App\Http\Controllers\Api\CobroJudicialController::class, 'registrarCitado']);
+
+        // Flujo de aprobación
+        Route::post('proponer',                          [\App\Http\Controllers\Api\CobroJudicialController::class, 'proponer']);
+        Route::post('expedientes/{expediente}/decision',  [\App\Http\Controllers\Api\CobroJudicialController::class, 'decision']);
+        Route::post('expedientes/{expediente}/actuacion', [\App\Http\Controllers\Api\CobroJudicialController::class, 'registrarActuacionManual']);
+
+        // Notificaciones indefinidas
+        Route::get('notificaciones/indefinidas',         [\App\Http\Controllers\Api\CobroJudicialController::class, 'indefinidas']);
+        Route::patch('notificaciones/{notificacion}/clasificar', [\App\Http\Controllers\Api\CobroJudicialController::class, 'clasificar']);
     });
 
     // --- KPIs ---
