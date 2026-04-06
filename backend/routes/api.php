@@ -330,6 +330,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/{id}', [\App\Http\Controllers\Api\ActivityLogController::class, 'show']);
     });
 
+    // --- Incidencias (Bugs) ---
+    Route::get('/bugs/stats', [\App\Http\Controllers\Api\BugController::class, 'stats']);
+    Route::apiResource('bugs', \App\Http\Controllers\Api\BugController::class);
+    Route::patch('/bugs/{bug}/status', [\App\Http\Controllers\Api\BugController::class, 'updateStatus'])->middleware('throttle:60,1');
+    Route::post('/bugs/{bug}/images', [\App\Http\Controllers\Api\BugController::class, 'uploadImages'])->middleware('throttle:30,1');
+    Route::delete('/bugs/{bug}/images/{image}', [\App\Http\Controllers\Api\BugController::class, 'deleteImage'])->middleware('throttle:30,1');
+
     // --- Documentos de Personas (Leads/Clientes) ---
     Route::get('/person-documents', [PersonDocumentController::class, 'index']);
     Route::post('/person-documents', [PersonDocumentController::class, 'store'])->middleware('throttle:30,1');

@@ -31,6 +31,7 @@ import {
   BarChart2,
   ShieldCheck,
   BookOpen,
+  Bug,
 } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Badge } from '@/components/ui/badge';
@@ -87,6 +88,7 @@ const navGroups = [
     items: [
       { href: '/dashboard/auditoria', icon: ShieldCheck, label: 'Auditoría', module: 'auditoria' },
       { href: '/dashboard/auditoria-asientos', icon: BookOpen, label: 'Auditoría Asientos', module: 'configuracion' },
+      { href: '/dashboard/incidencias', icon: Bug, label: 'Incidencias', module: 'auditoria' },
     ],
   },
 ];
