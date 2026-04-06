@@ -116,8 +116,8 @@ class CobroJudicialController extends Controller
             $exp = ExpedienteJudicial::create([
                 'credit_id'     => $credit->id,
                 'cedula_deudor' => $credit->lead->cedula ?? '',
-                'nombre_deudor' => trim(($credit->lead->nombre ?? '') . ' ' . ($credit->lead->apellido ?? '')),
-                'monto_demanda' => $credit->monto_total ?? 0,
+                'nombre_deudor' => trim(($credit->lead->name ?? '') . ' ' . ($credit->lead->apellido1 ?? '') . ' ' . ($credit->lead->apellido2 ?? '')),
+                'monto_demanda' => $credit->monto_credito ?? 0,
                 'estado'        => 'cerrado',
                 'sub_estado'    => null,
                 'propuesto_por' => Auth::id(),
@@ -184,14 +184,14 @@ class CobroJudicialController extends Controller
     {
         $expedientesExistentes = ExpedienteJudicial::pluck('credit_id');
 
-        $posibles = Credit::with(['lead:id,cedula,nombre,apellido', 'deductora:id,name'])
+        $posibles = Credit::with(['lead:id,cedula,name,apellido1,apellido2', 'deductora:id,name'])
             ->whereNotIn('id', $expedientesExistentes)
             ->whereIn('status', [Credit::STATUS_EN_MORA, Credit::STATUS_LEGAL])
             ->whereHas('planDePagos', function ($q) {
                 $q->where('estado', 'pendiente')
                   ->where('fecha_vencimiento', '<=', now()->subMonths(4));
             })
-            ->select('id', 'operacion', 'lead_id', 'deductora_id', 'status', 'monto_total')
+            ->select('id', 'numero_operacion', 'lead_id', 'deductora_id', 'status', 'monto_credito')
             ->get();
 
         return response()->json($posibles);
@@ -225,11 +225,11 @@ class CobroJudicialController extends Controller
             $exp = ExpedienteJudicial::create([
                 'credit_id'      => $credit->id,
                 'cedula_deudor'  => $credit->lead->cedula ?? '',
-                'nombre_deudor'  => trim(($credit->lead->nombre ?? '') . ' ' . ($credit->lead->apellido ?? '')),
+                'nombre_deudor'  => trim(($credit->lead->name ?? '') . ' ' . ($credit->lead->apellido1 ?? '') . ' ' . ($credit->lead->apellido2 ?? '')),
                 // Empleador actual tomado de la ficha del cliente en el CRM (persons.institucion_labora).
                 // Es editable en el expediente porque puede cambiar de trabajo durante el proceso judicial.
                 'patrono_deudor' => $credit->lead->institucion_labora ?? null,
-                'monto_demanda'  => $credit->monto_total ?? 0,
+                'monto_demanda'  => $credit->monto_credito ?? 0,
                 'estado'         => 'propuesto',
                 'propuesto_por'  => Auth::id(),
                 'propuesto_at'   => now(),

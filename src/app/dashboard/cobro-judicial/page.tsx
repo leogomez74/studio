@@ -75,11 +75,11 @@ interface Expediente {
 
 interface PosibleCredito {
   id: number;
-  operacion: string;
-  lead: { cedula: string; nombre: string; apellido: string } | null;
+  numero_operacion: string;
+  lead: { cedula: string; name: string; apellido1: string; apellido2: string } | null;
   deductora: { name: string } | null;
   status: string;
-  monto_total: string;
+  monto_credito: string;
 }
 
 interface NotificacionIndefinida {
@@ -358,13 +358,13 @@ function PosiblesTab({
             ) : (
               posibles.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell className="font-mono text-sm font-medium">{c.operacion}</TableCell>
+                  <TableCell className="font-mono text-sm font-medium">{c.numero_operacion}</TableCell>
                   <TableCell>
-                    {c.lead ? `${c.lead.nombre} ${c.lead.apellido}` : '—'}
+                    {c.lead ? `${c.lead.name} ${c.lead.apellido1} ${c.lead.apellido2 ?? ''}`.trim() : '—'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.lead?.cedula ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{c.deductora?.name ?? '—'}</TableCell>
-                  <TableCell className="text-right font-mono">{fmt(c.monto_total)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmt(c.monto_credito)}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -520,7 +520,7 @@ function ProponerModal({
           <DialogTitle>Proponer caso a cobro judicial</DialogTitle>
           <DialogDescription>
             {credit
-              ? `${credit.lead ? `${credit.lead.nombre} ${credit.lead.apellido}` : credit.operacion} — ${fmt(credit.monto_total)}`
+              ? `${credit.lead ? `${credit.lead.name} ${credit.lead.apellido1}` : credit.numero_operacion} — ${fmt(credit.monto_credito)}`
               : ''}
           </DialogDescription>
         </DialogHeader>
