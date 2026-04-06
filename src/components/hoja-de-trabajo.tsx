@@ -153,13 +153,16 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
   const toggleManualMode = () => {
     if (!manualMode) {
-      // Si ya hay datos de Credid, pre-llenar el formulario manual con ellos
       if (credidData) {
         setManualManchas(credidData.manchas_detalle || []);
         setManualJuicios(credidData.juicios_detalle || []);
         setManualEmbargos(credidData.embargos_detalle || []);
-        setManualCargo(credidData.cargo || '');
-        setManualNombramiento(credidData.nombramiento || '');
+        setManualCargo(credidData.cargo || lead?.puesto || '');
+        setManualNombramiento(credidData.nombramiento || lead?.estado_puesto || '');
+      } else {
+        // Pre-llenar desde CRM si no hay datos de Credid
+        setManualCargo(lead?.puesto || '');
+        setManualNombramiento(lead?.estado_puesto || '');
       }
     }
     setManualMode(!manualMode);

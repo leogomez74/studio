@@ -477,42 +477,24 @@ export default function LeadDetailPage() {
     // --- Provincias / Cantones / Distritos (dirección principal)
     const provinceOptions = useMemo(() => getProvinceOptions(), []);
 
-    const cantonOptions = useMemo(() => {
-        const options = getCantonOptions(formData.province ?? "");
-        if (formData.canton && !options.some(o => o.value === formData.canton)) {
-            return [{ value: formData.canton, label: formData.canton }, ...options];
-        }
-        return options;
-    }, [formData.province, formData.canton]);
+    const cantonOptions = useMemo(() =>
+        getCantonOptions(formData.province ?? ""),
+    [formData.province]);
 
-    const districtOptions = useMemo(() => {
-        const options = getDistrictOptions(formData.province ?? "", formData.canton ?? "");
-        if (formData.distrito && !options.some(o => o.value === formData.distrito)) {
-            return [{ value: formData.distrito, label: formData.distrito }, ...options];
-        }
-        return options;
-    }, [formData.province, formData.canton, formData.distrito]);
+    const districtOptions = useMemo(() =>
+        getDistrictOptions(formData.province ?? "", formData.canton ?? ""),
+    [formData.province, formData.canton]);
 
     // --- Provincias / Cantones / Distritos (dirección trabajo)
     const workProvinceOptions = useMemo(() => getProvinceOptions(), []);
 
-    const workCantonOptions = useMemo(() => {
-        const options = getCantonOptions(formData.trabajo_provincia ?? "");
-        const current = formData.trabajo_canton;
-        if (current && !options.some(o => o.value === current)) {
-            return [{ value: current, label: current }, ...options];
-        }
-        return options;
-    }, [formData.trabajo_provincia, formData.trabajo_canton]);
+    const workCantonOptions = useMemo(() =>
+        getCantonOptions(formData.trabajo_provincia ?? ""),
+    [formData.trabajo_provincia]);
 
-    const workDistrictOptions = useMemo(() => {
-        const options = getDistrictOptions(formData.trabajo_provincia ?? "", formData.trabajo_canton ?? "");
-        const current = formData.trabajo_distrito;
-        if (current && !options.some(o => o.value === current)) {
-            return [{ value: current, label: current }, ...options];
-        }
-        return options;
-    }, [formData.trabajo_provincia, formData.trabajo_canton, formData.trabajo_distrito]);
+    const workDistrictOptions = useMemo(() =>
+        getDistrictOptions(formData.trabajo_provincia ?? "", formData.trabajo_canton ?? ""),
+    [formData.trabajo_provincia, formData.trabajo_canton]);
 
     const handleProvinceChange = (value: string) => {
         setFormData(prev => {

@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation';
 export interface VendedorRow {
   user_id: number;
   name: string;
+  role_name: string;
   creditos_mes: number;
   meta_cantidad: number;
   alcance_pct: number;
@@ -144,7 +145,20 @@ export function VendedoresTable({
                   <Avatar className="h-7 w-7">
                     <AvatarFallback className="text-xs">{v.name.charAt(0)}</AvatarFallback>
                   </Avatar>
-                  <span className="font-medium text-sm">{v.name}</span>
+                  <div>
+                    <span className="font-medium text-sm">{v.name}</span>
+                    <div>
+                      <Badge
+                        variant="outline"
+                        className={cn('text-xs h-4 px-1', v.role_name === 'Vendedor Interno'
+                          ? 'border-blue-300 text-blue-600 bg-blue-50 dark:bg-blue-950/20'
+                          : 'border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950/20'
+                        )}
+                      >
+                        {v.role_name === 'Vendedor Interno' ? 'Interno' : 'Externo'}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
               </TableCell>
 

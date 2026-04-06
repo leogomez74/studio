@@ -204,7 +204,17 @@ export function VendedorDashboard({
                     value={Math.min(meta_mes.alcance_pct, 100)}
                     className={meta_mes.alcance_pct >= 100 ? '[&>div]:bg-green-500' : ''}
                   />
-                  <p className="text-xs text-muted-foreground text-right">{meta_mes.alcance_pct.toFixed(1)}% alcanzado</p>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{meta_mes.alcance_pct.toFixed(1)}% alcanzado</span>
+                    {meta_mes.creditos_alcanzados < meta_mes.creditos_objetivo && (
+                      <span className="font-medium text-orange-600">
+                        Faltan {meta_mes.creditos_objetivo - meta_mes.creditos_alcanzados} crédito{meta_mes.creditos_objetivo - meta_mes.creditos_alcanzados !== 1 ? 's' : ''} para tu meta
+                      </span>
+                    )}
+                    {meta_mes.creditos_alcanzados >= meta_mes.creditos_objetivo && (
+                      <span className="font-medium text-green-600">¡Meta alcanzada!</span>
+                    )}
+                  </div>
                 </div>
                 <Separator />
                 <div className="grid grid-cols-2 gap-4 text-sm">

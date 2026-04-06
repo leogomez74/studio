@@ -1037,21 +1037,32 @@ export default function VentasPage() {
 
   // Vista del admin
   // Construir filas de VendedoresTable desde leaderboard + metas
-  const vendedoresRows: VendedorRow[] = ranking.map(r => ({
-    user_id: r.user_id,
-    name: r.name,
-    creditos_mes: r.creditos_mes,
-    meta_cantidad: r.meta_cantidad,
-    alcance_pct: r.alcance_pct,
-    monto_colocado: (r as any).monto_colocado ?? 0,
-    ticket_promedio: (r as any).ticket_promedio ?? 0,
-    tasa_cierre: (r as any).tasa_cierre ?? null,
-    comision_acumulada: (r as any).comision_acumulada ?? 0,
-    tier_activo_nombre: r.tier_activo_nombre,
-    tier_porcentaje: (r as any).tier_porcentaje ?? null,
-    ultima_actividad: (r as any).ultima_actividad ?? null,
-    posicion: r.posicion,
-  }));
+  const [filtroTipo, setFiltroTipo] = useState<'todos' | 'interno' | 'externo'>('todos');
+
+  const vendedoresRows: VendedorRow[] = ranking
+    .filter(r => {
+      if (filtroTipo === 'todos') return true;
+      const roleName = (r as any).role_name ?? '';
+      return filtroTipo === 'interno'
+        ? roleName === 'Vendedor Interno'
+        : roleName !== 'Vendedor Interno';
+    })
+    .map(r => ({
+      user_id: r.user_id,
+      name: r.name,
+      role_name: (r as any).role_name ?? 'Vendedor',
+      creditos_mes: r.creditos_mes,
+      meta_cantidad: r.meta_cantidad,
+      alcance_pct: r.alcance_pct,
+      monto_colocado: (r as any).monto_colocado ?? 0,
+      ticket_promedio: (r as any).ticket_promedio ?? 0,
+      tasa_cierre: (r as any).tasa_cierre ?? null,
+      comision_acumulada: (r as any).comision_acumulada ?? 0,
+      tier_activo_nombre: r.tier_activo_nombre,
+      tier_porcentaje: (r as any).tier_porcentaje ?? null,
+      ultima_actividad: (r as any).ultima_actividad ?? null,
+      posicion: r.posicion,
+    }));
 
   return (
     <ProtectedPage module="ventas">
@@ -1070,6 +1081,19 @@ export default function VentasPage() {
 
         <TabsContent value="vendedores" className="space-y-4">
           <RankingStrip ranking={ranking} mes={mesNombre} anio={anio} loading={rankingLoading} />
+          <div className="flex items-center gap-2">
+            {(['todos', 'interno', 'externo'] as const).map(tipo => (
+              <Button
+                key={tipo}
+                variant={filtroTipo === tipo ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-xs capitalize"
+                onClick={() => setFiltroTipo(tipo)}
+              >
+                {tipo === 'todos' ? 'Todos' : tipo === 'interno' ? 'Internos' : 'Externos'}
+              </Button>
+            ))}
+          </div>
           <VendedoresTable
             vendedores={vendedoresRows}
             loading={rankingLoading}

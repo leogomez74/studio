@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
+import Swal from 'sweetalert2';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -269,7 +270,19 @@ export default function IncidenciasPage() {
 
   // ── Eliminar bug ──────────────────────────────────────────────────────────────
   const handleDelete = async (bugId: number) => {
-    if (!confirm('¿Eliminar esta incidencia?')) return;
+    const result = await Swal.fire({
+      title: '¿Eliminar incidencia?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      customClass: { container: 'swal-over-modal' },
+      didOpen: () => { document.body.style.pointerEvents = 'auto'; },
+    });
+    if (!result.isConfirmed) return;
     try {
       await api.delete(`/api/bugs/${bugId}`);
       setBugs(prev => prev.filter(b => b.id !== bugId));
@@ -319,7 +332,7 @@ export default function IncidenciasPage() {
     }
   };
 
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api').replace('/api', '');
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
