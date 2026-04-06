@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
+import Swal from 'sweetalert2';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -269,7 +270,17 @@ export default function IncidenciasPage() {
 
   // ── Eliminar bug ──────────────────────────────────────────────────────────────
   const handleDelete = async (bugId: number) => {
-    if (!confirm('¿Eliminar esta incidencia?')) return;
+    const result = await Swal.fire({
+      title: '¿Eliminar incidencia?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+    });
+    if (!result.isConfirmed) return;
     try {
       await api.delete(`/api/bugs/${bugId}`);
       setBugs(prev => prev.filter(b => b.id !== bugId));
