@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Settings2, Zap, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,14 @@ import { useAuth } from '@/components/auth-guard';
 import { cn } from '@/lib/utils';
 import { getModuleFromPathname } from './module-event-map';
 import { useTaskAutomations } from '@/hooks/use-task-automations';
+import { useDraggableWidget } from '@/hooks/use-draggable-widget';
 import { AutoTasksSheet } from './AutoTasksSheet';
 
 /**
- * Widget flotante admin en esquina inferior derecha.
+ * Widget flotante admin arrastrable.
  * Solo visible para usuarios con full_access.
- * Colapsado: pill con ícono + badge de activas.
- * Expandido: tarjeta con módulo, conteo y acceso a gestión.
+ * Mantener presionado 1.5s para activar drag libre.
+ * Posición persistida en localStorage.
  */
 export function AdminToolbar() {
   const { user } = useAuth();
@@ -67,6 +68,9 @@ function AdminToolbarInner({
   const totalCount = automations.length;
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const { position, isDragging, isLongPressing, dragHandlers } = useDraggableWidget();
+
+  // Cerrar al hacer clic fuera (solo cuando está expandido y no arrastrando)
   useEffect(() => {
     if (!expanded) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -78,13 +82,63 @@ function AdminToolbarInner({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [expanded, onToggle]);
 
-  return (
-    <div ref={containerRef} className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2">
+  // Determinar si la tarjeta debe expandirse hacia arriba o hacia abajo
+  // según la posición vertical del widget en el viewport
+  const expandUp = typeof window !== 'undefined' ? position.y > window.innerHeight / 2 : true;
 
-      {/* Tarjeta expandida */}
+  return (
+    <div
+      ref={containerRef}
+      style={{ left: position.x, top: position.y }}
+      className={cn(
+        'fixed z-50',
+        'transition-opacity duration-150',
+        isDragging && 'opacity-80',
+      )}
+      {...dragHandlers}
+    >
+      {/* Pill / botón flotante — anchor fijo */}
+      <button
+        onClick={isDragging ? undefined : onToggle}
+        className={cn(
+          'flex items-center gap-2.5 rounded-full border shadow-lg px-4 py-2.5 text-sm font-medium',
+          'transition-all duration-200 hover:shadow-xl',
+          !isDragging && 'active:scale-95',
+          expanded
+            ? 'bg-primary text-primary-foreground border-primary'
+            : 'bg-background text-foreground border-border hover:bg-muted',
+          isLongPressing && 'ring-2 ring-primary ring-offset-2 animate-pulse',
+          isDragging && 'cursor-grabbing shadow-2xl scale-105',
+          !isDragging && !isLongPressing && 'cursor-pointer',
+        )}
+      >
+        <Settings2 className="h-4 w-4 shrink-0" />
+        <span>Admin</span>
+        {hasModule && activeCount > 0 && !expanded && (
+          <Badge
+            variant="default"
+            className="h-5 px-1.5 text-xs rounded-full bg-amber-500 hover:bg-amber-500 text-white border-0"
+          >
+            {activeCount}
+          </Badge>
+        )}
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
+            expanded && 'rotate-180'
+          )}
+        />
+      </button>
+
+      {/* Tarjeta expandida — absolute relativa al pill, no afecta su posición */}
       {expanded && (
-        <div className="w-72 rounded-xl border bg-background shadow-xl ring-1 ring-border overflow-hidden">
-          {/* Header de la tarjeta */}
+        <div
+          className={cn(
+            'absolute right-0 w-72 rounded-xl border bg-background shadow-xl ring-1 ring-border overflow-hidden',
+            expandUp ? 'bottom-full mb-2' : 'top-full mt-2',
+          )}
+        >
+          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b">
             <div className="flex items-center gap-2">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
@@ -112,20 +166,14 @@ function AdminToolbarInner({
                     <Zap className="h-3.5 w-3.5 text-amber-500" />
                     <span className="text-xs font-medium">Auto-tareas</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge
-                      variant={activeCount > 0 ? 'default' : 'secondary'}
-                      className="text-xs h-5"
-                    >
-                      {activeCount}/{totalCount} activas
-                    </Badge>
-                  </div>
+                  <Badge
+                    variant={activeCount > 0 ? 'default' : 'secondary'}
+                    className="text-xs h-5"
+                  >
+                    {activeCount}/{totalCount} activas
+                  </Badge>
                 </div>
-                <Button
-                  size="sm"
-                  className="w-full h-8 text-sm"
-                  onClick={onOpenSheet}
-                >
+                <Button size="sm" className="w-full h-8 text-sm" onClick={onOpenSheet}>
                   Gestionar automatizaciones
                 </Button>
               </div>
@@ -139,36 +187,6 @@ function AdminToolbarInner({
           </div>
         </div>
       )}
-
-      {/* Pill / botón flotante */}
-      <button
-        onClick={onToggle}
-        className={cn(
-          'flex items-center gap-2.5 rounded-full border shadow-lg px-4 py-2.5 text-sm font-medium',
-          'transition-all duration-200 hover:shadow-xl active:scale-95',
-          expanded
-            ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-background text-foreground border-border hover:bg-muted'
-        )}
-      >
-        <Settings2 className="h-4 w-4 shrink-0" />
-        <span>Admin</span>
-        {hasModule && activeCount > 0 && !expanded && (
-          <Badge
-            variant="default"
-            className="h-5 px-1.5 text-xs rounded-full bg-amber-500 hover:bg-amber-500 text-white border-0"
-          >
-            {activeCount}
-          </Badge>
-        )}
-        <ChevronDown
-          className={cn(
-            'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
-            expanded && 'rotate-180'
-          )}
-        />
-      </button>
-
     </div>
   );
 }
