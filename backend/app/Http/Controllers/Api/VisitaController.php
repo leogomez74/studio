@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Task;
-use App\Models\TaskAutomation;
 use App\Models\Visita;
+use App\Traits\DisparaAutoTareas;
+use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Traits\LogsActivity;
 
 class VisitaController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
     public function index(Request $request): JsonResponse
     {
@@ -135,14 +135,9 @@ class VisitaController extends Controller
 
         $this->logActivity('update_status', 'Visitas', $visita, 'Visita #' . $visita->id, [], $request);
 
-        // Auto-tarea: visita_completada
         if ($validated['status'] === 'Completada') {
-            $automation = TaskAutomation::where('event_type', 'visita_completada')
-                ->where('is_active', true)->first();
-            if ($automation) {
-                Task::createFromAutomation($automation, 'VISITA-' . $visita->id,
-                    "Visita completada: {$visita->title}");
-            }
+            $this->dispararAutoTarea('visita_completada', 'VISITA-' . $visita->id,
+                "Visita completada: {$visita->title}");
         }
 
         return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']));

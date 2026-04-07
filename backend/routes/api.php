@@ -286,6 +286,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Automatización de Tareas ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
     Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
+    Route::delete('/task-automations/{taskAutomation}', [\App\Http\Controllers\Api\TaskAutomationController::class, 'destroy'])->middleware('admin');
 
     // --- Integraciones Externas ---
     Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');
