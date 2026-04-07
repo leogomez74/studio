@@ -161,6 +161,8 @@ class BugController extends Controller
         ]);
 
         $uploaded = [];
+        $jira = new JiraService();
+
         foreach ($request->file('images') as $file) {
             $path = $file->store('bugs/' . $bug->id, 'public');
             $uploaded[] = BugImage::create([
@@ -169,6 +171,16 @@ class BugController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'size'          => $file->getSize(),
             ]);
+
+            // Adjuntar imagen a Jira si el bug tiene jira_key
+            if ($bug->jira_key) {
+                try {
+                    $fullPath = Storage::disk('public')->path($path);
+                    $jira->attachFile($bug->jira_key, $fullPath, $file->getClientOriginalName());
+                } catch (\Exception $e) {
+                    Log::warning('Jira attachFile failed: ' . $e->getMessage());
+                }
+            }
         }
 
         return response()->json($uploaded, 201);

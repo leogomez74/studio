@@ -101,6 +101,25 @@ class JiraService
     }
 
     /**
+     * Adjuntar un archivo a un issue de Jira.
+     */
+    public function attachFile(string $jiraKey, string $filePath, string $fileName): void
+    {
+        if (!$this->configured) return;
+        try {
+            Http::withBasicAuth($this->email, $this->token)
+                ->withHeaders([
+                    'X-Atlassian-Token' => 'no-check',
+                    'Accept'            => 'application/json',
+                ])
+                ->attach('file', file_get_contents($filePath), $fileName)
+                ->post("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}/attachments");
+        } catch (\Exception $e) {
+            Log::error('Jira attachFile exception: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Actualizar status de un issue en Jira via transiciones.
      */
     public function updateStatus(string $jiraKey, string $status): void
