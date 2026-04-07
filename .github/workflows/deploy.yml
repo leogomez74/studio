@@ -15,7 +15,7 @@ jobs:
       matrix:
         site:
           - name: "Deploy"
-            path: "/var/www/nuevopep"
+            path: "/var/www/adminpep"
             branch: "main"
 
     steps:
