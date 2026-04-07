@@ -16,6 +16,7 @@ use App\Models\LoanConfiguration;
 use App\Models\DeductoraChange;
 use App\Helpers\NumberToWords;
 use App\Traits\AccountingTrigger;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +29,7 @@ use App\Events\BusinessActionPerformed;
 class CreditController extends Controller
 {
     use AccountingTrigger;
+    use DisparaAutoTareas;
     use LogsActivity;
     /**
      * Listar créditos con filtros (optimizado con paginación)
@@ -1310,22 +1312,4 @@ class CreditController extends Controller
         return response()->json(['message' => 'El crédito no requiere corrección (su estado actual es ' . $credit->status . ').', 'status' => $credit->status]);
     }
 
-    /**
-     * Dispara una tarea automática según el tipo de evento.
-     *
-     * @param string $eventType Tipo de evento (ej: 'credit_created', 'credit_status_changed')
-     * @param string $projectCode Código del proyecto para la tarea (ej: 'CRED-123', referencia del crédito)
-     * @param string $details Detalles adicionales de la tarea
-     * @return void
-     */
-    private function dispararAutoTarea(string $eventType, string $projectCode, string $details = ''): void
-    {
-        $automation = TaskAutomation::where('event_type', $eventType)
-            ->where('is_active', true)
-            ->first();
-
-        if ($automation) {
-            Task::createFromAutomation($automation, $projectCode, $details);
-        }
-    }
 }

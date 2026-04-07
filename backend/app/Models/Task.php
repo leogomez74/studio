@@ -109,24 +109,25 @@ class Task extends Model
             return [];
         }
 
-        $tasks = [];
-        foreach ($assigneeIds as $userId) {
-            $task = self::create([
-                'project_code' => $projectCode,
-                'title' => $automation->title,
-                'details' => $details,
-                'status' => 'pendiente',
-                'priority' => $automation->priority ?? 'media',
-                'assigned_to' => $userId,
-                'workflow_id' => $automation->workflow_id,
-                'start_date' => now()->toDateString(),
-                'due_date' => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
-            ]);
-            $task->copyChecklistFromAutomation($automation);
-            $tasks[] = $task;
-        }
-
-        return $tasks;
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($automation, $assigneeIds, $projectCode, $details) {
+            $tasks = [];
+            foreach ($assigneeIds as $userId) {
+                $task = self::create([
+                    'project_code' => $projectCode,
+                    'title'        => $automation->title,
+                    'details'      => $details,
+                    'status'       => 'pendiente',
+                    'priority'     => $automation->priority ?? 'media',
+                    'assigned_to'  => $userId,
+                    'workflow_id'  => $automation->workflow_id,
+                    'start_date'   => now()->toDateString(),
+                    'due_date'     => now()->addDays($automation->due_days_offset ?? 3)->toDateString(),
+                ]);
+                $task->copyChecklistFromAutomation($automation);
+                $tasks[] = $task;
+            }
+            return $tasks;
+        });
     }
 
     public function currentStatusName(): string

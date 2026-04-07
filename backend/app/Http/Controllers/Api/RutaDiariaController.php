@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\RutaDiaria;
-use App\Models\Task;
-use App\Models\TaskAutomation;
 use App\Models\TareaRuta;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class RutaDiariaController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
 
     public function index(Request $request)
@@ -158,20 +158,6 @@ class RutaDiariaController extends Controller
                 201
             );
         });
-    }
-
-    /**
-     * Dispara una auto-tarea si existe la automatización activa.
-     */
-    private function dispararAutoTarea(string $eventType, string $projectCode, string $details = ''): void
-    {
-        $automation = TaskAutomation::where('event_type', $eventType)
-            ->where('is_active', true)
-            ->first();
-
-        if ($automation) {
-            Task::createFromAutomation($automation, $projectCode, $details);
-        }
     }
 
     public function confirmar(Request $request, string $id)
