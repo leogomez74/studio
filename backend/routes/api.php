@@ -397,23 +397,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
             // Descripción (formato ADF de Jira)
             $desc = $fields['description']['content'][0]['content'][0]['text'] ?? null;
 
-            // Si Jira está en Finalizada → archivar en Studio
-            $isFinished = str_contains(strtolower($fields['status']['name'] ?? ''), 'finaliz')
-                       || str_contains(strtolower($fields['status']['name'] ?? ''), 'done');
-
             // Crear o actualizar
             $bug = \App\Models\Bug::where('jira_key', $jiraKey)->first();
             if ($bug) {
                 if (!$bug->archived_at) {
-                    $updates = [
+                    $bug->update([
                         'title'       => $title,
                         'description' => $desc,
                         'priority'    => $priority,
-                        'status'      => $isFinished ? 'cerrado' : $status,
+                        'status'      => $status,
                         'assigned_to' => $userId,
-                    ];
-                    if ($isFinished) $updates['archived_at'] = now();
-                    $bug->update($updates);
+                    ]);
                 }
                 $updated++;
             } else {
