@@ -361,47 +361,90 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/jira/users', fn() => response()->json((new \App\Services\JiraService())->getUsers()));
     Route::get('/jira/status', fn() => response()->json(['connected' => (new \App\Services\JiraService())->isConfigured()]));
     Route::post('/jira/sync', function() {
-        $jira   = new \App\Services\JiraService();
-        $issues = $jira->fetchProjectIssues();
+        $jira    = new \App\Services\JiraService();
+        $issues  = $jira->fetchProjectIssues();
         $created = 0; $updated = 0;
 
         foreach ($issues as $issue) {
             $jiraKey = $issue['key'];
             $fields  = $issue['fields'] ?? [];
-            $summary = $fields['summary'] ?? '';
 
-            // Ignorar tareas creadas desde Studio (tienen prefijo [BUG-XXXX])
-            $title = preg_replace('/^\[BUG-\d+\]\s*/', '', $summary);
+            // Título limpio (sin prefijo [BUG-XXXX] si fue creado desde Studio)
+            $title = preg_replace('/^\[BUG-\d+\]\s*/', '', $fields['summary'] ?? 'Sin título');
+
+            // Prioridad
             $priority = match(strtolower($fields['priority']['name'] ?? 'medium')) {
                 'highest','critical' => 'critica', 'high' => 'alta', 'low','lowest' => 'baja', default => 'media'
             };
-            $jiraStatus = strtolower($fields['status']['name'] ?? '');
-            $status = str_contains($jiraStatus,'progress')||str_contains($jiraStatus,'curso') ? 'en_progreso'
-                : (str_contains($jiraStatus,'review')||str_contains($jiraStatus,'revision') ? 'en_revision'
-                : (str_contains($jiraStatus,'done')||str_contains($jiraStatus,'finaliz') ? 'cerrado' : 'abierto'));
 
+            // Estado — mapeo exacto de columnas Jira → Studio
+            $jiraStatus = strtolower($fields['status']['name'] ?? '');
+            $status = str_contains($jiraStatus,'progress') || str_contains($jiraStatus,'curso')   ? 'en_progreso'
+                   : (str_contains($jiraStatus,'review')   || str_contains($jiraStatus,'revision') ? 'en_revision'
+                   : (str_contains($jiraStatus,'done')     || str_contains($jiraStatus,'finaliz')  ? 'cerrado'
+                   : 'abierto'));
+
+            // Asignado — busca por primer nombre
             $assigneeName = $fields['assignee']['displayName'] ?? null;
             $userId = $assigneeName
                 ? \App\Models\User::whereRaw('LOWER(name) LIKE ?', ['%'.strtolower(explode(' ',$assigneeName)[0]).'%'])->value('id')
                 : null;
+            $adminId = $userId ?? \App\Models\User::first()?->id ?? 1;
 
+            // Descripción (formato ADF de Jira)
             $desc = $fields['description']['content'][0]['content'][0]['text'] ?? null;
 
-            $existing = \App\Models\Bug::where('jira_key', $jiraKey)->first();
-            if ($existing) {
-                $existing->update(compact('title','priority','status','description') + ($userId ? ['assigned_to'=>$userId] : []));
+            // Crear o actualizar
+            $bug = \App\Models\Bug::where('jira_key', $jiraKey)->first();
+            if ($bug) {
+                $bug->update([
+                    'title'       => $title,
+                    'description' => $desc,
+                    'priority'    => $priority,
+                    'status'      => $status,
+                    'assigned_to' => $userId,
+                ]);
                 $updated++;
             } else {
-                $adminId = $userId ?? \App\Models\User::first()?->id ?? 1;
-                \App\Models\Bug::create([
-                    'jira_key'=>$jiraKey,'title'=>$title,'description'=>$desc,
-                    'priority'=>$priority,'status'=>$status,
-                    'assigned_to'=>$userId,'created_by'=>$adminId,
+                $bug = \App\Models\Bug::create([
+                    'jira_key'    => $jiraKey,
+                    'title'       => $title,
+                    'description' => $desc,
+                    'priority'    => $priority,
+                    'status'      => $status,
+                    'assigned_to' => $userId,
+                    'created_by'  => $adminId,
                 ]);
                 $created++;
             }
+
+            // Sincronizar archivos adjuntos de Jira → Studio
+            $attachments = $fields['attachment'] ?? [];
+            foreach ($attachments as $att) {
+                $filename    = $att['filename'] ?? 'archivo';
+                $contentUrl  = $att['content'] ?? null;
+                if (!$contentUrl) continue;
+
+                // Solo descargar si no existe ya con ese nombre
+                $exists = $bug->images()->where('original_name', $filename)->exists();
+                if ($exists) continue;
+
+                $content = $jira->downloadAttachment($contentUrl);
+                if (!$content) continue;
+
+                $ext  = pathinfo($filename, PATHINFO_EXTENSION) ?: 'jpg';
+                $path = 'bugs/' . $bug->id . '/' . uniqid() . '.' . $ext;
+                \Illuminate\Support\Facades\Storage::disk('public')->put($path, $content);
+
+                $bug->images()->create([
+                    'path'          => $path,
+                    'original_name' => $filename,
+                    'size'          => strlen($content),
+                ]);
+            }
         }
-        return response()->json(['created'=>$created,'updated'=>$updated,'total'=>count($issues)]);
+
+        return response()->json(['created' => $created, 'updated' => $updated, 'total' => count($issues)]);
     });
     Route::get('/bugs/{bug}/subtasks', fn(\App\Models\Bug $bug) => response()->json(
         $bug->jira_key ? (new \App\Services\JiraService())->getSubtasks($bug->jira_key) : []

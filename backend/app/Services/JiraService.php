@@ -258,11 +258,11 @@ class JiraService
             $all  = [];
             $start = 0;
             do {
-                $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/search", [
+                $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/search/jql", [
                     'jql'        => "project = {$this->projectKey} ORDER BY created DESC",
                     'startAt'    => $start,
                     'maxResults' => 100,
-                    'fields'     => 'summary,status,priority,assignee,description',
+                    'fields'     => 'summary,status,priority,assignee,description,attachment',
                 ]);
                 if (!$resp->successful()) break;
                 $issues = $resp->json('issues', []);
@@ -274,6 +274,22 @@ class JiraService
         } catch (\Exception $e) {
             Log::error('Jira fetchProjectIssues: ' . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * Descargar contenido de un attachment de Jira (URL autenticada).
+     * Retorna el contenido binario o null si falla.
+     */
+    public function downloadAttachment(string $contentUrl): ?string
+    {
+        if (!$this->configured) return null;
+        try {
+            $resp = $this->client()->get($contentUrl);
+            return $resp->successful() ? $resp->body() : null;
+        } catch (\Exception $e) {
+            Log::error('Jira downloadAttachment: ' . $e->getMessage());
+            return null;
         }
     }
 
