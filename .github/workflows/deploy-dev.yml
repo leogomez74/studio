@@ -34,7 +34,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no coder@dev.pep.cr "
             cd ${{ matrix.site.path }} &&
             git fetch origin ${{ matrix.site.branch }} &&
-            sudo chown -R coder:coder backend/bootstrap/cache backend/storage &&
             git reset --hard origin/${{ matrix.site.branch }} &&
             cd backend &&
             /usr/bin/php8.4 /usr/local/bin/composer install &&
