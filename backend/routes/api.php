@@ -351,6 +351,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/bugs/{bug}/status', [\App\Http\Controllers\Api\BugController::class, 'updateStatus'])->middleware('throttle:60,1');
     Route::post('/bugs/{bug}/images', [\App\Http\Controllers\Api\BugController::class, 'uploadImages'])->middleware('throttle:30,1');
     Route::delete('/bugs/{bug}/images/{image}', [\App\Http\Controllers\Api\BugController::class, 'deleteImage'])->middleware('throttle:30,1');
+    Route::get('/jira/users', fn() => response()->json((new \App\Services\JiraService())->getUsers()));
 
     // --- Documentos de Personas (Leads/Clientes) ---
     Route::get('/person-documents', [PersonDocumentController::class, 'index']);

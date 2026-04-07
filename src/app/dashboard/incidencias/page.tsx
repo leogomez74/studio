@@ -30,6 +30,7 @@ interface BugImage {
 interface BugItem {
   id: number;
   reference: string;
+  jira_key: string | null;
   title: string;
   description: string | null;
   status: 'abierto' | 'en_progreso' | 'en_revision' | 'cerrado';
@@ -47,6 +48,13 @@ interface BugItem {
 interface UserOption {
   id: number;
   name: string;
+}
+
+interface JiraUser {
+  accountId: string;
+  displayName: string;
+  email: string | null;
+  avatar: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,6 +79,7 @@ export default function IncidenciasPage() {
   const { toast } = useToast();
   const [bugs, setBugs] = useState<BugItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [jiraUsers, setJiraUsers] = useState<JiraUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
@@ -82,6 +91,7 @@ export default function IncidenciasPage() {
   const [selectedBug, setSelectedBug] = useState<BugItem | null>(null);
 
   // Create form
+  const [formJiraAssignee, setFormJiraAssignee] = useState<string>('');
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formPriority, setFormPriority] = useState<string>('media');
@@ -162,13 +172,28 @@ export default function IncidenciasPage() {
     }).catch(() => {
       toast({ title: 'Error', description: 'Error al cargar datos', variant: 'destructive' });
     }).finally(() => setLoading(false));
+
+    // Jira users por separado — si falla no bloquea el resto
+    api.get('/api/jira/users')
+      .then(res => setJiraUsers(res.data || []))
+      .catch(() => setJiraUsers([]));
   }, []);
 
   // ── Filtrado ──────────────────────────────────────────────────────────────────
   const filteredBugs = bugs.filter(b => {
     if (search && !b.title.toLowerCase().includes(search.toLowerCase()) && !b.reference.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterPriority !== 'all' && b.priority !== filterPriority) return false;
-    if (filterUser !== 'all' && String(b.assigned_to) !== filterUser) return false;
+    if (filterUser !== 'all') {
+      if (jiraUsers.length > 0) {
+        // Filtrar por nombre del assignee comparando con displayName de Jira
+        const jiraUser = jiraUsers.find(u => u.accountId === filterUser);
+        if (!jiraUser) return false;
+        const assigneeName = b.assignee?.name?.toLowerCase() || '';
+        if (!assigneeName.includes(jiraUser.displayName.split(' ')[0].toLowerCase())) return false;
+      } else {
+        if (String(b.assigned_to) !== filterUser) return false;
+      }
+    }
     return true;
   });
 
@@ -180,11 +205,17 @@ export default function IncidenciasPage() {
     if (!formTitle.trim()) return;
     setCreating(true);
     try {
+      const jiraAccountId = formJiraAssignee && formJiraAssignee !== 'none' ? formJiraAssignee : null;
+      // Intentar mapear usuario Jira a usuario Studio por nombre
+      const jiraUser = jiraAccountId ? jiraUsers.find(u => u.accountId === jiraAccountId) : null;
+      const studioUser = jiraUser ? users.find(u => u.name.toLowerCase().includes(jiraUser.displayName.split(' ')[0].toLowerCase())) : null;
+
       const res = await api.post('/api/bugs', {
         title: formTitle.trim(),
         description: formDesc.trim() || null,
         priority: formPriority,
-        assigned_to: formAssignee || null,
+        assigned_to: studioUser?.id || null,
+        jira_assignee_id: jiraAccountId,
       });
       const newBug = res.data;
 
@@ -216,6 +247,7 @@ export default function IncidenciasPage() {
     setFormDesc('');
     setFormPriority('media');
     setFormAssignee('');
+    setFormJiraAssignee('');
     setFormImages([]);
     setImagePreviews([]);
   };
@@ -388,9 +420,14 @@ export default function IncidenciasPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
-              {users.map(u => (
-                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-              ))}
+              {jiraUsers.length > 0
+                ? jiraUsers.map(u => (
+                    <SelectItem key={u.accountId} value={u.accountId}>{u.displayName}</SelectItem>
+                  ))
+                : users.map(u => (
+                    <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                  ))
+              }
             </SelectContent>
           </Select>
           <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-8 gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs">
@@ -536,12 +573,18 @@ export default function IncidenciasPage() {
               </div>
               <div>
                 <Label className="text-xs">Asignar a</Label>
-                <Select value={formAssignee} onValueChange={setFormAssignee}>
+                <Select value={formJiraAssignee} onValueChange={setFormJiraAssignee}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
                   <SelectContent>
-                    {users.map(u => (
-                      <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                    ))}
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    {jiraUsers.length > 0
+                      ? jiraUsers.map(u => (
+                          <SelectItem key={u.accountId} value={u.accountId}>{u.displayName}</SelectItem>
+                        ))
+                      : users.map(u => (
+                          <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                        ))
+                    }
                   </SelectContent>
                 </Select>
               </div>
@@ -611,9 +654,19 @@ export default function IncidenciasPage() {
             return (
               <>
                 <DialogHeader>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-mono text-muted-foreground bg-slate-100 px-2 py-0.5 rounded">{b.reference}</span>
                     <Badge variant="outline" className={`text-[10px] ${prio.badgeCls}`}>{prio.label}</Badge>
+                    {b.jira_key && (
+                      <a
+                        href={`https://ssccr.atlassian.net/browse/${b.jira_key}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-mono bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition"
+                      >
+                        <span className="font-bold">J</span> {b.jira_key}
+                      </a>
+                    )}
                     <div className="ml-auto flex items-center gap-1">
                       <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(b.id)}>
                         <Trash2 className="h-3.5 w-3.5" />

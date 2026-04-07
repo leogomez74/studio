@@ -82,4 +82,11 @@ return [
         explode(',', env('ALLOWED_INTEGRATION_DOMAINS', ''))
     ),
 
+    'jira' => [
+        'url'         => env('JIRA_URL'),
+        'email'       => env('JIRA_EMAIL'),
+        'token'       => env('JIRA_API_TOKEN'),
+        'project_key' => env('JIRA_PROJECT_KEY', 'PJ'),
+    ],
+
 ];

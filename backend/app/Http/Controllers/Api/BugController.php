@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Bug;
 use App\Models\BugImage;
+use App\Services\JiraService;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -57,6 +58,22 @@ class BugController extends Controller
         $validated['status'] = $validated['status'] ?? 'abierto';
 
         $bug = Bug::create($validated);
+
+        // Sincronizar con Jira
+        try {
+            $jira = new JiraService();
+            $jiraKey = $jira->createIssue(
+                $bug->reference,
+                $bug->title,
+                $bug->priority,
+                $bug->description,
+                $request->input('jira_assignee_id')
+            );
+            if ($jiraKey) $bug->update(['jira_key' => $jiraKey]);
+        } catch (\Exception $e) {
+            Log::warning('Jira sync on create: ' . $e->getMessage());
+        }
+
         $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
 
         $this->logActivity('create', 'Incidencias', $bug, $bug->reference . ' - ' . $bug->title, [], $request);
@@ -83,6 +100,11 @@ class BugController extends Controller
         $oldData = $bug->toArray();
         $bug->update($validated);
         $changes = $this->getChanges($oldData, $bug->fresh()->toArray());
+
+        if (isset($validated['status']) && $bug->jira_key) {
+            try { (new JiraService())->updateStatus($bug->jira_key, $validated['status']); }
+            catch (\Exception $e) { Log::warning('Jira sync on update: ' . $e->getMessage()); }
+        }
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, $changes, $request);
 
@@ -114,6 +136,11 @@ class BugController extends Controller
 
         $oldStatus = $bug->status;
         $bug->update($validated);
+
+        if ($bug->jira_key) {
+            try { (new JiraService())->updateStatus($bug->jira_key, $validated['status']); }
+            catch (\Exception $e) { Log::warning('Jira sync on status: ' . $e->getMessage()); }
+        }
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, [
             ['field' => 'status', 'old_value' => $oldStatus, 'new_value' => $validated['status']]
