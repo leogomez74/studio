@@ -129,9 +129,11 @@ Route::get('/health/env', function (Request $request) {
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-// --- PDFs/Excel públicos del Plan de Pagos (se abren en nueva pestaña) ---
-Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
-Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
+// --- PDFs/Excel del Plan de Pagos (requieren auth via cookie de sesión Sanctum) ---
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
+    Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
+});
 
 // (exports de inversiones movidos a grupo auth:sanctum — ver abajo)
 
