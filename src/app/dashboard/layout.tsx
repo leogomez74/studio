@@ -21,6 +21,7 @@ import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { ConfigurationMenuItem } from "@/components/configuration-menu-item";
 import { ChatBubbleWrapper } from "@/components/chat-bubble-wrapper";
 import { GlobalQuickTask } from "@/components/tareas/GlobalQuickTask";
+import { AdminToolbar } from "@/components/admin-toolbar/AdminToolbar";
 
 // Esta es la función principal del layout del dashboard.
 // Recibe 'children', que es el contenido específico de cada página del dashboard.
@@ -64,6 +65,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
           <ChatBubbleWrapper />
           <GlobalQuickTask />
+          <AdminToolbar />
         </SidebarInset>
         </SidebarProvider>
       </PermissionsProvider>

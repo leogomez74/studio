@@ -11,6 +11,7 @@ use App\Services\MoraService;
 use App\Services\PaymentProcessingService;
 use App\Services\PlanillaService;
 use App\Services\ReversalService;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ use App\Events\BusinessActionPerformed;
 
 class CreditPaymentController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
 
     protected PlanillaService $planilla;
@@ -243,6 +245,9 @@ class CreditPaymentController extends Controller
 
         // Gamificación: puntos por carga masiva de planilla
         BusinessActionPerformed::dispatch('planilla_uploaded', $request->user(), $result['planillaUpload']);
+
+        $this->dispararAutoTarea('planilla_uploaded', 'PLANILLA-' . $result['planillaUpload']->id,
+            "Planilla #{$result['planillaUpload']->id} cargada exitosamente.");
 
         return response()->json([
             'message' => 'Proceso completado',

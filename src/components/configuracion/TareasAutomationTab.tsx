@@ -53,6 +53,15 @@ const AUTOMATION_EVENTS = [
   // — Operaciones —
   { key: 'planilla_anulada', title: 'Planilla Anulada', description: 'Al anular una planilla (reversar todos los pagos), se crea tarea para verificar que los saldos quedaron correctos, conciliar con la deductora y notificar a los clientes afectados.', defaultTitle: 'Verificar saldos post-anulación de planilla' },
   { key: 'lead_inactivity_alert', title: 'Alerta de Inactividad de Leads', description: 'Cuando el sistema detecta leads u oportunidades inactivos (cron diario), se crea tarea para dar seguimiento o marcar como Perdido según corresponda.', defaultTitle: 'Seguimiento de leads/oportunidades inactivos' },
+  // — Nuevos triggers —
+  { key: 'lead_converted', title: 'Lead Convertido a Cliente', description: 'Al convertir exitosamente un lead en cliente, se crea tarea para gestionar el onboarding y bienvenida del nuevo cliente.', defaultTitle: 'Onboarding de nuevo cliente' },
+  { key: 'credit_status_changed', title: 'Estado de Crédito Cambiado', description: 'Al cambiar el estado de un crédito (Aprobado, Formalizado, Cerrado), se crea tarea de seguimiento por el cambio de estado.', defaultTitle: 'Seguimiento por cambio de estado' },
+  { key: 'credit_refundido', title: 'Crédito Refundido', description: 'Al refundir un crédito (cierra el anterior y abre uno nuevo), se crea tarea para gestionar la documentación de la refundición.', defaultTitle: 'Gestionar documentación de refundición' },
+  { key: 'opportunity_status_changed', title: 'Estado de Oportunidad Cambiado', description: 'Al cambiar el estado de una oportunidad (Ganada, Perdida, etc.), se crea tarea de seguimiento por el cambio.', defaultTitle: 'Seguimiento por cambio de oportunidad' },
+  { key: 'planilla_uploaded', title: 'Planilla Cargada', description: 'Al cargar una planilla de pagos masivos exitosamente, se crea tarea para auditar los pagos procesados.', defaultTitle: 'Auditoría de planilla cargada' },
+  { key: 'visita_completada', title: 'Visita Completada', description: 'Al marcar una visita de campo como completada, se crea tarea de seguimiento post-visita.', defaultTitle: 'Seguimiento post-visita' },
+  { key: 'ruta_confirmada', title: 'Ruta Confirmada', description: 'Al confirmar una ruta diaria (pasa de borrador a confirmada), se crea tarea para verificar coordinación con el mensajero.', defaultTitle: 'Verificar ruta confirmada con mensajero' },
+  { key: 'ruta_iniciada', title: 'Ruta Iniciada', description: 'Al iniciar una ruta confirmada (mensajero sale a campo), se crea tarea de seguimiento de la ruta en progreso.', defaultTitle: 'Seguimiento de ruta en progreso' },
 ];
 
 const TareasAutomationTab: React.FC = () => {

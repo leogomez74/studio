@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\TaskAutomation;
 use App\Traits\LogsActivity;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TaskAutomationController extends Controller
@@ -64,5 +65,14 @@ class TaskAutomationController extends Controller
         $this->logActivity('upsert', 'Automatización Tareas', $automation, $automation->title, null, $request);
 
         return response()->json($automation->load(['assignee:id,name', 'assignees:id,name', 'checklistItems']));
+    }
+
+    public function destroy(TaskAutomation $taskAutomation, Request $request): JsonResponse
+    {
+        $this->logActivity('delete', 'Automatización Tareas', $taskAutomation, $taskAutomation->title, null, $request);
+
+        $taskAutomation->delete();
+
+        return response()->json(null, 204);
     }
 }

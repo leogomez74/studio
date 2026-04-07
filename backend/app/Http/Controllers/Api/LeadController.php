@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\CredidService;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use App\Models\Lead;
 use App\Models\Person;
@@ -20,7 +21,9 @@ use App\Events\BusinessActionPerformed;
 
 class LeadController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
+
     public function index(Request $request)
     {
         $activeFilter = $this->resolveActiveFilter($request);
@@ -242,34 +245,10 @@ class LeadController extends Controller
 
         $this->logActivity('create', 'Leads', $result['lead'], $result['lead']->cedula ?? $result['lead']->name, [], $request);
 
-        // Crear tarea automática si está configurada
-        try {
-            $automation = TaskAutomation::where('event_type', 'lead_created')
-                ->where('is_active', true)
-                ->first();
+        $this->dispararAutoTarea('lead_created', 'LEAD-' . $result['lead']->id);
 
-            if ($automation) {
-                $tasks = Task::createFromAutomation($automation, 'LEAD-' . $result['lead']->id);
-                if (!empty($tasks)) {
-                    Log::info('Tareas automáticas creadas para lead', ['cedula' => $result['lead']->cedula, 'count' => count($tasks)]);
-                }
-            }
-
-            // Tarea automática para la oportunidad creada junto con el lead
-            if ($result['opportunity']) {
-                $oppAutomation = TaskAutomation::where('event_type', 'opportunity_created')
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($oppAutomation) {
-                    $oppTasks = Task::createFromAutomation($oppAutomation, 'OPP-' . $result['opportunity']->id);
-                    if (!empty($oppTasks)) {
-                        Log::info('Tareas automáticas creadas para oportunidad', ['opportunity_id' => $result['opportunity']->id, 'count' => count($oppTasks)]);
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Error creando tarea automática', ['lead_id' => $result['lead']->id ?? null, 'opportunity_id' => $result['opportunity']->id ?? null, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        if ($result['opportunity']) {
+            $this->dispararAutoTarea('opportunity_created', 'OPP-' . $result['opportunity']->id);
         }
 
         // Consultar Credid automáticamente si tiene cédula
@@ -515,6 +494,9 @@ class LeadController extends Controller
         if ($request->user()) {
             BusinessActionPerformed::dispatch('lead_converted', $request->user(), $lead);
         }
+
+        $this->dispararAutoTarea('lead_converted', 'LEAD-' . $lead->id,
+            "Lead convertido a cliente: {$lead->name}");
 
         return response()->json($lead);
     }
