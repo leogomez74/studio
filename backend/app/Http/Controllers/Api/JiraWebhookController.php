@@ -100,11 +100,19 @@ class JiraWebhookController extends Controller
 
             $updates = [];
 
-            // Status
+            // Status — si Jira mueve a Finalizada → archivar en Studio
             $jiraStatus = $fields['status']['name'] ?? null;
             if ($jiraStatus) {
-                $mapped = $this->mapStatus($jiraStatus);
-                if ($mapped && $mapped !== $bug->status) $updates['status'] = $mapped;
+                $isFinished = str_contains(strtolower($jiraStatus), 'finaliz') || str_contains(strtolower($jiraStatus), 'done');
+                if ($isFinished && !$bug->archived_at) {
+                    $updates['status']      = 'cerrado';
+                    $updates['archived_at'] = now();
+                } elseif (!$isFinished) {
+                    $mapped = $this->mapStatus($jiraStatus);
+                    if ($mapped && $mapped !== $bug->status) $updates['status'] = $mapped;
+                    // Si se mueve de Finalizada → des-archivar
+                    if ($bug->archived_at) $updates['archived_at'] = null;
+                }
             }
 
             // Prioridad

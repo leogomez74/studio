@@ -94,6 +94,8 @@ export default function IncidenciasPage() {
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterUser, setFilterUser] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedBugs, setArchivedBugs] = useState<BugItem[]>([]);
   const [jiraConnected, setJiraConnected] = useState<boolean | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -681,6 +683,44 @@ export default function IncidenciasPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Sección Archivadas ───────────────────────────────────────────────── */}
+      <div className="mt-4 border-t pt-3">
+        <button
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-slate-700 transition"
+          onClick={() => {
+            setShowArchived(v => {
+              if (!v) api.get('/api/bugs/archived').then(r => setArchivedBugs(r.data || []));
+              return !v;
+            });
+          }}
+        >
+          <span className={`transition-transform ${showArchived ? 'rotate-90' : ''}`}>▶</span>
+          Archivadas {archivedBugs.length > 0 && `(${archivedBugs.length})`}
+        </button>
+        {showArchived && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {archivedBugs.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic col-span-3">Sin incidencias archivadas</p>
+            ) : archivedBugs.map(bug => {
+              const prio = PRIORITY_CONFIG[bug.priority];
+              return (
+                <div key={bug.id} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 opacity-75">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-mono text-muted-foreground">{bug.reference}</span>
+                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prio.badgeCls}`}>{prio.label}</Badge>
+                  </div>
+                  <p className="text-xs font-medium text-slate-600 line-clamp-1 mb-1">{bug.title}</p>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>{bug.jira_key && <span className="text-blue-500">{bug.jira_key}</span>}</span>
+                    <span>{bug.archived_at ? new Date(bug.archived_at).toLocaleDateString('es-CR') : ''}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Modal: Crear Incidencia ──────────────────────────────────────────── */}
