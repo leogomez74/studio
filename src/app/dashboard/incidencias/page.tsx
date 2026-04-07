@@ -177,6 +177,29 @@ export default function IncidenciasPage() {
     }
   }, []);
 
+  // ── Polling Jira — refresca cada 15s cuando el modal está abierto ────────────
+  useEffect(() => {
+    if (!showDetailModal || !selectedBug) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get(`/api/bugs/${selectedBug.id}`);
+        const updated = res.data;
+        // Actualizar bug en la lista y en el modal si cambió en Jira
+        setBugs(prev => prev.map(b => b.id === updated.id ? updated : b));
+        setSelectedBug(prev => {
+          if (!prev || prev.id !== updated.id) return prev;
+          // Solo actualizar si hay cambios reales
+          if (prev.status !== updated.status || prev.priority !== updated.priority ||
+              prev.title !== updated.title || prev.assigned_to !== updated.assigned_to) {
+            return updated;
+          }
+          return prev;
+        });
+      } catch { /* silencioso */ }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [showDetailModal, selectedBug?.id]);
+
   useEffect(() => {
     Promise.all([
       api.get('/api/bugs'),
