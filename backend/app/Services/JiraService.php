@@ -101,6 +101,57 @@ class JiraService
     }
 
     /**
+     * Obtener subtareas de un issue.
+     */
+    public function getSubtasks(string $jiraKey): array
+    {
+        if (!$this->configured) return [];
+        try {
+            $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}", [
+                'fields' => 'subtasks,summary,status,assignee',
+            ]);
+            if (!$resp->successful()) return [];
+
+            return collect($resp->json('fields.subtasks', []))
+                ->map(fn($s) => [
+                    'key'      => $s['key'],
+                    'summary'  => $s['fields']['summary'] ?? '',
+                    'status'   => $s['fields']['status']['name'] ?? '',
+                    'assignee' => $s['fields']['assignee']['displayName'] ?? null,
+                    'url'      => "{$this->baseUrl}/browse/{$s['key']}",
+                ])
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('Jira getSubtasks: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Crear subtarea en Jira.
+     */
+    public function createSubtask(string $parentKey, string $title, ?string $assigneeAccountId = null): ?string
+    {
+        if (!$this->configured) return null;
+        try {
+            $fields = [
+                'project'   => ['key' => $this->projectKey],
+                'parent'    => ['key' => $parentKey],
+                'summary'   => $title,
+                'issuetype' => ['name' => 'Subtarea'],
+            ];
+            if ($assigneeAccountId) {
+                $fields['assignee'] = ['accountId' => $assigneeAccountId];
+            }
+            $resp = $this->client()->post("{$this->baseUrl}/rest/api/3/issue", ['fields' => $fields]);
+            return $resp->successful() ? $resp->json('key') : null;
+        } catch (\Exception $e) {
+            Log::error('Jira createSubtask: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Eliminar un issue de Jira.
      */
     public function deleteIssue(string $jiraKey): void

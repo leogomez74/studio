@@ -50,6 +50,14 @@ interface UserOption {
   name: string;
 }
 
+interface Subtask {
+  key: string;
+  summary: string;
+  status: string;
+  assignee: string | null;
+  url: string;
+}
+
 interface JiraUser {
   accountId: string;
   displayName: string;
@@ -100,6 +108,13 @@ export default function IncidenciasPage() {
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreviews, setImagePreviews] = useState<{ file: File; url: string }[]>([]);
+
+  // Subtareas Jira
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false);
+  const [newSubtask, setNewSubtask] = useState('');
+  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState('');
+  const [creatingSubtask, setCreatingSubtask] = useState(false);
 
   // Drag & drop
   const [draggedBug, setDraggedBug] = useState<BugItem | null>(null);
@@ -343,6 +358,25 @@ export default function IncidenciasPage() {
   };
 
   // ── Delete imagen ─────────────────────────────────────────────────────────────
+  const handleCreateSubtask = async () => {
+    if (!newSubtask.trim() || !selectedBug) return;
+    setCreatingSubtask(true);
+    try {
+      const res = await api.post(`/api/bugs/${selectedBug.id}/subtasks`, {
+        title: newSubtask.trim(),
+        assignee_id: newSubtaskAssignee && newSubtaskAssignee !== 'none' ? newSubtaskAssignee : null,
+      });
+      setSubtasks(prev => [...prev, { key: res.data.key, summary: newSubtask.trim(), status: 'Tareas por hacer', assignee: null, url: `https://ssccr.atlassian.net/browse/${res.data.key}` }]);
+      setNewSubtask('');
+      setNewSubtaskAssignee('');
+      toast({ title: 'Subtarea creada', description: `${res.data.key} creada en Jira` });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la subtarea', variant: 'destructive' });
+    } finally {
+      setCreatingSubtask(false);
+    }
+  };
+
   const handleDeleteImage = async (bugId: number, imageId: number) => {
     try {
       await api.delete(`/api/bugs/${bugId}/images/${imageId}`);
@@ -476,7 +510,20 @@ export default function IncidenciasPage() {
                       key={bug.id}
                       draggable
                       onDragStart={() => handleDragStart(bug)}
-                      onClick={() => { setSelectedBug(bug); setShowDetailModal(true); }}
+                      onClick={() => {
+                        setSelectedBug(bug);
+                        setShowDetailModal(true);
+                        setSubtasks([]);
+                        setNewSubtask('');
+                        setNewSubtaskAssignee('');
+                        if (bug.jira_key) {
+                          setLoadingSubtasks(true);
+                          api.get(`/api/bugs/${bug.id}/subtasks`)
+                            .then(r => setSubtasks(r.data || []))
+                            .catch(() => {})
+                            .finally(() => setLoadingSubtasks(false));
+                        }
+                      }}
                       className={`group bg-white rounded-lg border border-slate-200 p-2.5 cursor-pointer
                         hover:border-slate-300 hover:shadow-md transition-all duration-150
                         ${draggedBug?.id === bug.id ? 'opacity-40 scale-95' : ''}`}
@@ -769,6 +816,70 @@ export default function IncidenciasPage() {
                       </div>
                     )}
                   </div>
+
+                  <Separator />
+
+                  {/* Subtareas Jira */}
+                  {b.jira_key && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-blue-600 text-white text-[8px] font-bold">J</span>
+                          Subtareas Jira
+                        </Label>
+                      </div>
+
+                      {/* Lista de subtareas existentes */}
+                      {loadingSubtasks ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Cargando...
+                        </div>
+                      ) : subtasks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic mb-2">Sin subtareas</p>
+                      ) : (
+                        <div className="space-y-1 mb-3">
+                          {subtasks.map(s => (
+                            <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center justify-between p-2 rounded border border-slate-100 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition group">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-[10px] font-mono text-blue-600 shrink-0">{s.key}</span>
+                                <span className="text-xs text-slate-700 truncate">{s.summary}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
+                                {s.assignee && <span className="text-[10px] text-muted-foreground">{s.assignee.split(' ')[0]}</span>}
+                                <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{s.status}</span>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Crear nueva subtarea */}
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          value={newSubtask}
+                          onChange={e => setNewSubtask(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleCreateSubtask()}
+                          placeholder="Nueva subtarea..."
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Select value={newSubtaskAssignee} onValueChange={setNewSubtaskAssignee}>
+                          <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Asignar" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin asignar</SelectItem>
+                            {jiraUsers.map(u => (
+                              <SelectItem key={u.accountId} value={u.accountId}>{u.displayName.split(' ')[0]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2"
+                          disabled={!newSubtask.trim() || creatingSubtask}
+                          onClick={handleCreateSubtask}>
+                          {creatingSubtask ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <Separator />
 
