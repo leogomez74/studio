@@ -107,7 +107,7 @@ function AdminToolbarInner({
           expanded
             ? 'bg-primary text-primary-foreground border-primary'
             : 'bg-background text-foreground border-border hover:bg-muted',
-          isLongPressing && 'ring-2 ring-primary ring-offset-2 animate-pulse',
+          isLongPressing && 'ring-2 ring-primary ring-offset-2',
           isDragging && 'cursor-grabbing shadow-2xl scale-105',
           !isDragging && !isLongPressing && 'cursor-pointer',
         )}

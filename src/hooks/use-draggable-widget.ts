@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const STORAGE_KEY = 'admin-toolbar-pos';
-const LONG_PRESS_MS = 1500;
+const LONG_PRESS_MS = 800;
 const DRAG_THRESHOLD_PX = 5;
 
 interface Position {
