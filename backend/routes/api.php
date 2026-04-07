@@ -400,13 +400,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
             // Crear o actualizar
             $bug = \App\Models\Bug::where('jira_key', $jiraKey)->first();
             if ($bug) {
-                $bug->update([
-                    'title'       => $title,
-                    'description' => $desc,
-                    'priority'    => $priority,
-                    'status'      => $status,
-                    'assigned_to' => $userId,
-                ]);
+                // No tocar bugs archivados — mantener su estado archivado
+                if (!$bug->archived_at) {
+                    $bug->update([
+                        'title'       => $title,
+                        'description' => $desc,
+                        'priority'    => $priority,
+                        'status'      => $status,
+                        'assigned_to' => $userId,
+                    ]);
+                }
                 $updated++;
             } else {
                 $bug = \App\Models\Bug::create([
