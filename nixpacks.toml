@@ -20,4 +20,4 @@ cmds = [
 [start]
 # 1. Entramos a backend para migrar y lanzar PHP/Nginx (Puerto 80)
 # 2. Lanzamos Next.js (Puerto 3000) desde la raíz
-cmd = 'cd backend && php artisan migrate --force && (php-fpm -y /assets/php-fpm.conf & nginx -c /nginx.conf & cd .. && npm run start)'
+cmd = 'cd backend && php artisan migrate --force && (php-fpm -D && nginx -g 'daemon off;' & cd .. && npm run start)'
