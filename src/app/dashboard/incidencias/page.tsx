@@ -107,7 +107,7 @@ export default function IncidenciasPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formPriority, setFormPriority] = useState<string>('media');
-  const [formAssignee, setFormAssignee] = useState<string>('');
+  const [formAssignees, setFormAssignees] = useState<number[]>([]);
   const [formImages, setFormImages] = useState<File[]>([]);
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -260,18 +260,27 @@ export default function IncidenciasPage() {
     setCreating(true);
     try {
       const jiraAccountId = formJiraAssignee && formJiraAssignee !== 'none' ? formJiraAssignee : null;
-      // Intentar mapear usuario Jira a usuario Studio por nombre
       const jiraUser = jiraAccountId ? jiraUsers.find(u => u.accountId === jiraAccountId) : null;
-      const studioUser = jiraUser ? users.find(u => u.name.toLowerCase().includes(jiraUser.displayName.split(' ')[0].toLowerCase())) : null;
+      const jiraStudioUser = jiraUser ? users.find(u => u.name.toLowerCase().includes(jiraUser.displayName.split(' ')[0].toLowerCase())) : null;
+
+      // Primer asignado como principal (para Jira)
+      const primaryId = formAssignees[0] ?? jiraStudioUser?.id ?? null;
 
       const res = await api.post('/api/bugs', {
         title: formTitle.trim(),
         description: formDesc.trim() || null,
         priority: formPriority,
-        assigned_to: studioUser?.id || null,
+        assigned_to: primaryId,
         jira_assignee_id: jiraAccountId,
       });
       const newBug = res.data;
+
+      // Sincronizar todos los asignados si hay más de uno
+      if (formAssignees.length > 0) {
+        const assigneeIds = [...new Set([...formAssignees, ...(jiraStudioUser ? [jiraStudioUser.id] : [])])];
+        const assignRes = await api.patch(`/api/bugs/${newBug.id}/assignees`, { user_ids: assigneeIds });
+        newBug.assignees = assignRes.data.assignees;
+      }
 
       // Subir imágenes si hay
       if (formImages.length > 0) {
@@ -300,7 +309,7 @@ export default function IncidenciasPage() {
     setFormTitle('');
     setFormDesc('');
     setFormPriority('media');
-    setFormAssignee('');
+    setFormAssignees([]);
     setFormJiraAssignee('');
     setFormImages([]);
     setImagePreviews([]);
@@ -708,20 +717,32 @@ export default function IncidenciasPage() {
               </div>
               <div>
                 <Label className="text-xs">Asignar a</Label>
-                <Select value={formJiraAssignee} onValueChange={setFormJiraAssignee}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin asignar</SelectItem>
-                    {jiraUsers.length > 0
-                      ? jiraUsers.map(u => (
-                          <SelectItem key={u.accountId} value={u.accountId}>{u.displayName}</SelectItem>
-                        ))
-                      : users.map(u => (
-                          <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                        ))
-                    }
-                  </SelectContent>
-                </Select>
+                <div className="mt-1 border rounded-md p-1.5 bg-white min-h-[36px] flex flex-wrap gap-1 items-center">
+                  {formAssignees.map(id => {
+                    const u = users.find(x => x.id === id);
+                    if (!u) return null;
+                    return (
+                      <span key={id} className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full">
+                        {u.name.split(' ')[0]}
+                        <button type="button" className="hover:text-red-600 font-bold"
+                          onClick={() => setFormAssignees(prev => prev.filter(x => x !== id))}>×</button>
+                      </span>
+                    );
+                  })}
+                  <Select onValueChange={val => {
+                    const id = Number(val);
+                    if (!formAssignees.includes(id)) setFormAssignees(prev => [...prev, id]);
+                  }}>
+                    <SelectTrigger className="h-7 text-xs w-auto border-dashed border-indigo-300 text-indigo-500 px-2 flex-1 min-w-[100px]">
+                      <SelectValue placeholder="+ Agregar persona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.filter(u => !formAssignees.includes(u.id)).map(u => (
+                        <SelectItem key={u.id} value={String(u.id)} className="text-xs">{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
