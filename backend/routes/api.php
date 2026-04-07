@@ -358,6 +358,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/bugs/{bug}/status', [\App\Http\Controllers\Api\BugController::class, 'updateStatus'])->middleware('throttle:60,1');
     Route::post('/bugs/{bug}/images', [\App\Http\Controllers\Api\BugController::class, 'uploadImages'])->middleware('throttle:30,1');
     Route::delete('/bugs/{bug}/images/{image}', [\App\Http\Controllers\Api\BugController::class, 'deleteImage'])->middleware('throttle:30,1');
+    Route::patch('/bugs/{bug}/archive', [\App\Http\Controllers\Api\BugController::class, 'archive']);
+    Route::get('/bugs/archived', [\App\Http\Controllers\Api\BugController::class, 'archived']);
     Route::get('/jira/users', fn() => response()->json((new \App\Services\JiraService())->getUsers()));
     Route::get('/jira/status', fn() => response()->json(['connected' => (new \App\Services\JiraService())->isConfigured()]));
     Route::post('/jira/sync', function() {

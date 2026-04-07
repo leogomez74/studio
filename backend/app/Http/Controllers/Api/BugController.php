@@ -17,7 +17,8 @@ class BugController extends Controller
 
     public function index(Request $request)
     {
-        $query = Bug::with(['assignee:id,name', 'creator:id,name', 'images']);
+        $query = Bug::with(['assignee:id,name', 'creator:id,name', 'images'])
+                    ->whereNull('archived_at');
 
         if ($request->status) {
             $query->where('status', $request->status);
@@ -220,11 +221,37 @@ class BugController extends Controller
     public function stats()
     {
         return response()->json([
-            'total'       => Bug::count(),
-            'abierto'     => Bug::where('status', 'abierto')->count(),
-            'en_progreso' => Bug::where('status', 'en_progreso')->count(),
-            'en_revision' => Bug::where('status', 'en_revision')->count(),
-            'cerrado'     => Bug::where('status', 'cerrado')->count(),
+            'total'       => Bug::whereNull('archived_at')->count(),
+            'abierto'     => Bug::whereNull('archived_at')->where('status', 'abierto')->count(),
+            'en_progreso' => Bug::whereNull('archived_at')->where('status', 'en_progreso')->count(),
+            'en_revision' => Bug::whereNull('archived_at')->where('status', 'en_revision')->count(),
+            'cerrado'     => Bug::whereNull('archived_at')->where('status', 'cerrado')->count(),
+            'archivadas'  => Bug::whereNotNull('archived_at')->count(),
         ]);
+    }
+
+    /** Archivar una incidencia (la oculta del kanban y la cierra en Jira) */
+    public function archive(Request $request, Bug $bug)
+    {
+        $bug->update(['archived_at' => now(), 'status' => 'cerrado']);
+
+        if ($bug->jira_key) {
+            try { (new JiraService())->updateStatus($bug->jira_key, 'cerrado'); }
+            catch (\Exception $e) { Log::warning('Jira archive sync: ' . $e->getMessage()); }
+        }
+
+        $this->logActivity('update', 'Incidencias', $bug, $bug->reference . ' archivada', [], $request);
+        return response()->json(['message' => 'Archivada']);
+    }
+
+    /** Listar incidencias archivadas */
+    public function archived()
+    {
+        return response()->json(
+            Bug::with(['assignee:id,name', 'creator:id,name', 'images'])
+               ->whereNotNull('archived_at')
+               ->orderBy('archived_at', 'desc')
+               ->get()
+        );
     }
 }

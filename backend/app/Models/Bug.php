@@ -19,10 +19,12 @@ class Bug extends Model
         'assigned_to',
         'created_by',
         'closed_at',
+        'archived_at',
     ];
 
     protected $casts = [
-        'closed_at' => 'datetime',
+        'closed_at'   => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     public function assignee(): BelongsTo

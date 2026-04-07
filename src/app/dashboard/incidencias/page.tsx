@@ -31,6 +31,7 @@ interface BugItem {
   id: number;
   reference: string;
   jira_key: string | null;
+  archived_at: string | null;
   title: string;
   description: string | null;
   status: 'abierto' | 'en_progreso' | 'en_revision' | 'cerrado';
@@ -202,9 +203,9 @@ export default function IncidenciasPage() {
     return () => clearInterval(interval);
   }, [showDetailModal, selectedBug?.id]);
 
-  // ── Polling global — refresca el kanban completo cada 30s ────────────────────
+  // ── Polling global — refresca el kanban cada 10 minutos ─────────────────────
   useEffect(() => {
-    const interval = setInterval(fetchBugs, 30000);
+    const interval = setInterval(fetchBugs, 600000);
     return () => clearInterval(interval);
   }, [fetchBugs]);
 
@@ -219,9 +220,16 @@ export default function IncidenciasPage() {
       toast({ title: 'Error', description: 'Error al cargar datos', variant: 'destructive' });
     }).finally(() => setLoading(false));
 
-    // Jira users y status por separado — si falla no bloquea el resto
+    // Jira users, status y auto-sync al entrar
     api.get('/api/jira/users').then(res => setJiraUsers(res.data || [])).catch(() => setJiraUsers([]));
-    api.get('/api/jira/status').then(res => setJiraConnected(res.data?.connected ?? false)).catch(() => setJiraConnected(false));
+    api.get('/api/jira/status').then(res => {
+      const connected = res.data?.connected ?? false;
+      setJiraConnected(connected);
+      // Auto-sync al entrar si Jira está conectado
+      if (connected) {
+        api.post('/api/jira/sync').then(() => fetchBugs()).catch(() => {});
+      }
+    }).catch(() => setJiraConnected(false));
   }, []);
 
   // ── Filtrado ──────────────────────────────────────────────────────────────────
@@ -346,6 +354,31 @@ export default function IncidenciasPage() {
   };
 
   // ── Eliminar bug ──────────────────────────────────────────────────────────────
+  const handleArchive = async (bugId: number) => {
+    const result = await Swal.fire({
+      title: '¿Archivar incidencia?',
+      text: 'Se ocultará del kanban y se cerrará en Jira.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, archivar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6b7280',
+      cancelButtonColor: '#3b82f6',
+      customClass: { container: 'swal-over-modal' },
+      didOpen: () => { document.body.style.pointerEvents = 'auto'; },
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.patch(`/api/bugs/${bugId}/archive`);
+      setBugs(prev => prev.filter(b => b.id !== bugId));
+      setShowDetailModal(false);
+      setSelectedBug(null);
+      toast({ title: 'Archivada', description: 'Incidencia archivada y cerrada en Jira' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo archivar', variant: 'destructive' });
+    }
+  };
+
   const handleSyncJira = async () => {
     setSyncing(true);
     try {
@@ -512,12 +545,6 @@ export default function IncidenciasPage() {
             <span className={`w-2 h-2 rounded-full ${jiraConnected === null ? 'bg-gray-300 animate-pulse' : jiraConnected ? 'bg-green-500' : 'bg-red-400'}`} />
             <span className="text-muted-foreground">{jiraConnected ? 'Jira' : 'Sin Jira'}</span>
           </div>
-          {jiraConnected && (
-            <Button onClick={handleSyncJira} disabled={syncing} size="sm" variant="outline" className="h-8 text-xs gap-1.5">
-              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className="text-[10px] font-bold text-blue-600">↕</span>}
-              Sync Jira
-            </Button>
-          )}
           <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-8 gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs">
             <Plus className="h-3.5 w-3.5" />
             Nueva Incidencia
@@ -549,7 +576,7 @@ export default function IncidenciasPage() {
               </div>
 
               {/* Column Body */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px]">
+              <div className="overflow-y-auto p-2 space-y-2" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                 {items.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
                     <Bug className="h-6 w-6 mb-1" />
@@ -769,6 +796,9 @@ export default function IncidenciasPage() {
                       </a>
                     )}
                     <div className="ml-auto flex items-center gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50" onClick={() => handleArchive(b.id)}>
+                        <span className="text-[10px]">Archivar</span>
+                      </Button>
                       <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(b.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
