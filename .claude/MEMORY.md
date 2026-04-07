@@ -292,3 +292,14 @@ class MiController extends Controller {
 - Commits y push: solo cuando el usuario lo pida explícitamente
 - Si el push es rechazado: `git pull origin main --rebase` antes de reintentar
 - **Siempre actualizar `.claude/MEMORY.md` y archivos de memoria del repo** al completar cada tarea
+
+---
+
+## Skill Automático — studio-workflow (Abr 2026)
+
+Skill creado en `.claude/skills/studio-workflow/SKILL.md`. Se activa automáticamente en todos los prompts del proyecto.
+
+### Tres pilares:
+1. **Optimización de tokens**: Haiku para análisis/preguntas/docs, Sonnet para edición de código. Patrón: Haiku analiza → Sonnet edita.
+2. **Registro de skills/MCPs**: Tabla de enrutamiento a webapp-testing, frontend-design, simplify, laravel-boost MCP, jules MCP, etc.
+3. **Análisis-primero**: Para lógica compleja → subagente Haiku analiza → EnterPlanMode con plan estructurado → esperar aprobación → ejecutar.

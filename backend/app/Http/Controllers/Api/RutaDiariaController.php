@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\RutaDiaria;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Models\TareaRuta;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
@@ -158,6 +160,20 @@ class RutaDiariaController extends Controller
         });
     }
 
+    /**
+     * Dispara una auto-tarea si existe la automatización activa.
+     */
+    private function dispararAutoTarea(string $eventType, string $projectCode, string $details = ''): void
+    {
+        $automation = TaskAutomation::where('event_type', $eventType)
+            ->where('is_active', true)
+            ->first();
+
+        if ($automation) {
+            Task::createFromAutomation($automation, $projectCode, $details);
+        }
+    }
+
     public function confirmar(Request $request, string $id)
     {
         return DB::transaction(function () use ($id) {
@@ -174,6 +190,10 @@ class RutaDiariaController extends Controller
             ]);
 
             $this->logActivity('update', 'Rutas', $ruta, "Ruta confirmada: {$ruta->fecha->format('Y-m-d')}");
+
+            // Auto-tarea: ruta_confirmada
+            $this->dispararAutoTarea('ruta_confirmada', 'RUTA-' . $ruta->id,
+                "Ruta del {$ruta->fecha->format('d/m/Y')} confirmada con {$ruta->total_tareas} tarea(s).");
 
             // Notificar al mensajero
             Notification::create([
@@ -214,6 +234,10 @@ class RutaDiariaController extends Controller
             $ruta->tareas()->where('status', 'asignada')->update(['status' => 'en_transito']);
 
             $this->logActivity('update', 'Rutas', $ruta, "Ruta iniciada: {$ruta->fecha->format('Y-m-d')}");
+
+            // Auto-tarea: ruta_iniciada
+            $this->dispararAutoTarea('ruta_iniciada', 'RUTA-' . $ruta->id,
+                "Ruta del {$ruta->fecha->format('d/m/Y')} iniciada por el mensajero.");
 
             return response()->json($ruta);
         });

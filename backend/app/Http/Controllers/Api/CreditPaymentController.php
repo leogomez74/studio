@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Credit;
 use App\Models\CreditPayment;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Services\AbonoService;
 use App\Services\CancelacionService;
 use App\Services\MoraService;
@@ -243,6 +245,14 @@ class CreditPaymentController extends Controller
 
         // Gamificación: puntos por carga masiva de planilla
         BusinessActionPerformed::dispatch('planilla_uploaded', $request->user(), $result['planillaUpload']);
+
+        // Auto-tarea: planilla_uploaded
+        $automation = TaskAutomation::where('event_type', 'planilla_uploaded')
+            ->where('is_active', true)->first();
+        if ($automation) {
+            Task::createFromAutomation($automation, 'PLANILLA-' . $result['planillaUpload']->id,
+                "Planilla #{$result['planillaUpload']->id} cargada exitosamente.");
+        }
 
         return response()->json([
             'message' => 'Proceso completado',

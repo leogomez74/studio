@@ -516,6 +516,14 @@ class LeadController extends Controller
             BusinessActionPerformed::dispatch('lead_converted', $request->user(), $lead);
         }
 
+        // Auto-tarea: lead_converted
+        $automation = TaskAutomation::where('event_type', 'lead_converted')
+            ->where('is_active', true)->first();
+        if ($automation) {
+            Task::createFromAutomation($automation, 'LEAD-' . $lead->id,
+                "Lead convertido a cliente: {$lead->name}");
+        }
+
         return response()->json($lead);
     }
 

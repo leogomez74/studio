@@ -9,6 +9,7 @@ use App\Models\CreditPayment;
 use App\Models\PlanDePago;
 use App\Models\Lead;
 use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Models\Analisis;
 use App\Models\ManchaDetalle;
 use App\Models\LoanConfiguration;
@@ -309,22 +310,14 @@ class CreditController extends Controller
         });
 
         // Disparar tarea automática para "credit_created"
-        $automation = \App\Models\TaskAutomation::where('event_type', 'credit_created')
-            ->where('is_active', true)
-            ->first();
+        $this->dispararAutoTarea('credit_created', 'CRED-' . $credit->id, 'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.');
 
+        // Asignar el primer responsable al crédito si hay automatización
+        $automation = TaskAutomation::where('event_type', 'credit_created')->where('is_active', true)->first();
         if ($automation) {
             $assigneeIds = $automation->getAssigneeIds();
             if (!empty($assigneeIds)) {
-                // Asignar el primer responsable al crédito
                 $credit->update(['assigned_to' => $assigneeIds[0]]);
-
-                // Crear tareas automáticas (una por responsable)
-                \App\Models\Task::createFromAutomation(
-                    $automation,
-                    'CRED-' . $credit->id,
-                    'Al crearse un nuevo crédito, se asigna tarea para realizar entrega de pagaré, formalización, entrega de hoja de cierre.'
-                );
             }
         }
 
@@ -834,9 +827,12 @@ class CreditController extends Controller
             }
         }
 
+        // Auto-tarea: credit_status_changed
+        $this->dispararAutoTarea('credit_status_changed', $credit->reference, "Estado del crédito cambió a: {$credit->status}");
+
         return response()->json($credit);
     }
-    
+
 
     /**
      * Genera y descarga el PDF del Plan de Pagos (ruta pública, sin auth)
@@ -1244,6 +1240,9 @@ class CreditController extends Controller
 
         $this->logActivity('create', 'Créditos', $result['new_credit'] ?? null, $result['new_credit']->reference ?? null, [], $request);
 
+        // Auto-tarea: credit_refundido
+        $this->dispararAutoTarea('credit_refundido', $result['new_credit']->reference ?? 'REFUND', 'Refundición completada. Crédito anterior cerrado.');
+
         return response()->json($result, 201);
     }
 
@@ -1309,5 +1308,24 @@ class CreditController extends Controller
         }
 
         return response()->json(['message' => 'El crédito no requiere corrección (su estado actual es ' . $credit->status . ').', 'status' => $credit->status]);
+    }
+
+    /**
+     * Dispara una tarea automática según el tipo de evento.
+     *
+     * @param string $eventType Tipo de evento (ej: 'credit_created', 'credit_status_changed')
+     * @param string $projectCode Código del proyecto para la tarea (ej: 'CRED-123', referencia del crédito)
+     * @param string $details Detalles adicionales de la tarea
+     * @return void
+     */
+    private function dispararAutoTarea(string $eventType, string $projectCode, string $details = ''): void
+    {
+        $automation = TaskAutomation::where('event_type', $eventType)
+            ->where('is_active', true)
+            ->first();
+
+        if ($automation) {
+            Task::createFromAutomation($automation, $projectCode, $details);
+        }
     }
 }
