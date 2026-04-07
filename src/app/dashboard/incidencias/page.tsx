@@ -92,6 +92,8 @@ export default function IncidenciasPage() {
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterUser, setFilterUser] = useState<string>('all');
+  const [jiraConnected, setJiraConnected] = useState<boolean | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -217,10 +219,9 @@ export default function IncidenciasPage() {
       toast({ title: 'Error', description: 'Error al cargar datos', variant: 'destructive' });
     }).finally(() => setLoading(false));
 
-    // Jira users por separado — si falla no bloquea el resto
-    api.get('/api/jira/users')
-      .then(res => setJiraUsers(res.data || []))
-      .catch(() => setJiraUsers([]));
+    // Jira users y status por separado — si falla no bloquea el resto
+    api.get('/api/jira/users').then(res => setJiraUsers(res.data || [])).catch(() => setJiraUsers([]));
+    api.get('/api/jira/status').then(res => setJiraConnected(res.data?.connected ?? false)).catch(() => setJiraConnected(false));
   }, []);
 
   // ── Filtrado ──────────────────────────────────────────────────────────────────
@@ -345,6 +346,19 @@ export default function IncidenciasPage() {
   };
 
   // ── Eliminar bug ──────────────────────────────────────────────────────────────
+  const handleSyncJira = async () => {
+    setSyncing(true);
+    try {
+      const res = await api.post('/api/jira/sync');
+      await fetchBugs();
+      toast({ title: 'Sincronización completa', description: `${res.data.created} creadas, ${res.data.updated} actualizadas de ${res.data.total} tareas en Jira` });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo sincronizar con Jira', variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleDelete = async (bugId: number) => {
     const result = await Swal.fire({
       title: '¿Eliminar incidencia?',
@@ -493,6 +507,17 @@ export default function IncidenciasPage() {
               }
             </SelectContent>
           </Select>
+          {/* Indicador de conexión Jira */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border bg-white text-xs">
+            <span className={`w-2 h-2 rounded-full ${jiraConnected === null ? 'bg-gray-300 animate-pulse' : jiraConnected ? 'bg-green-500' : 'bg-red-400'}`} />
+            <span className="text-muted-foreground">{jiraConnected ? 'Jira' : 'Sin Jira'}</span>
+          </div>
+          {jiraConnected && (
+            <Button onClick={handleSyncJira} disabled={syncing} size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className="text-[10px] font-bold text-blue-600">↕</span>}
+              Sync Jira
+            </Button>
+          )}
           <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-8 gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs">
             <Plus className="h-3.5 w-3.5" />
             Nueva Incidencia

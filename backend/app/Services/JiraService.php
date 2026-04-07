@@ -249,6 +249,35 @@ class JiraService
     }
 
     /**
+     * Obtener todas las tareas del proyecto desde Jira.
+     */
+    public function fetchProjectIssues(): array
+    {
+        if (!$this->configured) return [];
+        try {
+            $all  = [];
+            $start = 0;
+            do {
+                $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/search", [
+                    'jql'        => "project = {$this->projectKey} ORDER BY created DESC",
+                    'startAt'    => $start,
+                    'maxResults' => 100,
+                    'fields'     => 'summary,status,priority,assignee,description',
+                ]);
+                if (!$resp->successful()) break;
+                $issues = $resp->json('issues', []);
+                $all    = array_merge($all, $issues);
+                $total  = $resp->json('total', 0);
+                $start += count($issues);
+            } while ($start < $total);
+            return $all;
+        } catch (\Exception $e) {
+            Log::error('Jira fetchProjectIssues: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Actualizar título y/o descripción de un issue en Jira.
      */
     public function updateIssue(string $jiraKey, array $fields): void
