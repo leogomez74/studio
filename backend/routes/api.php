@@ -151,6 +151,7 @@ Route::post('/cobro-judicial/notificacion-entrante', [\App\Http\Controllers\Api\
 // WEBHOOK JIRA — Público (Jira llama sin auth)
 // =============================================================================
 Route::post('/webhooks/jira', [\App\Http\Controllers\Api\JiraWebhookController::class, 'handle']);
+Route::post('/jira/register-webhook', fn() => response()->json((new \App\Services\JiraService())->registerWebhook()))->middleware('auth:sanctum');
 
 // =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum

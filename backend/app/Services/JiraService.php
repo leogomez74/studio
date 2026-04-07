@@ -247,4 +247,50 @@ class JiraService
             }
         });
     }
+
+    /**
+     * Registrar (o actualizar) el webhook en Jira apuntando al APP_URL del .env
+     */
+    public function registerWebhook(): array
+    {
+        if (!$this->configured) return ['error' => 'Jira no configurado'];
+
+        $webhookUrl = rtrim(config('app.url'), '/') . '/api/webhooks/jira';
+
+        try {
+            // Verificar si ya existe
+            $existing = $this->client()->get("{$this->baseUrl}/rest/webhooks/1.0/webhook");
+            $hooks = $existing->json() ?? [];
+            foreach ($hooks as $hook) {
+                if (str_contains($hook['url'] ?? '', '/api/webhooks/jira')) {
+                    // Ya existe, actualizamos la URL por si cambió
+                    $this->client()->put("{$this->baseUrl}/rest/webhooks/1.0/webhook/{$hook['self']}", [
+                        'name'   => 'Studio Sync',
+                        'url'    => $webhookUrl,
+                        'events' => ['jira:issue_updated', 'jira:issue_deleted'],
+                        'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
+                    ]);
+                    return ['status' => 'updated', 'url' => $webhookUrl];
+                }
+            }
+
+            // Crear nuevo
+            $resp = $this->client()->post("{$this->baseUrl}/rest/webhooks/1.0/webhook", [
+                'name'    => 'Studio Sync',
+                'url'     => $webhookUrl,
+                'events'  => ['jira:issue_updated', 'jira:issue_deleted'],
+                'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
+            ]);
+
+            if ($resp->successful()) {
+                return ['status' => 'created', 'url' => $webhookUrl];
+            }
+
+            return ['error' => $resp->body(), 'url' => $webhookUrl];
+
+        } catch (\Exception $e) {
+            Log::error('Jira registerWebhook: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
 }
