@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Task;
+use App\Models\TaskAutomation;
 use App\Models\Visita;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -132,6 +134,16 @@ class VisitaController extends Controller
         $visita->update($validated);
 
         $this->logActivity('update_status', 'Visitas', $visita, 'Visita #' . $visita->id, [], $request);
+
+        // Auto-tarea: visita_completada
+        if ($validated['status'] === 'Completada') {
+            $automation = TaskAutomation::where('event_type', 'visita_completada')
+                ->where('is_active', true)->first();
+            if ($automation) {
+                Task::createFromAutomation($automation, 'VISITA-' . $visita->id,
+                    "Visita completada: {$visita->title}");
+            }
+        }
 
         return response()->json($visita->load(['user:id,name', 'institucion:id,nombre']));
     }

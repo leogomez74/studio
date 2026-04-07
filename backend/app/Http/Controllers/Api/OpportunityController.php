@@ -352,6 +352,14 @@ class OpportunityController extends Controller
                 ]);
             }
 
+            // Auto-tarea: opportunity_status_changed
+            $automation = TaskAutomation::where('event_type', 'opportunity_status_changed')
+                ->where('is_active', true)->first();
+            if ($automation) {
+                Task::createFromAutomation($automation, 'OPP-' . $opportunity->id,
+                    "Estado de oportunidad cambió a: {$newStatus}");
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Status actualizado correctamente',
