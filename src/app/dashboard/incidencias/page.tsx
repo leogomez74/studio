@@ -655,22 +655,28 @@ export default function IncidenciasPage() {
 
                       {/* Footer: assignees + date */}
                       <div className="flex items-center justify-between">
-                        {(bug.assignees?.length > 0) ? (
-                          <div className="flex items-center -space-x-1">
-                            {bug.assignees.slice(0, 3).map(a => (
-                              <div key={a.id} title={a.name} className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 border border-white flex items-center justify-center text-[8px] font-bold">
-                                {a.name.charAt(0)}
-                              </div>
-                            ))}
-                            {bug.assignees.length > 3 && (
-                              <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 border border-white flex items-center justify-center text-[8px] font-bold">
-                                +{bug.assignees.length - 3}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-300 italic">Sin asignar</span>
-                        )}
+                        {(() => {
+                          // Usa multi-assignees si existen, si no fallback al assignee simple
+                          const all = bug.assignees?.length > 0
+                            ? bug.assignees
+                            : (bug.assignee ? [bug.assignee] : []);
+                          return all.length > 0 ? (
+                            <div className="flex items-center -space-x-1">
+                              {all.slice(0, 3).map(a => (
+                                <div key={a.id} title={a.name} className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 border border-white flex items-center justify-center text-[8px] font-bold">
+                                  {a.name.charAt(0)}
+                                </div>
+                              ))}
+                              {all.length > 3 && (
+                                <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 border border-white flex items-center justify-center text-[8px] font-bold">
+                                  +{all.length - 3}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-300 italic">Sin asignar</span>
+                          );
+                        })()}
                         <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
                           <Clock className="h-2.5 w-2.5" />
                           {new Date(bug.created_at).toLocaleDateString('es-CR', { day: '2-digit', month: 'short' })}
