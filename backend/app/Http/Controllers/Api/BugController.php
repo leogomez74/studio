@@ -17,7 +17,7 @@ class BugController extends Controller
 
     public function index(Request $request)
     {
-        $query = Bug::with(['assignee:id,name', 'creator:id,name', 'images'])
+        $query = Bug::with(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name'])
                     ->whereNull('archived_at');
 
         if ($request->status) {
@@ -75,7 +75,7 @@ class BugController extends Controller
             Log::warning('Jira sync on create: ' . $e->getMessage());
         }
 
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
 
         $this->logActivity('create', 'Incidencias', $bug, $bug->reference . ' - ' . $bug->title, [], $request);
 
@@ -84,7 +84,7 @@ class BugController extends Controller
 
     public function show(Bug $bug)
     {
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
         return response()->json($bug);
     }
 
@@ -116,7 +116,7 @@ class BugController extends Controller
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, $changes, $request);
 
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
         return response()->json($bug);
     }
 
@@ -160,7 +160,7 @@ class BugController extends Controller
             ['field' => 'status', 'old_value' => $oldStatus, 'new_value' => $validated['status']]
         ], $request);
 
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
         return response()->json($bug);
     }
 
@@ -230,6 +230,15 @@ class BugController extends Controller
         ]);
     }
 
+    /** Sincronizar asignados múltiples */
+    public function syncAssignees(Request $request, Bug $bug)
+    {
+        $request->validate(['user_ids' => 'required|array', 'user_ids.*' => 'exists:users,id']);
+        $bug->assignees()->sync($request->user_ids);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
+        return response()->json($bug);
+    }
+
     /** Archivar una incidencia (la oculta del kanban y la cierra en Jira) */
     public function archive(Request $request, Bug $bug)
     {
@@ -248,7 +257,7 @@ class BugController extends Controller
     public function archived()
     {
         return response()->json(
-            Bug::with(['assignee:id,name', 'creator:id,name', 'images'])
+            Bug::with(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name'])
                ->whereNotNull('archived_at')
                ->orderBy('archived_at', 'desc')
                ->get()

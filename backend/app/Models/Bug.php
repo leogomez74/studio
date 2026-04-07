@@ -42,6 +42,11 @@ class Bug extends Model
         return $this->hasMany(BugImage::class);
     }
 
+    public function assignees(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'bug_assignees')->withTimestamps();
+    }
+
     protected static function booted(): void
     {
         static::creating(function (Bug $bug) {

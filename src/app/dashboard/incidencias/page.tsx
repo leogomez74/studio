@@ -42,6 +42,7 @@ interface BugItem {
   created_at: string;
   updated_at: string;
   assignee: { id: number; name: string } | null;
+  assignees: { id: number; name: string }[];
   creator: { id: number; name: string } | null;
   images: BugImage[];
 }
@@ -641,14 +642,20 @@ export default function IncidenciasPage() {
                         </div>
                       )}
 
-                      {/* Footer: assignee + date */}
+                      {/* Footer: assignees + date */}
                       <div className="flex items-center justify-between">
-                        {bug.assignee ? (
-                          <div className="flex items-center gap-1">
-                            <div className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[8px] font-bold">
-                              {bug.assignee.name.charAt(0)}
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">{bug.assignee.name.split(' ')[0]}</span>
+                        {(bug.assignees?.length > 0) ? (
+                          <div className="flex items-center -space-x-1">
+                            {bug.assignees.slice(0, 3).map(a => (
+                              <div key={a.id} title={a.name} className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 border border-white flex items-center justify-center text-[8px] font-bold">
+                                {a.name.charAt(0)}
+                              </div>
+                            ))}
+                            {bug.assignees.length > 3 && (
+                              <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 border border-white flex items-center justify-center text-[8px] font-bold">
+                                +{bug.assignees.length - 3}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <span className="text-[10px] text-slate-300 italic">Sin asignar</span>
@@ -834,16 +841,39 @@ export default function IncidenciasPage() {
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground uppercase">Asignado a</Label>
-                      <Select value={b.assigned_to ? String(b.assigned_to) : 'none'} onValueChange={val => handleUpdateBug(b.id, { assigned_to: val === 'none' ? null : Number(val) } as Partial<BugItem>)}>
-                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin asignar</SelectItem>
-                          {users.map(u => (
-                            <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-[10px] text-muted-foreground uppercase">Asignados</Label>
+                      <div className="mt-1 border rounded-md p-1.5 bg-white min-h-[32px] flex flex-wrap gap-1">
+                        {(b.assignees || []).map(u => (
+                          <span key={u.id} className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 rounded-full">
+                            {u.name.split(' ')[0]}
+                            <button type="button" className="hover:text-red-600"
+                              onClick={() => {
+                                const ids = (b.assignees || []).filter(a => a.id !== u.id).map(a => a.id);
+                                api.patch(`/api/bugs/${b.id}/assignees`, { user_ids: ids }).then(r => {
+                                  setBugs(prev => prev.map(x => x.id === b.id ? r.data : x));
+                                  setSelectedBug(r.data);
+                                });
+                              }}>×</button>
+                          </span>
+                        ))}
+                        <Select onValueChange={val => {
+                          const current = (b.assignees || []).map(a => a.id);
+                          if (current.includes(Number(val))) return;
+                          api.patch(`/api/bugs/${b.id}/assignees`, { user_ids: [...current, Number(val)] }).then(r => {
+                            setBugs(prev => prev.map(x => x.id === b.id ? r.data : x));
+                            setSelectedBug(r.data);
+                          });
+                        }}>
+                          <SelectTrigger className="h-6 text-[10px] w-auto border-dashed border-indigo-300 text-indigo-600 px-1.5">
+                            <span>+ Agregar</span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {users.filter(u => !(b.assignees || []).some(a => a.id === u.id)).map(u => (
+                              <SelectItem key={u.id} value={String(u.id)} className="text-xs">{u.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
