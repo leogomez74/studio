@@ -259,12 +259,13 @@ export default function IncidenciasPage() {
     if (!formTitle.trim()) return;
     setCreating(true);
     try {
-      const jiraAccountId = formJiraAssignee && formJiraAssignee !== 'none' ? formJiraAssignee : null;
-      const jiraUser = jiraAccountId ? jiraUsers.find(u => u.accountId === jiraAccountId) : null;
-      const jiraStudioUser = jiraUser ? users.find(u => u.name.toLowerCase().includes(jiraUser.displayName.split(' ')[0].toLowerCase())) : null;
+      // Mapear primer asignado de Studio → cuenta Jira por nombre
+      const primaryUser = formAssignees.length > 0 ? users.find(u => u.id === formAssignees[0]) : null;
+      const jiraAccountId = primaryUser
+        ? (jiraUsers.find(u => u.displayName.toLowerCase().includes(primaryUser.name.split(' ')[0].toLowerCase()))?.accountId ?? null)
+        : null;
 
-      // Primer asignado como principal (para Jira)
-      const primaryId = formAssignees[0] ?? jiraStudioUser?.id ?? null;
+      const primaryId = formAssignees[0] ?? null;
 
       const res = await api.post('/api/bugs', {
         title: formTitle.trim(),
@@ -275,10 +276,9 @@ export default function IncidenciasPage() {
       });
       const newBug = res.data;
 
-      // Sincronizar todos los asignados si hay más de uno
+      // Sincronizar todos los asignados
       if (formAssignees.length > 0) {
-        const assigneeIds = [...new Set([...formAssignees, ...(jiraStudioUser ? [jiraStudioUser.id] : [])])];
-        const assignRes = await api.patch(`/api/bugs/${newBug.id}/assignees`, { user_ids: assigneeIds });
+        const assignRes = await api.patch(`/api/bugs/${newBug.id}/assignees`, { user_ids: formAssignees });
         newBug.assignees = assignRes.data.assignees;
       }
 
