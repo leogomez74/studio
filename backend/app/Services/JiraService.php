@@ -249,6 +249,35 @@ class JiraService
     }
 
     /**
+     * Actualizar título y/o descripción de un issue en Jira.
+     */
+    public function updateIssue(string $jiraKey, array $fields): void
+    {
+        if (!$this->configured) return;
+        $update = [];
+        if (isset($fields['title'])) {
+            $update['summary'] = $fields['title'];
+        }
+        if (array_key_exists('description', $fields)) {
+            $text = $fields['description'] ?? '';
+            $update['description'] = [
+                'type'    => 'doc',
+                'version' => 1,
+                'content' => [[
+                    'type'    => 'paragraph',
+                    'content' => [['type' => 'text', 'text' => $text ?: ' ']],
+                ]],
+            ];
+        }
+        if (empty($update)) return;
+        try {
+            $this->client()->put("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}", ['fields' => $update]);
+        } catch (\Exception $e) {
+            Log::error('Jira updateIssue: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Registrar (o actualizar) el webhook en Jira apuntando al APP_URL del .env
      */
     public function registerWebhook(): array
@@ -267,7 +296,7 @@ class JiraService
                     $this->client()->put("{$this->baseUrl}/rest/webhooks/1.0/webhook/{$hook['self']}", [
                         'name'   => 'Studio Sync',
                         'url'    => $webhookUrl,
-                        'events' => ['jira:issue_updated', 'jira:issue_deleted'],
+                        'events' => ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted'],
                         'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
                     ]);
                     return ['status' => 'updated', 'url' => $webhookUrl];
@@ -278,7 +307,7 @@ class JiraService
             $resp = $this->client()->post("{$this->baseUrl}/rest/webhooks/1.0/webhook", [
                 'name'    => 'Studio Sync',
                 'url'     => $webhookUrl,
-                'events'  => ['jira:issue_updated', 'jira:issue_deleted'],
+                'events'  => ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted'],
                 'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
             ]);
 

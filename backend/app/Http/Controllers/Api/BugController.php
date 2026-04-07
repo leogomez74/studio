@@ -101,9 +101,16 @@ class BugController extends Controller
         $bug->update($validated);
         $changes = $this->getChanges($oldData, $bug->fresh()->toArray());
 
-        if (isset($validated['status']) && $bug->jira_key) {
-            try { (new JiraService())->updateStatus($bug->jira_key, $validated['status']); }
-            catch (\Exception $e) { Log::warning('Jira sync on update: ' . $e->getMessage()); }
+        if ($bug->jira_key) {
+            try {
+                $jira = new JiraService();
+                if (isset($validated['status'])) {
+                    $jira->updateStatus($bug->jira_key, $validated['status']);
+                }
+                if (array_intersect_key($validated, array_flip(['title', 'description']))) {
+                    $jira->updateIssue($bug->jira_key, $validated);
+                }
+            } catch (\Exception $e) { Log::warning('Jira sync on update: ' . $e->getMessage()); }
         }
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, $changes, $request);

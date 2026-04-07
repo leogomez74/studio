@@ -200,6 +200,12 @@ export default function IncidenciasPage() {
     return () => clearInterval(interval);
   }, [showDetailModal, selectedBug?.id]);
 
+  // ── Polling global — refresca el kanban completo cada 30s ────────────────────
+  useEffect(() => {
+    const interval = setInterval(fetchBugs, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBugs]);
+
   useEffect(() => {
     Promise.all([
       api.get('/api/bugs'),
