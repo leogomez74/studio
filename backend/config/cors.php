@@ -12,7 +12,7 @@ return [
     'allowed_methods' => ['*'],
 
     // Permitir cualquier origen siempre debe ser 'allowed_origins' => ['*'],
-    'allowed_origins' => ['*'],
+    'allowed_origins' => ['https://dev.pep.cr','https://nuevo.pep.cr'],
 
     'allowed_origins_patterns' => [],
 
