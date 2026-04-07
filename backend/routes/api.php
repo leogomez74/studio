@@ -447,7 +447,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
             }
         }
 
-        return response()->json(['created' => $created, 'updated' => $updated, 'total' => count($issues)]);
+        // Eliminar de Studio los bugs cuya tarea ya no existe en Jira
+        $jiraKeys = collect($issues)->pluck('key')->toArray();
+        $deleted  = 0;
+        \App\Models\Bug::whereNotNull('jira_key')
+            ->whereNotIn('jira_key', $jiraKeys)
+            ->get()
+            ->each(function ($bug) use (&$deleted) {
+                foreach ($bug->images as $img) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($img->path);
+                }
+                $bug->delete();
+                $deleted++;
+            });
+
+        return response()->json(['created' => $created, 'updated' => $updated, 'deleted' => $deleted, 'total' => count($issues)]);
     });
     Route::get('/bugs/{bug}/subtasks', fn(\App\Models\Bug $bug) => response()->json(
         $bug->jira_key ? (new \App\Services\JiraService())->getSubtasks($bug->jira_key) : []
