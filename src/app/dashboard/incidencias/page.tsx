@@ -203,11 +203,14 @@ export default function IncidenciasPage() {
     return () => clearInterval(interval);
   }, [showDetailModal, selectedBug?.id]);
 
-  // ── Polling global — refresca el kanban cada 10 minutos ─────────────────────
+  // ── Polling global — sincroniza con Jira y refresca el kanban cada 10 minutos
   useEffect(() => {
-    const interval = setInterval(fetchBugs, 600000);
+    const interval = setInterval(() => {
+      if (jiraConnected) api.post('/api/jira/sync').catch(() => {});
+      fetchBugs();
+    }, 600000);
     return () => clearInterval(interval);
-  }, [fetchBugs]);
+  }, [fetchBugs, jiraConnected]);
 
   useEffect(() => {
     Promise.all([
@@ -225,10 +228,7 @@ export default function IncidenciasPage() {
     api.get('/api/jira/status').then(res => {
       const connected = res.data?.connected ?? false;
       setJiraConnected(connected);
-      // Auto-sync al entrar si Jira está conectado
-      if (connected) {
-        api.post('/api/jira/sync').then(() => fetchBugs()).catch(() => {});
-      }
+      if (connected) api.post('/api/jira/sync').then(() => fetchBugs()).catch(() => {});
     }).catch(() => setJiraConnected(false));
   }, []);
 
