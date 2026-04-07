@@ -74,7 +74,7 @@ class JiraService
                         'content' => [['type' => 'text', 'text' => $description ?? $title]],
                     ]],
                 ],
-                'issuetype' => ['name' => 'Task'],
+                'issuetype' => ['name' => 'Tarea'],
                 'priority'  => ['name' => $this->mapPriority($priority)],
             ];
 
@@ -97,6 +97,19 @@ class JiraService
         } catch (\Exception $e) {
             Log::error('Jira createIssue exception: ' . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Eliminar un issue de Jira.
+     */
+    public function deleteIssue(string $jiraKey): void
+    {
+        if (!$this->configured) return;
+        try {
+            $this->client()->delete("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}");
+        } catch (\Exception $e) {
+            Log::error('Jira deleteIssue exception: ' . $e->getMessage());
         }
     }
 

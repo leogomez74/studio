@@ -116,6 +116,12 @@ class BugController extends Controller
     {
         $this->logActivity('delete', 'Incidencias', $bug, $bug->reference . ' - ' . $bug->title, [], $request);
 
+        // Eliminar en Jira
+        if ($bug->jira_key) {
+            try { (new JiraService())->deleteIssue($bug->jira_key); }
+            catch (\Exception $e) { Log::warning('Jira deleteIssue failed: ' . $e->getMessage()); }
+        }
+
         // Eliminar imágenes del disco
         foreach ($bug->images as $img) {
             Storage::disk('public')->delete($img->path);
