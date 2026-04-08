@@ -1380,8 +1380,8 @@ export default function CreditsPage() {
               <TabsContent key={tab.value} value={tab.value}>
                 <Card>
                   <CardContent className="p-0">
-                    <DraggableScrollContainer className="overflow-x-auto select-none p-6">
-                      <Table className="min-w-[1800px]">
+                    <DraggableScrollContainer className="overflow-x-auto select-none">
+                      <Table className="min-w-[1800px] border-separate border-spacing-0">
                         <TableHeader>
                           <TableRow>
                             {/* Checkbox de selección (solo "Sin deductora") */}
@@ -1405,11 +1405,11 @@ export default function CreditsPage() {
                               </TableHead>
                             )}
                             {/* NUEVA COLUMNA: Botón de expansión */}
-                            <TableHead className="w-[40px] sticky left-0 bg-background z-10 border-r">
+                            <TableHead className="w-[40px] sticky left-0 bg-background z-20 border-r">
                               {/* Vacío, solo para alinear */}
                             </TableHead>
                             {/* Acciones - ACTUALIZAR sticky position */}
-                            <TableHead className="text-right sticky left-[40px] bg-background z-10 w-[180px]">Acciones</TableHead>
+                            <TableHead className="text-right sticky left-[40px] bg-background z-20 w-[180px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.06)]">Acciones</TableHead>
                             <TableHead className="w-[130px]">Estado</TableHead>
                             <TableHead className="min-w-[200px]">Nombre</TableHead>
                             <TableHead className="w-[120px]">Cédula</TableHead>
@@ -1526,7 +1526,7 @@ export default function CreditsPage() {
                                   </TableCell>
 
                                   {/* COLUMNA 2: Acciones - ACTUALIZAR sticky position */}
-                                  <TableCell className="text-right sticky left-[40px] bg-background z-10 w-[180px]">
+                                  <TableCell className="text-right sticky left-[40px] bg-background z-10 w-[180px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
                                     <div className="flex items-center gap-1">
                                       <Button
                                         variant="outline"
@@ -1704,10 +1704,10 @@ export default function CreditsPage() {
                                         </TableCell>
                                       )}
                                       {/* COLUMNA 1: Vacía (alineación) */}
-                                      <TableCell className="w-[40px] sticky left-0 bg-muted/30 z-10 border-r" />
+                                      <TableCell className="w-[40px] sticky left-0 bg-muted z-10 border-r" />
 
                                       {/* COLUMNA 2: Acciones con indentación visual */}
-                                      <TableCell className="text-right sticky left-[40px] bg-muted/30 z-10 w-[180px]">
+                                      <TableCell className="text-right sticky left-[40px] bg-muted z-10 w-[180px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
                                         <div className="flex items-center justify-end gap-1">
                                           {/* Línea de indentación visual */}
                                           <div className="w-4 h-px bg-border mr-1" />
