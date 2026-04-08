@@ -124,6 +124,9 @@ function EvaluatePreviewDialog({
           <div className="space-y-3">
             <p className="text-sm">
               <span className="font-semibold">{result.count}</span> registro(s) cumplen la condición.
+              {result.count > 50 && (
+                <span className="text-muted-foreground ml-1">(mostrando 50 de {result.count})</span>
+              )}
             </p>
             {result.records.length > 0 && (
               <div className="max-h-48 overflow-y-auto rounded-lg border divide-y">

@@ -7,6 +7,7 @@ use App\Models\TaskAutomation;
 use App\Traits\LogsActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TaskAutomationController extends Controller
 {
@@ -33,34 +34,38 @@ class TaskAutomationController extends Controller
         ]);
 
         $checklistItems = $validated['checklist_items'] ?? null;
-        $assigneeIds = $validated['assigned_to_ids'] ?? null;
+        $assigneeIds    = $validated['assigned_to_ids'] ?? null;
         unset($validated['checklist_items'], $validated['assigned_to_ids']);
 
         // Si se envían assigned_to_ids, usar el primero como assigned_to legacy
-        if ($assigneeIds !== null && count($assigneeIds) > 0) {
+        if ($assigneeIds !== null && \count($assigneeIds) > 0) {
             $validated['assigned_to'] = $assigneeIds[0];
         }
 
-        $automation = TaskAutomation::updateOrCreate(
-            ['event_type' => $validated['event_type']],
-            $validated
-        );
+        $automation = DB::transaction(function () use ($validated, $assigneeIds, $checklistItems) {
+            $automation = TaskAutomation::updateOrCreate(
+                ['event_type' => $validated['event_type']],
+                $validated
+            );
 
-        // Sincronizar assignees en tabla pivote
-        if ($assigneeIds !== null) {
-            $automation->assignees()->sync($assigneeIds);
-        }
-
-        // Sincronizar checklist items si se enviaron
-        if ($checklistItems !== null) {
-            $automation->checklistItems()->delete();
-            foreach ($checklistItems as $index => $item) {
-                $automation->checklistItems()->create([
-                    'title' => $item['title'],
-                    'sort_order' => $index,
-                ]);
+            // Sincronizar assignees en tabla pivote
+            if ($assigneeIds !== null) {
+                $automation->assignees()->sync($assigneeIds);
             }
-        }
+
+            // Sincronizar checklist items si se enviaron
+            if ($checklistItems !== null) {
+                $automation->checklistItems()->delete();
+                foreach ($checklistItems as $index => $item) {
+                    $automation->checklistItems()->create([
+                        'title'      => $item['title'],
+                        'sort_order' => $index,
+                    ]);
+                }
+            }
+
+            return $automation;
+        });
 
         $this->logActivity('upsert', 'Automatización Tareas', $automation, $automation->title, null, $request);
 

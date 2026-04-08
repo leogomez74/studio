@@ -21,22 +21,26 @@ class AutomationTemplateService
      */
     public function evaluate(AutomationTemplate $template): array
     {
-        if (!$template->hasCondition()) {
-            // Sin condición: retorna todos los registros del módulo (limitado a 50 para preview)
-            $config = config("automation_variables.{$template->module}");
-            $modelClass = $config['model'];
-            $records = $modelClass::query()->limit(50)->get();
-        } else {
-            $records = $this->evaluator->evaluate($template->module, $template->condition_json);
-        }
-
-        $config = config("automation_variables.{$template->module}");
+        $config     = config("automation_variables.{$template->module}");
+        $modelClass = $config['model'];
         $labelField = $config['record_label_field'] ?? 'id';
 
-        return $records->map(fn ($r) => [
-            'id'    => $r->id,
-            'label' => $r->$labelField ?? $r->id,
-        ])->values()->toArray();
+        if (!$template->hasCondition()) {
+            $total   = $modelClass::query()->count();
+            $records = $modelClass::query()->limit(50)->get();
+        } else {
+            $all     = $this->evaluator->evaluate($template->module, $template->condition_json);
+            $total   = $all->count();
+            $records = $all->take(50);
+        }
+
+        return [
+            'count'   => $total,
+            'records' => $records->map(fn ($r) => [
+                'id'    => $r->id,
+                'label' => $r->$labelField ?? $r->id,
+            ])->values()->toArray(),
+        ];
     }
 
     /**

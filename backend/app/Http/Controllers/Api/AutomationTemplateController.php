@@ -50,7 +50,7 @@ class AutomationTemplateController extends Controller
             'due_days_offset'  => 'nullable|integer|min:0|max:365',
             'workflow_id'      => 'nullable|integer|exists:task_workflows,id',
             'is_active'        => 'boolean',
-            'assignee_ids'     => 'nullable|array',
+            'assignee_ids'     => 'required|array|min:1',
             'assignee_ids.*'   => 'integer|exists:users,id',
             'checklist_items'  => 'nullable|array',
             'checklist_items.*.title' => 'required|string|max:255',
