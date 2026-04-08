@@ -11,7 +11,9 @@ class Person extends Model
 
     protected $table = 'persons';
 
-    protected $guarded = [];
+    // Subclases (Lead, Client) definen su propio $fillable.
+    // Aquí bloqueamos todo para evitar mass assignment accidental sobre la tabla base.
+    protected $guarded = ['id'];
 
     public function documents()
     {
