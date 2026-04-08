@@ -16,11 +16,25 @@ class ErpAccountingService
     private const TOKEN_CACHE_KEY = 'erp_accounting_token';
     private const TOKEN_TTL = 3600; // 1 hora
 
+    private string $serviceToken;
+    private string $serviceSecret;
+
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.erp.url', ''), '/');
-        $this->email = config('services.erp.email', '');
-        $this->password = config('services.erp.password', '');
+        $this->baseUrl       = rtrim(config('services.erp.url', ''), '/');
+        $this->email         = config('services.erp.email', '');
+        $this->password      = config('services.erp.password', '');
+        $this->serviceToken  = config('services.erp.service_token', '');
+        $this->serviceSecret = config('services.erp.service_secret', '');
+    }
+
+    /**
+     * Verifica si usa autenticación por service token (ERP_SERVICE_TOKEN + ERP_SERVICE_SECRET)
+     * o por credenciales email/password.
+     */
+    private function usesServiceToken(): bool
+    {
+        return !empty($this->serviceToken) && !empty($this->serviceSecret);
     }
 
     /**
@@ -28,7 +42,12 @@ class ErpAccountingService
      */
     public function isConfigured(): bool
     {
-        return !empty($this->baseUrl) && !empty($this->email) && !empty($this->password);
+        if (!$this->baseUrl) {
+            return false;
+        }
+
+        return $this->usesServiceToken()
+            || (!empty($this->email) && !empty($this->password));
     }
 
     /**
@@ -48,10 +67,19 @@ class ErpAccountingService
     // ================================================================
 
     /**
-     * Obtener token Bearer. Usa caché y reautentica si es necesario.
+     * Obtener token Bearer.
+     *
+     * Prioridad:
+     *   1. Si ERP_SERVICE_TOKEN + ERP_SERVICE_SECRET están definidos → los usa directamente
+     *      (sin cache, son estáticos en .env)
+     *   2. Si no → autentica con email/password y cachea el JWT resultante 1 hora
      */
     public function getToken(): string
     {
+        if ($this->usesServiceToken()) {
+            return $this->serviceToken;
+        }
+
         $cached = Cache::get(self::TOKEN_CACHE_KEY);
         if ($cached) {
             return $cached;
@@ -163,11 +191,17 @@ class ErpAccountingService
         try {
             $token = $this->getToken();
 
+            $headers = [
+                'Authorization' => 'Bearer ' . $token,
+                'Accept'        => 'application/json',
+            ];
+
+            if ($this->usesServiceToken() && !empty($this->serviceSecret)) {
+                $headers['X-Service-Secret'] = $this->serviceSecret;
+            }
+
             $response = Http::timeout(30)
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . $token,
-                    'Accept' => 'application/json',
-                ])
+                ->withHeaders($headers)
                 ->post($this->baseUrl . '/journal-entry', $payload);
 
             // 201 = Éxito
@@ -188,10 +222,15 @@ class ErpAccountingService
             }
 
             // 401 = Token expirado → reautenticar y reintentar una vez
-            if ($response->status() === 401 && !$isRetry) {
+            // (solo aplica para autenticación email/password; service token es estático)
+            if ($response->status() === 401 && !$isRetry && !$this->usesServiceToken()) {
                 Log::warning('ERP: Token expirado, reautenticando...');
                 $this->clearToken();
                 return $this->sendWithRetry($payload, true);
+            }
+
+            if ($response->status() === 401 && $this->usesServiceToken()) {
+                Log::error('ERP: 401 con ERP_SERVICE_TOKEN — verificar validez del token en .env');
             }
 
             // 422 = Error de validación
