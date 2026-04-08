@@ -636,6 +636,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
     Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
     Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
+Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportController::class, 'contratoInversionPdf']);
 
     // --- Embargo ---
     Route::get('/embargo/personas', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'buscarPersonas']);

@@ -171,11 +171,21 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
     try {
       if (isEditing) {
         await api.put(`/api/investments/${investment!.id}`, payload);
+        onSuccess();
+        onOpenChange(false);
       } else {
-        await api.post('/api/investments', payload);
+        const res = await api.post('/api/investments', payload);
+        const newId = res.data?.id;
+        onSuccess();
+        onOpenChange(false);
+
+        // Descargar contratos automáticamente en ambos idiomas
+        if (newId) {
+          const base = process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api', '') || '';
+          setTimeout(() => { window.open(`${base}/api/investments/${newId}/export/contrato/es`, '_blank'); }, 300);
+          setTimeout(() => { window.open(`${base}/api/investments/${newId}/export/contrato/en`, '_blank'); }, 800);
+        }
       }
-      onSuccess();
-      onOpenChange(false);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al guardar');
     } finally {

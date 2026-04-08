@@ -41,16 +41,21 @@ class InvestorController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'cedula' => 'nullable|string|max:20|unique:investors,cedula',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:20',
-            'status' => 'in:Activo,Inactivo',
-            'tipo_persona' => 'string|max:255',
-            'notas' => 'nullable|string',
-            'cuenta_bancaria' => 'nullable|string|max:50',
-            'banco' => 'nullable|string|max:100',
-            'joined_at' => 'nullable|date',
+            'name'               => 'required|string|max:255',
+            'cedula'             => 'nullable|string|max:20|unique:investors,cedula',
+            'email'              => 'required|email|max:255',
+            'phone'              => 'required|string|max:20',
+            'status'             => 'in:Activo,Inactivo',
+            'tipo_persona'       => 'required|string|max:255',
+            'nacionalidad'       => 'required|string|max:100',
+            'estado_civil'       => 'required|string|max:50',
+            'profesion'          => 'required|string|max:150',
+            'direccion_contrato' => 'required|string|max:500',
+            'numero_pasaporte'   => 'nullable|string|max:50',
+            'notas'              => 'nullable|string',
+            'cuenta_bancaria'    => 'required|string|max:50',
+            'banco'              => 'required|string|max:100',
+            'joined_at'          => 'nullable|date',
         ]);
 
         $investor = Investor::create($validated);
@@ -87,19 +92,24 @@ class InvestorController extends Controller
         $oldData = $investor->toArray();
 
         $validated = $request->validate([
-            'name' => 'string|max:255',
-            'cedula' => "nullable|string|max:20|unique:investors,cedula,{$id}",
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:20',
-            'status' => 'in:Activo,Inactivo',
-            'tipo_persona' => 'string|max:255',
-            'notas' => 'nullable|string',
-            'cuenta_bancaria' => 'nullable|string|max:50',
-            'banco' => 'nullable|string|max:100',
-            'joined_at' => 'nullable|date',
-            'erp_account_key' => 'nullable|string|max:100',
-            'erp_account_key_prestamos' => 'nullable|string|max:100',
-            'erp_account_key_intereses' => 'nullable|string|max:100',
+            'name'               => 'string|max:255',
+            'cedula'             => "nullable|string|max:20|unique:investors,cedula,{$id}",
+            'email'              => 'nullable|email|max:255',
+            'phone'              => 'nullable|string|max:20',
+            'status'             => 'in:Activo,Inactivo',
+            'tipo_persona'       => 'string|max:255',
+            'nacionalidad'       => 'nullable|string|max:100',
+            'estado_civil'       => 'nullable|string|max:50',
+            'profesion'          => 'nullable|string|max:150',
+            'direccion_contrato' => 'nullable|string|max:500',
+            'numero_pasaporte'   => 'nullable|string|max:50',
+            'notas'              => 'nullable|string',
+            'cuenta_bancaria'    => 'nullable|string|max:50',
+            'banco'              => 'nullable|string|max:100',
+            'joined_at'          => 'nullable|date',
+            'erp_account_key'              => 'nullable|string|max:100',
+            'erp_account_key_prestamos'    => 'nullable|string|max:100',
+            'erp_account_key_intereses'    => 'nullable|string|max:100',
         ]);
 
         $investor->update($validated);

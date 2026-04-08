@@ -89,7 +89,7 @@ class CommentController extends Controller
             'user_id'          => $request->user()->id,
             'body'             => $request->body,
             'mentions'         => $request->mentions,
-            'comment_type'     => $request->comment_type,
+            'comment_type'     => $request->comment_type ?? 'comment',
             'metadata'         => $request->metadata,
         ]);
 
