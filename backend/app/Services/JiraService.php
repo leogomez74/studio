@@ -249,6 +249,80 @@ class JiraService
     }
 
     /**
+     * Obtener todas las tareas del proyecto desde Jira.
+     */
+    public function fetchProjectIssues(): array
+    {
+        if (!$this->configured) return [];
+        try {
+            $all  = [];
+            $start = 0;
+            do {
+                $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/search/jql", [
+                    'jql'        => "project = {$this->projectKey} ORDER BY created DESC",
+                    'startAt'    => $start,
+                    'maxResults' => 100,
+                    'fields'     => 'summary,status,priority,assignee,description,attachment',
+                ]);
+                if (!$resp->successful()) break;
+                $issues = $resp->json('issues', []);
+                $all    = array_merge($all, $issues);
+                $total  = $resp->json('total', 0);
+                $start += count($issues);
+            } while ($start < $total);
+            return $all;
+        } catch (\Exception $e) {
+            Log::error('Jira fetchProjectIssues: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Descargar contenido de un attachment de Jira (URL autenticada).
+     * Retorna el contenido binario o null si falla.
+     */
+    public function downloadAttachment(string $contentUrl): ?string
+    {
+        if (!$this->configured) return null;
+        try {
+            $resp = $this->client()->get($contentUrl);
+            return $resp->successful() ? $resp->body() : null;
+        } catch (\Exception $e) {
+            Log::error('Jira downloadAttachment: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Actualizar título y/o descripción de un issue en Jira.
+     */
+    public function updateIssue(string $jiraKey, array $fields): void
+    {
+        if (!$this->configured) return;
+        $update = [];
+        if (isset($fields['title'])) {
+            $update['summary'] = $fields['title'];
+        }
+        if (array_key_exists('description', $fields)) {
+            $text = $fields['description'] ?? '';
+            $update['description'] = [
+                'type'    => 'doc',
+                'version' => 1,
+                'content' => [[
+                    'type'    => 'paragraph',
+                    'content' => [['type' => 'text', 'text' => $text ?: ' ']],
+                ]],
+            ];
+        }
+        if (empty($update)) return;
+        try {
+            $this->client()->put("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}", ['fields' => $update]);
+        } catch (\Exception $e) {
+            Log::error('Jira updateIssue: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Registrar (o actualizar) el webhook en Jira apuntando al APP_URL del .env
      */
     public function registerWebhook(): array
@@ -267,7 +341,7 @@ class JiraService
                     $this->client()->put("{$this->baseUrl}/rest/webhooks/1.0/webhook/{$hook['self']}", [
                         'name'   => 'Studio Sync',
                         'url'    => $webhookUrl,
-                        'events' => ['jira:issue_updated', 'jira:issue_deleted'],
+                        'events' => ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted'],
                         'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
                     ]);
                     return ['status' => 'updated', 'url' => $webhookUrl];
@@ -278,7 +352,7 @@ class JiraService
             $resp = $this->client()->post("{$this->baseUrl}/rest/webhooks/1.0/webhook", [
                 'name'    => 'Studio Sync',
                 'url'     => $webhookUrl,
-                'events'  => ['jira:issue_updated', 'jira:issue_deleted'],
+                'events'  => ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted'],
                 'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
             ]);
 
