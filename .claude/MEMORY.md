@@ -263,6 +263,34 @@ class MiController extends Controller {
 
 ---
 
+## Auditoría Seguridad (Abr 2026)
+
+### Base de datos / Mass Assignment
+- `Person.$guarded = ['*']` — base model bloquea toda escritura directa. Lead y Client definen su propio `$fillable`
+- `Investor.$hidden = ['erp_account_key', 'erp_account_key_prestamos', 'erp_account_key_intereses']`
+
+### Headers HTTP
+- `SecurityHeaders` middleware global (`bootstrap/app.php`, `$middleware->append()`)
+- Headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `HSTS` (solo HTTPS)
+- **Excluido**: X-XSS-Protection (obsoleto, removido por code review)
+
+### Rate Limiting adicional (Abr 2026)
+- `activity-logs` export: `admin + throttle:10,1`
+- Exports financieros (investment, credit-payments, planilla, accounting-entries): `throttle:10-20,1`
+- `/api/health/env/detail`: `auth:sanctum + admin + throttle:10,1`
+
+---
+
+## KPIs Ventas (Abr 2026)
+
+- `KpiController::getAgentKpis()`: datos reales por vendedor — créditos, monto, comisiones, visitas, alcance de meta
+- `KpiController::getConversionPorVendedor()`: tasa lead→crédito por vendedor (llamado desde `getLeadKpis()`)
+- `KpiController::getBusinessHealthKpis()`: usa comisiones pagadas para `revenuePerEmployee`, añade `atribucionVendedores` y `creditosSinAtribucion`
+- **Columna correcta**: `persons.assigned_to_id` (NOT `assigned_to`)
+- Modelos utilizados: `Comision`, `MetaVenta`, `Visita`
+
+---
+
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta

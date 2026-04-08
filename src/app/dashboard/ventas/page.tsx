@@ -1041,7 +1041,7 @@ export default function VentasPage() {
     try {
       const [metasRes, agentsRes, instRes] = await Promise.all([
         api.get('/api/metas-venta', { params: { anio, mes } }),
-        api.get('/api/agents'),
+        api.get('/api/ventas/vendedores'),
         api.get('/api/instituciones?activas_only=true'),
       ]);
       setMetas(metasRes.data);
@@ -1058,7 +1058,7 @@ export default function VentasPage() {
         api.get('/api/ventas/dashboard'),
         api.get('/api/visitas/proximas'),
         api.get('/api/instituciones?activas_only=true'),
-        api.get('/api/agents'),
+        api.get('/api/ventas/vendedores'),
       ]);
       setDashboardData(dashRes.data);
       setVisitas(visitasRes.data || []);
