@@ -291,10 +291,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/rutas-diarias/{id}/replanificar', [RutaDiariaController::class, 'replanificar'])->middleware(['admin', 'throttle:60,1']);
     Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware(['admin', 'throttle:30,1']);
 
-    // --- Automatización de Tareas ---
+    // --- Automatización de Tareas (sistema) ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
     Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
     Route::delete('/task-automations/{taskAutomation}', [\App\Http\Controllers\Api\TaskAutomationController::class, 'destroy'])->middleware('admin');
+
+    // --- Plantillas de Automatización personalizadas ---
+    Route::middleware('admin')->prefix('automation-templates')->group(function () {
+        Route::get('/',                                    [\App\Http\Controllers\Api\AutomationTemplateController::class, 'index']);
+        Route::post('/',                                   [\App\Http\Controllers\Api\AutomationTemplateController::class, 'store']);
+        Route::get('/variables',                           [\App\Http\Controllers\Api\AutomationTemplateController::class, 'variables']);
+        Route::get('/event-hooks',                         [\App\Http\Controllers\Api\AutomationTemplateController::class, 'eventHooks']);
+        Route::get('/{automationTemplate}',                [\App\Http\Controllers\Api\AutomationTemplateController::class, 'show']);
+        Route::put('/{automationTemplate}',                [\App\Http\Controllers\Api\AutomationTemplateController::class, 'update']);
+        Route::delete('/{automationTemplate}',             [\App\Http\Controllers\Api\AutomationTemplateController::class, 'destroy']);
+        Route::post('/{automationTemplate}/evaluate',      [\App\Http\Controllers\Api\AutomationTemplateController::class, 'evaluateCondition']);
+        Route::post('/{automationTemplate}/execute',       [\App\Http\Controllers\Api\AutomationTemplateController::class, 'execute']);
+    });
 
     // --- Integraciones Externas ---
     Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');

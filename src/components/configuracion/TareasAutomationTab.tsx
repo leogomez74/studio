@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
@@ -16,6 +17,9 @@ import { ChevronDown, Loader2, Plus, X } from 'lucide-react';
 import { useAuth } from '@/components/auth-guard';
 import { API_BASE_URL } from '@/lib/env';
 import api from '@/lib/axios';
+import { useAutomationTemplates } from '@/hooks/use-automation-templates';
+import { AutomationTemplatesSection } from './AutomationTemplatesSection';
+import { NuevaTareaDialog } from './NuevaTareaDialog';
 
 interface ChecklistTemplate {
   id?: number;
@@ -71,6 +75,32 @@ const TareasAutomationTab: React.FC = () => {
   const [automationsLoading, setAutomationsLoading] = useState(false);
   const [configs, setConfigs] = useState<Record<string, AutomationConfig>>({});
   const saveTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const {
+    templates,
+    variables,
+    eventHooks,
+    loading: templatesLoading,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    evaluateTemplate,
+    executeTemplate,
+  } = useAutomationTemplates();
+
+  const handleTemplateSave = async (payload: Record<string, unknown>, id?: number) => {
+    if (id) {
+      await updateTemplate(id, payload as Parameters<typeof updateTemplate>[1]);
+    } else {
+      await createTemplate(payload as Parameters<typeof createTemplate>[0]);
+    }
+  };
+
+  const handleTemplateToggle = async (id: number, value: boolean) => {
+    await updateTemplate(id, { is_active: value });
+  };
+
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -203,10 +233,17 @@ const TareasAutomationTab: React.FC = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tareas Automáticas</CardTitle>
-        <CardDescription>
-          Configura las tareas que se crean automáticamente al ocurrir ciertos eventos. Se crea una tarea por cada responsable seleccionado. Deja sin responsables para desactivar.
-        </CardDescription>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle>Tareas Automáticas</CardTitle>
+            <CardDescription className="mt-1">
+              Configura las tareas que se crean automáticamente al ocurrir ciertos eventos. Se crea una tarea por cada responsable seleccionado. Deja sin responsables para desactivar.
+            </CardDescription>
+          </div>
+          <Button size="sm" onClick={() => setNewDialogOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Nueva tarea
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {automationsLoading ? (
@@ -215,6 +252,7 @@ const TareasAutomationTab: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-6">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Automatizaciones del sistema</p>
             {AUTOMATION_EVENTS.map((event) => (
               <div key={event.key} className="rounded-lg border p-4">
                 <h4 className="font-medium">{event.title}</h4>
@@ -341,6 +379,31 @@ const TareasAutomationTab: React.FC = () => {
                 )}
               </div>
             ))}
+
+            <Separator />
+
+            <AutomationTemplatesSection
+              templates={templates}
+              variables={variables}
+              eventHooks={eventHooks}
+              users={users}
+              loading={templatesLoading}
+              onSave={handleTemplateSave}
+              onDelete={deleteTemplate}
+              onEvaluate={evaluateTemplate}
+              onExecute={executeTemplate}
+              onToggleActive={handleTemplateToggle}
+            />
+
+            <NuevaTareaDialog
+              open={newDialogOpen}
+              onOpenChange={setNewDialogOpen}
+              variables={variables}
+              eventHooks={eventHooks}
+              users={users}
+              editing={null}
+              onSave={async (payload) => { await handleTemplateSave(payload); }}
+            />
           </div>
         )}
       </CardContent>
