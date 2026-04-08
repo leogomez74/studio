@@ -1405,11 +1405,11 @@ export default function CreditsPage() {
                               </TableHead>
                             )}
                             {/* NUEVA COLUMNA: Botón de expansión */}
-                            <TableHead className="w-[40px] sticky left-0 bg-background z-20 border-r">
+                            <TableHead className="w-[40px] sticky left-0 z-20" style={{ backgroundColor: 'hsl(var(--background))' }}>
                               {/* Vacío, solo para alinear */}
                             </TableHead>
-                            {/* Acciones - ACTUALIZAR sticky position */}
-                            <TableHead className="text-right sticky left-[40px] bg-background z-20 w-[180px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.06)]">Acciones</TableHead>
+                            {/* Acciones */}
+                            <TableHead className="text-right sticky left-[40px] z-20 w-[180px] border-r shadow-[2px_0_5px_rgba(0,0,0,0.08)]" style={{ backgroundColor: 'hsl(var(--background))' }}>Acciones</TableHead>
                             <TableHead className="w-[130px]">Estado</TableHead>
                             <TableHead className="min-w-[200px]">Nombre</TableHead>
                             <TableHead className="w-[120px]">Cédula</TableHead>
@@ -1495,7 +1495,7 @@ export default function CreditsPage() {
                                     </TableCell>
                                   )}
                                   {/* COLUMNA 1: Botón de Expansión */}
-                                  <TableCell className="w-[40px] sticky left-0 bg-background z-10 border-r">
+                                  <TableCell className="w-[40px] sticky left-0 z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>
                                     {hasMultipleCredits && (
                                       <TooltipProvider>
                                         <Tooltip>
@@ -1525,8 +1525,8 @@ export default function CreditsPage() {
                                     )}
                                   </TableCell>
 
-                                  {/* COLUMNA 2: Acciones - ACTUALIZAR sticky position */}
-                                  <TableCell className="text-right sticky left-[40px] bg-background z-10 w-[180px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
+                                  {/* COLUMNA 2: Acciones */}
+                                  <TableCell className="text-right sticky left-[40px] z-10 w-[180px] border-r shadow-[2px_0_5px_rgba(0,0,0,0.08)]" style={{ backgroundColor: 'hsl(var(--background))' }}>
                                     <div className="flex items-center gap-1">
                                       <Button
                                         variant="outline"
@@ -1704,10 +1704,10 @@ export default function CreditsPage() {
                                         </TableCell>
                                       )}
                                       {/* COLUMNA 1: Vacía (alineación) */}
-                                      <TableCell className="w-[40px] sticky left-0 bg-muted z-10 border-r" />
+                                      <TableCell className="w-[40px] sticky left-0 z-10" style={{ backgroundColor: 'hsl(var(--muted))' }} />
 
                                       {/* COLUMNA 2: Acciones con indentación visual */}
-                                      <TableCell className="text-right sticky left-[40px] bg-muted z-10 w-[180px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
+                                      <TableCell className="text-right sticky left-[40px] z-10 w-[180px] border-r shadow-[2px_0_5px_rgba(0,0,0,0.08)]" style={{ backgroundColor: 'hsl(var(--muted))' }}>
                                         <div className="flex items-center justify-end gap-1">
                                           {/* Línea de indentación visual */}
                                           <div className="w-4 h-px bg-border mr-1" />
