@@ -1409,7 +1409,7 @@ export default function CreditsPage() {
                               {/* Vacío, solo para alinear */}
                             </TableHead>
                             {/* Acciones */}
-                            <TableHead className="text-right sticky left-[40px] z-20 w-[180px] border-r shadow-[2px_0_5px_rgba(0,0,0,0.08)]" style={{ backgroundColor: 'hsl(var(--background))' }}>Acciones</TableHead>
+                            <TableHead className="text-right sticky left-[40px] z-20 w-[180px]" style={{ backgroundColor: 'hsl(var(--background))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>Acciones</TableHead>
                             <TableHead className="w-[130px]">Estado</TableHead>
                             <TableHead className="min-w-[200px]">Nombre</TableHead>
                             <TableHead className="w-[120px]">Cédula</TableHead>
@@ -1526,7 +1526,7 @@ export default function CreditsPage() {
                                   </TableCell>
 
                                   {/* COLUMNA 2: Acciones */}
-                                  <TableCell className="text-right sticky left-[40px] z-10 w-[180px] border-r shadow-[2px_0_5px_rgba(0,0,0,0.08)]" style={{ backgroundColor: 'hsl(var(--background))' }}>
+                                  <TableCell className="text-right sticky left-[40px] z-10 w-[180px]" style={{ backgroundColor: 'hsl(var(--background))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>
                                     <div className="flex items-center gap-1">
                                       <Button
                                         variant="outline"
@@ -1707,7 +1707,7 @@ export default function CreditsPage() {
                                       <TableCell className="w-[40px] sticky left-0 z-10" style={{ backgroundColor: 'hsl(var(--muted))' }} />
 
                                       {/* COLUMNA 2: Acciones con indentación visual */}
-                                      <TableCell className="text-right sticky left-[40px] z-10 w-[180px] border-r shadow-[2px_0_5px_rgba(0,0,0,0.08)]" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+                                      <TableCell className="text-right sticky left-[40px] z-10 w-[180px]" style={{ backgroundColor: 'hsl(var(--muted))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>
                                         <div className="flex items-center justify-end gap-1">
                                           {/* Línea de indentación visual */}
                                           <div className="w-4 h-px bg-border mr-1" />
