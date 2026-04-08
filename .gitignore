@@ -3,6 +3,9 @@
 # Local settings (never commit)
 settings.local.json
 
+# Playwright MCP logs (generados automáticamente por el MCP de Playwright)
+.playwright-mcp/
+
 # dependencies
 /node_modules
 /.pnp
