@@ -15,6 +15,9 @@ use App\Models\PlanDePago;
 use App\Models\Deductora;
 use App\Models\User;
 use App\Models\Task;
+use App\Models\Comision;
+use App\Models\MetaVenta;
+use App\Models\Visita;
 use App\Models\Rewards\RewardUser;
 use App\Models\Rewards\RewardTransaction;
 use App\Models\Rewards\RewardUserBadge;
@@ -362,9 +365,50 @@ class KpiController extends Controller
                 'leadSourcePerformance' => $leadSourcePerformance,
                 'totalLeads' => $totalLeads,
                 'totalClients' => $totalClients,
+                // Conversión segmentada por vendedor (leads asignados → créditos formalizados)
+                'conversionPorVendedor' => $this->getConversionPorVendedor($dateRange),
             ];
         } catch (\Exception $e) {
             return $this->getDefaultLeadKpis();
+        }
+    }
+
+    private function getConversionPorVendedor(array $dateRange): array
+    {
+        try {
+            $vendedorRoles = ['Vendedor', 'Vendedor Interno', 'Vendedor Externo'];
+
+            return User::select('users.id', 'users.name')
+                ->join('roles', 'users.role_id', '=', 'roles.id')
+                ->whereIn('roles.name', $vendedorRoles)
+                ->where('users.status', 'Activo')
+                ->get()
+                ->map(function ($user) use ($dateRange) {
+                    $leadsAsignados = Lead::where('assigned_to_id', $user->id)
+                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                        ->count();
+
+                    $creditosFormalizados = Credit::where('assigned_to', $user->id)
+                        ->whereNotNull('formalized_at')
+                        ->whereBetween('formalized_at', [$dateRange['start'], $dateRange['end']])
+                        ->count();
+
+                    return [
+                        'user_id'              => $user->id,
+                        'name'                 => $user->name,
+                        'leadsAsignados'       => $leadsAsignados,
+                        'creditosFormalizados' => $creditosFormalizados,
+                        'tasaCierre'           => $leadsAsignados > 0
+                            ? round(($creditosFormalizados / $leadsAsignados) * 100, 1)
+                            : null,
+                    ];
+                })
+                ->filter(fn($v) => $v['leadsAsignados'] > 0 || $v['creditosFormalizados'] > 0)
+                ->sortByDesc('tasaCierre')
+                ->values()
+                ->toArray();
+        } catch (\Exception $e) {
+            return [];
         }
     }
 
@@ -1085,97 +1129,120 @@ class KpiController extends Controller
     private function getAgentKpis(array $dateRange): array
     {
         try {
-            $topAgents = User::select('users.id', 'users.name')
-                ->limit(10)
-                ->get()
-                ->map(function ($agent) use ($dateRange) {
-                    // All non-deleted tasks for agent
-                    $baseQuery = Task::where('assigned_to', $agent->id)
-                        ->whereNotIn('status', ['deleted']);
+            $anio = $dateRange['start']->year;
+            $mes  = $dateRange['start']->month;
 
-                    $tasksTotal = (clone $baseQuery)->count();
-                    $tasksCompleted = (clone $baseQuery)->where('status', 'completada')->count();
-                    $tasksPending = (clone $baseQuery)->whereNotIn('status', ['completada', 'archivada'])->count();
-                    $tasksArchived = (clone $baseQuery)->where('status', 'archivada')->count();
+            // Vendedores con rol Vendedor / Vendedor Interno / Vendedor Externo
+            $vendedorRoles = ['Vendedor', 'Vendedor Interno', 'Vendedor Externo'];
 
-                    $completionRate = $tasksTotal > 0
-                        ? round(($tasksCompleted / $tasksTotal) * 100, 0)
-                        : 0;
+            $agents = User::select('users.id', 'users.name')
+                ->join('roles', 'users.role_id', '=', 'roles.id')
+                ->whereIn('roles.name', $vendedorRoles)
+                ->where('users.status', 'Activo')
+                ->get();
 
-                    // Average completion time (days from created_at to completed_at or updated_at)
-                    $avgCompletionDays = Task::where('assigned_to', $agent->id)
-                        ->where('status', 'completada')
-                        ->selectRaw('AVG(DATEDIFF(COALESCE(completed_at, updated_at), created_at)) as avg_days')
-                        ->value('avg_days');
-                    $avgCompletionTime = $avgCompletionDays ? round($avgCompletionDays, 1) : 0;
+            $topAgents = $agents->map(function ($agent) use ($dateRange, $anio, $mes) {
+                // ── Ventas ────────────────────────────────────────────────
+                $creditosQuery = Credit::where('assigned_to', $agent->id)
+                    ->whereNotNull('formalized_at')
+                    ->whereBetween('formalized_at', [$dateRange['start'], $dateRange['end']]);
 
-                    // Overdue tasks: pending tasks past due_date
-                    $tasksOverdue = Task::where('assigned_to', $agent->id)
-                        ->whereNotIn('status', ['completada', 'archivada', 'deleted'])
-                        ->whereNotNull('due_date')
-                        ->where('due_date', '<', now())
-                        ->count();
+                $creditosFormalizados = $creditosQuery->count();
+                $montoColocado        = (float) $creditosQuery->sum('monto_credito');
+                $ticketPromedio       = $creditosFormalizados > 0
+                    ? round($montoColocado / $creditosFormalizados, 2) : 0;
 
-                    // On-time rate: completed tasks finished on or before due_date
-                    $completedWithDueDate = Task::where('assigned_to', $agent->id)
-                        ->where('status', 'completada')
-                        ->whereNotNull('due_date')
-                        ->count();
-                    $completedOnTime = Task::where('assigned_to', $agent->id)
-                        ->where('status', 'completada')
-                        ->whereNotNull('due_date')
-                        ->whereRaw('COALESCE(completed_at, updated_at) <= due_date')
-                        ->count();
-                    $onTimeRate = $completedWithDueDate > 0
-                        ? round(($completedOnTime / $completedWithDueDate) * 100, 0)
-                        : 0;
+                // Meta del mes correspondiente al período
+                $meta = MetaVenta::where('user_id', $agent->id)
+                    ->where('anio', $anio)
+                    ->where('mes', $mes)
+                    ->where('activo', true)
+                    ->first();
 
-                    // Tasks in period
-                    $tasksInPeriod = Task::where('assigned_to', $agent->id)
-                        ->whereNotIn('status', ['deleted'])
-                        ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                        ->count();
+                $metaCantidad = $meta ? (int) $meta->meta_creditos_cantidad : 0;
+                $alcancePct   = $metaCantidad > 0
+                    ? round(($creditosFormalizados / $metaCantidad) * 100, 1) : null;
 
-                    // Workflow breakdown: completed tasks per workflow
-                    $workflowBreakdown = Task::where('assigned_to', $agent->id)
-                        ->where('status', 'completada')
-                        ->whereNotNull('workflow_id')
-                        ->join('task_workflows', 'tasks.workflow_id', '=', 'task_workflows.id')
-                        ->selectRaw('task_workflows.name as workflow_name, COUNT(*) as count')
-                        ->groupBy('task_workflows.id', 'task_workflows.name')
-                        ->pluck('count', 'workflow_name');
+                // Comisiones del período
+                $comisionesQ = Comision::where('user_id', $agent->id)
+                    ->whereBetween('fecha_operacion', [$dateRange['start'], $dateRange['end']]);
 
-                    // Reward points earned from tasks
-                    $rewardPoints = \App\Models\Rewards\RewardTransaction::whereHas('rewardUser', fn ($q) => $q->where('user_id', $agent->id))
-                        ->whereIn('reference_type', ['task', 'task_transition'])
-                        ->where('type', 'earn')
-                        ->sum('amount');
+                $comisionPagada   = (float) (clone $comisionesQ)->where('estado', 'Pagada')->sum('monto_comision');
+                $comisionAprobada = (float) (clone $comisionesQ)->where('estado', 'Aprobada')->sum('monto_comision');
+                $comisionPendiente= (float) (clone $comisionesQ)->where('estado', 'Pendiente')->sum('monto_comision');
 
-                    return [
-                        'name' => $agent->name,
-                        'tasksTotal' => $tasksTotal,
-                        'tasksCompleted' => $tasksCompleted,
-                        'tasksPending' => $tasksPending,
-                        'tasksArchived' => $tasksArchived,
-                        'tasksOverdue' => $tasksOverdue,
-                        'completionRate' => min($completionRate, 100),
-                        'avgCompletionTime' => $avgCompletionTime,
-                        'onTimeRate' => min($onTimeRate, 100),
-                        'tasksInPeriod' => $tasksInPeriod,
-                        'workflowBreakdown' => $workflowBreakdown,
-                        'rewardPoints' => (int) $rewardPoints,
-                    ];
-                })
-                ->filter(fn($agent) => $agent['tasksTotal'] > 0)
-                ->sortByDesc('completionRate')
-                ->values();
+                // Tasa de cierre — leads asignados al vendedor que se convirtieron en crédito
+                $leadsAsignados = Lead::where('assigned_to_id', $agent->id)
+                    ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                    ->count();
+                $tasaCierre = $leadsAsignados > 0
+                    ? round(($creditosFormalizados / $leadsAsignados) * 100, 1) : null;
+
+                // Visitas del período
+                $visitasCompletadas = Visita::where('user_id', $agent->id)
+                    ->where('status', 'Realizada')
+                    ->whereBetween('fecha_realizada', [$dateRange['start'], $dateRange['end']])
+                    ->count();
+                $visitasPlanificadas = Visita::where('user_id', $agent->id)
+                    ->whereBetween('fecha_planificada', [$dateRange['start'], $dateRange['end']])
+                    ->count();
+
+                // ── Tareas ────────────────────────────────────────────────
+                $baseQuery      = Task::where('assigned_to', $agent->id)->whereNotIn('status', ['deleted']);
+                $tasksTotal     = (clone $baseQuery)->count();
+                $tasksCompleted = (clone $baseQuery)->where('status', 'completada')->count();
+                $completionRate = $tasksTotal > 0
+                    ? round(($tasksCompleted / $tasksTotal) * 100, 0) : 0;
+
+                // Reward points del período
+                $rewardPoints = \App\Models\Rewards\RewardTransaction::whereHas('rewardUser', fn($q) => $q->where('user_id', $agent->id))
+                    ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                    ->where('type', 'earn')
+                    ->sum('amount');
+
+                return [
+                    'id'                  => $agent->id,
+                    'name'                => $agent->name,
+                    // Ventas
+                    'creditosFormalizados'=> $creditosFormalizados,
+                    'montoColocado'       => $montoColocado,
+                    'ticketPromedio'      => $ticketPromedio,
+                    'metaCantidad'        => $metaCantidad,
+                    'alcancePct'          => $alcancePct,
+                    'tasaCierre'          => $tasaCierre,
+                    'comisionPagada'      => $comisionPagada,
+                    'comisionAprobada'    => $comisionAprobada,
+                    'comisionPendiente'   => $comisionPendiente,
+                    'visitasCompletadas'  => $visitasCompletadas,
+                    'visitasPlanificadas' => $visitasPlanificadas,
+                    // Tareas
+                    'tasksTotal'          => $tasksTotal,
+                    'tasksCompleted'      => $tasksCompleted,
+                    'completionRate'      => min($completionRate, 100),
+                    'rewardPoints'        => (int) $rewardPoints,
+                ];
+            })
+            ->sortByDesc('creditosFormalizados')
+            ->values();
+
+            // Totales agregados para el período
+            $totales = [
+                'creditosFormalizados' => $topAgents->sum('creditosFormalizados'),
+                'montoColocado'        => $topAgents->sum('montoColocado'),
+                'comisionPagada'       => $topAgents->sum('comisionPagada'),
+                'visitasCompletadas'   => $topAgents->sum('visitasCompletadas'),
+                'vendedoresConMeta'    => $topAgents->filter(fn($a) => $a['metaCantidad'] > 0)->count(),
+                'vendedoresAlMeta'     => $topAgents->filter(fn($a) => ($a['alcancePct'] ?? 0) >= 100)->count(),
+            ];
 
             return [
                 'topAgents' => $topAgents,
+                'totales'   => $totales,
             ];
         } catch (\Exception $e) {
             return [
                 'topAgents' => [],
+                'totales'   => [],
             ];
         }
     }
@@ -1431,15 +1498,51 @@ class KpiController extends Controller
                 ? round((($prevPortfolio - $evenEarlierPortfolio) / $evenEarlierPortfolio) * 100, 1)
                 : 0;
 
+            // Atribución de créditos formalizados por vendedor en el período
+            $atribucionVendedores = Credit::whereNotNull('formalized_at')
+                ->whereBetween('formalized_at', [$dateRange['start'], $dateRange['end']])
+                ->whereNotNull('assigned_to')
+                ->join('users', 'credits.assigned_to', '=', 'users.id')
+                ->selectRaw('users.id, users.name, COUNT(*) as creditos, SUM(credits.monto_credito) as monto')
+                ->groupBy('users.id', 'users.name')
+                ->orderByDesc('monto')
+                ->get()
+                ->map(fn($r) => [
+                    'user_id'  => $r->id,
+                    'name'     => $r->name,
+                    'creditos' => (int) $r->creditos,
+                    'monto'    => (float) $r->monto,
+                ])
+                ->toArray();
+
+            // Créditos sin atribución (sin assigned_to)
+            $creditosSinAtribucion = Credit::whereNotNull('formalized_at')
+                ->whereBetween('formalized_at', [$dateRange['start'], $dateRange['end']])
+                ->whereNull('assigned_to')
+                ->count();
+
             // NPS - we don't have survey data, so set to 0 (not available)
             // In a real implementation, this would come from a surveys/feedback table
             $nps = 0;
             $prevNps = 0;
 
-            // Revenue per employee - based on portfolio in period
-            $employeeCount = User::count() ?: 1;
-            $revenuePerEmployee = round($currentPortfolio / $employeeCount, 0);
-            $prevRevenuePerEmployee = round($prevPortfolio / $employeeCount, 0);
+            // Revenue per employee — comisiones pagadas en el período / empleados activos
+            // Más preciso que el saldo de cartera porque mide ingresos reales distribuidos
+            $employeeCount = User::where('status', 'Activo')->count() ?: 1;
+
+            $comisionesPagadas = Comision::where('estado', 'Pagada')
+                ->whereBetween('fecha_operacion', [$dateRange['start'], $dateRange['end']])
+                ->sum('monto_comision') ?? 0;
+            $prevComisionesPagadas = Comision::where('estado', 'Pagada')
+                ->whereBetween('fecha_operacion', [$dateRange['prev_start'], $dateRange['prev_end']])
+                ->sum('monto_comision') ?? 0;
+
+            // Fallback: si no hay comisiones, usar el monto de créditos formalizados en el período
+            $baseRevenue     = $comisionesPagadas > 0 ? $comisionesPagadas : $currentPortfolio;
+            $prevBaseRevenue = $prevComisionesPagadas > 0 ? $prevComisionesPagadas : $prevPortfolio;
+
+            $revenuePerEmployee     = round($baseRevenue / $employeeCount, 0);
+            $prevRevenuePerEmployee = round($prevBaseRevenue / $employeeCount, 0);
 
             return [
                 'clv' => [
@@ -1468,6 +1571,8 @@ class KpiController extends Controller
                     'change' => $this->calculateChange((float)$revenuePerEmployee, (float)$prevRevenuePerEmployee),
                     'unit' => '₡',
                 ],
+                'atribucionVendedores'    => $atribucionVendedores ?? [],
+                'creditosSinAtribucion'  => $creditosSinAtribucion ?? 0,
             ];
         } catch (\Exception $e) {
             return [
@@ -1476,6 +1581,8 @@ class KpiController extends Controller
                 'portfolioGrowth' => ['value' => 0, 'change' => 0, 'target' => 20, 'unit' => '%'],
                 'nps' => ['value' => 0, 'change' => 0, 'unit' => ''],
                 'revenuePerEmployee' => ['value' => 0, 'change' => 0, 'unit' => '₡'],
+                'atribucionVendedores' => [],
+                'creditosSinAtribucion' => 0,
             ];
         }
     }
