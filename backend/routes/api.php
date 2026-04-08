@@ -685,7 +685,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
 
     // --- Exports de Inversiones (protegidos con auth) ---
-    Route::middleware('throttle:20,1')->group(function () {
+    Route::middleware('throttle:10,1')->group(function () {
         Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
         Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
         Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
