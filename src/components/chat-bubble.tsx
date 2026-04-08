@@ -393,8 +393,8 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
           />
         </div>
       )}
-      {/* GIF Picker */}
-      {showGif && (
+      {/* GIF Picker — solo si hay API key configurada */}
+      {showGif && TENOR_API_KEY && (
         <div ref={gifRef} className="absolute bottom-full right-0 mb-1 z-50">
           <GifPicker
             tenorApiKey={TENOR_API_KEY}
@@ -471,20 +471,22 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
           <Smile className="h-3.5 w-3.5" />
           <span>Emoji</span>
         </button>
-        <button
-          type="button"
-          className={cn(
-            'flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground transition-colors',
-            'hover:bg-muted hover:text-foreground',
-            showGif && 'bg-accent text-accent-foreground',
-            (disabled || sending) && 'opacity-40 pointer-events-none'
-          )}
-          onClick={() => { setShowGif(!showGif); setShowEmoji(false); }}
-          disabled={disabled || sending}
-        >
-          <ImageIcon className="h-3.5 w-3.5" />
-          <span>GIF</span>
-        </button>
+        {TENOR_API_KEY && (
+          <button
+            type="button"
+            className={cn(
+              'flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground transition-colors',
+              'hover:bg-muted hover:text-foreground',
+              showGif && 'bg-accent text-accent-foreground',
+              (disabled || sending) && 'opacity-40 pointer-events-none'
+            )}
+            onClick={() => { setShowGif(!showGif); setShowEmoji(false); }}
+            disabled={disabled || sending}
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            <span>GIF</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -545,6 +547,13 @@ export function ChatBubble() {
   useEffect(() => { if (isOpen && !hasFetched) fetchComments(showArchived); }, [isOpen, hasFetched, fetchComments, showArchived]);
   // Refresh when panel opens or tab changes
   useEffect(() => { if (isOpen) fetchComments(showArchived); }, [isOpen, showArchived]); // eslint-disable-line
+
+  // Polling cada 15s cuando el panel está abierto
+  useEffect(() => {
+    if (!isOpen) return;
+    const iv = setInterval(() => fetchComments(showArchived), 15_000);
+    return () => clearInterval(iv);
+  }, [isOpen, showArchived, fetchComments]);
 
   // Background badge
   useEffect(() => {
@@ -676,6 +685,7 @@ export function ChatBubble() {
         mentions,
       });
       fetchDirectThread(directUserId);
+      fetchComments(showArchived); // Actualizar lista de conversaciones
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Error al enviar mensaje';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
