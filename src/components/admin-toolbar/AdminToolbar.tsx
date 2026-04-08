@@ -25,6 +25,7 @@ export function AdminToolbar() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   if (!user?.role?.full_access) return null;
+  if (pathname.startsWith('/dashboard/configuracion')) return null;
 
   const module = getModuleFromPathname(pathname);
   const eventTypeKeys = module?.eventTypes.map((e) => e.key) ?? [];

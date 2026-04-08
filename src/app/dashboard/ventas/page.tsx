@@ -15,6 +15,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
@@ -43,8 +47,6 @@ interface MetaVenta {
   mes: number;
   meta_creditos_monto: number;
   meta_creditos_cantidad: number;
-  meta_inversiones_monto: number;
-  meta_inversiones_cantidad: number;
   notas: string | null;
   activo: boolean;
   user?: { id: number; name: string };
@@ -120,17 +122,16 @@ function MetasSection({
   const [form, setForm] = useState({
     user_id: '', anio: String(now.getFullYear()), mes: String(now.getMonth() + 1),
     meta_creditos_monto: '', meta_creditos_cantidad: '',
-    meta_inversiones_monto: '', meta_inversiones_cantidad: '',
     notas: '',
   });
   const [tiers, setTiers] = useState<TierFormItem[]>(TIERS_DEFAULT);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
   const openNew = () => {
     setEditingMeta(null);
     setForm({
       user_id: '', anio: String(now.getFullYear()), mes: String(now.getMonth() + 1),
       meta_creditos_monto: '', meta_creditos_cantidad: '',
-      meta_inversiones_monto: '', meta_inversiones_cantidad: '',
       notas: '',
     });
     setTiers(TIERS_DEFAULT);
@@ -145,8 +146,6 @@ function MetasSection({
       mes: String(meta.mes),
       meta_creditos_monto: String(meta.meta_creditos_monto),
       meta_creditos_cantidad: String(meta.meta_creditos_cantidad),
-      meta_inversiones_monto: String(meta.meta_inversiones_monto),
-      meta_inversiones_cantidad: String(meta.meta_inversiones_cantidad),
       notas: meta.notas || '',
     });
     setTiers(meta.bonus_tiers?.length ? meta.bonus_tiers : TIERS_DEFAULT);
@@ -162,8 +161,6 @@ function MetasSection({
         mes: Number(form.mes),
         meta_creditos_monto: Number(form.meta_creditos_monto) || 0,
         meta_creditos_cantidad: Number(form.meta_creditos_cantidad) || 0,
-        meta_inversiones_monto: Number(form.meta_inversiones_monto) || 0,
-        meta_inversiones_cantidad: Number(form.meta_inversiones_cantidad) || 0,
         notas: form.notas || null,
         tiers,
       };
@@ -182,7 +179,6 @@ function MetasSection({
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Eliminar esta meta?')) return;
     try {
       await api.delete(`/api/metas-venta/${id}`);
       toastSuccess('Meta eliminada');
@@ -235,7 +231,7 @@ function MetasSection({
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(meta)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(meta.id)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteTarget(meta.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -326,6 +322,21 @@ function MetasSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={v => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar meta?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => { handleDelete(deleteTarget!); setDeleteTarget(null); }}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -345,6 +356,7 @@ function ComisionesSection({ agents, ranking }: { agents: Agent[]; ranking: Rank
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [showReglas, setShowReglas] = useState(false);
   const [savingRegla, setSavingRegla] = useState(false);
+  const [deleteReglaTarget, setDeleteReglaTarget] = useState<number | null>(null);
   const [showReglaForm, setShowReglaForm] = useState(false);
   const [editingRegla, setEditingRegla] = useState<ReglaComision | null>(null);
   const [reglaForm, setReglaForm] = useState({ nombre: '', tipo: 'credito', monto_minimo: '', monto_maximo: '', porcentaje: '', activo: true });
@@ -430,7 +442,7 @@ function ComisionesSection({ agents, ranking }: { agents: Agent[]; ranking: Rank
               Reglas de comisión base
             </Button>
           </div>
-          <CardDescription>Comisiones generadas por créditos e inversiones</CardDescription>
+          <CardDescription>Comisiones generadas por créditos</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -588,11 +600,7 @@ function ComisionesSection({ agents, ranking }: { agents: Agent[]; ranking: Rank
                           }}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={async () => {
-                            if (!confirm('¿Eliminar esta regla?')) return;
-                            await api.delete(`/api/reglas-comision/${r.id}`);
-                            fetchReglas();
-                          }}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteReglaTarget(r.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -658,6 +666,25 @@ function ComisionesSection({ agents, ranking }: { agents: Agent[]; ranking: Rank
           </DialogContent>
         </Dialog>
       )}
+
+      <AlertDialog open={deleteReglaTarget !== null} onOpenChange={v => !v && setDeleteReglaTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar regla de comisión?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={async () => {
+              await api.delete(`/api/reglas-comision/${deleteReglaTarget}`);
+              setDeleteReglaTarget(null);
+              fetchReglas();
+            }}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -680,6 +707,7 @@ function VisitasSection({ agents, instituciones, ranking, canCreate = true }: {
   const [filterUser, setFilterUser] = useState('todos');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteVisitaId, setDeleteVisitaId] = useState<number | null>(null);
   const [form, setForm] = useState({
     user_id: '', institucion_id: '', institucion_nombre: '',
     fecha_planificada: '', notas: '',
@@ -822,11 +850,7 @@ function VisitasSection({ agents, instituciones, ranking, canCreate = true }: {
                                 </Button>
                               </>
                             )}
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={async () => {
-                              if (!confirm('¿Eliminar esta visita?')) return;
-                              await api.delete(`/api/visitas/${v.id}`);
-                              fetchVisitas();
-                            }}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteVisitaId(v.id)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -906,6 +930,25 @@ function VisitasSection({ agents, instituciones, ranking, canCreate = true }: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteVisitaId !== null} onOpenChange={v => !v && setDeleteVisitaId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar visita?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={async () => {
+              await api.delete(`/api/visitas/${deleteVisitaId}`);
+              setDeleteVisitaId(null);
+              fetchVisitas();
+            }}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -930,6 +973,7 @@ export default function VentasPage() {
   // Leaderboard / ranking
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [rankingLoading, setRankingLoading] = useState(true);
+  const [allVendedores, setAllVendedores] = useState<{ id: number; name: string; role_name: string }[]>([]);
 
   // Vista vendedor
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -940,6 +984,39 @@ export default function VentasPage() {
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') ?? 'vendedores');
   const [filterVendedor, setFilterVendedor] = useState<string | null>(null);
 
+  // Agregar vendedor
+  const [addVendedorOpen, setAddVendedorOpen] = useState(false);
+  const [addVendedorForm, setAddVendedorForm] = useState({ name: '', email: '', password: '', password_confirmation: '', role_id: 6 });
+  const [addVendedorSaving, setAddVendedorSaving] = useState(false);
+
+  const handleAddVendedor = async () => {
+    setAddVendedorSaving(true);
+    try {
+      await api.post('/api/users', {
+        name: addVendedorForm.name,
+        email: addVendedorForm.email,
+        password: addVendedorForm.password,
+        password_confirmation: addVendedorForm.password_confirmation,
+        status: 'Activo',
+        role_id: addVendedorForm.role_id,
+      });
+      toastSuccess('Vendedor creado');
+      setAddVendedorOpen(false);
+      setAddVendedorForm({ name: '', email: '', password: '', password_confirmation: '', role_id: 6 });
+      fetchAdminData();
+      fetchLeaderboard(); // recarga ranking + allVendedores
+    } catch (e: any) {
+      toastError(e?.response?.data?.message || 'Error al crear vendedor');
+    } finally { setAddVendedorSaving(false); }
+  };
+
+  // Confirmación global
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; description: string; confirmLabel: string; onConfirm: () => void;
+  }>({ open: false, title: '', description: '', confirmLabel: 'Confirmar', onConfirm: () => {} });
+  const askConfirm = (title: string, description: string, onConfirm: () => void, confirmLabel = 'Confirmar') =>
+    setConfirmDialog({ open: true, title, description, confirmLabel, onConfirm });
+
   // Sincronizar tab desde URL (ej: ?tab=visitas desde VendedorDashboard)
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -949,8 +1026,12 @@ export default function VentasPage() {
   const fetchLeaderboard = useCallback(async () => {
     setRankingLoading(true);
     try {
-      const { data } = await api.get('/api/ventas/leaderboard', { params: { anio, mes } });
+      const [{ data }, vendRes] = await Promise.all([
+        api.get('/api/ventas/leaderboard', { params: { anio, mes } }),
+        api.get('/api/ventas/vendedores'),
+      ]);
       setRanking(data.ranking || []);
+      setAllVendedores(vendRes.data || []);
     } catch {}
     finally { setRankingLoading(false); }
   }, [anio, mes]);
@@ -1039,32 +1120,36 @@ export default function VentasPage() {
   // Construir filas de VendedoresTable desde leaderboard + metas
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'interno' | 'externo'>('todos');
 
-  const vendedoresRows: VendedorRow[] = ranking
-    .filter(r => {
+  // Merge: todos los vendedores activos + stats del ranking si existen
+  const vendedoresRows: VendedorRow[] = allVendedores
+    .filter(v => {
       if (filtroTipo === 'todos') return true;
-      const roleName = (r as any).role_name ?? '';
       return filtroTipo === 'interno'
-        ? roleName === 'Vendedor Interno'
-        : roleName !== 'Vendedor Interno';
+        ? v.role_name === 'Vendedor Interno'
+        : v.role_name === 'Vendedor Externo' || v.role_name === 'Vendedor';
     })
-    .map(r => ({
-      user_id: r.user_id,
-      name: r.name,
-      role_name: (r as any).role_name ?? 'Vendedor',
-      creditos_mes: r.creditos_mes,
-      meta_cantidad: r.meta_cantidad,
-      alcance_pct: r.alcance_pct,
-      monto_colocado: (r as any).monto_colocado ?? 0,
-      ticket_promedio: (r as any).ticket_promedio ?? 0,
-      tasa_cierre: (r as any).tasa_cierre ?? null,
-      comision_acumulada: (r as any).comision_acumulada ?? 0,
-      tier_activo_nombre: r.tier_activo_nombre,
-      tier_porcentaje: (r as any).tier_porcentaje ?? null,
-      ultima_actividad: (r as any).ultima_actividad ?? null,
-      posicion: r.posicion,
-    }));
+    .map(v => {
+      const r = ranking.find(r => r.user_id === v.id);
+      return {
+        user_id: v.id,
+        name: v.name,
+        role_name: v.role_name,
+        creditos_mes: r?.creditos_mes ?? 0,
+        meta_cantidad: r?.meta_cantidad ?? 0,
+        alcance_pct: r?.alcance_pct ?? 0,
+        monto_colocado: (r as any)?.monto_colocado ?? 0,
+        ticket_promedio: (r as any)?.ticket_promedio ?? 0,
+        tasa_cierre: (r as any)?.tasa_cierre ?? null,
+        comision_acumulada: (r as any)?.comision_acumulada ?? 0,
+        tier_activo_nombre: r?.tier_activo_nombre ?? '—',
+        tier_porcentaje: (r as any)?.tier_porcentaje ?? null,
+        ultima_actividad: (r as any)?.ultima_actividad ?? null,
+        posicion: r?.posicion ?? null,
+      };
+    });
 
   return (
+    <>
     <ProtectedPage module="ventas">
       <div className="space-y-1 mb-6">
         <h1 className="text-2xl font-bold">Ventas</h1>
@@ -1081,18 +1166,25 @@ export default function VentasPage() {
 
         <TabsContent value="vendedores" className="space-y-4">
           <RankingStrip ranking={ranking} mes={mesNombre} anio={anio} loading={rankingLoading} />
-          <div className="flex items-center gap-2">
-            {(['todos', 'interno', 'externo'] as const).map(tipo => (
-              <Button
-                key={tipo}
-                variant={filtroTipo === tipo ? 'default' : 'outline'}
-                size="sm"
-                className="h-7 text-xs capitalize"
-                onClick={() => setFiltroTipo(tipo)}
-              >
-                {tipo === 'todos' ? 'Todos' : tipo === 'interno' ? 'Internos' : 'Externos'}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {(['todos', 'interno', 'externo'] as const).map(tipo => (
+                <Button
+                  key={tipo}
+                  variant={filtroTipo === tipo ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 text-xs capitalize"
+                  onClick={() => setFiltroTipo(tipo)}
+                >
+                  {tipo === 'todos' ? 'Todos' : tipo === 'interno' ? 'Internos' : 'Externos'}
+                </Button>
+              ))}
+            </div>
+            {isAdmin && (
+              <Button size="sm" className="h-7 text-xs" onClick={() => setAddVendedorOpen(true)}>
+                <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> Agregar vendedor
               </Button>
-            ))}
+            )}
           </div>
           <VendedoresTable
             vendedores={vendedoresRows}
@@ -1103,14 +1195,20 @@ export default function VentasPage() {
               // Navegar al perfil del vendedor para gestionar metas
               window.location.href = `/dashboard/ventas/${userId}`;
             }}
-            onDesactivar={async (userId, name) => {
-              if (!confirm(`¿Desactivar a ${name} del módulo de ventas?`)) return;
-              try {
-                await api.patch(`/api/users/${userId}`, { status: 'inactive' });
-                toastSuccess(`${name} desactivado`);
-                fetchAdminData();
-                fetchLeaderboard();
-              } catch { toastError('Error al desactivar'); }
+            onDesactivar={(userId, name) => {
+              askConfirm(
+                `¿Desactivar a ${name}?`,
+                'Se le quitará el acceso al módulo de ventas.',
+                async () => {
+                  try {
+                    await api.patch(`/api/users/${userId}`, { status: 'inactive' });
+                    toastSuccess(`${name} desactivado`);
+                    fetchAdminData();
+                    fetchLeaderboard();
+                  } catch { toastError('Error al desactivar'); }
+                },
+                'Desactivar'
+              );
             }}
           />
         </TabsContent>
@@ -1134,5 +1232,79 @@ export default function VentasPage() {
         </TabsContent>
       </Tabs>
     </ProtectedPage>
+
+    {/* Dialog: agregar vendedor */}
+    <Dialog open={addVendedorOpen} onOpenChange={setAddVendedorOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Agregar vendedor</DialogTitle>
+          <DialogDescription>Crea un nuevo usuario con acceso al módulo de ventas.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="grid gap-1.5">
+            <Label>Nombre completo</Label>
+            <Input placeholder="Juan Pérez" value={addVendedorForm.name} onChange={e => setAddVendedorForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Correo electrónico</Label>
+            <Input type="email" placeholder="juan@empresa.com" value={addVendedorForm.email} onChange={e => setAddVendedorForm(f => ({ ...f, email: e.target.value }))} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Contraseña</Label>
+            <Input type="password" placeholder="••••••••" value={addVendedorForm.password} onChange={e => setAddVendedorForm(f => ({ ...f, password: e.target.value }))} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Confirmar contraseña</Label>
+            <Input type="password" placeholder="••••••••" value={addVendedorForm.password_confirmation} onChange={e => setAddVendedorForm(f => ({ ...f, password_confirmation: e.target.value }))} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Rol</Label>
+            <div className="flex gap-2">
+              {([{ id: 5, label: 'Vendedor Interno' }, { id: 6, label: 'Vendedor Externo' }]).map(r => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setAddVendedorForm(f => ({ ...f, role_id: r.id }))}
+                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                    addVendedorForm.role_id === r.id ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setAddVendedorOpen(false)}>Cancelar</Button>
+          <Button
+            onClick={handleAddVendedor}
+            disabled={addVendedorSaving || !addVendedorForm.name || !addVendedorForm.email || !addVendedorForm.password || addVendedorForm.password !== addVendedorForm.password_confirmation}
+          >
+            {addVendedorSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Crear vendedor
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <AlertDialog open={confirmDialog.open} onOpenChange={v => !v && setConfirmDialog(d => ({ ...d, open: false }))}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+          <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive hover:bg-destructive/90"
+            onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(d => ({ ...d, open: false })); }}
+          >
+            {confirmDialog.confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

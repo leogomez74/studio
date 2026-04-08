@@ -46,6 +46,49 @@ use App\Http\Controllers\Api\RutaDiariaController;
 |
 */
 
+// --- Health check (detalle para admins autenticados) ---
+Route::get('/health/env/detail', function (Request $request) {
+    $groups = [
+        'app'      => ['APP_NAME', 'APP_ENV', 'APP_KEY', 'APP_URL'],
+        'database' => ['DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME'],
+        'auth'     => ['SANCTUM_STATEFUL_DOMAINS', 'FRONTEND_URL'],
+        'erp'      => ['ERP_SERVICE_URL', 'ERP_SERVICE_TOKEN', 'ERP_SERVICE_SECRET'],
+        'credid'   => ['CREDID_API_URL', 'CREDID_API_TOKEN'],
+        'dsf'      => ['DSF_API_URL', 'DSF_API_TOKEN'],
+        'evolution'=> ['EVOLUTION_API_URL', 'EVOLUTION_API_KEY', 'EVOLUTION_INSTANCE'],
+        'tenor'    => ['TENOR_API_KEY'],
+        'mail'     => ['MAIL_MAILER', 'MAIL_HOST', 'MAIL_PORT'],
+        'cache'    => ['CACHE_STORE', 'QUEUE_CONNECTION', 'SESSION_DRIVER'],
+        'jira'     => ['JIRA_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN', 'JIRA_PROJECT_KEY'],
+    ];
+
+    $results = [];
+    $missing = [];
+    foreach ($groups as $group => $vars) {
+        $groupOk = true;
+        $details = [];
+        foreach ($vars as $var) {
+            $val = env($var, '');
+            $set = !empty($val);
+            $details[$var] = $set ? ('✅ ' . substr($val, 0, 12) . (strlen($val) > 12 ? '...' : '')) : '❌ vacío';
+            if (!$set) { $groupOk = false; $missing[] = $var; }
+        }
+        $results[$group] = ['ok' => $groupOk, 'vars' => $details];
+    }
+
+    // Estado del servicio ERP
+    $erpService = app(\App\Services\ErpAccountingService::class);
+    $results['erp']['service_configured'] = $erpService->isConfigured() ? '✅ isConfigured=true' : '❌ isConfigured=false';
+
+    return response()->json([
+        'status'         => empty($missing) ? 'ok' : 'degraded',
+        'timestamp'      => now()->toIso8601String(),
+        'groups'         => $results,
+        'missing'        => $missing,
+        'total_missing'  => count($missing),
+    ]);
+})->middleware(['auth:sanctum', 'admin']);
+
 // --- Health check ---
 Route::get('/health/env', function (Request $request) {
     $groups = [
@@ -129,9 +172,11 @@ Route::get('/health/env', function (Request $request) {
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-// --- PDFs/Excel públicos del Plan de Pagos (se abren en nueva pestaña) ---
-Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
-Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
+// --- PDFs/Excel del Plan de Pagos (requieren auth via cookie de sesión Sanctum) ---
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
+    Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
+});
 
 // (exports de inversiones movidos a grupo auth:sanctum — ver abajo)
 
@@ -289,10 +334,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/rutas-diarias/{id}/replanificar', [RutaDiariaController::class, 'replanificar'])->middleware(['admin', 'throttle:60,1']);
     Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware(['admin', 'throttle:30,1']);
 
-    // --- Automatización de Tareas ---
+    // --- Automatización de Tareas (sistema) ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
     Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
     Route::delete('/task-automations/{taskAutomation}', [\App\Http\Controllers\Api\TaskAutomationController::class, 'destroy'])->middleware('admin');
+
+    // --- Plantillas de Automatización personalizadas ---
+    Route::middleware('admin')->prefix('automation-templates')->group(function () {
+        Route::get('/',                                    [\App\Http\Controllers\Api\AutomationTemplateController::class, 'index']);
+        Route::post('/',                                   [\App\Http\Controllers\Api\AutomationTemplateController::class, 'store']);
+        Route::get('/variables',                           [\App\Http\Controllers\Api\AutomationTemplateController::class, 'variables']);
+        Route::get('/event-hooks',                         [\App\Http\Controllers\Api\AutomationTemplateController::class, 'eventHooks']);
+        Route::get('/{automationTemplate}',                [\App\Http\Controllers\Api\AutomationTemplateController::class, 'show']);
+        Route::put('/{automationTemplate}',                [\App\Http\Controllers\Api\AutomationTemplateController::class, 'update']);
+        Route::delete('/{automationTemplate}',             [\App\Http\Controllers\Api\AutomationTemplateController::class, 'destroy']);
+        Route::post('/{automationTemplate}/evaluate',      [\App\Http\Controllers\Api\AutomationTemplateController::class, 'evaluateCondition']);
+        Route::post('/{automationTemplate}/execute',       [\App\Http\Controllers\Api\AutomationTemplateController::class, 'execute']);
+    });
 
     // --- Integraciones Externas ---
     Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');
@@ -746,6 +804,15 @@ Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportControlle
     Route::get('ventas/dashboard', [VentasDashboardController::class, 'dashboard']);
     Route::get('ventas/dashboard/{userId}', [VentasDashboardController::class, 'dashboardVendor'])->middleware('admin');
     Route::get('ventas/leaderboard', [VentasDashboardController::class, 'leaderboard']);
+    Route::get('ventas/vendedores', function () {
+        return \App\Models\User::select('id', 'name', 'role_id')
+            ->with('role:id,name')
+            ->whereHas('role', fn ($q) => $q->whereIn('name', ['Vendedor', 'Vendedor Interno', 'Vendedor Externo']))
+            ->where('status', 'Activo')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'role_name' => $u->role?->name ?? 'Vendedor']);
+    });
 
     // --- Ventas: Metas ---
     Route::apiResource('metas-venta', MetaVentaController::class);

@@ -27,7 +27,7 @@ export default function ConfiguracionPage() {
   return (
     <ProtectedPage module={['config_general', 'config_personas', 'config_usuarios', 'config_contabilidad', 'config_sistema']}>
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 h-auto flex-wrap gap-y-1">
           <TabsTrigger value="prestamos">Préstamos</TabsTrigger>
           <TabsTrigger value="tasas">Tasas</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>

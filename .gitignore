@@ -53,6 +53,7 @@ firestore-debug.log
 # local images
 *.jpg
 !public/certificado/*.jpg
+!backend/public/pdf_background*.jpg
 GEMINI.md
 
 CLAUDE.md
