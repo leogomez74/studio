@@ -58,6 +58,8 @@ class Role extends Model
                     'delete' => true,
                     'archive' => true,
                     'assign' => true,
+                    'formalizar' => true,
+                    'formalizar_admin' => true,
                 ];
             }
             return $permissions;
@@ -74,6 +76,8 @@ class Role extends Model
                 'delete' => $perm->can_delete,
                 'archive' => $perm->can_archive ?? false,
                 'assign' => $perm->can_assign ?? false,
+                'formalizar' => $perm->can_formalizar ?? false,
+                'formalizar_admin' => $perm->can_formalizar_admin ?? false,
             ];
         }
         return $permissions;

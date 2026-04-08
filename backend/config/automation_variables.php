@@ -113,6 +113,41 @@ return [
                 'type'      => 'date',
                 'operators' => ['days_ago_gt', 'days_ago_lt', 'is_null', 'is_not_null'],
             ],
+            'credid_consultado_at' => [
+                'label'     => 'Última consulta Credid',
+                'type'      => 'date',
+                'operators' => ['days_ago_gt', 'days_ago_lt', 'is_null', 'is_not_null'],
+            ],
+            'cedula_vencimiento' => [
+                'label'     => 'Vencimiento de cédula',
+                'type'      => 'date',
+                'operators' => ['days_ago_gt', 'days_ago_lt', 'days_from_now_gt', 'days_from_now_lt', 'is_null', 'is_not_null'],
+            ],
+            'salario_exacto' => [
+                'label'     => 'Salario exacto',
+                'type'      => 'number',
+                'operators' => ['gt', 'lt', 'gte', 'lte', 'eq', 'neq', 'is_null', 'is_not_null'],
+            ],
+            'nivel_academico' => [
+                'label'     => 'Nivel académico',
+                'type'      => 'string',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
+            ],
+            'sector' => [
+                'label'     => 'Sector laboral',
+                'type'      => 'string',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
+            ],
+            'nacionalidad' => [
+                'label'     => 'Nacionalidad',
+                'type'      => 'string',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
+            ],
+            'indice_desarrollo_social' => [
+                'label'     => 'Índice de desarrollo social',
+                'type'      => 'number',
+                'operators' => ['gt', 'lt', 'gte', 'lte', 'eq', 'neq', 'is_null', 'is_not_null'],
+            ],
             'created_at' => [
                 'label'     => 'Fecha de registro',
                 'type'      => 'date',
@@ -158,6 +193,16 @@ return [
                 'label'     => 'Fecha estimada de cierre',
                 'type'      => 'date',
                 'operators' => ['days_ago_gt', 'days_from_now_gt', 'days_from_now_lt', 'is_null', 'is_not_null'],
+            ],
+            'lost_reason' => [
+                'label'     => 'Motivo de pérdida',
+                'type'      => 'string',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
+            ],
+            'assigned_to_id' => [
+                'label'     => 'Asignado a (ID usuario)',
+                'type'      => 'number',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
             ],
             'created_at' => [
                 'label'     => 'Fecha de creación',
@@ -343,6 +388,21 @@ return [
                 'type'      => 'number',
                 'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
             ],
+            'tipo_credito' => [
+                'label'     => 'Tipo de crédito',
+                'type'      => 'string',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
+            ],
+            'cierre_motivo' => [
+                'label'     => 'Motivo de cierre',
+                'type'      => 'string',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
+            ],
+            'refundicion_at' => [
+                'label'     => 'Fecha de refundición',
+                'type'      => 'date',
+                'operators' => ['days_ago_gt', 'days_ago_lt', 'is_null', 'is_not_null'],
+            ],
             'created_at' => [
                 'label'     => 'Fecha de creación',
                 'type'      => 'date',
@@ -513,6 +573,17 @@ return [
                 'label'     => 'Fecha de cancelación',
                 'type'      => 'date',
                 'operators' => ['days_ago_gt', 'days_ago_lt', 'is_null', 'is_not_null'],
+            ],
+            'fecha_pago_total' => [
+                'label'     => 'Fecha de pago total',
+                'type'      => 'date',
+                'operators' => ['days_ago_gt', 'days_ago_lt', 'is_null', 'is_not_null'],
+            ],
+            'tipo_cancelacion_total' => [
+                'label'     => 'Tipo de cancelación',
+                'type'      => 'enum',
+                'operators' => ['eq', 'neq', 'is_null', 'is_not_null'],
+                'options'   => ['con_intereses', 'sin_intereses'],
             ],
             'created_at' => [
                 'label'     => 'Fecha de registro',

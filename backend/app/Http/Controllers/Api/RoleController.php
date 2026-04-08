@@ -69,6 +69,8 @@ class RoleController extends Controller
                         'can_delete' => $perms['delete'] ?? false,
                         'can_archive' => $perms['archive'] ?? false,
                         'can_assign' => $perms['assign'] ?? false,
+                        'can_formalizar' => $perms['formalizar'] ?? false,
+                        'can_formalizar_admin' => $perms['formalizar_admin'] ?? false,
                     ]);
                 }
             }
@@ -154,6 +156,8 @@ class RoleController extends Controller
                         'can_delete' => $perms['delete'] ?? false,
                         'can_archive' => $perms['archive'] ?? false,
                         'can_assign' => $perms['assign'] ?? false,
+                        'can_formalizar' => $perms['formalizar'] ?? false,
+                        'can_formalizar_admin' => $perms['formalizar_admin'] ?? false,
                     ]);
                 }
             }

@@ -33,6 +33,13 @@ class Investor extends Model
         'joined_at',
     ];
 
+    // Claves ERP nunca deben exponerse al frontend
+    protected $hidden = [
+        'erp_account_key',
+        'erp_account_key_prestamos',
+        'erp_account_key_intereses',
+    ];
+
     protected $casts = [
         'joined_at' => 'date',
     ];
