@@ -40,7 +40,7 @@ return [
     ],
 
     'erp' => [
-        'url'            => env('ERP_API_URL', ''),
+        'url'            => env('ERP_API_URL', env('ERP_SERVICE_URL', '')),
         'email'          => env('ERP_API_EMAIL', ''),
         'password'       => env('ERP_API_PASSWORD', ''),
         'service_token'  => env('ERP_SERVICE_TOKEN', ''),
