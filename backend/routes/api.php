@@ -760,6 +760,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('ventas/dashboard', [VentasDashboardController::class, 'dashboard']);
     Route::get('ventas/dashboard/{userId}', [VentasDashboardController::class, 'dashboardVendor'])->middleware('admin');
     Route::get('ventas/leaderboard', [VentasDashboardController::class, 'leaderboard']);
+    Route::get('ventas/vendedores', function () {
+        return \App\Models\User::select('id', 'name', 'role_id')
+            ->with('role:id,name')
+            ->whereHas('role', fn ($q) => $q->whereIn('name', ['Vendedor', 'Vendedor Interno', 'Vendedor Externo']))
+            ->where('status', 'Activo')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'role_name' => $u->role?->name ?? 'Vendedor']);
+    });
 
     // --- Ventas: Metas ---
     Route::apiResource('metas-venta', MetaVentaController::class);
