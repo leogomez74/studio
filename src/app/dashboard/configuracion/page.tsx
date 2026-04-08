@@ -20,6 +20,7 @@ import { WorkflowsTab } from '@/components/configuracion/WorkflowsTab';
 import { LabelManager } from '@/components/configuracion/LabelManager';
 import IntegracionesTab from '@/components/configuracion/IntegracionesTab';
 import ApiTokensTab from '@/components/configuracion/ApiTokensTab';
+import { EvolutionApiTab } from '@/components/configuracion/EvolutionApiTab';
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<string>('prestamos');
@@ -45,6 +46,7 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="labels">Etiquetas</TabsTrigger>
           <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
           <TabsTrigger value="api-tokens">API Tokens</TabsTrigger>
+          <TabsTrigger value="evolution-api">WhatsApp</TabsTrigger>
         </TabsList>
 
         <TabsContent value="prestamos">
@@ -113,6 +115,10 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="api-tokens">
           <ApiTokensTab />
+        </TabsContent>
+
+        <TabsContent value="evolution-api">
+          <EvolutionApiTab />
         </TabsContent>
       </Tabs>
     </ProtectedPage>

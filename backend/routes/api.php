@@ -891,4 +891,16 @@ Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportControlle
             Route::delete('/challenges/{id}', [GamificationConfigController::class, 'challengeDestroy']);
         });
     }); // fin middleware admin
+
+    // ── Evolution API (WhatsApp) ──────────────────────────────────────────────
+    Route::middleware('admin')->group(function () {
+        Route::get('/evolution-server-config',    [\App\Http\Controllers\Api\EvolutionServerConfigController::class, 'show']);
+        Route::put('/evolution-server-config',    [\App\Http\Controllers\Api\EvolutionServerConfigController::class, 'update']);
+
+        Route::get('/evolution-instances',                                        [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'index']);
+        Route::post('/evolution-instances',                                       [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'store']);
+        Route::delete('/evolution-instances/{evolutionInstance}',                 [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'destroy']);
+        Route::patch('/evolution-instances/{evolutionInstance}/alias',            [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'updateAlias']);
+        Route::post('/evolution-instances/{evolutionInstance}/reconnect',         [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'reconnect']);
+    });
 }); // fin middleware auth:sanctum
