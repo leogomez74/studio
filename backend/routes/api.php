@@ -243,7 +243,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
     Route::post('/leads/{id}/consultar-credid', [LeadController::class, 'consultarCredid'])->middleware('throttle:10,1');
     Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
-    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula'])->middleware('permission:crm,delete');
+    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula'])->middleware(['permission:crm,delete', 'throttle:5,1']);
     // Bulk actions ANTES del apiResource para evitar conflictos de rutas
     Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
     Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
