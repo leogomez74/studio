@@ -46,6 +46,49 @@ use App\Http\Controllers\Api\RutaDiariaController;
 |
 */
 
+// --- Health check (detalle para admins autenticados) ---
+Route::get('/health/env/detail', function (Request $request) {
+    $groups = [
+        'app'      => ['APP_NAME', 'APP_ENV', 'APP_KEY', 'APP_URL'],
+        'database' => ['DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME'],
+        'auth'     => ['SANCTUM_STATEFUL_DOMAINS', 'FRONTEND_URL'],
+        'erp'      => ['ERP_SERVICE_URL', 'ERP_SERVICE_TOKEN', 'ERP_SERVICE_SECRET'],
+        'credid'   => ['CREDID_API_URL', 'CREDID_API_TOKEN'],
+        'dsf'      => ['DSF_API_URL', 'DSF_API_TOKEN'],
+        'evolution'=> ['EVOLUTION_API_URL', 'EVOLUTION_API_KEY', 'EVOLUTION_INSTANCE'],
+        'tenor'    => ['TENOR_API_KEY'],
+        'mail'     => ['MAIL_MAILER', 'MAIL_HOST', 'MAIL_PORT'],
+        'cache'    => ['CACHE_STORE', 'QUEUE_CONNECTION', 'SESSION_DRIVER'],
+        'jira'     => ['JIRA_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN', 'JIRA_PROJECT_KEY'],
+    ];
+
+    $results = [];
+    $missing = [];
+    foreach ($groups as $group => $vars) {
+        $groupOk = true;
+        $details = [];
+        foreach ($vars as $var) {
+            $val = env($var, '');
+            $set = !empty($val);
+            $details[$var] = $set ? ('✅ ' . substr($val, 0, 12) . (strlen($val) > 12 ? '...' : '')) : '❌ vacío';
+            if (!$set) { $groupOk = false; $missing[] = $var; }
+        }
+        $results[$group] = ['ok' => $groupOk, 'vars' => $details];
+    }
+
+    // Estado del servicio ERP
+    $erpService = app(\App\Services\ErpAccountingService::class);
+    $results['erp']['service_configured'] = $erpService->isConfigured() ? '✅ isConfigured=true' : '❌ isConfigured=false';
+
+    return response()->json([
+        'status'         => empty($missing) ? 'ok' : 'degraded',
+        'timestamp'      => now()->toIso8601String(),
+        'groups'         => $results,
+        'missing'        => $missing,
+        'total_missing'  => count($missing),
+    ]);
+})->middleware(['auth:sanctum', 'admin']);
+
 // --- Health check ---
 Route::get('/health/env', function (Request $request) {
     $groups = [
