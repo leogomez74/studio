@@ -613,6 +613,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/ventas/equipo', [\App\Http\Controllers\Api\KpiController::class, 'ventasEquipo'])->middleware('admin');
     });
 
+    Route::get('/dashboard/summary', [\App\Http\Controllers\Api\KpiController::class, 'dashboardSummary']);
+
     // --- Enterprises ---
     Route::apiResource('enterprises', \App\Http\Controllers\Api\EnterpriseEmployeeDocumentController::class);
 

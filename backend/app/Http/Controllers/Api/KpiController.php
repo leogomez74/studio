@@ -102,6 +102,98 @@ class KpiController extends Controller
     }
 
     /**
+     * Dashboard Summary — datos para el panel principal en una sola llamada.
+     * GET /api/dashboard/summary
+     */
+    public function dashboardSummary(Request $request): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $now   = Carbon::now();
+            $start = $now->copy()->startOfMonth();
+            $end   = $now->copy()->endOfMonth();
+            $prevStart = $now->copy()->subMonth()->startOfMonth();
+            $prevEnd   = $now->copy()->subMonth()->endOfMonth();
+
+            // ── Cartera total (saldo actual de créditos activos) ──────────────
+            $portfolioTotal = Credit::whereIn('status', ['Activo', 'Formalizado', 'En Mora', 'En Progreso', 'Aprobado', 'Por firmar', 'Legal'])
+                ->sum('saldo') ?? 0;
+
+            $portfolioPrev = Credit::whereIn('status', ['Activo', 'Formalizado', 'En Mora', 'En Progreso', 'Aprobado', 'Por firmar', 'Legal'])
+                ->where('created_at', '<=', $prevEnd)
+                ->sum('saldo') ?? 0;
+
+            // ── Cartera en mora ───────────────────────────────────────────────
+            $moraQuery = Credit::where('status', 'En Mora');
+            $moraAmount = (clone $moraQuery)->sum('saldo') ?? 0;
+            $moraCount  = (clone $moraQuery)->count();
+
+            // ── Ventas del mes (créditos formalizados en el período) ──────────
+            $ventasMes = Credit::whereBetween('created_at', [$start, $end])->sum('monto_credito') ?? 0;
+            $ventasPrev = Credit::whereBetween('created_at', [$prevStart, $prevEnd])->sum('monto_credito') ?? 0;
+            $ventasChange = $ventasPrev > 0 ? round((($ventasMes - $ventasPrev) / $ventasPrev) * 100, 1) : 0;
+
+            // ── Abonos recibidos este mes ─────────────────────────────────────
+            $abonos = CreditPayment::whereBetween('fecha_pago', [$start, $end])
+                ->where('estado_reverso', 'Vigente')
+                ->sum('monto') ?? 0;
+            $abonosPrev = CreditPayment::whereBetween('fecha_pago', [$prevStart, $prevEnd])
+                ->where('estado_reverso', 'Vigente')
+                ->sum('monto') ?? 0;
+            $abonosChange = $abonosPrev > 0 ? round((($abonos - $abonosPrev) / $abonosPrev) * 100, 1) : 0;
+
+            // ── Nuevos créditos (últimos 30 días) ─────────────────────────────
+            $thirtyDaysAgo = $now->copy()->subDays(30);
+            $newCredits     = Credit::where('created_at', '>=', $thirtyDaysAgo)->count();
+            $newCreditsPrev = Credit::whereBetween('created_at', [$now->copy()->subDays(60), $thirtyDaysAgo])->count();
+            $newCreditsChange = $newCreditsPrev > 0 ? round((($newCredits - $newCreditsPrev) / $newCreditsPrev) * 100, 1) : 0;
+
+            // ── Nuevas oportunidades este mes ─────────────────────────────────
+            $newOpps     = Opportunity::whereBetween('created_at', [$start, $end])->count();
+            $newOppsPrev = Opportunity::whereBetween('created_at', [$prevStart, $prevEnd])->count();
+            $newOppsChange = $newOppsPrev > 0 ? round((($newOpps - $newOppsPrev) / $newOppsPrev) * 100, 1) : 0;
+
+            // ── Totales históricos ────────────────────────────────────────────
+            $totalClients = Client::count();
+            $activeCredits = Credit::whereIn('status', ['Activo', 'Formalizado', 'En Mora', 'En Progreso', 'Aprobado', 'Por firmar', 'Legal'])->count();
+
+            // ── Distribución por estado para gráfico ──────────────────────────
+            $statusBreakdown = Credit::select('status', DB::raw('COUNT(*) as count'))
+                ->whereIn('status', ['Activo', 'Formalizado', 'En Mora', 'Legal', 'Cerrado'])
+                ->groupBy('status')
+                ->pluck('count', 'status')
+                ->toArray();
+
+            // ── Actividad reciente ────────────────────────────────────────────
+            $recentActivity = \App\Models\ActivityLog::with('user:id,name')
+                ->orderByDesc('created_at')
+                ->limit(5)
+                ->get(['id', 'user_id', 'user_name', 'action', 'module', 'model_label', 'created_at']);
+
+            return response()->json([
+                'portfolioTotal'   => round($portfolioTotal, 0),
+                'portfolioChange'  => $portfolioPrev > 0 ? round((($portfolioTotal - $portfolioPrev) / $portfolioPrev) * 100, 1) : 0,
+                'moraAmount'       => round($moraAmount, 0),
+                'moraCount'        => $moraCount,
+                'ventasMes'        => round($ventasMes, 0),
+                'ventasChange'     => $ventasChange,
+                'abonosMes'        => round($abonos, 0),
+                'abonosChange'     => $abonosChange,
+                'newCredits'       => $newCredits,
+                'newCreditsChange' => $newCreditsChange,
+                'newOpps'          => $newOpps,
+                'newOppsChange'    => $newOppsChange,
+                'totalClients'     => $totalClients,
+                'activeCredits'    => $activeCredits,
+                'statusBreakdown'  => $statusBreakdown,
+                'recentActivity'   => $recentActivity,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Dashboard summary error', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Error al cargar el resumen'], 500);
+        }
+    }
+
+    /**
      * Lead Management KPIs
      */
     public function leads(Request $request)
