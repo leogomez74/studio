@@ -11,15 +11,27 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('evolution_instances')) {
+            return;
+        }
+
         Schema::table('evolution_instances', function (Blueprint $table) {
-            $table->string('alias')->default('')->after('api_key');
+            if (!Schema::hasColumn('evolution_instances', 'alias')) {
+                $table->string('alias')->default('')->after('api_key');
+            }
         });
     }
 
     public function down(): void
     {
+        if (!Schema::hasTable('evolution_instances')) {
+            return;
+        }
+
         Schema::table('evolution_instances', function (Blueprint $table) {
-            $table->dropColumn('alias');
+            if (Schema::hasColumn('evolution_instances', 'alias')) {
+                $table->dropColumn('alias');
+            }
         });
     }
 };
