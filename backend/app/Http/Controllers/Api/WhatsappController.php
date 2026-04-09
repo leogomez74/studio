@@ -187,10 +187,9 @@ class WhatsappController extends Controller
             // Resolver nombre de contacto desde leads/clientes
             $contactName = $validated['contact_name'] ?? '';
             if (!$contactName) {
-                $person = \App\Models\Person::where('telefono', 'like', "%{$phone}%")
-                    ->orWhere('celular', 'like', "%{$phone}%")
+                $person = \App\Models\Person::where('phone', 'like', "%{$phone}%")
                     ->first();
-                $contactName = $person?->nombre_completo ?? '';
+                $contactName = $person ? trim(($person->name ?? '') . ' ' . ($person->apellido1 ?? '') . ' ' . ($person->apellido2 ?? '')) : '';
             }
 
         } catch (\Exception $e) {
