@@ -393,6 +393,21 @@ class InvestmentExportController extends Controller
         $idEnPalabrasES = $idInversor ? $ntw::idToWordsES($idInversor) : '';
         $idEnPalabrasEN = $idInversor ? $ntw::idToWordsEN($idInversor) : '';
 
+        // Traducción automática al inglés via Google Translate (sin API key)
+        $translateToEN = function(?string $text): string {
+            if (!$text) return '';
+            try {
+                return \Stichoza\GoogleTranslate\GoogleTranslate::trans($text, 'en', 'es');
+            } catch (\Exception $e) {
+                return $text; // fallback al original si falla
+            }
+        };
+
+        $estadoCivilEN   = $translateToEN($investor->estado_civil);
+        $profesionEN     = $translateToEN($investor->profesion);
+        $nacionalidadEN  = $translateToEN($investor->nacionalidad);
+        $direccionEN     = $investor->direccion_contrato ?? ''; // dirección no se traduce
+
         if ($lang === 'en') {
             $currency         = $investment->moneda === 'USD' ? 'dollars' : 'colones';
             $montoFormateado  = $investment->moneda === 'USD'
@@ -400,13 +415,17 @@ class InvestmentExportController extends Controller
                 : '₡' . number_format($monto, 2);
             $montoEnPalabras            = $ntw::convertEN($monto, $currency);
             $tasaFormateada             = number_format($tasaPct, 2);
-            $tasaEnPalabras             = $ntw::belowThousandEN((int)$tasaPct) . ' percent';
+            $tasaEnPalabras             = rtrim(rtrim($ntw::convertEN($tasaPct, ''), 'exactly'), ' ') . 'percent';
             $formaPago                  = $ntw::formaPagoEN($investment->forma_pago);
             $plazoEnPalabras            = $ntw::plazoToWordsEN($investment->plazo_meses);
             $fechaInicioEnPalabras      = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
             $fechaVencimientoEnPalabras = $ntw::dateToWordsEN(substr($investment->fecha_vencimiento, 0, 10));
             $fechaFirmaEnPalabras       = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
             $idEnPalabras               = $idEnPalabrasEN;
+            $estadoCivil                = $estadoCivilEN;
+            $profesion                  = $profesionEN;
+            $nacionalidad               = $nacionalidadEN;
+            $direccion                  = $direccionEN;
             $view     = 'pdf.contrato_inversion_en';
             $filename = "loan_agreement_{$investment->numero_desembolso}.pdf";
         } else {
@@ -423,6 +442,10 @@ class InvestmentExportController extends Controller
             $fechaVencimientoEnPalabras = $ntw::dateToWordsES(substr($investment->fecha_vencimiento, 0, 10));
             $fechaFirmaEnPalabras       = $ntw::dateToWordsES(substr($investment->fecha_inicio, 0, 10));
             $idEnPalabras               = $idEnPalabrasES;
+            $estadoCivil                = $investor->estado_civil ?? '';
+            $profesion                  = $investor->profesion ?? '';
+            $nacionalidad               = $investor->nacionalidad ?? '';
+            $direccion                  = $investor->direccion_contrato ?? '';
             $view     = 'pdf.contrato_inversion_es';
             $filename = "contrato_{$investment->numero_desembolso}.pdf";
         }
@@ -431,6 +454,7 @@ class InvestmentExportController extends Controller
             'investment', 'investor',
             'montoFormateado', 'montoEnPalabras',
             'tasaFormateada', 'tasaEnPalabras',
+            'estadoCivil', 'profesion', 'nacionalidad', 'direccion',
             'formaPago', 'plazoEnPalabras',
             'fechaInicioEnPalabras', 'fechaVencimientoEnPalabras', 'fechaFirmaEnPalabras',
             'idEnPalabras'

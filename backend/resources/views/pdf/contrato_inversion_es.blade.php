@@ -25,10 +25,10 @@
 
 <p>
 A) <strong>{{ strtoupper($investor->name) }}</strong>,
-@if($investor->nacionalidad) {{ $investor->nacionalidad }}, @endif
-@if($investor->estado_civil) {{ $investor->estado_civil }}, @endif
-@if($investor->profesion) {{ $investor->profesion }}, @endif
-@if($investor->direccion_contrato) vecino de: {{ $investor->direccion_contrato }}, @endif
+@if($nacionalidad) {{ $nacionalidad }}, @endif
+@if($estadoCivil) {{ $estadoCivil }}, @endif
+@if($profesion) {{ $profesion }}, @endif
+@if($direccion) vecino de: {{ $direccion }}, @endif
 @if($investor->cedula)
 @if($investor->tipo_persona === 'Persona Jurídica') cédula jurídica número: @else portador de la cédula número: @endif <strong>{{ $idEnPalabras }}</strong>,
 @endif

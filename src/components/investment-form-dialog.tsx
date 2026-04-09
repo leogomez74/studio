@@ -179,25 +179,24 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
         onSuccess();
         onOpenChange(false);
 
-        // Descargar contratos automáticamente en ambos idiomas (autenticado)
+        // Descargar contratos en ambos idiomas
         if (newId) {
           const downloadContract = async (lang: string, filename: string) => {
-            try {
-              const res = await api.get(`/api/investments/${newId}/export/contrato/${lang}`, { responseType: 'blob' });
-              const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = filename;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-            } catch { /* silencioso */ }
+            const res = await api.get(`/api/investments/${newId}/export/contrato/${lang}`, { responseType: 'blob' });
+            const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
           };
-          // Descargar secuencialmente para evitar bloqueo del navegador
-          downloadContract('es', `contrato_${newId}_es.pdf`).then(() => {
-            setTimeout(() => downloadContract('en', `contrato_${newId}_en.pdf`), 800);
-          });
+          // Descargar ambos en paralelo
+          await Promise.allSettled([
+            downloadContract('es', `contrato_${newId}_es.pdf`),
+            downloadContract('en', `contrato_${newId}_en.pdf`),
+          ]);
         }
       }
     } catch (err: any) {
