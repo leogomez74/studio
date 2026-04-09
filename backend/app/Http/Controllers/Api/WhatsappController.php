@@ -24,7 +24,8 @@ class WhatsappController extends Controller
 
     /**
      * GET /api/whatsapp/conversations
-     * Consulta Evolution API para listar chats recientes de la instancia.
+     * Lista conversaciones desde la BD local (mensajes enviados/vistos),
+     * agrupadas por phone_number, ordenadas por el mensaje más reciente.
      */
     public function conversations(Request $request): JsonResponse
     {
@@ -33,36 +34,23 @@ class WhatsappController extends Controller
             return response()->json(['message' => 'Sin instancia asignada'], 403);
         }
 
-        try {
-            $response = Http::withHeaders(['apikey' => $instance->api_key])
-                ->timeout(15)
-                ->get($this->getBaseUrl() . '/chat/findChats/' . $instance->instance_name);
-
-            if (!$response->successful()) {
-                return response()->json(['message' => "Evolution API: HTTP {$response->status()}"], 422);
-            }
-
-            $chats = collect($response->json())->map(function ($chat) {
-                $phone = preg_replace('/@.*/', '', $chat['id'] ?? '');
+        $conversations = WhatsappMessage::where('evolution_instance_id', $instance->id)
+            ->orderByDesc('wa_timestamp')
+            ->get()
+            ->groupBy('phone_number')
+            ->map(function ($messages, $phone) {
+                $last = $messages->first();
                 return [
                     'phone_number' => $phone,
-                    'contact_name' => $chat['name'] ?? $chat['pushName'] ?? $phone,
-                    'last_message' => $chat['lastMessage']['message']['conversation']
-                        ?? $chat['lastMessage']['message']['extendedTextMessage']['text']
-                        ?? '📎 Archivo',
-                    'last_at'      => isset($chat['lastMessage']['messageTimestamp'])
-                        ? date('c', $chat['lastMessage']['messageTimestamp'])
-                        : null,
-                    'unread'       => $chat['unreadCount'] ?? 0,
+                    'contact_name' => $last->contact_name ?: $phone,
+                    'last_message' => $last->body,
+                    'last_at'      => $last->wa_timestamp,
+                    'unread'       => 0,
                 ];
-            })->filter(fn($c) => $c['phone_number'] && !str_contains($c['phone_number'], '-'))
-              ->values();
+            })
+            ->values();
 
-            return response()->json($chats);
-
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
-        }
+        return response()->json($conversations);
     }
 
     /**
