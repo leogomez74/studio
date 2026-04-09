@@ -1491,10 +1491,18 @@ function CreditDetailClient({ id }: { id: string }) {
                 <>
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-                      const cleanBase = baseUrl.replace(/\/api\/?$/, '');
-                      window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
+                    onClick={async () => {
+                      try {
+                        const res = await api.get(`/api/credits/${id}/plan-pdf`, { responseType: 'blob' });
+                        const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `plan_pagos_${credit?.reference || id}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      } catch { toast({ title: 'Error', description: 'No se pudo generar el PDF', variant: 'destructive' }); }
                     }}
                     className="bg-red-600 border-red-700 text-white hover:bg-red-700"
                   >
