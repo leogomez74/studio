@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, MoreHorizontal, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/auth-guard';
 import { API_BASE_URL } from '@/lib/env';
+import api from '@/lib/axios';
 
 const UsuariosTab: React.FC = () => {
   const { toast } = useToast();
@@ -34,13 +35,21 @@ const UsuariosTab: React.FC = () => {
   const [newUser, setNewUser] = useState({
     name: '', email: '', password: '', password_confirmation: '',
     role_id: 'none', status: 'Activo', monto_max_aprobacion: -1,
+    evolution_instance_id: '' as string | number | null,
   });
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
+  const [evolutionInstances, setEvolutionInstances] = useState<{ id: number; instance_name: string; alias: string }[]>([]);
 
   useEffect(() => {
-    if (token) { fetchUsers(); fetchRoles(); }
+    if (token) {
+      fetchUsers();
+      fetchRoles();
+      api.get('/api/evolution-instances').then(res => {
+        setEvolutionInstances(Array.isArray(res.data) ? res.data : []);
+      }).catch(() => {});
+    }
   }, [token]);
 
   const fetchRoles = async () => {
@@ -67,7 +76,7 @@ const UsuariosTab: React.FC = () => {
 
   const openCreateUserDialog = () => {
     setEditingUser(null);
-    setNewUser({ name: '', email: '', password: '', password_confirmation: '', role_id: 'none', status: 'Activo', monto_max_aprobacion: -1 });
+    setNewUser({ name: '', email: '', password: '', password_confirmation: '', role_id: 'none', status: 'Activo', monto_max_aprobacion: -1, evolution_instance_id: null });
     setIsCreateUserOpen(true);
   };
 
@@ -77,6 +86,7 @@ const UsuariosTab: React.FC = () => {
       name: user.name || '', email: user.email || '', password: '', password_confirmation: '',
       role_id: user.role_id ? user.role_id.toString() : 'none',
       status: user.status || 'Activo', monto_max_aprobacion: user.monto_max_aprobacion ?? -1,
+      evolution_instance_id: user.evolution_instance_id ?? null,
     });
     setIsCreateUserOpen(true);
   };
@@ -103,7 +113,7 @@ const UsuariosTab: React.FC = () => {
         toast({ title: editingUser ? 'Usuario Actualizado' : 'Usuario Creado', description: editingUser ? 'El usuario ha sido actualizado.' : 'El usuario ha sido registrado exitosamente.' });
         setIsCreateUserOpen(false);
         setEditingUser(null);
-        setNewUser({ name: '', email: '', password: '', password_confirmation: '', role_id: 'none', status: 'Activo', monto_max_aprobacion: -1 });
+        setNewUser({ name: '', email: '', password: '', password_confirmation: '', role_id: 'none', status: 'Activo', monto_max_aprobacion: -1, evolution_instance_id: null });
         fetchUsers();
       } else {
         const errorData = await res.json();
@@ -222,6 +232,25 @@ const UsuariosTab: React.FC = () => {
                   <Label htmlFor="monto_max_aprobacion">Monto Máximo de Aprobación (₡)</Label>
                   <Input id="monto_max_aprobacion" type="number" step="0.01" value={newUser.monto_max_aprobacion} onChange={(e) => setNewUser({ ...newUser, monto_max_aprobacion: parseFloat(e.target.value) || -1 })} placeholder="-1" />
                   <p className="text-xs text-muted-foreground">-1 = Sin límite (puede aprobar cualquier monto). Para restringir, ingrese el monto máximo que puede aprobar.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="evolution-instance">Instancia WhatsApp</Label>
+                  <Select
+                    value={newUser.evolution_instance_id ? newUser.evolution_instance_id.toString() : 'none'}
+                    onValueChange={(v) => setNewUser({ ...newUser, evolution_instance_id: v === 'none' ? null : Number(v) })}
+                  >
+                    <SelectTrigger id="evolution-instance">
+                      <SelectValue placeholder="Sin instancia asignada" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin instancia</SelectItem>
+                      {evolutionInstances.map(inst => (
+                        <SelectItem key={inst.id} value={inst.id.toString()}>
+                          {inst.alias || inst.instance_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={creatingUser}>
