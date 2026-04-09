@@ -388,35 +388,42 @@ class InvestmentExportController extends Controller
         $tasa    = (float) $investment->tasa_anual;  // ya en decimal: 0.06 = 6%
         $tasaPct = $tasa * 100;
 
+        // ID en palabras (dígito por dígito)
+        $idInversor = $investor->cedula ?? '';
+        $idEnPalabrasES = $idInversor ? $ntw::idToWordsES($idInversor) : '';
+        $idEnPalabrasEN = $idInversor ? $ntw::idToWordsEN($idInversor) : '';
+
         if ($lang === 'en') {
-            $currency    = $investment->moneda === 'USD' ? 'dollars' : 'colones';
+            $currency         = $investment->moneda === 'USD' ? 'dollars' : 'colones';
             $montoFormateado  = $investment->moneda === 'USD'
                 ? '$' . number_format($monto, 2)
                 : '₡' . number_format($monto, 2);
-            $montoEnPalabras  = $ntw::convertEN($monto, $currency);
-            $tasaFormateada   = number_format($tasaPct, 2);
-            $tasaEnPalabras   = $ntw::belowThousandEN((int)$tasaPct) . ' percent';
-            $formaPago        = $ntw::formaPagoEN($investment->forma_pago);
-            $plazoEnPalabras  = $ntw::plazoToWordsEN($investment->plazo_meses);
-            $fechaInicioEnPalabras     = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
+            $montoEnPalabras            = $ntw::convertEN($monto, $currency);
+            $tasaFormateada             = number_format($tasaPct, 2);
+            $tasaEnPalabras             = $ntw::belowThousandEN((int)$tasaPct) . ' percent';
+            $formaPago                  = $ntw::formaPagoEN($investment->forma_pago);
+            $plazoEnPalabras            = $ntw::plazoToWordsEN($investment->plazo_meses);
+            $fechaInicioEnPalabras      = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
             $fechaVencimientoEnPalabras = $ntw::dateToWordsEN(substr($investment->fecha_vencimiento, 0, 10));
-            $fechaFirmaEnPalabras      = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
-            $view = 'pdf.contrato_inversion_en';
+            $fechaFirmaEnPalabras       = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
+            $idEnPalabras               = $idEnPalabrasEN;
+            $view     = 'pdf.contrato_inversion_en';
             $filename = "loan_agreement_{$investment->numero_desembolso}.pdf";
         } else {
-            $moneda  = $investment->moneda === 'USD' ? 'dólares' : 'colones';
+            $moneda           = $investment->moneda === 'USD' ? 'dólares' : 'colones';
             $montoFormateado  = $investment->moneda === 'USD'
                 ? 'US$' . number_format($monto, 2)
                 : '₡' . number_format($monto, 2);
-            $montoEnPalabras  = $ntw::convert($monto, strtoupper($moneda));
-            $tasaFormateada   = number_format($tasaPct, 2);
-            $tasaEnPalabras   = $ntw::convert($tasaPct, 'POR CIENTO');
-            $formaPago        = $ntw::formaPagoES($investment->forma_pago);
-            $plazoEnPalabras  = $ntw::plazoToWordsES($investment->plazo_meses);
-            $fechaInicioEnPalabras     = $ntw::dateToWordsES(substr($investment->fecha_inicio, 0, 10));
+            $montoEnPalabras            = $ntw::convert($monto, strtoupper($moneda));
+            $tasaFormateada             = number_format($tasaPct, 2);
+            $tasaEnPalabras             = $ntw::convert($tasaPct, 'POR CIENTO');
+            $formaPago                  = $ntw::formaPagoES($investment->forma_pago);
+            $plazoEnPalabras            = $ntw::plazoToWordsES($investment->plazo_meses);
+            $fechaInicioEnPalabras      = $ntw::dateToWordsES(substr($investment->fecha_inicio, 0, 10));
             $fechaVencimientoEnPalabras = $ntw::dateToWordsES(substr($investment->fecha_vencimiento, 0, 10));
-            $fechaFirmaEnPalabras      = $ntw::dateToWordsES(substr($investment->fecha_inicio, 0, 10));
-            $view = 'pdf.contrato_inversion_es';
+            $fechaFirmaEnPalabras       = $ntw::dateToWordsES(substr($investment->fecha_inicio, 0, 10));
+            $idEnPalabras               = $idEnPalabrasES;
+            $view     = 'pdf.contrato_inversion_es';
             $filename = "contrato_{$investment->numero_desembolso}.pdf";
         }
 
@@ -425,7 +432,8 @@ class InvestmentExportController extends Controller
             'montoFormateado', 'montoEnPalabras',
             'tasaFormateada', 'tasaEnPalabras',
             'formaPago', 'plazoEnPalabras',
-            'fechaInicioEnPalabras', 'fechaVencimientoEnPalabras', 'fechaFirmaEnPalabras'
+            'fechaInicioEnPalabras', 'fechaVencimientoEnPalabras', 'fechaFirmaEnPalabras',
+            'idEnPalabras'
         ))->setPaper('letter', 'portrait');
 
         return $pdf->stream($filename);

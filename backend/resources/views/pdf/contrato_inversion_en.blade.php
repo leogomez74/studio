@@ -29,7 +29,7 @@ A) <strong>{{ strtoupper($investor->name) }}</strong>,
 @if($investor->profesion) {{ $investor->profesion }}, @endif
 @if($investor->direccion_contrato) residing at: {{ $investor->direccion_contrato }}, @endif
 @if($investor->cedula)
-@if($investor->tipo_persona === 'Persona Jurídica') legal entity ID number: @else ID/Passport number: @endif <strong>{{ $investor->cedula }}</strong>,
+@if($investor->tipo_persona === 'Persona Jurídica') legal entity ID number: @else ID/Passport number: @endif <strong>{{ $idEnPalabras }}</strong>,
 @endif
 hereinafter referred to as: <strong>"The Lender"</strong>
 </p>

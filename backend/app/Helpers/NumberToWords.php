@@ -206,6 +206,37 @@ class NumberToWords
 
     // ── Forma de pago ─────────────────────────────────────────────────────────
 
+    // ── Dígitos en palabras (para cédulas/pasaportes) ─────────────────────────
+
+    private static array $digitosES = [
+        '0' => 'CERO', '1' => 'UNO', '2' => 'DOS', '3' => 'TRES', '4' => 'CUATRO',
+        '5' => 'CINCO', '6' => 'SEIS', '7' => 'SIETE', '8' => 'OCHO', '9' => 'NUEVE',
+    ];
+
+    private static array $digitosEN = [
+        '0' => 'ZERO', '1' => 'ONE', '2' => 'TWO', '3' => 'THREE', '4' => 'FOUR',
+        '5' => 'FIVE', '6' => 'SIX', '7' => 'SEVEN', '8' => 'EIGHT', '9' => 'NINE',
+    ];
+
+    /** Convierte cada dígito/carácter en palabras: "542837901" → "CINCO CUATRO DOS..." */
+    public static function idToWordsES(string $id): string
+    {
+        $result = [];
+        foreach (str_split(strtoupper($id)) as $char) {
+            $result[] = self::$digitosES[$char] ?? $char;
+        }
+        return implode('- ', $result);
+    }
+
+    public static function idToWordsEN(string $id): string
+    {
+        $result = [];
+        foreach (str_split(strtoupper($id)) as $char) {
+            $result[] = self::$digitosEN[$char] ?? $char;
+        }
+        return implode(' ', $result);
+    }
+
     public static function formaPagoES(string $forma): string
     {
         return match(strtoupper($forma)) {
