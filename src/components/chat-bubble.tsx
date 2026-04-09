@@ -645,6 +645,19 @@ export function ChatBubble() {
   useEffect(() => { if (isOpen) fetchComments(showArchived); }, [isOpen, showArchived]); // eslint-disable-line
   useEffect(() => { if (isOpen && hasWhatsapp) fetchWaConversations(); }, [isOpen, hasWhatsapp, fetchWaConversations]); // eslint-disable-line
 
+  // Polling WhatsApp: refresca mensajes cada 5s si hay conversación abierta, conversaciones cada 15s
+  useEffect(() => {
+    if (!isOpen || !hasWhatsapp) return;
+    const iv = setInterval(() => {
+      if (waPhone) {
+        fetchWaMessages(waPhone);
+      } else {
+        fetchWaConversations();
+      }
+    }, 5_000);
+    return () => clearInterval(iv);
+  }, [isOpen, hasWhatsapp, waPhone, fetchWaMessages, fetchWaConversations]); // eslint-disable-line
+
   // Polling cada 15s cuando el panel está abierto
   useEffect(() => {
     if (!isOpen) return;
