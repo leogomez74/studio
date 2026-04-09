@@ -421,7 +421,7 @@ export default function DealsPage() {
       // Exclude archived (Cerrada) from main list
       params.exclude_status = 'Cerrada';
 
-      const response = await api.get('/api/opportunities', { params });
+      const response = await api.get('/api/opportunities', { params: { ...params, with_documents: true } });
 
       // Handle paginated response from Laravel
       const isPaginated = response.data.data && response.data.current_page;

@@ -338,7 +338,7 @@ export default function ClientDetailPage() {
       setLoadingOpportunities(true);
       try {
         const response = await api.get('/api/opportunities', {
-          params: { lead_cedula: client.cedula, per_page: 100 }
+          params: { lead_cedula: client.cedula, per_page: 100, with_documents: true }
         });
         const data = Array.isArray(response.data) ? response.data : (response.data?.data || []);
         setOpportunities(data);

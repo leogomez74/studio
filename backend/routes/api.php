@@ -87,7 +87,7 @@ Route::get('/health/env/detail', function (Request $request) {
         'missing'        => $missing,
         'total_missing'  => count($missing),
     ]);
-})->middleware(['auth:sanctum', 'admin']);
+})->middleware(['auth:sanctum', 'admin', 'throttle:10,1']);
 
 // --- Health check ---
 Route::get('/health/env', function (Request $request) {
@@ -243,7 +243,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
     Route::post('/leads/{id}/consultar-credid', [LeadController::class, 'consultarCredid'])->middleware('throttle:10,1');
     Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
-    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula'])->middleware('permission:crm,delete');
+    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula'])->middleware(['permission:crm,delete', 'throttle:5,1']);
     // Bulk actions ANTES del apiResource para evitar conflictos de rutas
     Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
     Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
@@ -396,17 +396,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'index']);
         Route::get('/stats', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'stats']);
         Route::get('/alerts', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'alerts']);
-        Route::get('/export', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'export']);
+        Route::get('/export', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'export'])->middleware('throttle:10,1');
         Route::get('/{id}', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'show']);
         Route::post('/{id}/retry', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'retry'])->middleware(['admin', 'throttle:10,1']);
     });
 
     // --- Bitácora de Auditoría General del Sistema ---
-    Route::prefix('activity-logs')->group(function () {
+    Route::prefix('activity-logs')->middleware('admin')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\ActivityLogController::class, 'index']);
         Route::get('/stats', [\App\Http\Controllers\Api\ActivityLogController::class, 'stats']);
         Route::get('/alerts', [\App\Http\Controllers\Api\ActivityLogController::class, 'alerts']);
-        Route::get('/export', [\App\Http\Controllers\Api\ActivityLogController::class, 'export']);
+        Route::get('/export', [\App\Http\Controllers\Api\ActivityLogController::class, 'export'])->middleware('throttle:10,1');
         Route::get('/{id}', [\App\Http\Controllers\Api\ActivityLogController::class, 'show']);
     });
 
@@ -613,6 +613,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/ventas/equipo', [\App\Http\Controllers\Api\KpiController::class, 'ventasEquipo'])->middleware('admin');
     });
 
+    Route::get('/dashboard/summary', [\App\Http\Controllers\Api\KpiController::class, 'dashboardSummary']);
+
     // --- Enterprises ---
     Route::apiResource('enterprises', \App\Http\Controllers\Api\EnterpriseEmployeeDocumentController::class);
 
@@ -685,16 +687,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
 
     // --- Exports de Inversiones (protegidos con auth) ---
-    Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
-    Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
-    Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
-    Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
-    Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
-    Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
-    Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
-    Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
-    Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
-Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportController::class, 'contratoInversionPdf']);
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
+        Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
+        Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
+        Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
+        Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
+        Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
+        Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
+        Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
+        Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
+        Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportController::class, 'contratoInversionPdf']);
+    });
 
     // --- Embargo ---
     Route::get('/embargo/personas', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'buscarPersonas']);
@@ -753,8 +757,8 @@ Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportControlle
     Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada'])->middleware('throttle:30,1');
     Route::post('credit-payments/cancelacion-anticipada', [CreditPaymentController::class, 'cancelacionAnticipada'])->middleware('throttle:10,1');
     Route::post('credit-payments/preview-planilla', [CreditPaymentController::class, 'previewPlanilla'])->middleware('throttle:30,1');
-    Route::get('credit-payments/export-preview-excel/{hash}', [CreditPaymentController::class, 'exportPreviewExcel']);
-    Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf']);
+    Route::get('credit-payments/export-preview-excel/{hash}', [CreditPaymentController::class, 'exportPreviewExcel'])->middleware('throttle:20,1');
+    Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf'])->middleware('throttle:20,1');
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload'])->middleware('throttle:10,1');
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto'])->middleware('throttle:30,1');
     Route::post('credit-payments/abono-extraordinario/preview', [CreditPaymentController::class, 'previewAbonoExtraordinario'])->middleware('throttle:30,1');
@@ -773,8 +777,8 @@ Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportControlle
     Route::get('planilla-uploads', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'index']);
     Route::get('planilla-uploads/{id}', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'show']);
     Route::get('planilla-uploads/{id}/download', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'download']);
-    Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen']);
-    Route::get('planilla-uploads/{id}/export-resumen-pdf', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumenPdf']);
+    Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen'])->middleware('throttle:20,1');
+    Route::get('planilla-uploads/{id}/export-resumen-pdf', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumenPdf'])->middleware('throttle:20,1');
     Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular'])->middleware('throttle:10,1');
 
     // --- Tasas ---

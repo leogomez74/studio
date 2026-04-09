@@ -76,7 +76,6 @@ const navGroups = [
   {
     label: 'Equipo',
     items: [
-      { href: '/dashboard/staff', icon: Briefcase, label: 'Colaboradores', module: 'staff', badge: 'Próximamente' },
       { href: '/dashboard/entrenamiento', icon: GraduationCap, label: 'Entrenamiento', module: 'entrenamiento', badge: 'Próximamente' },
       { href: '/dashboard/rewards', icon: Trophy, label: 'Recompensas', module: 'recompensas', badge: 'Próximamente' },
     ],
